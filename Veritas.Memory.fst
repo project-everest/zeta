@@ -1,6 +1,7 @@
 module Veritas.Memory
 
 open FStar.BitVector
+open FStar.Seq
 
 (* address is a 256 bit value *)
 let addr_size = 256
@@ -31,7 +32,7 @@ let address_of (o: memory_op): Tot addr =
   | Write a _ -> a
 
 (* Log is a sequence (list) of memory operations *)
-type memory_op_log = list memory_op
+type memory_op_log = seq memory_op
 
 (* Initial state of memory - all addresses have Null *)
 let init_memory:memory = fun _ -> Null
@@ -43,12 +44,15 @@ match o with
   | Write a v -> (fun a' -> if a' = a then v else m a') 
 
 (* read-write consistency of a log with respect to an initial state of memory*)
-let rec rw_consistent_helper (m:memory) (l:memory_op_log): Tot bool =
-match l with
-  | [] -> true
-  | op::l' -> if Read? op 
-             then (Read?.v op = m (Read?.a op)) && rw_consistent_helper m l'
-             else rw_consistent_helper (apply m op) l'
+let rec rw_consistent_helper (m:memory) (l:memory_op_log): Tot bool (decreases (length l)) =
+  let n = length l in
+  if n = 0 then true
+  else 
+    let op = index l 0 in 
+    let l' = slice l 1 n  in 
+    if Read? op 
+    then Read?.v op = m (Read?.a op) && rw_consistent_helper m l'
+    else rw_consistent_helper (apply m op) l'
 
 (*
  * read-write consistency starting from the initial state where all 
