@@ -24,6 +24,12 @@ type memory_op =
   (* Write operation writing a value v at address a *)
   | Write: a:addr -> v:payload -> memory_op
 
+(* Return address of a memory operator *)
+let address_of (o: memory_op): Tot addr = 
+  match o with
+  | Read a _ -> a
+  | Write a _ -> a
+
 (* Log is a sequence (list) of memory operations *)
 type memory_op_log = list memory_op
 
