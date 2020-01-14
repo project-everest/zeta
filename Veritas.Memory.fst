@@ -66,6 +66,7 @@ let written_value (l:memory_op_log) (i:log_index l{is_write_op l i}): Tot payloa
 type memory = addr -> payload
 
 (* The state of the naive verifier as it processes the log *)
+(* TODO: Learn about noeq - this does not seem to compile without it *)
 noeq type naive_verifier_state =
   | NFailed: naive_verifier_state
   | NValid: m:memory -> naive_verifier_state
@@ -83,14 +84,18 @@ let rec naive_verifier (m:memory) (l:memory_op_log): Tot naive_verifier_state
   if n = 0 then NValid m
   else
     let l' = slice l 0 (n - 1) in
+    // Recursively verify prefix
     let vs = naive_verifier m l' in
+    // Propagate prefix failures
     if NFailed? vs then NFailed
     else
       let o = index l (n - 1) in
       let m' = NValid?.m vs in
       if Read? o then
+        // Check value read is value in memory 
         if Read?.v o = m' (Read?.a o) then vs else NFailed
       else
+        // Apply write changes
         NValid (apply m' o)
 
 (* Initial state of memory - all addresses have Null *)
@@ -101,6 +106,12 @@ let init_memory:memory = fun _ -> Null
  * addresses are initialized to Null
  *)
 let rw_consistent (l:memory_op_log): Tot bool = NValid? (naive_verifier init_memory l)
+
+(*
+ * We next prove that a particular property of the log - every read 
+ * corresponds to the most recent write - implies read write 
+ * consistency as defined above
+ *)
 
 (* Identify the last write to an address if it exists *)
 let rec last_write_aux (l:memory_op_log) (a:addr):
@@ -129,6 +140,10 @@ let rec last_write_aux (l:memory_op_log) (a:addr):
        | _ -> lemma_len_slice l 0 (n - 1);
               option_range_expand (last_write_aux (slice l 0 (n - 1)) a)
 
+(* 
+ * Prove last_write is correct in the sense that it is a write to the
+ * provided address
+ *)
 let rec last_write_is_write_to_a (l:memory_op_log) (a:addr):
   Lemma (requires (Some? (last_write_aux l a)))
         (ensures (address_at_idx l (Some?.v (last_write_aux l a)) = a /\
@@ -145,6 +160,10 @@ let rec last_write_is_write_to_a (l:memory_op_log) (a:addr):
                     else last_write_is_write_to_a l' a
     | _ -> last_write_is_write_to_a l' a
 
+(*
+ * Prove that last_write is correct in the sense that every subsequent 
+ * operation is either a read or a write to a different address
+ *)
 let rec last_write_is_last_write (l:memory_op_log) (a:addr) (i:log_index l):
   Lemma (requires (Some? (last_write_aux l a) && i > Some?.v (last_write_aux l a)))
         (ensures (is_read_op l i || address_at_idx l i <> a))
@@ -162,6 +181,10 @@ let rec last_write_is_last_write (l:memory_op_log) (a:addr) (i:log_index l):
     | _ -> if i = n - 1 then ()
            else last_write_is_last_write l' a i; ()
 
+(*
+ * Prove that existence of any write implies that last_write returns 
+ * a legitimate index as output 
+ *)
 let rec write_exists_implies_last_write (l:memory_op_log) (i:log_index l):
   Lemma (requires (is_write_op l i))
         (ensures (Some? (last_write_aux l (address_at_idx l i))))
@@ -176,7 +199,11 @@ let rec write_exists_implies_last_write (l:memory_op_log) (i:log_index l):
     else
       write_exists_implies_last_write l' i
 
-let last_write_aux2 (l:memory_op_log) (a:addr):
+(* 
+ * "Final" last_write function that pulls together all the above properties as 
+ * refinement of the return type
+ *)
+let last_write (l:memory_op_log) (a:addr):
   Tot (option (i:(log_index l){address_at_idx l i = a /\ is_write_op l i})) =
   let optwi = last_write_aux l a in
   if None? optwi then None
@@ -184,11 +211,15 @@ let last_write_aux2 (l:memory_op_log) (a:addr):
     let wi = Some?.v optwi in
     (last_write_is_write_to_a l a; Some wi)
 
-let last_write (l:memory_op_log) (i:log_index l):
+(*
+ * Given an index of the log, return the most recent previous write
+ * to the address in the index if it exists
+ *)
+let prev_write_of_idx (l:memory_op_log) (i:log_index l):
   Tot (option (j:log_index l{j < i && address_at_idx l j = address_at_idx l i && is_write_op l j})) =
   let l' = slice l 0 i in
   let a = address_at_idx l i in
-  let optj = last_write_aux2 l' a in
+  let optj = last_write l' a in
   if None? optj then None
   else
     let j = Some?.v optj in
@@ -198,13 +229,21 @@ let last_write (l:memory_op_log) (i:log_index l):
       Some j
     )
 
+(*
+ * Does an address have a write in a log?
+ *)
 let has_some_write (l:memory_op_log) (a:addr): Tot bool =
-  Some? (last_write_aux2 l a)
+  Some? (last_write l a)
 
+(* Given an address with some write, return the value of the last write *)
 let last_write_value (l:memory_op_log) (a:addr{has_some_write l a}): Tot payload =
-  let i = Some?.v (last_write_aux2 l a) in
+  let i = Some?.v (last_write l a) in
   written_value l i
 
+(* 
+ * If an address has a write, then the memory of the naive verifier 
+ * stores (and returns) the last write value for this address
+ *)
 let rec memory_is_last_write (l:memory_op_log) (m:memory) (a:addr):
   Lemma (requires (has_some_write l a && NValid? (naive_verifier m l)))
         (ensures (NValid?.m (naive_verifier m l) a = last_write_value l a))
@@ -218,13 +257,18 @@ let rec memory_is_last_write (l:memory_op_log) (m:memory) (a:addr):
         ()
       else (
         memory_is_last_write l' m a;
-        lemma_index_slice l 0 (n - 1) (Some?.v (last_write_aux2 l' a))
+        lemma_index_slice l 0 (n - 1) (Some?.v (last_write l' a))
       )
     else (
       memory_is_last_write l' m a;
-      lemma_index_slice l 0 (n - 1) (Some?.v (last_write_aux2 l' a))
+      lemma_index_slice l 0 (n - 1) (Some?.v (last_write l' a))
     )
 
+(*
+ * If we start with initial memory (all addresses null), then the 
+ * memory of the naive verifier stores and returns Null for an address
+ * that has no writes in the log 
+ *)
 let rec memory_is_null_without_write (l:memory_op_log) (a:addr):
   Lemma (requires (has_some_write l a = false /\ NValid? (naive_verifier init_memory l)))
         (ensures (NValid?.m (naive_verifier init_memory l) a = Null))
@@ -241,17 +285,23 @@ let rec memory_is_null_without_write (l:memory_op_log) (a:addr):
     else
       memory_is_null_without_write l' a
 
+(* Has there been a previous write to address at index i *)
 let has_prev_write (l:memory_op_log) (i:log_index l): Tot bool =
-  Some? (last_write l i)
+  Some? (prev_write_of_idx l i)
 
+(* not (has_prev_write) *)
 let has_no_prev_write (l:memory_op_log) (i:log_index l): Tot bool =
-  None? (last_write l i)
+  None? (prev_write_of_idx l i)
 
+(* 
+ * If every read, reads the previous write, then we have read-write
+ * consistency as defined by the naive verifier
+ *)
 let rec read_last_write_implies_rwconsistent (l:memory_op_log):
   Lemma (requires (forall (i:log_index l).
                         is_read_op l i ==>
                           has_no_prev_write l i && read_value l i = Null ||
-                          has_prev_write l i && read_value l i = written_value l (Some?.v (last_write l i))))
+                          has_prev_write l i && read_value l i = written_value l (Some?.v (prev_write_of_idx l i))))
        (ensures (rw_consistent l))
        (decreases (length l))
        =
@@ -264,7 +314,7 @@ let rec read_last_write_implies_rwconsistent (l:memory_op_log):
     let aux (i:log_index l'):
       Lemma(is_read_op l' i ==>
                        has_no_prev_write l' i && read_value l' i = Null ||
-                       has_prev_write l' i && read_value l' i = written_value l' (Some?.v (last_write l' i))) =
+                       has_prev_write l' i && read_value l' i = written_value l' (Some?.v (prev_write_of_idx l' i))) =
       lemma_index_slice l 0 (n - 1) i;
       if is_read_op l' i then
         if has_no_prev_write l' i then
@@ -272,9 +322,8 @@ let rec read_last_write_implies_rwconsistent (l:memory_op_log):
           // goes through with the assert, but fails when the assert
           // is commented out; some kind of forall_intro better here?
           assert (has_no_prev_write l i)
-        else (
-          assert (has_prev_write l i)
-        )
+        else
+          assert (has_prev_write l i)        
       else ()
       in
     forall_intro aux; read_last_write_implies_rwconsistent l';

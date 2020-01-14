@@ -62,10 +62,19 @@ type merkle_payload =
 (* hash function maps a merkle payload to a hash value *)
 assume val hashfn (m:merkle_payload): hash_value
 
+(* Inductive type for hash collisions *) 
 type hash_collision = 
   | Collision: m1:merkle_payload ->
                m2:merkle_payload { hashfn m1 == hashfn m2 /\ ~(m1 == m2) } ->
                hash_collision
+
+(*
+ * We want to use Merkle tree ideas to verify memory rw-consistency, where
+ * memory is addressed locations of a 256-bit address space. To do that we
+ * map (data) addresses to leaf nodes of the merkle tree. The leaf node 
+ * for a 256-bit address is obtained by traversing the tree from the root 
+ * taking a left child for a 0 bit and right child for a 1 bit
+ *)
 
 (* Traverse down a binary tree from a start node (sn) based on a bit vector *)
 let rec traverse_bin_tree (#n:pos) (b:bv_t n) (sn:bin_tree_node): Tot bin_tree_node = 
@@ -88,6 +97,7 @@ let rec traverse_adds_size_to_depth (#n:pos) (b:bv_t n) (sn:bin_tree_node):
 let bv_to_bin_tree_node (#n:pos) (b:bv_t n): Tot (t:bin_tree_node{depth t = n}) = 
   traverse_adds_size_to_depth b Root; traverse_bin_tree b Root
 
+(* Given a binary tree node return the path from root as a binary vector *)
 let rec path_from_root (a:bin_tree_node{depth a > 0}): Tot (b:bv_t (depth a)) 
   (decreases (depth a)) = 
   if depth a = 1 
@@ -100,6 +110,7 @@ let rec path_from_root (a:bin_tree_node{depth a > 0}): Tot (b:bv_t (depth a))
        | RightChild a' -> (append (path_from_root a') (ones_vec #1))
        )
 
+(* path_from_root and bv_to_bin_tree_node are inverse operations *)
 let rec path_from_root_bv2bin_consistent_aux (#n:pos) (b:bv_t n) (i:nat{i < n}):
   Lemma (index (path_from_root (bv_to_bin_tree_node b)) i = index b i)
   = 
@@ -110,6 +121,7 @@ let rec path_from_root_bv2bin_consistent_aux (#n:pos) (b:bv_t n) (i:nat{i < n}):
     else path_from_root_bv2bin_consistent_aux #(n-1) (slice b 0 (n-1)) i
   )
 
+(* path_from_root and bv_to_bin_tree_node are inverse operations *)
 let path_from_root_bv2bin_consistent (#n:pos) (b:bv_t n):
   Lemma (path_from_root (bv_to_bin_tree_node b) = b) = 
   let b' = path_from_root (bv_to_bin_tree_node b) in
@@ -118,6 +130,7 @@ let path_from_root_bv2bin_consistent (#n:pos) (b:bv_t n):
   in
   forall_intro aux; lemma_eq_intro b b'
 
+(* path_from_root and bv_to_bin_tree_node are inverse operations - II *)
 let rec path_from_root_bv2bin_consistent2 (tn:bin_tree_node{depth tn > 0}):
   Lemma (requires (True)) 
         (ensures bv_to_bin_tree_node (path_from_root tn) = tn)
