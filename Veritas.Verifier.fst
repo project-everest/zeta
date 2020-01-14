@@ -1,5 +1,6 @@
 module Veritas.Verifier
 
+open FStar.Seq
 open Veritas.Memory
 open Veritas.Merkle
 
@@ -52,3 +53,4 @@ let verifier_step (l:verifier_log_entry) (vs:verifier_state): Tot verifier_state
           | Write a v -> Valid (cache_apply cache o))
     | Add a v -> Valid (cache_add cache a v)
     | Evict a -> Valid (cache_evict cache a)
+
