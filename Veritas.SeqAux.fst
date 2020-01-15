@@ -1,116 +1,135 @@
-module Veritas.SubSeq
+module Veritas.SeqAux
 
 open FStar.Seq
 
-(* Legitimate values of an index of a sequence *)
-type seq_index (#a:Type) (s:seq a) = i:nat{i < length s}
-
 let prefix (#a:Type) (s:seq a) (i:nat{i <= length s}) = slice s 0 i
 
-let rec filter (#a:Type) (s:seq a) (f:a -> bool): Tot (seq a)  
+let lemma_prefix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
+  Lemma (requires (True))
+        (ensures (index (prefix s i) j == index s j)) = 
+  lemma_index_slice s 0 i j
+
+let suffix (#a:Type) (s:seq a) (i:nat{i <= length s}) = 
+  slice s (length s - i) (length s)
+
+let lemma_suffix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
+  Lemma (requires (True))
+        (ensures (index (suffix s i) j == index s (length s - i + j))) = 
+  lemma_index_slice s (length s - i) (length s) j
+
+(* 
+ * TODO: For some reason a direct recursive implementation of filter 
+ * fails to compile
+ *)
+let rec filter_aux (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq a)  
   (decreases (length s)) = 
   let n = length s in
   if n = 0 then empty
   else 
     let e = index s (n - 1) in 
-    if f e then 
-      append (filter (prefix s (n - 1)) f) (create 1 e)
+    if f e then
+      append (filter_aux f (prefix s (n - 1))) (create 1 e)    
     else 
-      filter (prefix s (n - 1)) f
+      filter_aux f (prefix s (n - 1))
 
-let rec filter_len_monotonic (#a:Type) (s:seq a) (f:a -> bool) (i:nat{i <= length s}):
+let filter (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq a)  = filter_aux f s 
+
+let rec filter_len_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
   Lemma (requires (True))
-        (ensures (length (filter s f) >= length (filter (prefix s i) f)))
+        (ensures (length (filter f s) >= length (filter f (prefix s i))))
         (decreases (length s)) = 
   let n = length s in
   if n = 0 then ()
   else if i  = n then () // s == prefix s i
   else (
     lemma_len_slice s 0 (n - 1);
-    filter_len_monotonic (prefix s (n - 1)) f i
+    filter_len_monotonic f (prefix s (n - 1)) i
   )
 
-let rank (#a:Type) (s:seq a) (f:a -> bool) (i:nat{i <= length s})
-  = length (filter (prefix s i) f)
+let rank (#a:eqtype) (f:a -> bool)  (s:seq a) (i:nat{i <= length s})
+  = length (filter f (prefix s i))
         
-let filter_index_map (#a:Type) (s:seq a) (f:a -> bool) (i:seq_index s{f (index s i)}):
-  Tot (seq_index (filter s f)) = 
-  filter_len_monotonic s f (i+1);
-  lemma_len_append (filter (prefix s i) f) (create 1 (index s i));
-  rank s f i
+let filter_index_map_aux (#a:eqtype) (f:a -> bool)  (s:seq a) 
+  (i:seq_index s{f (index s i)}):
+  Tot (seq_index (filter f s)) = 
+  filter_len_monotonic f s (i+1);
+  lemma_len_append (filter f (prefix s i)) (create 1 (index s i));
+  rank f s i
 
-let rec filter_index_map_correct (#a:eqtype) (s:seq a) (f:a -> bool) (i:seq_index s):
+let rec filter_index_map_correct (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
   Lemma (requires (f (index s i)))
-        (ensures (index s i = index (filter s f) (filter_index_map s f i)))
+        (ensures (index s i = index (filter f s) (filter_index_map_aux f s i)))
         (decreases (length s)) = 
   let n = length s in
   if n = 0 then ()
   else if i = n - 1 then ()
-  else filter_index_map_correct (prefix s (n - 1)) f i
+  else filter_index_map_correct f (prefix s (n - 1)) i
 
-let filter_index_map_monotonic (#a:eqtype) (s:seq a) (f:a -> bool) 
+let filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (index s i)}):
+  Tot (j:seq_index (filter f s){index s i = index (filter f s) j}) = 
+  filter_index_map_correct f s i;
+  filter_index_map_aux f s i
+
+let filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a)  
   (i:seq_index s) (j:seq_index s{j > i}):
   Lemma (requires (f (index s i) && f (index s j)))
-        (ensures (filter_index_map s f i < filter_index_map s f j)) =
-  filter_len_monotonic (prefix s j) f (i + 1)
+        (ensures (filter_index_map f s i < filter_index_map f s j)) =
+  filter_len_monotonic f (prefix s j) (i + 1)
 
-let rank_increases_by_atmost_one (#a:eqtype) (s:seq a) (f:a -> bool)
+let rank_increases_by_atmost_one (#a:eqtype) (f:a -> bool) (s:seq a) 
   (i:seq_index s):
   Lemma (requires (True))
-        (ensures (f (index s i) && (rank s f i) + 1 = rank s f (i + 1) || 
-                  not (f (index s i)) && rank s f i = rank s f (i + 1))) = ()
+        (ensures (f (index s i) && (rank f s i) + 1 = rank f s (i + 1) || 
+                  not (f (index s i)) && rank f s i = rank f s (i + 1))) = ()
 
-let rec rank_search (#a:eqtype) (s:seq a) (f:a -> bool) 
-                (r:seq_index (filter s f)) 
-                (i:nat{i <= length s && rank s f i > r})
-  : Tot (j:seq_index s{rank s f j = r && f (index s j)})
+let rec rank_search (#a:eqtype) (f:a -> bool) (s:seq a) 
+                (r:seq_index (filter f s)) 
+                (i:nat{i <= length s && rank f s i > r})
+  : Tot (j:seq_index s{rank f s j = r && f (index s j)})
     (decreases i) = 
   assert (i > 0);
-  if rank s f (i - 1) = r then (i - 1)
+  if rank f s (i - 1) = r then (i - 1)
   else (
-    rank_increases_by_atmost_one s f (i - 1);
-    rank_search s f r (i - 1)
+    rank_increases_by_atmost_one f s (i - 1);
+    rank_search f s r (i - 1)
   )
 
-let filter_index_inv_map (#a:eqtype) (s:seq a) (f:a -> bool) (r:seq_index (filter s f))
-  : Tot (j:seq_index s{rank s f j = r && f (index s j)}) = 
-  rank_search s f r (length s)
+let filter_index_inv_map (#a:eqtype) (f:a -> bool)  (s:seq a) (i:seq_index (filter f s))
+  : Tot (j:seq_index s{f (index s j) && filter_index_map f s j = i}) = 
+  rank_search f s i (length s)
 
-let last_index (#a:eqtype) (s:seq a) (f:a -> bool):
-  Tot (option (seq_index s)) = 
-  let fs = filter s f in
+let last_index_opt (#a:eqtype) (f:a -> bool) (s:seq a):
+  Tot (option (i:seq_index s{f (index s i)})) = 
+  let fs = filter f s in
   if length fs = 0 then None
-  else Some (filter_index_inv_map s f ((length fs) - 1))
+  else Some (filter_index_inv_map f s ((length fs) - 1))
 
-let last_index_correct1 (#a:eqtype) (s:seq a) (f:a -> bool):
-  Lemma (requires (Some? (last_index s f)))
-        (ensures (f (index s (Some?.v (last_index s f))))) = ()
-                   
-let last_index_correct2 (#a:eqtype) (s:seq a) (f:a -> bool) (i:seq_index s):
-  Lemma (requires (Some? (last_index s f) && 
-                   i > Some?.v (last_index s f)))
-        (ensures (not (f (index s i)))) =
-  let j = Some?.v (last_index s f) in 
-  if f (index s i) then 
-    filter_index_map_monotonic s f j i  
-  else ()
+let lemma_last_index_correct1 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Lemma (requires (exists_sat_elems f s /\ i > last_index f s))
+        (ensures (not (f (index s i)))) = 
+  let j = last_index f s in
+  if f (index s i) then
+    filter_index_map_monotonic f s j i
+  else ()    
 
-let rec exists_implies_last_index (#a:eqtype) (s:seq a) (f:a -> bool) (i:seq_index s):
+let lemma_last_index_correct2 (#a:eqtype) (f:a -> bool)  (s:seq a) (i:seq_index s):
   Lemma (requires (f (index s i)))
-        (ensures (Some? (last_index s f)))
-        (decreases (length s)) = 
+        (ensures (exists_sat_elems f s /\ last_index f s >= i)) = 
   let n = length s in
-  if n = 0 then ()
-  else if i = n - 1 then ()
-  else exists_implies_last_index (slice s 0 (n - 1)) f i    
-
-let last_index_prefix (#a:eqtype) (s:seq a{length s > 0}) (f:a -> bool):
-  Lemma (requires (Some? (last_index s f) && not (f (index s (length s - 1)))))
-        (ensures (Some?.v (last_index s f) = Some?.v (last_index (prefix s (length s - 1)) f))) = 
-  let n = length s in
-  let s' = prefix s (n - 1) in
-  let li = Some?.v (last_index s f) in
-  let li' = Some?.v (last_index s' f) in
-  if li < li' then filter_index_map_monotonic s f li li'
-  else if li' < li then filter_index_map_monotonic s f li' li
+  let ri = filter_index_map f s i in
+  assert (exists_sat_elems f s);
+  let j = last_index f s in
+  if j < i then 
+    filter_index_map_monotonic f s j i
   else ()
+
+let lemma_last_index_prefix (#a:eqtype) (f:a -> bool) (s:seq a):
+  Lemma (requires (exists_sat_elems f s))
+        (ensures (exists_sat_elems f (prefix s ((last_index f s) + 1)) /\
+                  last_index f s = last_index f (prefix s ((last_index f s) + 1)))) = 
+  let li = last_index f s in 
+  let s' = prefix s (li + 1) in
+  lemma_prefix_index s (li + 1) li;
+  let r' = filter_index_map f s' li in
+  ()
+
