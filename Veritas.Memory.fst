@@ -3,6 +3,7 @@ module Veritas.Memory
 open FStar.BitVector
 open FStar.Classical
 open FStar.Seq
+open Veritas.SubSeq
 
 (* address is a 256 bit value *)
 let addr_size = 256
@@ -33,7 +34,7 @@ let address_of (o: memory_op): Tot addr =
 type memory_op_log = seq memory_op
 
 (* type of an index into a log *)
-type log_index (l:memory_op_log) = i:nat{i < length l}
+type log_index (l:memory_op_log) = seq_index l
 
 (* Address of log entry at position i *)
 let address_at_idx (l:memory_op_log) (i:log_index l): Tot addr =
@@ -113,103 +114,21 @@ let rw_consistent (l:memory_op_log): Tot bool = NValid? (naive_verifier init_mem
  * consistency as defined above
  *)
 
-(* Identify the last write to an address if it exists *)
-let rec last_write_aux (l:memory_op_log) (a:addr):
-  Tot (option (log_index l))
-  (decreases (length l))
-  =
-  let n = length l in
-  (*
-   * TODO: For some reason, Fstar does not automatically infer that an instance of
-   * option (i:nat{i < n-1}) is also an instance of option (i:nat{i < n}).
-   * This function does this range expansion explicitly by unpacking the option object
-   *)
-  let option_range_expand (o:option (i:nat{i < (n-1)})): Tot (option (i:nat{i < n})) =
-    if None? o then None
-    else Some (Some?.v o)  in
-
-  if n = 0 then None
-  else
-    match index l (n - 1) with
-       | Write a' _ -> if a = a'
-                       then Some (n - 1)
-                       else (
-                         lemma_len_slice l 0 (n - 1);
-                         option_range_expand (last_write_aux (slice l 0 (n - 1)) a)
-                       )
-       | _ -> lemma_len_slice l 0 (n - 1);
-              option_range_expand (last_write_aux (slice l 0 (n - 1)) a)
+(* is this a write to address a *)
+let is_write_to_addr (a:addr) (o:memory_op) = 
+  Write? o && Write?.a o = a
 
 (* 
- * Prove last_write is correct in the sense that it is a write to the
- * provided address
- *)
-let rec last_write_is_write_to_a (l:memory_op_log) (a:addr):
-  Lemma (requires (Some? (last_write_aux l a)))
-        (ensures (address_at_idx l (Some?.v (last_write_aux l a)) = a /\
-                  is_write_op l (Some?.v (last_write_aux l a))))
-        (decreases (length l))
-        =
-  let n = length l in
-  if n = 0 then ()
-  else
-    let lastOp = index l (n - 1) in
-    let l' = slice l 0 (n - 1) in
-    match lastOp with
-    | Write a' _ -> if a = a' then ()
-                    else last_write_is_write_to_a l' a
-    | _ -> last_write_is_write_to_a l' a
-
-(*
- * Prove that last_write is correct in the sense that every subsequent 
- * operation is either a read or a write to a different address
- *)
-let rec last_write_is_last_write (l:memory_op_log) (a:addr) (i:log_index l):
-  Lemma (requires (Some? (last_write_aux l a) && i > Some?.v (last_write_aux l a)))
-        (ensures (is_read_op l i || address_at_idx l i <> a))
-        (decreases (length l)) =
-  let n = length l in
-  let wi = Some?.v (last_write_aux l a) in
-  if n = 0 then ()
-  else
-    let lastOp = index l (n - 1) in
-    let l' = slice l 0 (n - 1) in
-    match lastOp with
-    | Write a' _ -> if a = a' then ()
-                    else if i = n - 1 then ()
-                    else last_write_is_last_write l' a i; ()
-    | _ -> if i = n - 1 then ()
-           else last_write_is_last_write l' a i; ()
-
-(*
- * Prove that existence of any write implies that last_write returns 
- * a legitimate index as output 
- *)
-let rec write_exists_implies_last_write (l:memory_op_log) (i:log_index l):
-  Lemma (requires (is_write_op l i))
-        (ensures (Some? (last_write_aux l (address_at_idx l i))))
-        (decreases (length l)) =
-  let n = length l in
-  let a = address_at_idx l i in
-  if n = 0 then ()
-  else
-    let lastOp = index l (n - 1) in
-    let l' = slice l 0 (n - 1) in
-    if i = n - 1 then ()
-    else
-      write_exists_implies_last_write l' i
-
-(* 
- * "Final" last_write function that pulls together all the above properties as 
- * refinement of the return type
+ * last_write to an address a if it exists
  *)
 let last_write (l:memory_op_log) (a:addr):
-  Tot (option (i:(log_index l){address_at_idx l i = a /\ is_write_op l i})) =
-  let optwi = last_write_aux l a in
+  Tot (option (i:(log_index l){is_write_to_addr a (index l i)})) =
+  let f = is_write_to_addr a in
+  let optwi = last_index l f in
   if None? optwi then None
   else
     let wi = Some?.v optwi in
-    (last_write_is_write_to_a l a; Some wi)
+    (last_index_correct1 l f; Some wi)
 
 (*
  * Given an index of the log, return the most recent previous write
@@ -249,19 +168,14 @@ let rec memory_is_last_write (l:memory_op_log) (m:memory) (a:addr):
         (ensures (NValid?.m (naive_verifier m l) a = last_write_value l a))
         (decreases (length l)) =
   let n = length l in
+  let f = is_write_to_addr a in
   if n = 0 then ()
-  else
-    let l' = (slice l 0 (n - 1)) in
-    if is_write_op l (n- 1) then
-      if a = address_at_idx l (n - 1) then
-        ()
-      else (
-        memory_is_last_write l' m a;
-        lemma_index_slice l 0 (n - 1) (Some?.v (last_write l' a))
-      )
+  else 
+    let l' = prefix l (n - 1) in
+    if f (index l (n - 1)) then ()      
     else (
-      memory_is_last_write l' m a;
-      lemma_index_slice l 0 (n - 1) (Some?.v (last_write l' a))
+        memory_is_last_write l' m a;
+        last_index_prefix l f
     )
 
 (*
@@ -274,12 +188,13 @@ let rec memory_is_null_without_write (l:memory_op_log) (a:addr):
         (ensures (NValid?.m (naive_verifier init_memory l) a = Null))
         (decreases (length l)) =
   let n = length l in
+  let f = is_write_to_addr a in
   if n = 0 then ()
   else
     let l' = slice l 0 (n - 1) in
     if is_write_op l (n - 1) then
       if address_at_idx l (n - 1) = a then
-        write_exists_implies_last_write l (n - 1)
+        exists_implies_last_index l f (n - 1)
       else
         memory_is_null_without_write l' a
     else
