@@ -72,3 +72,10 @@ val lemma_last_index_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
   Lemma (requires (exists_sat_elems f s /\ i > last_index f s))
         (ensures (exists_sat_elems f (prefix s i) /\
                   last_index f s = last_index f (prefix s i)))
+
+(* Map every element of a sequence to another domain to get another sequence *)
+val map (#a #b:Type) (f:a -> b) (s:seq a): Tot (s':seq b{length s' = length s})
+
+val lemma_map_index (#a #b: Type) (f:a -> b) (s:seq a) (i:seq_index s):
+  Lemma (requires (True))
+        (ensures (f (index s i) == index (map f s) i))

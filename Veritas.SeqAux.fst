@@ -168,3 +168,35 @@ let lemma_last_index_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
   else if li > li' then
     lemma_last_index_correct1 f s' li
   else ()
+
+let rec map_aux (#a #b:Type) (f:a -> b) (s:seq a): 
+  Tot (s':seq b{length s' = length s}) 
+  (decreases (length s))
+  = 
+  let n = length s in
+  if n = 0 then empty
+  else 
+    let ps = prefix s (n - 1) in
+    let e = index s (n - 1) in
+    append (map_aux f ps) (create 1 (f e))
+
+let map (#a #b:Type) (f:a -> b) (s:seq a): Tot (s':seq b{length s' = length s}) = map_aux f s
+
+let rec lemma_map_index_aux (#a #b: Type) (f:a -> b) (s:seq a) (i:seq_index s):
+  Lemma (requires (True))
+        (ensures (f (index s i) == index (map f s) i))
+        (decreases (length s)) = 
+  let n = length s in
+  if n = 0 then ()
+  else if i = n - 1 then ()
+  else
+    let s' = prefix s (n - 1) in
+    let e = index s (n - 1) in
+    lemma_map_index_aux f s' i;
+    lemma_prefix_index s (n - 1) i;
+    lemma_index_app1 (map f s') (create 1 (f e)) i
+
+let lemma_map_index (#a #b: Type) (f:a -> b) (s:seq a) (i:seq_index s):
+  Lemma (requires (True))
+        (ensures (f (index s i) == index (map f s) i)) = 
+  lemma_map_index_aux f s i
