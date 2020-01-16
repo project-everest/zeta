@@ -16,6 +16,10 @@ val lemma_prefix_prefix (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j <= i
   Lemma (requires (True))
         (ensures (prefix (prefix s i) j == prefix s j))
 
+val lemma_fullprefix_equal (#a:Type) (s:seq a):
+  Lemma (requires (True))
+        (ensures (prefix s (length s) == s))
+
 (* Suffix of a sequence *)
 val suffix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
 

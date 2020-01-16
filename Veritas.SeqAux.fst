@@ -24,6 +24,17 @@ let lemma_prefix_prefix (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j <= i
   in
   forall_intro aux; lemma_eq_intro pij pj
 
+let lemma_fullprefix_equal (#a:Type) (s:seq a):
+  Lemma (requires (True))
+        (ensures (prefix s (length s) == s)) = 
+  let n = length s in
+  let p = prefix s n in
+  let aux (k:nat{k < n}):
+    Lemma (index p k == index s k) = 
+    lemma_prefix_index s n k
+  in
+  forall_intro aux; lemma_eq_intro s p
+
 let suffix (#a:Type) (s:seq a) (i:nat{i <= length s}) =
   slice s (length s - i) (length s)
 

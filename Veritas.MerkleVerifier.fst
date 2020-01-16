@@ -1,13 +1,8 @@
-(* 
- * MerkleVerifier 
- * 
- * Use Merkle tree ideas to design a memory verifier 
- *)
 module Veritas.MerkleVerifier
 
 open FStar.Seq
 open FStar.Classical
-open Veritas.SeqLast
+open Veritas.SeqAux
 open Veritas.Memory
 open Veritas.Merkle
 
@@ -98,7 +93,7 @@ let rec verifier_aux (l:verifier_log) (vs:verifier_state): Tot verifier_state
   let n = length l in
   if n = 0 then vs
   else
-    let l' = slice l 0 (n - 1) in
+    let l' = prefix l (n - 1) in
     let vs' = verifier_aux l' vs in
     let e' = index l (n - 1) in 
     verifier_step e' vs'
@@ -127,33 +122,46 @@ type verifiable_log = l:verifier_log{verifiable l}
 
 let rec verifiable_implies_prefix_verifiable (l:verifiable_log) (i:nat{i <= length l}):
   Lemma (requires (True))
-        (ensures (verifiable (slice l 0 i)))
+        (ensures (verifiable (prefix l i)))
         (decreases (length l)) = 
   let n = length l in
   if n = 0 then ()
-  else if i = n then ()
-  else verifiable_implies_prefix_verifiable (slice l 0 (n - 1)) i    
+  else if i = n then lemma_fullprefix_equal l
+  else ( 
+    verifiable_implies_prefix_verifiable (prefix l (n - 1)) i;
+    lemma_prefix_prefix l (n - 1) i
+  )
+
+let vprefix (l:verifiable_log) (i:nat{i <= length l}): Tot verifiable_log = 
+  verifiable_implies_prefix_verifiable l i;prefix l i
 
 let evict_payload (l:verifiable_log) (i:vl_index l{is_evict l i}): 
   Tot (merkle_payload_of_addr (evict_addr l i)) =
   verifiable_implies_prefix_verifiable l (i + 1);
   verifiable_implies_prefix_verifiable l i;
   let a = evict_addr l i in
-  let l'' = slice l 0 i in
-  let vs'' = verifier l'' in    
+  let l'' = prefix l i in
+  let vs'' = verifier l'' in 
+  lemma_prefix_prefix l (i + 1) i;
+  lemma_prefix_index l (i + 1) i;
   Some?.v ((Valid?.vc vs'') a)
-
+  
 let is_evict_of_addr (a:merkle_addr) (e:verifier_log_entry) = 
   Evict? e && Evict?.a e = a
 
-let last_evict (l:verifier_log) (a:merkle_addr):
-  Tot (option (i:vl_index l{is_evict_of_addr a (index l i)})) = 
-  let f = is_evict_of_addr a in
-  let optwi = last_index l f in
-  if None? optwi then None
-  else 
-    let wi = Some?.v optwi in
-    (last_index_correct1 l f; Some wi)
+let last_evict_idxopt (l:verifier_log) (a:merkle_addr) = last_index_opt (is_evict_of_addr a) l
+
+let has_some_evict (l:verifier_log) (a:merkle_addr) = exists_sat_elems (is_evict_of_addr a) l
+
+let last_evict_idx (l:verifier_log) (a:merkle_addr{has_some_evict l a}) = 
+  last_index (is_evict_of_addr a) l
+
+let last_evict_value_or_null (l:verifiable_log) (a:merkle_leaf_addr): 
+  Tot (merkle_payload_of_addr a) = 
+  if has_some_evict l a then
+    evict_payload l (last_evict_idx l a)
+  else
+    MkLeaf Null
 
 let is_add (l:verifier_log) (i:vl_index l) = 
   Add? (index l i)
@@ -164,26 +172,11 @@ let add_addr (l:verifier_log) (i:vl_index l{is_add l i}): Tot merkle_addr =
 let add_payload (l:verifier_log) (i:vl_index l {is_add l i}): Tot merkle_payload =
   Add?.v (index l i)
 
-let prev_evict_of_add (l:verifier_log) (i:vl_index l{is_add l i}):
-  Tot (option (j:vl_index l{j < i && is_evict l j && add_addr l i = evict_addr l j})) = 
-  let l' = slice l 0 i in
-  let a = add_addr l i in 
-  let optj = last_evict l' a in
-  if None? optj then None
-  else
-    let j = Some?.v optj in 
-    (
-      lemma_len_slice l 0 i;
-      lemma_index_slice l 0 i j;
-      Some j
-    )
+type evict_add_consistent  = l:verifiable_log {forall (i:vl_index l). 
+    is_add l i /\ is_merkle_leaf (add_addr l i) ==> 
+    add_payload l i = last_evict_value_or_null (vprefix l i) (add_addr l i)}
 
-let has_prev_evict (l:verifier_log) (i:vl_index l{is_add l i}): Tot bool = 
-  Some? (prev_evict_of_add l i)
-
-let has_no_prev_evict (l:verifier_log) (i:vl_index l{is_add l i}): Tot bool =
-  None? (prev_evict_of_add l i)
-
+(*
 let rec project_memory_log (l:verifier_log): 
   Tot memory_op_log (decreases (length l)) = 
   let n = length l in
@@ -196,13 +189,6 @@ let rec project_memory_log (l:verifier_log):
     | MemoryOp o -> append ml' (create 1 o)
     | _ -> ml'
 
-type evict_add_consistent (l:verifiable_log) = 
-  u:unit{forall (i:vl_index l). 
-    is_add l i /\ is_merkle_leaf (add_addr l i) ==> 
-    has_no_prev_evict l i && add_payload l i = MkLeaf Null \/
-    has_prev_evict l i && 
-    add_payload l i = evict_payload l (Some?.v (prev_evict_of_add l i))
-    }
 
 let cache_at_end (l:verifiable_log): Tot verifier_cache = 
   Valid?.vc (verifier l)
@@ -249,4 +235,4 @@ let rec evict_add_consistency_implies_rw_consistency (l:verifiable_log):
     match e with
     | 
     admit()
-  
+*)
