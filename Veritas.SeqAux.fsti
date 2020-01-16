@@ -12,6 +12,10 @@ val lemma_prefix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i})
   Lemma (requires (True))
         (ensures (index (prefix s i) j == index s j))
 
+val lemma_prefix_prefix (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j <= i}):
+  Lemma (requires (True))
+        (ensures (prefix (prefix s i) j == prefix s j))
+
 (* Suffix of a sequence *)
 val suffix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
 
@@ -60,7 +64,7 @@ val lemma_last_index_correct2 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s
         (ensures (exists_sat_elems f s /\ last_index f s >= i))
 
 (* Taking the prefix of a sequence upto last_index does not alter last_index *)
-val lemma_last_index_prefix (#a:eqtype) (f:a -> bool) (s:seq a):
-  Lemma (requires (exists_sat_elems f s))
-        (ensures (exists_sat_elems f (prefix s ((last_index f s) + 1)) /\
-                  last_index f s = last_index f (prefix s ((last_index f s) + 1))))
+val lemma_last_index_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
+  Lemma (requires (exists_sat_elems f s /\ i > last_index f s))
+        (ensures (exists_sat_elems f (prefix s i) /\
+                  last_index f s = last_index f (prefix s i)))
