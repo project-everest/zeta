@@ -28,7 +28,7 @@ val lemma_suffix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i})
         (ensures (index (suffix s i) j == index s (length s - i + j)))
 
 (* Subsequence of s obtained by applying a filter *)
-val filter (#a:eqtype) (f:a -> bool) (s:seq a): Tot (seq a)
+val filter (#a:eqtype) (f:a -> bool) (s:seq a): Tot (seq (x:a{f x}))
 
 (* Mapping from original seq to filtered subseq for satisfying indexes *)
 val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (index s i)}):

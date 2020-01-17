@@ -47,7 +47,7 @@ let lemma_suffix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i})
  * TODO: For some reason a direct recursive implementation of filter
  * fails to compile
  *)
-let rec filter_aux (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq a)
+let rec filter_aux (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq (x:a{f x}))
   (decreases (length s)) =
   let n = length s in
   if n = 0 then empty
@@ -58,7 +58,7 @@ let rec filter_aux (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq a)
     else
       filter_aux f (prefix s (n - 1))
 
-let filter (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq a)  = filter_aux f s
+let filter (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq (x:a{f x}))  = filter_aux f s
 
 let rec filter_len_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
   Lemma (requires (True))
