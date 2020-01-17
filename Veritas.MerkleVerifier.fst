@@ -21,6 +21,39 @@ type verifier_log_entry =
 
 type verifier_log = seq verifier_log_entry
 
+type vl_index (l:verifier_log) = seq_index l
+
+let is_evict (l:verifier_log) (i:vl_index l): Tot bool =
+  Evict? (index l i)
+
+let evict_addr (l:verifier_log) (i:vl_index l{is_evict l i}): Tot merkle_addr = 
+  Evict?.a (index l i)
+
+let is_add (l:verifier_log) (i:vl_index l) = 
+  Add? (index l i)
+
+let add_addr (l:verifier_log) (i:vl_index l{is_add l i}): Tot merkle_addr = 
+  Add?.a (index l i)
+
+let add_payload (l:verifier_log) (i:vl_index l {is_add l i}): Tot merkle_payload =
+  Add?.v (index l i)
+
+let is_memory_op (l:verifier_log) (i:vl_index l): Tot bool = MemoryOp? (index l i)
+
+let memory_op_at (l:verifier_log) (i:vl_index l{is_memory_op l i}) = MemoryOp?.o (index l i)
+
+let is_write_op (l:verifier_log) (i:vl_index l): Tot bool = 
+  is_memory_op l i && Write? (memory_op_at l i)
+
+let written_value (l:verifier_log) (i:vl_index l{is_write_op l i}): Tot payload = 
+  Write?.v (memory_op_at l i)
+
+let is_read_op (l:verifier_log) (i:vl_index l): Tot bool = 
+  is_memory_op l i && Read? (memory_op_at l i)
+
+let read_value (l:verifier_log) (i:vl_index l{is_read_op l i}): Tot payload = 
+  Read?.v (memory_op_at l i)
+
 (* Verifier cache of a subset of merkle_addr, merkle_payloads *)
 type verifier_cache = (a:merkle_addr) -> option (merkle_payload_of_addr a)
 
@@ -76,8 +109,10 @@ let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state
           | Write a v -> Valid (cache_apply o cache))
     | Add a v -> 
         (* TODO: is there a more concise syntax for (instance-of (merkle_payload_of_addr a) v)? *)
-        if (is_merkle_leaf a && MkLeaf? v || not (is_merkle_leaf a) && MkInternal? v) then           
-          Valid (cache_add a v cache)
+        if cache_contains cache a then 
+          Failed
+        else if (is_merkle_leaf a && MkLeaf? v || not (is_merkle_leaf a) && MkInternal? v) then
+            Valid (cache_add a v cache)
         else 
           Failed
     | Evict a -> 
@@ -107,13 +142,6 @@ let init_cache:verifier_cache =
 let verifier (l:verifier_log): Tot verifier_state = 
   verifier_aux l (Valid init_cache)
 
-type vl_index (l:verifier_log) = seq_index l
-
-let is_evict (l:verifier_log) (i:vl_index l): Tot bool =
-  Evict? (index l i)
-
-let evict_addr (l:verifier_log) (i:vl_index l{is_evict l i}): Tot merkle_addr = 
-  Evict?.a (index l i)
 
 let verifiable (l:verifier_log): Tot bool = 
   Valid? (verifier l)
@@ -163,19 +191,389 @@ let last_evict_value_or_null (l:verifiable_log) (a:merkle_leaf_addr):
   else
     MkLeaf Null
 
-let is_add (l:verifier_log) (i:vl_index l) = 
-  Add? (index l i)
-
-let add_addr (l:verifier_log) (i:vl_index l{is_add l i}): Tot merkle_addr = 
-  Add?.a (index l i)
-
-let add_payload (l:verifier_log) (i:vl_index l {is_add l i}): Tot merkle_payload =
-  Add?.v (index l i)
-
 type evict_add_consistent  = l:verifiable_log {forall (i:vl_index l). 
     is_add l i /\ is_merkle_leaf (add_addr l i) ==> 
     add_payload l i = last_evict_value_or_null (vprefix l i) (add_addr l i)}
 
+let is_write_to_addr (a:merkle_leaf_addr) (e:verifier_log_entry) = 
+  MemoryOp? e && is_write_to_addr (merkle_leaf_to_addr a) (MemoryOp?.o e)
+
+let last_write_idxopt (l:verifiable_log) (a:merkle_leaf_addr) = last_index_opt (is_write_to_addr a) l
+
+let has_some_write (l:verifiable_log) (a:merkle_leaf_addr) = exists_sat_elems (is_write_to_addr a) l
+
+let last_write_idx (l:verifiable_log) (a:merkle_leaf_addr{has_some_write l a}) = 
+  last_index (is_write_to_addr a) l
+
+let cache_at_end (l:verifiable_log): Tot verifier_cache = 
+  Valid?.vc (verifier l)
+
+let last_write_value_or_null (l:verifiable_log) (a:merkle_leaf_addr): Tot (merkle_payload_of_addr a) =
+  if has_some_write l a then
+    MkLeaf (written_value l (last_write_idx l a))
+  else
+    MkLeaf Null
+
+let is_add_of_addr (a:merkle_addr) (e:verifier_log_entry) = 
+  Add? e && Add?.a e = a
+
+let last_add_idxopt (l:verifier_log) (a:merkle_addr) = last_index_opt (is_add_of_addr a) l
+
+let has_some_add (l:verifier_log) (a:merkle_addr) = exists_sat_elems (is_add_of_addr a) l
+
+let last_add_idx (l:verifier_log) (a:merkle_addr{has_some_add l a}) = 
+  last_index (is_add_of_addr a) l
+
+let rec lemma_evict_between_adds (l:verifiable_log) 
+                                 (i1:vl_index l{is_add l i1}) 
+                                 (i2:vl_index l{is_add l i2 && add_addr l i1 = add_addr l i2 && i2 > i1}):
+  Lemma (requires (True))
+        (ensures (has_some_evict (prefix l i2) (add_addr l i2) && 
+                  last_evict_idx (prefix l i2) (add_addr l i2) > i1))
+        (decreases (length l)) = admit()
+
+let rec lemma_add_between_evicts (l:verifiable_log)
+                                 (i1:vl_index l{is_evict l i1})
+                                 (i2:vl_index l{is_evict l i2 && evict_addr l i1 = evict_addr l i2 && i2 > i1}):
+  Lemma (requires (True))
+        (ensures (has_some_add (prefix l i2) (evict_addr l i2) &&
+                  last_add_idx (prefix l i2) (evict_addr l i2) > i1))
+        (decreases (length l)) = admit()
+
+let lemma_memop_requires_cache (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_memory_op l i))
+        (ensures  (cache_contains (cache_at_end (vprefix l i)) 
+                                  (addr_to_merkle_leaf (address_of (memory_op_at l i))))) = admit()
+                               
+
+let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a:merkle_non_root_addr):
+  Lemma (requires (cache_contains (cache_at_end l) a))
+        (ensures (has_some_add l a /\
+                  (has_some_evict l a ==> last_evict_idx l a < last_add_idx l a)))
+        (decreases (length l)) = admit()
+
+let rec lemma_last_add_before_evict_implies_cache_contains (l:verifiable_log) (a:merkle_non_root_addr):
+  Lemma (requires (has_some_add l a /\
+                   (has_some_evict l a ==> last_evict_idx l a < last_add_idx l a)))
+        (ensures (cache_contains (cache_at_end l) a))
+        (decreases (length l)) = admit()
+
+(* Does this log entry update the cache for address a *)
+let updates_cache (a:merkle_addr) (e:verifier_log_entry): Tot bool = 
+  match e with
+  | MemoryOp o -> Write? o && addr_to_merkle_leaf (address_of o) = a
+  | Add a' v -> a = a' 
+  | Evict a' -> a = a'
+
+(* The state of the cache is unchanged on a verifier step if the log entry does not update the cache *)
+let lemma_updates_cache (vc:verifier_cache) (a:merkle_addr) (e:verifier_log_entry):
+  Lemma (requires (Valid? (verifier_step e (Valid vc)) && not (updates_cache a e) && cache_contains vc a))
+        (ensures (cache_contains (Valid?.vc (verifier_step e (Valid vc))) a && 
+                  Some?.v (vc a) = Some?.v (Valid?.vc (verifier_step e (Valid vc)) a))) = admit()
+
+(* The state of the cache is unchanged on a verifier step if the log entry does not update the cache *)
+let lemma_updates_cache_inv (vc:verifier_cache) (a:merkle_addr) (e:verifier_log_entry):
+  Lemma (requires (Valid? (verifier_step e (Valid vc)) && not (updates_cache a e) && 
+                   cache_contains (Valid?.vc (verifier_step e (Valid vc))) a))
+        (ensures (cache_contains vc a && 
+                  Some?.v (vc a) = Some?.v (Valid?.vc (verifier_step e (Valid vc)) a))) = admit()
+
+(* If the last entry of the log does not write to a, then last_write_value remains unchanged *)
+let lemma_last_write_unchanged_unless_write (l:verifiable_log{length l > 0}) (a:merkle_leaf_addr):
+  Lemma (requires (not (is_write_to_addr a (index l (length l - 1)))))
+        (ensures (last_write_value_or_null l a = last_write_value_or_null (prefix l (length l - 1)) a)) =
+  admit()        
+
+let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle_leaf_addr):
+  Lemma (requires (True))
+        (ensures (cache_contains (cache_at_end l) a ==> 
+                  Some?.v ((cache_at_end l) a) = last_write_value_or_null l a))
+        (decreases (length l)) = 
+  let n = length l in
+  (* current cache *)
+  let cache = cache_at_end l in
+  if n = 0 then ()
+  (* nothing to prove if cache does not contain a *)
+  else if (not (cache_contains cache a)) then ()
+  
+  else (
+    assert(cache_contains cache a);
+    
+    lemma_cache_contains_implies_last_add_before_evict l a;
+    let l' = prefix l (n - 1) in
+    (* Induction step on l' *)
+    let aux (i:vl_index l'):
+      Lemma (is_add l' i /\ is_merkle_leaf (add_addr l' i) ==>
+             add_payload l' i = last_evict_value_or_null (vprefix l' i) (add_addr l' i)) = 
+      if not (is_add l' i) then ()
+      else if not (is_merkle_leaf (add_addr l' i)) then ()
+      else (
+        lemma_prefix_index l (n - 1) i;
+        assert(is_add l' i);
+        lemma_prefix_prefix l (n - 1) i;
+        assert(vprefix l i = vprefix l' i)
+      )
+    in
+    forall_intro aux; 
+    lemma_eac_implies_cache_is_last_write l' a;    
+
+    (* current log entry *)
+    let e = index l (n - 1) in 
+
+    (* cache after l' *)
+    let cache' = (cache_at_end l') in
+
+    (* cache is obtained after processing e on cache' *)
+    assert (Valid cache == verifier_step e (Valid cache'));
+
+    if (not (updates_cache a e)) then (
+      (* since e does not update the cache for address a ... *)
+      lemma_updates_cache_inv cache' a e;
+
+      (* cache' should contain address a since cache contains it *)
+      assert(cache_contains cache' a);
+      assert(Some?.v (cache' a) = Some?.v (cache a));   // I
+
+      (* from induction we know that *)
+      assert(Some?.v (cache' a) = last_write_value_or_null l' a); // II 
+      
+      (* Entry e is not a write to a, so last_write_value is unchanged *)
+      lemma_last_write_unchanged_unless_write l a;
+      assert (last_write_value_or_null l' a = last_write_value_or_null l a); // III
+
+      () // follows from I,II,III
+    )
+    else (
+      assert (updates_cache a e); // we disposed off the case of not updates cache
+
+      match e with
+      | Evict a' -> 
+        (* If I have evicted a then cache does not contain a =><= *)
+        if a' = a then ()
+
+        (* Evict a' <> a does not update cache, which is a contradiction *)
+        else () 
+      | Add a' v -> 
+        if a' = a then (
+          (* since l is evict - add consistent, this add payload reflects previous evict or null *)
+          assert (is_add l (n - 1));
+          assert (v = last_evict_value_or_null l' a);
+
+          (* Case A: there was a previous Evict a *)
+          if has_some_evict l a then (
+            let lei = last_evict_idx l a in
+            
+            admit()
+          )
+          (* Case B: there was no previous Evict a *)
+          else (
+            (* l does not have evict => l' does not have an evict *)
+            let f = is_evict_of_addr a in
+            lemma_not_exists_prefix f l (n - 1);
+            assert (not (has_some_evict l' a));
+
+            (* this implies .... *)
+            assert (last_evict_value_or_null l' a = MkLeaf Null);
+            assert (v = MkLeaf Null);
+            
+            (* Now, we prove that there are no previous writes, so last_write_value_or_null is also Null *)
+            if has_some_write l a then (
+              (* If there is a previous write, lwi is the index of the last write *)
+              let lwi = last_write_idx l a in
+              lemma_memop_requires_cache l lwi;
+
+              (* after processing upto lwi, cache should contain address a *)
+              assert (cache_contains (cache_at_end (prefix l lwi)) a);
+
+              (* if cache contains address a at lwi, then there should be a prior add a *)
+              lemma_cache_contains_implies_last_add_before_evict (vprefix l lwi) a;
+              assert (has_some_add (vprefix l lwi) a);
+
+              (* if lai is the index of the last add before lwi *)
+              let lai = last_add_idx (vprefix l lwi) a in
+              lemma_prefix_index l lwi lai;
+              assert (is_add l lai);
+
+              (* this implies an evict between lai and (n - 1), a contradiction *)
+              lemma_evict_between_adds l lai (n - 1)
+            )
+            else ()              
+          )
+        )
+        
+        (* Add a' <> a handled earlier (not updates cache) *)
+        else ()
+
+      | MemoryOp o ->
+      admit()
+    )
+  )
+
+(*
+
+    let cache = cache_at_end l in
+    let l' = prefix l (n - 1) in
+    let e = index l (n - 1) in
+    let cache' = cache_at_end l' in
+    let f = is_write_to_addr a in
+    let aux (i:vl_index l'):
+      Lemma (is_add l' i /\ is_merkle_leaf (add_addr l' i) ==>
+             add_payload l' i = last_evict_value_or_null (vprefix l' i) (add_addr l' i)) = 
+      if not (is_add l' i) then ()
+      else if not (is_merkle_leaf (add_addr l' i)) then ()
+      else (
+        lemma_prefix_index l (n - 1) i;
+        assert(is_add l' i);
+        lemma_prefix_prefix l (n - 1) i;
+        assert(vprefix l i = vprefix l' i)
+      )
+    in
+    forall_intro aux; 
+    lemma_eac_implies_cache_is_last_write l' a;    
+    if not (cache_contains (cache_at_end l) a) then ()  
+    else match e with 
+    | MemoryOp o -> 
+      assert (cache_contains cache' (addr_to_merkle_leaf (address_of o)));
+      if (Read? o) then (
+        if has_some_write l' a then (
+          let li' = last_write_idx l' a in
+          lemma_prefix_index l (n - 1) li';
+          lemma_last_index_correct2 f l li';
+          let li = last_write_idx l a in
+          lemma_prefix_index l (n - 1) li;
+          if li = li' then ()
+          else if li < li' then
+            lemma_last_index_correct1 f l li'
+          else // li > li' 
+            lemma_last_index_correct1 f l' li
+        )
+        else (
+          if has_some_write l a then (
+            let li = last_write_idx l a in
+            lemma_prefix_index l (n - 1) li;
+            lemma_last_index_correct2 f l' li
+          )
+          else ()
+        )
+      )
+      else if a = addr_to_merkle_leaf (Write?.a o) then (
+        lemma_merkle_equal_implies_addr_equal (merkle_leaf_to_addr a) (Write?.a o);
+        lemma_last_index_correct2 f l (n - 1)        
+      )
+      else (
+        assert (not (f e));
+        if has_some_write l' a then (
+          let li' = last_write_idx l' a in
+          lemma_prefix_index l (n - 1) li';
+          lemma_last_index_correct2 f l li';
+          let li = last_write_idx l a in
+          lemma_prefix_index l (n - 1) li;
+          if li = li' then ()
+          else if li < li' then
+            lemma_last_index_correct1 f l li'
+          else // li > li' 
+            lemma_last_index_correct1 f l' li        
+        )
+        else (
+          if has_some_write l a then (
+            let li = last_write_idx l a in
+            lemma_prefix_index l (n - 1) li;
+            lemma_last_index_correct2 f l' li
+          )
+          else ()         
+        )
+      )
+    | Evict a' -> 
+        if has_some_write l' a then (
+          let li' = last_write_idx l' a in
+          lemma_prefix_index l (n - 1) li';
+          lemma_last_index_correct2 f l li';
+          let li = last_write_idx l a in
+          lemma_prefix_index l (n - 1) li;
+          if li = li' then ()
+          else if li < li' then
+            lemma_last_index_correct1 f l li'
+          else // li > li' 
+            lemma_last_index_correct1 f l' li
+        )
+        else (
+          if has_some_write l a then (
+            let li = last_write_idx l a in
+            lemma_prefix_index l (n - 1) li;
+            lemma_last_index_correct2 f l' li
+          )
+          else ()
+        )        
+    | Add a' v -> 
+      if a' = a then (
+        if cache_contains cache' a then () // verifier fails -><-
+        else (
+          let f' = is_evict_of_addr a in
+          if has_some_evict l a then            
+            admit()
+          else (  
+            lemma_not_exists_prefix f' l (n - 1);
+            assert(not (has_some_evict l' a));
+            assert(is_add l (n - 1));
+            assert(is_merkle_leaf a);
+            assert(v = last_evict_value_or_null l' a);
+            assert(v = MkLeaf Null);
+            if has_some_write l a then          
+            (                            
+              let li = last_write_idx l a in
+              let w = index l li in // last write
+              let llw = vprefix l li in // log at last write
+              let vslw = verifier llw in // verifier state before last write
+              assert (Valid? vslw);
+              let vs_after_lw = verifier_step w vslw in
+              lemma_prefix_prefix l (li + 1) li;
+              let log_after_lw = vprefix l (li + 1) in
+              assert (verifiable log_after_lw);
+              let vs_after_lw' = verifier log_after_lw in
+              assert (Valid? vs_after_lw');
+              lemma_prefix_index l (li + 1) li;
+              assert (vs_after_lw' == verifier_step w vslw);
+              assert (vs_after_lw' == vs_after_lw);
+              assert (Valid? vs_after_lw);
+              assert(addr_to_merkle_leaf (Write?.a (MemoryOp?.o w)) = a);
+              let cache_before_lw = Valid?.vc vslw in
+              assert (cache_contains cache_before_lw a);
+              //assert (cache_contains cache_at_last_write a);
+              admit()
+            )
+            else 
+              lemma_not_exists_prefix f l (n - 1)            
+          )
+        )
+      )
+      else (
+        assert(cache_contains cache a);
+        assert(cache_contains cache' a);
+        assert(Some?.v (cache a) = Some?.v (cache' a));
+        assert (not (f e));        
+        if has_some_write l' a then (
+          let li' = last_write_idx l' a in
+          lemma_prefix_index l (n - 1) li';
+          lemma_last_index_correct2 f l li';
+          let li = last_write_idx l a in
+          lemma_prefix_index l (n - 1) li;
+          if li = li' then ()
+          else if li < li' then
+            lemma_last_index_correct1 f l li'
+          else // li > li' 
+            lemma_last_index_correct1 f l' li
+        )
+        else (
+          if has_some_write l a then (
+            let li = last_write_idx l a in
+            lemma_prefix_index l (n - 1) li;
+            lemma_last_index_correct2 f l' li
+          )
+          else ()
+        )        
+      )*)
+
+   
 (*
 let rec project_memory_log (l:verifier_log): 
   Tot memory_op_log (decreases (length l)) = 
@@ -190,8 +588,6 @@ let rec project_memory_log (l:verifier_log):
     | _ -> ml'
 
 
-let cache_at_end (l:verifiable_log): Tot verifier_cache = 
-  Valid?.vc (verifier l)
 
 let last_write_value_or_null (l:verifiable_log) (ma:merkle_leaf_addr): Tot merkle_payload =
   let ml = project_memory_log l in
@@ -201,12 +597,6 @@ let last_write_value_or_null (l:verifiable_log) (ma:merkle_leaf_addr): Tot merkl
   else
     MkLeaf Null
       
-let rec eac_implies_cache_is_last_write (l:verifiable_log) (a:merkle_leaf_addr):
-  Lemma (requires (evict_add_consistent l))
-        (ensures (cache_contains (cache_at_end l) a ==> 
-                  Some?.v ((cache_at_end l) a) = last_write_value_or_null l a))
-        (decreases (length l)) = admit()
-
 let rec eac_implies_read_last_write (l:verifiable_log):
   Lemma (requires (evict_add_consistent l))
         (ensures (

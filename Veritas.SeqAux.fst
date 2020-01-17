@@ -169,6 +169,18 @@ let lemma_last_index_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
     lemma_last_index_correct1 f s' li
   else ()
 
+let lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
+  Lemma (requires (not (exists_sat_elems f s)))
+        (ensures (not (exists_sat_elems f (prefix s i)))) = 
+  let s' = prefix s i in
+  if exists_sat_elems f s' then (
+    let li' = last_index f s' in
+    lemma_prefix_index s i li';
+    lemma_last_index_correct2 f s li'
+  )
+  else ()
+  
+
 let rec map_aux (#a #b:Type) (f:a -> b) (s:seq a): 
   Tot (s':seq b{length s' = length s}) 
   (decreases (length s))

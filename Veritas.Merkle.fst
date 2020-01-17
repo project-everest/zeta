@@ -89,4 +89,16 @@ let addr_to_merkle_leaf (a:addr): Tot merkle_leaf_addr =
 let merkle_leaf_to_addr (ma:merkle_leaf_addr): Tot (a:addr{addr_to_merkle_leaf a = ma}) =
   path_from_root_bv2bin_consistent2 ma; path_from_root ma
 
+let lemma_addr_merkle_inv (a:addr):
+  Lemma (merkle_leaf_to_addr (addr_to_merkle_leaf a) = a) = 
+  path_from_root_bv2bin_consistent a
 
+let lemma_merkle_equal_implies_addr_equal (a1:addr) (a2:addr):
+  Lemma (requires (addr_to_merkle_leaf a1 = addr_to_merkle_leaf a2))
+        (ensures (a1 = a2)) = 
+  lemma_addr_merkle_inv a1;
+  lemma_addr_merkle_inv a2
+
+let lemma_addr_equal_implies_merkle_equal (m1:merkle_leaf_addr) (m2:merkle_leaf_addr):
+  Lemma (requires (merkle_leaf_to_addr m1 = merkle_leaf_to_addr m2))
+        (ensures (m1 = m2)) = ()

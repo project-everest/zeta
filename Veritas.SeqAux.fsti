@@ -73,6 +73,11 @@ val lemma_last_index_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
         (ensures (exists_sat_elems f (prefix s i) /\
                   last_index f s = last_index f (prefix s i)))
 
+(* If s does not have elements satisfying f then no prefix of s has as well *)
+val lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
+  Lemma (requires (not (exists_sat_elems f s)))
+        (ensures (not (exists_sat_elems f (prefix s i))))
+
 (* Map every element of a sequence to another domain to get another sequence *)
 val map (#a #b:Type) (f:a -> b) (s:seq a): Tot (s':seq b{length s' = length s})
 
