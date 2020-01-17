@@ -364,9 +364,21 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
           assert (is_add l (n - 1));
           assert (v = last_evict_value_or_null l' a);
 
+          (* add semantics *)
+          assert(Some?.v (cache a) = v);
+
           (* Case A: there was a previous Evict a *)
           if has_some_evict l a then (
+            let f_e = is_evict_of_addr a in
+            let f_w = is_write_to_addr a in
             let lei = last_evict_idx l a in
+            lemma_last_index_prefix f_e l (n - 1);
+            lemma_prefix_prefix l (n - 1) lei;
+            lemma_prefix_index l (n - 1) lei;
+
+            (* it follows that v is payload evicted at lei *)
+            assert (v = evict_payload l lei);
+
             let l_lei_pre = vprefix l lei in
             
             (* Apply induction at lei *)
@@ -380,10 +392,60 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
             lemma_evict_requires_cache l lei;
             assert(cache_contains cache_lei_pre a);
 
+            (* evict payload at lei is the cache_lei_pre a *)
+            assert (v = Some?.v (cache_lei_pre a));
+
             (* from induction ... *)
             assert(Some?.v (cache_lei_pre a) = last_write_value_or_null l_lei_pre a);
 
-            admit()
+            (* Case A1 - there is some write to a *)
+            if has_some_write l a then (
+              (* lwi = index of the last write *)
+              let lwi = last_write_idx l a in
+
+              (* we want to show that lwi occurs before lei, before the last evict *)
+              assert (lwi <> lei);
+              if (lwi > lei) then (
+                (* If we assume lwi occurs after lei *)
+                lemma_memop_requires_cache l lwi;
+                let l_lwi_pre = vprefix l lwi in
+                lemma_cache_contains_implies_last_add_before_evict l_lwi_pre a;
+                (* last add before lwi *)
+                let lai_pre_lwi = last_add_idx l_lwi_pre a in
+
+                (* since lei is before lwi, there exists an evict before lwi *)
+                lemma_prefix_index l lwi lei;
+                lemma_last_index_correct2 f_e l_lwi_pre lei; 
+                let lei' = last_evict_idx l_lwi_pre a in                
+                assert(lei' >= lei);
+                assert(lai_pre_lwi > lei');
+
+                lemma_prefix_index l lwi lai_pre_lwi;
+                assert(is_add l lai_pre_lwi);
+
+                (* 
+                 * the last add before lwi happens after lei. the two adds
+                 * n-1 and lai_pre_lwi imply another evict between which
+                 * is a contradiction 
+                 *)
+                lemma_evict_between_adds l lai_pre_lwi (n - 1)                
+              )
+              else (
+                assert(lwi < lei);
+                lemma_prefix_index l lei lwi;
+                lemma_last_index_prefix f_w l lei;
+                assert(last_write_idx l_lei_pre a = lwi);
+                admit()
+              )
+            )
+            else ( 
+              (* There is no write to a => last_write_value is Null as required *)
+              lemma_not_exists_prefix f_w l lei;
+              assert (not (has_some_write l_lei_pre a));
+              assert (last_write_value_or_null l_lei_pre a = MkLeaf Null);
+              assert (last_write_value_or_null l a = MkLeaf Null);
+              ()
+            )
           )
           (* Case B: there was no previous Evict a *)
           else (
