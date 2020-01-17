@@ -244,7 +244,10 @@ let lemma_memop_requires_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_memory_op l i))
         (ensures  (cache_contains (cache_at_end (vprefix l i)) 
                                   (addr_to_merkle_leaf (address_of (memory_op_at l i))))) = admit()
-                               
+
+let lemma_evict_requires_cache (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_evict l i))
+        (ensures  (cache_contains (cache_at_end (vprefix l i)) (evict_addr l i))) = admit()
 
 let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a:merkle_non_root_addr):
   Lemma (requires (cache_contains (cache_at_end l) a))
@@ -300,21 +303,23 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
     assert(cache_contains cache a);
     
     lemma_cache_contains_implies_last_add_before_evict l a;
-    let l' = prefix l (n - 1) in
-    (* Induction step on l' *)
-    let aux (i:vl_index l'):
-      Lemma (is_add l' i /\ is_merkle_leaf (add_addr l' i) ==>
-             add_payload l' i = last_evict_value_or_null (vprefix l' i) (add_addr l' i)) = 
-      if not (is_add l' i) then ()
-      else if not (is_merkle_leaf (add_addr l' i)) then ()
+    let aux2 (i:vl_index l) (j:vl_index (prefix l i)):
+      Lemma (is_add (prefix l i) j /\ is_merkle_leaf (add_addr (prefix l i) j) ==>
+             add_payload (prefix l i) j = last_evict_value_or_null (vprefix (vprefix l i) j) 
+                                                                   (add_addr (prefix l i) j)) = 
+      let l' = vprefix l i in
+      if not (is_add l' j) then ()
+      else if not (is_merkle_leaf (add_addr l' j)) then ()
       else (
-        lemma_prefix_index l (n - 1) i;
-        assert(is_add l' i);
-        lemma_prefix_prefix l (n - 1) i;
-        assert(vprefix l i = vprefix l' i)
+        lemma_prefix_index l i j;
+        assert (is_add l' j);
+        lemma_prefix_prefix l i j;
+        assert(vprefix l j = vprefix l' j)
       )
     in
-    forall_intro aux; 
+    (* Induction step on l' *)
+    let l' = prefix l (n - 1) in
+    forall_intro (aux2 (n - 1)); 
     lemma_eac_implies_cache_is_last_write l' a;    
 
     (* current log entry *)
@@ -362,7 +367,22 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
           (* Case A: there was a previous Evict a *)
           if has_some_evict l a then (
             let lei = last_evict_idx l a in
+            let l_lei_pre = vprefix l lei in
             
+            (* Apply induction at lei *)
+            forall_intro (aux2 lei); 
+            lemma_eac_implies_cache_is_last_write l_lei_pre a;                
+
+            (* cache at lei *)
+            let cache_lei_pre = (cache_at_end l_lei_pre) in
+
+            (* since lei is an evict, cache_lei_pre should contain a *)
+            lemma_evict_requires_cache l lei;
+            assert(cache_contains cache_lei_pre a);
+
+            (* from induction ... *)
+            assert(Some?.v (cache_lei_pre a) = last_write_value_or_null l_lei_pre a);
+
             admit()
           )
           (* Case B: there was no previous Evict a *)
