@@ -47,7 +47,7 @@ let lemma_suffix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i})
  * TODO: For some reason a direct recursive implementation of filter
  * fails to compile
  *)
-let rec filter_aux (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq (x:a{f x}))
+let rec filter_aux (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq a)
   (decreases (length s)) =
   let n = length s in
   if n = 0 then empty
@@ -58,7 +58,7 @@ let rec filter_aux (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq (x:a{f x}))
     else
       filter_aux f (prefix s (n - 1))
 
-let filter (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq (x:a{f x}))  = filter_aux f s
+let filter (#a:eqtype) (f:a -> bool) (s:seq a) : Tot (seq a)  = filter_aux f s
 
 let rec filter_len_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
   Lemma (requires (True))
@@ -68,8 +68,9 @@ let rec filter_len_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= len
   if n = 0 then ()
   else if i  = n then () // s == prefix s i
   else (
+    let s' = prefix s (n - 1) in
     lemma_len_slice s 0 (n - 1);
-    filter_len_monotonic f (prefix s (n - 1)) i
+    filter_len_monotonic f s' i
   )
 
 let rank (#a:eqtype) (f:a -> bool)  (s:seq a) (i:nat{i <= length s})
@@ -95,7 +96,7 @@ let filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (index
   Tot (j:seq_index (filter f s){index s i = index (filter f s) j}) =
   filter_index_map_correct f s i;
   filter_index_map_aux f s i
-
+         
 let filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a)
   (i:seq_index s) (j:seq_index s{j > i}):
   Lemma (requires (f (index s i) && f (index s j)))
@@ -123,6 +124,15 @@ let rec rank_search (#a:eqtype) (f:a -> bool) (s:seq a)
 let filter_index_inv_map (#a:eqtype) (f:a -> bool)  (s:seq a) (i:seq_index (filter f s))
   : Tot (j:seq_index s{f (index s j) && filter_index_map f s j = i}) =
   rank_search f s i (length s)
+
+let lemma_filter_sat (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
+  Lemma (requires (True))
+        (ensures (f (index (filter f s) i)))
+        (decreases (length s)) = 
+  let j = filter_index_inv_map f s i in
+  assert (f (index s j ));
+  assert (filter_index_map f s j = i);
+  ()
 
 let last_index_opt (#a:eqtype) (f:a -> bool) (s:seq a):
   Tot (option (i:seq_index s{f (index s i)})) =

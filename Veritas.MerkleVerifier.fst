@@ -1,6 +1,7 @@
 module Veritas.MerkleVerifier
 
 open FStar.Seq
+open FStar.BitVector
 open FStar.Classical
 open Veritas.SeqAux
 open Veritas.Memory
@@ -18,7 +19,7 @@ type verifier_log_entry =
   | MemoryOp: o:memory_op -> verifier_log_entry
   | Add: a:merkle_addr -> v:merkle_payload -> verifier_log_entry
   | Evict: a:merkle_addr -> verifier_log_entry
-
+  
 type verifier_log = seq verifier_log_entry
 
 type vl_index (l:verifier_log) = seq_index l
@@ -537,8 +538,12 @@ let lemma_eac_implies_read_last_write (l:evict_add_consistent) (i:vl_index l):
 let is_entry_memory_op (e:verifier_log_entry): Tot bool = 
   MemoryOp? e
 
-let memory_op_of_entry (e:verifier_log_entry{is_entry_memory_op e}): Tot memory_op = 
-  MemoryOp?.o e
+let memory_op_of_entry (e:verifier_log_entry): Tot memory_op = 
+  if MemoryOp? e then
+    MemoryOp?.o e
+  else 
+    // TODO: Remove this after fixing filter
+    Read (zero_vec #addr_size) Null
 
 let memory_ops_of (l:verifier_log): Tot memory_op_log = 
   map memory_op_of_entry (filter is_entry_memory_op l)
@@ -554,15 +559,48 @@ let lemma_eac_implies_rw_consistency (l:evict_add_consistent):
            Memory.read_value lm i = 
            Memory.last_write_value_or_null (prefix lm i) (address_at_idx lm i)) =
     if Memory.is_read_op lm i then (
-      let j = filter_index_inv_map f l i in
+      (* j is the index of operation read op i in verifier log *)
+      let i' = filter_index_inv_map f l i in
       lemma_map_index memory_op_of_entry fl i;
-      assert(filter_index_map f l j = i);
-      assert (index fl i = index l j);
-      assert(is_read_op l j);
-      lemma_eac_implies_read_last_write l j;
-      let a = addr_to_merkle_leaf (address_of (memory_op_at l j)) in
-      
-      admit()
+      assert(filter_index_map f l i' = i);
+      assert (index fl i = index l i');
+      assert(is_read_op l i');
+      assert(Memory.read_value lm i = read_value l i');
+
+      (* Using lemma, the read value at l[i'] is the last write value *)
+      let a = address_of (memory_op_at l i') in
+      let ma = addr_to_merkle_leaf a in      
+      lemma_addr_merkle_inv a;
+      let f_w = is_write_to_addr ma in
+      let l_pre_i' = vprefix l i' in
+      let lm_pre_i = prefix lm i in
+      lemma_eac_implies_read_last_write l i';
+      assert(MkLeaf (read_value l i') = last_write_value_or_null l_pre_i' ma);
+
+      if has_some_write l_pre_i' ma then
+        admit()
+      else (      
+        (* Case B: there is no write to a before j *)
+        (* this implies last write is "null" *)
+        assert(last_write_value_or_null l_pre_i' ma = MkLeaf Null);
+
+        (* we want to prove there is no prior write in memory log before i *)
+        if Memory.has_some_write lm_pre_i a then (
+          let lw_pre_i = Memory.last_write_idx lm_pre_i a in
+          let lw_pre_i' = filter_index_inv_map f l lw_pre_i in
+          lemma_prefix_index lm i lw_pre_i;
+          lemma_map_index memory_op_of_entry fl lw_pre_i;
+          assert(Memory.is_write_to_addr a (index lm lw_pre_i));
+          assert(MemoryOp? (index l lw_pre_i'));
+          assert (filter_index_map f l lw_pre_i' = lw_pre_i);
+          assert (index l lw_pre_i' = MemoryOp (index lm lw_pre_i));
+          assert(Write? (MemoryOp?.o (index l lw_pre_i')));
+          assert(is_write_to_addr ma (index l lw_pre_i'));
+          //assert (lw_pre_i' < i');
+          admit()
+        )
+        else ()
+      )
     )
     else ()
   in
