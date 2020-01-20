@@ -91,6 +91,20 @@ val lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
   Lemma (requires (not (exists_sat_elems f s)))
         (ensures (not (exists_sat_elems f (prefix s i))))
 
+(* The index of the first entry that satisfies a given property *)
+val first_index (#a:eqtype) (f:a -> bool) (s:seq a{exists_sat_elems f s})
+  : Tot (i:seq_index s{f (index s i)})
+
+(* Any index before first index does not satisfy f *)
+val lemma_first_index_correct1 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Lemma (requires (exists_sat_elems f s /\ i < first_index f s))
+        (ensures (not (f (index s i))))
+
+(* Any witness satisfying f implies first_index exists *)
+val lemma_first_index_correct2 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Lemma (requires (f (index s i)))
+        (ensures (exists_sat_elems f s /\ first_index f s <= i))
+
 (* Map every element of a sequence to another domain to get another sequence *)
 val map (#a #b:Type) (f:a -> b) (s:seq a): Tot (s':seq b{length s' = length s})
 

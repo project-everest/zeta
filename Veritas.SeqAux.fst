@@ -202,7 +202,27 @@ let lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
     lemma_last_index_correct2 f s li'
   )
   else ()
-  
+
+let first_index (#a:eqtype) (f:a -> bool) (s:seq a{exists_sat_elems f s})
+  : Tot (i:seq_index s{f (index s i)}) =
+  filter_index_inv_map f s 0
+
+let lemma_first_index_correct1 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Lemma (requires (exists_sat_elems f s /\ i < first_index f s))
+        (ensures (not (f (index s i)))) = 
+  let fi = first_index f s in
+  if f (index s i) then 
+    filter_index_map_monotonic f s i fi
+  else ()
+
+let lemma_first_index_correct2 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Lemma (requires (f (index s i)))
+        (ensures (exists_sat_elems f s /\ first_index f s <= i)) =
+  lemma_last_index_correct2 f s i;
+  let fi = first_index f s in
+  if fi > i then
+    lemma_first_index_correct1 f s i
+  else ()
 
 let rec map_aux (#a #b:Type) (f:a -> b) (s:seq a): 
   Tot (s':seq b{length s' = length s}) 
