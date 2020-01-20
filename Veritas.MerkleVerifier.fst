@@ -109,11 +109,11 @@ let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state
           (* For writes, update the cache to reflect the write *)
           | Write a v -> Valid (cache_apply o cache))
     | Add a v -> 
-        (* TODO: is there a more concise syntax for (instance-of (merkle_payload_of_addr a) v)? *)
         if cache_contains cache a then 
           Failed
-        else if (is_merkle_leaf a && MkLeaf? v || not (is_merkle_leaf a) && MkInternal? v) then
-            Valid (cache_add a v cache)
+        (* TODO: is there a more concise syntax for (instance-of (merkle_payload_of_addr a) v)? *)
+        else if is_payload_of_addr a v then
+          Valid (cache_add a v cache)
         else 
           Failed
     | Evict a -> 
@@ -538,12 +538,8 @@ let lemma_eac_implies_read_last_write (l:evict_add_consistent) (i:vl_index l):
 let is_entry_memory_op (e:verifier_log_entry): Tot bool = 
   MemoryOp? e
 
-let memory_op_of_entry (e:verifier_log_entry): Tot memory_op = 
-  if MemoryOp? e then
+let memory_op_of_entry (e:verifier_log_entry{is_entry_memory_op e}): Tot memory_op = 
     MemoryOp?.o e
-  else 
-    // TODO: Remove this after fixing filter
-    Read (zero_vec #addr_size) Null
 
 let memory_ops_of (l:verifier_log): Tot memory_op_log = 
   map memory_op_of_entry (filter is_entry_memory_op l)
@@ -559,11 +555,10 @@ let lemma_eac_implies_rw_consistency (l:evict_add_consistent):
            Memory.read_value lm i = 
            Memory.last_write_value_or_null (prefix lm i) (address_at_idx lm i)) =
     if Memory.is_read_op lm i then (
-      (* j is the index of operation read op i in verifier log *)
+      (* i' is the index of operation read op i in verifier log *)
       let i' = filter_index_inv_map f l i in
       lemma_map_index memory_op_of_entry fl i;
       assert(filter_index_map f l i' = i);
-      assert (index fl i = index l i');
       assert(is_read_op l i');
       assert(Memory.read_value lm i = read_value l i');
 
@@ -571,33 +566,70 @@ let lemma_eac_implies_rw_consistency (l:evict_add_consistent):
       let a = address_of (memory_op_at l i') in
       let ma = addr_to_merkle_leaf a in      
       lemma_addr_merkle_inv a;
-      let f_w = is_write_to_addr ma in
+      let f_w' = is_write_to_addr ma in
+      let f_w = Memory.is_write_to_addr a in
       let l_pre_i' = vprefix l i' in
       let lm_pre_i = prefix lm i in
       lemma_eac_implies_read_last_write l i';
       assert(MkLeaf (read_value l i') = last_write_value_or_null l_pre_i' ma);
 
-      if has_some_write l_pre_i' ma then
-        admit()
+      if has_some_write l_pre_i' ma then (
+        (* Case A: there is a write before i' *)
+        (* let lw' be the index of this write *)
+        let lw' = last_write_idx l_pre_i' ma in
+        lemma_prefix_index l i' lw';
+
+        (* lw is its mapping in lm *)
+        let lw = filter_index_map f l lw' in
+        lemma_filter_maps_correct f l lw';       
+        lemma_map_index memory_op_of_entry fl lw;
+        filter_index_map_monotonic is_entry_memory_op l lw' i';        
+
+        (* We want to prove that lw is the last write before i which completes
+         * the proof that read at i reads last write value *)
+        lemma_prefix_index lm i lw;
+        lemma_last_index_correct2 f_w lm_pre_i lw;
+
+        (* let lw_2 be the last write *)
+        let lw_2 = Memory.last_write_idx lm_pre_i a in
+        assert (lw_2 >= lw);
+        lemma_prefix_index lm i lw_2;
+
+        if (lw_2 = lw) then ()
+
+        else (
+          let lw'_2 = filter_index_inv_map f l lw_2 in
+          filter_index_inv_map_monotonic f l lw_2 i;
+          filter_index_inv_map_monotonic f l lw lw_2;
+          lemma_map_index memory_op_of_entry fl lw_2;          
+          lemma_prefix_index l i' lw'_2;
+          lemma_last_index_correct2 f_w' l_pre_i' lw'_2
+        )
+      )
       else (      
-        (* Case B: there is no write to a before j *)
+        (* Case B: there is no write to a before j' *)
         (* this implies last write is "null" *)
         assert(last_write_value_or_null l_pre_i' ma = MkLeaf Null);
 
         (* we want to prove there is no prior write in memory log before i *)
         if Memory.has_some_write lm_pre_i a then (
+          (* if there is a write, lw_pre_i is index of last write before i *)
           let lw_pre_i = Memory.last_write_idx lm_pre_i a in
+          assert(lw_pre_i < i);
+
+          (* lw_pre_i' is its corresponding index in l *)
           let lw_pre_i' = filter_index_inv_map f l lw_pre_i in
           lemma_prefix_index lm i lw_pre_i;
           lemma_map_index memory_op_of_entry fl lw_pre_i;
-          assert(Memory.is_write_to_addr a (index lm lw_pre_i));
-          assert(MemoryOp? (index l lw_pre_i'));
-          assert (filter_index_map f l lw_pre_i' = lw_pre_i);
-          assert (index l lw_pre_i' = MemoryOp (index lm lw_pre_i));
-          assert(Write? (MemoryOp?.o (index l lw_pre_i')));
-          assert(is_write_to_addr ma (index l lw_pre_i'));
-          //assert (lw_pre_i' < i');
-          admit()
+
+          (* lw_pre_i' < i' *)
+          filter_index_inv_map_monotonic is_entry_memory_op l lw_pre_i i;
+          assert (lw_pre_i' < i');
+
+          lemma_prefix_index l i' lw_pre_i';
+          assert(is_write_to_addr ma (index l_pre_i' lw_pre_i'));
+
+          lemma_last_index_correct2 f_w' l_pre_i' lw_pre_i'          
         )
         else ()
       )
@@ -606,3 +638,4 @@ let lemma_eac_implies_rw_consistency (l:evict_add_consistent):
   in
   forall_intro aux;
   lemma_rw_consistent_operational_correct lm
+

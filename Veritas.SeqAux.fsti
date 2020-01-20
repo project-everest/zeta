@@ -27,8 +27,10 @@ val lemma_suffix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i})
   Lemma (requires (True))
         (ensures (index (suffix s i) j == index s (length s - i + j)))
 
+let refine #a (f:a -> bool) = x:a{f x}
+
 (* Subsequence of s obtained by applying a filter *)
-val filter (#a:eqtype) (f:a -> bool) (s:seq a): Tot (seq a)
+val filter (#a:eqtype) (f:a -> bool) (s:seq a): Tot (seq (refine f))
 
 (* Mapping from original seq to filtered subseq for satisfying indexes *)
 val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (index s i)}):
@@ -45,11 +47,16 @@ val filter_index_inv_map (#a:eqtype) (f:a -> bool) (s:seq a)
   (i:seq_index (filter f s)): 
   Tot (j:seq_index s{f (index s j) /\ filter_index_map f s j = i})
 
-(* Every element of the filter satisfies the filter predicate *)
-val lemma_filter_sat (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
-  Lemma (requires (True))
-        (ensures (f (index (filter f s) i)))
+(* Inverse mapping is injective *)
+val filter_index_inv_map_monotonic (#a:eqtype) (f:a -> bool) (s: seq a)
+  (i:seq_index (filter f s)) (j: seq_index (filter f s) {j > i}):
+    Lemma (requires (True))
+          (ensures (filter_index_inv_map f s i < filter_index_inv_map f s j))
 
+val lemma_filter_maps_correct (#a:eqtype) (f:a -> bool) (s: seq a) (i:seq_index s):
+  Lemma (requires (f (index s i)))
+        (ensures (filter_index_inv_map f s (filter_index_map f s i) = i))
+  
 
 (* The index of the last entry that satisfies a given property *)
 val last_index_opt (#a:eqtype) (f:a -> bool) (s:seq a):

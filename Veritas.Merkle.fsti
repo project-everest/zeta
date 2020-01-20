@@ -17,7 +17,7 @@ let rec depth (n:bin_tree_node): Tot nat =
   | RightChild n' -> 1 + depth n'
 
 (* Parent of a node *)
-let rec parent (n:bin_tree_node{~(Root? n)}): Tot bin_tree_node = 
+let parent (n:bin_tree_node{~(Root? n)}): Tot bin_tree_node = 
   match n with
   | LeftChild n' -> n'
   | RightChild n' -> n'
@@ -57,10 +57,13 @@ type merkle_payload =
   | MkLeaf: value:payload -> merkle_payload
   | MkInternal: left:hash_value -> right:hash_value -> merkle_payload
 
+let is_payload_of_addr (a:merkle_addr) (p:merkle_payload): Tot bool =
+  if is_merkle_leaf a then MkLeaf? p 
+  else MkInternal? p
+
 (* merkle payload type conditioned on the address *)
 type merkle_payload_of_addr (a:merkle_addr) = 
-  p:merkle_payload{is_merkle_leaf a && MkLeaf? p || 
-                   not (is_merkle_leaf a) && MkInternal? p}
+  p:merkle_payload{is_payload_of_addr a p}
 
 (* hash function maps a merkle payload to a hash value *)
 val hashfn (m:merkle_payload): Tot hash_value
