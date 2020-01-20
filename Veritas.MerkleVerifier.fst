@@ -63,6 +63,16 @@ let cache_contains (vc:verifier_cache) (a:merkle_addr): Tot bool =
   Some? (vc a)
 
 (* 
+ * Update the cache. This is a pure update function that requires 
+ * that cache contain an entry for the merkle address as a precondition
+ *)
+let cache_update (cache:verifier_cache) 
+                 (a:merkle_addr{cache_contains cache a}) 
+                 (v:merkle_payload_of_addr a): 
+  Tot (cache':verifier_cache{cache_contains cache' a}) = 
+  fun a' -> if a' = a then Some v else cache a'
+
+(* 
  * Update the cache to reflect a memory write, which translates to updating 
  * the leaf merkle node in the cache. This is a pure update function and we 
  * require the cache to contain an entry for the merkle addr as a precondition
@@ -72,8 +82,8 @@ let cache_apply (o:memory_op{Write? o})
   : Tot (vc':verifier_cache{cache_contains vc' (addr_to_merkle_leaf (address_of o))}) =
   match o with
   | Read _ _ -> vc
-  | Write a v -> (fun a' -> if a' = addr_to_merkle_leaf a then Some (MkLeaf v) else vc a')
-
+  | Write a v -> cache_update vc (addr_to_merkle_leaf a) (MkLeaf v)
+  
 (* Add a merkle_addr, payload to cache *)
 let cache_add (a:merkle_addr) (v:merkle_payload_of_addr a) (vc:verifier_cache)
   : Tot verifier_cache = 
@@ -90,6 +100,31 @@ noeq type verifier_state =
   | Failed: verifier_state 
   | Valid: vc:verifier_cache -> verifier_state
 
+let is_parent_hash_correct (cache:verifier_cache) 
+                           (a:merkle_non_root_addr) 
+                           (v:merkle_payload_of_addr a): Tot bool =
+  match a with
+  | LeftChild p -> if cache_contains cache p then
+                     let pv = Some?.v (cache p) in
+                     hashfn v = MkInternal?.left pv
+                   else false
+  | RightChild p -> if cache_contains cache p then
+                     let pv = Some?.v (cache p) in
+                     hashfn v = MkInternal?.right pv
+                   else false
+
+let update_parent_hash (cache:verifier_cache)
+                       (a:merkle_non_root_addr{cache_contains cache a && 
+                                               cache_contains cache (parent a)})
+  : Tot verifier_cache =
+  let h = hashfn (Some?.v (cache a)) in
+  match a with
+  | LeftChild p -> let pv = Some?.v (cache p) in
+                   cache_update cache p (MkInternal h (MkInternal?.right pv))
+                  
+  | RightChild p -> let pv = Some?.v (cache p) in
+                    cache_update cache p (MkInternal (MkInternal?.left pv) h)
+                        
 (* Each step of the verifier *)
 let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state =
   if (Failed? vs) then Failed
@@ -109,17 +144,18 @@ let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state
           (* For writes, update the cache to reflect the write *)
           | Write a v -> Valid (cache_apply o cache))
     | Add a v -> 
-        if cache_contains cache a then 
-          Failed
-        (* TODO: is there a more concise syntax for (instance-of (merkle_payload_of_addr a) v)? *)
+        if cache_contains cache a then Failed          
+        else if is_merkle_root a then Failed 
         else if is_payload_of_addr a v then
-          Valid (cache_add a v cache)
+          if is_parent_hash_correct cache a v then
+            Valid (cache_add a v cache)
+          else Failed
         else 
           Failed
     | Evict a -> 
         if is_merkle_root a then Failed
-        else if cache_contains cache a then
-          Valid (cache_evict a cache)
+        else if cache_contains cache a && cache_contains cache (parent a) then
+          Valid (cache_evict a (update_parent_hash cache a))
         else
           Failed
 
@@ -134,15 +170,17 @@ let rec verifier_aux (l:verifier_log) (vs:verifier_state): Tot verifier_state
     let e' = index l (n - 1) in 
     verifier_step e' vs'
 
+let init_payload (a:merkle_addr): Tot (merkle_payload_of_addr a) = 
+    merklefn a init_memory
+
 (* Initial cache contains only the merkle root *)
 let init_cache:verifier_cache = 
   fun a -> if is_merkle_root a then 
-           Some (merklefn a init_memory)
+           Some (init_payload a)
          else None  
 
 let verifier (l:verifier_log): Tot verifier_state = 
   verifier_aux l (Valid init_cache)
-
 
 let verifiable (l:verifier_log): Tot bool = 
   Valid? (verifier l)
@@ -185,16 +223,16 @@ let has_some_evict (l:verifier_log) (a:merkle_addr) = exists_sat_elems (is_evict
 let last_evict_idx (l:verifier_log) (a:merkle_addr{has_some_evict l a}) = 
   last_index (is_evict_of_addr a) l
 
-let last_evict_value_or_null (l:verifiable_log) (a:merkle_leaf_addr): 
+let last_evict_value_or_init (l:verifiable_log) (a:merkle_addr): 
   Tot (merkle_payload_of_addr a) = 
   if has_some_evict l a then
     evict_payload l (last_evict_idx l a)
   else
-    MkLeaf Null
+    init_payload a
 
 type evict_add_consistent  = l:verifiable_log {forall (i:vl_index l). 
-    is_add l i /\ is_merkle_leaf (add_addr l i) ==> 
-    add_payload l i = last_evict_value_or_null (vprefix l i) (add_addr l i)}
+    is_add l i  ==> 
+    add_payload l i = last_evict_value_or_init (vprefix l i) (add_addr l i)}
 
 let is_write_to_addr (a:merkle_leaf_addr) (e:verifier_log_entry) = 
   MemoryOp? e && is_write_to_addr (merkle_leaf_to_addr a) (MemoryOp?.o e)
@@ -299,18 +337,16 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
   if n = 0 then ()
   (* nothing to prove if cache does not contain a *)
   else if (not (cache_contains cache a)) then ()
-  
   else (
     assert(cache_contains cache a);
     
     lemma_cache_contains_implies_last_add_before_evict l a;
     let aux (i:vl_index l) (j:vl_index (prefix l i)):
-      Lemma (is_add (prefix l i) j /\ is_merkle_leaf (add_addr (prefix l i) j) ==>
-             add_payload (prefix l i) j = last_evict_value_or_null (vprefix (vprefix l i) j) 
+      Lemma (is_add (prefix l i) j ==>
+             add_payload (prefix l i) j = last_evict_value_or_init (vprefix (vprefix l i) j) 
                                                                    (add_addr (prefix l i) j)) = 
       let l' = vprefix l i in
       if not (is_add l' j) then ()
-      else if not (is_merkle_leaf (add_addr l' j)) then ()
       else (
         lemma_prefix_index l i j;
         assert (is_add l' j);
@@ -318,10 +354,11 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
         assert(vprefix l j = vprefix l' j)
       )
     in
+
     (* Induction step on l' *)
     let l' = prefix l (n - 1) in
     forall_intro (aux (n - 1)); 
-    lemma_eac_implies_cache_is_last_write l' a;    
+    lemma_eac_implies_cache_is_last_write l' a;
 
     (* current log entry *)
     let e = index l (n - 1) in 
@@ -363,7 +400,7 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
         if a' = a then (
           (* since l is evict - add consistent, this add payload reflects previous evict or null *)
           assert (is_add l (n - 1));
-          assert (v = last_evict_value_or_null l' a);
+          assert (v = last_evict_value_or_init l' a);
 
           (* add semantics *)
           assert(Some?.v (cache a) = v);
@@ -452,9 +489,9 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
             assert (not (has_some_evict l' a));
 
             (* this implies .... *)
-            assert (last_evict_value_or_null l' a = MkLeaf Null);
+            assert (last_evict_value_or_init l' a = MkLeaf Null);
             assert (v = MkLeaf Null);
-            
+
             (* Now, we prove that there are no previous writes, so last_write_value_or_null is also Null *)
             if has_some_write l a then (
               (* If there is a previous write, lwi is the index of the last write *)
@@ -476,14 +513,11 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
               (* this implies an evict between lai and (n - 1), a contradiction *)
               lemma_evict_between_adds l lai (n - 1)
             )
-            else ()              
+            else ()                          
           )
         )
-        
-        (* Add a' <> a handled earlier (not updates cache) *)
         else ()
-
-      | MemoryOp o ->
+      | MemoryOp o -> 
         if Read? o then () // handled in does not update cache
         else if a = addr_to_merkle_leaf (Write?.a o) then (
           lemma_merkle_equal_implies_addr_equal (merkle_leaf_to_addr a) (Write?.a o);
@@ -492,7 +526,7 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
         )
         else 
           ()          
-        
+
     )
   )
          
@@ -510,12 +544,11 @@ let lemma_eac_implies_read_last_write (l:evict_add_consistent) (i:vl_index l):
   assert (cache_contains cache a);
 
   let aux (i:vl_index l) (j:vl_index (prefix l i)):
-    Lemma (is_add (prefix l i) j /\ is_merkle_leaf (add_addr (prefix l i) j) ==>
-          add_payload (prefix l i) j = last_evict_value_or_null (vprefix (vprefix l i) j) 
+    Lemma (is_add (prefix l i) j  ==>
+          add_payload (prefix l i) j = last_evict_value_or_init (vprefix (vprefix l i) j) 
                                                               (add_addr (prefix l i) j)) = 
     let l' = vprefix l i in
     if not (is_add l' j) then ()
-    else if not (is_merkle_leaf (add_addr l' j)) then ()
     else (
       lemma_prefix_index l i j;
       assert (is_add l' j);
