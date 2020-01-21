@@ -22,36 +22,48 @@ type verifier_log_entry =
   
 type verifier_log = seq verifier_log_entry
 
+(* index in the verifier log *)
 type vl_index (l:verifier_log) = seq_index l
 
+(* is the i'th operation an evict *)
 let is_evict (l:verifier_log) (i:vl_index l): Tot bool =
   Evict? (index l i)
 
+(* evicted address for an evict operation *)
 let evict_addr (l:verifier_log) (i:vl_index l{is_evict l i}): Tot merkle_addr = 
   Evict?.a (index l i)
 
+(* is the ith operation an add *)
 let is_add (l:verifier_log) (i:vl_index l) = 
   Add? (index l i)
 
+(* added address for an add operation *)
 let add_addr (l:verifier_log) (i:vl_index l{is_add l i}): Tot merkle_addr = 
   Add?.a (index l i)
 
+(* added payload for an add operation *)
 let add_payload (l:verifier_log) (i:vl_index l {is_add l i}): Tot merkle_payload =
   Add?.v (index l i)
 
+(* is the ith operation a memory operation? *)
 let is_memory_op (l:verifier_log) (i:vl_index l): Tot bool = MemoryOp? (index l i)
 
+(* memory op for an memory_op index *)
 let memory_op_at (l:verifier_log) (i:vl_index l{is_memory_op l i}) = MemoryOp?.o (index l i)
 
+(* is the i'th operation a write operation *)
 let is_write_op (l:verifier_log) (i:vl_index l): Tot bool = 
   is_memory_op l i && Write? (memory_op_at l i)
 
+(* written value for a write operation *)
 let written_value (l:verifier_log) (i:vl_index l{is_write_op l i}): Tot payload = 
   Write?.v (memory_op_at l i)
 
+(* is the ith operation a read operation *)
 let is_read_op (l:verifier_log) (i:vl_index l): Tot bool = 
   is_memory_op l i && Read? (memory_op_at l i)
 
+(* read value for a read operation *)
 let read_value (l:verifier_log) (i:vl_index l{is_read_op l i}): Tot payload = 
   Read?.v (memory_op_at l i)
 
@@ -77,22 +89,26 @@ let cache_update (cache:verifier_cache)
  * the leaf merkle node in the cache. This is a pure update function and we 
  * require the cache to contain an entry for the merkle addr as a precondition
  *)
-let cache_apply (o:memory_op{Write? o}) 
-                (vc:verifier_cache{cache_contains vc (addr_to_merkle_leaf (address_of o))})
+let cache_apply (cache:verifier_cache)
+                (o:memory_op{Write? o && 
+                             cache_contains cache (addr_to_merkle_leaf (address_of o))})
   : Tot (vc':verifier_cache{cache_contains vc' (addr_to_merkle_leaf (address_of o))}) =
   match o with
-  | Read _ _ -> vc
-  | Write a v -> cache_update vc (addr_to_merkle_leaf a) (MkLeaf v)
+  | Read _ _ -> cache
+  | Write a v -> cache_update cache (addr_to_merkle_leaf a) (MkLeaf v)
   
 (* Add a merkle_addr, payload to cache *)
-let cache_add (a:merkle_addr) (v:merkle_payload_of_addr a) (vc:verifier_cache)
-  : Tot verifier_cache = 
-  fun a' -> if a' = a then Some v else vc a'
+let cache_add (cache:verifier_cache)
+              (a:merkle_addr {not (cache_contains cache a)}) 
+              (v:merkle_payload_of_addr a) 
+  : Tot (cache':verifier_cache {cache_contains cache' a}) =
+  fun a' -> if a' = a then Some v else cache a'
 
 (* Evict a merkle_addr from cache *)
-let cache_evict (a:merkle_addr) (vc:verifier_cache{cache_contains vc a})
+let cache_evict (cache:verifier_cache) 
+                (a:merkle_addr{cache_contains cache a}) 
   : Tot verifier_cache = 
-  fun a' -> if a' = a then None else vc a'
+  fun a' -> if a' = a then None else cache a'
 
 (* Verifier state is the cache if valid *)
 (* TODO: Understand subtleties of noeq *)
@@ -100,23 +116,37 @@ noeq type verifier_state =
   | Failed: verifier_state 
   | Valid: vc:verifier_cache -> verifier_state
 
+(* 
+ * Given a cache and merkle non-root node, check 
+ * (1) the parent node is in the cache
+ * (2) hash stored at the parent corresponds to the node
+ *)
 let is_parent_hash_correct (cache:verifier_cache) 
                            (a:merkle_non_root_addr) 
                            (v:merkle_payload_of_addr a): Tot bool =
   match a with
   | LeftChild p -> if cache_contains cache p then
+                     (* parent node payload *)
                      let pv = Some?.v (cache p) in
+                     (* check hash of v corresponds to the hash in parent *)
                      hashfn v = MkInternal?.left pv
                    else false
   | RightChild p -> if cache_contains cache p then
+                     (* parent node payload *)
                      let pv = Some?.v (cache p) in
+                     (* check hash of v corresponds to the hash in parent *)
                      hashfn v = MkInternal?.right pv
                    else false
 
+(*
+ * Given a cache and a merkle on-root node,
+ * update the hash stored at the parent with the hash of the node 
+ *)
 let update_parent_hash (cache:verifier_cache)
                        (a:merkle_non_root_addr{cache_contains cache a && 
                                                cache_contains cache (parent a)})
   : Tot verifier_cache =
+  (* hash of the node *)
   let h = hashfn (Some?.v (cache a)) in
   match a with
   | LeftChild p -> let pv = Some?.v (cache p) in
@@ -127,6 +157,7 @@ let update_parent_hash (cache:verifier_cache)
                         
 (* Each step of the verifier *)
 let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state =
+  (* propagate failures *)
   if (Failed? vs) then Failed
   else
     let cache = (Valid?.vc vs) in
@@ -142,34 +173,49 @@ let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state
           (* For reads, the value read should correspond to the value in the cache *)
           | Read _ v -> if v = MkLeaf?.value payload then vs else Failed            
           (* For writes, update the cache to reflect the write *)
-          | Write a v -> Valid (cache_apply o cache))
+          | Write a v -> Valid (cache_apply cache o))
     | Add a v -> 
-        if cache_contains cache a then Failed          
+        (* Check cache contains merkle addr *)
+        if cache_contains cache a then Failed 
+        (* Root is never added *)
         else if is_merkle_root a then Failed 
+        (* Check payload structure corresponds to address *)
         else if is_payload_of_addr a v then
+          (* Check if hash node is that stored in parent *)
           if is_parent_hash_correct cache a v then
-            Valid (cache_add a v cache)
+            (* Add the new node to the cache and return *)
+            Valid (cache_add cache a v)
+          (* hash check failed *)
           else Failed
         else 
+          (* Invalid payload *)
           Failed
     | Evict a -> 
+        (* Merkle root is never evicted *)
         if is_merkle_root a then Failed
         else if cache_contains cache a && cache_contains cache (parent a) then
-          Valid (cache_evict a (update_parent_hash cache a))
+          (* update the parent hash and evict *)
+          Valid (cache_evict (update_parent_hash cache a) a)
         else
           Failed
 
-(* Verifier *)
-let rec verifier_aux (l:verifier_log) (vs:verifier_state): Tot verifier_state 
+(* Verifier for a given log, from a specified initial state *)
+let rec verifier_aux (l:verifier_log) (init_vs:verifier_state): Tot verifier_state 
   (decreases (length l)) =
   let n = length l in
-  if n = 0 then vs
+  (* empty log *)
+  if n = 0 then init_vs
   else
     let l' = prefix l (n - 1) in
-    let vs' = verifier_aux l' vs in
+    (* recurse *)
+    let vs' = verifier_aux l' init_vs in
     let e' = index l (n - 1) in 
     verifier_step e' vs'
 
+(* 
+ * Initial payload for every merkle node for init memory where each address
+ * contains Null 
+ *)
 let init_payload (a:merkle_addr): Tot (merkle_payload_of_addr a) = 
     merklefn a init_memory
 
@@ -179,15 +225,19 @@ let init_cache:verifier_cache =
            Some (init_payload a)
          else None  
 
+(* Verifier for a log from the initial state *)
 let verifier (l:verifier_log): Tot verifier_state = 
   verifier_aux l (Valid init_cache)
 
+(* Does the verifier return Valid (success) for this log *)
 let verifiable (l:verifier_log): Tot bool = 
   Valid? (verifier l)
 
+(* Refinement type of logs that are verifiable *)
 type verifiable_log = l:verifier_log{verifiable l}
 
-let rec verifiable_implies_prefix_verifiable (l:verifiable_log) (i:nat{i <= length l}):
+(* If a log is verifiable, then each prefix of the log is also verifiable *)
+let rec lemma_verifiable_implies_prefix_verifiable (l:verifiable_log) (i:nat{i <= length l}):
   Lemma (requires (True))
         (ensures (verifiable (prefix l i)))
         (decreases (length l)) = 
@@ -195,74 +245,48 @@ let rec verifiable_implies_prefix_verifiable (l:verifiable_log) (i:nat{i <= leng
   if n = 0 then ()
   else if i = n then lemma_fullprefix_equal l
   else ( 
-    verifiable_implies_prefix_verifiable (prefix l (n - 1)) i;
+    lemma_verifiable_implies_prefix_verifiable (prefix l (n - 1)) i;
     lemma_prefix_prefix l (n - 1) i
   )
 
+(* prefix, redefined for verifiable logs *)
 let vprefix (l:verifiable_log) (i:nat{i <= length l}): Tot verifiable_log = 
-  verifiable_implies_prefix_verifiable l i;prefix l i
+  lemma_verifiable_implies_prefix_verifiable l i;prefix l i
 
-let evict_payload (l:verifiable_log) (i:vl_index l{is_evict l i}): 
-  Tot (merkle_payload_of_addr (evict_addr l i)) =
-  verifiable_implies_prefix_verifiable l (i + 1);
-  verifiable_implies_prefix_verifiable l i;
-  let a = evict_addr l i in
-  let l'' = prefix l i in
-  let vs'' = verifier l'' in 
-  lemma_prefix_prefix l (i + 1) i;
-  lemma_prefix_index l (i + 1) i;
-  Some?.v ((Valid?.vc vs'') a)
-  
+(* is this log entry, an evict of a specified address *)
 let is_evict_of_addr (a:merkle_addr) (e:verifier_log_entry) = 
   Evict? e && Evict?.a e = a
 
-let last_evict_idxopt (l:verifier_log) (a:merkle_addr) = last_index_opt (is_evict_of_addr a) l
-
+(* Does this log have some evict entry for address a *)
 let has_some_evict (l:verifier_log) (a:merkle_addr) = exists_sat_elems (is_evict_of_addr a) l
 
+(* Index of the last evict entry *)
 let last_evict_idx (l:verifier_log) (a:merkle_addr{has_some_evict l a}) = 
   last_index (is_evict_of_addr a) l
 
-let last_evict_value_or_init (l:verifiable_log) (a:merkle_addr): 
-  Tot (merkle_payload_of_addr a) = 
-  if has_some_evict l a then
-    evict_payload l (last_evict_idx l a)
-  else
-    init_payload a
-
-type evict_add_consistent  = l:verifiable_log {forall (i:vl_index l). 
-    is_add l i  ==> 
-    add_payload l i = last_evict_value_or_init (vprefix l i) (add_addr l i)}
-
-let is_write_to_addr (a:merkle_leaf_addr) (e:verifier_log_entry) = 
-  MemoryOp? e && is_write_to_addr (merkle_leaf_to_addr a) (MemoryOp?.o e)
-
-let last_write_idxopt (l:verifiable_log) (a:merkle_leaf_addr) = last_index_opt (is_write_to_addr a) l
-
-let has_some_write (l:verifiable_log) (a:merkle_leaf_addr) = exists_sat_elems (is_write_to_addr a) l
-
-let last_write_idx (l:verifiable_log) (a:merkle_leaf_addr{has_some_write l a}) = 
-  last_index (is_write_to_addr a) l
-
-let cache_at_end (l:verifiable_log): Tot verifier_cache = 
-  Valid?.vc (verifier l)
-
-let last_write_value_or_null (l:verifiable_log) (a:merkle_leaf_addr): Tot (merkle_payload_of_addr a) =
-  if has_some_write l a then
-    MkLeaf (written_value l (last_write_idx l a))
-  else
-    MkLeaf Null
-
+(* Is this an add operation on address a *)
 let is_add_of_addr (a:merkle_addr) (e:verifier_log_entry) = 
   Add? e && Add?.a e = a
 
-let last_add_idxopt (l:verifier_log) (a:merkle_addr) = last_index_opt (is_add_of_addr a) l
-
+(* Does thie log have some add entry for address a *)
 let has_some_add (l:verifier_log) (a:merkle_addr) = exists_sat_elems (is_add_of_addr a) l
 
+(* Index of the last add operation *)
 let last_add_idx (l:verifier_log) (a:merkle_addr{has_some_add l a}) = 
   last_index (is_add_of_addr a) l
 
+(* Is this log entry a write to address a *)
+let is_write_to_addr (a:merkle_leaf_addr) (e:verifier_log_entry) = 
+  MemoryOp? e && is_write_to_addr (merkle_leaf_to_addr a) (MemoryOp?.o e)
+
+(* Does this log have some write to address a *)
+let has_some_write (l:verifiable_log) (a:merkle_leaf_addr) = exists_sat_elems (is_write_to_addr a) l
+
+(* Index of last write to address a *)
+let last_write_idx (l:verifiable_log) (a:merkle_leaf_addr{has_some_write l a}) = 
+  last_index (is_write_to_addr a) l
+
+(* Lemma: there is an evict operation between every two add operations of an address *)
 let rec lemma_evict_between_adds (l:verifiable_log) 
                                  (i1:vl_index l{is_add l i1}) 
                                  (i2:vl_index l{is_add l i2 && add_addr l i1 = add_addr l i2 && i2 > i1}):
@@ -271,6 +295,7 @@ let rec lemma_evict_between_adds (l:verifiable_log)
                   last_evict_idx (prefix l i2) (add_addr l i2) > i1))
         (decreases (length l)) = admit()
 
+(* Lemma: there is an add operation between every two evict operations of an address *)
 let rec lemma_add_between_evicts (l:verifiable_log)
                                  (i1:vl_index l{is_evict l i1})
                                  (i2:vl_index l{is_evict l i2 && evict_addr l i1 = evict_addr l i2 && i2 > i1}):
@@ -279,21 +304,44 @@ let rec lemma_add_between_evicts (l:verifiable_log)
                   last_add_idx (prefix l i2) (evict_addr l i2) > i1))
         (decreases (length l)) = admit()
 
+(* Lemma: There is an add before the first evict *)
+let rec lemma_first_add_before_evict (l:verifiable_log) 
+                                     (i:vl_index l{is_evict l i})
+  : Lemma (requires (True))
+          (ensures (has_some_add (prefix l i) (evict_addr l i)))
+          (decreases (length l)) = admit()  
+
+(* State of the cache after processing log l *)
+let cache_at_end (l:verifiable_log): Tot verifier_cache = 
+  Valid?.vc (verifier l)
+
+(* 
+ * Lemma: if there is a memory operation at index i, then cache at that position
+ * contains the address touched by the operation 
+ *)
 let lemma_memop_requires_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_memory_op l i))
         (ensures  (cache_contains (cache_at_end (vprefix l i)) 
                                   (addr_to_merkle_leaf (address_of (memory_op_at l i))))) = admit()
 
+(*
+ * Lemma: An evict operation requires the cache to contain the evicted address 
+ *)
 let lemma_evict_requires_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_evict l i))
         (ensures  (cache_contains (cache_at_end (vprefix l i)) (evict_addr l i))) = admit()
 
+(* 
+ * If the cache contains an address a (non root), then the last add/evict operation 
+ * is an add 
+ *)
 let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a:merkle_non_root_addr):
   Lemma (requires (cache_contains (cache_at_end l) a))
         (ensures (has_some_add l a /\
                   (has_some_evict l a ==> last_evict_idx l a < last_add_idx l a)))
         (decreases (length l)) = admit()
 
+(* Lemma: converse of the previous lemma *)
 let rec lemma_last_add_before_evict_implies_cache_contains (l:verifiable_log) (a:merkle_non_root_addr):
   Lemma (requires (has_some_add l a /\
                    (has_some_evict l a ==> last_evict_idx l a < last_add_idx l a)))
@@ -307,26 +355,96 @@ let updates_cache (a:merkle_addr) (e:verifier_log_entry): Tot bool =
   | Add a' v -> a = a' 
   | Evict a' -> a = a'
 
-(* The state of the cache is unchanged on a verifier step if the log entry does not update the cache *)
+(* 
+ * The state of the cache is unchanged on a verifier step if the log entry does not 
+ * update the cache 
+ *)
 let lemma_updates_cache (vc:verifier_cache) (a:merkle_addr) (e:verifier_log_entry):
-  Lemma (requires (Valid? (verifier_step e (Valid vc)) && not (updates_cache a e) && cache_contains vc a))
+  Lemma (requires (Valid? (verifier_step e (Valid vc)) && 
+                   not (updates_cache a e) && cache_contains vc a))
         (ensures (cache_contains (Valid?.vc (verifier_step e (Valid vc))) a && 
                   Some?.v (vc a) = Some?.v (Valid?.vc (verifier_step e (Valid vc)) a))) = admit()
 
-(* The state of the cache is unchanged on a verifier step if the log entry does not update the cache *)
+(* 
+ * The state of the cache is unchanged on a verifier step if the log entry does not 
+ * update the cache 
+ *)
 let lemma_updates_cache_inv (vc:verifier_cache) (a:merkle_addr) (e:verifier_log_entry):
   Lemma (requires (Valid? (verifier_step e (Valid vc)) && not (updates_cache a e) && 
                    cache_contains (Valid?.vc (verifier_step e (Valid vc))) a))
         (ensures (cache_contains vc a && 
                   Some?.v (vc a) = Some?.v (Valid?.vc (verifier_step e (Valid vc)) a))) = admit()
 
-(* If the last entry of the log does not write to a, then last_write_value remains unchanged *)
+(*
+ * We want to prove that if the verifier returns Valid for a log l, then the 
+ * read-write operations in log l are rw-consistent unless there is a hash collision. 
+ * To prove this, we develop a notion of evict-add consistency: 
+ * 
+ * A log is evict-add consistent, if every add sees the payload of the most recent evict
+ * to the same address or some initial value if there has been no previous evict 
+ * 
+ * We prove (1) evict-add consistency implies rw-consistency (2) a verifiable log that is 
+ * not evict-add consistent implies a hash collision (that we construct)
+ *)
+
+(* payload of an evict operation *)
+let evict_payload (l:verifiable_log) (i:vl_index l{is_evict l i}): 
+  Tot (merkle_payload_of_addr (evict_addr l i)) =
+  lemma_verifiable_implies_prefix_verifiable l (i + 1);
+  lemma_verifiable_implies_prefix_verifiable l i;
+  let a = evict_addr l i in
+  let l'' = prefix l i in
+  let vs'' = verifier l'' in 
+  lemma_prefix_prefix l (i + 1) i;
+  lemma_prefix_index l (i + 1) i;
+  Some?.v ((Valid?.vc vs'') a)
+
+(* 
+ * for a given address a, the last evict payload or init_payload if 
+ * there exists no evicts for add 
+ *)
+let last_evict_value_or_init (l:verifiable_log) (a:merkle_addr): 
+  Tot (merkle_payload_of_addr a) = 
+  if has_some_evict l a then
+    evict_payload l (last_evict_idx l a)
+  else
+    init_payload a
+
+(* evict-add consistency (eac) for a verifiable log *)
+type evict_add_consistent (l:verifiable_log) = forall (i:vl_index l). 
+    is_add l i  ==> 
+    add_payload l i = last_evict_value_or_init (vprefix l i) (add_addr l i)
+
+(* refinement of verifiable logs that are evict-add consistent *)
+type eac_log  = l:verifiable_log {evict_add_consistent l}
+
+(* Part I of the proof: we prove that evict-add consistency implies rw-consistency *)
+
+(* 
+ * for a merkle leaf address - which corresponds to a memory address  - 
+ * the last written value or Null 
+ *)
+let last_write_value_or_null (l:verifiable_log) (a:merkle_leaf_addr)
+  : Tot (merkle_payload_of_addr a) =
+  if has_some_write l a then
+    MkLeaf (written_value l (last_write_idx l a))
+  else
+    MkLeaf Null
+
+(* 
+ * If the last entry of the log does not write to a, then last_write_value remains unchanged 
+ *)
 let lemma_last_write_unchanged_unless_write (l:verifiable_log{length l > 0}) (a:merkle_leaf_addr):
   Lemma (requires (not (is_write_to_addr a (index l (length l - 1)))))
-        (ensures (last_write_value_or_null l a = last_write_value_or_null (prefix l (length l - 1)) a)) =
-  admit()        
+        (ensures (last_write_value_or_null l a = 
+                  last_write_value_or_null (prefix l (length l - 1)) a)) =
+  admit() 
 
-let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle_leaf_addr):
+(* 
+ * The core lemma of part I, the cached value of every leaf node reflects the 
+ * last write or Null if the log is evict-add consistent 
+ *)
+let rec lemma_eac_implies_cache_is_last_write (l:eac_log) (a:merkle_leaf_addr):
   Lemma (requires (True))
         (ensures (cache_contains (cache_at_end l) a ==> 
                   Some?.v ((cache_at_end l) a) = last_write_value_or_null l a))
@@ -529,8 +647,9 @@ let rec lemma_eac_implies_cache_is_last_write (l:evict_add_consistent) (a:merkle
 
     )
   )
-         
-let lemma_eac_implies_read_last_write (l:evict_add_consistent) (i:vl_index l):
+
+(* evict-add consistency implies every read corresponds to the last write *)
+let lemma_eac_implies_read_last_write (l:eac_log) (i:vl_index l):
   Lemma (requires (is_read_op l i))
         (ensures (MkLeaf (read_value l i) = 
                   last_write_value_or_null (vprefix l i) 
@@ -568,16 +687,22 @@ let lemma_eac_implies_read_last_write (l:evict_add_consistent) (i:vl_index l):
   lemma_prefix_prefix l (i + 1) i;
   lemma_prefix_index l (i + 1) i
 
+(* is this verifier log entry a memory operation *)
 let is_entry_memory_op (e:verifier_log_entry): Tot bool = 
   MemoryOp? e
 
+(* the memory operation of an entry *)
 let memory_op_of_entry (e:verifier_log_entry{is_entry_memory_op e}): Tot memory_op = 
     MemoryOp?.o e
 
+(* project out the memory operations of a verifier log *)
 let memory_ops_of (l:verifier_log): Tot memory_op_log = 
   map memory_op_of_entry (filter is_entry_memory_op l)
 
-let lemma_eac_implies_rw_consistency (l:evict_add_consistent):
+(* 
+ * Final lemma of part I: evict-add consistency implies rw-consistency of the 
+ * projected memory operations *)
+let lemma_eac_implies_rw_consistency (l:eac_log):
   Lemma (requires (True))
         (ensures (rw_consistent (memory_ops_of l))) =
   let lm = memory_ops_of l in 
@@ -671,4 +796,43 @@ let lemma_eac_implies_rw_consistency (l:evict_add_consistent):
   in
   forall_intro aux;
   lemma_rw_consistent_operational_correct lm
+
+(* Part II of the proof: lack of evict-add consistency implies hash collision *)
+
+(* 
+ * evict-add consistency implies that whenever an internal merkle addr is in
+ * cache, its payload reflects the last evicts of its child nodes 
+ *)
+let rec lemma_eac_implies_cache_is_last_evict (l:eac_log) (a:merkle_non_leaf_addr)
+  : Lemma (requires (cache_contains (cache_at_end l) a))
+          (ensures (Some?.v ((cache_at_end l) a) = 
+                    MkInternal (hashfn (last_evict_value_or_init l (LeftChild a)))
+                               (hashfn (last_evict_value_or_init l (RightChild a)))))
+  = admit()
+
+(* Identify the smallest non-evict-add consistent prefix *)
+let first_non_eac_prefix (l:verifiable_log {~(evict_add_consistent l)})
+  : Tot (i:seq_index l{evict_add_consistent (vprefix l i) /\
+                       (is_add l i && not (is_merkle_root (add_addr l i)) && 
+                        add_payload l i <> last_evict_value_or_init (vprefix l i)
+                                                                   (add_addr l i))}) = admit()
+
+(* Merkle root is never added/evicted *)
+let rec lemma_root_never_added_evicted (l:verifiable_log):
+  Lemma (requires (True))
+        (ensures (not (has_some_add l merkle_root) && 
+                  not (has_some_evict l merkle_root))) = admit()
+
+(* 
+ * Core lemma of part II: if l is verifiable but is not evict-add consistent, then 
+ * we can produce a hash collision
+ *)
+let lemma_not_eac_implies_hash_collision 
+  (l:verifiable_log {~ (evict_add_consistent l) })  
+  : Tot hash_collision =
+  let i = first_non_eac_prefix l in
+  let l_eac = vprefix l i in
+  let a = add_addr l i in
+  assert (not (is_merkle_root a));
+  admit()
 
