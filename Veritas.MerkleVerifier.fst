@@ -365,7 +365,8 @@ let updates_cache (a:merkle_addr) (e:verifier_log_entry): Tot bool =
   match e with
   | MemoryOp o -> Write? o && addr_to_merkle_leaf (address_of o) = a
   | Add a' v -> a = a' 
-  | Evict a' -> a = a'
+  | Evict a' -> a = a' || not (is_merkle_root a') && 
+                         parent a' = a 
 
 (* 
  * The state of the cache is unchanged on a verifier step if the log entry does not 
@@ -375,7 +376,21 @@ let lemma_updates_cache (vc:verifier_cache) (a:merkle_addr) (e:verifier_log_entr
   Lemma (requires (Valid? (verifier_step e (Valid vc)) && 
                    not (updates_cache a e) && cache_contains vc a))
         (ensures (cache_contains (Valid?.vc (verifier_step e (Valid vc))) a && 
-                  Some?.v (vc a) = Some?.v (Valid?.vc (verifier_step e (Valid vc)) a))) = admit()
+                  Some?.v (vc a) = Some?.v (Valid?.vc (verifier_step e (Valid vc)) a))) = 
+  let vc' = Valid?.vc (verifier_step e (Valid vc)) in
+  match e with
+  | MemoryOp o -> ()
+  | Add a' v -> assert (a' <> a); 
+                assert(vc' == cache_add vc a' v); 
+                ()
+  | Evict a' -> assert (a' <> a);
+                assert (not (is_merkle_root a'));
+                assert (parent a' <> a);
+                let vc'' = update_parent_hash vc a' in
+                assert (cache_contains vc'' a);
+                assert (Some?.v (vc'' a) = Some?.v (vc a));
+                assert (vc' == cache_evict vc'' a');
+                ()
 
 (* 
  * The state of the cache is unchanged on a verifier step if the log entry does not 
