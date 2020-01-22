@@ -343,23 +343,6 @@ let rec lemma_add_requires_parent_in_cache (l:verifiable_log) (i:vl_index l):
         (ensures (~(is_merkle_root (add_addr l i)) /\ 
                   cache_contains (cache_at_end (vprefix l i)) (parent (add_addr l i)))) = admit() 
 
-(* 
- * If the cache contains an address a (non root), then the last add/evict operation 
- * is an add 
- *)
-let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a:merkle_non_root_addr):
-  Lemma (requires (cache_contains (cache_at_end l) a))
-        (ensures (has_some_add l a /\
-                  (has_some_evict l a ==> last_evict_idx l a < last_add_idx l a)))
-        (decreases (length l)) = admit()
-
-(* Lemma: converse of the previous lemma *)
-let rec lemma_last_add_before_evict_implies_cache_contains (l:verifiable_log) (a:merkle_non_root_addr):
-  Lemma (requires (has_some_add l a /\
-                   (has_some_evict l a ==> last_evict_idx l a < last_add_idx l a)))
-        (ensures (cache_contains (cache_at_end l) a))
-        (decreases (length l)) = admit()
-
 (* Does this log entry update the cache for address a *)
 let updates_cache (a:merkle_addr) (e:verifier_log_entry): Tot bool = 
   match e with
@@ -400,7 +383,161 @@ let lemma_updates_cache_inv (vc:verifier_cache) (a:merkle_addr) (e:verifier_log_
   Lemma (requires (Valid? (verifier_step e (Valid vc)) && not (updates_cache a e) && 
                    cache_contains (Valid?.vc (verifier_step e (Valid vc))) a))
         (ensures (cache_contains vc a && 
-                  Some?.v (vc a) = Some?.v (Valid?.vc (verifier_step e (Valid vc)) a))) = admit()
+                  Some?.v (vc a) = Some?.v (Valid?.vc (verifier_step e (Valid vc)) a))) = 
+  let vc' = Valid?.vc (verifier_step e (Valid vc)) in
+  match e with
+  | MemoryOp e -> ()
+  | Add a' v -> assert (a' <> a);
+                assert (vc' == cache_add vc a' v);
+                ()
+  | Evict a' -> assert (a' <> a);
+                assert (not (is_merkle_root a'));
+                assert (parent a' <> a);
+                let vc'' = update_parent_hash vc a' in
+                assert (cache_contains vc'' a);
+                assert (Some?.v (vc'' a) = Some?.v (vc a));
+                assert (vc' == cache_evict vc'' a');
+                ()
+
+(* 
+ * If the cache contains an address a (non root), then the last add/evict operation 
+ * is an add 
+ *)
+let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a:merkle_non_root_addr):
+  Lemma (requires (cache_contains (cache_at_end l) a))
+        (ensures (has_some_add l a /\
+                  (has_some_evict l a ==> last_evict_idx l a < last_add_idx l a)))
+        (decreases (length l)) = 
+  let n = length l in
+  let cache = cache_at_end l in
+  let f_a = is_add_of_addr a in
+  let f_e = is_evict_of_addr a in
+  if n = 0 then ()
+  else (
+    let l' = vprefix l (n - 1) in
+    let cache' = cache_at_end l' in
+    let e = index l (n - 1) in
+
+    (* e does not update the cache for address a *)
+    if not (updates_cache a e) then (
+
+      (* this implies that cache' also contains an entry for address a *)
+      lemma_updates_cache_inv cache' a e;
+      assert (cache_contains cache' a);
+
+      (* applying induction on l' *)
+      lemma_cache_contains_implies_last_add_before_evict l' a;
+
+      (* l' has an add which implies l has an add *)
+      let last_add_l' = last_add_idx l' a in
+      lemma_prefix_index l (n - 1) last_add_l';
+      lemma_last_index_correct2 f_a l last_add_l';
+      assert (has_some_add l a);
+
+      (* since e is not an (add a), last_add of l should be last_add of l' *)
+      let last_add_l = last_add_idx l a in
+      lemma_last_index_prefix f_a l (n - 1);
+      assert (last_add_l = last_add_l');
+
+      if (has_some_evict l a) then (
+        let last_evict_l = last_evict_idx l a in
+        (* since e is not an (evict a), last evict of l should be last_evict of l' *)
+        lemma_last_index_prefix f_e l (n - 1);
+
+        (* since the last add and last evict of l is same as that of l', the proof follows *)               
+        ()
+      )
+      else (
+        (* since l does not have an evict, l' does not have one too *)
+        lemma_not_exists_prefix f_e l (n - 1);
+        
+        ()
+      )
+    )
+    else (
+      match e with
+      | Add a' v -> assert (a' = a); // otherwise, it does not update cache for a
+
+                    (* clearly this is the last add index for a *)
+                    lemma_last_index_correct2 f_a l (n - 1);
+                    assert(last_add_idx l a = (n - 1));
+
+                    (* which implies last add is more recent than last evict as required *)
+                    if has_some_evict l a then (
+                      if last_evict_idx l a = n - 1 then ()
+                      else ()
+                    )
+                    else ()
+
+      | Evict a' -> if a = a' then () // if a is evicted, then it cannot be in the cache
+                    else (      
+                      (* the only reason evict a' updates the cache for a is if a = parent a' *)
+                      assert (a = parent a'); 
+                      (* but this implies that cache' contains a *)
+                      assert (cache_contains cache' a);
+
+                      (* applying induction *)
+                      lemma_cache_contains_implies_last_add_before_evict l' a;
+
+                      (* l' has an add which implies l has an add *)
+                      let last_add_l' = last_add_idx l' a in
+                      lemma_prefix_index l (n - 1) last_add_l';
+                      lemma_last_index_correct2 f_a l last_add_l';
+                      assert (has_some_add l a);
+
+                      (* since e is not an (add a), last_add of l should be last_add of l' *)
+                      let last_add_l = last_add_idx l a in
+                      lemma_last_index_prefix f_a l (n - 1);
+                      assert (last_add_l = last_add_l');
+
+                      if (has_some_evict l a) then (
+                        let last_evict_l = last_evict_idx l a in
+                        (* since e is not an (evict a), last evict of l should be last_evict of l' *)
+                        lemma_last_index_prefix f_e l (n - 1);
+
+                        (* since the last add and last evict of l is same as that of l', the proof follows *)               
+                        ()
+                      )
+                      else (
+                        (* since l does not have an evict, l' does not have one too *)
+                        lemma_not_exists_prefix f_e l (n - 1);
+              
+                        ()
+                      )
+                    )
+      | MemoryOp o -> lemma_memop_requires_cache l (n - 1);
+                      assert (cache_contains cache' a);
+                      (* applying induction *)
+                      lemma_cache_contains_implies_last_add_before_evict l' a;
+
+                      (* l' has an add which implies l has an add *)
+                      let last_add_l' = last_add_idx l' a in
+                      lemma_prefix_index l (n - 1) last_add_l';
+                      lemma_last_index_correct2 f_a l last_add_l';
+                      assert (has_some_add l a);
+
+                      (* since e is not an (add a), last_add of l should be last_add of l' *)
+                      let last_add_l = last_add_idx l a in
+                      lemma_last_index_prefix f_a l (n - 1);
+                      assert (last_add_l = last_add_l');
+
+                      if (has_some_evict l a) then (
+                        let last_evict_l = last_evict_idx l a in
+                        (* since e is not an (evict a), last evict of l should be last_evict of l' *)
+                        lemma_last_index_prefix f_e l (n - 1);
+
+                        (* since the last add and last evict of l is same as that of l', the proof follows *)               
+                        ()
+                      )
+                      else (
+                        (* since l does not have an evict, l' does not have one too *)
+                        lemma_not_exists_prefix f_e l (n - 1);
+              
+                        ()
+                      )
+    )
+  )
+
 
 (*
  * We want to prove that if the verifier returns Valid for a log l, then the 
