@@ -331,6 +331,18 @@ let lemma_evict_requires_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_evict l i))
         (ensures  (cache_contains (cache_at_end (vprefix l i)) (evict_addr l i))) = admit()
 
+(*
+ * Lemma: merkle root is never added
+ *)
+let lemma_root_never_added (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_add l i))
+        (ensures (not (is_merkle_root (add_addr l i)))) = admit()
+
+let rec lemma_add_requires_parent_in_cache (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_add l i))
+        (ensures (~(is_merkle_root (add_addr l i)) /\ 
+                  cache_contains (cache_at_end (vprefix l i)) (parent (add_addr l i)))) = admit() 
+
 (* 
  * If the cache contains an address a (non root), then the last add/evict operation 
  * is an add 
@@ -414,6 +426,11 @@ let last_evict_value_or_init (l:verifiable_log) (a:merkle_addr):
 type evict_add_consistent (l:verifiable_log) = forall (i:vl_index l). 
     is_add l i  ==> 
     add_payload l i = last_evict_value_or_init (vprefix l i) (add_addr l i)
+
+(* evict-add consistency is a computable property *)
+let is_evict_add_consistent (l:verifiable_log): 
+  Tot (b:bool{b <==> evict_add_consistent l}) = admit()
+
 
 (* refinement of verifiable logs that are evict-add consistent *)
 type eac_log  = l:verifiable_log {evict_add_consistent l}
@@ -813,15 +830,9 @@ let rec lemma_eac_implies_cache_is_last_evict (l:eac_log) (a:merkle_non_leaf_add
 (* Identify the smallest non-evict-add consistent prefix *)
 let first_non_eac_prefix (l:verifiable_log {~(evict_add_consistent l)})
   : Tot (i:seq_index l{evict_add_consistent (vprefix l i) /\
-                       (is_add l i && not (is_merkle_root (add_addr l i)) && 
+                       (is_add l i && 
                         add_payload l i <> last_evict_value_or_init (vprefix l i)
                                                                    (add_addr l i))}) = admit()
-
-(* Merkle root is never added/evicted *)
-let rec lemma_root_never_added_evicted (l:verifiable_log):
-  Lemma (requires (True))
-        (ensures (not (has_some_add l merkle_root) && 
-                  not (has_some_evict l merkle_root))) = admit()
 
 (* 
  * Core lemma of part II: if l is verifiable but is not evict-add consistent, then 
@@ -831,8 +842,90 @@ let lemma_not_eac_implies_hash_collision
   (l:verifiable_log {~ (evict_add_consistent l) })  
   : Tot hash_collision =
   let i = first_non_eac_prefix l in
+  (* l_eac is the largest evict-add consistent prefix of l *)
   let l_eac = vprefix l i in
   let a = add_addr l i in
-  assert (not (is_merkle_root a));
-  admit()
 
+  (* a cannot be the merkle root since a root is never added *)
+  if is_merkle_root a then (
+    lemma_root_never_added l i;
+    (* contradiction *)
+    Collision (MkLeaf Null) (MkLeaf Null)
+  ) 
+  else (
+    let cache = cache_at_end l_eac in
+
+    match a with
+    (* Case A: a is a left child *)
+    | LeftChild p ->
+
+      (* parent p of a is in cache, otherwise the add fails *)
+      lemma_add_requires_parent_in_cache l i;
+      assert (cache_contains cache p);
+
+      (* 
+       * since l_eac is evict-add-consistent, the payload of p 
+       * reflects the last evict of a or null 
+       *)
+      lemma_eac_implies_cache_is_last_evict l_eac p;
+      assert (MkInternal?.left (Some?.v (cache p)) = hashfn (last_evict_value_or_init l_eac a));
+      assert (add_payload l i <> last_evict_value_or_init l_eac a);
+
+      (* 
+       * prefix including the add operation does not fail 
+       * verification since the full sequence l does not fail
+       * verification. *)
+      lemma_verifiable_implies_prefix_verifiable l (i + 1);
+      lemma_prefix_prefix l (i + 1) i;
+      lemma_prefix_index l (i + 1) i;
+      assert (Valid? (verifier_step (index l i) (Valid cache)));
+
+      (* Since the parent hash check passes, it follows that ... *)
+      assert (hashfn (add_payload l i) = MkInternal?.left (Some?.v (cache p)));      
+
+      (* this implies the following hash collision *)
+      Collision (add_payload l i) (last_evict_value_or_init l_eac a)
+
+    (* Symmetric case of right child *)
+    | RightChild p -> 
+
+      (* parent p of a is in cache, otherwise the add fails *)
+      lemma_add_requires_parent_in_cache l i;
+      assert (cache_contains cache p);
+
+      (* 
+       * since l_eac is evict-add-consistent, the payload of p 
+       * reflects the last evict of a or null 
+       *)
+      lemma_eac_implies_cache_is_last_evict l_eac p;
+      assert (MkInternal?.right (Some?.v (cache p)) = hashfn (last_evict_value_or_init l_eac a));
+      assert (add_payload l i <> last_evict_value_or_init l_eac a);
+
+      (* 
+       * prefix including the add operation does not fail 
+       * verification since the full sequence l does not fail
+       * verification. *)
+      lemma_verifiable_implies_prefix_verifiable l (i + 1);
+      lemma_prefix_prefix l (i + 1) i;
+      lemma_prefix_index l (i + 1) i;
+      assert (Valid? (verifier_step (index l i) (Valid cache)));
+
+      (* Since the parent hash check passes, it follows that ... *)
+      assert (hashfn (add_payload l i) = MkInternal?.right (Some?.v (cache p)));      
+
+      (* this implies the following hash collision *)
+      Collision (add_payload l i) (last_evict_value_or_init l_eac a)
+  )
+
+let lemma_merkle_verifier_correct (l:verifiable_log {not (rw_consistent (memory_ops_of l))}):
+  Tot hash_collision = 
+  if is_evict_add_consistent l then (
+    (* 
+     * if l is evict-add consistent then we know 
+     * memory_ops of l is rw-consistent, a contradiction
+     *)
+    lemma_eac_implies_rw_consistency l;
+    Collision (MkLeaf Null) (MkLeaf Null)
+  )
+  else 
+    lemma_not_eac_implies_hash_collision l
