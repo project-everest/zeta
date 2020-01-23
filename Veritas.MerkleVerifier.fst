@@ -781,6 +781,26 @@ let lemma_last_write_unchanged_unless_write (l:verifiable_log{length l > 0}) (a:
                   last_write_value_or_null (prefix l (length l - 1)) a)) =
   admit() 
 
+(* Lemma: prefix of evict-add-consistent log is evict-add-consistent *)
+let lemma_eac_prefix (l:eac_log) (i:nat{i <= length l}):
+  Lemma (requires (True))
+        (ensures (evict_add_consistent (vprefix l i))) =
+  let l' = vprefix l i in 
+  let aux (j:vl_index l'):
+    Lemma (is_add (prefix l i) j ==>
+           add_payload (prefix l i) j = last_evict_value_or_init (vprefix (vprefix l i) j) 
+                                                                   (add_addr (prefix l i) j)) = 
+    let l' = vprefix l i in
+    if not (is_add l' j) then ()
+    else (
+      lemma_prefix_index l i j;
+      assert (is_add l' j);
+      lemma_prefix_prefix l i j;
+      assert(vprefix l j = vprefix l' j)
+    )
+    in
+    forall_intro aux
+    
 (* 
  * The core lemma of part I, the cached value of every leaf node reflects the 
  * last write or Null if the log is evict-add consistent 
@@ -800,23 +820,10 @@ let rec lemma_eac_implies_cache_is_last_write (l:eac_log) (a:merkle_leaf_addr):
     assert(cache_contains cache a);
     
     lemma_cache_contains_implies_last_add_before_evict l a;
-    let aux (i:vl_index l) (j:vl_index (prefix l i)):
-      Lemma (is_add (prefix l i) j ==>
-             add_payload (prefix l i) j = last_evict_value_or_init (vprefix (vprefix l i) j) 
-                                                                   (add_addr (prefix l i) j)) = 
-      let l' = vprefix l i in
-      if not (is_add l' j) then ()
-      else (
-        lemma_prefix_index l i j;
-        assert (is_add l' j);
-        lemma_prefix_prefix l i j;
-        assert(vprefix l j = vprefix l' j)
-      )
-    in
 
     (* Induction step on l' *)
-    let l' = prefix l (n - 1) in
-    forall_intro (aux (n - 1)); 
+    let l' = vprefix l (n - 1) in
+    lemma_eac_prefix l (n - 1);
     lemma_eac_implies_cache_is_last_write l' a;
 
     (* current log entry *)
@@ -879,7 +886,7 @@ let rec lemma_eac_implies_cache_is_last_write (l:eac_log) (a:merkle_leaf_addr):
             let l_lei_pre = vprefix l lei in
             
             (* Apply induction at lei *)
-            forall_intro (aux lei); 
+            lemma_eac_prefix l lei;
             lemma_eac_implies_cache_is_last_write l_lei_pre a;                
 
             (* cache at lei *)
@@ -1003,21 +1010,8 @@ let lemma_eac_implies_read_last_write (l:eac_log) (i:vl_index l):
   let cache = cache_at_end l' in
   assert (cache_contains cache a);
 
-  let aux (i:vl_index l) (j:vl_index (prefix l i)):
-    Lemma (is_add (prefix l i) j  ==>
-          add_payload (prefix l i) j = last_evict_value_or_init (vprefix (vprefix l i) j) 
-                                                              (add_addr (prefix l i) j)) = 
-    let l' = vprefix l i in
-    if not (is_add l' j) then ()
-    else (
-      lemma_prefix_index l i j;
-      assert (is_add l' j);
-      lemma_prefix_prefix l i j;
-      assert(vprefix l j = vprefix l' j)
-    )
-  in
   (* l' is evict-add consistent *)  
-  forall_intro (aux i); 
+  lemma_eac_prefix l i;
 
   (* cache at i stores last write *)
   lemma_eac_implies_cache_is_last_write l' a;
@@ -1150,10 +1144,10 @@ let rec lemma_eac_implies_cache_is_last_evict
                             Some?.v ((cache_at_end l) a) <> 
                               MkInternal (hashfn (last_evict_value_or_init l (LeftChild a)))
                                          (hashfn (last_evict_value_or_init l (RightChild a)))})
-  : Tot hash_collision = 
+  : Tot hash_collision (decreases (length l)) = 
   let n = length l in
   let cache = cache_at_end l in
-  if n = 0 then (
+  if n = 0 then 
     if is_merkle_root a then (
       assert (cache_contains cache a);
       assert (Some?.v (cache a) = MkInternal (hashfn (last_evict_value_or_init l (LeftChild a)))
@@ -1164,13 +1158,61 @@ let rec lemma_eac_implies_cache_is_last_evict
       assert (not (cache_contains cache a));
       Collision (MkLeaf Null) (MkLeaf Null)
     )
-  )
-  else (
+  
+  else 
     let l' = vprefix l (n - 1) in
+    (* l' is evict add consistent *)
+    lemma_eac_prefix l (n - 1);
+    let cache' = cache_at_end l' in
     let e = index l (n - 1) in
+
+    if not (updates_cache a e) then (
+      (* if e does not update cache for address a then cache' and cache agree on a *)
+      lemma_updates_cache_inv cache' a e;
+
+      assert(Some?.v (cache' a) <> MkInternal (hashfn (last_evict_value_or_init l (LeftChild a)))
+                                             (hashfn (last_evict_value_or_init l (RightChild a))));
+      
+      let lemma_last_evict_unchanged (a': merkle_non_root_addr {parent a' = a}):
+        Lemma (last_evict_value_or_init l a' = last_evict_value_or_init l' a') = 
+        let f_e = is_evict_of_addr a' in
+        if has_some_evict l a' then (
+          let last_evict_l = last_evict_idx l a' in
+          
+          if last_evict_l = n - 1 then 
+            // this implies e is evict a', which is a contradiction since e would 
+            // then update cache for address a
+            () 
+          else 
+            lemma_last_index_prefix f_e l (n - 1);
+            lemma_prefix_prefix l (n - 1) last_evict_l;
+            ()          
+        ) 
+        else 
+          lemma_not_exists_prefix f_e l (n - 1)
+      in
+
+      lemma_last_evict_unchanged (LeftChild a);
+      lemma_last_evict_unchanged (RightChild a);
+      
+      (* recursion gives the hash collision *)
+      lemma_eac_implies_cache_is_last_evict l' a
+    )
+    else 
+      match e with
+      | Add a' v -> assert(a = a'); // otherwise Add a' does not update cache on a
+                    if has_some_evict l a then
+                      let lei = last_evict_idx l a in
+                      let l_lei = vprefix l lei in
+                      admit()
+                    else
+
+
+                    admit()
+      | Evict a' -> admit()
+      | MemoryOp o -> 
+      admit()
     
-    admit()
-  )
 
 (* Identify the smallest non-evict-add consistent prefix *)
 let first_non_eac_prefix (l:verifiable_log {~(evict_add_consistent l)})
