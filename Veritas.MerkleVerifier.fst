@@ -286,15 +286,6 @@ let has_some_write (l:verifiable_log) (a:merkle_leaf_addr) = exists_sat_elems (i
 let last_write_idx (l:verifiable_log) (a:merkle_leaf_addr{has_some_write l a}) = 
   last_index (is_write_to_addr a) l
 
-(* Lemma: there is an evict operation between every two add operations of an address *)
-let rec lemma_evict_between_adds (l:verifiable_log) 
-                                 (i1:vl_index l{is_add l i1}) 
-                                 (i2:vl_index l{is_add l i2 && add_addr l i1 = add_addr l i2 && i2 > i1}):
-  Lemma (requires (True))
-        (ensures (has_some_evict (prefix l i2) (add_addr l i2) && 
-                  last_evict_idx (prefix l i2) (add_addr l i2) > i1))
-        (decreases (length l)) = admit()
-
 (* Lemma: there is an add operation between every two evict operations of an address *)
 let rec lemma_add_between_evicts (l:verifiable_log)
                                  (i1:vl_index l{is_evict l i1})
@@ -322,26 +313,51 @@ let cache_at_end (l:verifiable_log): Tot verifier_cache =
 let lemma_memop_requires_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_memory_op l i))
         (ensures  (cache_contains (cache_at_end (vprefix l i)) 
-                                  (addr_to_merkle_leaf (address_of (memory_op_at l i))))) = admit()
+                                  (addr_to_merkle_leaf (address_of (memory_op_at l i))))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1);
+  lemma_verifiable_implies_prefix_verifiable l i;
+  lemma_prefix_index l (i + 1) i;
+  lemma_prefix_prefix l (i + 1) i
 
 (*
  * Lemma: An evict operation requires the cache to contain the evicted address 
  *)
 let lemma_evict_requires_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_evict l i))
-        (ensures  (cache_contains (cache_at_end (vprefix l i)) (evict_addr l i))) = admit()
+        (ensures  (cache_contains (cache_at_end (vprefix l i)) (evict_addr l i))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1);
+  lemma_verifiable_implies_prefix_verifiable l i;
+  lemma_prefix_index l (i + 1) i;
+  lemma_prefix_prefix l (i + 1) i
 
+(* Lemma: add operation requires cache not to contain the added address *)
+let lemma_add_requires_not_cached (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_add l i))
+        (ensures (not (cache_contains (cache_at_end (vprefix l i)) (add_addr l i)))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1);
+  lemma_verifiable_implies_prefix_verifiable l i;
+  lemma_prefix_index l (i + 1) i;
+  lemma_prefix_prefix l (i + 1) i
+        
 (*
  * Lemma: merkle root is never added
  *)
 let lemma_root_never_added (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_add l i))
-        (ensures (not (is_merkle_root (add_addr l i)))) = admit()
-
-let rec lemma_add_requires_parent_in_cache (l:verifiable_log) (i:vl_index l):
+        (ensures (not (is_merkle_root (add_addr l i)))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1);
+  lemma_verifiable_implies_prefix_verifiable l i;
+  lemma_prefix_index l (i + 1) i;
+  lemma_prefix_prefix l (i + 1) i
+        
+let lemma_add_requires_parent_in_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_add l i))
         (ensures (~(is_merkle_root (add_addr l i)) /\ 
-                  cache_contains (cache_at_end (vprefix l i)) (parent (add_addr l i)))) = admit() 
+                  cache_contains (cache_at_end (vprefix l i)) (parent (add_addr l i)))) =
+  lemma_verifiable_implies_prefix_verifiable l (i + 1);
+  lemma_verifiable_implies_prefix_verifiable l i;
+  lemma_prefix_index l (i + 1) i;
+  lemma_prefix_prefix l (i + 1) i
 
 (* Does this log entry update the cache for address a *)
 let updates_cache (a:merkle_addr) (e:verifier_log_entry): Tot bool = 
@@ -537,6 +553,57 @@ let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a
                       )
     )
   )
+
+
+let rec lemma_not_contains_implies_last_evict_before_add (l:verifiable_log) (a:merkle_non_root_addr):
+  Lemma (requires (not (cache_contains (cache_at_end l) a) && has_some_add l a))
+        (ensures (has_some_evict l a && last_evict_idx l a > last_add_idx l a))
+        (decreases (length l)) = 
+  let n = length l in
+  let cache = cache_at_end l in
+  let f_a = is_add_of_addr a in
+  let f_e = is_evict_of_addr a in
+  if n = 0 then ()
+  else (
+    let l' = vprefix l (n - 1) in
+    let cache' = cache_at_end l' in
+    let e = index l (n - 1) in
+
+    (* e does not update the cache for address a *)
+    if not (updates_cache a e) then (
+      admit()
+    )
+    else
+      admit()
+  )
+
+
+
+(* Lemma: there is an evict operation between every two add operations of an address *)
+let lemma_evict_between_adds (l:verifiable_log) 
+                             (i1:vl_index l{is_add l i1}) 
+                              (i2:vl_index l{is_add l i2 && add_addr l i1 = add_addr l i2 && i2 > i1}):
+  Lemma (requires (True))
+        (ensures (has_some_evict (prefix l i2) (add_addr l i2) && 
+                  last_evict_idx (prefix l i2) (add_addr l i2) > i1))
+        (decreases (length l)) = 
+  let a = add_addr l i2 in
+  let f_a = is_add_of_addr a in
+  let f_e = is_evict_of_addr a in  
+  (* log before i2 add is processed *)
+  let l2 = vprefix l i2 in
+  (* cache before i2 add is processed *)
+  let cache2 = cache_at_end l2 in
+  (* since the i2 add succeeded, cache1 should not contain a *)
+  lemma_add_requires_not_cached l i2;
+  assert (not (cache_contains cache2 a));
+
+  (* this implies the last add/evict operation before i1 to a was an evict *)
+  lemma_prefix_index l i2 i1;
+  lemma_last_index_correct2 f_a l i1;
+  lemma_root_never_added l i2;
+  lemma_last_index_correct2 f_a l2 i1;
+  lemma_not_contains_implies_last_evict_before_add l2 a
 
 
 (*
