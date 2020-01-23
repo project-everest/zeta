@@ -286,22 +286,6 @@ let has_some_write (l:verifiable_log) (a:merkle_leaf_addr) = exists_sat_elems (i
 let last_write_idx (l:verifiable_log) (a:merkle_leaf_addr{has_some_write l a}) = 
   last_index (is_write_to_addr a) l
 
-(* Lemma: there is an add operation between every two evict operations of an address *)
-let rec lemma_add_between_evicts (l:verifiable_log)
-                                 (i1:vl_index l{is_evict l i1})
-                                 (i2:vl_index l{is_evict l i2 && evict_addr l i1 = evict_addr l i2 && i2 > i1}):
-  Lemma (requires (True))
-        (ensures (has_some_add (prefix l i2) (evict_addr l i2) &&
-                  last_add_idx (prefix l i2) (evict_addr l i2) > i1))
-        (decreases (length l)) = admit()
-
-(* Lemma: There is an add before the first evict *)
-let rec lemma_first_add_before_evict (l:verifiable_log) 
-                                     (i:vl_index l{is_evict l i})
-  : Lemma (requires (True))
-          (ensures (has_some_add (prefix l i) (evict_addr l i)))
-          (decreases (length l)) = admit()  
-
 (* State of the cache after processing log l *)
 let cache_at_end (l:verifiable_log): Tot verifier_cache = 
   Valid?.vc (verifier l)
@@ -349,7 +333,16 @@ let lemma_root_never_added (l:verifiable_log) (i:vl_index l):
   lemma_verifiable_implies_prefix_verifiable l i;
   lemma_prefix_index l (i + 1) i;
   lemma_prefix_prefix l (i + 1) i
-        
+
+(* Lemma: merkle root never evicted *)
+let lemma_root_never_evicted (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_evict l i))
+        (ensures (not (is_merkle_root (evict_addr l i)))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1);
+  lemma_verifiable_implies_prefix_verifiable l i;
+  lemma_prefix_index l (i + 1) i;
+  lemma_prefix_prefix l (i + 1) i        
+
 let lemma_add_requires_parent_in_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_add l i))
         (ensures (~(is_merkle_root (add_addr l i)) /\ 
@@ -563,6 +556,8 @@ let rec lemma_not_contains_implies_last_evict_before_add (l:verifiable_log) (a:m
   let cache = cache_at_end l in
   let f_a = is_add_of_addr a in
   let f_e = is_evict_of_addr a in
+  let last_add_l = last_add_idx l a in
+
   if n = 0 then ()
   else (
     let l' = vprefix l (n - 1) in
@@ -571,12 +566,73 @@ let rec lemma_not_contains_implies_last_evict_before_add (l:verifiable_log) (a:m
 
     (* e does not update the cache for address a *)
     if not (updates_cache a e) then (
-      admit()
-    )
-    else
-      admit()
-  )
 
+      (* if cache' contains a, then cache should also contain a, a contradiction *)
+      if cache_contains cache' a then 
+        lemma_updates_cache cache' a e
+              
+      else (
+        assert (not (cache_contains cache' a));
+
+        (* to apply induction we want to show that l' has some add to a *)
+
+        (* last add in l cannot be n - 1 since, that would imply e is an add *)
+        if last_add_l = n - 1 then ()
+
+        else (
+          (* there last_add_l < n - 1 which means there is an add in l' *)
+          lemma_last_index_prefix f_a l (n - 1);
+          assert (has_some_add l' a);
+
+          (* apply induction on l' *)
+          lemma_not_contains_implies_last_evict_before_add l' a;
+
+          (* induction implies l' has an evict after last add *)
+          let last_evict_l' = last_evict_idx l' a in
+
+          (* since e is neither add or evict, last_evict and last_add 
+           * of l' and l are identical from which the post-condition follows *)
+          lemma_prefix_index l (n - 1) last_evict_l';
+          lemma_last_index_correct2 f_e l last_evict_l';
+          assert (has_some_evict l a);
+
+          let last_evict_l = last_evict_idx l a in
+          assert (last_evict_l < n - 1);
+          lemma_last_index_prefix f_e l (n - 1);
+          ()
+        )
+      )
+    )
+    else (
+      match e with
+      | Add a' v -> assert (a = a'); // otherwise handled in not-updates-cache
+                    (* nothing to prove since Add a implies a is in cache *)
+                    () 
+
+      | Evict a' -> if a = a' then (
+                      (* since e is Evict a, last evict in l is n - 1 *)
+                      lemma_last_index_correct2 f_e l (n - 1);
+                      let last_evict_l = last_evict_idx l a in
+                      assert (last_evict_l = n - 1);
+
+                      if last_add_l = n - 1 then ()
+                      else ()                      
+                    )
+                    else (
+                      (* the only reason evict a' updates the cache for a is if a = parent a' *)
+                      assert (a = parent a'); 
+                      (* but this implies that cache' contains a *)
+                      assert (cache_contains cache' a);
+
+                      (* which implies cache contains a, a contradiction *)
+                      lemma_updates_cache cache' a e
+                    )
+      | MemoryOp o -> lemma_memop_requires_cache l (n - 1);
+                      assert (cache_contains cache' a);
+                      (* which implies cache contains a, a contradiction *)
+                      lemma_updates_cache cache' a e
+    )
+  )
 
 
 (* Lemma: there is an evict operation between every two add operations of an address *)
@@ -605,6 +661,56 @@ let lemma_evict_between_adds (l:verifiable_log)
   lemma_last_index_correct2 f_a l2 i1;
   lemma_not_contains_implies_last_evict_before_add l2 a
 
+(* Lemma: there is an add operation between every two evict operations of an address *)
+let rec lemma_add_between_evicts (l:verifiable_log)
+                                 (i1:vl_index l{is_evict l i1})
+                                 (i2:vl_index l{is_evict l i2 && evict_addr l i1 = evict_addr l i2 && i2 > i1}):
+  Lemma (requires (True))
+        (ensures (has_some_add (prefix l i2) (evict_addr l i2) &&
+                  last_add_idx (prefix l i2) (evict_addr l i2) > i1))
+        (decreases (length l)) = 
+  let a = evict_addr l i2 in
+  let f_a = is_add_of_addr a in
+  let f_e = is_evict_of_addr a in
+  (* log before i2 evict is processed *)
+  let l2 = vprefix l i2 in
+  (* cache before i2 evict is processed *)
+  let cache2 = cache_at_end l2 in
+  (* since i2 evict succeeded cache should contain a *)
+  lemma_evict_requires_cache l i2;
+  assert (cache_contains cache2 a);
+
+  (* this implies the last add/evict operation before i2 was an add *)
+  lemma_prefix_index l i2 i1;
+  lemma_last_index_correct2 f_e l i1;
+  lemma_root_never_evicted l i2;
+  lemma_last_index_correct2 f_e l2 i1;
+  lemma_cache_contains_implies_last_add_before_evict l2 a 
+
+(* Lemma: There is an add before the first evict *)
+let lemma_first_add_before_evict (l:verifiable_log) 
+                                     (i:vl_index l{is_evict l i})
+  : Lemma (requires (True))
+          (ensures (has_some_add (prefix l i) (evict_addr l i)))
+          (decreases (length l)) = 
+  let a = evict_addr l i in
+  let f_a = is_add_of_addr a in
+  let f_e = is_evict_of_addr a in  
+  (* log before evict at i is processed *)
+  let l' = vprefix l i in
+  (* cache before evict at i is processed *)
+  let cache' = cache_at_end l' in
+  (* since the evict at i succeeded, cache' should contain a *)
+  lemma_evict_requires_cache l i;
+  assert (cache_contains cache' a);
+
+  (* a is not merkle_root since it is evicted *)
+  lemma_root_never_evicted l i;
+
+  (* since cache contains a, it implies a previous add *)
+  lemma_cache_contains_implies_last_add_before_evict l' a;
+  ()
+    
 
 (*
  * We want to prove that if the verifier returns Valid for a log l, then the 
