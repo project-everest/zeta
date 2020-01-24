@@ -352,6 +352,15 @@ let lemma_add_requires_parent_in_cache (l:verifiable_log) (i:vl_index l):
   lemma_prefix_index l (i + 1) i;
   lemma_prefix_prefix l (i + 1) i
 
+let lemma_evict_requires_parent_in_cache (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_evict l i))
+        (ensures (~(is_merkle_root (evict_addr l i)) /\
+                  cache_contains (cache_at_end (vprefix l i)) (parent (evict_addr l i)))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1);
+  lemma_verifiable_implies_prefix_verifiable l i;
+  lemma_prefix_index l (i + 1) i;
+  lemma_prefix_prefix l (i + 1) i                  
+
 (* Does this log entry update the cache for address a *)
 let updates_cache (a:merkle_addr) (e:verifier_log_entry): Tot bool = 
   match e with
@@ -1134,6 +1143,59 @@ let lemma_eac_implies_rw_consistency (l:eac_log):
 
 (* Part II of the proof: lack of evict-add consistency implies hash collision *)
 
+let lemma_last_evict_or_init_of_child_unchanged (l:verifiable_log) (a:merkle_non_root_addr):
+  Lemma (requires (has_some_evict l (parent a) && 
+                   has_some_add l (parent a) && 
+                   last_add_idx l (parent a) < last_evict_idx l (parent a)))
+        (ensures (last_evict_value_or_init l a = 
+                  last_evict_value_or_init (vprefix l (last_evict_idx l (parent a))) a)) = 
+  let p = parent a in
+  (* last evict of parent *)
+  let ple = last_evict_idx l p in
+  (* last add of parent *)
+  let pla = last_add_idx l p in
+
+  (* log just before p was evicted *)
+  let l_ple = vprefix l ple in 
+
+  (* p cannot be the root since it is added/evicted *)
+  lemma_root_never_added l pla;
+  assert(not (is_merkle_root p));
+
+  if has_some_evict l a then
+    (* index of last evict of address a *)
+    let ale = last_evict_idx l a in
+    assert (ale <> ple);
+    assert (ale <> pla);
+
+    if ale > ple then
+      (* we prove that last evict of a cannot be after last evict of parent p *)
+      let l_ale = vprefix l ale in
+      let cache_ale = cache_at_end l_ale in
+
+      (* when a is evicted, parent p should be in the cache *)
+      lemma_evict_requires_parent_in_cache l ale;
+      assert(cache_contains cache_ale p);
+
+      lemma_last_index_prefix (is_evict_of_addr p) l ale;
+      lemma_last_index_prefix (is_add_of_addr p) l ale;
+      assert (last_add_idx l_ale p = pla);
+      assert (last_evict_idx l_ale p = ple);
+
+      (* since cache contains p, the last evict of p should be before last add of p *)
+      (* in other words, pla < ple, which is a contradition *)
+      lemma_cache_contains_implies_last_add_before_evict l_ale p
+    else 
+      (* last evict of a before last evict of p *)
+      lemma_last_index_prefix (is_evict_of_addr a) l ple;
+      (* which implies last_evict_value is the same for l and l_ple as required *)
+      lemma_prefix_prefix l ple ale
+  else
+    (* address a is not evicted in l => address a not evicted in l_ple *)
+    (* the post-condition follows since both last_evict_value_or_init is init for both l & l_ple *)    
+    lemma_not_exists_prefix (is_evict_of_addr a) l ple
+
+
 (* 
  * evict-add consistency implies that whenever an internal merkle addr is in
  * cache, its payload reflects the last evicts of its child nodes 
@@ -1200,18 +1262,43 @@ let rec lemma_eac_implies_cache_is_last_evict
     )
     else 
       match e with
-      | Add a' v -> assert(a = a'); // otherwise Add a' does not update cache on a
+      | Add a' v -> assert(a = a'); // otherwise Add a' does not update cache on 
+                    (* since l is evict-add consistent *)
+                    assert (v = last_evict_value_or_init l' a);
+      
+                    let f_a = is_add_of_addr a in
+                    let f_e = is_evict_of_addr a in
+                    
+                    lemma_last_index_correct2 f_a l (n - 1);
+                    assert(last_add_idx l a = n - 1);
+
                     if has_some_evict l a then
-                      let lei = last_evict_idx l a in
-                      let l_lei = vprefix l lei in
+                      (* a has been previously added and evicted *)                        
+                      let le = last_evict_idx l a in
+                      assert (le < n - 1);
+
+                      lemma_last_index_prefix f_e l (n - 1);
+                      assert (last_evict_idx l' a = le);
+                      assert (v = evict_payload l' le);
+
+                      let l_le = vprefix l le in
+                      lemma_prefix_prefix l (n - 1) le;
+                      lemma_prefix_index l (n - 1) le;
+                      let cache_le = cache_at_end l_le in
+                      assert (prefix l le = prefix l' le);
+                      assert (is_evict l le);
+                      lemma_evict_requires_cache l le;
+                      assert (cache_contains cache_le a);
+                      assert (evict_payload l' le == Some?.v (cache_le a));
+                      assert (v = Some?.v (cache_le a));
+
+                      //lemma_last_evict_or_init_of_child_unchanged l' (LeftChild a);
                       admit()
                     else
-
-
-                    admit()
+                      admit()
       | Evict a' -> admit()
       | MemoryOp o -> 
-      admit()
+        admit()
     
 
 (* Identify the smallest non-evict-add consistent prefix *)
