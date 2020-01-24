@@ -91,6 +91,15 @@ val lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
   Lemma (requires (not (exists_sat_elems f s)))
         (ensures (not (exists_sat_elems f (prefix s i))))
 
+val lemma_last_index_last_elem_nsat (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
+  Lemma (requires (not (f (index s (length s - 1)))))
+        (ensures (exists_sat_elems f s ==> last_index f s < length s - 1))
+
+val lemma_last_index_last_elem_sat (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
+  Lemma (requires (f (index s (length s - 1))))
+        (ensures (exists_sat_elems f s /\ last_index f s = length s - 1))
+
+
 (* The index of the first entry that satisfies a given property *)
 val first_index (#a:eqtype) (f:a -> bool) (s:seq a{exists_sat_elems f s})
   : Tot (i:seq_index s{f (index s i)})
