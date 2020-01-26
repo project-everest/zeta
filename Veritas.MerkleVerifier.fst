@@ -643,22 +643,6 @@ let rec lemma_not_contains_implies_last_evict_before_add (l:verifiable_log) (a:m
     )
   )
 
-let evict_of_add (l:verifiable_log)
-                 (i:vl_index l {is_add l i /\ has_some_evict (vprefix l i) (add_addr l i)})
-  : Tot (j:vl_index l {last_evict_idx (vprefix l i) (add_addr l i) = j /\
-                       (has_some_add (vprefix l i) (add_addr l i) ==> 
-                       last_add_idx (vprefix l i) (add_addr l i) < j)}) =
-  let l' = vprefix l i in
-  let a = add_addr l i in
-  let le = last_evict_idx l' a in
-  if has_some_add l' a then (
-    let la = last_add_idx l' a in
-    lemma_prefix_index l i la;
-    admit()
-  )
-  else le
-
-
 (* Lemma: there is an evict operation between every two add operations of an address *)
 let lemma_evict_between_adds (l:verifiable_log) 
                              (i1:vl_index l{is_add l i1}) 
@@ -684,6 +668,25 @@ let lemma_evict_between_adds (l:verifiable_log)
   lemma_root_never_added l i2;
   lemma_last_index_correct2 f_a l2 i1;
   lemma_not_contains_implies_last_evict_before_add l2 a
+
+let evict_of_add (l:verifiable_log)
+                 (i:vl_index l {is_add l i /\ has_some_evict (vprefix l i) (add_addr l i)})
+  : Tot (j:vl_index l {last_evict_idx (vprefix l i) (add_addr l i) = j /\
+                       (has_some_add (vprefix l i) (add_addr l i) ==> 
+                       last_add_idx (vprefix l i) (add_addr l i) < j)}) =
+  let l' = vprefix l i in
+  let a = add_addr l i in
+  let le = last_evict_idx l' a in
+  if has_some_add l' a then (
+    let la = last_add_idx l' a in
+    if (la < le) then le
+    else (
+      lemma_prefix_index l i la;
+      lemma_evict_between_adds l la i;
+      le 
+    )
+  )
+  else le
 
 (* Lemma: there is an add operation between every two evict operations of an address *)
 let rec lemma_add_between_evicts (l:verifiable_log)
@@ -803,7 +806,14 @@ let lemma_last_write_unchanged_unless_write (l:verifiable_log{length l > 0}) (a:
   Lemma (requires (not (is_write_to_addr a (index l (length l - 1)))))
         (ensures (last_write_value_or_null l a = 
                   last_write_value_or_null (prefix l (length l - 1)) a)) =
-  admit() 
+  let n = length l in 
+  lemma_last_index_last_elem_nsat (is_write_to_addr a) l;  
+  if has_some_write l a then (
+    lemma_last_index_prefix (is_write_to_addr a) l (n - 1);
+    lemma_prefix_index l (n - 1) (last_write_idx l a)  
+  )
+  else
+    lemma_not_exists_prefix (is_write_to_addr a) l (n - 1)
 
 (* Lemma: prefix of evict-add-consistent log is evict-add-consistent *)
 let lemma_eac_prefix (l:eac_log) (i:nat{i <= length l}):
