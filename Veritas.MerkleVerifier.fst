@@ -808,40 +808,23 @@ let rec search_first_non_eac_prefix (l:verifiable_log):
             (i < length l ==> (is_add l i && 
                                add_payload l i <> last_evict_value_or_init (vprefix l i)
                                                                           (add_addr l i)))})
-  (decreases (length l)) = admit()
-
-(* Identify the smallest non-evict-add consistent prefix *)
-let first_non_eac_prefix (l:verifiable_log {~(evict_add_consistent l)})
-  : Tot (i:seq_index l{evict_add_consistent (vprefix l i) /\
-                       (is_add l i && 
-                        add_payload l i <> last_evict_value_or_init (vprefix l i)
-                                                                   (add_addr l i))}) = admit()
-
-(* evict-add consistency is a computable property *)
-let rec is_evict_add_consistent (l:verifiable_log): 
-  Tot (b:bool{b <==> evict_add_consistent l}) (decreases (length l)) = 
-  let n = length l in
-  if n = 0 then true
+  (decreases (length l)) = 
+  let n = length l in 
+  if n = 0 then 0 
   else (
     let l' = vprefix l (n - 1) in
-    if not (is_evict_add_consistent l') then (
-      let i = first_non_eac_prefix l' in
-      lemma_prefix_index l (n - 1) i;
-      lemma_prefix_prefix l (n - 1) i;
-      assert (is_add l i);
-      assert (add_payload l i <> last_evict_value_or_init (vprefix l i) (add_addr l i));      
-      assert(~ (evict_add_consistent l));
-      false
+    let i' = search_first_non_eac_prefix l' in
+    if i' < n - 1 then (
+      lemma_prefix_index l (n - 1) i';
+      lemma_prefix_prefix l (n - 1) i';
+      i'
     )
     else (
-      assert (forall (i:vl_index l'). 
-                is_add l' i  ==> 
-                add_payload l' i = last_evict_value_or_init (vprefix l' i) (add_addr l' i));
-      
-      if is_add l (n - 1) && add_payload l (n - 1) <> last_evict_value_or_init l' (add_addr l (n - 1)) then (
-        assert (~ (evict_add_consistent l));
-        false
-      )
+      lemma_fullprefix_equal l';
+      assert (evict_add_consistent l');
+      if is_add l (n - 1) && 
+         add_payload l (n - 1) <> last_evict_value_or_init l' (add_addr l (n - 1)) then
+         n - 1
       else (
         let aux (i:vl_index l):
         Lemma (is_add l i ==>
@@ -861,9 +844,36 @@ let rec is_evict_add_consistent (l:verifiable_log):
         in             
         forall_intro aux;
         assert (evict_add_consistent l);
-        true
+        lemma_fullprefix_equal l;
+        n
       )
     )
+  )
+
+(* Identify the smallest non-evict-add consistent prefix *)
+let first_non_eac_prefix (l:verifiable_log {~(evict_add_consistent l)})
+  : Tot (i:seq_index l{evict_add_consistent (vprefix l i) /\
+                       (is_add l i && 
+                        add_payload l i <> last_evict_value_or_init (vprefix l i)
+                                                                   (add_addr l i))}) = 
+  let i = search_first_non_eac_prefix l in
+  if i = length l then (
+    lemma_fullprefix_equal l;
+    i
+  )
+  else i
+
+let is_evict_add_consistent (l:verifiable_log): 
+  Tot (b:bool{b <==> evict_add_consistent l}) (decreases (length l)) = 
+  let i = search_first_non_eac_prefix l in
+  if i = length l then (
+    lemma_fullprefix_equal l;
+    true
+  )
+  else (
+    assert (is_add l i);
+    assert (add_payload l i <> last_evict_value_or_init (vprefix l i) (add_addr l i));
+    false
   )
 
 (* Part I of the proof: we prove that evict-add consistency implies rw-consistency *)
