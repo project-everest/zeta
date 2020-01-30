@@ -102,10 +102,9 @@ let rec naive_verifier (m:memory) (l:memory_op_log): Tot naive_verifier_state
 let init_memory:memory = fun _ -> Null
 
 (*
- * read-write consistency starting from the initial state where all
- * addresses are initialized to Null
+ * memory log is correct if the naive verifier succeeds on the log
  *)
-let rw_consistent (l:memory_op_log): Tot bool = NValid? (naive_verifier init_memory l)
+let memory_log_correct (l:memory_op_log): Tot bool = NValid? (naive_verifier init_memory l)
 
 (*
  * We next prove that a particular property of the log - every read 
@@ -134,11 +133,11 @@ let last_write_value_or_null (l:memory_op_log) (a:addr): Tot payload =
     Null
 
 (* operational definition of read-write consistency *)
-type rw_consistent_operational = 
+type rw_consistent = 
   l:memory_op_log{forall (i:log_index l). 
                     is_read_op l i ==> 
                     read_value l i = last_write_value_or_null (prefix l i) (address_at_idx l i)}
 
 (* operational consistency implies rw_consistency based on naive verifier *)
-val lemma_rw_consistent_operational_correct (l:rw_consistent_operational):
-  Lemma (rw_consistent l)
+val lemma_rw_consistent_implies_correct (l:rw_consistent):
+  Lemma (memory_log_correct l)

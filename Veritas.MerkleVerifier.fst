@@ -1141,9 +1141,9 @@ let memory_ops_of (l:verifier_log): Tot memory_op_log =
 (* 
  * Final lemma of part I: evict-add consistency implies rw-consistency of the 
  * projected memory operations *)
-let lemma_eac_implies_rw_consistency (l:eac_log):
+let lemma_eac_implies_memory_correct (l:eac_log):
   Lemma (requires (True))
-        (ensures (rw_consistent (memory_ops_of l))) =
+        (ensures (memory_log_correct (memory_ops_of l))) =
   let lm = memory_ops_of l in 
   let f = is_entry_memory_op in
   let fl = filter f l in
@@ -1234,7 +1234,7 @@ let lemma_eac_implies_rw_consistency (l:eac_log):
     else ()
   in
   forall_intro aux;
-  lemma_rw_consistent_operational_correct lm
+  lemma_rw_consistent_implies_correct lm
 
 (* Part II of the proof: lack of evict-add consistency implies hash collision *)
 
@@ -1602,14 +1602,14 @@ let lemma_not_eac_implies_hash_collision
      )
   )
 
-let lemma_merkle_verifier_correct (l:verifiable_log {not (rw_consistent (memory_ops_of l))}):
+let lemma_merkle_verifier_correct (l:verifiable_log {not (memory_log_correct (memory_ops_of l))}):
   Tot hash_collision = 
   if is_evict_add_consistent l then (
     (* 
      * if l is evict-add consistent then we know 
      * memory_ops of l is rw-consistent, a contradiction
      *)
-    lemma_eac_implies_rw_consistency l;
+    lemma_eac_implies_memory_correct l;
     Collision (MkLeaf Null) (MkLeaf Null)
   )
   else 

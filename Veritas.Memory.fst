@@ -58,9 +58,9 @@ let rec memory_is_null_without_write (l:memory_op_log) (a:addr):
       memory_is_null_without_write l' a
   )
 
-let rec lemma_rw_consistent_operational_correct_aux (l:rw_consistent_operational):
+let rec lemma_rw_consistent_implies_correct_aux (l:rw_consistent):
   Lemma (requires (True))
-        (ensures (rw_consistent l))
+        (ensures (memory_log_correct l))
         (decreases (length l))
   = 
   let n = length l in
@@ -84,7 +84,7 @@ let rec lemma_rw_consistent_operational_correct_aux (l:rw_consistent_operational
           assert (not (has_some_write (prefix l i) (address_at_idx l i)))      
       else ()
       in
-    forall_intro aux; lemma_rw_consistent_operational_correct_aux l';
+    forall_intro aux; lemma_rw_consistent_implies_correct_aux l';
     assert (NValid? vs');
         let m' = (NValid?.m vs') in
     if Write? o then ()
@@ -99,7 +99,7 @@ let rec lemma_rw_consistent_operational_correct_aux (l:rw_consistent_operational
         assert (is_read_op l (n - 1))
       )
 
-let lemma_rw_consistent_operational_correct (l:rw_consistent_operational):
+let lemma_rw_consistent_implies_correct (l:rw_consistent):
     Lemma (requires (True))
-        (ensures (rw_consistent l))
-        (decreases (length l)) = lemma_rw_consistent_operational_correct_aux l
+        (ensures (memory_log_correct l))
+        (decreases (length l)) = lemma_rw_consistent_implies_correct_aux l
