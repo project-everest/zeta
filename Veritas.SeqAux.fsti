@@ -11,14 +11,17 @@ val prefix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' =
 val lemma_prefix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
   Lemma (requires (True))
         (ensures (index (prefix s i) j == index s j))
+        [SMTPat (index (prefix s i) j)]
 
 val lemma_prefix_prefix (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j <= i}):
   Lemma (requires (True))
         (ensures (prefix (prefix s i) j == prefix s j))
+        [SMTPat (prefix (prefix s i) j)]
 
 val lemma_fullprefix_equal (#a:Type) (s:seq a):
   Lemma (requires (True))
         (ensures (prefix s (length s) == s))
+        [SMTPat (prefix s (length s))]
 
 (* Suffix of a sequence *)
 val suffix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
@@ -26,6 +29,7 @@ val suffix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' =
 val lemma_suffix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
   Lemma (requires (True))
         (ensures (index (suffix s i) j == index s (length s - i + j)))
+        [SMTPat (index (suffix s i) j)]
 
 let refine #a (f:a -> bool) = x:a{f x}
 
@@ -120,3 +124,4 @@ val map (#a #b:Type) (f:a -> b) (s:seq a): Tot (s':seq b{length s' = length s})
 val lemma_map_index (#a #b: Type) (f:a -> b) (s:seq a) (i:seq_index s):
   Lemma (requires (True))
         (ensures (f (index s i) == index (map f s) i))
+        [SMTPat (index (map f s) i)]

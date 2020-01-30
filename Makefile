@@ -18,29 +18,36 @@ OTHERFLAGS+=$(USE_EXTRACTED_INTERFACES)
 
 # 271: theory symbols in smt patters
 WARN_ERROR=--warn_error -271
-VALIDITY_AXIOMS?=--smtencoding.valid_intro true --smtencoding.valid_elim true
-OTHERFLAGS+=$(WARN_ERROR) --z3cliopt 'timeout=600000' $(VALIDITY_AXIOMS)
+SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
+            --smtencoding.elim_box true \
+            --smtencoding.l_arith_repr native \
+	    --smtencoding.nl_arith_repr wrapped
+OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
+ALREADY_CACHED=--already_cached 'Prims FStar'
 
-FSTAR=fstar.exe $(OTHERFLAGS)
+FSTAR=fstar.exe $(OTHERFLAGS) $(ALREADY_CACHED)
 
 # A place to put all the emitted .ml files
 OUTPUT_DIRECTORY ?= _output
 
 MY_FSTAR=$(FSTAR) --cache_checked_modules --odir $(OUTPUT_DIRECTORY)
 
-# a.fst.checked is the binary, checked version of a.fst
-%.fst.checked: %.fst
-	$(MY_FSTAR) $*.fst
+# a.fst(i).checked is the binary, checked version of a.fst(i)
+%.checked:
+	$(MY_FSTAR) $<
 	touch $@
 
-# a.fsti.checked is the binary, checked version of a.fsti
-%.fsti.checked: %.fsti
-	$(MY_FSTAR) $*.fsti
-	touch $@
-
-LowStar.Printf.fst.checked: USE_EXTRACTED_INTERFACES=
-
-verify: $(addsuffix .checked, $(FSTAR_FILES))
+all: verify
 
 clean:
 	rm -rf *.checked
+
+.depend: $(FSTAR_FILES)
+	$(MY_FSTAR) --dep full $(addprefix --include , $(INCLUDE_PATHS)) $^ > .depend
+
+depend: .depend
+
+include .depend
+
+verify: $(ALL_CHECKED_FILES)
+

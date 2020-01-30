@@ -7,6 +7,11 @@ open Veritas.SeqAux
 open Veritas.Memory
 open Veritas.Merkle
 
+//Allow the solver to unroll recursive functions at most once (fuel)
+//Allow the solver to invert inductive definitions at most once (ifuel)
+#push-options "--max_fuel 1 --max_ifuel 1 --initial_fuel 1 --initial_ifuel 1"
+
+
 (* 
  * The verifier consumes a log that consists of memory operations and 
  * additional "proof" objects and returns success of failure; we prove
@@ -297,11 +302,9 @@ let cache_at_end (l:verifiable_log): Tot verifier_cache =
 let lemma_memop_requires_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_memory_op l i))
         (ensures  (cache_contains (cache_at_end (vprefix l i)) 
-                                  (addr_to_merkle_leaf (address_of (memory_op_at l i))))) = 
+                                  (addr_to_merkle_leaf (address_of (memory_op_at l i))))) =
   lemma_verifiable_implies_prefix_verifiable l (i + 1);
-  lemma_verifiable_implies_prefix_verifiable l i;
-  lemma_prefix_index l (i + 1) i;
-  lemma_prefix_prefix l (i + 1) i
+  lemma_verifiable_implies_prefix_verifiable l i
 
 (*
  * Lemma: An evict operation requires the cache to contain the evicted address 
@@ -310,18 +313,14 @@ let lemma_evict_requires_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_evict l i))
         (ensures  (cache_contains (cache_at_end (vprefix l i)) (evict_addr l i))) = 
   lemma_verifiable_implies_prefix_verifiable l (i + 1);
-  lemma_verifiable_implies_prefix_verifiable l i;
-  lemma_prefix_index l (i + 1) i;
-  lemma_prefix_prefix l (i + 1) i
+  lemma_verifiable_implies_prefix_verifiable l i
 
 (* Lemma: add operation requires cache not to contain the added address *)
 let lemma_add_requires_not_cached (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_add l i))
         (ensures (not (cache_contains (cache_at_end (vprefix l i)) (add_addr l i)))) = 
   lemma_verifiable_implies_prefix_verifiable l (i + 1);
-  lemma_verifiable_implies_prefix_verifiable l i;
-  lemma_prefix_index l (i + 1) i;
-  lemma_prefix_prefix l (i + 1) i
+  lemma_verifiable_implies_prefix_verifiable l i
         
 (*
  * Lemma: merkle root is never added
@@ -330,36 +329,28 @@ let lemma_root_never_added (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_add l i))
         (ensures (not (is_merkle_root (add_addr l i)))) = 
   lemma_verifiable_implies_prefix_verifiable l (i + 1);
-  lemma_verifiable_implies_prefix_verifiable l i;
-  lemma_prefix_index l (i + 1) i;
-  lemma_prefix_prefix l (i + 1) i
+  lemma_verifiable_implies_prefix_verifiable l i
 
 (* Lemma: merkle root never evicted *)
 let lemma_root_never_evicted (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_evict l i))
         (ensures (not (is_merkle_root (evict_addr l i)))) = 
   lemma_verifiable_implies_prefix_verifiable l (i + 1);
-  lemma_verifiable_implies_prefix_verifiable l i;
-  lemma_prefix_index l (i + 1) i;
-  lemma_prefix_prefix l (i + 1) i        
+  lemma_verifiable_implies_prefix_verifiable l i
 
 let lemma_add_requires_parent_in_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_add l i))
         (ensures (~(is_merkle_root (add_addr l i)) /\ 
                   cache_contains (cache_at_end (vprefix l i)) (parent (add_addr l i)))) =
   lemma_verifiable_implies_prefix_verifiable l (i + 1);
-  lemma_verifiable_implies_prefix_verifiable l i;
-  lemma_prefix_index l (i + 1) i;
-  lemma_prefix_prefix l (i + 1) i
+  lemma_verifiable_implies_prefix_verifiable l i
 
 let lemma_evict_requires_parent_in_cache (l:verifiable_log) (i:vl_index l):
   Lemma (requires (is_evict l i))
         (ensures (~(is_merkle_root (evict_addr l i)) /\
                   cache_contains (cache_at_end (vprefix l i)) (parent (evict_addr l i)))) = 
   lemma_verifiable_implies_prefix_verifiable l (i + 1);
-  lemma_verifiable_implies_prefix_verifiable l i;
-  lemma_prefix_index l (i + 1) i;
-  lemma_prefix_prefix l (i + 1) i                  
+  lemma_verifiable_implies_prefix_verifiable l i
 
 (* Does this log entry update the cache for address a *)
 let updates_cache (a:merkle_addr) (e:verifier_log_entry): Tot bool = 
@@ -448,7 +439,7 @@ let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a
 
       (* l' has an add which implies l has an add *)
       let last_add_l' = last_add_idx l' a in
-      lemma_prefix_index l (n - 1) last_add_l';
+      // lemma_prefix_index l (n - 1) last_add_l';
       lemma_last_index_correct2 f_a l last_add_l';
       assert (has_some_add l a);
 
@@ -460,16 +451,13 @@ let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a
       if (has_some_evict l a) then (
         let last_evict_l = last_evict_idx l a in
         (* since e is not an (evict a), last evict of l should be last_evict of l' *)
-        lemma_last_index_prefix f_e l (n - 1);
+        lemma_last_index_prefix f_e l (n - 1)
 
         (* since the last add and last evict of l is same as that of l', the proof follows *)               
-        ()
       )
       else (
         (* since l does not have an evict, l' does not have one too *)
-        lemma_not_exists_prefix f_e l (n - 1);
-        
-        ()
+        lemma_not_exists_prefix f_e l (n - 1)
       )
     )
     else (
@@ -478,14 +466,14 @@ let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a
 
                     (* clearly this is the last add index for a *)
                     lemma_last_index_correct2 f_a l (n - 1);
-                    assert(last_add_idx l a = (n - 1));
+                    assert(last_add_idx l a = (n - 1))
 
-                    (* which implies last add is more recent than last evict as required *)
-                    if has_some_evict l a then (
-                      if last_evict_idx l a = n - 1 then ()
-                      else ()
-                    )
-                    else ()
+                    // (* which implies last add is more recent than last evict as required *)
+                    // if has_some_evict l a then (
+                    //   if last_evict_idx l a = n - 1 then ()
+                    //   else ()
+                    // )
+                    // else ()
 
       | Evict a' -> if a = a' then () // if a is evicted, then it cannot be in the cache
                     else (      
@@ -499,7 +487,7 @@ let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a
 
                       (* l' has an add which implies l has an add *)
                       let last_add_l' = last_add_idx l' a in
-                      lemma_prefix_index l (n - 1) last_add_l';
+                      // lemma_prefix_index l (n - 1) last_add_l';
                       lemma_last_index_correct2 f_a l last_add_l';
                       assert (has_some_add l a);
 
@@ -511,16 +499,13 @@ let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a
                       if (has_some_evict l a) then (
                         let last_evict_l = last_evict_idx l a in
                         (* since e is not an (evict a), last evict of l should be last_evict of l' *)
-                        lemma_last_index_prefix f_e l (n - 1);
+                        lemma_last_index_prefix f_e l (n - 1)
 
                         (* since the last add and last evict of l is same as that of l', the proof follows *)               
-                        ()
                       )
                       else (
                         (* since l does not have an evict, l' does not have one too *)
-                        lemma_not_exists_prefix f_e l (n - 1);
-              
-                        ()
+                        lemma_not_exists_prefix f_e l (n - 1)
                       )
                     )
       | MemoryOp o -> lemma_memop_requires_cache l (n - 1);
@@ -530,7 +515,7 @@ let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a
 
                       (* l' has an add which implies l has an add *)
                       let last_add_l' = last_add_idx l' a in
-                      lemma_prefix_index l (n - 1) last_add_l';
+                      // lemma_prefix_index l (n - 1) last_add_l';
                       lemma_last_index_correct2 f_a l last_add_l';
                       assert (has_some_add l a);
 
@@ -542,16 +527,12 @@ let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a
                       if (has_some_evict l a) then (
                         let last_evict_l = last_evict_idx l a in
                         (* since e is not an (evict a), last evict of l should be last_evict of l' *)
-                        lemma_last_index_prefix f_e l (n - 1);
-
+                        lemma_last_index_prefix f_e l (n - 1)
                         (* since the last add and last evict of l is same as that of l', the proof follows *)               
-                        ()
                       )
                       else (
                         (* since l does not have an evict, l' does not have one too *)
-                        lemma_not_exists_prefix f_e l (n - 1);
-              
-                        ()
+                        lemma_not_exists_prefix f_e l (n - 1)
                       )
     )
   )
@@ -788,20 +769,20 @@ let lemma_eac_prefix (l:eac_log) (i:nat{i <= length l}):
         (ensures (evict_add_consistent (vprefix l i))) =
   let l' = vprefix l i in 
   let aux (j:vl_index l'):
-    Lemma (is_add (prefix l i) j ==>
-           add_payload (prefix l i) j = last_evict_value_or_init (vprefix (vprefix l i) j) 
-                                                                   (add_addr (prefix l i) j)) = 
+    Lemma (requires is_add (prefix l i) j)
+          (ensures
+            add_payload (prefix l i) j = last_evict_value_or_init (vprefix (vprefix l i) j) 
+                                                                  (add_addr (prefix l i) j))
+          [SMTPat(is_add (prefix l i) j)] = 
     let l' = vprefix l i in
-    if not (is_add l' j) then ()
-    else (
-      lemma_prefix_index l i j;
-      assert (is_add l' j);
-      lemma_prefix_prefix l i j;
-      assert(vprefix l j = vprefix l' j)
-    )
-    in
-    forall_intro aux
+    lemma_prefix_index l i j;
+    assert (is_add l' j);
+    lemma_prefix_prefix l i j;
+    assert(vprefix l j = vprefix l' j)
+  in
+  ()
 
+#push-options "--warn_error '-271'"
 let rec search_first_non_eac_prefix (l:verifiable_log):
   Tot (i:nat{i <= length l /\ 
             evict_add_consistent (vprefix l i) /\
@@ -826,29 +807,32 @@ let rec search_first_non_eac_prefix (l:verifiable_log):
          add_payload l (n - 1) <> last_evict_value_or_init l' (add_addr l (n - 1)) then
          n - 1
       else (
-        let aux (i:vl_index l):
-        Lemma (is_add l i ==>
-               add_payload l i = last_evict_value_or_init (vprefix l i) (add_addr l i)) = 
-        if i = n - 1 then ()
-        else (
-          let l_i = vprefix l i in
-          if not (is_add l i) then ()
+        let aux (i:vl_index l)
+          : Lemma 
+            (requires is_add l i)
+            (ensures add_payload l i = last_evict_value_or_init (vprefix l i) (add_addr l i))
+            [SMTPat ()] //this will warn, but you can suppress that, see above
+          = 
+          if i = n - 1 then ()
           else (
-            lemma_prefix_index l (n - 1) i;
-            lemma_prefix_prefix l (n - 1) i;
-            assert (is_add l' i  ==>                 
-                    add_payload l' i = last_evict_value_or_init (vprefix l' i) (add_addr l' i));
-            ()
+            let l_i = vprefix l i in
+            if not (is_add l i) then ()
+            else (
+              lemma_prefix_index l (n - 1) i;
+              lemma_prefix_prefix l (n - 1) i;
+              assert (is_add l' i  ==>                 
+                     add_payload l' i = last_evict_value_or_init (vprefix l' i) (add_addr l' i));
+              ()
+            )
           )
-        )
-        in             
-        forall_intro aux;
-        assert (evict_add_consistent l);
-        lemma_fullprefix_equal l;
-        n
+       in             
+       assert (evict_add_consistent l);
+       lemma_fullprefix_equal l;
+       n
       )
     )
   )
+#pop-options
 
 (* Identify the smallest non-evict-add consistent prefix *)
 let first_non_eac_prefix (l:verifiable_log {~(evict_add_consistent l)})
@@ -899,8 +883,8 @@ let lemma_last_write_unchanged_unless_write (l:verifiable_log{length l > 0}) (a:
   let n = length l in 
   lemma_last_index_last_elem_nsat (is_write_to_addr a) l;  
   if has_some_write l a then (
-    lemma_last_index_prefix (is_write_to_addr a) l (n - 1);
-    lemma_prefix_index l (n - 1) (last_write_idx l a)  
+    lemma_last_index_prefix (is_write_to_addr a) l (n - 1)// ;
+    // lemma_prefix_index l (n - 1) (last_write_idx l a)  
   )
   else
     lemma_not_exists_prefix (is_write_to_addr a) l (n - 1)
@@ -1147,11 +1131,13 @@ let lemma_eac_implies_memory_correct (l:eac_log):
   let lm = memory_ops_of l in 
   let f = is_entry_memory_op in
   let fl = filter f l in
-  let aux (i:log_index lm):
-    Lemma (Memory.is_read_op lm i ==> 
+  let aux (i:log_index lm)
+    : Lemma 
+      (requires Memory.is_read_op lm i)
+      (ensures
            Memory.read_value lm i = 
-           Memory.last_write_value_or_null (prefix lm i) (address_at_idx lm i)) =
-    if Memory.is_read_op lm i then (
+           Memory.last_write_value_or_null (prefix lm i) (address_at_idx lm i))
+      [SMTPat (Memory.is_read_op lm i)] =
       (* i' is the index of operation read op i in verifier log *)
       let i' = filter_index_inv_map f l i in
       lemma_map_index memory_op_of_entry fl i;
@@ -1230,10 +1216,7 @@ let lemma_eac_implies_memory_correct (l:eac_log):
         )
         else ()
       )
-    )
-    else ()
   in
-  forall_intro aux;
   lemma_rw_consistent_implies_correct lm
 
 (* Part II of the proof: lack of evict-add consistency implies hash collision *)
@@ -1453,7 +1436,7 @@ let rec lemma_eac_implies_cache_is_last_evict
       | Add a' v -> assert(a = a'); // otherwise Add a' does not update cache on 
                     (* since l is evict-add consistent *)
                     assert (v = last_evict_value_or_init l' a);
-
+ 
                     (* from pre-condition *)
                     assert (v <> MkInternal (hashfn (last_evict_value_or_init l (LeftChild a)))
                                            (hashfn (last_evict_value_or_init l (RightChild a))));
