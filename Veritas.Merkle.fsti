@@ -107,3 +107,55 @@ let rec merklefn (a:merkle_addr) (mem: memory): Tot (merkle_payload_of_addr a)
   then MkLeaf (mem (merkle_leaf_to_addr a))
   else MkInternal (hashfn (merklefn (LeftChild a) mem))
                   (hashfn (merklefn (RightChild a) mem))
+
+(* Is d descendant of a *)
+val is_desc (d a: bin_tree_node): Tot bool
+
+(* Every node is a descendant of root *)
+val lemma_root_is_univ_ancestor (a: bin_tree_node):
+  Lemma (is_desc a Root)
+
+(* Every node is a descendant of itself *)
+val lemma_desc_reflexive (a: bin_tree_node):
+  Lemma (is_desc a a)
+
+(* descendant is a transitive relation *)
+val lemma_desc_transitive (a b c: bin_tree_node):
+  Lemma (is_desc a b /\ is_desc b c ==> is_desc a c)
+
+(* Each node is a descendant of its parent *)
+val lemma_parent_ancestor (a: bin_tree_node{~(Root? a)}):
+  Lemma (is_desc a (parent a))
+
+(* proper descendant *)
+let is_proper_desc (d a: bin_tree_node) = is_desc d a && d <> a
+
+(* a proper descendant is a descendant of either left or right child *)
+val lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is_proper_desc d a}):
+  Lemma (is_desc d (LeftChild a) /\ ~ (is_desc d (RightChild a)) /\
+         is_desc d (RightChild a) /\ ~ (is_desc d (LeftChild a)))
+
+type desc_hash = 
+  | Empty: desc_hash
+  | Desc: d:merkle_addr -> h:hash_value -> desc_hash
+
+type sp_merkle_payload = 
+  | SMkLeaf: value:payload -> sp_merkle_payload
+  | SMkInternal: left:desc_hash -> right:desc_hash -> sp_merkle_payload
+
+(* hash function maps a merkle payload to a hash value *)
+val hashfn_sp (m:sp_merkle_payload): Tot hash_value
+
+(* Inductive type for hash collisions *) 
+type hash_collision_sp = 
+  | SCollision: m1:sp_merkle_payload ->
+                m2:sp_merkle_payload { hashfn_sp m1 == hashfn_sp m2 /\ ~(m1 == m2) } ->
+               hash_collision_sp
+
+let is_sp_payload_of_addr (a:merkle_addr) (p:sp_merkle_payload): Tot bool =
+  if is_merkle_leaf a then SMkLeaf? p 
+  else SMkInternal? p
+
+(* merkle payload type conditioned on the address *)
+type sp_merkle_payload_of_addr (a:merkle_addr) = 
+  p:sp_merkle_payload{is_sp_payload_of_addr a p}

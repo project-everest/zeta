@@ -31,7 +31,7 @@ type verifier_log = seq verifier_log_entry
 type vl_index (l:verifier_log) = seq_index l
 
 (* is the i'th operation an evict *)
-let is_evict (l:verifier_log) (i:vl_index l): Tot bool =
+let is_evict (l:verifier_log) (i:vl_index l): Tot bool =e
   Evict? (index l i)
 
 (* evicted address for an evict operation *)
