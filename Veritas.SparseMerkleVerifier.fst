@@ -312,6 +312,123 @@ let last_write_idx (l:verifiable_log) (a:merkle_leaf_addr{has_some_write l a}) =
 let cache_at_end (l:verifiable_log): Tot verifier_cache =
   Valid?.vc (verifier l)
 
+(* 
+ * Lemma: if there is a memory operation at index i, then cache at that position
+ * contains the address touched by the operation 
+ *)
+let lemma_memop_requires_cache (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_memory_op l i))
+        (ensures  (cache_contains (cache_at_end (prefix l i)) 
+                                  (addr_to_merkle_leaf (address_of (memory_op_at l i))))) =
+  lemma_verifiable_implies_prefix_verifiable l (i + 1)
+
+(*
+ * Lemma: An evict operation requires the cache to contain the evicted address 
+ *)
+let lemma_evict_requires_cache (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_evict l i))
+        (ensures  (cache_contains (cache_at_end (prefix l i)) (evict_addr l i))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1)
+
+(* Lemma: add operation requires cache not to contain the added address *)
+let lemma_add_requires_not_cached (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_add l i))
+        (ensures (not (cache_contains (cache_at_end (prefix l i)) (add_addr l i)))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1)
+        
+(*
+ * Lemma: merkle root is never added
+ *)
+let lemma_root_never_added (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_add l i))
+        (ensures (not (is_merkle_root (add_addr l i)))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1)
+
+(* Lemma: merkle root never evicted *)
+let lemma_root_never_evicted (l:verifiable_log) (i:vl_index l):
+  Lemma (requires (is_evict l i))
+        (ensures (not (is_merkle_root (evict_addr l i)))) = 
+  lemma_verifiable_implies_prefix_verifiable l (i + 1)
+
+(* does the log entry e change the addresses being cached *)
+let changes_caching (a:merkle_addr) (e:verifier_log_entry): Tot bool = 
+  match e with
+  | Add a' _ _ -> a = a'
+  | Evict a' _ -> a = a'
+  | _ -> false
+
+(* if the last entry does not add/evict a, the cache containment of a is unchanged *)
+let lemma_changes_caching (l:verifiable_log {length l > 0}) (a:merkle_addr):
+  Lemma (requires (not (changes_caching a (index l (length l - 1)))))
+        (ensures (cache_contains (cache_at_end l) a = 
+                  cache_contains (cache_at_end (prefix l (length l - 1))) a)) = 
+  ()
+
+(* 
+ * If the cache contains an address a (non root), then the last add/evict operation 
+ * is an add 
+ *)
+let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a:merkle_non_root_addr):
+  Lemma (requires (cache_contains (cache_at_end l) a))
+        (ensures (has_some_add l a /\
+                  (has_some_evict l a ==> last_evict_idx l a < last_add_idx l a)))
+        (decreases (length l)) = 
+  let n = length l in
+  let cache = cache_at_end l in
+  if n = 0 then ()
+  else
+    let l' = prefix l (n - 1) in
+    let cache' = cache_at_end l' in
+    let e = index l (n - 1) in
+
+    if not (changes_caching a e) then (
+      (* induction on l' *)
+      lemma_cache_contains_implies_last_add_before_evict l' a;
+
+      (* induction provides l' and therefore l has some add *)
+      assert (has_some_add l a);
+
+      (* since e is not and add a, the last add index remains unchanged from l' to l *)
+      lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+      lemma_last_index_prefix (is_add_of_addr a) l (n - 1);
+      assert (last_add_idx l a = last_add_idx l' a);
+
+      (* since e is not an evict a, the last evict index remains unchanged from l' to l *)
+      lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+      if has_some_evict l a then 
+        lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)
+      else ()
+    )
+    else if is_add_of_addr a e then
+      lemma_last_index_correct2 (is_add_of_addr a) l (n - 1) 
+    else ()    
+
+(* 
+ * If the cache does not contain an address a, then the last add/evict operation
+ * is an evict
+ *)
+let rec lemma_not_contains_implies_last_evict_before_add (l:verifiable_log) (a:merkle_non_root_addr):
+  Lemma (requires (not (cache_contains (cache_at_end l) a)))
+        (ensures (has_some_add l a ==> has_some_evict l a /\ last_evict_idx l a > last_add_idx l a))
+        (decreases (length l)) = 
+  let n = length l in
+  let cache = cache_at_end l in
+  if n = 0 then ()
+  else
+    let l' = prefix l (n - 1) in
+    let cache' = cache_at_end l' in
+    let e = index l (n - 1) in
+    if not (changes_caching a e) then (
+      (* apply induction on l' *)
+      lemma_not_contains_implies_last_evict_before_add l' a;
+
+      
+      admit()      
+    )
+    else 
+  admit()
+
+
 (*
  * We want to prove that if the verifier returns Valid for a log l, then the
  * read-write operations in log l are rw-consistent unless there is a hash collision.
@@ -441,6 +558,21 @@ let rec verifying_ancestor (l:verifiable_log) (a:merkle_non_root_addr):
       else va'
     else va'
 
+(* 
+ * if d -> a1 -> a2 represents proper ancestor relation, then once a1 
+ * has been added, a2 cannot be the verifying ancestor.
+ * In other words, the smallest ancestor is the verifying ancestor 
+ *)
+let rec lemma_verifying_ancestor_smallest (l:verifiable_log) 
+                                          (d:merkle_non_root_addr) 
+                                          (a_high a_low: merkle_addr):
+   Lemma (requires (is_proper_desc a_low a_high /\
+                    is_proper_desc d a_low /\
+                    has_some_add l a_low))
+         (ensures (a_high <> verifying_ancestor l d))
+   (decreases (length l)) = admit()
+
+
 let points_to (d:merkle_addr) (a: merkle_addr{is_proper_desc d a}) (v:sp_merkle_payload_of_addr a) : Tot bool = 
   let dh = get_desc_hash d a v in
   not (Empty? dh) && d = Desc?.a dh
@@ -458,14 +590,69 @@ let rec lemma_verifying_ancestor_correct
   let cache = cache_at_end l in
   let va = verifying_ancestor l a in
   let pva = cached_payload cache va in
+  let dh = get_desc_hash a va pva in
   let n = length l in 
   (* contradiction since l has some add of a *)
   if n = 0 then SCollision (SMkLeaf Null) (SMkLeaf Null)
   
   else 
     let l' = prefix l (n - 1) in
+    let cache' = cache_at_end l' in
     let e = index l (n - 1) in
-    match e with 
-    | _ ->
-    admit()
+    let va' = verifying_ancestor l' a in
+    if Add? e && is_desc a (Add?.a e) then (
+      let a' = Add?.a e in
+      
+      if a' = a then (
+        (* verifying ancestor changes only when we add a proper ancestor *)
+        assert (va = va');
+
+        (* the ancestor used in this add *)
+        let a_anc = Add?.a' e in
+        assert (cache_contains cache' a_anc);
+
+        (* a_anc and va are ancestor descendants of each other *)
+        lemma_two_ancestors_related a a_anc va;
+
+        if a_anc = va then
+          admit()
+        else if is_proper_desc va a_anc then
+          admit()
+        else (
+          assert (is_proper_desc a_anc va);
+          assert (not (is_merkle_root a));
+          //lemma_verifying_ancestor_smallest l a va a_anc;
+          admit()
+        )
+      )
+      else
+        admit()
+    )
+    else (
+      (* e is not add of address a *)
+      lemma_desc_reflexive a;
+      assert(not (is_add_of_addr a e));
+
+      (* since e is not add of address a, l' has some add of a *)
+      lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+      lemma_last_index_prefix (is_add_of_addr a) l (n - 1);
+      assert (has_some_add l' a);
+
+      (* since we are not adding any ancestor, verifying ancestor is unchanged *)
+      assert (va == va');
+
+      (* since cache contains va, e cannot be an evict va *)
+      assert (not (is_evict_of_addr va e));
+
+      (* since e is neither, add or evict va, l' contains va as well *)
+      assert (cache_contains cache' va);
+      let pva' = cached_payload cache' va' in
+
+      (* induction on l' *)
+      if not (points_to a va (cached_payload cache' va)) then 
+         lemma_verifying_ancestor_correct l' a
+      else 
+        (* Otherwise, we have a contradiction *)
+        SCollision (SMkLeaf Null) (SMkLeaf Null)      
+    )
                                                                  

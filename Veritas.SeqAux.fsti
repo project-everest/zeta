@@ -95,6 +95,11 @@ val lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
   Lemma (requires (not (exists_sat_elems f s)))
         (ensures (not (exists_sat_elems f (prefix s i))))
 
+val lemma_exists_prefix_implies_exists (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
+  Lemma (requires (exists_sat_elems f (prefix s i)))
+        (ensures (exists_sat_elems f s))
+        [SMTPat (exists_sat_elems f (prefix s i))]
+
 val lemma_last_index_last_elem_nsat (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (not (f (index s (length s - 1)))))
         (ensures (exists_sat_elems f s ==> last_index f s < length s - 1))
