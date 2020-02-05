@@ -123,10 +123,6 @@ val lemma_desc_reflexive (a: bin_tree_node):
 val lemma_desc_transitive (a b c: bin_tree_node):
   Lemma (is_desc a b /\ is_desc b c ==> is_desc a c)
 
-(* Each node is a descendant of its parent *)
-val lemma_parent_ancestor (a: bin_tree_node{~(Root? a)}):
-  Lemma (is_desc a (parent a))
-
 (* Two ancestors of a node are ancestor/descendant of one another *)
 val lemma_two_ancestors_related (d: bin_tree_node) (a1 a2: bin_tree_node):
   Lemma (requires (is_desc d a1 /\ is_desc d a2))
@@ -135,6 +131,19 @@ val lemma_two_ancestors_related (d: bin_tree_node) (a1 a2: bin_tree_node):
 
 (* proper descendant *)
 let is_proper_desc (d a: bin_tree_node) = is_desc d a && d <> a
+
+(* Each node is a descendant of its parent *)
+val lemma_parent_ancestor (a: bin_tree_node{~(Root? a)}):
+  Lemma (is_proper_desc a (parent a))
+
+(* descendant is a transitive relation *)
+val lemma_proper_desc_transitive1 (a b c: bin_tree_node):
+  Lemma (is_proper_desc a b /\ is_desc b c ==> is_proper_desc a c)
+
+(* descendant is a transitive relation *)
+val lemma_proper_desc_transitive2 (a b c: bin_tree_node):
+  Lemma (is_desc a b /\ is_proper_desc b c ==> is_proper_desc a c)
+
 
 (* a proper descendant is a descendant of either left or right child *)
 val lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is_proper_desc d a}):

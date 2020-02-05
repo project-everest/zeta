@@ -422,12 +422,28 @@ let rec lemma_not_contains_implies_last_evict_before_add (l:verifiable_log) (a:m
       (* apply induction on l' *)
       lemma_not_contains_implies_last_evict_before_add l' a;
 
-      
-      admit()      
-    )
-    else 
-  admit()
+      (* e is neither add or evict *)
+      lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+      lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
 
+      (* nothing to prove if l does not have an add *)
+      if (not (has_some_add l a)) then ()
+      else (
+        (* last add-a of l and l' identical *)
+        lemma_last_index_prefix (is_add_of_addr a) l (n - 1);
+        assert (last_add_idx l a = last_add_idx l' a);
+
+        (* last evict-a of l and l' identical *)
+        lemma_exists_prefix_implies_exists (is_evict_of_addr a) l (n - 1);
+        lemma_last_index_prefix (is_evict_of_addr a) l (n - 1);
+
+        (* induction hypothesis and previous two identities implies post-condition *)
+        ()
+      )
+    )
+    else if is_evict_of_addr a e then
+      lemma_last_index_correct2 (is_evict_of_addr a) l (n - 1)
+    else ()
 
 (*
  * We want to prove that if the verifier returns Valid for a log l, then the
@@ -536,6 +552,106 @@ let is_evict_add_consistent (l:verifiable_log):
   Tot (b:bool{b <==> evict_add_consistent l}) = 
   search_first_non_eac_prefix l = length l
 
+let cache_contains_l (l:verifiable_log) (a:merkle_addr): Tot bool = 
+  cache_contains (cache_at_end l) a
+
+let cached_payload_l (l:verifiable_log) (a:merkle_addr {cache_contains_l l a}): Tot (sp_merkle_payload_of_addr a) = 
+  cached_payload (cache_at_end l) a
+
+let desc_hash_l (l:verifiable_log) (c:merkle_non_root_addr {cache_contains_l l (parent c)}): Tot desc_hash = 
+  admit()
+
+type desc_hash_invariant (l:eac_log) (c:merkle_non_root_addr) = 
+  cache_contains_l l (parent c) ==> 
+    (Empty? (desc_hash_l l c) /\ (forall (d:merkle_addr). is_desc d c ==> not (has_some_add l d)))
+    \/
+    (Desc? (desc_hash_l l c) /\ (forall (d1 d2: merkle_addr). (is_desc d1 c /\ 
+                                                           is_desc d2 c /\ 
+                                                           Desc?.a (desc_hash_l l c) = d1) ==> is_desc d2 d1))
+
+let rec lemma_desc_hash_invariant
+  (l:eac_log)
+  (c:merkle_non_root_addr {~ (desc_hash_invariant l c)}): 
+  Tot hash_collision_sp
+  (decreases (length l)) =
+  let n = length l in
+  let cache = cache_at_end l in
+  let a = parent c in 
+  if n = 0 then admit () //SCollision (SMkLeaf Null) (SMkLeaf Null)
+  else admit()
+                           
+let rec lemma_left_desc_hash_empty_implies_no_desc 
+    (l:eac_log)
+    (c:merkle_non_root_addr {cache_contains_l l (parent c) /\ 
+                             Empty? (SMkInternal?.left (cached_payload_l l (parent c)))})
+    (d:merkle_addr {is_desc d c /\
+                    has_some_add l d})
+    : Tot hash_collision_sp (decreases (length l)) = 
+  let n = length l in 
+  let cache = cache_at_end l in
+  let a = parent c in
+  lemma_parent_ancestor c;
+  if n = 0 then SCollision (SMkLeaf Null) (SMkLeaf Null)
+  else (
+    let l' = prefix l (n - 1) in
+    let e = index l (n - 1) in
+    let cache' = cache_at_end l' in
+    match e with
+    | MemoryOp _ ->  lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
+                     lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
+                     lemma_left_desc_hash_empty_implies_no_desc l' c d
+    | Add a1 v1 a_anc -> if a1 = a then admit()
+                         else if is_desc a1 c then (
+                           
+                           lemma_proper_desc_transitive2 a1 c a;
+                           assert (is_proper_desc a1 a);
+
+                           if a_anc = a then admit()
+                           else if is_desc a_anc a then admit()
+                           else (
+                             assert(is_proper_desc a1 a_anc);
+                             lemma_two_ancestors_related a1 a a_anc;
+                             assert (is_proper_desc a a_anc);
+                             assert (cached_payload_l l a = cached_payload_l l' a);
+                             admit()
+                           )
+                         )
+                         else (
+                           lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
+                           lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
+                           lemma_left_desc_hash_empty_implies_no_desc l' c d
+                         )
+    | Evict _ _ -> admit()
+
+  )
+
+(*
+    match e with
+    | MemoryOp _ -> lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
+                    lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
+                    lemma_left_desc_hash_empty_implies_no_desc l' a d
+    | Add a1 v1 a_anc -> if a1 = a then admit()
+                         else if is_desc a1 (LeftChild a) then (
+                           if a_anc = a then admit()
+                           else if is_desc a_anc a then admit()
+                           else (
+                             
+                             //assert (is_proper_desc a_anc a);
+                             //assert (is_proper_desc d a_anc);
+                             assert(cached_payload_l l a = cached_payload_l l' a);
+                             admit()
+                           )
+                         )
+                         else (
+                           lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
+                           lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
+                           lemma_left_desc_hash_empty_implies_no_desc l' a d                           
+                         )
+    | Evict _ _ -> admit()
+  )
+*)                             
+
+
 (* 
  * for a verifiable log l, every merkle addr is associated with an ancestor identified below 
  * - the smallest ancestor who has been added so far - as verifying ancestor. The verifying 
@@ -614,15 +730,24 @@ let rec lemma_verifying_ancestor_correct
         (* a_anc and va are ancestor descendants of each other *)
         lemma_two_ancestors_related a a_anc va;
 
-        if a_anc = va then
+        if a_anc = va then 
+          SCollision (SMkLeaf Null) (SMkLeaf Null)
+        else if is_proper_desc va a_anc then (
+          assert (cache_contains cache' va);
+
+          if has_some_add l' a then 
+            lemma_verifying_ancestor_correct l' a
+          
+          else
+          //assert (has_some_add l' a);
+          //assert (points_to a va pva);
           admit()
-        else if is_proper_desc va a_anc then
-          admit()
+        )
         else (
           assert (is_proper_desc a_anc va);
-          assert (not (is_merkle_root a));
-          //lemma_verifying_ancestor_smallest l a va a_anc;
-          admit()
+          lemma_cache_contains_implies_last_add_before_evict l a_anc;
+          lemma_verifying_ancestor_smallest l a va a_anc;
+          SCollision (SMkLeaf Null) (SMkLeaf Null)
         )
       )
       else
