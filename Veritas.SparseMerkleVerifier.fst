@@ -559,26 +559,57 @@ let cached_payload_l (l:verifiable_log) (a:merkle_addr {cache_contains_l l a}): 
   cached_payload (cache_at_end l) a
 
 let desc_hash_l (l:verifiable_log) (c:merkle_non_root_addr {cache_contains_l l (parent c)}): Tot desc_hash = 
-  admit()
+  match c with
+  | LeftChild p -> SMkInternal?.left (cached_payload_l l p)
+  | RightChild p -> SMkInternal?.right (cached_payload_l l p)
 
-type desc_hash_invariant (l:eac_log) (c:merkle_non_root_addr) = 
-  cache_contains_l l (parent c) ==> 
-    (Empty? (desc_hash_l l c) /\ (forall (d:merkle_addr). is_desc d c ==> not (has_some_add l d)))
-    \/
-    (Desc? (desc_hash_l l c) /\ (forall (d1 d2: merkle_addr). (is_desc d1 c /\ 
-                                                           is_desc d2 c /\ 
-                                                           Desc?.a (desc_hash_l l c) = d1) ==> is_desc d2 d1))
+let last_add_idx_safe (l:verifiable_log) (a:merkle_addr): Tot nat =
+  if has_some_add l a then last_add_idx l a 
+  else 0
 
-let rec lemma_desc_hash_invariant
-  (l:eac_log)
-  (c:merkle_non_root_addr {~ (desc_hash_invariant l c)}): 
-  Tot hash_collision_sp
-  (decreases (length l)) =
-  let n = length l in
-  let cache = cache_at_end l in
-  let a = parent c in 
-  if n = 0 then admit () //SCollision (SMkLeaf Null) (SMkLeaf Null)
-  else admit()
+(* Hack to make statements easier *)
+let lemma_no_hash_collision (hc: hash_collision_sp):
+  Lemma (False) = admit()
+
+(* QUESTION: 
+   Proof requires something like:
+   (decreases (%[length l;last_add_idx l (parent c)])) = admit()
+*)
+let rec lemma_desc_hash_empty_implies_no_desc (l: verifiable_log) (c: merkle_non_root_addr) (d: merkle_addr):
+  Lemma (requires (cache_contains_l l (parent c) /\
+                   Empty? (desc_hash_l l c)))
+        (ensures (is_desc d c ==> not (has_some_add l d)))        
+        (decreases (%[length l;last_add_idx_safe l (parent c)])) = admit()
+
+let rec lemma_desc_hash_implies_add 
+    (l: eac_log) 
+    (c: merkle_non_root_addr {cache_contains_l l (parent c) /\ 
+                              Desc? (desc_hash_l l c) /\ 
+                              (not (is_desc (Desc?.a (desc_hash_l l c)) c) \/ 
+                               not (has_some_add l (Desc?.a (desc_hash_l l c))))})
+  : Tot hash_collision_sp = admit()
+
+let rec lemma_desc_hash_highest_desc
+  (l: eac_log)
+  (c: merkle_non_root_addr {cache_contains_l l (parent c) /\
+                            Desc? (desc_hash_l l c)})
+  (d': merkle_addr {is_desc d' c /\
+                    has_some_add l d' /\
+                    not (is_desc d' (Desc?.a (desc_hash_l l c)))})
+  : Tot hash_collision_sp = admit()
+
+(* TODO: This causes the assert failure bug *)
+let rec lemma_desc_hash_empty_to_nonempty
+  (l: eac_log)  
+  (c: merkle_non_root_addr)
+  (i: vl_index l):
+  Lemma (requires (cache_contains_l l (parent c) /\
+                   cache_contains_l (prefix l i) (parent c)))
+        (ensures (Desc? (desc_hash_l (prefix l i) c) ==> Desc? (desc_hash_l l c))) = admit()
+  
+
+
+
                            
 let rec lemma_left_desc_hash_empty_implies_no_desc 
     (l:eac_log)
