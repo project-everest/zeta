@@ -563,31 +563,92 @@ let desc_hash_l (l:verifiable_log) (c:merkle_non_root_addr {cache_contains_l l (
   | LeftChild p -> SMkInternal?.left (cached_payload_l l p)
   | RightChild p -> SMkInternal?.right (cached_payload_l l p)
 
-let last_add_idx_safe (l:verifiable_log) (a:merkle_addr): Tot nat =
-  if has_some_add l a then last_add_idx l a 
-  else 0
-
-(* Hack to make statements easier *)
-let lemma_no_hash_collision (hc: hash_collision_sp):
-  Lemma (False) = admit()
-
-(* QUESTION: 
-   Proof requires something like:
-   (decreases (%[length l;last_add_idx l (parent c)])) = admit()
-*)
-let rec lemma_desc_hash_empty_implies_no_desc (l: verifiable_log) (c: merkle_non_root_addr) (d: merkle_addr):
-  Lemma (requires (cache_contains_l l (parent c) /\
-                   Empty? (desc_hash_l l c)))
-        (ensures (is_desc d c ==> not (has_some_add l d)))        
-        (decreases (%[length l;last_add_idx_safe l (parent c)])) = admit()
-
 let rec lemma_desc_hash_implies_add 
     (l: eac_log) 
     (c: merkle_non_root_addr {cache_contains_l l (parent c) /\ 
                               Desc? (desc_hash_l l c) /\ 
                               (not (is_desc (Desc?.a (desc_hash_l l c)) c) \/ 
                                not (has_some_add l (Desc?.a (desc_hash_l l c))))})
-  : Tot hash_collision_sp = admit()
+  : Tot hash_collision_sp (decreases (length l)) =
+  let n = length l in
+  let a = parent c in 
+  let cache = cache_at_end l in
+  let d = Desc?.a (desc_hash_l l c) in
+  if n = 0 then SCollision (SMkLeaf Null) (SMkLeaf Null)
+  else
+    let e = index l (n - 1) in
+    let l' = prefix l (n - 1) in
+    let cache' = cache_at_end l' in
+    match e with
+    | MemoryOp _ -> if not (is_desc d c) then 
+                      lemma_desc_hash_implies_add l' c                    
+                    else (
+                      lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
+                      lemma_desc_hash_implies_add l' c
+                    )
+    | Add a1 v1 a1_anc -> if a1 = a then (
+                            admit()
+                          )
+                          else if a1 = d then (
+                            admit()
+                          )
+                          else if a1_anc = a then (
+                            admit()
+                          )
+                          else (
+                            assert (desc_hash_l l' c = desc_hash_l l c);
+                            
+                            admit()
+                          )
+                         
+    | _ -> 
+    admit()
+
+let rec lemma_desc_hash_empty_implies_no_desc 
+  (l: verifiable_log) 
+  (c: merkle_non_root_addr {cache_contains_l l (parent c) /\ has_some_add l (parent c)}) 
+  (d: merkle_addr):
+  Lemma (requires (Empty? (desc_hash_l l c)))
+        (ensures (is_desc d c ==> not (has_some_add l d)))        
+        (decreases (%[length l;last_add_idx l (parent c)])) = 
+  let n = length l in
+  let a = parent c in
+  lemma_root_never_added l (last_add_idx l a);  
+  if n = 0 then ()
+  else if not (is_desc d c) then ()
+  else
+    let e = index l (n - 1) in
+    let l' = prefix l (n - 1) in
+    let cache' = cache_at_end l' in
+    
+    match e with 
+    | MemoryOp o -> (* cache remains unchanged on a due to e *)
+                    lemma_cache_contains_implies_last_add_before_evict l' a;
+                    (* we can therefore apply induction over l', c, d *)
+                    lemma_desc_hash_empty_implies_no_desc l' c d;
+                    (* induction provides there is no add of d in l' *)
+                    assert (not (has_some_add l' d));
+                    (* since e is not an add of d, there is no add of d in l *)
+                    lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
+                    if has_some_add l d then 
+                      lemma_last_index_prefix (is_add_of_addr d) l (n - 1)
+                    else ()
+    | Add a1 v1 a1_anc -> if a1 = a then (
+                            (* last add index of a = n - 1 since this is an add of a *)
+                            lemma_last_index_last_elem_sat (is_add_of_addr a) l;
+                            assert (last_add_idx l a = n - 1);
+
+                            (* verifier checks, a1_anc is in the cache at this point *)
+                            admit()
+                          )
+                          else admit()
+    | Evict a1 a1_anc ->
+    admit()
+
+(* Hack to make statements easier *)
+let lemma_no_hash_collision (hc: hash_collision_sp):
+  Lemma (False) = admit()
+
 
 let rec lemma_desc_hash_highest_desc
   (l: eac_log)
