@@ -605,7 +605,6 @@ let lemma_prefix_recurse_lemma_desc_hash_implies_add
   else 
     lemma_not_exists_prefix (is_add_of_addr d) l (n - 1)
   
-
 let rec lemma_desc_hash_implies_add 
     (l: eac_log) 
     (c: merkle_non_root_addr {cache_contains_l l (parent c) /\
@@ -615,19 +614,20 @@ let rec lemma_desc_hash_implies_add
   : Tot hash_collision_sp (decreases (%[length l])) =
   let n = length l in
   let a = parent c in 
-  let cache = cache_at_end l in
   let d = Desc?.a (desc_hash_l l c) in
   if n = 0 then SCollision (SMkLeaf Null) (SMkLeaf Null)
-  else (
+  else
     let e = index l (n - 1) in
     let l' = prefix l (n - 1) in
     let cache' = cache_at_end l' in
 
+    (* if e is MemoryOp, Evict, and some Add conditions, l' satisifies all 
+     * preconditions, so we can recurse *)
     if not (changes_lemma_desc_hash_implies_add_conditions e a d) then (    
       lemma_prefix_recurse_lemma_desc_hash_implies_add l c;
       lemma_desc_hash_implies_add l' c
     )
-    else (
+    else
     match e with
     | Add a1 v1 a1_anc ->       
       if a1 = a then (        
@@ -680,18 +680,12 @@ let rec lemma_desc_hash_implies_add
         lemma_last_index_last_elem_sat (is_add_of_addr d) l;
         SCollision (SMkLeaf Null) (SMkLeaf Null)
       )
-      else if a1_anc = a then (
+      else (
+        assert (a = a1_anc);        
         assert (not (is_desc a1 c));
         lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
-        lemma_desc_hash_implies_add l' c        
+        lemma_desc_hash_implies_add l' c
       )
-      else (
-        assert (desc_hash_l l' c = desc_hash_l l c);
-        lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
-        lemma_desc_hash_implies_add l' c 
-      )  
-  )
-)
 
 let rec lemma_desc_hash_empty_implies_no_desc 
   (l: verifiable_log) 
@@ -738,7 +732,6 @@ let rec lemma_desc_hash_empty_implies_no_desc
 let lemma_no_hash_collision (hc: hash_collision_sp):
   Lemma (False) = admit()
 
-
 let rec lemma_desc_hash_highest_desc
   (l: eac_log)
   (c: merkle_non_root_addr {cache_contains_l l (parent c) /\
@@ -756,10 +749,6 @@ let rec lemma_desc_hash_empty_to_nonempty
   Lemma (requires (cache_contains_l l (parent c) /\
                    cache_contains_l (prefix l i) (parent c)))
         (ensures (Desc? (desc_hash_l (prefix l i) c) ==> Desc? (desc_hash_l l c))) = admit()
-  
-
-
-
                            
 let rec lemma_left_desc_hash_empty_implies_no_desc 
     (l:eac_log)
