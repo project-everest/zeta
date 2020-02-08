@@ -372,7 +372,9 @@ let rec lemma_cache_contains_implies_last_add_before_evict (l:verifiable_log) (a
   Lemma (requires (cache_contains (cache_at_end l) a))
         (ensures (has_some_add l a /\
                   (has_some_evict l a ==> last_evict_idx l a < last_add_idx l a)))
-        (decreases (length l)) = 
+        (decreases (length l)) 
+        [SMTPat (cache_contains (cache_at_end l) a)]
+        = 
   let n = length l in
   let cache = cache_at_end l in
   if n = 0 then ()
@@ -558,18 +560,135 @@ let cache_contains_l (l:verifiable_log) (a:merkle_addr): Tot bool =
 let cached_payload_l (l:verifiable_log) (a:merkle_addr {cache_contains_l l a}): Tot (sp_merkle_payload_of_addr a) = 
   cached_payload (cache_at_end l) a
 
-let desc_hash_l (l:verifiable_log) (c:merkle_non_root_addr {cache_contains_l l (parent c)}): Tot desc_hash = 
+let desc_hash_c (c:merkle_non_root_addr) (v:sp_merkle_payload_of_addr (parent c)) = 
   match c with
-  | LeftChild p -> SMkInternal?.left (cached_payload_l l p)
-  | RightChild p -> SMkInternal?.right (cached_payload_l l p)
+  | LeftChild p -> SMkInternal?.left v
+  | RightChild p -> SMkInternal?.right v
 
-let rec lemma_desc_hash_implies_add 
-    (l: eac_log) 
-    (c: merkle_non_root_addr {cache_contains_l l (parent c) /\ 
+let desc_hash_l (l:verifiable_log) (c:merkle_non_root_addr {cache_contains_l l (parent c)}): Tot desc_hash = 
+  desc_hash_c c (cached_payload_l l (parent c))
+
+let desc_child (d:merkle_addr) (a:merkle_addr{is_proper_desc d a}) : 
+  (c:merkle_non_root_addr{parent c = a /\ is_desc d c}) = 
+  lemma_proper_desc_left_or_right d a;
+  if is_desc d (LeftChild a) then LeftChild a else RightChild a
+
+type pair = 
+  | MkPair: fst:eac_log -> snd:merkle_non_root_addr -> pair
+
+let find_recursion_add_lemma_desc_hash 
+    (l: eac_log{length l > 0 /\ is_add l (length l - 1)}) 
+    (c: merkle_non_root_addr {cache_contains_l l (parent c) /\
                               Desc? (desc_hash_l l c) /\ 
                               (not (is_desc (Desc?.a (desc_hash_l l c)) c) \/ 
                                not (has_some_add l (Desc?.a (desc_hash_l l c))))})
-  : Tot hash_collision_sp (decreases (length l)) =
+ : ( lc:pair {length (MkPair?.fst lc) < length l /\ 
+              cache_contains_l (MkPair?.fst lc) (parent (MkPair?.snd lc)) /\
+                              Desc? (desc_hash_l (MkPair?.fst lc) (MkPair?.snd lc)) /\ 
+                              (not (is_desc (Desc?.a (desc_hash_l (MkPair?.fst lc) (MkPair?.snd lc))) (MkPair?.snd lc)) \/ 
+                               not (has_some_add (MkPair?.fst lc) (Desc?.a (desc_hash_l (MkPair?.fst lc) (MkPair?.snd lc)))))
+ }) = 
+ let n = length l in
+ let a = parent c in 
+ let cache = cache_at_end l in
+ let d = Desc?.a (desc_hash_l l c) in 
+ let e = index l (n - 1) in
+ let l' = prefix l (n - 1) in
+ let cache' = cache_at_end l' in
+ match e with
+ | Add a1 v1 a1_anc ->        
+      if a1 = a then (        
+        
+        (* desc_hash of a1_anc the validates a *)
+        let dh_anc = get_desc_hash a a1_anc (cached_payload_l l' a1_anc) in
+        if Empty? dh_anc then (
+          assert (is_empty_or_null a1 v1);
+          assert (v1 = Some?.v (cache a));
+          assert (v1 = cached_payload_l l a);
+          assert (Desc? (desc_hash_c c v1));
+          match c with
+          | LeftChild p -> assert (Desc? (desc_hash_c c v1)); admit()
+          | RightChild p -> admit()
+          // | _ -> 
+          (*
+          match c with 
+          | LeftChild p -> //assert (Desc? (desc_hash_c c v1)); 
+                           admit()
+          | RightChild p -> 
+          *)
+          //admit()
+        )
+        else
+          admit()
+        (*
+        if Desc?.a dh_anc <> a then (
+          
+          (* this implies that v is empty and a1_anc points to d *)
+          let c' = desc_child a a1_anc in
+
+          (* if d is not a descendant of a1_anc, we can recurse with a1_anc and l' *)
+          if not (is_desc d c') then
+            MkPair l' c'
+          else (
+            (* else, we know that d does not have an add in l, so not in l' either *)
+            lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
+            (* with recursion we get the hash collision *)
+            MkPair l' c'
+          )
+          admit()
+        )
+
+        else admit()   if not (has_some_add l' a) then 
+          MkPair l' (desc_child a a1_anc)
+                
+        else (
+          (* if a had a previous add, then it implies it had a previous evict *)
+          lemma_not_contains_implies_last_evict_before_add l' a;
+          assert (has_some_evict l' a);
+
+          (* the last evict index of a *)
+          let ie = last_evict_idx l' a in
+          let l_e = prefix l ie in
+          let cache_e = cache_at_end l_e in
+          lemma_evict_requires_cache l ie;
+
+          (* from evict add consistency a pointed to d at the time of evict *)          
+          if not (is_desc d c) then
+            MkPair l_e c
+          else (
+            (* else, we know that d does not have an add in l, so not in l_e either *)
+            lemma_not_exists_prefix (is_add_of_addr d) l ie;
+            (* with recursion we get the hash collision *)
+            MkPair l_e c
+          )
+        )
+
+        *)
+      )
+      else if not (is_desc d c) then
+        MkPair l' c
+      else if a1 = d then (
+        lemma_last_index_last_elem_sat (is_add_of_addr d) l;
+        MkPair l' c
+      )
+      else if a1_anc = a then (
+        assert (not (is_desc a1 c));
+        lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
+        MkPair l' c        
+      )
+      else (
+        assert (desc_hash_l l' c = desc_hash_l l c);
+        lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
+        MkPair l' c 
+      )     
+
+let rec lemma_desc_hash_implies_add 
+    (l: eac_log) 
+    (c: merkle_non_root_addr {cache_contains_l l (parent c) /\
+                              Desc? (desc_hash_l l c) /\ 
+                              (not (is_desc (Desc?.a (desc_hash_l l c)) c) \/ 
+                               not (has_some_add l (Desc?.a (desc_hash_l l c))))})
+  : Tot hash_collision_sp (decreases (%[length l])) =
   let n = length l in
   let a = parent c in 
   let cache = cache_at_end l in
@@ -580,30 +699,83 @@ let rec lemma_desc_hash_implies_add
     let l' = prefix l (n - 1) in
     let cache' = cache_at_end l' in
     match e with
-    | MemoryOp _ -> if not (is_desc d c) then 
-                      lemma_desc_hash_implies_add l' c                    
-                    else (
-                      lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
-                      lemma_desc_hash_implies_add l' c
-                    )
-    | Add a1 v1 a1_anc -> if a1 = a then (
-                            admit()
-                          )
-                          else if a1 = d then (
-                            admit()
-                          )
-                          else if a1_anc = a then (
-                            admit()
-                          )
-                          else (
-                            assert (desc_hash_l l' c = desc_hash_l l c);
-                            
-                            admit()
-                          )
-                         
-    | _ -> 
-    admit()
+    | Add a1 v1 a1_anc ->       
+      if a1 = a then (        
+        (* desc_hash of a1_anc the validates a *)
+        let dh_anc = get_desc_hash a a1_anc (cached_payload_l l' a1_anc) in
+        
+        if Desc?.a dh_anc <> a then (
+          (* this implies that v is empty and a1_anc points to d *)
+          let c' = desc_child a a1_anc in
 
+          (* if d is not a descendant of a1_anc, we can recurse with a1_anc and l' *)
+          if not (is_desc d c') then
+            lemma_desc_hash_implies_add l' c'
+          else (
+            (* else, we know that d does not have an add in l, so not in l' either *)
+            lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
+            (* with recursion we get the hash collision *)
+            lemma_desc_hash_implies_add l' c'
+          )
+        )
+
+        else if not (has_some_add l' a) then 
+          lemma_desc_hash_implies_add l' (desc_child a a1_anc)
+                
+        else (
+          (* if a had a previous add, then it implies it had a previous evict *)
+          lemma_not_contains_implies_last_evict_before_add l' a;
+          assert (has_some_evict l' a);
+
+          (* the last evict index of a *)
+          let ie = last_evict_idx l' a in
+          let l_e = prefix l ie in
+          let cache_e = cache_at_end l_e in
+          lemma_evict_requires_cache l ie;
+
+          (* from evict add consistency a pointed to d at the time of evict *)          
+          if not (is_desc d c) then
+            lemma_desc_hash_implies_add l_e c
+          else (
+            (* else, we know that d does not have an add in l, so not in l_e either *)
+            lemma_not_exists_prefix (is_add_of_addr d) l ie;
+            (* with recursion we get the hash collision *)
+            lemma_desc_hash_implies_add l_e c
+          )
+        )        
+      )
+      else if not (is_desc d c) then
+        lemma_desc_hash_implies_add l' c
+      else if a1 = d then (
+        lemma_last_index_last_elem_sat (is_add_of_addr d) l;
+        SCollision (SMkLeaf Null) (SMkLeaf Null)
+      )
+      else if a1_anc = a then (
+        assert (not (is_desc a1 c));
+        lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
+        lemma_desc_hash_implies_add l' c        
+      )
+      else (
+        assert (desc_hash_l l' c = desc_hash_l l c);
+        lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
+        lemma_desc_hash_implies_add l' c 
+      )  
+    | MemoryOp _ ->
+      if not (is_desc d c) then 
+        lemma_desc_hash_implies_add l' c                                        
+      else (
+        lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
+        lemma_desc_hash_implies_add l' c
+      )
+    | Evict _ _ -> admit()
+      (*
+      if not (is_desc d c) then 
+        lemma_desc_hash_implies_add l' c                                        
+      else (
+        lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
+        lemma_desc_hash_implies_add l' c
+      )*)
+    
 let rec lemma_desc_hash_empty_implies_no_desc 
   (l: verifiable_log) 
   (c: merkle_non_root_addr {cache_contains_l l (parent c) /\ has_some_add l (parent c)}) 
