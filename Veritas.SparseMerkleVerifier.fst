@@ -687,50 +687,75 @@ let rec lemma_desc_hash_implies_add
         lemma_desc_hash_implies_add l' c
       )
 
-let rec lemma_desc_hash_empty_implies_no_desc 
-  (l: verifiable_log) 
-  (c: merkle_non_root_addr {cache_contains_l l (parent c) /\ has_some_add l (parent c)}) 
+let changes_lemma_desc_hash_empty_condition
+  (e: verifier_log_entry)
+  (c: merkle_non_root_addr) =
+  let a = parent c in
+  match e with
+  | MemoryOp _ -> false
+  | Evict _ _ -> false
+  | Add a1 _ a1_anc ->
+    a1 = a || is_desc a1 c
+
+let lemma_no_change_desc_hash_empty 
+  (l: eac_log) 
+  (c: merkle_non_root_addr) 
   (d: merkle_addr):
-  Lemma (requires (Empty? (desc_hash_l l c)))
-        (ensures (is_desc d c ==> not (has_some_add l d)))        
-        (decreases (%[length l;last_add_idx l (parent c)])) = 
+  Lemma (requires (length l > 0 /\ 
+                   cache_contains_l l (parent c) /\ 
+                   Empty? (desc_hash_l l c) /\ 
+                   not (changes_lemma_desc_hash_empty_condition (index l (length l - 1)) c) /\
+                   is_desc d c /\ has_some_add l d))
+         (ensures (cache_contains_l (prefix l (length l - 1)) (parent c) /\ 
+                   Empty? (desc_hash_l (prefix l (length l - 1)) c))) =
+    ()               
+
+let rec lemma_desc_hash_empty_implies_no_desc 
+  (l: eac_log) 
+  (c: merkle_non_root_addr {cache_contains_l l (parent c) /\ 
+                            Empty? (desc_hash_l l c)}) 
+  (d: merkle_addr{is_desc d c /\ has_some_add l d}):
+  Tot hash_collision_sp 
+  (decreases (length l)) = 
   let n = length l in
   let a = parent c in
-  lemma_root_never_added l (last_add_idx l a);  
-  if n = 0 then ()
-  else if not (is_desc d c) then ()
-  else
-    let e = index l (n - 1) in
+  lemma_parent_ancestor c;
+  lemma_proper_desc_transitive2 d c a;
+  if n = 0 then SCollision (SMkLeaf Null) (SMkLeaf Null)
+  else 
     let l' = prefix l (n - 1) in
-    let cache' = cache_at_end l' in
-    
-    match e with 
-    | MemoryOp o -> (* cache remains unchanged on a due to e *)
-                    lemma_cache_contains_implies_last_add_before_evict l' a;
-                    (* we can therefore apply induction over l', c, d *)
-                    lemma_desc_hash_empty_implies_no_desc l' c d;
-                    (* induction provides there is no add of d in l' *)
-                    assert (not (has_some_add l' d));
-                    (* since e is not an add of d, there is no add of d in l *)
-                    lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
-                    if has_some_add l d then 
-                      lemma_last_index_prefix (is_add_of_addr d) l (n - 1)
-                    else ()
-    | Add a1 v1 a1_anc -> if a1 = a then (
-                            (* last add index of a = n - 1 since this is an add of a *)
-                            lemma_last_index_last_elem_sat (is_add_of_addr a) l;
-                            assert (last_add_idx l a = n - 1);
+    let e = index l (n - 1) in 
+    if not (changes_lemma_desc_hash_empty_condition e c) then (
+      lemma_no_change_desc_hash_empty l c d;
+      lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
+      lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
+      lemma_desc_hash_empty_implies_no_desc l' c d
+    )
+    else (
+    match e with
+    | Add a1 v1 a1_anc ->
+      assert (a1 = a \/ is_desc a1 c);
+      if a1 = a then (
+        (* the child of a1_anc containing a and d *)
+        let c' = desc_child a a1_anc in
+      
+        (* desc hash stored at a1-anc pointing to subtree containing a, d *)
+        let dh_a1_anc = desc_hash_l l' c' in
 
-                            (* verifier checks, a1_anc is in the cache at this point *)
-                            admit()
-                          )
-                          else admit()
-    | Evict a1 a1_anc ->
-    admit()
-
-(* Hack to make statements easier *)
-let lemma_no_hash_collision (hc: hash_collision_sp):
-  Lemma (False) = admit()
+        if Empty? dh_a1_anc then (
+          lemma_desc_transitive d a c';
+          lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
+          lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
+          lemma_desc_hash_empty_implies_no_desc l' c' d
+        )
+        else ( 
+          admit()
+        )
+      )
+      else (
+        admit()
+      )
+    )
 
 let rec lemma_desc_hash_highest_desc
   (l: eac_log)
@@ -740,6 +765,11 @@ let rec lemma_desc_hash_highest_desc
                     has_some_add l d' /\
                     not (is_desc d' (Desc?.a (desc_hash_l l c)))})
   : Tot hash_collision_sp = admit()
+
+
+(* Hack to make statements easier *)
+let lemma_no_hash_collision (hc: hash_collision_sp):
+  Lemma (False) = admit()
 
 (* TODO: This causes the assert failure bug *)
 let rec lemma_desc_hash_empty_to_nonempty
