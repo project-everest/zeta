@@ -172,12 +172,34 @@ let lemma_desc_transitive (a b c: bin_tree_node):
   )
   else ()
 
+let rec lemma_desc_depth_monotonic_t (d a: bin_tree_node) (pf: desc d a):
+  Lemma (ensures (depth d >= depth a)) = 
+  match pf with
+  | DSelf d' -> ()
+  | DLTran a' d' pf' -> lemma_desc_depth_monotonic_t d' a' pf'
+  | DRTran a' d' pf' -> lemma_desc_depth_monotonic_t d' a' pf'
+
+let lemma_desc_depth_monotonic (d a: bin_tree_node):
+  Lemma (requires (is_desc d a))
+        (ensures (depth d >= depth a)) = 
+  let pf = lemma_desc_correct2 d a in
+  lemma_desc_depth_monotonic_t d a pf
+
 (* Each node is a descendant of its parent *)
 let lemma_parent_ancestor (a: bin_tree_node{~(Root? a)}):
   Lemma (is_proper_desc a (parent a)) = ()
 
 let lemma_parent_desc_of_proper_ancestor (d:bin_tree_node{~(Root? d)}) (a:bin_tree_node {is_proper_desc d a}):
   Lemma (is_desc (parent d) a) = ()
+
+let lemma_proper_desc_depth_monotonic (d a: bin_tree_node):
+  Lemma (requires (is_proper_desc d a))
+        (ensures (depth d > depth a)) =
+  if Root? d then ()
+  else 
+    let p = parent d in
+    lemma_parent_desc_of_proper_ancestor d a;
+    lemma_desc_depth_monotonic p a
 
 (* Two ancestors of a node are ancestor/descendant of one another *)
 let rec lemma_two_ancestors_related (d: bin_tree_node) (a1 a2: bin_tree_node):
@@ -206,6 +228,12 @@ let lemma_proper_desc_transitive1 (a b c: bin_tree_node):
   else (
     lemma_desc_transitive a b c;
     assert (is_desc a c);
-    admit()
+    
+    lemma_proper_desc_depth_monotonic a b;
+    assert (depth a > depth b);
+    
+    lemma_desc_depth_monotonic b c;
+    assert (depth a > depth c);
+    ()
   ) 
    

@@ -123,6 +123,11 @@ val lemma_desc_reflexive (a: bin_tree_node):
 val lemma_desc_transitive (a b c: bin_tree_node):
   Lemma (is_desc a b /\ is_desc b c ==> is_desc a c)
 
+(* descendant depth >= ancestor depth *)
+val lemma_desc_depth_monotonic (d a: bin_tree_node):
+  Lemma (requires (is_desc d a))
+        (ensures (depth d >= depth a))
+
 (* proper descendant *)
 let is_proper_desc (d a: bin_tree_node) = is_desc d a && d <> a
 
@@ -133,6 +138,11 @@ val lemma_parent_ancestor (a: bin_tree_node{~(Root? a)}):
 (* parent is a descendant of a proper ancestor *)
 val lemma_parent_desc_of_proper_ancestor (d:bin_tree_node{~(Root? d)}) (a:bin_tree_node {is_proper_desc d a}):
   Lemma (is_desc (parent d) a)
+
+(* proper descendant depth > ancestor depth *)
+val lemma_proper_desc_depth_monotonic (d a: bin_tree_node):
+  Lemma (requires (is_proper_desc d a))
+        (ensures (depth d > depth a))
 
 (* Two ancestors of a node are ancestor/descendant of one another *)
 val lemma_two_ancestors_related (d: bin_tree_node) (a1 a2: bin_tree_node):
@@ -147,18 +157,12 @@ val lemma_proper_desc_transitive1 (a b c: bin_tree_node):
 val lemma_proper_desc_transitive2 (a b c: bin_tree_node):
   Lemma (is_desc a b /\ is_proper_desc b c ==> is_proper_desc a c)
 
-
 (* a proper descendant is a descendant of either left or right child *)
 val lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is_proper_desc d a}):
   Lemma (is_desc d (LeftChild a) /\ ~ (is_desc d (RightChild a)) \/
          is_desc d (RightChild a) /\ ~ (is_desc d (LeftChild a)))
         [SMTPat (is_proper_desc d a)]
         
-val lemma_desc_height_monotonic (d a: bin_tree_node):
-  Lemma (requires (is_proper_desc d a))
-        (ensures (depth d > depth a))
-        [SMTPat (is_proper_desc d a)]
-
 type desc_hash = 
   | Empty: desc_hash
   | Desc: a:merkle_addr -> h:hash_value -> desc_hash
