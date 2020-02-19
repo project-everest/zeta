@@ -203,6 +203,13 @@ let lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
   )
   else ()
 
+let lemma_exists_prefix_implies_exists (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
+  Lemma (requires (exists_sat_elems f (prefix s i)))
+        (ensures (exists_sat_elems f s)) = 
+  let s' = prefix s i in
+  let li = last_index f s' in
+  lemma_last_index_correct2 f s li
+  
 let lemma_last_index_last_elem_nsat (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (not (f (index s (length s - 1)))))
         (ensures (exists_sat_elems f s ==> last_index f s < length s - 1)) = 

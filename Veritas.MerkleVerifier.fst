@@ -4,7 +4,9 @@ open FStar.Seq
 open FStar.BitVector
 open FStar.Classical
 open Veritas.SeqAux
+open Veritas.BinTree
 open Veritas.Memory
+open Veritas.MerkleAddr
 open Veritas.Merkle
 
 //Allow the solver to unroll recursive functions at most once (fuel)
@@ -31,7 +33,7 @@ type verifier_log = seq verifier_log_entry
 type vl_index (l:verifier_log) = seq_index l
 
 (* is the i'th operation an evict *)
-let is_evict (l:verifier_log) (i:vl_index l): Tot bool =e
+let is_evict (l:verifier_log) (i:vl_index l): Tot bool =
   Evict? (index l i)
 
 (* evicted address for an evict operation *)
@@ -670,7 +672,7 @@ let evict_of_add (l:verifiable_log)
   else le
 
 (* Lemma: there is an add operation between every two evict operations of an address *)
-let rec lemma_add_between_evicts (l:verifiable_log)
+let lemma_add_between_evicts (l:verifiable_log)
                                  (i1:vl_index l{is_evict l i1})
                                  (i2:vl_index l{is_evict l i2 && evict_addr l i1 = evict_addr l i2 && i2 > i1}):
   Lemma (requires (True))

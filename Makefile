@@ -8,8 +8,11 @@ FLAKY=
 
 # List the files that should be verified by verify-core and verify-all
 # Those files are the roots from where all dependencies are computed
-FSTAR_FILES := Veritas.SeqAux.fsti Veritas.SeqAux.fst Veritas.Memory.fsti \
-               Veritas.Memory.fst Veritas.Merkle.fsti Veritas.Merkle.fst \
+FSTAR_FILES := Veritas.SeqAux.fsti Veritas.SeqAux.fst \
+               Veritas.Memory.fsti Veritas.Memory.fst \
+               Veritas.BinTree.fsti Veritas.BinTree.fst \
+	       Veritas.MerkleAddr.fsti Veritas.MerkleAddr.fst \
+	       Veritas.Merkle.fsti Veritas.Merkle.fst \
                Veritas.MerkleVerifier.fst
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true

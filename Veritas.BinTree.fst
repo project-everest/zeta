@@ -155,16 +155,165 @@ let lemma_proper_desc_transitive2 (a b c: bin_tree_node):
     ()
   )
 
+let lemma_siblings_non_anc_desc (n:bin_tree_node):
+  Lemma (non_anc_desc (LeftChild n) (RightChild n)) = 
+  let lc = LeftChild n in
+  let rc = RightChild n in
+  if is_desc lc rc then (
+    let pf_lc_rc = lemma_desc_correct2 lc rc in
+    match pf_lc_rc with
+    | DSelf _ -> ()
+    | DLTran rc' n' pf' -> assert(rc = rc');
+                           assert (n' = n);
+                           lemma_desc_correct n rc pf';
+                           assert(is_desc n rc);                          
+                           lemma_desc_depth_monotonic n rc                         
+    | DRTran _ _ _ -> ()
+  )
+  else if is_desc rc lc then (
+    let pf_rc_lc = lemma_desc_correct2 rc lc in
+    match pf_rc_lc with
+    | DSelf _ -> ()
+    | DLTran _ _ _ -> ()
+    | DRTran lc' n' pf' -> assert (lc' = lc);
+                           assert(n' = n);
+                           lemma_desc_correct n lc pf';
+                           assert(is_desc n lc);
+                           lemma_desc_depth_monotonic n lc
+  )
+  else ()
+
+
+let lemma_non_anc_desc_transitive (da a b: bin_tree_node):
+  Lemma (requires (non_anc_desc a b /\ is_desc da a))
+        (ensures (non_anc_desc da b)) = 
+  if is_desc da b then
+    lemma_two_ancestors_related da a b
+  else if is_desc b da then
+    lemma_desc_transitive b da a
+  else ()
+
 (* a proper descendant is a descendant of either left or right child *)
-let lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is_proper_desc d a}):
+let rec lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is_proper_desc d a}):
   Lemma (is_desc d (LeftChild a) /\ ~ (is_desc d (RightChild a)) \/
          is_desc d (RightChild a) /\ ~ (is_desc d (LeftChild a))) = 
   let d' = parent d in
   if d' = a then 
-    if d = LeftChild d then 
-      admit()
-    else
-      admit()
-  else
-  admit()
+    lemma_siblings_non_anc_desc a       
+  else (
+    lemma_parent_ancestor d;
+    lemma_two_ancestors_related d d' a;
+    if is_desc d' a then (         
+      lemma_proper_desc_left_or_right d' a;
+      if is_desc d' (LeftChild a) && not (is_desc d' (RightChild a)) then (
+        lemma_desc_transitive d d' (LeftChild a);
+        if is_desc d (RightChild a) then (
+          lemma_two_ancestors_related d d' (RightChild a);
+          assert (is_desc (RightChild a) d');
+          assert (d' <> (RightChild a));
+          lemma_proper_desc_depth_monotonic (RightChild a) d';
+          assert (depth (RightChild a) > depth d');
+          lemma_desc_depth_monotonic d' (LeftChild a);
+          ()
+        )
+        else ()          
+      )
+      else (
+        lemma_desc_transitive d d' (RightChild a);
+        if is_desc d (LeftChild a) then (
+          lemma_two_ancestors_related d d' (LeftChild a);
+          assert (is_desc (LeftChild a) d');
+          assert (d' <> (LeftChild a));
+          lemma_proper_desc_depth_monotonic (LeftChild a) d';
+          assert (depth (LeftChild a) > depth d');
+          lemma_desc_depth_monotonic d' (RightChild a);
+          ()
+        )
+        else ()
+      )
+    )
+    else (
+      assert (d' <> a);
+      lemma_proper_desc_depth_monotonic a d';
+      assert (depth a > depth d');
+      lemma_proper_desc_depth_monotonic d a;
+      ()
+    )
+  )
 
+(* Traverse down a binary tree from a start node (sn) based on a bit vector *)
+let rec traverse_bin_tree (#n:pos) (b:bv_t n) (sn:bin_tree_node): Tot bin_tree_node = 
+  if n = 1 
+  then if index b 0 then RightChild sn else LeftChild sn
+  else (
+    let tn' = traverse_bin_tree #(n-1) (slice b 0 (n-1)) sn in
+    if index b (n-1) then RightChild tn' else LeftChild tn'
+  )
+
+(* Traversing adds bit vector length to the depth *)
+let rec traverse_adds_size_to_depth (#n:pos) (b:bv_t n) (sn:bin_tree_node): 
+  Lemma (requires (True))
+        (ensures (depth (traverse_bin_tree b sn) = n + depth sn)) = 
+  if (n = 1) 
+  then () 
+  else traverse_adds_size_to_depth #(n-1) (slice b 0 (n-1)) sn
+
+(* Map a bit vector to a binary tree node by traversing from the root *)
+let bv_to_bin_tree_node (#n:pos) (b:bv_t n): Tot (t:bin_tree_node{depth t = n}) = 
+  traverse_adds_size_to_depth b Root; traverse_bin_tree b Root
+
+(* Given a binary tree node return the path from root as a binary vector *)
+let rec path_from_root (a:bin_tree_node{depth a > 0}): Tot (b:bv_t (depth a)) 
+  (decreases (depth a)) = 
+  if depth a = 1 
+  then (match a with
+       | LeftChild a' -> zero_vec #1
+       | RightChild a' -> ones_vec #1
+       )
+  else (match a with
+       | LeftChild a' -> (append (path_from_root a') (zero_vec #1))
+       | RightChild a' -> (append (path_from_root a') (ones_vec #1))
+       )
+
+(* map a binary tree node to bit vector *)
+let bin_tree_node_to_bv (n:non_root_node): (bv_t (depth n)) = path_from_root n
+
+(* path_from_root and bv_to_bin_tree_node are inverse operations *)
+let rec path_from_root_bv2bin_consistent_aux (#n:pos) (b:bv_t n) (i:nat{i < n}):
+  Lemma (index (path_from_root (bv_to_bin_tree_node b)) i = index b i)
+  = 
+  if n = 1 then ()  
+  else (
+    if i = n - 1 
+    then ()
+    else path_from_root_bv2bin_consistent_aux #(n-1) (slice b 0 (n-1)) i
+  )
+
+let bv_to_bin_tree_consistent (#n:pos) (b:bv_t n):
+  Lemma (b = bin_tree_node_to_bv (bv_to_bin_tree_node b)) = 
+  let b' = path_from_root (bv_to_bin_tree_node b) in
+  let aux (i:nat{i < n}): Lemma ((index b' i) = (index b i)) = 
+    path_from_root_bv2bin_consistent_aux b i  
+  in
+  forall_intro aux; lemma_eq_intro b b'
+
+(* path_from_root and bv_to_bin_tree_node are inverse operations - II *)
+let rec path_from_root_bv2bin_consistent2 (tn:bin_tree_node{depth tn > 0}):
+  Lemma (requires (True)) 
+        (ensures bv_to_bin_tree_node (path_from_root tn) = tn)
+  (decreases (depth tn)) =
+  let n = depth tn in
+  if n = 1 then ()
+  else match tn with 
+       | LeftChild tn' -> 
+           let p' = path_from_root tn' in
+           append_slices p' (zero_vec #1);
+           path_from_root_bv2bin_consistent2 tn'
+       | RightChild tn' -> 
+           let p' = path_from_root tn' in
+           append_slices p' (ones_vec #1);
+           path_from_root_bv2bin_consistent2 tn'
+
+let bin_tree_to_bv_consistent (n:non_root_node):
+  Lemma (n = bv_to_bin_tree_node (bin_tree_node_to_bv n)) = 
+  path_from_root_bv2bin_consistent2 n

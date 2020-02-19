@@ -1,5 +1,7 @@
 module Veritas.BinTree
 
+open FStar.BitVector
+
 (* Nodes in an infinite binary tree *)
 type bin_tree_node = 
   | Root: bin_tree_node 
@@ -90,10 +92,28 @@ val lemma_proper_desc_transitive1 (a b c: bin_tree_node):
 val lemma_proper_desc_transitive2 (a b c: bin_tree_node):
   Lemma (is_desc a b /\ is_proper_desc b c ==> is_proper_desc a c)
 
+(* two siblings are non-ancestor-descendant related *)
 val lemma_siblings_non_anc_desc (n:bin_tree_node):
   Lemma (non_anc_desc (LeftChild n) (RightChild n))
+
+(* if a and b are unrelated, then any descendant of a is unrelated to b *)
+val lemma_non_anc_desc_transitive (da a b: bin_tree_node):
+  Lemma (requires (non_anc_desc a b /\ is_desc da a))
+        (ensures (non_anc_desc da b))
 
 (* a proper descendant is a descendant of either left or right child *)
 val lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is_proper_desc d a}):
   Lemma (is_desc d (LeftChild a) /\ ~ (is_desc d (RightChild a)) \/
          is_desc d (RightChild a) /\ ~ (is_desc d (LeftChild a)))
+
+(* map a bit vector to a binary tree node *)
+val bv_to_bin_tree_node (#n:pos) (b:bv_t n): Tot (t:bin_tree_node{depth t = n})
+
+(* map a binary tree node to bit vector *)
+val bin_tree_node_to_bv (n:non_root_node): Tot (bv_t (depth n))
+
+val bv_to_bin_tree_consistent (#n:pos) (b:bv_t n):
+  Lemma (b = bin_tree_node_to_bv (bv_to_bin_tree_node b))
+
+val bin_tree_to_bv_consistent (n:non_root_node):
+  Lemma (n = bv_to_bin_tree_node (bin_tree_node_to_bv n))
