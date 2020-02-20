@@ -35,3 +35,13 @@ let is_payload_of_addr (a:merkle_addr) (p:merkle_payload): Tot bool =
 (* merkle payload type conditioned on the address *)
 type merkle_payload_of_addr (a:merkle_addr) = 
   p:merkle_payload{is_payload_of_addr a p}
+
+(* An internal node merkle payload *)
+type merkle_payload_internal = p:merkle_payload {SMkInternal? p}
+
+(* get descendant hash of a specified direction (left|right) *)
+let desc_hash_dir (c: bin_tree_dir) (p:merkle_payload_internal): desc_hash = 
+  match c with
+  | Left -> SMkInternal?.left p
+  | Right -> SMkInternal?.right p
+

@@ -106,6 +106,9 @@ val lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is_pro
   Lemma (is_desc d (LeftChild a) /\ ~ (is_desc d (RightChild a)) \/
          is_desc d (RightChild a) /\ ~ (is_desc d (LeftChild a)))
 
+val desc_dir (d: bin_tree_node) (a: bin_tree_node{is_proper_desc d a}):
+  (c: bin_tree_dir {is_desc d (child c a)})
+
 (* map a bit vector to a binary tree node *)
 val bv_to_bin_tree_node (#n:pos) (b:bv_t n): Tot (t:bin_tree_node{depth t = n})
 
@@ -117,3 +120,4 @@ val bv_to_bin_tree_consistent (#n:pos) (b:bv_t n):
 
 val bin_tree_to_bv_consistent (n:non_root_node):
   Lemma (n = bv_to_bin_tree_node (bin_tree_node_to_bv n))
+

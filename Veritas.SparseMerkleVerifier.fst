@@ -5,7 +5,10 @@ open FStar.BitVector
 open FStar.Classical
 open Veritas.SeqAux
 open Veritas.Memory
-open Veritas.Merkle
+open Veritas.BinTree
+open Veritas.BinTreePtr
+open Veritas.MerkleAddr
+open Veritas.SparseMerkle
 
 //Allow the solver to unroll recursive functions at most once (fuel)
 //Allow the solver to invert inductive definitions at most once (ifuel)
@@ -21,7 +24,7 @@ open Veritas.Merkle
 (* Each entry of the verifier log *)
 type verifier_log_entry =
   | MemoryOp: o:memory_op -> verifier_log_entry
-  | Add: a:merkle_addr -> v:sp_merkle_payload -> a':merkle_addr -> verifier_log_entry
+  | Add: a:merkle_addr -> v:merkle_payload -> a':merkle_addr -> verifier_log_entry
   | Evict: a:merkle_addr -> a':merkle_addr -> verifier_log_entry
 
 type verifier_log = seq verifier_log_entry
@@ -50,7 +53,7 @@ let add_addr (l:verifier_log) (i:vl_index l{is_add l i}): Tot merkle_addr =
   Add?.a (index l i)
 
 (* added payload for an add operation *)
-let add_payload (l:verifier_log) (i:vl_index l {is_add l i}): Tot sp_merkle_payload =
+let add_payload (l:verifier_log) (i:vl_index l {is_add l i}): Tot merkle_payload =
   Add?.v (index l i)
 
 let add_ancestor (l:verifier_log) (i:vl_index l {is_add l i}): Tot merkle_addr =
@@ -79,14 +82,15 @@ let read_value (l:verifier_log) (i:vl_index l{is_read_op l i}): Tot payload =
   Read?.v (memory_op_at l i)
 
 (* Verifier cache of a subset of merkle_addr, merkle_payloads *)
-type verifier_cache = (a:merkle_addr) -> option (sp_merkle_payload_of_addr a)
+type verifier_cache = (a:merkle_addr) -> option (merkle_payload_of_addr a)
 
 (* Does the cache contain a merkle addr? *)
 let cache_contains (vc:verifier_cache) (a:merkle_addr): Tot bool =
   Some? (vc a)
 
 (* Lookup the payload of an address in cache *)
-let cached_payload (cache:verifier_cache) (a:merkle_addr{cache_contains cache a}): Tot (sp_merkle_payload_of_addr a) =
+let cached_payload (cache:verifier_cache) (a:merkle_addr{cache_contains cache a}): 
+  (merkle_payload_of_addr a) =
   Some?.v (cache a)
 
 (*
@@ -95,7 +99,7 @@ let cached_payload (cache:verifier_cache) (a:merkle_addr{cache_contains cache a}
  *)
 let cache_update (cache:verifier_cache)
                  (a:merkle_addr{cache_contains cache a})
-                 (v:sp_merkle_payload_of_addr a):
+                 (v:merkle_payload_of_addr a):
   Tot (cache':verifier_cache{cache_contains cache' a}) =
   fun a' -> if a' = a then Some v else cache a'
 
@@ -115,7 +119,7 @@ let cache_apply (cache:verifier_cache)
 (* Add a merkle_addr, payload to cache *)
 let cache_add (cache:verifier_cache)
               (a:merkle_addr {not (cache_contains cache a)})
-              (v:sp_merkle_payload_of_addr a)
+              (v:merkle_payload_of_addr a)
   : Tot (cache':verifier_cache {cache_contains cache' a}) =
   fun a' -> if a' = a then Some v else cache a'
 
@@ -130,23 +134,20 @@ noeq type verifier_state =
   | Failed: verifier_state
   | Valid: vc:verifier_cache -> verifier_state
 
-let get_desc_hash (a: merkle_non_root_addr)
-                  (a':merkle_addr {is_proper_desc a a'})
-                  (v': sp_merkle_payload_of_addr a'):
-  Tot (dh:desc_hash) =
-  if is_desc a (LeftChild a') then
-    SMkInternal?.left v'
-  else
-    SMkInternal?.right v'
+let lemma_proper_anc_implies_non_leaf (d: merkle_addr) (a: merkle_addr {is_proper_desc d a}):
+  Lemma (not (is_merkle_leaf a)) 
+  [SMTPat (is_proper_desc d a)]
+  =
+  lemma_proper_desc_depth_monotonic d a
 
-let update_desc_hash (a:merkle_addr) (v:sp_merkle_payload_of_addr a)
-                     (d:merkle_addr {is_proper_desc d a}) (h:hash_value): Tot (sp_merkle_payload_of_addr a) =
+let update_desc_hash (a:merkle_addr) (v:merkle_payload_of_addr a)
+                     (d:merkle_addr {is_proper_desc d a}) (h:hash_value): Tot (merkle_payload_of_addr a) =
   if is_desc d (LeftChild a) then
     SMkInternal (Desc d h) (SMkInternal?.right v)
   else
     SMkInternal (SMkInternal?.left v) (Desc d h)
 
-let is_empty_or_null (a:merkle_addr) (v:sp_merkle_payload_of_addr a): Tot bool =
+let is_empty_or_null (a:merkle_addr) (v:merkle_payload_of_addr a): Tot bool =
   if is_merkle_leaf a then Null? (SMkLeaf?.value v)
   else Empty? (SMkInternal?.left v) &&
        Empty? (SMkInternal?. right v)
@@ -175,7 +176,7 @@ let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state
          (* Root is never added *)
          else if is_merkle_root a then Failed
          (* Check the payload type corresponds to leaf/internal ness of address a *)
-         else if not (is_sp_payload_of_addr a v) then Failed
+         else if not (is_payload_of_addr a v) then Failed
          (* Check ancestor a' is in cache *)
          else if not (cache_contains cache a') then Failed
          (* check that a is a proper descendant of a' *)
@@ -183,10 +184,11 @@ let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state
 
          else (
            let v' = cached_payload cache a' in
-           let dh' = get_desc_hash a a' v' in
-           let h = hashfn_sp v in
-           (* ancestor a' stores the address a and its hash *)
-           if not (Empty? dh') && a = Desc?.a dh' then
+           let c = desc_dir a a' in
+           let dh' = desc_hash_dir c v' in
+           let h = hashfn v in
+           (* ancestor a' points to a *)
+           if Desc? dh' && a = Desc?.a dh'  then
              (* check the hash and add a to cache if hash check passes *)
              if h = Desc?.h dh' then Valid (cache_add cache a v)
              else Failed
@@ -204,7 +206,7 @@ let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state
 
            else
              let v_upd = update_desc_hash a v (Desc?.a dh') (Desc?.h dh') in
-             let v'_upd = update_desc_hash a' v' a (hashfn_sp v_upd) in
+             let v'_upd = update_desc_hash a' v' a (hashfn v_upd) in
              Valid (cache_add (cache_update cache a' v'_upd) a v_upd)
          )
      | Evict a a' ->
@@ -212,10 +214,11 @@ let verifier_step (e:verifier_log_entry) (vs:verifier_state): Tot verifier_state
          else if is_merkle_root a then Failed
          else if not (is_proper_desc a a') then Failed
          else
+           let c = desc_dir a a' in
            let v' = cached_payload cache a' in
            let v = cached_payload cache a in
-           let h = hashfn_sp v in
-           let dh' = get_desc_hash a a' v' in
+           let h = hashfn v in
+           let dh' = desc_hash_dir c v' in
            let v'_upd = update_desc_hash a' v' a h in
            if not (Empty? dh') && a = Desc?.a dh' then
              Valid (cache_evict (cache_update cache a' v'_upd) a)
@@ -238,7 +241,7 @@ let rec verifier_aux (l:verifier_log) (init_vs:verifier_state): Tot verifier_sta
  * Initial payload for every merkle node for init memory where each address
  * contains Null
  *)
-let init_payload (a:merkle_addr): Tot (sp_merkle_payload_of_addr a) =
+let init_payload (a:merkle_addr): Tot (merkle_payload_of_addr a) =
     if is_merkle_leaf a then
       SMkLeaf Null
     else
@@ -273,7 +276,6 @@ let rec lemma_verifiable_implies_prefix_verifiable (l:verifiable_log) (i:nat{i <
   else if i = n then ()
   else
     lemma_verifiable_implies_prefix_verifiable (prefix l (n - 1)) i
-
 
 (* is this log entry, an evict of a specified address *)
 let is_evict_of_addr (a:merkle_addr) (e:verifier_log_entry) =
@@ -460,7 +462,7 @@ let rec lemma_not_contains_implies_last_evict_before_add (l:verifiable_log) (a:m
 
 (* payload of an evict operation *)
 let evict_payload (l:verifiable_log) (i:vl_index l{is_evict l i}):
-  Tot (sp_merkle_payload_of_addr (evict_addr l i)) =
+  Tot (merkle_payload_of_addr (evict_addr l i)) =
   let a = evict_addr l i in
   let vs'' = verifier (prefix l i) in
   lemma_prefix_index l (i + 1) i;
@@ -471,7 +473,7 @@ let evict_payload (l:verifiable_log) (i:vl_index l{is_evict l i}):
  * there exists no evicts for add
  *)
 let last_evict_value_or_init (l:verifiable_log) (a:merkle_addr):
-  Tot (sp_merkle_payload_of_addr a) =
+  Tot (merkle_payload_of_addr a) =
   if has_some_evict l a then
     evict_payload l (last_evict_idx l a)
   else
@@ -553,13 +555,61 @@ let is_evict_add_consistent (l:verifiable_log):
   Tot (b:bool{b <==> evict_add_consistent l}) = 
   search_first_non_eac_prefix l = length l
 
+(* eac_payload of an address - cached payload if it is cached or the last evict value or init value *)
+let eac_payload (l:eac_log) (a:merkle_addr): (merkle_payload_of_addr a) = 
+  let cache = cache_at_end l in
+  if cache_contains cache a then 
+    cached_payload cache a
+  else 
+    last_evict_value_or_init l a
+
+let rec lemma_eac_payload_empty_or_points_to_desc 
+  (l:eac_log) 
+  (a:merkle_non_leaf_addr) 
+  (c:bin_tree_dir):
+  Lemma (requires (True))
+        (ensures (Empty? (desc_hash_dir c (eac_payload l a)) \/
+                  is_desc (Desc?.a (desc_hash_dir c (eac_payload l a))) (child c a)))
+        (decreases (length l))
+  = 
+  let n = length l in 
+  let cache = cache_at_end l in
+  if n = 0 then ()
+  else
+    let l' = prefix l (n - 1) in
+    let e = index l (n - 1) in
+    let cache' = cache_at_end l' in
+    match e with
+    | MemoryOp o -> 
+      assert (cache_contains cache' a = cache_contains cache a);
+      if cache_contains cache a then 
+        lemma_eac_payload_empty_or_points_to_desc l' a c      
+      else (
+        lemma_eac_payload_empty_or_points_to_desc l' a c;
+        //assert (eac_payload l a = eac_payload l' a);
+        admit()
+      )
+    | Add a' v a'' -> admit()
+    | Evict a' a'' -> admit()
+    
+let eac_ptrfn (l:eac_log) (n:bin_tree_node) (c:bin_tree_dir):
+  option (d:bin_tree_node) = 
+  if depth n >= addr_size then None
+  else
+    let dh = desc_hash_dir c (eac_payload l n) in
+    match dh with
+    | Empty -> None
+    | Desc d h -> Some d
+
+
+
 let cache_contains_l (l:verifiable_log) (a:merkle_addr): Tot bool = 
   cache_contains (cache_at_end l) a
 
-let cached_payload_l (l:verifiable_log) (a:merkle_addr {cache_contains_l l a}): Tot (sp_merkle_payload_of_addr a) = 
+let cached_payload_l (l:verifiable_log) (a:merkle_addr {cache_contains_l l a}): merkle_payload_of_addr a = 
   cached_payload (cache_at_end l) a
 
-let desc_hash_c (c:merkle_non_root_addr) (v:sp_merkle_payload_of_addr (parent c)) = 
+let desc_hash_c (c:merkle_non_root_addr) (v:merkle_payload_of_addr (parent c)) = 
   match c with
   | LeftChild p -> SMkInternal?.left v
   | RightChild p -> SMkInternal?.right v
@@ -889,7 +939,7 @@ let rec lemma_verifying_ancestor_smallest (l:verifiable_log)
    (decreases (length l)) = admit()
 
 
-let points_to (d:merkle_addr) (a: merkle_addr{is_proper_desc d a}) (v:sp_merkle_payload_of_addr a) : Tot bool = 
+let points_to (d:merkle_addr) (a: merkle_addr{is_proper_desc d a}) (v:merkle_payload_of_addr a) : Tot bool = 
   let dh = get_desc_hash d a v in
   not (Empty? dh) && d = Desc?.a dh
 

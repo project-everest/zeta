@@ -241,6 +241,12 @@ let rec lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is
     )
   )
 
+let desc_dir (d:bin_tree_node) (a:bin_tree_node{is_proper_desc d a}): 
+  (c: bin_tree_dir {is_desc d (child c a)}) = 
+  lemma_proper_desc_left_or_right d a;
+  if is_desc d (LeftChild a) then Left 
+  else Right
+
 (* Traverse down a binary tree from a start node (sn) based on a bit vector *)
 let rec traverse_bin_tree (#n:pos) (b:bv_t n) (sn:bin_tree_node): Tot bin_tree_node = 
   if n = 1 
@@ -317,3 +323,4 @@ let rec path_from_root_bv2bin_consistent2 (tn:bin_tree_node{depth tn > 0}):
 let bin_tree_to_bv_consistent (n:non_root_node):
   Lemma (n = bv_to_bin_tree_node (bin_tree_node_to_bv n)) = 
   path_from_root_bv2bin_consistent2 n
+

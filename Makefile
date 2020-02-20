@@ -13,6 +13,7 @@ FSTAR_FILES := Veritas.SeqAux.fsti Veritas.SeqAux.fst \
                Veritas.BinTree.fsti Veritas.BinTree.fst \
 	       Veritas.MerkleAddr.fsti Veritas.MerkleAddr.fst \
 	       Veritas.Merkle.fsti Veritas.Merkle.fst \
+               Veritas.SparseMerkle.fsti Veritas.SparseMerkle.fst \
                Veritas.MerkleVerifier.fst
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
