@@ -563,34 +563,56 @@ let eac_payload (l:eac_log) (a:merkle_addr): (merkle_payload_of_addr a) =
   else 
     last_evict_value_or_init l a
 
-let rec lemma_eac_payload_empty_or_points_to_desc 
-  (l:eac_log) 
-  (a:merkle_non_leaf_addr) 
+let updates_cache (a:merkle_non_leaf_addr) (e:verifier_log_entry): bool = 
+  match e with
+  | Add a1 _ a2 -> a1 = a || a2 = a
+  | Evict a1 a2 -> a1 = a || a2 = a
+  | _ -> false
+
+let rec lemma_eac_payload_empty_or_points_to_desc
+  (l:eac_log)
+  (a:merkle_non_leaf_addr)
   (c:bin_tree_dir):
   Lemma (requires (True))
         (ensures (Empty? (desc_hash_dir c (eac_payload l a)) \/
                   is_desc (Desc?.a (desc_hash_dir c (eac_payload l a))) (child c a)))
         (decreases (length l))
-  = 
-  let n = length l in 
+  =
+  let n = length l in
   let cache = cache_at_end l in
   if n = 0 then ()
   else
     let l' = prefix l (n - 1) in
     let e = index l (n - 1) in
     let cache' = cache_at_end l' in
-    match e with
-    | MemoryOp o -> 
-      assert (cache_contains cache' a = cache_contains cache a);
-      if cache_contains cache a then 
-        lemma_eac_payload_empty_or_points_to_desc l' a c      
-      else (
-        lemma_eac_payload_empty_or_points_to_desc l' a c;
-        //assert (eac_payload l a = eac_payload l' a);
-        admit()
-      )
-    | Add a' v a'' -> admit()
-    | Evict a' a'' -> admit()
+    if not (updates_cache a e) then (
+      lemma_eac_payload_empty_or_points_to_desc l' a c;
+      if cache_contains cache a then ()
+      else
+        if has_some_evict l a then (
+          lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+          lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)
+        )
+        else
+          lemma_not_exists_prefix (is_evict_of_addr a) l (n - 1)
+    )
+    else
+      match e with    
+      | Add a1 v a2 -> 
+        if a1 = a then (
+          assert(is_proper_desc a1 a2);
+          assert(cache_contains cache' a2);
+          let c2 = desc_dir a a2 in
+          let v2 = cached_payload cache' a2 in
+          let dh2 = desc_hash_dir c2 v2 in
+          if Desc? dh2 && a = Desc?.a dh2 then 
+            lemma_eac_payload_empty_or_points_to_desc l' a c          
+          else
+            admit()
+        )
+        else
+          admit()
+      | Evict a' a'' -> admit()
     
 let eac_ptrfn (l:eac_log) (n:bin_tree_node) (c:bin_tree_dir):
   option (d:bin_tree_node) = 
