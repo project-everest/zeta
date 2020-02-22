@@ -569,6 +569,19 @@ let updates_cache (a:merkle_non_leaf_addr) (e:verifier_log_entry): bool =
   | Evict a1 a2 -> a1 = a || a2 = a
   | _ -> false
 
+let prefix1 (l:eac_log{length l > 0}): eac_log = 
+  let n = length l in
+  prefix l (n - 1)
+
+let lemma_eac_payload_empty_or_points_to_desc_caseA
+  (l:eac_log{length l > 0})
+  (a:merkle_non_leaf_addr)
+  (c:bin_tree_dir):
+  Lemma (requires (Empty? (desc_hash_dir c (eac_payload (prefix1 l) a)) \/
+                  is_desc (Desc?.a (desc_hash_dir c (eac_payload (prefix1 l) a))) (child c a)))
+        (ensures (Empty? (desc_hash_dir c (eac_payload l a)) \/
+                  is_desc (Desc?.a (desc_hash_dir c (eac_payload l a))) (child c a))) = admit()
+
 let rec lemma_eac_payload_empty_or_points_to_desc
   (l:eac_log)
   (a:merkle_non_leaf_addr)
@@ -613,12 +626,14 @@ let rec lemma_eac_payload_empty_or_points_to_desc
         else (
           let c' = desc_dir a1 a in
           let dh' = desc_hash_dir c' v2 in
-          if Desc? dh' && a1 = Desc?.a dh' then 
-            lemma_eac_payload_empty_or_points_to_desc l' a c          
-          else if c = c' then
-            admit()
-          else
-            admit()
+          lemma_eac_payload_empty_or_points_to_desc l' a c;
+          if Desc? dh' && a1 = Desc?.a dh' then ()            
+          else if c = c' then (
+            if Empty? dh' then
+              admit()
+            else admit()
+          )
+          else ()
         )
       | Evict a' a'' -> admit()
     
