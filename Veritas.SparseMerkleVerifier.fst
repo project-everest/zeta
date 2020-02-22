@@ -292,6 +292,9 @@ let last_evict_idx (l:verifier_log) (a:merkle_addr{has_some_evict l a}) =
 let is_add_of_addr (a:merkle_addr) (e:verifier_log_entry) =
   Add? e && Add?.a e = a
 
+let is_add_with_anc (a:merkle_addr) (e:verifier_log_entry) = 
+  Add? e && Add?.a' e = a
+
 (* Does thie log have some add entry for address a *)
 let has_some_add (l:verifier_log) (a:merkle_addr) = exists_sat_elems (is_add_of_addr a) l
 
@@ -619,6 +622,33 @@ let lemma_eac_payload_empty_or_points_to_desc_caseB
       if c' = c then ()
       else ()                  
 
+let lemma_eac_payload_empty_or_points_to_desc_caseC
+  (l:eac_log{length l > 0})
+  (a:merkle_non_leaf_addr)
+  (c:bin_tree_dir):
+  Lemma (requires (is_add_with_anc a (telem l) /\ 
+                   (Empty? (desc_hash_dir c (eac_payload (hprefix l) a)) \/
+                    is_desc (Desc?.a (desc_hash_dir c (eac_payload (hprefix l) a))) (child c a))))
+        (ensures (Empty? (desc_hash_dir c (eac_payload l a)) \/
+                  is_desc (Desc?.a (desc_hash_dir c (eac_payload l a))) (child c a))) =
+  let l' = hprefix l in
+  let e = telem l in
+  let cache' = cache_at_end l' in
+  let cache = cache_at_end l in
+  match e with
+  | Add a1 v1 a -> 
+    let v' = cached_payload cache' a in        
+    let c' = desc_dir a1 a in
+    let dh' = desc_hash_dir c' v' in
+    if Desc? dh' && a1 = Desc?.a dh' then ()            
+    else if c = c' then (
+      let v = cached_payload cache a in
+      let dh = desc_hash_dir c v in          
+      assert (Desc?.a dh = a1);
+      ()
+    )
+    else ()
+ 
 let rec lemma_eac_payload_empty_or_points_to_desc
   (l:eac_log)
   (a:merkle_non_leaf_addr)
@@ -643,457 +673,41 @@ let rec lemma_eac_payload_empty_or_points_to_desc
       | Add a1 v1 a2 -> 
         if a1 = a then 
           lemma_eac_payload_empty_or_points_to_desc_caseB l a c        
+        else 
+          lemma_eac_payload_empty_or_points_to_desc_caseC l a c         
+      | Evict a1 a2 -> 
+        if a1 = a then (
+          lemma_last_index_last_elem_sat (is_evict_of_addr a) l;
+          assert(eac_payload l a = cached_payload cache' a);
+          ()
+        )
         else (
-          let v' = cached_payload cache' a in        
+          assert(a2 = a);
           let c' = desc_dir a1 a in
-          let dh' = desc_hash_dir c' v' in
-          if Desc? dh' && a1 = Desc?.a dh' then ()            
-          else if c = c' then (
-            let v = cached_payload cache a in
-            let dh = desc_hash_dir c v in          
-            assert (Desc?.a dh = a1);
+          let dh' = desc_hash_dir c' (cached_payload cache' a) in
+          let dh = desc_hash_dir c (cached_payload cache a) in
+          if c' = c then (
+            assert (Desc? dh && Desc?.a dh = a1);
             ()
           )
-          else ()
+          else (
+            assert (desc_hash_dir c (cached_payload cache a) == desc_hash_dir c (cached_payload cache' a));
+            ()
+          )
         )
-      | Evict a' a'' -> admit()
     
-let eac_ptrfn (l:eac_log) (n:bin_tree_node) (c:bin_tree_dir):
-  option (d:bin_tree_node) = 
+let eac_ptrfn_aux (l:eac_log) (n:bin_tree_node) (c:bin_tree_dir):
+  option (d:bin_tree_node{is_desc d (child c n)}) = 
   if depth n >= addr_size then None
-  else
+  else (
     let dh = desc_hash_dir c (eac_payload l n) in
     match dh with
     | Empty -> None
-    | Desc d h -> Some d
-
-
-
-let cache_contains_l (l:verifiable_log) (a:merkle_addr): Tot bool = 
-  cache_contains (cache_at_end l) a
-
-let cached_payload_l (l:verifiable_log) (a:merkle_addr {cache_contains_l l a}): merkle_payload_of_addr a = 
-  cached_payload (cache_at_end l) a
-
-let desc_hash_c (c:merkle_non_root_addr) (v:merkle_payload_of_addr (parent c)) = 
-  match c with
-  | LeftChild p -> SMkInternal?.left v
-  | RightChild p -> SMkInternal?.right v
-
-let desc_hash_l (l:verifiable_log) (c:merkle_non_root_addr {cache_contains_l l (parent c)}): Tot desc_hash = 
-  desc_hash_c c (cached_payload_l l (parent c))
-
-let desc_child (d:merkle_addr) (a:merkle_addr{is_proper_desc d a}) : 
-  (c:merkle_non_root_addr{parent c = a /\ is_desc d c}) = 
-  lemma_proper_desc_left_or_right d a;
-  if is_desc d (LeftChild a) then LeftChild a else RightChild a
-
-let changes_lemma_desc_hash_implies_add_conditions 
-  (e: verifier_log_entry)
-  (a: merkle_addr)
-  (d: merkle_addr) = 
-  match e with 
-  | MemoryOp _ -> false
-  | Evict _ _ -> false
-  | Add a1 v1 a1_anc -> a1 = a || 
-                        a1_anc = a ||
-                        a1 = d
-
-let lemma_prefix_recurse_lemma_desc_hash_implies_add
-    (l: eac_log) 
-    (c: merkle_non_root_addr)
- : Lemma (requires (length l > 0 /\ 
-                    cache_contains_l l (parent c) /\
-                    Desc? (desc_hash_l l c) /\ 
-                    (not (is_desc (Desc?.a (desc_hash_l l c)) c) \/ 
-                     not (has_some_add l (Desc?.a (desc_hash_l l c)))) /\
-                    not (changes_lemma_desc_hash_implies_add_conditions (index l (length l - 1))
-                                                                         (parent c)
-                                                                         (Desc?.a (desc_hash_l l c)))))
-         (ensures (cache_contains_l (prefix l (length l - 1)) (parent c) /\
-                   Desc? (desc_hash_l (prefix l (length l - 1)) c) /\ 
-                   (not (is_desc (Desc?.a (desc_hash_l (prefix l (length l - 1)) c)) c) \/ 
-                    not (has_some_add l (Desc?.a (desc_hash_l (prefix l (length l - 1)) c)))))) =                     
-  let n = length l in
-  let d = Desc?.a (desc_hash_l l c) in
-  let l' = prefix l (n - 1) in
-  if not (is_desc d c) then ()
-  else 
-    lemma_not_exists_prefix (is_add_of_addr d) l (n - 1)
-  
-let rec lemma_desc_hash_implies_add 
-    (l: eac_log) 
-    (c: merkle_non_root_addr {cache_contains_l l (parent c) /\
-                              Desc? (desc_hash_l l c) /\ 
-                              (not (is_desc (Desc?.a (desc_hash_l l c)) c) \/ 
-                               not (has_some_add l (Desc?.a (desc_hash_l l c))))})
-  : Tot hash_collision_sp (decreases (%[length l])) =
-  let n = length l in
-  let a = parent c in 
-  let d = Desc?.a (desc_hash_l l c) in
-  if n = 0 then SCollision (SMkLeaf Null) (SMkLeaf Null)
-  else
-    let e = index l (n - 1) in
-    let l' = prefix l (n - 1) in
-    let cache' = cache_at_end l' in
-
-    (* if e is MemoryOp, Evict, and some Add conditions, l' satisifies all 
-     * preconditions, so we can recurse *)
-    if not (changes_lemma_desc_hash_implies_add_conditions e a d) then (    
-      lemma_prefix_recurse_lemma_desc_hash_implies_add l c;
-      lemma_desc_hash_implies_add l' c
-    )
-    else
-    match e with
-    | Add a1 v1 a1_anc ->       
-      if a1 = a then (        
-        (* desc_hash of a1_anc the validates a *)
-        let dh_anc = get_desc_hash a a1_anc (cached_payload_l l' a1_anc) in
-        
-        if Desc?.a dh_anc <> a then (
-          (* this implies that v is empty and a1_anc points to d *)
-          let c' = desc_child a a1_anc in
-
-          (* if d is not a descendant of a1_anc, we can recurse with a1_anc and l' *)
-          if not (is_desc d c') then
-            lemma_desc_hash_implies_add l' c'
-          else (
-            (* else, we know that d does not have an add in l, so not in l' either *)
-            lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
-            (* with recursion we get the hash collision *)
-            lemma_desc_hash_implies_add l' c'
-          )
-        )
-
-        else if not (has_some_add l' a) then 
-          lemma_desc_hash_implies_add l' (desc_child a a1_anc)
-                
-        else (
-          (* if a had a previous add, then it implies it had a previous evict *)
-          lemma_not_contains_implies_last_evict_before_add l' a;
-          assert (has_some_evict l' a);
-
-          (* the last evict index of a *)
-          let ie = last_evict_idx l' a in
-          let l_e = prefix l ie in
-          let cache_e = cache_at_end l_e in
-          lemma_evict_requires_cache l ie;
-
-          (* from evict add consistency a pointed to d at the time of evict *)          
-          if not (is_desc d c) then
-            lemma_desc_hash_implies_add l_e c
-          else (
-            (* else, we know that d does not have an add in l, so not in l_e either *)
-            lemma_not_exists_prefix (is_add_of_addr d) l ie;
-            (* with recursion we get the hash collision *)
-            lemma_desc_hash_implies_add l_e c
-          )
-        )        
-      )
-      else if not (is_desc d c) then
-        lemma_desc_hash_implies_add l' c
-      else if a1 = d then (
-        lemma_last_index_last_elem_sat (is_add_of_addr d) l;
-        SCollision (SMkLeaf Null) (SMkLeaf Null)
-      )
-      else (
-        assert (a = a1_anc);        
-        assert (not (is_desc a1 c));
-        lemma_not_exists_prefix (is_add_of_addr d) l (n - 1);
-        lemma_desc_hash_implies_add l' c
-      )
-
-let changes_lemma_desc_hash_empty_condition
-  (e: verifier_log_entry)
-  (c: merkle_non_root_addr) =
-  let a = parent c in
-  match e with
-  | MemoryOp _ -> false
-  | Evict _ _ -> false
-  | Add a1 _ a1_anc ->
-    a1 = a || is_desc a1 c
-
-let lemma_no_change_desc_hash_empty 
-  (l: eac_log) 
-  (c: merkle_non_root_addr) 
-  (d: merkle_addr):
-  Lemma (requires (length l > 0 /\ 
-                   cache_contains_l l (parent c) /\ 
-                   Empty? (desc_hash_l l c) /\ 
-                   not (changes_lemma_desc_hash_empty_condition (index l (length l - 1)) c) /\
-                   is_desc d c /\ has_some_add l d))
-         (ensures (cache_contains_l (prefix l (length l - 1)) (parent c) /\ 
-                   Empty? (desc_hash_l (prefix l (length l - 1)) c))) =
-    ()               
-
-let rec lemma_desc_hash_empty_implies_no_desc 
-  (l: eac_log) 
-  (c: merkle_non_root_addr {cache_contains_l l (parent c) /\ 
-                            Empty? (desc_hash_l l c)}) 
-  (d: merkle_addr{is_desc d c /\ has_some_add l d}):
-  Tot hash_collision_sp 
-  (decreases (length l)) = 
-  let n = length l in
-  let a = parent c in
-  lemma_parent_ancestor c;
-  lemma_proper_desc_transitive2 d c a;
-  if n = 0 then SCollision (SMkLeaf Null) (SMkLeaf Null)
-  else 
-    let l' = prefix l (n - 1) in
-    let e = index l (n - 1) in 
-    if not (changes_lemma_desc_hash_empty_condition e c) then (
-      lemma_no_change_desc_hash_empty l c d;
-      lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
-      lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
-      lemma_desc_hash_empty_implies_no_desc l' c d
-    )
-    else (
-    match e with
-    | Add a1 v1 a1_anc ->
-      assert (a1 = a \/ is_desc a1 c);
-      if a1 = a then (
-        (* the child of a1_anc containing a and d *)
-        let c' = desc_child a a1_anc in
-      
-        (* desc hash stored at a1-anc pointing to subtree containing a, d *)
-        let dh_a1_anc = desc_hash_l l' c' in
-
-        if Empty? dh_a1_anc then (
-          lemma_desc_transitive d a c';
-          lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
-          lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
-          lemma_desc_hash_empty_implies_no_desc l' c' d
-        )
-        else ( 
-          admit()
-        )
-      )
-      else (
-        admit()
-      )
-    )
-
-let rec lemma_desc_hash_highest_desc
-  (l: eac_log)
-  (c: merkle_non_root_addr {cache_contains_l l (parent c) /\
-                            Desc? (desc_hash_l l c)})
-  (d': merkle_addr {is_desc d' c /\
-                    has_some_add l d' /\
-                    not (is_desc d' (Desc?.a (desc_hash_l l c)))})
-  : Tot hash_collision_sp = admit()
-
-
-(* Hack to make statements easier *)
-let lemma_no_hash_collision (hc: hash_collision_sp):
-  Lemma (False) = admit()
-
-(* TODO: This causes the assert failure bug *)
-let rec lemma_desc_hash_empty_to_nonempty
-  (l: eac_log)  
-  (c: merkle_non_root_addr)
-  (i: vl_index l):
-  Lemma (requires (cache_contains_l l (parent c) /\
-                   cache_contains_l (prefix l i) (parent c)))
-        (ensures (Desc? (desc_hash_l (prefix l i) c) ==> Desc? (desc_hash_l l c))) = admit()
-                           
-let rec lemma_left_desc_hash_empty_implies_no_desc 
-    (l:eac_log)
-    (c:merkle_non_root_addr {cache_contains_l l (parent c) /\ 
-                             Empty? (SMkInternal?.left (cached_payload_l l (parent c)))})
-    (d:merkle_addr {is_desc d c /\
-                    has_some_add l d})
-    : Tot hash_collision_sp (decreases (length l)) = 
-  let n = length l in 
-  let cache = cache_at_end l in
-  let a = parent c in
-  lemma_parent_ancestor c;
-  if n = 0 then SCollision (SMkLeaf Null) (SMkLeaf Null)
-  else (
-    let l' = prefix l (n - 1) in
-    let e = index l (n - 1) in
-    let cache' = cache_at_end l' in
-    match e with
-    | MemoryOp _ ->  lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
-                     lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
-                     lemma_left_desc_hash_empty_implies_no_desc l' c d
-    | Add a1 v1 a_anc -> if a1 = a then admit()
-                         else if is_desc a1 c then (
-                           
-                           lemma_proper_desc_transitive2 a1 c a;
-                           assert (is_proper_desc a1 a);
-
-                           if a_anc = a then admit()
-                           else if is_desc a_anc a then admit()
-                           else (
-                             assert(is_proper_desc a1 a_anc);
-                             lemma_two_ancestors_related a1 a a_anc;
-                             assert (is_proper_desc a a_anc);
-                             assert (cached_payload_l l a = cached_payload_l l' a);
-                             admit()
-                           )
-                         )
-                         else (
-                           lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
-                           lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
-                           lemma_left_desc_hash_empty_implies_no_desc l' c d
-                         )
-    | Evict _ _ -> admit()
-
+    | Desc d h -> 
+      lemma_eac_payload_empty_or_points_to_desc l n c;
+      Some d
   )
+    
+let eac_ptrfn (l:eac_log): ptrfn =
+  eac_ptrfn_aux l
 
-(*
-    match e with
-    | MemoryOp _ -> lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
-                    lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
-                    lemma_left_desc_hash_empty_implies_no_desc l' a d
-    | Add a1 v1 a_anc -> if a1 = a then admit()
-                         else if is_desc a1 (LeftChild a) then (
-                           if a_anc = a then admit()
-                           else if is_desc a_anc a then admit()
-                           else (
-                             
-                             //assert (is_proper_desc a_anc a);
-                             //assert (is_proper_desc d a_anc);
-                             assert(cached_payload_l l a = cached_payload_l l' a);
-                             admit()
-                           )
-                         )
-                         else (
-                           lemma_last_index_last_elem_nsat (is_add_of_addr d) l;
-                           lemma_last_index_prefix (is_add_of_addr d) l (n - 1);
-                           lemma_left_desc_hash_empty_implies_no_desc l' a d                           
-                         )
-    | Evict _ _ -> admit()
-  )
-*)                             
-
-
-(* 
- * for a verifiable log l, every merkle addr is associated with an ancestor identified below 
- * - the smallest ancestor who has been added so far - as verifying ancestor. The verifying 
- * ancestor is the one that will validate address a during Add's
- *)
-let rec verifying_ancestor (l:verifiable_log) (a:merkle_non_root_addr): 
-  Tot (a':merkle_addr{is_proper_desc a a'}) 
-  (decreases (length l)) = 
-  let n = length l in
-  if n = 0 then (
-    lemma_root_is_univ_ancestor a;
-    merkle_root
-  )
-  else 
-    let l' = prefix l (n - 1) in
-    let va' = verifying_ancestor l' a in
-    if is_add l (n - 1) then
-      let a' = add_addr l (n - 1) in
-      if is_proper_desc a a' && is_proper_desc a' va' then a'
-      else va'
-    else va'
-
-(* 
- * if d -> a1 -> a2 represents proper ancestor relation, then once a1 
- * has been added, a2 cannot be the verifying ancestor.
- * In other words, the smallest ancestor is the verifying ancestor 
- *)
-let rec lemma_verifying_ancestor_smallest (l:verifiable_log) 
-                                          (d:merkle_non_root_addr) 
-                                          (a_high a_low: merkle_addr):
-   Lemma (requires (is_proper_desc a_low a_high /\
-                    is_proper_desc d a_low /\
-                    has_some_add l a_low))
-         (ensures (a_high <> verifying_ancestor l d))
-   (decreases (length l)) = admit()
-
-
-let points_to (d:merkle_addr) (a: merkle_addr{is_proper_desc d a}) (v:merkle_payload_of_addr a) : Tot bool = 
-  let dh = get_desc_hash d a v in
-  not (Empty? dh) && d = Desc?.a dh
-
-(* 
- * If the verifying ancestor of 'a' is in the cache and address a has been added at least once, then 
- * the ancestor payload points to a 
- *)
-let rec lemma_verifying_ancestor_correct 
-  (l:verifiable_log) 
-  (a:merkle_non_root_addr{has_some_add l a /\ 
-                          cache_contains (cache_at_end l) (verifying_ancestor l a) /\
-                          not (points_to a (verifying_ancestor l a) (cached_payload (cache_at_end l) (verifying_ancestor l a)))})
-  : Tot hash_collision_sp (decreases (length l)) = 
-  let cache = cache_at_end l in
-  let va = verifying_ancestor l a in
-  let pva = cached_payload cache va in
-  let dh = get_desc_hash a va pva in
-  let n = length l in 
-  (* contradiction since l has some add of a *)
-  if n = 0 then SCollision (SMkLeaf Null) (SMkLeaf Null)
-  
-  else 
-    let l' = prefix l (n - 1) in
-    let cache' = cache_at_end l' in
-    let e = index l (n - 1) in
-    let va' = verifying_ancestor l' a in
-    if Add? e && is_desc a (Add?.a e) then (
-      let a' = Add?.a e in
-      
-      if a' = a then (
-        (* verifying ancestor changes only when we add a proper ancestor *)
-        assert (va = va');
-
-        (* the ancestor used in this add *)
-        let a_anc = Add?.a' e in
-        assert (cache_contains cache' a_anc);
-
-        (* a_anc and va are ancestor descendants of each other *)
-        lemma_two_ancestors_related a a_anc va;
-
-        if a_anc = va then 
-          SCollision (SMkLeaf Null) (SMkLeaf Null)
-        else if is_proper_desc va a_anc then (
-          assert (cache_contains cache' va);
-
-          if has_some_add l' a then 
-            lemma_verifying_ancestor_correct l' a
-          
-          else
-          //assert (has_some_add l' a);
-          //assert (points_to a va pva);
-          admit()
-        )
-        else (
-          assert (is_proper_desc a_anc va);
-          lemma_cache_contains_implies_last_add_before_evict l a_anc;
-          lemma_verifying_ancestor_smallest l a va a_anc;
-          SCollision (SMkLeaf Null) (SMkLeaf Null)
-        )
-      )
-      else
-        admit()
-    )
-    else (
-      (* e is not add of address a *)
-      lemma_desc_reflexive a;
-      assert(not (is_add_of_addr a e));
-
-      (* since e is not add of address a, l' has some add of a *)
-      lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
-      lemma_last_index_prefix (is_add_of_addr a) l (n - 1);
-      assert (has_some_add l' a);
-
-      (* since we are not adding any ancestor, verifying ancestor is unchanged *)
-      assert (va == va');
-
-      (* since cache contains va, e cannot be an evict va *)
-      assert (not (is_evict_of_addr va e));
-
-      (* since e is neither, add or evict va, l' contains va as well *)
-      assert (cache_contains cache' va);
-      let pva' = cached_payload cache' va' in
-
-      (* induction on l' *)
-      if not (points_to a va (cached_payload cache' va)) then 
-         lemma_verifying_ancestor_correct l' a
-      else 
-        (* Otherwise, we have a contradiction *)
-        SCollision (SMkLeaf Null) (SMkLeaf Null)      
-    )
-                                                                 

@@ -242,7 +242,7 @@ let rec lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is
   )
 
 let desc_dir (d:bin_tree_node) (a:bin_tree_node{is_proper_desc d a}): 
-  (c: bin_tree_dir {is_desc d (child c a)}) = 
+  (c: bin_tree_dir {is_desc d (child c a) && not (is_desc d (sibling (child c a)))}) = 
   lemma_proper_desc_left_or_right d a;
   if is_desc d (LeftChild a) then Left 
   else Right
