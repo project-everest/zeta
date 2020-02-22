@@ -599,19 +599,27 @@ let rec lemma_eac_payload_empty_or_points_to_desc
     else
       match e with    
       | Add a1 v a2 -> 
-        if a1 = a then (
-          assert(is_proper_desc a1 a2);
-          assert(cache_contains cache' a2);
+        let v2 = cached_payload cache' a2 in
+        if a1 = a then 
           let c2 = desc_dir a a2 in
-          let v2 = cached_payload cache' a2 in
           let dh2 = desc_hash_dir c2 v2 in
           if Desc? dh2 && a = Desc?.a dh2 then 
             lemma_eac_payload_empty_or_points_to_desc l' a c          
+          else if Empty? dh2 then ()
+          else 
+            let c' = desc_dir (Desc?.a dh2) a in
+            if c' = c then ()
+            else ()                  
+        else (
+          let c' = desc_dir a1 a in
+          let dh' = desc_hash_dir c' v2 in
+          if Desc? dh' && a1 = Desc?.a dh' then 
+            lemma_eac_payload_empty_or_points_to_desc l' a c          
+          else if c = c' then
+            admit()
           else
             admit()
         )
-        else
-          admit()
       | Evict a' a'' -> admit()
     
 let eac_ptrfn (l:eac_log) (n:bin_tree_node) (c:bin_tree_dir):
