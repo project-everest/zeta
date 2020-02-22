@@ -35,6 +35,11 @@ let child (d:bin_tree_dir) (n:bin_tree_node) =
   | Left -> LeftChild n
   | Right -> RightChild n
 
+let sibling (n:non_root_node): Tot bin_tree_node = 
+  match n with
+  | LeftChild p -> RightChild p
+  | RightChild p -> LeftChild p
+
 (* Is d descendant of a *)
 val is_desc (d a: bin_tree_node): Tot bool
 
@@ -107,7 +112,7 @@ val lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is_pro
          is_desc d (RightChild a) /\ ~ (is_desc d (LeftChild a)))
 
 val desc_dir (d: bin_tree_node) (a: bin_tree_node{is_proper_desc d a}):
-  (c: bin_tree_dir {is_desc d (child c a)})
+  (c: bin_tree_dir {is_desc d (child c a) && not (is_desc d (sibling (child c a)))})
 
 (* map a bit vector to a binary tree node *)
 val bv_to_bin_tree_node (#n:pos) (b:bv_t n): Tot (t:bin_tree_node{depth t = n})

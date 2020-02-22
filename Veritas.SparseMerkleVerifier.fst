@@ -569,18 +569,55 @@ let updates_cache (a:merkle_non_leaf_addr) (e:verifier_log_entry): bool =
   | Evict a1 a2 -> a1 = a || a2 = a
   | _ -> false
 
-let prefix1 (l:eac_log{length l > 0}): eac_log = 
+let hprefix (l:eac_log{length l > 0}): eac_log = 
   let n = length l in
   prefix l (n - 1)
+
+let telem (l:verifier_log{length l > 0}): verifier_log_entry = 
+  index l (length l - 1)
 
 let lemma_eac_payload_empty_or_points_to_desc_caseA
   (l:eac_log{length l > 0})
   (a:merkle_non_leaf_addr)
   (c:bin_tree_dir):
-  Lemma (requires (Empty? (desc_hash_dir c (eac_payload (prefix1 l) a)) \/
-                  is_desc (Desc?.a (desc_hash_dir c (eac_payload (prefix1 l) a))) (child c a)))
+  Lemma (requires (not (updates_cache a (telem l)) /\ 
+                   (Empty? (desc_hash_dir c (eac_payload (hprefix l) a)) \/
+                    is_desc (Desc?.a (desc_hash_dir c (eac_payload (hprefix l) a))) (child c a))))
         (ensures (Empty? (desc_hash_dir c (eac_payload l a)) \/
-                  is_desc (Desc?.a (desc_hash_dir c (eac_payload l a))) (child c a))) = admit()
+                  is_desc (Desc?.a (desc_hash_dir c (eac_payload l a))) (child c a))) =
+  let n = length l in
+  let cache = cache_at_end l in
+  if cache_contains cache a then ()
+  else 
+    if has_some_evict l a then (
+      lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+      lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)      
+    )
+    else lemma_not_exists_prefix (is_evict_of_addr a) l (n - 1)
+
+let lemma_eac_payload_empty_or_points_to_desc_caseB
+  (l:eac_log{length l > 0})
+  (a:merkle_non_leaf_addr)
+  (c:bin_tree_dir):
+  Lemma (requires (is_add_of_addr a (telem l) /\ 
+                   (Empty? (desc_hash_dir c (eac_payload (hprefix l) a)) \/
+                    is_desc (Desc?.a (desc_hash_dir c (eac_payload (hprefix l) a))) (child c a))))
+        (ensures (Empty? (desc_hash_dir c (eac_payload l a)) \/
+                  is_desc (Desc?.a (desc_hash_dir c (eac_payload l a))) (child c a))) =
+  let l' = hprefix l in
+  let e = telem l in
+  let cache' = cache_at_end l' in
+  match e with
+  | Add a v a2 -> 
+    let v2 = cached_payload cache' a2 in
+    let c2 = desc_dir a a2 in
+    let dh2 = desc_hash_dir c2 v2 in
+    if Desc? dh2 && a = Desc?.a dh2 then ()
+    else if Empty? dh2 then ()
+    else
+      let c' = desc_dir (Desc?.a dh2) a in
+      if c' = c then ()
+      else ()                  
 
 let rec lemma_eac_payload_empty_or_points_to_desc
   (l:eac_log)
@@ -598,40 +635,24 @@ let rec lemma_eac_payload_empty_or_points_to_desc
     let l' = prefix l (n - 1) in
     let e = index l (n - 1) in
     let cache' = cache_at_end l' in
-    if not (updates_cache a e) then (
-      lemma_eac_payload_empty_or_points_to_desc l' a c;
-      if cache_contains cache a then ()
-      else
-        if has_some_evict l a then (
-          lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
-          lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)
-        )
-        else
-          lemma_not_exists_prefix (is_evict_of_addr a) l (n - 1)
-    )
+    lemma_eac_payload_empty_or_points_to_desc l' a c;    
+    if not (updates_cache a e) then 
+      lemma_eac_payload_empty_or_points_to_desc_caseA l a c    
     else
       match e with    
-      | Add a1 v a2 -> 
-        let v2 = cached_payload cache' a2 in
+      | Add a1 v1 a2 -> 
         if a1 = a then 
-          let c2 = desc_dir a a2 in
-          let dh2 = desc_hash_dir c2 v2 in
-          if Desc? dh2 && a = Desc?.a dh2 then 
-            lemma_eac_payload_empty_or_points_to_desc l' a c          
-          else if Empty? dh2 then ()
-          else 
-            let c' = desc_dir (Desc?.a dh2) a in
-            if c' = c then ()
-            else ()                  
+          lemma_eac_payload_empty_or_points_to_desc_caseB l a c        
         else (
+          let v' = cached_payload cache' a in        
           let c' = desc_dir a1 a in
-          let dh' = desc_hash_dir c' v2 in
-          lemma_eac_payload_empty_or_points_to_desc l' a c;
+          let dh' = desc_hash_dir c' v' in
           if Desc? dh' && a1 = Desc?.a dh' then ()            
           else if c = c' then (
-            if Empty? dh' then
-              admit()
-            else admit()
+            let v = cached_payload cache a in
+            let dh = desc_hash_dir c v in          
+            assert (Desc?.a dh = a1);
+            ()
           )
           else ()
         )
