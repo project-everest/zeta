@@ -132,3 +132,26 @@ let lemma_reachable_transitive (pf: ptrfn) (a b c: bin_tree_node):
   let prf_ac = lemma_pdesc_transitive_t pf a b c prf_ab prf_bc in
   lemma_pdesc_correct pf a c prf_ac
 
+let lemma_non_pdesc_desc_of_none (pf:ptrfn)
+                                 (d:bin_tree_node)
+                                 (a:bin_tree_node{is_proper_desc d a})
+                                 (prf:pdesc pf d a):
+   Lemma (Some? (pf a (desc_dir d a))) = 
+   match prf with
+   | PSelf _ _ -> ()
+   | PTran _ _ d' prfdd' _ c -> 
+     assert(is_desc d' (child c a));
+     lemma_pdesc_implies_desc_t pf d d' prfdd';
+     assert(is_desc d d');
+     lemma_desc_transitive d d' (child c a)
+                                                  
+let lemma_non_reachable_desc_of_none (pf: ptrfn) 
+                                     (d:bin_tree_node) 
+                                     (a:bin_tree_node{is_proper_desc d a /\ 
+                                                      None? (pf a (desc_dir d a))}):
+  Lemma (not (reachable pf d a)) = 
+  if reachable pf d a then (
+    let prfda = lemma_pdesc_correct2 pf d a in
+    lemma_non_pdesc_desc_of_none pf d a prfda
+  )
+  else ()

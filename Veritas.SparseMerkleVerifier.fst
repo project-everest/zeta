@@ -716,9 +716,10 @@ let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
         (ensures (has_some_add l a <==> root_reachable (eac_ptrfn l) a))
         (decreases (length l)) = 
   let n = length l in
+  let pf = eac_ptrfn l in
   if n = 0 then (
-    assert(not (has_some_add l a));
-    assert(eac_payload l Root == SMkInternal Empty Empty);
-    admit()
+    lemma_root_is_univ_ancestor a;
+    assert(None? (pf a (desc_dir a Root)));
+    lemma_non_reachable_desc_of_none pf a Root
   )
   else admit()

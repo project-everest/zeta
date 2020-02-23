@@ -35,8 +35,8 @@ val lemma_reachable_transitive (pf: ptrfn) (a b c: bin_tree_node):
  * if there is no c-pointer at node a, then any desc in that subtree is not 
  * reachable from a 
  *)
-val non_reachable_desc_of_none (pf: ptrfn) 
-                               (d:bin_tree_node) 
-                               (a:bin_tree_node{is_proper_desc d a /\ 
-                                                None? (pf a (desc_dir d a))}):
+val lemma_non_reachable_desc_of_none (pf: ptrfn) 
+                                     (d:bin_tree_node) 
+                                     (a:bin_tree_node{is_proper_desc d a /\ 
+                                                      None? (pf a (desc_dir d a))}):
   Lemma (not (reachable pf d a))
