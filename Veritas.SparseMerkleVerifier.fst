@@ -711,3 +711,14 @@ let eac_ptrfn_aux (l:eac_log) (n:bin_tree_node) (c:bin_tree_dir):
 let eac_ptrfn (l:eac_log): ptrfn =
   eac_ptrfn_aux l
 
+let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
+  Lemma (requires (True))
+        (ensures (has_some_add l a <==> root_reachable (eac_ptrfn l) a))
+        (decreases (length l)) = 
+  let n = length l in
+  if n = 0 then (
+    assert(not (has_some_add l a));
+    assert(eac_payload l Root == SMkInternal Empty Empty);
+    admit()
+  )
+  else admit()

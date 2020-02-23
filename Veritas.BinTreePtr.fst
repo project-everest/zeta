@@ -10,7 +10,7 @@ noeq type pdesc: ptrfn -> bin_tree_node -> bin_tree_node -> Type =
            c:bin_tree_dir{Some? (pf a c) /\ Some?.v (pf a c) = d'} ->
            pdesc pf d a
 
-let rec is_pdesc_aux 
+let rec reachable_aux 
   (pf: ptrfn) 
   (d:bin_tree_node) 
   (a:bin_tree_node{is_proper_desc d a /\ depth d > depth a}): Tot bool
@@ -22,16 +22,16 @@ let rec is_pdesc_aux
                else if is_desc d d' then (
                  lemma_desc_depth_monotonic d' (child c a);
                  lemma_proper_desc_depth_monotonic d d';
-                 is_pdesc_aux pf d d'
+                 reachable_aux pf d d'
                )
                else
                  false
                  
-let is_pdesc (pf:ptrfn) (d a: bin_tree_node): Tot bool = 
+let reachable (pf:ptrfn) (d a: bin_tree_node): Tot bool = 
   if d = a then true
   else if is_desc d a then (
     lemma_proper_desc_depth_monotonic d a;
-    is_pdesc_aux pf d a
+    reachable_aux pf d a
   )
   else false
 
@@ -49,7 +49,7 @@ let rec lemma_pdesc_implies_desc_t (pf: ptrfn) (d a: bin_tree_node) (prf: pdesc 
 
 let rec lemma_pdesc_correct (pf:ptrfn) (d a: bin_tree_node) (prf: pdesc pf d a):
   Lemma (requires (True))
-        (ensures (is_pdesc pf d a = true))
+        (ensures (reachable pf d a = true))
         (decreases prf) = 
   match prf with
   | PSelf _ _  -> ()
@@ -59,7 +59,7 @@ let rec lemma_pdesc_correct (pf:ptrfn) (d a: bin_tree_node) (prf: pdesc pf d a):
     assert(is_desc d d');
 
     lemma_pdesc_correct pf d d' prf';
-    assert(is_pdesc pf d d');
+    assert(reachable pf d d');
 
     lemma_parent_ancestor (child c a);
     lemma_proper_desc_transitive2 d' (child c a) a;
@@ -79,7 +79,7 @@ let rec lemma_pdesc_correct (pf:ptrfn) (d a: bin_tree_node) (prf: pdesc pf d a):
 let rec lemma_pdesc_correct2_aux 
   (pf:ptrfn) 
   (d:bin_tree_node) 
-  (a:bin_tree_node{is_pdesc pf d a /\ depth d >= depth a}): 
+  (a:bin_tree_node{reachable pf d a /\ depth d >= depth a}): 
   Tot (pdesc pf d a) 
   (decreases (depth d - depth a)) = 
   if d = a then PSelf pf d
@@ -99,7 +99,7 @@ let rec lemma_pdesc_correct2_aux
 let lemma_pdesc_implies_desc 
   (pf:ptrfn) 
   (d: bin_tree_node)
-  (a: bin_tree_node{is_pdesc pf d a}):
+  (a: bin_tree_node{reachable pf d a}):
   Lemma (requires (True))
         (ensures (is_desc d a)) = 
   if d = a then lemma_desc_reflexive d
@@ -108,13 +108,13 @@ let lemma_pdesc_implies_desc
 let lemma_pdesc_correct2
   (pf:ptrfn) 
   (d:bin_tree_node) 
-  (a:bin_tree_node{is_pdesc pf d a}): Tot (pdesc pf d a) =
+  (a:bin_tree_node{reachable pf d a}): Tot (pdesc pf d a) =
   lemma_pdesc_implies_desc pf d a;
   lemma_desc_depth_monotonic d a;
   lemma_pdesc_correct2_aux pf d a
 
-let lemma_pdesc_reflexive (pf: ptrfn) (a: bin_tree_node):
-  Lemma (is_pdesc pf a a) = ()
+let lemma_reachable_reflexive (pf: ptrfn) (a: bin_tree_node):
+  Lemma (reachable pf a a) = ()
 
 let rec lemma_pdesc_transitive_t (pf: ptrfn) (n1 n2 n3: bin_tree_node) 
   (prf12: pdesc pf n1 n2) (prf23: pdesc pf n2 n3): Tot (pdesc pf n1 n3) (decreases prf23) = 
@@ -124,9 +124,9 @@ let rec lemma_pdesc_transitive_t (pf: ptrfn) (n1 n2 n3: bin_tree_node)
     let prf1' = lemma_pdesc_transitive_t pf n1 n2 n' prf12 prf2' in
     PTran pf n1 n' prf1' n3 c'
 
-let lemma_pdesc_transitive (pf: ptrfn) (a b c: bin_tree_node):
-  Lemma (requires (is_pdesc pf a b /\ is_pdesc pf b c))
-        (ensures (is_pdesc pf a c)) = 
+let lemma_reachable_transitive (pf: ptrfn) (a b c: bin_tree_node):
+  Lemma (requires (reachable pf a b /\ reachable pf b c))
+        (ensures (reachable pf a c)) = 
   let prf_ab = lemma_pdesc_correct2 pf a b in
   let prf_bc = lemma_pdesc_correct2 pf b c in
   let prf_ac = lemma_pdesc_transitive_t pf a b c prf_ab prf_bc in
