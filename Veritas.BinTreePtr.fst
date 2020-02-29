@@ -116,6 +116,15 @@ let lemma_pdesc_correct2
 let lemma_reachable_reflexive (pf: ptrfn) (a: bin_tree_node):
   Lemma (reachable pf a a) = ()
 
+let lemma_points_to_reachable (pf: ptrfn) 
+                              (d: bin_tree_node) 
+                              (a: bin_tree_node):
+  Lemma (requires (is_proper_desc d a /\ points_to pf d a))
+        (ensures (reachable pf d a)) = 
+  let c = desc_dir d a in
+  let prf = PTran pf d d (PSelf pf d) a c in 
+  lemma_pdesc_correct pf d a prf
+
 let rec lemma_pdesc_transitive_t (pf: ptrfn) (n1 n2 n3: bin_tree_node) 
   (prf12: pdesc pf n1 n2) (prf23: pdesc pf n2 n3): Tot (pdesc pf n1 n3) (decreases prf23) = 
   match prf23 with
@@ -144,7 +153,42 @@ let lemma_non_pdesc_desc_of_none (pf:ptrfn)
      lemma_pdesc_implies_desc_t pf d d' prfdd';
      assert(is_desc d d');
      lemma_desc_transitive d d' (child c a)
-                                                  
+
+let rec prev_in_path_aux (pf:ptrfn) 
+                         (d: bin_tree_node) 
+                         (a:bin_tree_node{reachable pf d a /\ d <> a}): 
+  Tot (d': bin_tree_node {is_proper_desc d d' /\ reachable pf d' a /\ points_to pf d d'}) 
+  (decreases (depth d - depth a)) = 
+  let prf = lemma_pdesc_correct2 pf d a in
+  match prf with
+  | PSelf _ _ -> d  
+  | PTran _ _ a' prfda' _ c  -> 
+
+    lemma_parent_ancestor (child c a);
+    lemma_proper_desc_transitive2 a' (child c a) a;
+    assert(is_proper_desc a' a);
+    assert(points_to pf a' a);
+    assert(c = desc_dir a' a);
+    if a' = d then a
+    else (
+      lemma_pdesc_correct pf d a' prfda';
+      lemma_proper_desc_depth_monotonic a' a;
+      lemma_pdesc_implies_desc_t pf d a' prfda';
+
+      lemma_desc_depth_monotonic d a';
+      let d' = prev_in_path_aux pf d a' in
+      
+      
+      lemma_points_to_reachable pf a' a;
+      lemma_reachable_transitive pf d' a' a;
+
+      d'
+    )
+
+let prev_in_path (pf:ptrfn) (d: bin_tree_node) (a:bin_tree_node{reachable pf d a /\ d <> a}): 
+  Tot (d': bin_tree_node {is_proper_desc d d' /\ reachable pf d' a /\ points_to pf d d'}) = 
+  prev_in_path_aux pf d a
+
 let lemma_non_reachable_desc_of_none (pf: ptrfn) 
                                      (d:bin_tree_node) 
                                      (a:bin_tree_node{is_proper_desc d a /\ 

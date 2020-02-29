@@ -711,6 +711,10 @@ let eac_ptrfn_aux (l:eac_log) (n:bin_tree_node) (c:bin_tree_dir):
 let eac_ptrfn (l:eac_log): ptrfn =
   eac_ptrfn_aux l
 
+let rec lemma_root_reachable_prefix (l:eac_log) (i:nat{i <= length l}) (a:merkle_addr):
+  Lemma (requires (root_reachable (eac_ptrfn (prefix l i)) a))
+        (ensures (root_reachable (eac_ptrfn l) a)) = admit()
+
 let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (True))
         (ensures (has_some_add l a <==> root_reachable (eac_ptrfn l) a))
@@ -722,4 +726,15 @@ let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
     assert(None? (pf a (desc_dir a Root)));
     lemma_non_reachable_desc_of_none pf a Root
   )
-  else admit()
+  else (
+    let l' = prefix l (n - 1) in
+    lemma_has_add_equiv_root_reachable l' a;
+    let e = index l (n - 1) in
+    match e with
+    | Add a1 v1 a2 -> 
+      admit()
+    | Evict a1 a2 ->
+      admit()
+    | MemoryOp o ->
+      admit()
+  )
