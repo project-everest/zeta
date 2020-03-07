@@ -96,11 +96,11 @@ let rec lemma_pdesc_correct2_aux
     )
   )
 
-let lemma_pdesc_implies_desc 
+let lemma_reachable_implies_desc 
   (pf:ptrfn) 
   (d: bin_tree_node)
-  (a: bin_tree_node{reachable pf d a}):
-  Lemma (requires (True))
+  (a: bin_tree_node):
+  Lemma (requires (reachable pf d a))
         (ensures (is_desc d a)) = 
   if d = a then lemma_desc_reflexive d
   else ()
@@ -109,7 +109,7 @@ let lemma_pdesc_correct2
   (pf:ptrfn) 
   (d:bin_tree_node) 
   (a:bin_tree_node{reachable pf d a}): Tot (pdesc pf d a) =
-  lemma_pdesc_implies_desc pf d a;
+  lemma_reachable_implies_desc pf d a;
   lemma_desc_depth_monotonic d a;
   lemma_pdesc_correct2_aux pf d a
 
@@ -198,4 +198,86 @@ let lemma_non_reachable_desc_of_none (pf: ptrfn)
     let prfda = lemma_pdesc_correct2 pf d a in
     lemma_non_pdesc_desc_of_none pf d a prfda
   )
+  else ()
+
+let rec lemma_extend_reachable_aux (pf:ptrfn) 
+                               (d1:bin_tree_node) 
+                               (a1:bin_tree_node{is_proper_desc d1 a1 /\ 
+                                                                not (points_to_some pf a1 (desc_dir d1 a1))})
+                               (d: bin_tree_node)
+                               (a: bin_tree_node):
+  Lemma (requires (reachable pf d a))
+       (ensures reachable (extend_ptrfn pf d1 a1) d a) 
+       (decreases (depth d - depth a))       
+       = 
+  lemma_reachable_implies_desc pf d a;  
+  lemma_desc_depth_monotonic d a;
+  let pfe = extend_ptrfn pf d1 a1 in
+  let prfda = lemma_pdesc_correct2 pf d a in
+  match prfda with
+  | PSelf _ _ -> 
+    assert(d == a);
+    lemma_reachable_reflexive pfe a
+  | PTran _ _ d' prfdd' _ c ->
+    assert(points_to pf d' a);
+    lemma_proper_desc_depth_monotonic d' a;
+    lemma_pdesc_correct pf d d' prfdd';
+    assert(reachable pf d d');
+    
+    lemma_reachable_implies_desc pf d d';
+    lemma_desc_depth_monotonic d d';
+    lemma_extend_reachable_aux pf d1 a1 d d';
+
+    assert(reachable pfe d d');
+    if a = a1 && desc_dir d1 a1 = desc_dir d' a then ()
+    else (
+      assert(pf a (desc_dir d' a) == pfe a (desc_dir d' a));
+      assert(points_to pfe d' a);
+      lemma_points_to_reachable pfe d' a;
+      assert(reachable pfe d' a);
+      lemma_reachable_transitive pfe d d' a
+    )
+    
+let lemma_extend_reachable (pf:ptrfn) 
+                           (d1:bin_tree_node) 
+                           (a1:bin_tree_node{is_proper_desc d1 a1 /\ 
+                                            not (points_to_some pf a1 (desc_dir d1 a1))})
+                           (d: bin_tree_node)
+                           (a: bin_tree_node):
+  Lemma (requires (reachable pf d a))
+        (ensures (reachable (extend_ptrfn pf d1 a1) d a)) =
+  lemma_extend_reachable_aux pf d1 a1 d a
+  
+let rec lemma_reachable_feq_aux (pf1: ptrfn) (pf2: ptrfn) (d: bin_tree_node) (a: bin_tree_node):
+  Lemma (requires (feq_ptrfn pf1 pf2 /\ reachable pf1 d a))
+        (ensures (reachable pf2 d a)) 
+        (decreases (depth d - depth a))
+        = 
+  lemma_reachable_implies_desc pf1 d a;  
+  lemma_desc_depth_monotonic d a;        
+  let prfda1 = lemma_pdesc_correct2 pf1 d a in
+  match prfda1 with
+  | PSelf _ _ -> lemma_reachable_reflexive pf2 a
+  | PTran _ _ d' prf1dd' _ _ ->
+    assert(points_to pf1 d' a);
+    lemma_proper_desc_depth_monotonic d' a;
+    lemma_pdesc_correct pf1 d d' prf1dd';
+    assert(reachable pf1 d d');
+
+    lemma_reachable_implies_desc pf1 d d';
+    lemma_desc_depth_monotonic d d';
+    lemma_reachable_feq_aux pf1 pf2 d d';
+    assert(reachable pf2 d d');
+    assert(points_to pf2 d' a);
+    lemma_points_to_reachable pf2 d' a;
+    assert(reachable pf2 d' a);
+    lemma_reachable_transitive pf2 d d' a
+  
+let lemma_reachable_feq (pf1: ptrfn) (pf2: ptrfn) (d: bin_tree_node) (a: bin_tree_node):
+  Lemma (requires (feq_ptrfn pf1 pf2))
+        (ensures (reachable pf1 d a = reachable pf2 d a)) = 
+  if reachable pf1 d a then
+    lemma_reachable_feq_aux pf1 pf2 d a
+  else if reachable pf2 d a then  
+    lemma_reachable_feq_aux pf2 pf1 d a
   else ()

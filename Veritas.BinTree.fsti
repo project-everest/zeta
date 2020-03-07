@@ -111,6 +111,11 @@ val lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is_pro
   Lemma (is_desc d (LeftChild a) /\ ~ (is_desc d (RightChild a)) \/
          is_desc d (RightChild a) /\ ~ (is_desc d (LeftChild a)))
 
+val lemma_child_desc_is_proper_desc (d: bin_tree_node) (c: bin_tree_dir) (a: bin_tree_node):
+  Lemma (requires (is_desc d (child c a)))
+        (ensures (is_proper_desc d a))
+        [SMTPat (is_desc d (child c a))]
+
 val desc_dir (d: bin_tree_node) (a: bin_tree_node{is_proper_desc d a}):
   (c: bin_tree_dir {is_desc d (child c a) && not (is_desc d (sibling (child c a)))})
 

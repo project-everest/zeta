@@ -241,6 +241,13 @@ let rec lemma_proper_desc_left_or_right (d: bin_tree_node) (a: bin_tree_node {is
     )
   )
 
+let lemma_child_desc_is_proper_desc (d: bin_tree_node) (c: bin_tree_dir) (a: bin_tree_node):
+  Lemma (requires (is_desc d (child c a)))
+        (ensures (is_proper_desc d a))
+        [SMTPat (is_desc d (child c a))] = 
+  lemma_parent_ancestor (child c a);
+  lemma_proper_desc_transitive2 d (child c a) a
+
 let desc_dir (d:bin_tree_node) (a:bin_tree_node{is_proper_desc d a}): 
   (c: bin_tree_dir {is_desc d (child c a) && not (is_desc d (sibling (child c a)))}) = 
   lemma_proper_desc_left_or_right d a;

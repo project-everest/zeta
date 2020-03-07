@@ -711,6 +711,14 @@ let eac_ptrfn_aux (l:eac_log) (n:bin_tree_node) (c:bin_tree_dir):
 let eac_ptrfn (l:eac_log): ptrfn =
   eac_ptrfn_aux l
 
+let ptrfn_unchanged (e:verifier_log_entry) (a:merkle_addr): bool = 
+  match e with
+  | MemoryOp _ -> true
+  | Evict _ _ -> true
+  | Add _ _ _ -> false
+
+
+
 let rec lemma_root_reachable_prefix (l:eac_log) (i:nat{i <= length l}) (a:merkle_addr):
   Lemma (requires (root_reachable (eac_ptrfn (prefix l i)) a))
         (ensures (root_reachable (eac_ptrfn l) a)) = admit()
