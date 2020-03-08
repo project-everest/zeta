@@ -102,7 +102,8 @@ val lemma_exists_prefix_implies_exists (#a:eqtype) (f:a -> bool) (s:seq a) (i:na
 
 val lemma_last_index_last_elem_nsat (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (not (f (index s (length s - 1)))))
-        (ensures (exists_sat_elems f s ==> last_index f s < length s - 1))
+        (ensures ((exists_sat_elems f s ==> last_index f s < length s - 1) /\
+                  exists_sat_elems f s = exists_sat_elems f (prefix s (length s - 1))))
 
 val lemma_last_index_last_elem_sat (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (f (index s (length s - 1))))

@@ -22,6 +22,10 @@ let points_to (pf: ptrfn) (d: bin_tree_node) (a: bin_tree_node{is_proper_desc d 
   points_to_some pf a c && 
   d = pointed_node pf a c 
 
+let points_to_none (pf:ptrfn) (n:bin_tree_node): bool = 
+  not (points_to_some pf n Left) && 
+  not (points_to_some pf n Right)
+
 (* Is d reachable from a following pf pointers *)
 val reachable (pf: ptrfn) (d a: bin_tree_node): Tot bool
 
@@ -85,7 +89,7 @@ val lemma_extend_reachable (pf:ptrfn)
 
 (* Extend the pointer function by cutting a pointer *)
 let extendcut_ptrfn (pf:ptrfn)
-                    (d:bin_tree_node)
+                    (d:bin_tree_node{points_to_none pf d})
                     (a:bin_tree_node{is_proper_desc d a /\ 
                                      points_to_some pf a (desc_dir d a) /\
                                      is_proper_desc (pointed_node pf a (desc_dir d a)) d}): ptrfn = 
@@ -96,10 +100,23 @@ let extendcut_ptrfn (pf:ptrfn)
               else if n' = d && c' = c2 then Some d' 
               else pf n' c'
 
+val lemma_extendcut_reachable (pf:ptrfn)
+                              (d1:bin_tree_node{points_to_none pf d1})
+                              (a1:bin_tree_node{is_proper_desc d1 a1 /\ 
+                                               points_to_some pf a1 (desc_dir d1 a1) /\
+                                               is_proper_desc (pointed_node pf a1 (desc_dir d1 a1)) d1})
+                              (d: bin_tree_node)
+                              (a: bin_tree_node):
+  Lemma (requires (reachable pf d a))
+        (ensures (reachable (extendcut_ptrfn pf d1 a1) d a))
+
+(* Two pointer functions are equal on all inputs *)
 let feq_ptrfn (pf1: ptrfn) (pf2: ptrfn) = 
   forall n. forall c. {:pattern (pf1 n c) \/ (pf2 n c)} pf1 n c == pf2 n c
 
+(* Two equal pointer functions have the same reachability relationship *)
 val lemma_reachable_feq (pf1: ptrfn) (pf2: ptrfn) (d: bin_tree_node) (a: bin_tree_node):
   Lemma (requires (feq_ptrfn pf1 pf2))
         (ensures (reachable pf1 d a = reachable pf2 d a))
+        [SMTPat (reachable pf1 d a); SMTPat (reachable pf2 d a)]
                    

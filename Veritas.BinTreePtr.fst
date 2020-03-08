@@ -247,7 +247,68 @@ let lemma_extend_reachable (pf:ptrfn)
   Lemma (requires (reachable pf d a))
         (ensures (reachable (extend_ptrfn pf d1 a1) d a)) =
   lemma_extend_reachable_aux pf d1 a1 d a
-  
+
+let rec lemma_extendcut_reachable_aux (pf:ptrfn)
+                              (d1:bin_tree_node{points_to_none pf d1})
+                              (a1:bin_tree_node{is_proper_desc d1 a1 /\ 
+                                               points_to_some pf a1 (desc_dir d1 a1) /\
+                                               is_proper_desc (pointed_node pf a1 (desc_dir d1 a1)) d1})
+                              (d: bin_tree_node)
+                              (a: bin_tree_node):
+  Lemma (requires (reachable pf d a))
+        (ensures (reachable (extendcut_ptrfn pf d1 a1) d a))
+        (decreases (depth d - depth a)) = 
+  lemma_reachable_implies_desc pf d a;  
+  lemma_desc_depth_monotonic d a;
+  let pfe = extendcut_ptrfn pf d1 a1 in
+  let prfda = lemma_pdesc_correct2 pf d a in
+  match prfda with
+  | PSelf _ _ -> 
+    assert(d == a);
+    lemma_reachable_reflexive pfe a
+  | PTran _ _ d' prfdd' _ c ->
+    assert(points_to pf d' a);
+    lemma_proper_desc_depth_monotonic d' a;
+    lemma_pdesc_correct pf d d' prfdd';
+    assert(reachable pf d d');
+    
+    lemma_reachable_implies_desc pf d d';
+    lemma_desc_depth_monotonic d d';
+    lemma_extendcut_reachable_aux pf d1 a1 d d';
+    assert(reachable pfe d d');             
+
+    let c1 = desc_dir d1 a1 in
+    let d2 = pointed_node pf a1 c1 in
+    let c' = desc_dir d' a in
+    if a1 = a && c1 = c' then (
+      assert(points_to pfe d1 a);
+      lemma_points_to_reachable pfe d1 a;
+      assert(reachable pfe d1 a);
+      assert(points_to pfe d' d1);
+      lemma_points_to_reachable pfe d' d1;
+      lemma_reachable_transitive pfe d d' d1;
+      assert(reachable pfe d d1);
+      lemma_reachable_transitive pfe d d1 a
+    )
+    else (
+      assert(a <> d1);
+      assert(points_to pfe d' a);
+      lemma_points_to_reachable pfe d' a;
+      assert(reachable pfe d' a);
+      lemma_reachable_transitive pfe d d' a      
+    )
+
+let lemma_extendcut_reachable (pf:ptrfn)
+                              (d1:bin_tree_node{points_to_none pf d1})
+                              (a1:bin_tree_node{is_proper_desc d1 a1 /\ 
+                                               points_to_some pf a1 (desc_dir d1 a1) /\
+                                               is_proper_desc (pointed_node pf a1 (desc_dir d1 a1)) d1})
+                              (d: bin_tree_node)
+                              (a: bin_tree_node):
+  Lemma (requires (reachable pf d a))
+        (ensures (reachable (extendcut_ptrfn pf d1 a1) d a)) = 
+  lemma_extendcut_reachable_aux pf d1 a1 d a
+
 let rec lemma_reachable_feq_aux (pf1: ptrfn) (pf2: ptrfn) (d: bin_tree_node) (a: bin_tree_node):
   Lemma (requires (feq_ptrfn pf1 pf2 /\ reachable pf1 d a))
         (ensures (reachable pf2 d a)) 
