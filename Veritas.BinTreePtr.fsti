@@ -69,23 +69,46 @@ val lemma_non_reachable_desc_of_none (pf: ptrfn)
                                                       None? (pf a (desc_dir d a))}):
   Lemma (not (reachable pf d a))
 
-(* Extend the pointer functio with a new points_to edge *)
-let extend_ptrfn (pf:ptrfn) 
-                 (d:bin_tree_node) 
-                 (a:bin_tree_node{is_proper_desc d a /\
-                                  not (points_to_some pf a (desc_dir d a))}): ptrfn = 
+(* Extend the pointer function with a new points_to edge *)
+let extend_ptrfn 
+  (pf:ptrfn) 
+  (d:bin_tree_node{points_to_none pf d}) 
+  (a:bin_tree_node{is_proper_desc d a /\
+                   not (points_to_some pf a (desc_dir d a)) /\
+                   root_reachable pf a}): ptrfn = 
   let c = desc_dir d a in
   fun n' c' -> if n' = a && c' = c then Some d else pf n' c'
 
 (* extension does not reduce reachability *)
-val lemma_extend_reachable (pf:ptrfn) 
-                           (d1:bin_tree_node) 
-                           (a1:bin_tree_node{is_proper_desc d1 a1 /\ 
-                                            not (points_to_some pf a1 (desc_dir d1 a1))})
-                           (d: bin_tree_node)
-                           (a: bin_tree_node):
-  Lemma (requires (reachable pf d a))
-        (ensures (reachable (extend_ptrfn pf d1 a1) d a))
+val lemma_extend_reachable 
+  (pf:ptrfn) 
+  (d:bin_tree_node{points_to_none pf d}) 
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                   not (points_to_some pf a (desc_dir d a)) /\
+                   root_reachable pf a})
+  (n: bin_tree_node):
+  Lemma (requires (root_reachable pf n))
+        (ensures (root_reachable (extend_ptrfn pf d a) n))
+
+(* extension adds reachability to the new node *)
+val lemma_extend_reachable_new
+  (pf:ptrfn) 
+  (d:bin_tree_node{points_to_none pf d}) 
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                   not (points_to_some pf a (desc_dir d a)) /\
+                   root_reachable pf a}):
+  Lemma (root_reachable (extend_ptrfn pf d a) d)
+  
+(* extends confers reachability only to the new node *)
+val lemma_extend_not_reachable
+  (pf:ptrfn) 
+  (d:bin_tree_node{points_to_none pf d}) 
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                   not (points_to_some pf a (desc_dir d a)) /\
+                   root_reachable pf a})
+  (n: bin_tree_node):
+  Lemma (requires (not (root_reachable pf n) /\ n <> d))
+        (ensures (not (root_reachable (extend_ptrfn pf d a) n)))
 
 (* Extend the pointer function by cutting a pointer *)
 let extendcut_ptrfn (pf:ptrfn)
