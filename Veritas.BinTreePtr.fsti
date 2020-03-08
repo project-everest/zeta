@@ -111,11 +111,13 @@ val lemma_extend_not_reachable
         (ensures (not (root_reachable (extend_ptrfn pf d a) n)))
 
 (* Extend the pointer function by cutting a pointer *)
-let extendcut_ptrfn (pf:ptrfn)
-                    (d:bin_tree_node{points_to_none pf d})
-                    (a:bin_tree_node{is_proper_desc d a /\ 
-                                     points_to_some pf a (desc_dir d a) /\
-                                     is_proper_desc (pointed_node pf a (desc_dir d a)) d}): ptrfn = 
+let extendcut_ptrfn 
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d})
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                   points_to_some pf a (desc_dir d a) /\
+                   is_proper_desc (pointed_node pf a (desc_dir d a)) d /\
+                   root_reachable pf a}): ptrfn = 
    let c1 = desc_dir d a in
    let d' = pointed_node pf a c1 in
    let c2 = desc_dir d' d in
@@ -123,15 +125,38 @@ let extendcut_ptrfn (pf:ptrfn)
               else if n' = d && c' = c2 then Some d' 
               else pf n' c'
 
-val lemma_extendcut_reachable (pf:ptrfn)
-                              (d1:bin_tree_node{points_to_none pf d1})
-                              (a1:bin_tree_node{is_proper_desc d1 a1 /\ 
-                                               points_to_some pf a1 (desc_dir d1 a1) /\
-                                               is_proper_desc (pointed_node pf a1 (desc_dir d1 a1)) d1})
-                              (d: bin_tree_node)
-                              (a: bin_tree_node):
-  Lemma (requires (reachable pf d a))
-        (ensures (reachable (extendcut_ptrfn pf d1 a1) d a))
+(* Root reachability is preserved with extendcut *)
+val lemma_extendcut_reachable 
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d})
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                    points_to_some pf a (desc_dir d a) /\
+                    is_proper_desc (pointed_node pf a (desc_dir d a)) d /\ 
+                    root_reachable pf a})
+  (n: bin_tree_node):
+  Lemma (requires (root_reachable pf n))
+        (ensures (root_reachable (extendcut_ptrfn pf d a) n))
+
+(* Root reachability is preserved with extendcut *)
+val lemma_extendcut_reachable_new
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d})
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                    points_to_some pf a (desc_dir d a) /\
+                    is_proper_desc (pointed_node pf a (desc_dir d a)) d /\ 
+                    root_reachable pf a}):
+  Lemma (root_reachable (extendcut_ptrfn pf d a) d)
+
+val lemma_extendcut_not_reachable 
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d})
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                    points_to_some pf a (desc_dir d a) /\
+                    is_proper_desc (pointed_node pf a (desc_dir d a)) d /\ 
+                    root_reachable pf a})
+  (n: bin_tree_node):
+  Lemma (requires (not (root_reachable pf n) /\ n <> d))
+        (ensures (not (root_reachable (extendcut_ptrfn pf d a) n)))
 
 (* Two pointer functions are equal on all inputs *)
 let feq_ptrfn (pf1: ptrfn) (pf2: ptrfn) = 
