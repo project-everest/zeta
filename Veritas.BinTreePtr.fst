@@ -436,3 +436,63 @@ let lemma_reachable_feq (pf1: ptrfn) (pf2: ptrfn) (d: bin_tree_node) (a: bin_tre
   else if reachable pf2 d a then  
     lemma_reachable_feq_aux pf2 pf1 d a
   else ()
+
+let rec lemma_desc_of_prev_not_reachable_aux (pf:ptrfn)
+                                             (d1:bin_tree_node)
+                                             (a:bin_tree_node)
+                                             (d2:bin_tree_node):
+  Lemma (requires (reachable pf d1 a /\ d1 <> a /\
+                   is_proper_desc d1 d2 /\
+                   is_proper_desc d2 (prev_in_path pf d1 a)))
+        (ensures (not (reachable pf d2 a))) 
+        (decreases (depth d2)) = 
+  let pd1 = prev_in_path pf d1 a in
+  if reachable pf d2 a then (
+    lemma_reachable_implies_desc pf pd1 a;
+    lemma_proper_desc_transitive1 d2 pd1 a;
+    let pd2 = prev_in_path pf d2 a in
+    lemma_two_ancestors_related d2 pd1 pd2;
+    if pd1 = pd2 then (
+      assert(points_to pf d1 pd1);
+      assert(points_to pf d2 pd1);
+      let c1 = desc_dir d1 pd1 in
+      let c2 = desc_dir d2 pd2 in
+      if c1 = c2 then ()
+      else (
+        lemma_desc_transitive d1 d2 (child c2 pd1);
+        lemma_two_ancestors_related d1 (child c2 pd1) (child c1 pd1);
+        lemma_siblings_non_anc_desc pd1
+      )
+    )
+    else if is_desc pd2 pd1 then (
+      assert(is_proper_desc pd2 pd1);
+      lemma_proper_desc_depth_monotonic d2 pd2;
+      lemma_proper_desc_transitive1 d1 d2 pd2;
+      lemma_desc_of_prev_not_reachable_aux pf d1 a pd2;      
+      ()
+    )
+    else (
+      assert(is_proper_desc pd1 pd2);
+      lemma_proper_desc_depth_monotonic d2 pd1;
+      lemma_desc_of_prev_not_reachable_aux pf d2 a pd1;
+      ()
+    )
+  )
+  else ()
+
+let lemma_desc_of_prev_not_reachable (pf:ptrfn)
+                                     (d1:bin_tree_node)
+                                     (a:bin_tree_node)
+                                     (d2:bin_tree_node):
+  Lemma (requires (reachable pf d1 a /\ d1 <> a /\
+                   is_proper_desc d1 d2 /\
+                   is_proper_desc d2 (prev_in_path pf d1 a)))
+        (ensures (not (reachable pf d2 a))) = 
+  lemma_desc_of_prev_not_reachable_aux pf d1 a d2
+
+let rec lemma_prev_in_path_feq_aux (pf1: ptrfn) 
+                                   (pf2: ptrfn) 
+                                   (d:bin_tree_node) 
+                                   (a:bin_tree_node):
+   Lemma (requires (feq_ptrfn pf1 pf2 /\ reachable pf1 d a /\ d <> a))
+         (ensures (prev_in_path pf1 d a = prev_in_path pf2 d a)) = admit()
