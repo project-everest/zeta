@@ -966,36 +966,6 @@ let lemma_ptrfn_extendcut_add (l:eac_log{length l > 0}):
   in
   ()
 
-let rec lemma_root_reachable_prefix (l:eac_log) (i:nat{i <= length l}) (a:merkle_addr):
-  Lemma (requires (root_reachable (eac_ptrfn (prefix l i)) a))
-        (ensures (root_reachable (eac_ptrfn l) a)) 
-        (decreases (length l)) = 
-  let n = length l in
-  if n = 0 then ()
-  else if i = n then ()
-  else (
-    let l' = hprefix l in
-    lemma_root_reachable_prefix l' i a;
-    assert(root_reachable (eac_ptrfn l') a);
-    let e = telem l in
-    let pf' = eac_ptrfn l' in
-    match e with
-    | MemoryOp _ -> lemma_ptrfn_unchanged l
-    | Evict _ _ -> lemma_ptrfn_unchanged l 
-    | Add a1 _ a2 ->
-      if points_to pf' a1 a2 then
-        lemma_ptrfn_unchanged_add l
-      else if points_to_some pf' a2 (desc_dir a1 a2) then
-        admit()
-      else (
-        assert(Add? (telem l));
-        assert(is_proper_desc (Add?.a (telem l)) (Add?.a' (telem l)));
-        assert(points_to_none (eac_ptrfn (hprefix l)) (Add?.a (telem l)));
-        //lemma_ptrfn_extend_add l;
-        admit()
-      )
-  )
-
 let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (True))
         (ensures (has_some_add l a <==> root_reachable (eac_ptrfn l) a))
@@ -1062,7 +1032,21 @@ let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
       )
       else (        
         lemma_ptrfn_extend_add l;
-        admit()
+        let pf'e = extend_ptrfn pf' a1 a2 in
+        assert(feq_ptrfn pf pf'e);
+        if a1 = a then (
+          lemma_last_index_last_elem_sat (is_add_of_addr a) l;
+          lemma_extend_reachable pf' a1 a2 a2;
+          lemma_reachable_transitive pf a a2 Root
+        )
+        else (
+          lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+          assert(has_some_add l a = has_some_add l' a);
+          if root_reachable pf' a then
+            lemma_extend_reachable pf' a1 a2 a
+          else
+            lemma_extend_not_reachable pf' a1 a2 a
+        )
       )
 
     | _  ->
