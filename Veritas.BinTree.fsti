@@ -29,6 +29,11 @@ type bin_tree_dir =
   | Left
   | Right
 
+let other_dir (c:bin_tree_dir): bin_tree_dir = 
+  match c with
+  | Left -> Right
+  | Right -> Left
+
 (* Child node with a specified direction (left|right) *)
 let child (d:bin_tree_dir) (n:bin_tree_node) = 
   match d with

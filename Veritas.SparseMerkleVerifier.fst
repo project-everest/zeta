@@ -717,6 +717,76 @@ let ptrfn_unchanged (e:verifier_log_entry): bool =
   | Evict _ _ -> true
   | Add _ _ _ -> false
 
+let lemma_update_desc_hash (a:merkle_addr) (v:merkle_payload_of_addr a)
+                     (d:merkle_addr {is_proper_desc d a}) (h:hash_value)
+  : Lemma (desc_hash_dir (other_dir (desc_dir d a)) v = 
+           desc_hash_dir (other_dir (desc_dir d a)) (update_desc_hash a v d h)) = ()
+
+let lemma_ptrfn_unchanged_memoryop (l:eac_log{length l > 0}) 
+                                   (a:merkle_non_leaf_addr)
+                                   (c:bin_tree_dir):
+  Lemma (requires (MemoryOp? (telem l)))
+        (ensures (eac_ptrfn l a c = eac_ptrfn (hprefix l) a c)) = 
+  let n = length l in
+  let cache = cache_at_end l in
+  let l' = hprefix l in
+  let cache' = cache_at_end l' in
+  
+  lemma_changes_caching l a;
+  assert(cache_contains cache a = cache_contains cache' a);
+  
+  if cache_contains cache a then ()
+  else (
+    lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+    if has_some_evict l a then 
+      lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)          
+    else ()
+  )    
+
+let lemma_ptrfn_unchanged_evictA (l:eac_log{length l > 0}) 
+                                 (a:merkle_non_leaf_addr)
+                                 (c:bin_tree_dir):
+  Lemma (requires (Evict? (telem l) /\
+                   Evict?.a (telem l) = a))
+        (ensures (eac_ptrfn l a c = eac_ptrfn (hprefix l) a c)) = 
+  let l' = hprefix l in
+  let cache' = cache_at_end l' in        
+  lemma_last_index_last_elem_sat (is_evict_of_addr a) l;
+  assert(eac_payload l a = eac_payload l' a);  
+  ()
+
+let lemma_ptrfn_unchanged_evictB (l:eac_log{length l > 0}) 
+                                 (a:merkle_non_leaf_addr)
+                                 (c:bin_tree_dir):
+  Lemma (requires (Evict? (telem l) /\
+                   Evict?.a' (telem l) = a))
+        (ensures (eac_ptrfn l a c = eac_ptrfn (hprefix l) a c)) = 
+  let e = telem l in
+  let a1 = Evict?.a e in
+  let ce = desc_dir a1 a in
+  if ce = c then ()
+  else ()
+
+let lemma_ptrfn_unchanged_evictC (l:eac_log{length l > 0}) 
+                                 (a:merkle_non_leaf_addr)
+                                 (c:bin_tree_dir):
+  Lemma (requires (Evict? (telem l) /\
+                   Evict?.a (telem l) <> a /\
+                   Evict?.a' (telem l) <> a))
+        (ensures (eac_ptrfn l a c = eac_ptrfn (hprefix l) a c)) = 
+  let n = length l in
+  let cache = cache_at_end l in
+  let l' = hprefix l in
+  let cache' = cache_at_end l' in
+  assert(cache_contains cache a = cache_contains cache' a);
+  if cache_contains cache a then ()
+  else (
+    lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+    if has_some_evict l a then 
+      lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)          
+    else ()
+  )
+
 (* if the last element is not an add, then the pointer function is unchanged *)
 let lemma_ptrfn_unchanged (l:eac_log{length l > 0}):
   Lemma (requires (ptrfn_unchanged (telem l)))
@@ -725,12 +795,77 @@ let lemma_ptrfn_unchanged (l:eac_log{length l > 0}):
     Lemma (requires (True))
           (ensures (eac_ptrfn l a c = eac_ptrfn (hprefix l) a c)) 
           [SMTPat (eac_ptrfn l a c)]
-          = 
+          =
+    let n = length l in
     if depth a >= addr_size then ()
     else (
       assert(not (is_merkle_leaf a));
-      admit()
+      let pf = eac_ptrfn l in
+      let cache = cache_at_end l in
+      let e = telem l in
+      let l' = hprefix l in
+      let cache' = cache_at_end l' in
+      let pf' = eac_ptrfn l' in
+      match e with
+      | MemoryOp _ -> lemma_ptrfn_unchanged_memoryop l a c
+      | Evict a1 a2 ->
+        if a1 = a then
+          lemma_ptrfn_unchanged_evictA l a c
+        else if a2 = a then 
+          lemma_ptrfn_unchanged_evictB l a c        
+        else 
+          lemma_ptrfn_unchanged_evictC l a c        
     ) in  
+  ()
+
+let lemma_ptrfn_addA (l:eac_log{length l > 0})
+                     (a:merkle_non_leaf_addr)
+                     (c:bin_tree_dir):
+  Lemma (requires (Add? (telem l) /\
+                   a <> Add?.a (telem l) /\
+                   a <> Add?.a' (telem l)))
+        (ensures (eac_ptrfn l a c = eac_ptrfn (hprefix l) a c)) = 
+  let n = length l in
+  let e = telem l in
+  let l' = hprefix l in
+  let cache = cache_at_end l in
+  let cache' = cache_at_end l' in
+  match e with
+  | Add a1 _ a2 ->
+    assert(cache_contains cache a = cache_contains cache' a);
+    if cache_contains cache a then ()
+    else (
+      lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+      if has_some_evict l a then 
+        lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)
+      else
+        ()
+    )
+
+let lemma_ptrfn_addB (l:eac_log{length l > 0})
+                     (a:merkle_non_leaf_addr)
+                     (c:bin_tree_dir):
+  Lemma (requires (Add? (telem l) /\
+                   a = Add?.a' (telem l) /\
+                   points_to (eac_ptrfn (hprefix l)) (Add?.a (telem l)) a))
+        (ensures (eac_ptrfn l a c = eac_ptrfn (hprefix l) a c)) = 
+  let e = telem l in
+  let a1 = Add?.a e in
+  let ca1a = desc_dir a1 a in
+  if c = ca1a then ()
+  else ()
+
+let lemma_ptrfn_addC (l:eac_log{length l > 0})
+                     (a:merkle_non_leaf_addr)
+                     (c:bin_tree_dir):
+  Lemma (requires (Add? (telem l) /\
+                   a = Add?.a (telem l) /\
+                   points_to (eac_ptrfn (hprefix l)) a (Add?.a' (telem l))))
+        (ensures (eac_ptrfn l a c = eac_ptrfn (hprefix l) a c)) = 
+  let e = telem l in
+  let a' = Add?.a' e in
+  let l' = hprefix l in
+  assert(eac_payload l' a = eac_payload l a);
   ()
 
 let lemma_ptrfn_unchanged_add (l:eac_log{length l > 0}):
@@ -746,13 +881,55 @@ let lemma_ptrfn_unchanged_add (l:eac_log{length l > 0}):
     let aux (a1:bin_tree_node) (c:bin_tree_dir):
       Lemma (requires (True))
             (ensures (eac_ptrfn l a1 c = eac_ptrfn l' a1 c))
-            [SMTPat (eac_ptrfn l a1 c)] = admit() in
+            [SMTPat (eac_ptrfn l a1 c)] = 
+      if depth a1 >= addr_size then ()
+      else if a1 = a then 
+        lemma_ptrfn_addC l a c      
+      else if a' = a1 then
+        lemma_ptrfn_addB l a1 c
+      else 
+        lemma_ptrfn_addA l a1 c      
+    in
     ()
 
 let lemma_points_to_after_add (l:eac_log{length l > 0}):
   Lemma (requires (Add? (telem l)))
-        (ensures (points_to (eac_ptrfn l) (Add?.a (telem l)) (Add?.a' (telem l)))) = admit()
+        (ensures (points_to (eac_ptrfn l) (Add?.a (telem l)) (Add?.a' (telem l)))) = ()
 
+let lemma_ptrfn_extend_add (l:eac_log{length l > 0}):
+  Lemma (requires (Add? (telem l) /\
+                   is_proper_desc (Add?.a (telem l)) (Add?.a' (telem l)) /\
+                   points_to_none (eac_ptrfn (hprefix l)) (Add?.a (telem l)) /\
+                   root_reachable (eac_ptrfn (hprefix l)) (Add?.a' (telem l)) /\
+                   not (points_to_some (eac_ptrfn (hprefix l)) 
+                                       (Add?.a' (telem l))
+                                       (desc_dir (Add?.a (telem l)) (Add?.a' (telem l))))))
+        (ensures (feq_ptrfn (eac_ptrfn l) (extend_ptrfn (eac_ptrfn (hprefix l))
+                                                        (Add?.a (telem l))
+                                                        (Add?.a' (telem l))))) = 
+  let e = telem l in
+  let l' = hprefix l in
+  let pf = eac_ptrfn l in
+  let pf' = eac_ptrfn l' in
+  let a = Add?.a e in 
+  let a' = Add?.a' e in
+  let c = desc_dir a a' in
+  let pf'e = extend_ptrfn pf' a a' in
+  let aux (a1:bin_tree_node) (c1:bin_tree_dir):
+        Lemma (requires (True))
+              (ensures (pf a1 c1 = pf'e a1 c1))
+              [SMTPat (pf a1 c1)] = 
+        if depth a1 >= addr_size then ()
+        else if a1 = a then () 
+        else if a1 = a' then
+          if c1 = c then ()
+          else ()
+        else 
+          lemma_ptrfn_addA l a1 c1        
+ in
+ assert(feq_ptrfn pf pf'e);
+ ()
+                                       
 let lemma_root_reachable_prefix (l:eac_log) (i:nat{i <= length l}) (a:merkle_addr):
   Lemma (requires (root_reachable (eac_ptrfn (prefix l i)) a))
         (ensures (root_reachable (eac_ptrfn l) a)) = admit()
