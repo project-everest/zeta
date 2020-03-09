@@ -929,10 +929,72 @@ let lemma_ptrfn_extend_add (l:eac_log{length l > 0}):
  in
  assert(feq_ptrfn pf pf'e);
  ()
-                                       
-let lemma_root_reachable_prefix (l:eac_log) (i:nat{i <= length l}) (a:merkle_addr):
+
+let lemma_ptrfn_extendcut_add (l:eac_log{length l > 0}):
+  Lemma (requires (Add? (telem l) /\
+                   is_proper_desc (Add?.a (telem l)) (Add?.a' (telem l)) /\
+                   points_to_none (eac_ptrfn (hprefix l)) (Add?.a (telem l)) /\
+                   points_to_some (eac_ptrfn (hprefix l)) 
+                                  (Add?.a' (telem l)) 
+                                  (desc_dir (Add?.a (telem l)) (Add?.a' (telem l))) /\
+                   is_proper_desc (pointed_node (eac_ptrfn (hprefix l)) 
+                                                (Add?.a' (telem l))
+                                                (desc_dir (Add?.a (telem l)) (Add?.a' (telem l))))
+                                  (Add?.a (telem l)) /\
+                   root_reachable (eac_ptrfn (hprefix l)) (Add?.a' (telem l))))
+        (ensures (feq_ptrfn (eac_ptrfn l) (extendcut_ptrfn (eac_ptrfn (hprefix l))
+                                                           (Add?.a (telem l))
+                                                           (Add?.a' (telem l))))) = 
+  let e = telem l in
+  let l' = hprefix l in
+  let a = Add?.a e in
+  let a' = Add?.a' e in
+  let pf = eac_ptrfn l in
+  let pf' = eac_ptrfn l' in
+  let pf'e = extendcut_ptrfn pf' a a' in
+  let aux (a1:bin_tree_node) (c1:bin_tree_dir):
+        Lemma (requires (True))
+              (ensures (pf a1 c1 = pf'e a1 c1))
+              [SMTPat (pf a1 c1)] = 
+        if depth a1 >= addr_size then ()
+        else if a1 = a then
+          ()
+        else if a1 = a' then
+          ()
+        else
+          lemma_ptrfn_addA l a1 c1
+  in
+  ()
+
+let rec lemma_root_reachable_prefix (l:eac_log) (i:nat{i <= length l}) (a:merkle_addr):
   Lemma (requires (root_reachable (eac_ptrfn (prefix l i)) a))
-        (ensures (root_reachable (eac_ptrfn l) a)) = admit()
+        (ensures (root_reachable (eac_ptrfn l) a)) 
+        (decreases (length l)) = 
+  let n = length l in
+  if n = 0 then ()
+  else if i = n then ()
+  else (
+    let l' = hprefix l in
+    lemma_root_reachable_prefix l' i a;
+    assert(root_reachable (eac_ptrfn l') a);
+    let e = telem l in
+    let pf' = eac_ptrfn l' in
+    match e with
+    | MemoryOp _ -> lemma_ptrfn_unchanged l
+    | Evict _ _ -> lemma_ptrfn_unchanged l 
+    | Add a1 _ a2 ->
+      if points_to pf' a1 a2 then
+        lemma_ptrfn_unchanged_add l
+      else if points_to_some pf' a2 (desc_dir a1 a2) then
+        admit()
+      else (
+        assert(Add? (telem l));
+        assert(is_proper_desc (Add?.a (telem l)) (Add?.a' (telem l)));
+        assert(points_to_none (eac_ptrfn (hprefix l)) (Add?.a (telem l)));
+        //lemma_ptrfn_extend_add l;
+        admit()
+      )
+  )
 
 let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (True))
@@ -949,38 +1011,58 @@ let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
   else (
     let l' = prefix l (n - 1) in
     let cache' = cache_at_end l' in
-    let pf' = eac_ptrfn l' in
+    let pf' = eac_ptrfn l' in   
     lemma_has_add_equiv_root_reachable l' a;
     let e = index l (n - 1) in
     match e with
     | Add a1 v1 a2 -> 
-      if a1 = a then (
-        lemma_last_index_last_elem_sat (is_add_of_addr a) l;
-        lemma_points_to_after_add l;
-        lemma_points_to_reachable pf a a2;
-        
-        if a2 = Root then ()
+      let lemma_a2_root_reachable (): Lemma (root_reachable pf' a2) = 
+        if a2 = Root then
+          lemma_reachable_reflexive pf' Root
         else (
-          lemma_cache_contains_implies_last_add_before_evict l' a2;
           lemma_has_add_equiv_root_reachable l' a2;
-          lemma_root_reachable_prefix l (n - 1) a2;
-          assert(root_reachable pf a2);
-          lemma_reachable_transitive pf a a2 Root;
-          ()
+          lemma_cache_contains_implies_last_add_before_evict l' a2
+        )
+      in 
+      lemma_a2_root_reachable();
+      let c = desc_dir a1 a2 in
+      lemma_points_to_after_add l;
+      lemma_points_to_reachable pf a1 a2;
+      assert(reachable pf a1 a2);
+      if points_to pf' a1 a2 then (
+        lemma_ptrfn_unchanged_add l;
+        if a1 = a then (
+          lemma_last_index_last_elem_sat (is_add_of_addr a) l;
+          if a2 = Root then ()
+          else (
+            lemma_cache_contains_implies_last_add_before_evict l' a2;
+            lemma_has_add_equiv_root_reachable l' a2;
+            lemma_reachable_transitive pf a a2 Root
+          )
+        )
+        else 
+          lemma_last_index_last_elem_nsat (is_add_of_addr a) l        
+      )
+      else if points_to_some pf' a2 c then (        
+        lemma_ptrfn_extendcut_add l;
+        let pf'e = extendcut_ptrfn pf' a1 a2 in
+        assert(feq_ptrfn pf pf'e);
+        if a1 = a then (
+          lemma_last_index_last_elem_sat (is_add_of_addr a) l;
+          lemma_extendcut_reachable pf' a1 a2 a2;
+          lemma_reachable_transitive pf a a2 Root
+        )
+        else (
+          lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+          if root_reachable pf' a then 
+            lemma_extendcut_reachable pf' a1 a2 a          
+          else 
+            lemma_extendcut_not_reachable pf' a1 a2 a          
         )
       )
-      else (
-        lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
-        lemma_has_add_equiv_root_reachable l' a;
-        if has_some_add l a then 
-          lemma_root_reachable_prefix l (n - 1) a        
-        else (
-          assert(not (root_reachable pf' a));
-          if points_to pf' a1 a2 then 
-            lemma_ptrfn_unchanged_add l            
-          else
-            admit()
-         )
+      else (        
+        lemma_ptrfn_extend_add l;
+        admit()
       )
 
     | _  ->
@@ -994,3 +1076,5 @@ let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
       else
         lemma_not_exists_prefix (is_add_of_addr a) l (n - 1)
   )
+
+
