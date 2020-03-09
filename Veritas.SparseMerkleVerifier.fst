@@ -969,7 +969,8 @@ let lemma_ptrfn_extendcut_add (l:eac_log{length l > 0}):
 let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (True))
         (ensures (has_some_add l a <==> root_reachable (eac_ptrfn l) a))
-        (decreases (length l)) = 
+        (decreases (length l))
+        [SMTPat (root_reachable (eac_ptrfn l) a)] = 
   let n = length l in
   let cache = cache_at_end l in
   let pf = eac_ptrfn l in
@@ -1061,4 +1062,52 @@ let rec lemma_has_add_equiv_root_reachable (l:eac_log) (a:merkle_non_root_addr):
         lemma_not_exists_prefix (is_add_of_addr a) l (n - 1)
   )
 
+let pointed_hash (l:eac_log) 
+                 (a:merkle_non_leaf_addr)
+                 (c:bin_tree_dir{points_to_some (eac_ptrfn l) a c}): hash_value = 
+  let dh = desc_hash_dir c (eac_payload l a) in
+  Desc?.h dh
 
+let rec lemma_prev_in_path_stores_hash (l:eac_log) (a:merkle_non_root_addr):
+  Lemma (requires (root_reachable (eac_ptrfn l) a /\ not (cache_contains (cache_at_end l) a)))
+        (ensures (hashfn (eac_payload l a) = 
+                  pointed_hash l (prev_in_path (eac_ptrfn l) a Root)
+                                 (desc_dir a (prev_in_path (eac_ptrfn l) a Root)))) 
+        (decreases (length l)) = 
+  let pf = eac_ptrfn l in
+  let v = eac_payload l a in
+  let a' = prev_in_path pf a Root in
+  let n = length l in
+  let cache = cache_at_end l in
+  
+  if n = 0 then ()
+  else (
+    let l' = hprefix l in
+    let e = telem l in
+    let cache' = cache_at_end l' in
+    let pf' = eac_ptrfn l' in
+    match e with
+    | MemoryOp o -> 
+      let a1 = addr_to_merkle_leaf (address_of o) in
+      assert(a1 <> a);
+      lemma_changes_caching l a;
+      assert(not (cache_contains cache' a));
+      lemma_ptrfn_unchanged l;
+      assert(root_reachable (eac_ptrfn l') a);
+      lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+      if has_some_evict l a then (        
+        admit()
+      )
+      else (
+        assert(eac_payload l a = eac_payload l' a);      
+        lemma_prev_in_path_stores_hash l' a;
+        assert(hashfn (eac_payload l a) = 
+               pointed_hash l' (prev_in_path pf' a Root)
+                               (desc_dir a (prev_in_path pf' a Root)));
+        //assert(prev_in_path pf' a Root = prev_in_path pf a Root);
+        admit()
+      )
+
+    | _ -> admit()
+  )
+        

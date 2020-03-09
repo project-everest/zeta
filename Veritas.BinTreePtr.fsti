@@ -168,3 +168,10 @@ val lemma_reachable_feq (pf1: ptrfn) (pf2: ptrfn) (d: bin_tree_node) (a: bin_tre
         (ensures (reachable pf1 d a = reachable pf2 d a))
         [SMTPat (reachable pf1 d a); SMTPat (reachable pf2 d a)]
                    
+val lemma_prev_in_path_feq (pf1: ptrfn) 
+                           (pf2: ptrfn) 
+                           (d:bin_tree_node) 
+                           (a:bin_tree_node):
+   Lemma (requires (feq_ptrfn pf1 pf2 /\ reachable pf1 d a /\ d <> a))
+         (ensures (prev_in_path pf1 d a = prev_in_path pf2 d a))
+
