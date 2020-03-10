@@ -656,7 +656,15 @@ let lemma_extendcut_prev_new
                     is_proper_desc (pointed_node pf a (desc_dir d a)) d /\ 
                     root_reachable pf a}):
   Lemma (d <> Root /\ root_reachable (extendcut_ptrfn pf d a) d /\
-         a = prev_in_path (extendcut_ptrfn pf d a) d Root) = admit()
+         a = prev_in_path (extendcut_ptrfn pf d a) d Root) = 
+  let pfe = extendcut_ptrfn pf d a in
+  assert(points_to pfe d a);
+  lemma_extendcut_reachable pf d a a;
+  assert(root_reachable pfe a);
+  lemma_points_to_reachable pfe d a;
+  lemma_reachable_transitive pfe d a Root;
+  assert(root_reachable pfe d);
+  lemma_points_to_is_prev pfe d Root a
 
 let lemma_extendcut_prev2
   (pf:ptrfn)
@@ -668,4 +676,14 @@ let lemma_extendcut_prev2
   Lemma (Root <> (pointed_node pf a (desc_dir d a)) /\
                   root_reachable (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) /\
                   d = prev_in_path (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) Root) =
-  admit()
+  let pfe = extendcut_ptrfn pf d a in
+  let d' = pointed_node pf a (desc_dir d a) in
+  assert(points_to pfe d' d);
+  lemma_extendcut_reachable pf d a a;
+  lemma_points_to_reachable pfe d a;
+  lemma_reachable_transitive pfe d a Root;
+  lemma_points_to_reachable pfe d' d;
+  lemma_reachable_transitive pfe d' d Root;
+  lemma_proper_desc_depth_monotonic d' d;
+  assert(Root <> d');
+  lemma_points_to_is_prev pfe d' Root d
