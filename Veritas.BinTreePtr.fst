@@ -490,9 +490,17 @@ let lemma_desc_of_prev_not_reachable (pf:ptrfn)
         (ensures (not (reachable pf d2 a))) = 
   lemma_desc_of_prev_not_reachable_aux pf d1 a d2
 
-let rec lemma_prev_in_path_feq_aux (pf1: ptrfn) 
-                                   (pf2: ptrfn) 
-                                   (d:bin_tree_node) 
-                                   (a:bin_tree_node):
+let lemma_prev_in_path_feq (pf1: ptrfn) 
+                           (pf2: ptrfn) 
+                           (d:bin_tree_node) 
+                           (a:bin_tree_node):
    Lemma (requires (feq_ptrfn pf1 pf2 /\ reachable pf1 d a /\ d <> a))
-         (ensures (prev_in_path pf1 d a = prev_in_path pf2 d a)) = admit()
+         (ensures (prev_in_path pf1 d a = prev_in_path pf2 d a)) = 
+   let pd1 = prev_in_path pf1 d a in
+   let pd2 = prev_in_path pf2 d a in
+   lemma_two_ancestors_related d pd1 pd2;
+   if pd1 = pd2 then ()
+   else if is_desc pd1 pd2 then 
+     lemma_desc_of_prev_not_reachable pf2 d a pd1       
+   else 
+     lemma_desc_of_prev_not_reachable pf1 d a pd2
