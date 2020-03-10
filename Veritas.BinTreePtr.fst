@@ -504,3 +504,74 @@ let lemma_prev_in_path_feq (pf1: ptrfn)
      lemma_desc_of_prev_not_reachable pf2 d a pd1       
    else 
      lemma_desc_of_prev_not_reachable pf1 d a pd2
+
+let rec lemma_points_to_not_reachable_between_aux (pf:ptrfn)
+                                                  (d:bin_tree_node)
+                                                  (a:bin_tree_node)
+                                                  (pd:bin_tree_node)
+                                                  (n:bin_tree_node)
+  : Lemma (requires (reachable pf pd a /\
+                     is_proper_desc d pd /\
+                     points_to pf d pd /\
+                     is_proper_desc d n /\
+                     is_proper_desc n pd))
+          (ensures (not (reachable pf n a)))
+          (decreases (depth n)) = 
+          
+  lemma_reachable_implies_desc pf pd a;
+  lemma_proper_desc_transitive1 n pd a;
+  assert(is_proper_desc n a);
+
+  if reachable pf n a then (
+    let pn = prev_in_path pf n a in
+    lemma_two_ancestors_related n pn pd;
+    if pn = pd then (
+      let c1 = desc_dir d pd in
+      let c2 = desc_dir n pn in
+      if c1 = c2 then()
+      else (
+        lemma_desc_transitive d n (child c2 pn);
+        lemma_two_ancestors_related d (child c1 pn) (child c2 pn);
+        lemma_siblings_non_anc_desc pn
+      )
+    )
+    else if is_desc pn pd then (
+      lemma_proper_desc_depth_monotonic n pn;
+      lemma_proper_desc_transitive1 d n pn;
+      lemma_points_to_not_reachable_between_aux pf d a pd pn
+    )
+    else 
+      lemma_desc_of_prev_not_reachable pf n a pd    
+  )
+  else ()
+
+let lemma_points_to_not_reachable_between (pf:ptrfn)
+                                          (d:bin_tree_node)
+                                          (a:bin_tree_node)
+                                          (pd:bin_tree_node)
+                                          (n:bin_tree_node)
+  : Lemma (requires (reachable pf pd a /\
+                     is_proper_desc d pd /\
+                     points_to pf d pd /\
+                     is_proper_desc d n /\
+                     is_proper_desc n pd))
+          (ensures (not (reachable pf n a))) = 
+ lemma_points_to_not_reachable_between_aux pf d a pd n
+
+let lemma_points_to_is_prev (pf:ptrfn)
+                            (d:bin_tree_node)
+                            (a:bin_tree_node)
+                            (pd:bin_tree_node):
+  Lemma (requires (reachable pf d a /\ 
+                   reachable pf pd a /\ 
+                   is_proper_desc d pd /\
+                   d <> a /\
+                   points_to pf d pd))
+        (ensures (prev_in_path pf d a = pd)) = 
+  let pd' = prev_in_path pf d a in
+  lemma_two_ancestors_related d pd' pd;
+  if pd' = pd then ()
+  else if is_desc pd' pd then 
+    lemma_points_to_not_reachable_between pf d a pd pd'
+  else
+    lemma_points_to_not_reachable_between pf d a pd' pd

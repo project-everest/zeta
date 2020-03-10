@@ -184,3 +184,26 @@ val lemma_prev_in_path_feq (pf1: ptrfn)
    Lemma (requires (feq_ptrfn pf1 pf2 /\ reachable pf1 d a /\ d <> a))
          (ensures (prev_in_path pf1 d a = prev_in_path pf2 d a))
 
+val lemma_points_to_not_reachable_between (pf:ptrfn)
+                                          (d:bin_tree_node)
+                                          (a:bin_tree_node)
+                                          (pd:bin_tree_node)
+                                          (n:bin_tree_node)
+  : Lemma (requires (reachable pf pd a /\
+                     is_proper_desc d pd /\
+                     points_to pf d pd /\
+                     is_proper_desc d n /\
+                     is_proper_desc n pd))
+          (ensures (not (reachable pf n a)))
+                     
+val lemma_points_to_is_prev (pf:ptrfn)
+                            (d:bin_tree_node)
+                            (a:bin_tree_node)
+                            (pd:bin_tree_node):
+  Lemma (requires (reachable pf d a /\ 
+                   reachable pf pd a /\ 
+                   is_proper_desc d pd /\
+                   d <> a /\
+                   points_to pf d pd))
+        (ensures (prev_in_path pf d a = pd))
+                    
