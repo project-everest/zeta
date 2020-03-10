@@ -1091,23 +1091,130 @@ let lemma_cache_contains_implies_root_reachable (l:eac_log) (a:merkle_addr):
     lemma_has_add_equiv_root_reachable l a
   )
 
-(*
-let lemma_prev_in_path_stores_hash_helper1 (l:eac_log) (a:merkle_non_root_addr):
+let hash_in_prev (l:eac_log) 
+                 (a:merkle_non_root_addr{root_reachable (eac_ptrfn l) a}): hash_value = 
+  let pf = eac_ptrfn l in
+  let pa = prev_in_path pf a Root in
+  pointed_hash l pa (desc_dir a pa)
+
+let lemma_prev_in_path_stores_hash_aux1 (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (length l > 0 /\
                    root_reachable (eac_ptrfn l) a /\ 
                    not (cache_contains (cache_at_end l) a) /\
-                   a <> Root /\
                    MemoryOp? (telem l)))
-        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = 
-  admit()
-*)
+        (ensures (eac_payload l a = eac_payload (hprefix l) a /\
+                  root_reachable (eac_ptrfn (hprefix l)) a /\ 
+                  hash_in_prev l a = hash_in_prev (hprefix l) a)) =
+  let pf = eac_ptrfn l in
+  let l' = hprefix l in
+  let pf' = eac_ptrfn l' in
+  let pa = prev_in_path pf a Root in
+  lemma_changes_caching l a;
+  lemma_ptrfn_unchanged l;
+  lemma_eac_payload_memop_unchanged l a;
+  lemma_prev_in_path_feq pf pf' a Root;
+  lemma_eac_payload_memop_unchanged l pa;
+  ()
+
+let lemma_prev_in_path_stores_hash_aux2 (l:eac_log) (a:merkle_non_root_addr):
+  Lemma (requires (length l > 0 /\
+                   root_reachable (eac_ptrfn l) a /\ 
+                   not (cache_contains (cache_at_end l) a) /\
+                   Evict? (telem l) /\
+                   a <> Evict?.a (telem l) /\
+                   a <> Evict?.a' (telem l)))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a /\
+                  root_reachable (eac_ptrfn (hprefix l)) a /\ 
+                  hash_in_prev l a = hash_in_prev (hprefix l) a)) =
+  let pf = eac_ptrfn l in
+  let e = telem l in
+  let l' = hprefix l in
+  let pf' = eac_ptrfn l' in
+  let pa = prev_in_path pf a Root in
+  match e with 
+  | Evict a1 a2 ->
+  
+  lemma_changes_caching l a;
+
+  (* pointer function unchanged between l' and l *)
+  lemma_ptrfn_unchanged l;  
+  (* prev node of a is the same in l' and l *)
+  lemma_prev_in_path_feq pf pf' a Root;
+  
+  lemma_eac_payload_evict_unchanged l a;
+  lemma_has_add_equiv_root_reachable l a;
+  lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+  lemma_has_add_equiv_root_reachable l' a;
+  assert(root_reachable pf' a);
+
+  (* if pa is not evict _ pa, then eac_payload is unchanged *)
+  if pa <> a2 then
+    lemma_eac_payload_evict_unchanged l pa     
+  else ( (* pa is evict _ pa, but the direction is different so hash_in_prev is unchanged *)
+    
+    (* evict direction *)
+    let ce = desc_dir a1 pa in
+    (* direction of a from pa *)
+    let ca = desc_dir a pa in
+    let cache' = cache_at_end l' in
+    let pv = cached_payload cache' pa in    
+    let v1 = cached_payload cache' a1 in
+    let h1 = hashfn v1 in
+    if ca = ce then ()
+    else 
+      lemma_update_desc_hash pa pv a1 h1;
+      ()
+  )
+
+let lemma_eac_payload_add_unchanged (l:eac_log{length l > 0})
+                                    (a:merkle_addr):
+  Lemma (requires (Add? (telem l) /\
+                   a <> Add?.a' (telem l) /\
+                   a <> Add?.a (telem l)))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = admit()
+
+let lemma_prev_in_path_stores_hash_aux3 (l:eac_log) (a:merkle_non_root_addr):
+  Lemma (requires (length l > 0 /\
+                   root_reachable (eac_ptrfn l) a /\ 
+                   not (cache_contains (cache_at_end l) a) /\
+                   Add? (telem l)))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a /\
+                  root_reachable (eac_ptrfn (hprefix l)) a /\ 
+                  hash_in_prev l a = hash_in_prev (hprefix l) a)) = 
+  let pf = eac_ptrfn l in
+  let e = telem l in
+  let l' = hprefix l in
+  let pf' = eac_ptrfn l' in
+  let pa = prev_in_path pf a Root in
+  let cache' = cache_at_end l' in
+  let cache = cache_at_end l in
+  match e with
+  | Add a1 v1 a2 -> 
+    lemma_eac_payload_add_unchanged l a;
+    if points_to pf' a1 a2 then (
+      (* pointer function unchanged *)
+      lemma_ptrfn_unchanged_add l;
+      
+      (* prev node of a is the same in l' and l *)
+      lemma_prev_in_path_feq pf pf' a Root;
+
+      (* root reachability unchanged *)
+      lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+      lemma_has_add_equiv_root_reachable l' a;
+      assert(root_reachable pf' a);
+
+      if a1 = pa then ()
+      else if a2 = pa then ()
+      else
+        lemma_eac_payload_add_unchanged l pa
+    )
+    else
+      admit()
 
 
 let rec lemma_prev_in_path_stores_hash (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (root_reachable (eac_ptrfn l) a /\ not (cache_contains (cache_at_end l) a)))
-        (ensures (hashfn (eac_payload l a) = 
-                  pointed_hash l (prev_in_path (eac_ptrfn l) a Root)
-                                 (desc_dir a (prev_in_path (eac_ptrfn l) a Root)))) 
+        (ensures (hashfn (eac_payload l a) = hash_in_prev l a))
         (decreases (length l)) = 
   let pf = eac_ptrfn l in
   let v = eac_payload l a in
@@ -1123,16 +1230,8 @@ let rec lemma_prev_in_path_stores_hash (l:eac_log) (a:merkle_non_root_addr):
     let pf' = eac_ptrfn l' in
     match e with
     | MemoryOp o -> 
-      admit()
-      (*
-      let a1 = addr_to_merkle_leaf (address_of o) in
-      lemma_changes_caching l a;      
-      lemma_ptrfn_unchanged l;
-      lemma_eac_payload_memop_unchanged l a;
-      lemma_prev_in_path_stores_hash l' a;
-      lemma_prev_in_path_feq pf pf' a Root;
-      lemma_eac_payload_memop_unchanged l (prev_in_path pf a Root)
-      *)
+      lemma_prev_in_path_stores_hash_aux1 l a;
+      lemma_prev_in_path_stores_hash l' a
 
     | Evict a1 a2 -> 
       assert(a <> a2);
@@ -1143,11 +1242,12 @@ let rec lemma_prev_in_path_stores_hash (l:eac_log) (a:merkle_non_root_addr):
         lemma_points_to_is_prev pf a Root a2
       )
       else (
-        lemma_changes_caching l a;
-        lemma_eac_payload_evict_unchanged l a;
-        lemma_prev_in_path_stores_hash l' a;
-        admit()
+        lemma_prev_in_path_stores_hash_aux2 l a;
+        lemma_prev_in_path_stores_hash l' a
       )
-    | _ -> admit()
+    | Add _ _ _ -> 
+    
+      lemma_prev_in_path_stores_hash_aux3 l a;
+      lemma_prev_in_path_stores_hash l' a
   )
         
