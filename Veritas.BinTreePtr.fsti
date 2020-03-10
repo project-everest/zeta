@@ -206,4 +206,58 @@ val lemma_points_to_is_prev (pf:ptrfn)
                    d <> a /\
                    points_to pf d pd))
         (ensures (prev_in_path pf d a = pd))
-                    
+
+
+val lemma_extend_prev
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d}) 
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                   not (points_to_some pf a (desc_dir d a)) /\
+                   root_reachable pf a})
+  (n: bin_tree_node):
+  Lemma (requires (root_reachable pf n /\ n <> d /\ n <> Root))
+        (ensures (root_reachable (extend_ptrfn pf d a) n /\
+                  prev_in_path pf n Root = prev_in_path (extend_ptrfn pf d a) n Root))
+
+val lemma_extend_prev_new
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d}) 
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                   not (points_to_some pf a (desc_dir d a)) /\
+                   root_reachable pf a}):
+  Lemma (d <> Root /\ root_reachable (extend_ptrfn pf d a) d /\
+         a = prev_in_path (extend_ptrfn pf d a) d Root)
+
+val lemma_extendcut_prev
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d})
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                    points_to_some pf a (desc_dir d a) /\
+                    is_proper_desc (pointed_node pf a (desc_dir d a)) d /\ 
+                    root_reachable pf a})
+  (n:bin_tree_node):
+  Lemma (requires (root_reachable pf n /\ n <> Root /\ n <> d /\ n <> pointed_node pf a (desc_dir d a)))
+        (ensures (root_reachable (extendcut_ptrfn pf d a) n /\
+                  prev_in_path pf n Root = prev_in_path (extendcut_ptrfn pf d a) n Root))
+
+val lemma_extendcut_prev_new
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d})
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                    points_to_some pf a (desc_dir d a) /\
+                    is_proper_desc (pointed_node pf a (desc_dir d a)) d /\ 
+                    root_reachable pf a}):
+  Lemma (d <> Root /\ 
+         root_reachable (extendcut_ptrfn pf d a) d /\
+         a = prev_in_path (extendcut_ptrfn pf d a) d Root)
+
+val lemma_extendcut_prev2
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d})
+  (a:bin_tree_node{is_proper_desc d a /\ 
+                    points_to_some pf a (desc_dir d a) /\
+                    is_proper_desc (pointed_node pf a (desc_dir d a)) d /\ 
+                    root_reachable pf a}):
+  Lemma (Root <> (pointed_node pf a (desc_dir d a)) /\
+                  root_reachable (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) /\
+                  d = prev_in_path (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) Root)
