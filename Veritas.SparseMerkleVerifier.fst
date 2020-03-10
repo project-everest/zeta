@@ -1074,6 +1074,12 @@ let lemma_eac_payload_memop_unchanged (l:eac_log{length l > 0})
                    a <> addr_to_merkle_leaf (address_of (MemoryOp?.o (telem l)))))
         (ensures (eac_payload l a = eac_payload (hprefix l) a)) = admit()
 
+let lemma_eac_payload_evict_unchanged (l:eac_log{length l > 0})
+                                      (a:merkle_addr):
+  Lemma (requires (Evict? (telem l) /\
+                   a <> Evict?.a' (telem l)))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = admit()
+
 let lemma_cache_contains_implies_root_reachable (l:eac_log) (a:merkle_addr):
   Lemma (requires (cache_contains (cache_at_end l) a))
         (ensures (root_reachable (eac_ptrfn l) a)) = 
@@ -1084,6 +1090,18 @@ let lemma_cache_contains_implies_root_reachable (l:eac_log) (a:merkle_addr):
     lemma_cache_contains_implies_last_add_before_evict l a;
     lemma_has_add_equiv_root_reachable l a
   )
+
+(*
+let lemma_prev_in_path_stores_hash_helper1 (l:eac_log) (a:merkle_non_root_addr):
+  Lemma (requires (length l > 0 /\
+                   root_reachable (eac_ptrfn l) a /\ 
+                   not (cache_contains (cache_at_end l) a) /\
+                   a <> Root /\
+                   MemoryOp? (telem l)))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = 
+  admit()
+*)
+
 
 let rec lemma_prev_in_path_stores_hash (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (root_reachable (eac_ptrfn l) a /\ not (cache_contains (cache_at_end l) a)))
@@ -1105,6 +1123,8 @@ let rec lemma_prev_in_path_stores_hash (l:eac_log) (a:merkle_non_root_addr):
     let pf' = eac_ptrfn l' in
     match e with
     | MemoryOp o -> 
+      admit()
+      (*
       let a1 = addr_to_merkle_leaf (address_of o) in
       lemma_changes_caching l a;      
       lemma_ptrfn_unchanged l;
@@ -1112,22 +1132,22 @@ let rec lemma_prev_in_path_stores_hash (l:eac_log) (a:merkle_non_root_addr):
       lemma_prev_in_path_stores_hash l' a;
       lemma_prev_in_path_feq pf pf' a Root;
       lemma_eac_payload_memop_unchanged l (prev_in_path pf a Root)
-      
+      *)
+
     | Evict a1 a2 -> 
       assert(a <> a2);
       lemma_ptrfn_unchanged l;
       if a = a1 then (
         lemma_last_index_last_elem_sat (is_evict_of_addr a) l;
-        assert(eac_payload l a = cached_payload cache' a);
-        assert(points_to pf a a2);
-
         lemma_cache_contains_implies_root_reachable l a2;
-        assert(reachable pf a2 Root);
-        lemma_points_to_is_prev pf a Root a2;
-        ()
+        lemma_points_to_is_prev pf a Root a2
       )
-      else
+      else (
+        lemma_changes_caching l a;
+        lemma_eac_payload_evict_unchanged l a;
+        lemma_prev_in_path_stores_hash l' a;
         admit()
+      )
     | _ -> admit()
   )
         
