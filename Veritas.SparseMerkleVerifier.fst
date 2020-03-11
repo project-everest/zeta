@@ -1072,13 +1072,60 @@ let lemma_eac_payload_memop_unchanged (l:eac_log{length l > 0})
                                       (a:merkle_addr):
   Lemma (requires (MemoryOp? (telem l) /\
                    a <> addr_to_merkle_leaf (address_of (MemoryOp?.o (telem l)))))
-        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = admit()
+        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = 
+  let e = telem l in
+  let l' = hprefix l in
+  let cache = cache_at_end l in
+  let cache' = cache_at_end l' in
+  let n = length l in
+  match e with
+  | MemoryOp o ->
+    let ma = addr_to_merkle_leaf (address_of o) in
+    lemma_changes_caching l a;
+    if cache_contains cache a then (
+      assert(cached_payload cache a = cached_payload cache' a);
+      ()
+    )
+    else (
+      lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+      if has_some_evict l a then (
+        lemma_last_index_prefix (is_evict_of_addr a) l (n - 1);
+        ()
+      )
+      else
+        ()
+    )
 
 let lemma_eac_payload_evict_unchanged (l:eac_log{length l > 0})
                                       (a:merkle_addr):
   Lemma (requires (Evict? (telem l) /\
                    a <> Evict?.a' (telem l)))
-        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = admit()
+        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = 
+  let e = telem l in
+  let l' = hprefix l in
+  let cache = cache_at_end l in
+  let cache' = cache_at_end l' in
+  let n = length l in
+  match e with
+  | Evict a1 a2 ->  
+    if a = a1 then (
+      lemma_last_index_last_elem_sat (is_evict_of_addr a) l;
+      ()
+    )
+    else (
+      lemma_changes_caching l a;
+      if cache_contains cache a then (
+        assert(cached_payload cache a = cached_payload cache' a);
+        ()
+      )
+      else (
+        lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+        if has_some_evict l a then 
+          lemma_last_index_prefix  (is_evict_of_addr a) l (n - 1)
+        else
+          ()
+      )
+    )
 
 let lemma_cache_contains_implies_root_reachable (l:eac_log) (a:merkle_addr):
   Lemma (requires (cache_contains (cache_at_end l) a))
@@ -1171,7 +1218,22 @@ let lemma_eac_payload_add_unchanged (l:eac_log{length l > 0})
   Lemma (requires (Add? (telem l) /\
                    a <> Add?.a' (telem l) /\
                    a <> Add?.a (telem l)))
-        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = admit()
+        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = 
+  let e = telem l in
+  let l' = hprefix l in
+  let cache = cache_at_end l in
+  let cache' = cache_at_end l' in
+  let n = length l in
+  match e with
+  | Add a1 v1 a2 ->        
+    lemma_changes_caching l a;
+    if cache_contains cache a then ()
+    else (
+      lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+      if has_some_evict l a then
+        lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)
+      else ()
+    )
 
 let lemma_prev_in_path_stores_hash_aux31 (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (length l > 0 /\
@@ -1274,7 +1336,61 @@ let lemma_prev_in_path_stores_hash_aux32 (l:eac_log) (a:merkle_non_root_addr):
       else 
         lemma_eac_payload_add_unchanged l pa
     )    
+
+let lemma_prev_in_path_stores_hash_aux33 (l:eac_log) (a:merkle_non_root_addr):
+  Lemma (requires (length l > 0 /\
+                   root_reachable (eac_ptrfn l) a /\ 
+                   not (cache_contains (cache_at_end l) a) /\
+                   Add? (telem l) /\
+                   not (points_to_some (eac_ptrfn (hprefix l)) 
+                                  (Add?.a' (telem l))
+                                  (desc_dir (Add?.a (telem l)) (Add?.a' (telem l))))))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a /\
+                  root_reachable (eac_ptrfn (hprefix l)) a /\ 
+                  hash_in_prev l a = hash_in_prev (hprefix l) a)) = 
+  let pf = eac_ptrfn l in
+  let e = telem l in
+  let l' = hprefix l in
+  let pf' = eac_ptrfn l' in
+  let pa = prev_in_path pf a Root in
+  let cache' = cache_at_end l' in
+  let cache = cache_at_end l in
+  match e with
+  | Add a1 v1 a2 -> 
+    lemma_eac_payload_add_unchanged l a;   
+    let lemma_a2_root_reachable (): Lemma (root_reachable pf' a2) = 
+      if a2 = Root then
+        lemma_reachable_reflexive pf' Root
+      else (
+        lemma_has_add_equiv_root_reachable l' a2;
+        lemma_cache_contains_implies_last_add_before_evict l' a2
+      )
+    in 
+    lemma_a2_root_reachable();
     
+    let c = desc_dir a1 a2 in    
+    lemma_ptrfn_extend_add l;    
+    let pf'e = extend_ptrfn pf' a1 a2 in          
+    (* root reachability unchanged *)
+    lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+    lemma_has_add_equiv_root_reachable l' a;
+    assert(root_reachable pf' a);
+    lemma_extend_prev pf' a1 a2 a;
+    lemma_prev_in_path_feq pf pf'e a Root;
+    assert(pa = prev_in_path pf' a Root);
+
+    if pa = a2 then (
+      let ca = desc_dir a pa in
+      if ca = c then ()
+      else (
+        let v2 = cached_payload cache' a2 in
+        lemma_update_desc_hash a2 v2 a1 (hashfn v1);
+        ()
+      )
+    )
+    else
+      lemma_eac_payload_add_unchanged l pa
+
 let lemma_prev_in_path_stores_hash_aux3 (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (length l > 0 /\
                    root_reachable (eac_ptrfn l) a /\ 
@@ -1299,7 +1415,7 @@ let lemma_prev_in_path_stores_hash_aux3 (l:eac_log) (a:merkle_non_root_addr):
     else if points_to_some pf' a2 c then 
       lemma_prev_in_path_stores_hash_aux32 l a 
     else
-      admit()
+      lemma_prev_in_path_stores_hash_aux33 l a
 
 
 let rec lemma_prev_in_path_stores_hash (l:eac_log) (a:merkle_non_root_addr):
