@@ -1173,6 +1173,108 @@ let lemma_eac_payload_add_unchanged (l:eac_log{length l > 0})
                    a <> Add?.a (telem l)))
         (ensures (eac_payload l a = eac_payload (hprefix l) a)) = admit()
 
+let lemma_prev_in_path_stores_hash_aux31 (l:eac_log) (a:merkle_non_root_addr):
+  Lemma (requires (length l > 0 /\
+                   root_reachable (eac_ptrfn l) a /\ 
+                   not (cache_contains (cache_at_end l) a) /\
+                   Add? (telem l) /\
+                   points_to (eac_ptrfn (hprefix l)) (Add?.a (telem l)) (Add?.a' (telem l))))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a /\
+                  root_reachable (eac_ptrfn (hprefix l)) a /\ 
+                  hash_in_prev l a = hash_in_prev (hprefix l) a)) =
+  let pf = eac_ptrfn l in
+  let e = telem l in
+  let l' = hprefix l in
+  let pf' = eac_ptrfn l' in
+  let pa = prev_in_path pf a Root in
+  let cache' = cache_at_end l' in
+  let cache = cache_at_end l in
+  match e with
+  | Add a1 v1 a2 -> 
+    lemma_eac_payload_add_unchanged l a;
+
+    (* pointer function unchanged *)
+    lemma_ptrfn_unchanged_add l;
+    
+    (* prev node of a is the same in l' and l *)
+    lemma_prev_in_path_feq pf pf' a Root;
+
+    (* root reachability unchanged *)
+    lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+    lemma_has_add_equiv_root_reachable l' a;
+    assert(root_reachable pf' a);
+
+    if a1 = pa then ()
+    else if a2 = pa then ()
+    else
+      lemma_eac_payload_add_unchanged l pa
+
+let lemma_prev_in_path_stores_hash_aux32 (l:eac_log) (a:merkle_non_root_addr):
+  Lemma (requires (length l > 0 /\
+                   root_reachable (eac_ptrfn l) a /\ 
+                   not (cache_contains (cache_at_end l) a) /\
+                   Add? (telem l) /\
+                   not (points_to (eac_ptrfn (hprefix l)) (Add?.a (telem l)) (Add?.a' (telem l))) /\
+                   points_to_some (eac_ptrfn (hprefix l)) 
+                                  (Add?.a' (telem l))
+                                  (desc_dir (Add?.a (telem l)) (Add?.a' (telem l)))))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a /\
+                  root_reachable (eac_ptrfn (hprefix l)) a /\ 
+                  hash_in_prev l a = hash_in_prev (hprefix l) a)) =
+  let pf = eac_ptrfn l in
+  let e = telem l in
+  let l' = hprefix l in
+  let pf' = eac_ptrfn l' in
+  let pa = prev_in_path pf a Root in
+  let cache' = cache_at_end l' in
+  let cache = cache_at_end l in
+  match e with
+  | Add a1 v1 a2 -> 
+    lemma_eac_payload_add_unchanged l a;
+    let lemma_a2_root_reachable (): Lemma (root_reachable pf' a2) = 
+      if a2 = Root then
+        lemma_reachable_reflexive pf' Root
+      else (
+        lemma_has_add_equiv_root_reachable l' a2;
+        lemma_cache_contains_implies_last_add_before_evict l' a2
+      )
+    in 
+    lemma_a2_root_reachable();
+    let c = desc_dir a1 a2 in    
+    lemma_ptrfn_extendcut_add l;    
+    let pf'e = extendcut_ptrfn pf' a1 a2 in      
+    let a1' = pointed_node pf' a2 c in
+    (* root reachability unchanged *)
+    lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
+    lemma_has_add_equiv_root_reachable l' a;
+    assert(root_reachable pf' a);
+    
+    if a1' = a then (
+      lemma_points_to_is_prev pf' a Root a2;
+      lemma_extendcut_prev2 pf' a1 a2;      
+      lemma_prev_in_path_feq (extendcut_ptrfn pf' a1 a2) pf a Root
+    )
+    else (
+      lemma_extendcut_prev pf' a1 a2 a;
+      lemma_prev_in_path_feq pf pf'e a Root;
+      if a1 = pa then ()
+      else if a2 = pa then (
+        let ca = desc_dir a pa in
+        if c = ca then ()
+        else (
+          let v2 = cached_payload cache' a2 in
+          let dh2 = desc_hash_dir c v2 in
+          let v1_upd = update_desc_hash a1 v1 (Desc?.a dh2) (Desc?.h dh2) in
+          lemma_update_desc_hash a2 
+                                 (cached_payload cache' a2) 
+                                 a1 (hashfn v1_upd);
+          ()
+        )
+      )
+      else 
+        lemma_eac_payload_add_unchanged l pa
+    )    
+    
 let lemma_prev_in_path_stores_hash_aux3 (l:eac_log) (a:merkle_non_root_addr):
   Lemma (requires (length l > 0 /\
                    root_reachable (eac_ptrfn l) a /\ 
@@ -1191,23 +1293,11 @@ let lemma_prev_in_path_stores_hash_aux3 (l:eac_log) (a:merkle_non_root_addr):
   match e with
   | Add a1 v1 a2 -> 
     lemma_eac_payload_add_unchanged l a;
-    if points_to pf' a1 a2 then (
-      (* pointer function unchanged *)
-      lemma_ptrfn_unchanged_add l;
-      
-      (* prev node of a is the same in l' and l *)
-      lemma_prev_in_path_feq pf pf' a Root;
-
-      (* root reachability unchanged *)
-      lemma_last_index_last_elem_nsat (is_add_of_addr a) l;
-      lemma_has_add_equiv_root_reachable l' a;
-      assert(root_reachable pf' a);
-
-      if a1 = pa then ()
-      else if a2 = pa then ()
-      else
-        lemma_eac_payload_add_unchanged l pa
-    )
+    let c = desc_dir a1 a2 in
+    if points_to pf' a1 a2 then 
+      lemma_prev_in_path_stores_hash_aux31 l a
+    else if points_to_some pf' a2 c then 
+      lemma_prev_in_path_stores_hash_aux32 l a 
     else
       admit()
 
