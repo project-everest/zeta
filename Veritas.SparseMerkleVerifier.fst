@@ -1456,4 +1456,206 @@ let rec lemma_prev_in_path_stores_hash (l:eac_log) (a:merkle_non_root_addr):
       lemma_prev_in_path_stores_hash_aux3 l a;
       lemma_prev_in_path_stores_hash l' a
   )
-        
+
+let rec lemma_points_to_none_implies_no_add (l:eac_log) 
+                                            (d:merkle_addr) 
+                                            (a:merkle_addr {is_proper_desc d a}):
+  Lemma (requires (root_reachable (eac_ptrfn l) a /\
+                   not (points_to_some (eac_ptrfn l) a (desc_dir d a))))
+        (ensures (not (has_some_add l d))) 
+        (decreases (depth d)) = 
+  let pf = eac_ptrfn l in
+  let c = desc_dir d a in
+  if has_some_add l d then (
+    (* d is not the root *)
+    lemma_root_never_added l (last_add_idx l d);
+    assert(d <> Root);
+
+    (* add => d is root reachable in pf *)
+    lemma_has_add_equiv_root_reachable l d;
+    assert(root_reachable pf d);
+
+    (* pd is the prev node in the path Root -> d *)
+    let pd = prev_in_path pf d Root in
+
+    (* pd points to d and a does not point to d, implies pd <> a *)
+    assert(pd <> a);
+
+    (* pd and a are two ancestors of d, so they are in an anc-desc relationship *)
+    lemma_two_ancestors_related d pd a;
+
+    if is_desc pd a then (
+      assert(is_proper_desc pd a);
+      lemma_proper_desc_depth_monotonic d pd;
+
+      (* pd and d are on the same direction from a *)
+      lemma_two_related_desc_same_dir d pd a;
+      assert(c = desc_dir pd a);
+
+      (* since pd is root reachable, there is some add *)
+      lemma_proper_desc_depth_monotonic pd a;
+      lemma_has_add_equiv_root_reachable l pd;
+      assert(has_some_add l pd);
+
+      (* but, by induction there is no add to pd, a contradiction *)
+      lemma_points_to_none_implies_no_add l pd a
+    )
+    else (
+      assert(is_proper_desc a pd);
+      lemma_points_to_not_reachable_between pf d Root pd a;
+      assert(not (root_reachable pf a));
+    
+      ()
+    )
+  )
+  else ()
+
+let lemma_evict_implies_previous_add (l:verifiable_log) (a:merkle_addr):
+  Lemma (requires (has_some_evict l a))
+        (ensures (has_some_add l a)) = 
+  let i = last_evict_idx l a in
+  let li = prefix l i in
+
+  (* cache at i contains a *)
+  lemma_evict_requires_cache l i;
+
+  (* root is never evicted, so a <> Root *)
+  lemma_root_never_evicted l i;
+  assert(a <> Root);
+
+  (* if cache contains a and it is not root, it should have been added previously *)
+  lemma_cache_contains_implies_last_add_before_evict li a;
+  assert(has_some_add li a);
+
+  lemma_exists_prefix_implies_exists (is_add_of_addr a) l i
+
+(*
+let lemma_not_eac_implies_hash_collision (l:verifiable_log {~ (evict_add_consistent l) }): hash_collision = 
+  (* the index of the first add that makes l non-eac *)
+  let i = first_non_eac_prefix l in
+  (* l_eac is the largest evict-add consistent prefix of l *)
+  let l_eac = prefix l i in
+  let l_eac' = prefix l (i + 1) in
+  let e = index l i in
+  let pf = eac_ptrfn l_eac in
+  let cache = cache_at_end l_eac in
+  match e with
+  | Add a v a' ->
+
+    let lemma_a'_root_reachable (): Lemma (root_reachable pf a') = 
+      if a' = Root then
+        lemma_reachable_reflexive pf Root
+      else (
+        lemma_has_add_equiv_root_reachable l_eac a';
+        lemma_cache_contains_implies_last_add_before_evict l_eac a'
+      )
+    in 
+    lemma_a'_root_reachable();
+
+    (* eac violation *)
+    assert(v <> last_evict_value_or_init l_eac a);
+
+    (* a cannot be merkle root since root is never added *)
+    if is_merkle_root a then (
+      lemma_root_never_added l i;
+      (* contradiction *)
+      SCollision (SMkLeaf Null) (SMkLeaf Null)
+    )
+    else (
+      assert(is_proper_desc a a');
+      lemma_proper_desc_depth_monotonic a a';
+
+      let c = desc_dir a a' in
+
+      if points_to_some pf a' c then
+        if points_to pf a a' then (          
+          (* a is root_reachable *)
+          lemma_points_to_reachable pf a a';
+          lemma_reachable_transitive pf a a' Root;
+          assert(root_reachable pf a);
+
+          (* a' is the prev node in path from Root -> a *)
+          lemma_points_to_is_prev pf a Root a';
+          assert(prev_in_path pf a Root = a');
+
+          (* a' stores the hash of eac_payload of a *)
+          lemma_prev_in_path_stores_hash l_eac a;
+          assert(hash_in_prev l_eac a = hashfn (eac_payload l_eac a));
+
+          (* since a is root reachable, it had a previous add *)
+          lemma_has_add_equiv_root_reachable l_eac a;
+
+          (* since a is not in cache, by construction eac_payload is *)
+          assert(eac_payload l_eac a = last_evict_value_or_init l_eac a);
+
+          (* since the verifier checks that the hash at a' is hashfn v, we have *)
+          assert(hash_in_prev l_eac a = hashfn v);
+
+          (* this implies a collision *)
+          SCollision v (last_evict_value_or_init l_eac a)
+        )
+        else (
+          let a2 = pointed_node pf a' c in
+          assert(is_proper_desc a2 a);
+
+          lemma_points_to_reachable pf a2 a';
+          lemma_reachable_transitive pf a2 a' Root;
+          assert(root_reachable pf a2);
+
+          (* since a' points to a2, skipping a, a is not root reachable *)
+          lemma_points_to_not_reachable_between pf a2 Root a' a;
+          assert(not (root_reachable pf a));
+
+          lemma_has_add_equiv_root_reachable l_eac a;
+          assert(not (has_some_add l_eac a));
+
+          (* 
+           * if there is some evict for a in l_eac, then 
+           * this implies there is some add, a contradiction
+           *)
+          if has_some_evict l_eac a then (
+
+            lemma_evict_implies_previous_add l_eac a;
+            assert(has_some_add l_eac a);
+                                
+            (* contradiction *)
+            SCollision (SMkLeaf Null) (SMkLeaf Null)
+          )
+          else ( 
+            (* because verification checks that a value is init, we get *)           
+            assert(v = last_evict_value_or_init l_eac a);
+          
+            (* contradiction to eac violation *)
+            SCollision (SMkLeaf Null) (SMkLeaf Null)
+          ) 
+        )
+      else (
+        (* 
+         * if a' points to none along some direction then there 
+         * has been no add in that direction 
+         *)
+        lemma_points_to_none_implies_no_add l_eac a a';        
+        assert(not (has_some_add l_eac a));
+
+        (* 
+         * if there is some evict for a in l_eac, then 
+         * this implies there is some add, a contradiction
+         *)
+        if has_some_evict l_eac a then (
+
+          lemma_evict_implies_previous_add l_eac a;
+          assert(has_some_add l_eac a);
+                    
+          (* contradiction *)
+          SCollision (SMkLeaf Null) (SMkLeaf Null)
+        )
+        else ( 
+          (* because verification checks that a value is init, we get *)           
+          assert(v = last_evict_value_or_init l_eac a);
+          
+          (* contradiction to eac violation *)
+          SCollision (SMkLeaf Null) (SMkLeaf Null)
+        )         
+      )
+    )
+*)

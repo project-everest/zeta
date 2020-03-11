@@ -261,3 +261,4 @@ val lemma_extendcut_prev2
   Lemma (Root <> (pointed_node pf a (desc_dir d a)) /\
                   root_reachable (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) /\
                   d = prev_in_path (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) Root)
+

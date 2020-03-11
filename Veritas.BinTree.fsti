@@ -124,6 +124,14 @@ val lemma_child_desc_is_proper_desc (d: bin_tree_node) (c: bin_tree_dir) (a: bin
 val desc_dir (d: bin_tree_node) (a: bin_tree_node{is_proper_desc d a}):
   (c: bin_tree_dir {is_desc d (child c a) && not (is_desc d (sibling (child c a)))})
 
+val lemma_two_related_desc_same_dir (d1: bin_tree_node) 
+                                    (d2: bin_tree_node)
+                                    (a:bin_tree_node):
+  Lemma (requires (is_proper_desc d1 a /\ 
+                   is_proper_desc d2 a /\
+                   is_desc d1 d2))
+        (ensures (desc_dir d1 a = desc_dir d2 a))
+
 (* map a bit vector to a binary tree node *)
 val bv_to_bin_tree_node (#n:pos) (b:bv_t n): Tot (t:bin_tree_node{depth t = n})
 

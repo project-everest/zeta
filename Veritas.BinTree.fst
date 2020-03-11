@@ -254,6 +254,22 @@ let desc_dir (d:bin_tree_node) (a:bin_tree_node{is_proper_desc d a}):
   if is_desc d (LeftChild a) then Left 
   else Right
 
+let lemma_two_related_desc_same_dir (d1: bin_tree_node) 
+                                    (d2: bin_tree_node)
+                                    (a:bin_tree_node):
+  Lemma (requires (is_proper_desc d1 a /\ 
+                   is_proper_desc d2 a /\
+                   is_desc d1 d2))
+        (ensures (desc_dir d1 a = desc_dir d2 a)) = 
+  let c1 = desc_dir d1 a in
+  let c2 = desc_dir d2 a in
+  if c1 = c2 then ()
+  else (
+    lemma_desc_transitive d1 d2 (child c2 a);
+    lemma_two_ancestors_related d1 (child c2 a) (child c1 a);
+    lemma_siblings_non_anc_desc a
+  )
+
 (* Traverse down a binary tree from a start node (sn) based on a bit vector *)
 let rec traverse_bin_tree (#n:pos) (b:bv_t n) (sn:bin_tree_node): Tot bin_tree_node = 
   if n = 1 

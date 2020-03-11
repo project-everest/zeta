@@ -687,3 +687,11 @@ let lemma_extendcut_prev2
   lemma_proper_desc_depth_monotonic d' d;
   assert(Root <> d');
   lemma_points_to_is_prev pfe d' Root d
+
+let lemma_parent_child (n:bin_tree_node{n <> Root}):
+  Lemma (n = child (desc_dir n (lemma_parent_ancestor n; parent n)) (parent n)) = 
+  let p = parent n in
+  lemma_parent_ancestor n;
+  let c = desc_dir n p in
+  lemma_desc_reflexive n
+
