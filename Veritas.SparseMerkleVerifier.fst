@@ -1841,8 +1841,9 @@ let lemma_eac_payload_unchanged_leaf (l:eac_log{length l > 0}) (a:merkle_leaf_ad
   Lemma (requires (not (is_write_to_addr a (telem l))))
         (ensures (eac_payload l a = eac_payload (hprefix l) a)) =   
   let l' = hprefix l in
+  let cache' = cache_at_end l' in
   let e = telem l in
-
+  let cache = cache_at_end l in
   match e with
   | MemoryOp o1 -> 
     (match o1 with
@@ -1857,7 +1858,13 @@ let lemma_eac_payload_unchanged_leaf (l:eac_log{length l > 0}) (a:merkle_leaf_ad
     lemma_eac_payload_evict_unchanged l a
 
   | Add a1 v a2 ->
-  admit()
+    assert(is_proper_desc a1 a2);
+    lemma_proper_desc_depth_monotonic a1 a2;
+    if a1 <> a then lemma_eac_payload_add_unchanged l a
+    else 
+      let pf = eac_ptrfn l' in
+      if points_to pf a a2 then ()
+      else ()    
 
 let rec lemma_eac_payload_is_last_write (l:eac_log) (a:merkle_leaf_addr):
   Lemma (requires (True))
@@ -1870,13 +1877,24 @@ let rec lemma_eac_payload_is_last_write (l:eac_log) (a:merkle_leaf_addr):
     let l' = hprefix l in
     lemma_eac_payload_is_last_write l' a;
     let e = telem l in
-    if is_write_to_addr a e then (
-      
-      admit()
-    )
+    if is_write_to_addr a e then 
+      lemma_last_index_last_elem_sat (is_write_to_addr a) l
     else (
       lemma_last_write_unchanged l a;
       lemma_eac_payload_unchanged_leaf l a
     )
   )
    
+let lemma_read_eac_payload (l:eac_log) (i:vl_index l):
+  Lemma (requires (is_read_op l i))
+        (ensures (SMkLeaf (read_value l i) = eac_payload (prefix l i) 
+                                                         (addr_to_merkle_leaf (Read?.a (memory_op_at l i))))) =
+  let l' = prefix l i in
+  let l'1 = prefix l (i + 1) in
+  let cache' = cache_at_end l' in
+  let e = index l i in
+  match e with
+  | MemoryOp o ->
+    match o with 
+    | Read a v ->      
+      ()
