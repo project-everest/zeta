@@ -18,6 +18,13 @@ let lemma_addr_merkle_inv (a:addr):
   Lemma (merkle_leaf_to_addr (addr_to_merkle_leaf a) = a) = 
   bv_to_bin_tree_consistent a
 
+let lemma_merkle_addr_inv (ma:merkle_leaf_addr):
+  Lemma (requires (True))
+        (ensures (addr_to_merkle_leaf (merkle_leaf_to_addr ma) = ma))
+        [SMTPat (merkle_leaf_to_addr ma)] = 
+  let a = merkle_leaf_to_addr ma in
+  ()
+
 let lemma_merkle_equal_implies_addr_equal (a1:addr) (a2:addr):
   Lemma (requires (addr_to_merkle_leaf a1 = addr_to_merkle_leaf a2))
         (ensures (a1 = a2)) = 

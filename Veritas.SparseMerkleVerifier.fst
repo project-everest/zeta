@@ -1777,3 +1777,106 @@ let lemma_not_eac_implies_hash_collision (l:verifiable_log {~ (evict_add_consist
         lemma_not_eac_implies_hash_collision_aux3 l_eac'
     )
 
+(* 
+ * for a merkle leaf address - which corresponds to a memory address  - 
+ * the last written value or Null 
+ *)
+let last_write_value_or_null (l:verifiable_log) (a:merkle_leaf_addr)
+  : Tot (merkle_payload_of_addr a) =
+  if has_some_write l a then
+    SMkLeaf (written_value l (last_write_idx l a))
+  else
+    SMkLeaf Null
+
+let hprefix2 (l:verifiable_log{length l > 0}): verifiable_log = prefix l (length l - 1)
+
+let lemma_last_write_unchanged (l:verifiable_log{length l > 0}) (a:merkle_leaf_addr):
+  Lemma (requires (not (is_write_to_addr a (telem l))))
+        (ensures (last_write_value_or_null l a = last_write_value_or_null (hprefix2 l) a)) = 
+  let l' = hprefix2 l in
+  let n = length l in
+  lemma_last_index_last_elem_nsat (is_write_to_addr a) l;
+  if has_some_write l a then
+    lemma_last_index_prefix (is_write_to_addr a) l (n - 1)
+  else ()
+
+let lemma_eac_payload_unchanged_read (l:eac_log{length l > 0}) (a:merkle_leaf_addr):
+  Lemma (requires (is_read_op l (length l - 1)))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = 
+  let n = length l in
+  let l' = hprefix l in
+  let cache' = cache_at_end l' in
+  let cache = cache_at_end l in
+  if cache_contains cache' a then (
+    assert(cached_payload cache a = cached_payload cache' a);
+    ()
+  )
+  else (
+    lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+    if has_some_evict l a then
+      lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)
+    else ()
+  )
+
+let lemma_eac_payload_unchanged_write (l:eac_log{length l > 0}) (a:merkle_leaf_addr):
+  Lemma (requires (is_write_op l (length l - 1) /\ 
+                   not (is_write_to_addr a (telem l))))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a)) = 
+  let n = length l in
+  let l' = hprefix l in
+  let cache' = cache_at_end l' in
+  let cache = cache_at_end l in
+  let o = MemoryOp?.o (index l (n - 1)) in
+  let a1 = Write?.a o in
+  let v1 = Write?.v o in
+  if cache_contains cache' a then ()
+  else (
+    lemma_last_index_last_elem_nsat (is_evict_of_addr a) l;
+    if has_some_evict l a then
+      lemma_last_index_prefix (is_evict_of_addr a) l (n - 1)
+    else ()
+  )
+
+let lemma_eac_payload_unchanged_leaf (l:eac_log{length l > 0}) (a:merkle_leaf_addr):
+  Lemma (requires (not (is_write_to_addr a (telem l))))
+        (ensures (eac_payload l a = eac_payload (hprefix l) a)) =   
+  let l' = hprefix l in
+  let e = telem l in
+
+  match e with
+  | MemoryOp o1 -> 
+    (match o1 with
+      | Read a1 v1 -> lemma_eac_payload_unchanged_read l a
+      | Write a1 v1 -> lemma_eac_payload_unchanged_write l a
+    )
+    
+  | Evict a1 a2 -> 
+    assert(is_proper_desc a1 a2);
+    lemma_proper_desc_depth_monotonic a1 a2;
+    assert(a2 <> a);
+    lemma_eac_payload_evict_unchanged l a
+
+  | Add a1 v a2 ->
+  admit()
+
+let rec lemma_eac_payload_is_last_write (l:eac_log) (a:merkle_leaf_addr):
+  Lemma (requires (True))
+        (ensures (eac_payload l a = last_write_value_or_null l a))
+        (decreases (length l)) = 
+  let n = length l in
+  let cache = cache_at_end l in
+  if n = 0 then ()
+  else (
+    let l' = hprefix l in
+    lemma_eac_payload_is_last_write l' a;
+    let e = telem l in
+    if is_write_to_addr a e then (
+      
+      admit()
+    )
+    else (
+      lemma_last_write_unchanged l a;
+      lemma_eac_payload_unchanged_leaf l a
+    )
+  )
+   

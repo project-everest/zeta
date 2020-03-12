@@ -34,6 +34,13 @@ val merkle_leaf_to_addr (ma:merkle_leaf_addr): Tot (a:addr{addr_to_merkle_leaf a
 
 val lemma_addr_merkle_inv (a:addr):
   Lemma (merkle_leaf_to_addr (addr_to_merkle_leaf a) = a)
+        [SMTPat (addr_to_merkle_leaf a)]
+
+val lemma_merkle_addr_inv (ma:merkle_leaf_addr):
+  Lemma (requires (True))
+        (ensures (addr_to_merkle_leaf (merkle_leaf_to_addr ma) = ma))
+        [SMTPat (merkle_leaf_to_addr ma)]
+  
 
 val lemma_merkle_equal_implies_addr_equal (a1:addr) (a2:addr):
   Lemma (requires (addr_to_merkle_leaf a1 = addr_to_merkle_leaf a2))
