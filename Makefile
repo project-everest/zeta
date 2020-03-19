@@ -16,7 +16,8 @@ FSTAR_FILES := Veritas.SeqAux.fsti Veritas.SeqAux.fst \
                Veritas.SparseMerkle.fsti Veritas.SparseMerkle.fst \
 	       Veritas.BinTreePtr.fsti Veritas.BinTreePtr.fst \
                Veritas.MerkleVerifier.fst \
-	       Veritas.SparseMerkleVerifier.fst
+	       Veritas.SparseMerkleVerifier.fst \
+	       Veritas.SparseMerkleVerifier.Correctness.fst
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
 
@@ -54,9 +55,10 @@ all: verify
 
 clean:
 	rm -rf *.checked $(OUTPUT_DIRECTORY)/*ml
+	$(MAKE) -C _output clean
 
 .depend: $(FSTAR_FILES)
-	$(MY_FSTAR) --dep full $(addprefix --include , $(INCLUDE_PATHS)) --extract Veritas $^ > .depend
+	$(MY_FSTAR) --dep full $(addprefix --include , $(INCLUDE_PATHS)) --extract 'Veritas -Veritas.SparseMerkleVerifier.Correctness' $^ > .depend
 
 depend: .depend
 
@@ -65,6 +67,7 @@ include .depend
 verify: $(ALL_CHECKED_FILES)
 
 extract: $(ALL_ML_FILES)
+	$(MAKE) -C _output
 
 $(OUTPUT_DIRECTORY)/%.ml:
 	$(MY_FSTAR) $(subst .checked,,$(notdir $<)) --codegen OCaml --extract_module $(basename $(notdir $(subst .checked,,$<)))
