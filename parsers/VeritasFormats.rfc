@@ -1,0 +1,141 @@
+/* Semi-formal description for some wire format for the verifier log */
+
+/* Veritas.Memory.payload: We first store the payload kind (Null or
+Value), and then, depending on the kind, we store the actual value. */
+
+enum {
+  Null(0),
+  Value(1),
+  (255)
+} has_payload;
+
+struct {
+  has_payload kind;
+  select(kind) {
+    case Null: Empty;
+    case Value: uint32;
+  } body;
+} payload;
+
+/* Veritas.Memory.addr: a 256-bit value is a 32-byte array. */
+
+opaque addr[32];
+
+/* Veritas.Memory.memory_op: We first store the memory operation kind
+(Null or Value), and then the argument constructors (which happen to
+be the same across both cases.) */
+
+enum {
+  Read(0),
+  Write(1),
+  (255)
+} memory_op_kind;
+
+struct {
+  memory_op_kind kind;
+  addr a;
+  payload v;
+} memory_op;
+
+/* Veritas.MerkleAddr.merkle_addr: here, we do not precisely model
+this type yet, because EverParse does not support trees. So for now,
+we represent it just like addr, as a 32-byte array, i.e. a 256-bit
+vector, because this type is isomorphic to the type of trees of depth
+<= 256. */
+
+addr merkle_addr;
+
+/* Verifier.SparseMerkle.hash_value: a 256-bit vector is a 32-byte
+array. */
+
+opaque hash_value[32];
+
+/* Verifier.SparseMerkle.desc_hash: we first store the kind (Empty or
+Desc), and if the case is Desc, we store the arguments to Desc as a
+struct. */
+
+enum {
+  EmptyHash(0),
+  Desc(1),
+  (255)
+} desc_hash_kind;
+
+struct {
+  merkle_addr a;
+  hash_value hash;
+} desc_hash_desc;
+
+struct {
+  desc_hash_kind kind;
+  select(kind) {
+    case EmptyHash: Empty;
+    case Desc: desc_hash_desc;
+  } body;
+} desc_hash;
+
+/* Veritas.SparseMerkle.merkle_payload: we first store the kind
+(SMkLeaf or SMkInternal), and depending on the kind, we store the
+constructor arguments; in the case of SMkInternal, we define a struct
+to bundle the two arguments, since EverParse only supports
+one-argument tagged-union constructors. */
+
+enum {
+  SMkLeaf(0),
+  SMkInternal(1),
+  (255)
+} merkle_payload_kind;
+
+struct {
+  desc_hash left;
+  desc_hash right;
+} merkle_payload_internal;
+
+struct {
+  merkle_payload_kind kind;
+  select(kind) {
+    case SMkLeaf: payload;
+    case SMkInternal: merkle_payload_internal;
+  } body;
+} merkle_payload;
+
+/* Veritas.SparseMerkleVerifier.verifier_log_entry: we first store the
+kind (MemoryOp, Add or Evict) and then, depending on the kind, we
+store the constructor arguments, bundled as a struct for
+multiple-argument constructors. */
+
+enum {
+  MemoryOp(0),
+  Add(1),
+  Evict(2),
+  (255)
+} verifier_log_entry_kind;
+
+struct {
+  merkle_addr a;
+  merkle_payload v;
+  merkle_addr b;
+} verifier_log_entry_add;
+
+struct {
+  merkle_addr a;
+  merkle_addr b;
+} verifier_log_entry_evict;
+
+struct {
+  verifier_log_entry_kind kind;
+  select(kind) {
+    case MemoryOp: memory_op;
+    case Add: verifier_log_entry_add;
+    case Evict: verifier_log_entry_evict;
+  } body;
+} verifier_log_entry;
+
+/* Veritas.SparseMerkleVerifier.verifier_log: we store the verifier
+log as a list whose number of elements is bounded. (EverParse does not
+support unbounded lists.) So we first store its element count, and
+then we store each element next to the other. The bounds on the size
+of the list are chosen so that the size of the byte representation of
+a list cannot exceed 2^32 - 1 (a limitation coming from the F*
+standard library for bytestrings, FStar.Bytes) */
+
+verifier_log_entry verifier_log{0..2^23 : uint32};
