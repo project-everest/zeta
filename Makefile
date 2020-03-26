@@ -16,11 +16,19 @@ FSTAR_FILES := Veritas.SeqAux.fsti Veritas.SeqAux.fst \
                Veritas.SparseMerkle.fsti Veritas.SparseMerkle.fst \
 	       Veritas.BinTreePtr.fsti Veritas.BinTreePtr.fst \
                Veritas.MerkleVerifier.fst \
-	       Veritas.SparseMerkleVerifier.fst
+	       Veritas.SparseMerkleVerifier.fst \
+	       Veritas.SparseMerkleVerifier.Correctness.fst
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
 
-OTHERFLAGS+=$(USE_EXTRACTED_INTERFACES)
+# Uncomment the definition of PROFILE below, if you want some basic
+# profiling of F* runs on Veritas files It will report the time spent
+# on typechecking your file And the time spent in SMT, which is
+# included in the total typechecking time
+
+# PROFILE=--profile Veritas --profile_component 'FStar.Universal.tc_source_file FStar.SMTEncoding'
+
+OTHERFLAGS+=$(USE_EXTRACTED_INTERFACES) $(PROFILE)
 
 # 271: theory symbols in smt patters
 WARN_ERROR=--warn_error -271
@@ -46,14 +54,21 @@ MY_FSTAR=$(FSTAR) --cache_checked_modules --odir $(OUTPUT_DIRECTORY)
 all: verify
 
 clean:
-	rm -rf *.checked
+	rm -rf *.checked $(OUTPUT_DIRECTORY)/*ml
+	$(MAKE) -C _output clean
 
 .depend: $(FSTAR_FILES)
-	$(MY_FSTAR) --dep full $(addprefix --include , $(INCLUDE_PATHS)) $^ > .depend
+	$(MY_FSTAR) --dep full $(addprefix --include , $(INCLUDE_PATHS)) --extract 'Veritas -Veritas.SparseMerkleVerifier.Correctness' $^ > .depend
 
 depend: .depend
 
 include .depend
 
 verify: $(ALL_CHECKED_FILES)
+
+extract: $(ALL_ML_FILES)
+	$(MAKE) -C _output
+
+$(OUTPUT_DIRECTORY)/%.ml:
+	$(MY_FSTAR) $(subst .checked,,$(notdir $<)) --codegen OCaml --extract_module $(basename $(notdir $(subst .checked,,$<)))
 

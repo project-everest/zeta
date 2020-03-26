@@ -3,6 +3,7 @@ module Veritas.SeqAux
 open FStar.Seq 
 
 (* Legitimate values of an index of a sequence *)
+inline_for_extraction
 type seq_index (#a:Type) (s:seq a) = i:nat{i < length s}
 
 (* Prefix of a sequence *)
@@ -31,6 +32,7 @@ val lemma_suffix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i})
         (ensures (index (suffix s i) j == index s (length s - i + j)))
         [SMTPat (index (suffix s i) j)]
 
+inline_for_extraction
 let refine #a (f:a -> bool) = x:a{f x}
 
 (* Subsequence of s obtained by applying a filter *)
