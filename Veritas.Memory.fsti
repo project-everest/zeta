@@ -14,7 +14,7 @@ type addr = bv_t addr_size
  *)
 type payload =
   | Null: payload
-  | Value: v:int -> payload
+  | Value: v:FStar.UInt32.t -> payload
 
 (* Memory operation is either a read or a write *)
 type memory_op =

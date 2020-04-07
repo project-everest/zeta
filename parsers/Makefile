@@ -41,17 +41,17 @@ extract-kremlin: $(ALL_KRML_FILES) # from .depend
 	mkdir -p out
 	$(KREMLIN) -warn-error '@2' -skip-compilation $^
 
-test.exe: $(ALL_KRML_FILES)
-	mkdir -p out
-	$(KREMLIN) $(LOWPARSE_HOME)/LowParse_TestLib_Low_c.c -no-prefix Test $^ -o test.exe
+# test.exe: $(ALL_KRML_FILES)
+# 	mkdir -p out
+# 	$(KREMLIN) $(LOWPARSE_HOME)/LowParse_TestLib_Low_c.c -no-prefix Test $^ -o test.exe
 
-test: test.exe
-	./test.exe
+# test: test.exe
+# 	./test.exe
 
 %.fst-in %.fsti-in:
 	@echo $(FSTAR_OPTIONS)
 
 clean:
-	rm -rf .qd_files .depend cache extracted ocaml out $(filter-out Test.fst,$(QD_FILES)) test.exe
+	rm -rf .qd_files .depend cache extracted ocaml out $(filter-out VeritasFormats.fst VeritasFormats.fsti,$(QD_FILES)) test.exe
 
 .PHONY: all depend verify extract-ocaml extract-kremlin clean build test

@@ -9,8 +9,8 @@ export KREMLIN_HOME
 export QD_HOME
 
 FSTAR_OPTIONS = --odir extracted --cache_dir cache --cache_checked_modules \
-		--already_cached +Prims,+FStar,+LowStar,+C,+Spec.Loops,+LowParse \
-		--include $(LOWPARSE_HOME) --include $(KREMLIN_HOME)/kremlib
+		--already_cached +Prims,+FStar,+LowStar,+C,+Spec.Loops,+LowParse,+Veritas \
+		--include $(LOWPARSE_HOME) --include $(KREMLIN_HOME)/kremlib --include ..
 
 FSTAR = $(FSTAR_HOME)/bin/fstar.exe --trace_error $(FSTAR_OPTIONS)
 
