@@ -257,7 +257,7 @@ let initial_verifier_state
   : verifier_state
   = Valid init_cache
 
-(* Verifier for a log from the initial state *)
+(* Verifier for a log from a given state *)
 let verifier (l:verifier_log) (v:verifier_state)
   : Tot verifier_state
   = verifier_aux l v
