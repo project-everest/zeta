@@ -17,9 +17,9 @@ struct {
   } body;
 } payload;
 
-/* Veritas.Memory.addr: a 256-bit value is a 32-byte array. */
+/* Veritas.Memory.addr: parsers defined by hand */
 
-opaque addr[32];
+abstract addr = "Veritas.Memory.addr" < 32..32 >
 
 /* Veritas.Memory.memory_op: We first store the memory operation kind
 (Null or Value), and then the argument constructors (which happen to
@@ -37,18 +37,13 @@ struct {
   payload v;
 } memory_op;
 
-/* Veritas.MerkleAddr.merkle_addr: here, we do not precisely model
-this type yet, because EverParse does not support trees. So for now,
-we represent it just like addr, as a 32-byte array, i.e. a 256-bit
-vector, because this type is isomorphic to the type of trees of depth
-<= 256. */
+/* Veritas.MerkleAddr.merkle_addr: parsers defined by hand */
 
-addr merkle_addr;
+abstract merkle_addr = "Veritas.MerkleAddr.merkle_addr" < 2..34 >
 
-/* Verifier.SparseMerkle.hash_value: a 256-bit vector is a 32-byte
-array. */
+/* Verifier.SparseMerkle.hash_value: parsers defined by hand */
 
-opaque hash_value[32];
+abstract hash_value = "Veritas.SparseMerkle.hash_value" < 32..32 >
 
 /* Verifier.SparseMerkle.desc_hash: we first store the kind (Empty or
 Desc), and if the case is Desc, we store the arguments to Desc as a
@@ -138,4 +133,4 @@ of the list are chosen so that the size of the byte representation of
 a list cannot exceed 2^32 - 1 (a limitation coming from the F*
 standard library for bytestrings, FStar.Bytes) */
 
-verifier_log_entry verifier_log{0..2^23 : uint32};
+verifier_log_entry verifier_log{0..2^21 : uint32};

@@ -52,6 +52,6 @@ extract-kremlin: $(ALL_KRML_FILES) # from .depend
 	@echo $(FSTAR_OPTIONS)
 
 clean:
-	rm -rf .qd_files .depend cache extracted ocaml out $(filter-out VeritasFormats.fst VeritasFormats.fsti,$(QD_FILES)) test.exe
+	rm -rf .qd_files .depend cache extracted ocaml out $(filter-out VeritasFormats.fst VeritasFormats.fsti VeritasFormats.Addr.fst VeritasFormats.Merkle_addr.fst VeritasFormats.Hash_value.fst,$(QD_FILES)) test.exe
 
 .PHONY: all depend verify extract-ocaml extract-kremlin clean build test

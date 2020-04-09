@@ -20,19 +20,12 @@ let lp_payload_to_payload_injective : squash (LP.synth_injective lp_payload_to_p
 
 let lp_payload_to_payload_inverse : squash (LP.synth_inverse lp_payload_to_payload payload_to_lp_payload) = ()
 
-assume val lp_addr_to_addr : VeritasFormats.Addr.addr -> Tot Veritas.Memory.addr
-assume val addr_to_lp_addr : Veritas.Memory.addr -> Tot VeritasFormats.Addr.addr
-
-assume val lp_addr_to_addr_injective : squash (LP.synth_injective lp_addr_to_addr)
-
-assume val lp_addr_to_addr_inverse : squash (LP.synth_inverse lp_addr_to_addr addr_to_lp_addr)
-
 let lp_memory_op_to_memory_op
   (x: VeritasFormats.Memory_op.memory_op)
 : Tot Veritas.Memory.memory_op
 = match x.VeritasFormats.Memory_op.kind with
-  | VeritasFormats.Memory_op_kind.Read -> Veritas.Memory.Read (lp_addr_to_addr x.VeritasFormats.Memory_op.a) (lp_payload_to_payload x.VeritasFormats.Memory_op.v)
-  | VeritasFormats.Memory_op_kind.Write -> Veritas.Memory.Write (lp_addr_to_addr x.VeritasFormats.Memory_op.a) (lp_payload_to_payload x.VeritasFormats.Memory_op.v)
+  | VeritasFormats.Memory_op_kind.Read -> Veritas.Memory.Read (x.VeritasFormats.Memory_op.a) (lp_payload_to_payload x.VeritasFormats.Memory_op.v)
+  | VeritasFormats.Memory_op_kind.Write -> Veritas.Memory.Write (x.VeritasFormats.Memory_op.a) (lp_payload_to_payload x.VeritasFormats.Memory_op.v)
 
 let lp_memory_op_to_memory_op_injective : squash (LP.synth_injective lp_memory_op_to_memory_op) = ()
 
@@ -42,32 +35,16 @@ let memory_op_to_lp_memory_op
 = match x with
   | Veritas.Memory.Read a v -> ({
       VeritasFormats.Memory_op.kind = VeritasFormats.Memory_op_kind.Read;
-      VeritasFormats.Memory_op.a = addr_to_lp_addr a;
+      VeritasFormats.Memory_op.a = a;
       VeritasFormats.Memory_op.v = payload_to_lp_payload v;
     })
   | Veritas.Memory.Write a v -> ({
       VeritasFormats.Memory_op.kind = VeritasFormats.Memory_op_kind.Write;
-      VeritasFormats.Memory_op.a = addr_to_lp_addr a;
+      VeritasFormats.Memory_op.a = a;
       VeritasFormats.Memory_op.v = payload_to_lp_payload v;
     })
 
 let lp_memory_op_to_memory_op_inverse : squash (LP.synth_inverse lp_memory_op_to_memory_op memory_op_to_lp_memory_op) = ()
-
-assume val lp_merkle_addr_to_merkle_addr : VeritasFormats.Merkle_addr.merkle_addr -> Tot Veritas.MerkleAddr.merkle_addr
-
-assume val merkle_addr_to_lp_merkle_addr : Veritas.MerkleAddr.merkle_addr -> Tot VeritasFormats.Merkle_addr.merkle_addr
-
-assume val lp_merkle_addr_to_merkle_addr_injective : squash (LP.synth_injective lp_merkle_addr_to_merkle_addr)
-
-assume val lp_merkle_addr_to_merkle_addr_inverse : squash (LP.synth_inverse lp_merkle_addr_to_merkle_addr merkle_addr_to_lp_merkle_addr)
-
-assume val lp_hash_value_to_hash_value : VeritasFormats.Hash_value.hash_value -> Tot Veritas.SparseMerkle.hash_value
-
-assume val hash_value_to_lp_hash_value : Veritas.SparseMerkle.hash_value -> Tot VeritasFormats.Hash_value.hash_value
-
-assume val lp_hash_value_to_hash_value_injective : squash (LP.synth_injective lp_hash_value_to_hash_value)
-
-assume val lp_hash_value_to_hash_value_inverse : squash (LP.synth_inverse lp_hash_value_to_hash_value hash_value_to_lp_hash_value)
 
 let lp_desc_hash_to_desc_hash
   (x: VeritasFormats.Desc_hash.desc_hash)
@@ -76,7 +53,7 @@ let lp_desc_hash_to_desc_hash
   | VeritasFormats.Desc_hash.Body_EmptyHash _ ->
     Veritas.SparseMerkle.Empty
   | VeritasFormats.Desc_hash.Body_Desc d ->
-    Veritas.SparseMerkle.Desc (lp_merkle_addr_to_merkle_addr d.VeritasFormats.Desc_hash_desc.a) (lp_hash_value_to_hash_value d.VeritasFormats.Desc_hash_desc.hash)
+    Veritas.SparseMerkle.Desc (d.VeritasFormats.Desc_hash_desc.a) (d.VeritasFormats.Desc_hash_desc.hash)
 
 let desc_hash_to_lp_desc_hash
   (x: Veritas.SparseMerkle.desc_hash)
@@ -86,8 +63,8 @@ let desc_hash_to_lp_desc_hash
     VeritasFormats.Desc_hash.Body_EmptyHash ()
   | Veritas.SparseMerkle.Desc a hash ->
     VeritasFormats.Desc_hash.Body_Desc ({
-      VeritasFormats.Desc_hash_desc.a = merkle_addr_to_lp_merkle_addr a;
-      VeritasFormats.Desc_hash_desc.hash = hash_value_to_lp_hash_value hash;
+      VeritasFormats.Desc_hash_desc.a = a;
+      VeritasFormats.Desc_hash_desc.hash = hash;
     })
 
 let lp_desc_hash_to_desc_hash_injective : squash (LP.synth_injective lp_desc_hash_to_desc_hash) = ()
@@ -129,13 +106,13 @@ let lp_verifier_log_entry_to_verifier_log_entry
     Veritas.SparseMerkleVerifier.MemoryOp (lp_memory_op_to_memory_op op)
   | VeritasFormats.Verifier_log_entry.Body_Add y ->
     Veritas.SparseMerkleVerifier.Add
-      (lp_merkle_addr_to_merkle_addr y.VeritasFormats.Verifier_log_entry_add.a)
+      (y.VeritasFormats.Verifier_log_entry_add.a)
       (lp_merkle_payload_to_merkle_payload y.VeritasFormats.Verifier_log_entry_add.v)
-      (lp_merkle_addr_to_merkle_addr y.VeritasFormats.Verifier_log_entry_add.b)
+      (y.VeritasFormats.Verifier_log_entry_add.b)
   | VeritasFormats.Verifier_log_entry.Body_Evict y ->
     Veritas.SparseMerkleVerifier.Evict
-      (lp_merkle_addr_to_merkle_addr y.VeritasFormats.Verifier_log_entry_evict.a)
-      (lp_merkle_addr_to_merkle_addr y.VeritasFormats.Verifier_log_entry_evict.b)
+      (y.VeritasFormats.Verifier_log_entry_evict.a)
+      (y.VeritasFormats.Verifier_log_entry_evict.b)
 
 let lp_verifier_log_entry_to_verifier_log_entry_injective : squash (LP.synth_injective lp_verifier_log_entry_to_verifier_log_entry) = ()
 
@@ -147,14 +124,14 @@ let verifier_log_entry_to_lp_verifier_log_entry
     VeritasFormats.Verifier_log_entry.Body_MemoryOp (memory_op_to_lp_memory_op op)
   | Veritas.SparseMerkleVerifier.Add a v b -> 
     VeritasFormats.Verifier_log_entry.Body_Add ({
-      VeritasFormats.Verifier_log_entry_add.a = merkle_addr_to_lp_merkle_addr a;
+      VeritasFormats.Verifier_log_entry_add.a = a;
       VeritasFormats.Verifier_log_entry_add.v = merkle_payload_to_lp_merkle_payload v;
-      VeritasFormats.Verifier_log_entry_add.b = merkle_addr_to_lp_merkle_addr b;
+      VeritasFormats.Verifier_log_entry_add.b = b;
     })
   | Veritas.SparseMerkleVerifier.Evict a b ->
     VeritasFormats.Verifier_log_entry.Body_Evict ({
-      VeritasFormats.Verifier_log_entry_evict.a = merkle_addr_to_lp_merkle_addr a;
-      VeritasFormats.Verifier_log_entry_evict.b = merkle_addr_to_lp_merkle_addr b;
+      VeritasFormats.Verifier_log_entry_evict.a = a;
+      VeritasFormats.Verifier_log_entry_evict.b = b;
     })
 
 let lp_verifier_log_entry_to_verifier_log_entry_inverse : squash (LP.synth_inverse lp_verifier_log_entry_to_verifier_log_entry verifier_log_entry_to_lp_verifier_log_entry) = ()
