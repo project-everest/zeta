@@ -9,15 +9,16 @@ FLAKY=
 # List the files that should be verified by verify-core and verify-all
 # Those files are the roots from where all dependencies are computed
 FSTAR_FILES := Veritas.SeqAux.fsti Veritas.SeqAux.fst \
-               Veritas.Memory.fsti Veritas.Memory.fst \
-               Veritas.BinTree.fsti Veritas.BinTree.fst \
+	       Veritas.Memory.fsti Veritas.Memory.fst \
+	       Veritas.BinTree.fsti Veritas.BinTree.fst \
 	       Veritas.MerkleAddr.fsti Veritas.MerkleAddr.fst \
 	       Veritas.Merkle.fsti Veritas.Merkle.fst \
-               Veritas.SparseMerkle.fsti Veritas.SparseMerkle.fst \
+	       Veritas.SparseMerkle.fsti Veritas.SparseMerkle.fst \
 	       Veritas.BinTreePtr.fsti Veritas.BinTreePtr.fst \
-               Veritas.MerkleVerifier.fst \
+	       Veritas.MerkleVerifier.fst \
 	       Veritas.SparseMerkleVerifier.fst \
-	       Veritas.SparseMerkleVerifier.Correctness.fst
+	       Veritas.SparseMerkleVerifier.Correctness.fst \
+	       Veritas.Driver.fst
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
 
@@ -33,8 +34,8 @@ OTHERFLAGS+=$(USE_EXTRACTED_INTERFACES) $(PROFILE)
 # 271: theory symbols in smt patters
 WARN_ERROR=--warn_error -271
 SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
-            --smtencoding.elim_box true \
-            --smtencoding.l_arith_repr native \
+	    --smtencoding.elim_box true \
+	    --smtencoding.l_arith_repr native \
 	    --smtencoding.nl_arith_repr wrapped
 OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
 ALREADY_CACHED=--already_cached 'Prims FStar'
@@ -71,4 +72,3 @@ extract: $(ALL_ML_FILES)
 
 $(OUTPUT_DIRECTORY)/%.ml:
 	$(MY_FSTAR) $(subst .checked,,$(notdir $<)) --codegen OCaml --extract_module $(basename $(notdir $(subst .checked,,$<)))
-

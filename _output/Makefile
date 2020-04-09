@@ -1,4 +1,4 @@
-TARGET=Veritas_SparseMerkleVerifier.native
+TARGET=Veritas_Driver.native
 
 $(TARGET):
 	rm -f $@
