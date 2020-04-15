@@ -39,8 +39,8 @@ hopefully regular `master` soon. In HACL\*:
 ```bash
 $ cd hacl-star
 $ make -j <reasonable-factor>
-$ make -C dist/gcc-compatible/ install-hacl-raw
-$ cd bindings/ocaml && dune install
+$ make -C dist/gcc-compatible/ install-hacl-star-raw
+$ cd bindings/ocaml && dune build && dune install
 ```
 
 You can confirm you have a correct setup by running `ocamlfind list`, which

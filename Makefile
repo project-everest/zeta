@@ -17,8 +17,7 @@ FSTAR_FILES := Veritas.SeqAux.fsti Veritas.SeqAux.fst \
 	       Veritas.BinTreePtr.fsti Veritas.BinTreePtr.fst \
 	       Veritas.MerkleVerifier.fst \
 	       Veritas.SparseMerkleVerifier.fst \
-	       Veritas.SparseMerkleVerifier.Correctness.fst \
-	       Veritas.Driver.fst
+	       Veritas.SparseMerkleVerifier.Correctness.fst
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
 
