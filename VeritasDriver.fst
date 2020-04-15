@@ -1,4 +1,4 @@
-module Veritas.Driver
+module VeritasDriver
 open FStar.All
 module V = Veritas.SparseMerkleVerifier
 module IO = FStar.IO
@@ -6,7 +6,6 @@ module B = FStar.Bytes
 
 
 // This is to be integrated with Tahina's code
-assume
 val parse_log (b:B.bytes) : option V.verifier_log
 
 let get_next_log ()

@@ -39,17 +39,17 @@ SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
 OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
 ALREADY_CACHED=--already_cached 'Prims FStar LowStar'
 
-FSTAR=fstar.exe $(OTHERFLAGS) $(ALREADY_CACHED)
+FSTAR=fstar.exe $(OTHERFLAGS) $(ALREADY_CACHED) --cache_dir cache
 
 # A place to put all the emitted .ml files
 OUTPUT_DIRECTORY ?= _output
 
-MY_FSTAR=$(FSTAR) --cache_checked_modules --odir $(OUTPUT_DIRECTORY)
+MY_FSTAR=$(FSTAR) --cache_checked_modules --odir $(OUTPUT_DIRECTORY) --cache_dir $(OUTPUT_DIRECTORY)
 
 INCLUDE_PATHS=parsers
 
 # a.fst(i).checked is the binary, checked version of a.fst(i)
-%.checked:
+$(OUTPUT_DIRECTORY)/%.checked:
 	$(MY_FSTAR) $<
 	touch $@
 

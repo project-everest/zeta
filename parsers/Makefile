@@ -2,20 +2,20 @@ include Makefile.common
 
 all: verify extract-ocaml
 
-cache/%.checked:
+$(CACHE_DIR)/%.checked:
 	$(FSTAR) $(OTHERFLAGS) $<
 	@touch $@
 
-extracted/%.ml:
+$(OUTPUT_DIR)/%.ml:
 	$(FSTAR) --codegen OCaml $(patsubst %.checked,%,$(notdir $<)) --extract_module $(basename $(patsubst %.checked,%,$(notdir $<))) --warn_error '@241'
 	@touch $@
 
-extracted/%.krml:
+$(OUTPUT_DIR)/%.krml:
 	$(FSTAR) --codegen Kremlin $(patsubst %.checked,%,$(notdir $<)) --extract_module $(basename $(patsubst %.checked,%,$(notdir $<))) --warn_error '@241'
 	@touch $@
 
-extracted/%.cmx:
-	ocamlopt -c -I $(FSTAR_HOME)/bin/fstarlib -I $(KREMLIN_HOME)/_build/kremlib -I extracted $<
+$(OUTPUT_DIR)/%.cmx:
+	ocamlopt -c -I $(FSTAR_HOME)/bin/fstarlib -I $(KREMLIN_HOME)/_build/kremlib -I $(OUTPUT_DIR) $<
 
 .qd_files: $(QD) $(RFC)
 	$(QD) -high -prefix VeritasFormats. $(RFC)
@@ -28,10 +28,10 @@ extracted/%.cmx:
 
 depend: .depend
 
-verify: $(patsubst %,cache/%.checked,$(QD_FILES))
+verify: $(patsubst %,$(CACHE_DIR)/%.checked,$(QD_FILES))
 	echo $*
 
-ALL_KRML_FILES := $(filter-out extracted/prims.krml,$(ALL_KRML_FILES))
+ALL_KRML_FILES := $(filter-out $(OUTPUT_DIR)/prims.krml,$(ALL_KRML_FILES))
 
 ALL_CMX_FILES=$(patsubst %.ml,%.cmx,$(ALL_ML_FILES))
 
@@ -52,6 +52,6 @@ extract-kremlin: $(ALL_KRML_FILES) # from .depend
 	@echo $(FSTAR_OPTIONS)
 
 clean:
-	rm -rf .qd_files .depend cache extracted ocaml out $(filter-out VeritasFormats.fst VeritasFormats.fsti VeritasFormats.Addr.fst VeritasFormats.Merkle_addr.fst VeritasFormats.Hash_value.fst,$(QD_FILES)) test.exe
+	rm -rf .qd_files .depend ocaml out $(filter-out VeritasFormats.fst VeritasFormats.fsti VeritasFormats.Addr.fst VeritasFormats.Merkle_addr.fst VeritasFormats.Hash_value.fst,$(QD_FILES)) test.exe
 
 .PHONY: all depend verify extract-ocaml extract-kremlin clean build test
