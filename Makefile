@@ -38,7 +38,7 @@ SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
 	    --smtencoding.l_arith_repr native \
 	    --smtencoding.nl_arith_repr wrapped
 OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
-ALREADY_CACHED=--already_cached 'Prims FStar'
+ALREADY_CACHED=--already_cached 'Prims FStar LowStar'
 
 FSTAR=fstar.exe $(OTHERFLAGS) $(ALREADY_CACHED)
 
@@ -46,6 +46,8 @@ FSTAR=fstar.exe $(OTHERFLAGS) $(ALREADY_CACHED)
 OUTPUT_DIRECTORY ?= _output
 
 MY_FSTAR=$(FSTAR) --cache_checked_modules --odir $(OUTPUT_DIRECTORY)
+
+INCLUDE_PATHS=parsers
 
 # a.fst(i).checked is the binary, checked version of a.fst(i)
 %.checked:
@@ -67,7 +69,7 @@ include .depend
 
 verify: $(ALL_CHECKED_FILES)
 
-extract: $(ALL_ML_FILES)
+extract: $(ALL_ML_FILES) $(ALL_CHECKED_FILES)
 	$(MAKE) -C _output
 
 $(OUTPUT_DIRECTORY)/%.ml:
