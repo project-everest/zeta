@@ -35,7 +35,7 @@ ALL_KRML_FILES := $(filter-out $(OUTPUT_DIR)/prims.krml,$(ALL_KRML_FILES))
 
 ALL_CMX_FILES=$(patsubst %.ml,%.cmx,$(ALL_ML_FILES))
 
-extract-ocaml: $(ALL_CMX_FILES)
+extract-ocaml: $(ALL_ML_FILES)
 
 extract-kremlin: $(ALL_KRML_FILES) # from .depend
 	mkdir -p out

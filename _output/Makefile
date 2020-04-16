@@ -1,4 +1,4 @@
-TARGET=Veritas_Driver.native
+TARGET=VeritasDriver.native
 
 ifeq ($(OS),Windows_NT)
   export OCAMLPATH := $(FSTAR_HOME)/bin;$(OCAMLPATH)
@@ -12,4 +12,4 @@ $(TARGET):
 	OCAMLPATH="$(FSTAR_HOME)/bin" ocamlbuild -use-menhir -tag thread -use-ocamlfind -quiet -pkg batteries -pkg fstarlib -pkg hacl-star -cflags -w,-8 $@
 
 clean:
-	rm -rf _build $(TARGET) *.checked
+	git clean -fdx .
