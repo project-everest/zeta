@@ -7,9 +7,13 @@ else
 endif
 
 
-$(TARGET):
+../VeritasDriver.exe: $(TARGET)
+	cp $^ $@
+
+$(TARGET): VeritasDriver.ml
 	rm -f $@
 	OCAMLPATH="$(FSTAR_HOME)/bin" ocamlbuild -use-menhir -tag thread -use-ocamlfind -quiet -pkg batteries -pkg fstarlib -pkg hacl-star -cflags -w,-8 $@
+
 
 clean:
 	git clean -fdx .

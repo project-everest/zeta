@@ -81,7 +81,9 @@ include .depend
 
 verify: $(OUTPUT_DIRECTORY)/Veritas.SparseMerkleVerifier.Correctness.fst.checked
 
-driver: parsers
+driver: $(OUTPUT_DIRECTORY)/VeritasDriver.ml parsers VeritasDriver.fst
+
+$(OUTPUT_DIRECTORY)/VeritasDriver.ml:
 	$(MY_FSTAR) VeritasDriver.fst
 	$(MY_FSTAR) --codegen OCaml VeritasDriver.fst --extract VeritasDriver
 

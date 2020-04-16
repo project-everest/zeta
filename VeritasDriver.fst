@@ -7,40 +7,42 @@ module B = FStar.Bytes
 module Parser = VeritasFormats
 
 // This is to be integrated with Tahina's code
-let parse_entry (b:B.bytes)
-  : option (V.verifier_log_entry & r:B.bytes(*{B.len r < B.len b}*))
-  = match Parser.parse_entry b with
+let parse_entry (b:B.bytes) (offset:uint_32{offset < B.len b})
+  : option (V.verifier_log_entry & r:uint_32{offset < r /\ r <= B.len b})
+  = let b' = B.sub b offset (B.len b - offset) in
+    match Parser.parse_entry b' with
     | None -> None
     | Some (vle, i) ->
-//      assume (i > 0ul);
-      let remaining = B.sub b i (B.len b - i) in
-      Some (vle, remaining)
+      assume (i > 0ul); //should be provable with LowParse ... discussing with Tahina
+      Some (vle, i + offset)
 
 let parse_log (b:B.bytes)
-  : Dv (option V.verifier_log)
-  = let rec aux out (b:B.bytes)
-     : Dv (option V.verifier_log)
-//           (decreases (v (B.len b)))
-     = if B.len b = 0ul
-       then Some (FStar.Seq.seq_of_list (List.Tot.rev out))
-       else match parse_entry b with
-            | None -> None
-            | Some (e, b) -> aux (e::out) b
+  : Tot (either V.verifier_log uint_32)
+  = let rec aux out (offset:uint_32{offset <= B.len b})
+     : Tot (either V.verifier_log uint_32)
+           (decreases (v (B.len b - offset)))
+     = if B.len b = offset
+       then Inl (FStar.Seq.seq_of_list (List.Tot.rev out))
+       else match parse_entry b offset with
+            | None -> Inr offset
+            | Some (e, offset) -> aux (e::out) offset
     in
-    aux [] b
+    aux [] 0ul
 
 let get_next_log ()
-  : ML (option V.verifier_log)
+  : ML (either V.verifier_log uint_32)
   = parse_log (B.bytes_of_string IO.(read_line stdin))
 
 let rec go (s:V.verifier_state)
   : ML unit
   = let log = get_next_log () in
     match log with
-    | None ->
-      IO.(write_string stderr "Log parsing failed\n")
+    | Inr err_pos ->
+      IO.(write_string
+             stderr
+             (FStar.Printf.sprintf "Log parsing failed at position %ul\n" err_pos))
 
-    | Some log ->
+    | Inl log ->
       let s' = V.verifier_incremental log s in
       match s' with
       | V.Failed ->
