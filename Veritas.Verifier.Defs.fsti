@@ -1,9 +1,12 @@
 module Veritas.Verifier.Defs
 
 open FStar.BitVector
+open FStar.Seq
 open Veritas.BinTree
 open Veritas.MerkleAddr
 open Veritas.Memory
+open Veritas.MultiSet
+open Veritas.SeqAux
 
 (* size of a hash value *)
 let hash_size = 256
@@ -49,3 +52,32 @@ type ms_hash_value = hash_value
 (* Hash value of an empty set *)
 val empty_hash_value: ms_hash_value
 
+(* domain of multiset hash function *)
+type ms_hashfn_dom = 
+  | MsHashDom: 
+    a:merkle_addr -> 
+    p: merkle_payload_of_addr a -> 
+    t: timestamp -> 
+    i: nat -> ms_hashfn_dom
+
+(* 
+ * incremental multiset hash function - update the 
+ * hash given a new element
+ *)
+val ms_hashfn_upd (e: ms_hashfn_dom) (h: ms_hash_value): Tot ms_hash_value
+
+(* multiset hash function for a sequence *)
+let rec ms_hashfn (s: seq ms_hashfn_dom): Tot ms_hash_value 
+  (decreases (length s)) = 
+  let n = length s in
+  (* empty sequence *)
+  if n = 0 then empty_hash_value
+  else
+    let s' = prefix s (n - 1) in
+    let e' = index s (n - 1) in
+    let h' = ms_hashfn s' in
+    ms_hashfn_upd e' h'
+
+(* two sequences that encode the same multiset produce the same hash 
+val lemma_mshashfn_correct (s1 s2: seq ms_hashfn_dom):
+  Lemma (requires (seq2mset s1 *)
