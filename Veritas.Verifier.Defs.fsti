@@ -78,6 +78,7 @@ let rec ms_hashfn (s: seq ms_hashfn_dom): Tot ms_hash_value
     let h' = ms_hashfn s' in
     ms_hashfn_upd e' h'
 
-(* two sequences that encode the same multiset produce the same hash 
+(* two sequences that encode the same multiset produce the same hash *)
 val lemma_mshashfn_correct (s1 s2: seq ms_hashfn_dom):
-  Lemma (requires (seq2mset s1 *)
+  Lemma (requires (seq2mset s1 = seq2mset s2))
+        (ensures (ms_hashfn s1 = ms_hashfn s2))

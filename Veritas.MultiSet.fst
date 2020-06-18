@@ -25,5 +25,10 @@ let lemma_empty_implies_notmem (#a: eqtype) (s: mset a) (x: a):
   Lemma (requires (is_empty s))
         (ensures (~ (contains s x))) = admit()
 
+let hasEq_lemma (a:Type):
+  Lemma (requires (hasEq a)) 
+        (ensures (hasEq (mset a))) 
+        [SMTPat (hasEq  (mset a))] = admit()
+
 (* construct a multiset given a sequence *)
 let seq2mset (#a:eqtype) (s: seq a): Tot (mset a) = admit()

@@ -36,5 +36,11 @@ val lemma_empty_implies_notmem (#a: eqtype) (s: mset a) (x: a):
   Lemma (requires (is_empty s))
         (ensures (~ (contains s x)))
 
+(* TODO: what connects boolean equality '=' and equal *)
+val hasEq_lemma (a:Type):
+  Lemma (requires (hasEq a)) 
+        (ensures (hasEq (mset a))) 
+        [SMTPat (hasEq  (mset a))]
+
 (* construct a multiset given a sequence *)
 val seq2mset (#a:eqtype) (s: seq a): Tot (mset a)
