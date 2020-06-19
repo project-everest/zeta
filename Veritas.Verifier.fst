@@ -75,6 +75,11 @@ let store_add (s:vstore)
               (am:add_method): (s':vstore{store_contains s' a}) =
   fun a' -> if a' = a then Some (SP v am) else s a'
 
+(* evict an address from a store *)
+let store_evict (s:vstore)
+                (a:merkle_addr{store_contains s a}) = 
+  fun a' -> if a' = a then None else s a'
+
 (* per-thread verifier state *)
 noeq type vthread_state = 
   | VerifierThread: store:vstore -> clk:timestamp -> lk:merkle_addr -> vthread_state
@@ -170,7 +175,35 @@ let verifier_addm (s: vstore)
                          Some (store_add s_upd a v Merkle)
                        )
   )    
-  
+
+let verifier_evictm (s: vstore)
+                    (a:merkle_addr)
+                    (a':merkle_addr): option vstore = 
+  (* check store contains a and a' *)
+  if not (store_contains s a && store_contains s a') then None
+  else if is_merkle_root a then None
+  else if not (is_proper_desc a a') then None
+  else (
+    lemma_proper_desc_depth_monotonic a a';
+    assert(not (is_merkle_leaf a'));
+
+    let v' = stored_payload s a' in
+    let v = stored_payload s a in
+    let d = desc_dir a a' in
+    
+    lemma_proper_desc_depth_monotonic a a';
+    assert(not (is_merkle_leaf a'));
+    
+    let dh' = desc_hash_dir d v' in
+    let h = hashfn v in
+
+    match dh' with
+    | Empty -> None
+    | Desc a2 h2 b2 -> if a2 = a then 
+                         let v'_upd = update_desc_hash v' d a h in
+                         Some (store_evict (store_update s a' v'_upd) a)                       
+                       else None    
+  )
 
 (* update the store of a specific thread *)
 let thread_update_store (#p:nat) (tid:nat {tid < p}) 
@@ -211,8 +244,12 @@ let verifier_step_thread (#p:nat)
                      | None -> Failed
                      | Some store' -> thread_update_store tid vs store'
                    )
-  | EvictM _ _ ->
-    admit()
+  | EvictM a a' -> let optStore = verifier_evictm store a a' in
+                   (
+                     match optStore with
+                     | None -> Failed
+                     | Some store' -> thread_update_store tid vs store'
+                   )
   | _ -> admit()
 
 let verifier_step (#p:nat) (e:vlog_entry) (vs:vstate p): vstate p = 
