@@ -11,9 +11,11 @@ FLAKY=
 FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.Key.fsti Veritas.Record.fsti \
                Veritas.SeqAux.fsti Veritas.SeqAux.fst \
-               Veritas.MultiSet.fsti Veritas.MultiSet.fsti \
+               Veritas.MultiSet.fsti Veritas.MultiSet.fst \
                Veritas.MultiSetHash.fsti \
+               Veritas.Hash.fsti \
                Veritas.Verifier.fst
+
 
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
@@ -43,16 +45,20 @@ OUTPUT_DIRECTORY ?= _output
 
 MY_FSTAR=$(FSTAR) --cache_checked_modules --odir $(OUTPUT_DIRECTORY)
 
-# a.fst(i).checked is the binary, checked version of a.fst(i)
-%.checked:
-	$(MY_FSTAR) $<
+# a.fst.checked is the binary, checked version of a.fst
+%.fst.checked: %.fst
+	$(MY_FSTAR) $*.fst
+	touch $@
+
+# a.fsti.checked is the binary, checked version of a.fsti
+%.fsti.checked: %.fsti
+	$(MY_FSTAR) $*.fsti
 	touch $@
 
 all: verify
 
 clean:
-	rm -rf *.checked $(OUTPUT_DIRECTORY)/*ml
-	$(MAKE) -C _output clean
+	rm -rf *.checked
 
 .depend: $(FSTAR_FILES)
 	$(MY_FSTAR) --dep full $(addprefix --include , $(INCLUDE_PATHS)) --extract 'Veritas -Veritas.SparseMerkleVerifier.Correctness' $^ > .depend
@@ -61,7 +67,7 @@ depend: .depend
 
 include .depend
 
-verify: $(ALL_CHECKED_FILES)
+verify: $(addsuffix .checked, $(FSTAR_FILES))
 
 extract: $(ALL_ML_FILES)
 	$(MAKE) -C _output
