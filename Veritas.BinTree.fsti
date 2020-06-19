@@ -88,6 +88,7 @@ val lemma_parent_desc_of_proper_ancestor (d:non_root_node) (a:bin_tree_node {is_
 val lemma_proper_desc_depth_monotonic (d a: bin_tree_node):
   Lemma (requires (is_proper_desc d a))
         (ensures (depth d > depth a))
+        [SMTPat (is_proper_desc d a)]
 
 (* Two ancestors of a node are ancestor/descendant of one another *)
 val lemma_two_ancestors_related (d: bin_tree_node) (a1 a2: bin_tree_node):

@@ -44,7 +44,7 @@ val hashfn (m:merkle_payload): Tot hash_value
 
 (* timestamps for blum hashing *)
 type timestamp = 
-  | MkTimestamp: epoch: nat -> counter: nat -> timestamp
+  | MkTimestamp: e: nat -> c: nat -> timestamp
 
 (* multi-set hash value *)
 type ms_hash_value = hash_value

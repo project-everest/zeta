@@ -205,6 +205,34 @@ let verifier_evictm (s: vstore)
                        else None    
   )
 
+let verifier_addb (#p:nat) 
+                  (i:nat {i < p}) 
+                  (vs: vstate p{Valid? vs})
+                  (a:merkle_addr)
+                  (v:merkle_payload_of_addr a)
+                  (t:timestamp): (vstate p) = 
+  let tss = Valid?.tss vs in
+  (* thread state *)
+  let ts = index tss i in
+  (* global state *)
+  let gs = Valid?.gs vs in
+  (* epoch of timestamp of last evict *)
+  let e = MkTimestamp?.e t in
+  (* next verify epoch of verifier *)
+  let ne = VerifierGlobal?.ne gs in
+
+  (* check that epoch e is at least ne *)
+  if e < ne then Failed
+
+  (* check that epoch e is at most 1 larger than ne *)
+  else if e + 1 > ne then Failed 
+
+  else (
+    let epidx = e % 2 in
+    admit()
+  )
+    
+                  
 (* update the store of a specific thread *)
 let thread_update_store (#p:nat) (tid:nat {tid < p}) 
                         (vs:vstate p{Valid? vs})
