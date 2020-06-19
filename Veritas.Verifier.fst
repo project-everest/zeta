@@ -1,14 +1,10 @@
 module Veritas.Verifier
 
 open FStar.Seq
-open FStar.BitVector
-open FStar.Classical
+open Veritas.Key
+open Veritas.Record
 open Veritas.SeqAux
-open Veritas.Memory
-open Veritas.BinTree
-open Veritas.BinTreePtr
-open Veritas.MerkleAddr
-open Veritas.Verifier.Defs
+open Veritas.MultiSetHash
 
 (*
  * The verifier consumes a log that consists of memory operations and
@@ -18,20 +14,21 @@ open Veritas.Verifier.Defs
  *)
 
 (* Each entry of the verifier log *)
-type vlog_entry_thread =
-  | MemoryOp: o:memory_op -> vlog_entry_thread
-  | AddM: a:merkle_addr -> v:merkle_payload -> a':merkle_addr -> vlog_entry_thread
-  | EvictM: a:merkle_addr -> a':merkle_addr -> vlog_entry_thread
-  | AddB: a:merkle_addr -> v:merkle_payload -> t:timestamp -> vlog_entry_thread 
-  | EvictB: a:merkle_addr -> t:timestamp -> vlog_entry_thread
-  | EvictBM: a: merkle_addr -> a':merkle_addr -> t:timestamp -> vlog_entry_thread
+type vlog_entry =
+  | Get: k:data_key -> v:data_value -> vlog_entry
+  | Put: k:data_key -> v:data_value -> vlog_entry
+  | AddM: r:record -> k':merkle_key -> vlog_entry
+  | EvictM: k:key -> k':merkle_key -> vlog_entry 
+  | AddB: r:record -> t:timestamp -> vlog_entry 
+  | EvictB: k:key -> t:timestamp -> vlog_entry
+  | EvictBM: k:key -> k':merkle_key -> vlog_entry
 
-(* verifier log entry *)
-type vlog_entry = 
-  | VLogEntry: tid:nat -> e:vlog_entry_thread -> vlog_entry
+(* verifier log entry (global)  *)
+type vlog_entry_g = 
+  | Log: tid:nat -> e:vlog_entry -> vlog_entry_g
 
-(* single verifier log *)
-type vlog = seq vlog_entry
+(* verifier log *)
+type vlog = seq vlog_entry_g
 
 (* index in the verifier log *)
 type vl_index (l:vlog) = seq_index l
@@ -41,73 +38,86 @@ type add_method =
   | Merkle: add_method       (* AddM *)
   | Blum: add_method         (* AddB *)
 
-(* information we keep for each addr in store *)
-type vstore_payload (a:merkle_addr) = 
-  | SP: v:merkle_payload_of_addr a -> add:add_method -> vstore_payload a
+(* verifier store entry *)
+type vstore_entry (k:key) = 
+  | VStore: v:value_type_of k -> am: add_method -> vstore_entry k
 
-(* verifier store is a subset of merkle_addr, merkle_payloads *)
-type vstore = (a:merkle_addr) -> option (vstore_payload a)
+(* verifier store is a subset of (k,v) records *)
+(* we also track how the key was added merkle/blum *)
+type vstore = (k:key) -> option (vstore_entry k)
 
 (* does the store contain address a *)
-let store_contains (store:vstore) (a:merkle_addr) = Some? (store a)
+let store_contains (st:vstore) (k:key) = Some? (st k)
 
-(* lookup the payload of an address in store *)
-let stored_payload (store:vstore) (a:merkle_addr{store_contains store a}):
-  (merkle_payload_of_addr a) = 
-  SP?.v (Some?.v (store a))
+(* lookup the value of a key in the store *)
+let stored_value (st:vstore) (k:key{store_contains st k}):
+  (value_type_of k) = 
+  VStore?.v (Some?.v (st k))
 
-let stored_add_method (store:vstore) (a:merkle_addr{store_contains store a}): add_method = 
-    SP?.add (Some?.v (store a))
+(* add method of a key in the store *)
+let add_method_of (st:vstore) (k:key{store_contains st k}): add_method = 
+    VStore?.am (Some?.v (st k))
 
 (* update the store *)
-let store_update (store:vstore) 
-                 (a:merkle_addr{store_contains store a})
-                 (v:merkle_payload_of_addr a):
-  Tot (store':vstore {store_contains store' a /\ 
-                      stored_payload store' a = v}) = 
-  let am = stored_add_method store a in                      
-  fun a' -> if a' = a then Some (SP v am) else store a'
+let update_store (st:vstore) 
+                 (k:key{store_contains st k})
+                 (v:value_type_of k):
+  Tot (st':vstore {store_contains st' k /\ stored_value st' k = v}) = 
+  let am = add_method_of st k in                      
+  fun k' -> if k' = k then Some (VStore v am) else st k'
 
 (* add a new record to the store *)
-let store_add (s:vstore)
-              (a:merkle_addr{not(store_contains s a)})
-              (v:merkle_payload_of_addr a)
-              (am:add_method): (s':vstore{store_contains s' a}) =
-  fun a' -> if a' = a then Some (SP v am) else s a'
+let add_to_store (st:vstore)
+                 (k:key{not (store_contains st k)})
+                 (v:value_type_of k)
+                 (am:add_method): 
+  (st':vstore{store_contains st' k /\ stored_value st' k = v}) =
+  fun k' -> if k' = k then Some (VStore v am) else st k'
 
-(* evict an address from a store *)
-let store_evict (s:vstore)
-                (a:merkle_addr{store_contains s a}) = 
-  fun a' -> if a' = a then None else s a'
+(* evict a key from a store *)
+let evict_from_store (st:vstore)
+                     (k:key{store_contains st k}) = 
+  fun k' -> if k' = k then None else st k'
 
-(* per-thread verifier state *)
-noeq type vthread_state = 
-  | VerifierThread: store:vstore -> clk:timestamp -> lk:merkle_addr -> vthread_state
+(* verifier thread local state  *)
+noeq type vtls = 
+  | TLS: st:vstore -> clk:timestamp -> lk:key -> vtls
 
-type vglobal_state = 
-  | VerifierGlobal: hadd0:ms_hash_value ->
-           hevict0:ms_hash_value ->
-           hadd1:ms_hash_value ->
-           hevict1:ms_hash_value ->
-           ne:nat -> vglobal_state
+(* per-epoch hash value *)
+type epoch_hash = nat -> ms_hash_value
+
+(* verifier global state *)
+noeq type vgs = 
+  | GS: hadd: epoch_hash -> 
+        hevict: epoch_hash ->
+        ne:nat -> vgs
 
 (* verifier state aggregated across all verifier threads *)
 noeq type vstate (p:nat) = 
   | Failed: vstate p
-  | Valid: tss:seq vthread_state{length tss = p} ->  (* thread-specific state *)
-           gs:vglobal_state ->                     (* global state *)
+  | Valid: tlss:seq vtls{length tlss = p} ->
+           gs:vgs ->
            vstate p
 
-(* verifier read operation; return false on verification failure *)
-let verifier_read (a:addr) (v:payload) 
-                  (store: vstore): bool =
-  (* merkle addr *)
-  let ma = addr_to_merkle_leaf a in
-  (* check store contains addr *)
-  if not (store_contains store ma) then false
-  (* check stored payload is v *)
-  else stored_payload store ma = MkLeaf v
+let thread_store (#p:nat) (i:nat{i < p}) (vs:vstate p{Valid? vs}): vstore = 
+  let tlss = Valid?.tlss vs in
+  let tls = index tlss i in
+  TLS?.st tls  
 
+(* verifier read operation; return false on verification failure *)
+let vget (#p:nat) (i:nat{i < p}) 
+         (k:data_key) (v:data_value) (vs: vstate p{Valid? vs}): vstate p =
+  let st = thread_store i vs in
+  
+  (* check store contains addr *)
+  if not (store_contains st k) then Failed
+  
+  (* check stored payload is v *)
+  else if stored_value st k <> Data v then Failed 
+  
+  else vs
+
+(*
 (* verification write operation: return updated store on success; Null on failure *)
 let verifier_write (a:addr) (v:payload)
                    (store: vstore): option vstore = 
@@ -305,3 +315,4 @@ let init_vstate (p:nat): vstate p = admit()
 
 let verifier (p:nat) (l:vlog): Tot (vstate p) = 
   verifier_aux l (init_vstate p)
+*)

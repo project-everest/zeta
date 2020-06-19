@@ -8,9 +8,6 @@ type data_value =
   | Null: data_value
   | DValue: v:int -> data_value
 
-(* data record is a data_key, data_value pair *)
-type data_record = data_key * data_value
-
 (* size of a hash value *)
 let hash_size = 256
 
@@ -26,9 +23,19 @@ type desc_hash =
 type merkle_value = 
   | MValue: l:desc_hash -> r:desc_hash -> merkle_value
 
-type merkle_record = merkle_key * merkle_value
+(* value - union type of merkle and data values *)
+type value = 
+  | Merkle: v:merkle_value -> value
+  | Data: v:data_value -> value
 
-(* record - union of data and merkle records *)
-type record = 
-  | Merkle: m:merkle_record -> record
-  | Data: d:data_record -> record
+(* check merkle/data consistency of k and v *)
+let is_value_of (k:key) (v:value) = 
+  if is_data_key k then Data? v
+  else Merkle? v
+
+type value_type_of (k:key) = v:value{is_value_of k v}
+
+type key_type_of (v:value) = k:key{is_value_of k v}
+
+(* record - key-value pair *)
+type record = key * value

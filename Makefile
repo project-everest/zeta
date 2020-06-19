@@ -12,7 +12,9 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.Key.fsti Veritas.Record.fsti \
                Veritas.SeqAux.fsti Veritas.SeqAux.fst \
                Veritas.MultiSet.fsti Veritas.MultiSet.fsti \
-               Veritas.MultiSetHash.fsti
+               Veritas.MultiSetHash.fsti \
+               Veritas.Verifier.fst
+
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
 
