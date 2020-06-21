@@ -21,9 +21,10 @@ type vlog_entry =
   | Put: k:data_key -> v:data_value -> vlog_entry
   | AddM: r:record -> k':merkle_key -> vlog_entry
   | EvictM: k:key -> k':merkle_key -> vlog_entry
-  | AddB: r:record -> t:timestamp -> vlog_entry
+  | AddB: r:record -> t:timestamp -> j:nat -> vlog_entry
   | EvictB: k:key -> t:timestamp -> vlog_entry
-  | EvictBM: k:key -> k':merkle_key -> vlog_entry
+  | EvictBM: k:key -> k':merkle_key -> t:timestamp -> vlog_entry
+  | VerifyEpoch: vlog_entry
 
 (* verifier log entry (global)  *)
 type vlog_entry_g =
@@ -107,6 +108,11 @@ let thread_store (#p:nat) (i:nat{i < p}) (vs:vstate p{Valid? vs}): vstore =
   let tls = index tlss i in
   TLS?.st tls
 
+let thread_clock (#p:nat) (i:nat{i < p}) (vs:vstate p{Valid? vs}) = 
+  let tlss = Valid?.tlss vs in
+  let tls = index tlss i in
+  TLS?.clk tls
+
 (* update the store of a specified verifier thread *)
 let update_thread_store (#p:nat)
                         (i:nat{i < p})
@@ -121,6 +127,17 @@ let update_thread_store (#p:nat)
                     let tlss' = upd tlss i tls' in
                     Valid tlss' gs
 
+let update_thread_clock (#p:nat) (i:nat{i < p})
+                        (vs:vstate p{Valid? vs})
+                        (clk:timestamp): vstate p = 
+  let tlss = Valid?.tlss vs in
+  let gs = Valid?.gs vs in
+  let tls = index tlss i in
+  match tls with
+  | TLS st _ lk -> let tls' = TLS st clk lk in
+                   let tlss' = upd tlss i tls' in
+                   Valid tlss' gs
+
 (* verifier read operation *)
 let vget (#p:nat) (i:nat{i < p})
          (k:data_key) (v:data_value) (vs: vstate p{Valid? vs}): vstate p =
@@ -132,9 +149,40 @@ let vget (#p:nat) (i:nat{i < p})
   (* all checks pass - simply return state unchanged *)
   else vs
 
+let hadd (#p:nat) (e:nat) (vs:vstate p{Valid? vs}) = 
+  let gs = Valid?.gs vs in
+  let h = GS?.hadd gs in
+  h e
+
+let hevict (#p:nat) (e:nat) (vs:vstate p{Valid? vs}) = 
+  let gs = Valid?.gs vs in
+  let h = GS?.hevict gs in
+  h e
+
+let update_epoch_hash (eh: epoch_hash) (e:nat) (h:ms_hash_value) = 
+  fun e' -> if e = e' then h else eh e'
+
+let update_hadd (#p:nat) (e:nat) (h: ms_hash_value)  (vs:vstate p{Valid? vs}): vstate p = 
+  match vs with
+  | Valid tlss gs -> match gs with
+                    | GS ha he ne -> let gs' = GS (update_epoch_hash ha e h) he ne in
+                                     Valid tlss gs'
+
+let update_hevict (#p:nat) (e:nat) (h:ms_hash_value) (vs:vstate p{Valid? vs}): vstate p = 
+  match vs with
+  | Valid tlss gs -> match gs with
+                    | GS ha he ne -> let gs' = GS ha (update_epoch_hash he e h) ne in
+                                     Valid tlss gs'
+
+let update_ne (#p:nat) (ne:nat) (vs:vstate p{Valid? vs}): vstate p = 
+  match vs with
+  | Valid tlss gs -> match gs with
+                    | GS ha he _ -> let gs' = GS ha he ne in
+                                     Valid tlss gs'
+  
 (* verifier write operation *)
-let vwrite (#p:nat) (i:nat{i < p})
-           (k:data_key) (v:data_value) (vs: vstate p{Valid? vs}): vstate p =
+let vput (#p:nat) (i:nat{i < p})
+         (k:data_key) (v:data_value) (vs: vstate p{Valid? vs}): vstate p =
   let st = thread_store i vs in
   (* check store contains key *)
   if not (store_contains st k) then Failed
@@ -213,96 +261,116 @@ let vevictm (#p:nat) (i:nat{i < p})
                          let st_upd = evict_from_store (update_store st k' (MVal v'_upd)) k in
                          update_thread_store i vs st_upd
                        else Failed
-  
-(*
 
+let max (t1 t2: timestamp) = 
+  if t1 `ts_lesser` t2 then t2 else t1
 
-
-
-
-let verifier_addb (#p:nat)
-                  (i:nat {i < p})
-                  (vs: vstate p{Valid? vs})
-                  (a:merkle_addr)
-                  (v:merkle_payload_of_addr a)
-                  (t:timestamp): (vstate p) =
-  let tss = Valid?.tss vs in
-  (* thread state *)
-  let ts = index tss i in
+let vaddb (#p:nat) (i:nat{i < p})
+          (r:record)
+          (t:timestamp)
+          (j:nat)
+          (vs:vstate p{Valid? vs}): vstate p = 
   (* global state *)
-  let gs = Valid?.gs vs in
+  let gs = Valid?.gs vs in          
   (* epoch of timestamp of last evict *)
   let e = MkTimestamp?.e t in
   (* next verify epoch of verifier *)
-  let ne = VerifierGlobal?.ne gs in
-
+  let ne = GS?.ne gs in
+  let st = thread_store i vs in  
+  let (k,v) = r in
+  (* check value type consistent with key k *)
+  if not (is_value_of k v) then Failed
   (* check that epoch e is at least ne *)
-  if e < ne then Failed
+  else if e < ne then Failed
+  (* check store does not contain k *)
+  else if store_contains st k then Failed
+  else 
+    (* current h_add *)
+    let h = hadd e vs in
+    (* updated h_add *)
+    let h_upd = ms_hashfn_upd (MHDom r t j) h in
+    (* update verifier state *)
+    let vs_upd = update_hadd e h_upd vs in
+    (* current clock of thread i *)
+    let clk = thread_clock i vs in
+    (* updated clock *)
+    let clk_upd = max clk t in
+    (* update verifier state with new clock *)
+    let vs_upd2 = update_thread_clock i vs_upd clk_upd in
+    (* add record to store *)
+    let st_upd = add_to_store st k v Blum in
+    update_thread_store i vs_upd2 st_upd
 
-  (* check that epoch e is at most 1 larger than ne *)
-  else if e + 1 > ne then Failed
-
-  else (
-    let epidx = e % 2 in
-    admit()
-  )
-
-
-(* update the store of a specific thread *)
-let thread_update_store (#p:nat) (tid:nat {tid < p})
-                        (vs:vstate p{Valid? vs})
-                        (store:vstore): vstate p =
-  let tss = Valid?.tss vs in
+let vevictb (#p:nat) (i:nat{i < p})
+            (k:key) (t:timestamp)
+            (vs:vstate p{Valid? vs}): vstate p = 
   let gs = Valid?.gs vs in
-  let ts = index tss tid in
-  match ts with
-  | VerifierThread _ clk lk ->
-    let ts_upd = VerifierThread store clk lk in
-    let tss_upd = upd tss tid ts_upd in
-    Valid tss_upd gs
+  let clk = thread_clock i vs in
+  let e = MkTimestamp?.e t in
+  let ne = GS?.ne gs in
+  let st = thread_store i vs in
+  if not (ts_lesser clk t) then Failed
+  else if e < ne then Failed  
+  else if not (store_contains st k) then Failed  
+  else 
+    (* current h_evict *)
+    let h = hevict e vs in
+    let v = stored_value st k in
+    let h_upd = ms_hashfn_upd (MHDom (k,v) t i) h in
+    let vs_upd = update_hevict e h_upd vs in
+    let vs_upd2 = update_thread_clock i vs_upd t in    
+    let st_upd = evict_from_store st k in
+    update_thread_store i vs_upd2 st_upd
 
+let vevictbm (#p:nat) (i:nat{i < p})
+             (k:key) (k':merkle_key) (t:timestamp)
+             (vs:vstate p{Valid? vs}): vstate p = 
+  let st = thread_store i vs in
+  if not (store_contains st k') then Failed 
+  else if not (is_proper_desc k k') then Failed
+  else
+    let v' = to_merkle_value (stored_value st k') in
+    let d = desc_dir k k' in
+    let dh' = desc_hash_dir v' d in
+    match dh' with
+    | Empty -> Failed
+    | Desc k2 h2 b2 -> if k2 = k && b2 = false then
+                         let v'_upd = update_merkle_value v' d k h2 true in
+                         let st_upd = update_store st k' (MVal v'_upd) in
+                         vevictb i k t (update_thread_store i vs st_upd)
+                       else Failed
+
+let vverify_epoch (#p:nat) (vs:vstate p{Valid? vs}): vstate p = 
+  let gs = Valid?.gs vs in
+  let ne = GS?.ne gs in
+  let ha = hadd ne vs in
+  let he = hevict ne vs in
+  if ha = he then
+    update_ne (ne + 1) vs
+  else Failed
+ 
 let verifier_step_thread (#p:nat)
-                         (e:vlog_entry_thread)
-                         (tid:nat {tid < p})
-                         (vs:vstate p{Valid? vs}): vstate p =
-  let gs = Valid?.gs vs in
-  let tss = Valid?.tss vs in
-  let ts = index tss tid in
-  let store = VerifierThread?.store ts in
+                         (e:vlog_entry)
+                         (i:nat{i < p})
+                         (vs:vstate p{Valid? vs}): vstate p =                           
   match e with
-  | MemoryOp o ->
-    (
-    match o with
-    | Read a v -> if verifier_read a v store
-                  then vs
-                  else Failed
-    | Write a v -> let optStore = verifier_write a v store in
-                   match optStore with
-                   | None -> Failed
-                   | Some store' -> thread_update_store tid vs store'
-    )
-  | AddM a v a' -> let optStore = verifier_addm store a v a' in
-                   (
-                     match optStore with
-                     | None -> Failed
-                     | Some store' -> thread_update_store tid vs store'
-                   )
-  | EvictM a a' -> let optStore = verifier_evictm store a a' in
-                   (
-                     match optStore with
-                     | None -> Failed
-                     | Some store' -> thread_update_store tid vs store'
-                   )
-  | _ -> admit()
+  | Get k v -> vget i k v vs
+  | Put k v -> vput i k v vs
+  | AddM r k'  -> vaddm i r k' vs
+  | EvictM k k' -> vevictm i k k' vs
+  | AddB r t j -> vaddb i r t j vs
+  | EvictB k t -> vevictb i k t vs
+  | EvictBM k k' t -> vevictbm i k k' t vs
+  | VerifyEpoch -> vverify_epoch vs
 
-let verifier_step (#p:nat) (e:vlog_entry) (vs:vstate p): vstate p =
+let verifier_step (#p:nat) (e:vlog_entry_g) (vs:vstate p): vstate p =
   match vs with
   | Failed -> Failed              // propagate failures
   | Valid ts gs ->
     match e with
-    VLogEntry tid e' ->
-      if tid >= p then  Failed   // invalid thread id
-      else verifier_step_thread e' tid vs
+    | Log i e' ->
+      if i >= p then  Failed   // invalid thread id
+      else verifier_step_thread e' i vs
 
 (* verify a log from a specified initial state *)
 let rec verifier_aux (#p:nat) (l:vlog) (vs:vstate p): Tot (vstate p)
@@ -320,4 +388,3 @@ let init_vstate (p:nat): vstate p = admit()
 
 let verifier (p:nat) (l:vlog): Tot (vstate p) =
   verifier_aux l (init_vstate p)
-*)
