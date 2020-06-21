@@ -383,8 +383,20 @@ let rec verifier_aux (#p:nat) (l:vlog) (vs:vstate p): Tot (vstate p)
     let e' = index l (n - 1) in
     verifier_step e' vs'
 
-(* initialize verifier state *)
-let init_vstate (p:nat): vstate p = admit()
+let init_epoch_hash = fun e -> empty_hash_value
 
-let verifier (p:nat) (l:vlog): Tot (vstate p) =
+let empty_store:vstore = fun (k:key) -> None
+
+(* initialize verifier state *)
+let init_vstate (p:nat{p > 0}): vstate p = 
+  let gs = GS init_epoch_hash init_epoch_hash 0 in
+  let tls = TLS empty_store (MkTimestamp 0 0) Root in  
+  let tlss = create p tls in
+  let vs:vstate p = Valid tlss gs in
+  let st0 = thread_store 0 vs in
+  let st0_upd = add_to_store st0 Root (init_value Root) Merkle in
+  update_thread_store 0 vs st0_upd
+
+let verifier (p:nat{p > 0}) (l:vlog): Tot (vstate p) =
   verifier_aux l (init_vstate p)
+
