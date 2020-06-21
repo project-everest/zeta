@@ -24,11 +24,11 @@ type vlog_entry =
   | AddB: r:record -> t:timestamp -> j:nat -> vlog_entry
   | EvictB: k:key -> t:timestamp -> vlog_entry
   | EvictBM: k:key -> k':merkle_key -> t:timestamp -> vlog_entry
-  | VerifyEpoch: vlog_entry
 
 (* verifier log entry (global)  *)
 type vlog_entry_g =
-  | Log: tid:nat -> e:vlog_entry -> vlog_entry_g
+  | TOp: tid:nat -> e:vlog_entry -> vlog_entry_g
+  | VerifyEpoch: vlog_entry_g
 
 (* verifier log *)
 type vlog = seq vlog_entry_g
@@ -48,6 +48,26 @@ type vstore_entry (k:key) =
 (* verifier store is a subset of (k,v) records *)
 (* we also track how the key was added merkle/blum *)
 type vstore = (k:key) -> option (vstore_entry k)
+
+(* verifier thread local state  *)
+noeq type vtls =
+  | TLS: st:vstore -> clk:timestamp -> lk:key -> vtls
+
+(* per-epoch hash value *)
+type epoch_hash = nat -> ms_hash_value
+
+(* verifier global state *)
+noeq type vgs =
+  | GS: hadd: epoch_hash ->
+        hevict: epoch_hash ->
+        ne:nat -> vgs
+
+(* verifier state aggregated across all verifier threads *)
+noeq type vstate (p:pos) =
+  | Failed: vstate p
+  | Valid: tlss:seq vtls{length tlss = p} ->
+           gs:vgs ->
+           vstate p
 
 (* does the store contain address a *)
 let store_contains (st:vstore) (k:key) = Some? (st k)
@@ -82,36 +102,11 @@ let evict_from_store (st:vstore)
                      (k:key{store_contains st k}) =
   fun k' -> if k' = k then None else st k'
 
-(* verifier thread local state  *)
-noeq type vtls =
-  | TLS: st:vstore -> clk:timestamp -> lk:key -> vtls
-
-(* per-epoch hash value *)
-type epoch_hash = nat -> ms_hash_value
-
-(* verifier global state *)
-noeq type vgs =
-  | GS: hadd: epoch_hash ->
-        hevict: epoch_hash ->
-        ne:nat -> vgs
-
-(* verifier state aggregated across all verifier threads *)
-noeq type vstate (p:pos) =
-  | Failed: vstate p
-  | Valid: tlss:seq vtls{length tlss = p} ->
-           gs:vgs ->
-           vstate p
-
 (* get the store of a specified verifier thread *)
 let thread_store (#p:pos) (i:nat{i < p}) (vs:vstate p{Valid? vs}): vstore =
   let tlss = Valid?.tlss vs in
   let tls = index tlss i in
   TLS?.st tls
-
-let thread_clock (#p:pos) (i:nat{i < p}) (vs:vstate p{Valid? vs}) = 
-  let tlss = Valid?.tlss vs in
-  let tls = index tlss i in
-  TLS?.clk tls
 
 (* update the store of a specified verifier thread *)
 let update_thread_store (#p:pos)
@@ -127,6 +122,12 @@ let update_thread_store (#p:pos)
                     let tlss' = upd tlss i tls' in
                     Valid tlss' gs
 
+let thread_clock (#p:pos) (i:nat{i < p}) (vs:vstate p{Valid? vs}) = 
+  let tlss = Valid?.tlss vs in
+  let tls = index tlss i in
+  TLS?.clk tls
+
+
 let update_thread_clock (#p:pos) (i:nat{i < p})
                         (vs:vstate p{Valid? vs})
                         (clk:timestamp): vstate p = 
@@ -137,17 +138,6 @@ let update_thread_clock (#p:pos) (i:nat{i < p})
   | TLS st _ lk -> let tls' = TLS st clk lk in
                    let tlss' = upd tlss i tls' in
                    Valid tlss' gs
-
-(* verifier read operation *)
-let vget (#p:pos) (i:nat{i < p})
-         (k:data_key) (v:data_value) (vs: vstate p{Valid? vs}): vstate p =
-  let st = thread_store i vs in
-  (* check store contains key *)
-  if not (store_contains st k) then Failed
-  (* check stored value is v *)
-  else if to_data_value (stored_value st k) <> v then Failed
-  (* all checks pass - simply return state unchanged *)
-  else vs
 
 let hadd (#p:pos) (e:nat) (vs:vstate p{Valid? vs}) = 
   let gs = Valid?.gs vs in
@@ -179,6 +169,17 @@ let update_ne (#p:pos) (ne:nat) (vs:vstate p{Valid? vs}): vstate p =
   | Valid tlss gs -> match gs with
                     | GS ha he _ -> let gs' = GS ha he ne in
                                      Valid tlss gs'
+
+(* verifier read operation *)
+let vget (#p:pos) (i:nat{i < p})
+         (k:data_key) (v:data_value) (vs: vstate p{Valid? vs}): vstate p =
+  let st = thread_store i vs in
+  (* check store contains key *)
+  if not (store_contains st k) then Failed
+  (* check stored value is v *)
+  else if to_data_value (stored_value st k) <> v then Failed
+  (* all checks pass - simply return state unchanged *)
+  else vs
   
 (* verifier write operation *)
 let vput (#p:pos) (i:nat{i < p})
@@ -361,16 +362,16 @@ let verifier_step_thread (#p:pos)
   | AddB r t j -> vaddb i r t j vs
   | EvictB k t -> vevictb i k t vs
   | EvictBM k k' t -> vevictbm i k k' t vs
-  | VerifyEpoch -> vverify_epoch vs
 
 let verifier_step (#p:pos) (e:vlog_entry_g) (vs:vstate p): vstate p =
   match vs with
   | Failed -> Failed              // propagate failures
   | Valid ts gs ->
     match e with
-    | Log i e' ->
+    | TOp i e' ->
       if i >= p then  Failed   // invalid thread id
       else verifier_step_thread e' i vs
+    | VerifyEpoch -> vverify_epoch vs
 
 (* verify a log from a specified initial state *)
 let rec verifier_aux (#p:pos) (l:vlog) (vs:vstate p): Tot (vstate p)
