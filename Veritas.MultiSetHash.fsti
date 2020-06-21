@@ -20,12 +20,15 @@ val empty_hash_value: ms_hash_value
 type timestamp = 
   | MkTimestamp: e: nat -> c: nat -> timestamp
 
-let ts_lesser (t1 t2: timestamp) = 
+let ts_lt (t1 t2: timestamp) = 
   let e1 = MkTimestamp?.e t1 in
   let c1 = MkTimestamp?.c t1 in
   let e2 = MkTimestamp?.e t2 in
   let c2 = MkTimestamp?.c t2 in
   e1 < e2 || e1 = e2 && c1 < c2
+
+let ts_geq (t1 t2: timestamp) = 
+  not (ts_lt t1 t2)
 
 type ms_hashfn_dom = 
   | MHDom: r:record -> t:timestamp -> i:nat -> ms_hashfn_dom

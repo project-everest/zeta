@@ -264,7 +264,7 @@ let vevictm (#p:pos) (i:nat{i < p})
                        else Failed
 
 let max (t1 t2: timestamp) = 
-  if t1 `ts_lesser` t2 then t2 else t1
+  if t1 `ts_lt` t2 then t2 else t1
 
 let vaddb (#p:pos) (i:nat{i < p})
           (r:record)
@@ -310,7 +310,7 @@ let vevictb (#p:pos) (i:nat{i < p})
   let e = MkTimestamp?.e t in
   let ne = GS?.ne gs in
   let st = thread_store i vs in
-  if not (ts_lesser clk t) then Failed
+  if not (ts_lt clk t) then Failed
   else if e < ne then Failed  
   else if not (store_contains st k) then Failed  
   else 
