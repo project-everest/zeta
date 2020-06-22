@@ -145,8 +145,7 @@ val set_data (#cache: _) (e:entry_ref cache) (v:slot)
        (requires fun m0 e m1 ->
          cache_invariant cache m1 /\
          entries m1 e == Seq.update (entries cache m1) (idx_of_entry e) ({ entry_ref_value e m0 with slot=v}) /\
-         // JP: not sure about loc_entry -- how about just using the footprint for the cache?
-         modifies (loc_entry e) m0 m1)
+         modifies (footprint cache) m0 m1)
 
 /// Reading an entry. Need to understand whether the client will want to modify
 /// the data, or if this is read-only. We probably need to encapsulate the slot
