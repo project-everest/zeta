@@ -35,7 +35,7 @@ type merkle_addr = {
 }
 
 /// From merkle_vcell.h
-type merkle_leaf (v:Type) [| verifier_traits v ] = {
+type merkle_leaf (v:Type) [| verifier_traits v |] = {
   addr: merkle_addr;   //32 bytes
   data_vcell: B.pointer vcell
 }
@@ -82,6 +82,19 @@ type t (v:Type) [| verifier_traits v |] = {
 /// We have some abstract invariants on caches, e.g., liveness properties etc.
 val cache_invariant (#v:Type) [| verifier_traits v |] (c: t v) : mem -> prop
 
+/// We have to aim for a static footprint. Note that this is just about the
+/// array of entries, not the vcells pointed to by the entries themselves (to be
+/// discussed).
+val footprint: #v:Type -> [| verified_traits v |] -> t v -> B.loc
+
+val frame_invariant: #v:Type -> [| verified_traits v |] -> l:B.loc -> h0:HS.mem -> h1:HS.mem -> c:t v -> Lemma
+  (requires (
+    B.modifies l h0 h1 /\
+    B.loc_disjoint l (footprint c) /\
+    cache_invariant c h0))
+  (ensures (
+    cache_invariant c h1))
+
 /// For spec purposes, a cache is a sequence of entries
 val entries (#v:_) [|verifier_traits v] (c:t v) (m:mem{cache_invariant c m})
   : GTot (seq entry)
@@ -101,20 +114,29 @@ val entry_ref (cache: t v) : Type
     determined by the liveness of the cache itself--so long as cache
     is live, then all its entry_refs are usable *)
 
-/// A ghost deref of an entry_ref, for spec
-val entry_ref_value (e:entry_ref cache)  (m:mem{cache_invariant cache mem}) : GTot entry
+/// A ghost deref of an entry_ref, for spec. TODO: consistent naming, e.g. entry_v?
+val entry_ref_value #cache(e:entry_ref cache)  (m:mem{cache_invariant cache mem}) : GTot entry
 
 /// The underlying index of an entry, ghostly
 val idx_of_entry (e:entry_ref cache) : GTot vcache_idx
 
-/// We could then provide an API to gen an entry
+/// A lemma that ties together idx_of_entry, entry_ref_value and entries. Note
+/// that we have a mix of styles: the relationship between cache and e is
+/// expressed via an index, while the relationship between e and index is
+/// expressed via a predicate. TODO: figure out if there's a need to change this.
+val entry_ref_is_seq_index #cache (e: entry_ref cache) h idx: Lemma
+  (requires (idx_of_entry e == idx))
+  (ensures (
+    entry_ref_value e h == Seq.index (entries h cache) idx))
+
+/// We could then provide an API to gen an entry. JP: using m0 == m1 (no need to
+/// frame the invariant, no need to perform modifies-reasoning).
 val get_entry (v:Type) [| verifier_traits v |] (cache:t v) (idx:vcache_idx {idx < cacheSize})
-  : ST entry_ref
+  : ST (entry_ref cache)
        (requires fun m0 -> cache_invariant cache m0)
        (requires fun m0 e m1 ->
-         cache_invariant cache m1 /\
-         e == Seq.index (entries cache m1) idx /\
-         modifies loc_none m0 m1)
+         idx_of_entry e == idx /\
+         m0 == m1)
 
 /// Mutating an entry
 val set_data (#cache: _) (e:entry_ref cache) (v:slot)
@@ -122,14 +144,19 @@ val set_data (#cache: _) (e:entry_ref cache) (v:slot)
        (requires fun m0 -> cache_invariant cache m0)
        (requires fun m0 e m1 ->
          cache_invariant cache m1 /\
-         e == Seq.update (entries cache m1) (idx_of_entry e) ({ entry_ref_value e m0 with slot=v}) /\
+         entries m1 e == Seq.update (entries cache m1) (idx_of_entry e) ({ entry_ref_value e m0 with slot=v}) /\
+         // JP: not sure about loc_entry -- how about just using the footprint for the cache?
          modifies (loc_entry e) m0 m1)
 
-/// Reading an entry
+/// Reading an entry. Need to understand whether the client will want to modify
+/// the data, or if this is read-only. We probably need to encapsulate the slot
+/// of each entry in a region, at the very least. We could probably provide a
+/// lemma of the form "if client modifies loc_buffer (not loc_addr_of_buffer!)
+/// of a slot then the update can be reflected on `entries` and the invariant is
+/// preserved".
 val get_data (#cache:_) (e:entry_ref cache)
   : ST slot
        (requires fun m0 -> cache_invariant cache m0)
        (ensures fun m0 s m1 ->
-         cache_invariant cache m1 /\
-         modifies loc_none m0 m1 /\
+         m0 == m1 /\
          s == (entry_ref_value e m1).slot)
