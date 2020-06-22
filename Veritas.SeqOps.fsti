@@ -26,25 +26,20 @@ type interleave (#a:eqtype) (#p:pos): seq a -> ss:(seq (seq a)){length ss = p} -
                     -> interleave #a #p (append1 s x) (append1seq #a #p ss x i)     
 
 (* map every element of the interleaved sequence to its source *)
-let interleave_map (#a:eqtype) 
+let rec interleave_map (#a:eqtype) 
                    (#p:pos) 
                    (s:seq a) 
                    (ss: seq (seq a){length ss = p}) 
                    (prf: interleave #a #p s ss)
                    (i:seq_index s): 
-  j:(nat*nat){fst j < p /\ 
+  Tot (j:(nat*nat){fst j < p /\ 
             snd j < length (index ss (fst j)) /\
-            index (index ss (fst j)) (snd j) = index s i} = 
+            index (index ss (fst j)) (snd j) = index s i} )
+  (decreases prf)
+            = 
   match prf with
   | IntEmpty -> assert(s == empty #a); (0,0)
-  | IntAdd s' ss' prf' x i' -> assert(s == append1 s' x);
-                               assert(i <= length s');
-                               if i = length s then (
-                                 let si'' = index ss' i' in
-                                 let si' = index ss i' in
-                                 assert(si' == append1 si'' x);
-                                 
-                                 admit()
-                               )
+  | IntAdd s' ss' prf' x i' -> if i = length s' then 
+                                 (i', length (index ss' i'))                               
                                else
-                                 admit()
+                                 interleave_map s' ss' prf' i
