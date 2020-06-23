@@ -28,7 +28,6 @@ type vlog_entry =
 (* verifier log entry (global)  *)
 type vlog_entry_g =
   | TOp: tid:nat -> e:vlog_entry -> vlog_entry_g
-  | VerifyEpoch: vlog_entry_g
 
 (* verifier log *)
 type vlog = seq vlog_entry_g
@@ -59,8 +58,7 @@ type epoch_hash = nat -> ms_hash_value
 (* verifier global state *)
 noeq type vgs =
   | GS: hadd: epoch_hash ->
-        hevict: epoch_hash ->
-        ne:nat -> vgs
+        hevict: epoch_hash -> vgs
 
 (* verifier state aggregated across all verifier threads *)
 noeq type vstate (p:pos) =
@@ -155,20 +153,14 @@ let update_epoch_hash (eh: epoch_hash) (e:nat) (h:ms_hash_value) =
 let update_hadd (#p:pos) (e:nat) (h: ms_hash_value)  (vs:vstate p{Valid? vs}): vstate p = 
   match vs with
   | Valid tlss gs -> match gs with
-                    | GS ha he ne -> let gs' = GS (update_epoch_hash ha e h) he ne in
-                                     Valid tlss gs'
+                    | GS ha he -> let gs' = GS (update_epoch_hash ha e h) he in
+                                  Valid tlss gs'
 
 let update_hevict (#p:pos) (e:nat) (h:ms_hash_value) (vs:vstate p{Valid? vs}): vstate p = 
   match vs with
   | Valid tlss gs -> match gs with
-                    | GS ha he ne -> let gs' = GS ha (update_epoch_hash he e h) ne in
-                                     Valid tlss gs'
-
-let update_ne (#p:pos) (ne:nat) (vs:vstate p{Valid? vs}): vstate p = 
-  match vs with
-  | Valid tlss gs -> match gs with
-                    | GS ha he _ -> let gs' = GS ha he ne in
-                                     Valid tlss gs'
+                    | GS ha he -> let gs' = GS ha (update_epoch_hash he e h) in
+                                  Valid tlss gs'
 
 (* verifier read operation *)
 let vget (#p:pos) (i:nat{i < p})
@@ -275,14 +267,10 @@ let vaddb (#p:pos) (i:nat{i < p})
   let gs = Valid?.gs vs in          
   (* epoch of timestamp of last evict *)
   let e = MkTimestamp?.e t in
-  (* next verify epoch of verifier *)
-  let ne = GS?.ne gs in
   let st = thread_store i vs in  
   let (k,v) = r in
   (* check value type consistent with key k *)
   if not (is_value_of k v) then Failed
-  (* check that epoch e is at least ne *)
-  else if e < ne then Failed
   (* check store does not contain k *)
   else if store_contains st k then Failed
   else 
@@ -308,10 +296,8 @@ let vevictb (#p:pos) (i:nat{i < p})
   let gs = Valid?.gs vs in
   let clk = thread_clock i vs in
   let e = MkTimestamp?.e t in
-  let ne = GS?.ne gs in
   let st = thread_store i vs in
   if not (ts_lt clk t) then Failed
-  else if e < ne then Failed  
   else if not (store_contains st k) then Failed  
   else 
     (* current h_evict *)
@@ -340,15 +326,6 @@ let vevictbm (#p:pos) (i:nat{i < p})
                          let st_upd = update_store st k' (MVal v'_upd) in
                          vevictb i k t (update_thread_store i vs st_upd)
                        else Failed
-
-let vverify_epoch (#p:pos) (vs:vstate p{Valid? vs}): vstate p = 
-  let gs = Valid?.gs vs in
-  let ne = GS?.ne gs in
-  let ha = hadd ne vs in
-  let he = hevict ne vs in
-  if ha = he then
-    update_ne (ne + 1) vs
-  else Failed
  
 let verifier_step_thread (#p:pos)
                          (e:vlog_entry)
@@ -371,7 +348,6 @@ let verifier_step (#p:pos) (e:vlog_entry_g) (vs:vstate p): vstate p =
     | TOp i e' ->
       if i >= p then  Failed   // invalid thread id
       else verifier_step_thread e' i vs
-    | VerifyEpoch -> vverify_epoch vs
 
 (* verify a log from a specified initial state *)
 let rec verifier_aux (#p:pos) (l:vlog) (vs:vstate p): Tot (vstate p)
@@ -390,7 +366,7 @@ let empty_store:vstore = fun (k:key) -> None
 
 (* initialize verifier state *)
 let init_vstate (#p:pos): vstate p = 
-  let gs = GS init_epoch_hash init_epoch_hash 0 in
+  let gs = GS init_epoch_hash init_epoch_hash in
   let tls = TLS empty_store (MkTimestamp 0 0) Root in  
   let tlss = create p tls in
   let vs:vstate p = Valid tlss gs in

@@ -26,7 +26,7 @@ type interleave (#a:eqtype) (#p:pos): seq a -> ss:(seq (seq a)){length ss = p} -
                     -> interleave #a #p (append1 s x) (append1seq #a #p ss x i)     
 
 (* map every element of the interleaved sequence to its source *)
-let rec interleave_map (#a:eqtype) 
+val interleave_map (#a:eqtype) 
                    (#p:pos) 
                    (s:seq a) 
                    (ss: seq (seq a){length ss = p}) 
@@ -35,11 +35,22 @@ let rec interleave_map (#a:eqtype)
   Tot (j:(nat*nat){fst j < p /\ 
             snd j < length (index ss (fst j)) /\
             index (index ss (fst j)) (snd j) = index s i} )
-  (decreases prf)
-            = 
-  match prf with
-  | IntEmpty -> assert(s == empty #a); (0,0)
-  | IntAdd s' ss' prf' x i' -> if i = length s' then 
-                                 (i', length (index ss' i'))                               
-                               else
-                                 interleave_map s' ss' prf' i
+
+val interleave_inv_map (#a:eqtype)
+                       (#p:pos)
+                       (s:seq a)
+                       (ss: seq (seq a){length ss = p})
+                       (prf:interleave #a #p s ss)
+                       (j:(nat*nat){fst j < p /\ 
+                                  snd j < length (index ss (fst j))}): 
+    Tot (i:(seq_index s){index (index ss (fst j)) (snd j) = index s i})
+
+(* partition a sequence into independent sequences based on a partition function pf *)
+val partition (#a:eqtype) (#p:pos) (s:seq a) (pf: a -> (i:nat{i < p})): 
+  ss:seq (seq a){length ss = p /\ interleave #a #p s ss}
+
+type project (#a:eqtype): seq a -> seq a -> Type = 
+  | PrjEmpty: project #a (empty #a) (empty #a)
+  | PrjSkip: s1:seq a -> s2:seq a -> _:project s1 s2 -> x:a -> project s1 (append1 s2 x)
+  | PrjInc: s1:seq a -> s2:seq a -> _:project s1 s2 -> x:a -> project (append1 s1 x) (append1 s2 x)
+

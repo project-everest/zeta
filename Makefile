@@ -14,8 +14,9 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.MultiSet.fsti Veritas.MultiSet.fst \
                Veritas.MultiSetHash.fsti \
                Veritas.Hash.fsti \
-               Veritas.SeqOps.fsti \
+               Veritas.SeqOps.fsti Veritas.SeqOps.fst \
                Veritas.Verifier.fst \
+               Veritas.State.fsti \
                Veritas.Verifier.Correctness.fst
 
 
