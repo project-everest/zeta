@@ -26,14 +26,14 @@ type vlog_entry =
   | EvictBM: k:key -> k':merkle_key -> t:timestamp -> vlog_entry
 
 (* verifier log entry (global)  *)
-type vlog_entry_g =
-  | TOp: tid:nat -> e:vlog_entry -> vlog_entry_g
+type vlog_entry_g (#p:pos) =
+  | TOp: tid:nat{tid < p} -> e:vlog_entry -> vlog_entry_g #p
 
 (* verifier log *)
-type vlog = seq vlog_entry_g
+type vlog (#p:pos) = seq (vlog_entry_g #p)
 
 (* index in the verifier log *)
-type vl_index (l:vlog) = seq_index l
+type vl_index (#p:pos) (l:vlog #p) = seq_index l
 
 (* for records in the store, how were they added? *)
 type add_method =
@@ -340,14 +340,12 @@ let verifier_step_thread (#p:pos)
   | EvictB k t -> vevictb i k t vs
   | EvictBM k k' t -> vevictbm i k k' t vs
 
-let verifier_step (#p:pos) (e:vlog_entry_g) (vs:vstate p): vstate p =
+let verifier_step (#p:pos) (e:vlog_entry_g #p) (vs:vstate p): vstate p =
   match vs with
   | Failed -> Failed              // propagate failures
   | Valid ts gs ->
     match e with
-    | TOp i e' ->
-      if i >= p then  Failed   // invalid thread id
-      else verifier_step_thread e' i vs
+    | TOp i e' -> verifier_step_thread e' i vs
 
 (* verify a log from a specified initial state *)
 let rec verifier_aux (#p:pos) (l:vlog) (vs:vstate p): Tot (vstate p)

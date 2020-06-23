@@ -22,18 +22,17 @@ type verifiable_log (#p:pos) = l:vlog{verifiable #p l}
 let rec lemma_verifiable_implies_prefix_verifiable (#p:pos) (l:verifiable_log #p) (i:nat{i <= length l}):
   Lemma (requires (True))
         (ensures (verifiable #p (prefix l i)))
-        (decreases (length l)) =
+        (decreases (length l)) 
+        [SMTPat (prefix l i)]
+        =
   let n = length l in
   if n = 0 then ()
   else if i = n then ()
   else
     lemma_verifiable_implies_prefix_verifiable #p (prefix l (n - 1)) i
 
-(* TODO: #p seems to prevent the use of SMTPat in lemma above *)
-let vprefix (#p:pos) (l:verifiable_log #p) (i:nat{i <= length l}): 
-  l':(verifiable_log #p){l' = prefix l i} = 
-  lemma_verifiable_implies_prefix_verifiable l i;
-  prefix l i
+let thread_id (#p:pos) (e: vlog_entry_g #p) = TOp?.tid e
 
+let thread_id_idx (#p:pos) (l:vlog) (i:vl_index l) = thread_id #p (index l i)
 
-
+let partition_vlog (#p:pos) (l:vlog) = partition #(vlog_entry_g #p) #p l (thread_id #p) 
