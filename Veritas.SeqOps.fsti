@@ -47,13 +47,19 @@ val interleave_inv_map (#a:eqtype)
                                   snd j < length (index ss (fst j))}): 
     Tot (i:(seq_index s){index (index ss (fst j)) (snd j) = index s i})
 
-
-
-
 (* partition a sequence into independent sequences based on a partition function pf *)
 val partition (#a:eqtype) (#p:pos) (s:seq a) (pf: a -> (i:nat{i < p})): 
   ss:seq (seq a){length ss = p /\ interleave #a #p s ss}
 
 (* sortedness of a sequence *)
-type sorted (#a:eqtype) (lte: a -> a -> bool) (s: seq a) = 
-  forall (i:seq_index s). i > 0 ==> lte (index s (i - 1)) (index s i)
+type sorted (#a:eqtype) (lte: a -> a -> bool) (s: seq a)  = 
+  forall (i:seq_index s). i > 0 ==> index s (i - 1) `lte` index s i
+
+(* type of a sequence of sequences where each individual sequence is sorted *)
+type all_sorted (#a:eqtype) (lte: a -> a -> bool) (ss: seq (seq a)) = 
+  forall (i: seq_index ss). sorted #a lte (index ss i)
+
+(* merged interleaving of a sequence of sorted sequences *)
+val merge_interleave (#a:eqtype) (lte: a -> a -> bool) 
+                     (ss: seq (seq a) {all_sorted #a lte ss /\ length ss > 0}):
+  s:seq a {interleave #a #(length ss) s ss /\ sorted #a lte s} 

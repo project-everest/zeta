@@ -76,3 +76,7 @@ let partition_aux (#a:eqtype) (#p:pos) (s:seq a) (pf: a -> (i:nat{i < p})):
 (* partition a sequence into independent sequences based on a partition function pf *)
 let partition (#a:eqtype) (#p:pos) (s:seq a) (pf: a -> (i:nat{i < p})): 
   ss:seq (seq a){length ss = p /\ interleave #a #p s ss} = partition_aux #a #p s pf
+
+let merge_interleave (#a:eqtype) (lte: a -> a -> bool) 
+                     (ss: seq (seq a) {all_sorted #a lte ss /\ length ss > 0}):
+  s:seq a {interleave #a #(length ss) s ss /\ sorted #a lte s}  = admit()
