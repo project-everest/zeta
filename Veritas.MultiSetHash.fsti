@@ -30,6 +30,9 @@ let ts_lt (t1 t2: timestamp) =
 let ts_geq (t1 t2: timestamp) = 
   not (ts_lt t1 t2)
 
+let ts_leq (t1 t2: timestamp) = 
+  t1 = t2 || t1 `ts_lt` t2
+
 type ms_hashfn_dom = 
   | MHDom: r:record -> t:timestamp -> i:nat -> ms_hashfn_dom
 
@@ -55,3 +58,9 @@ let rec ms_hashfn (s: seq ms_hashfn_dom): Tot ms_hash_value
 val lemma_mshashfn_correct (s1 s2: seq ms_hashfn_dom):
   Lemma (requires (seq2mset s1 == seq2mset s2))
         (ensures (ms_hashfn s1 = ms_hashfn s2))
+
+(* multiset hash collision *)
+type ms_hash_collision = 
+  | MSCollision: s1: seq ms_hashfn_dom -> 
+                 s2: seq ms_hashfn_dom { ms_hashfn s1 = ms_hashfn s2 /\
+                                          ~(seq2mset s1 == seq2mset s2)} -> ms_hash_collision

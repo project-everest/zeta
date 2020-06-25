@@ -3,14 +3,16 @@ module Veritas.SeqOps
 open FStar.Seq
 open Veritas.SeqAux
 
+val flat_length (#a:Type) (ss: seq (seq a)): Tot nat
+
 (* append a single element to the end of a sequence *)
 let append1 (#a:eqtype) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} = 
   append s (create 1 x)
 
 (* append a single element to the i'th seq in a sequence of sequences *)
-let append1seq (#a:eqtype) (#p:pos) 
-               (ss: (seq (seq a)){length ss = p}) 
-               (x:a) (i:nat{i < p}) =
+let append1seq (#a:eqtype)
+               (ss: seq (seq a)) 
+               (x:a) (i:seq_index ss) =
   let si = index ss i in
   let si' = append1 si x in
   upd ss i si'
@@ -23,7 +25,7 @@ type interleave (#a:eqtype) (#p:pos): seq a -> ss:(seq (seq a)){length ss = p} -
   | IntEmpty: interleave #a #p (empty #a) (create p (empty #a))
   | IntAdd: s:seq a -> ss:(seq (seq a)){length ss = p} -> prf: interleave #a #p s ss 
                     -> x:a -> i:nat{i < p} 
-                    -> interleave #a #p (append1 s x) (append1seq #a #p ss x i)     
+                    -> interleave #a #p (append1 s x) (append1seq #a ss x i)     
 
 (* map every element of the interleaved sequence to its source *)
 val interleave_map (#a:eqtype) 
@@ -45,12 +47,13 @@ val interleave_inv_map (#a:eqtype)
                                   snd j < length (index ss (fst j))}): 
     Tot (i:(seq_index s){index (index ss (fst j)) (snd j) = index s i})
 
+
+
+
 (* partition a sequence into independent sequences based on a partition function pf *)
 val partition (#a:eqtype) (#p:pos) (s:seq a) (pf: a -> (i:nat{i < p})): 
   ss:seq (seq a){length ss = p /\ interleave #a #p s ss}
 
-type project (#a:eqtype): seq a -> seq a -> Type = 
-  | PrjEmpty: project #a (empty #a) (empty #a)
-  | PrjSkip: s1:seq a -> s2:seq a -> _:project s1 s2 -> x:a -> project s1 (append1 s2 x)
-  | PrjInc: s1:seq a -> s2:seq a -> _:project s1 s2 -> x:a -> project (append1 s1 x) (append1 s2 x)
-
+(* sortedness of a sequence *)
+type sorted (#a:eqtype) (lte: a -> a -> bool) (s: seq a) = 
+  forall (i:seq_index s). i > 0 ==> lte (index s (i - 1)) (index s i)

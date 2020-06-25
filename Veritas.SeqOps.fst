@@ -1,5 +1,17 @@
 module Veritas.SeqOps 
 
+open Veritas.SeqAux
+
+let rec flat_length_aux (#a:Type) (ss: seq (seq a)): Tot nat (decreases (length ss)) = 
+  let n = length ss in
+  if n = 0 then 0
+  else
+    let ss' = prefix ss (n - 1) in
+    let s = index ss (n - 1) in
+    flat_length_aux ss' + length s
+    
+let flat_length (#a:Type) (ss: seq (seq a)): Tot nat = flat_length_aux ss
+
 let rec interleave_map_aux (#a:eqtype) 
                    (#p:pos) 
                    (s:seq a) 
