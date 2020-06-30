@@ -31,3 +31,22 @@ val seq2mset (#a:eqtype) (s: seq a): Tot (mset a)
 (* count of an element in seq s is its membership count in its corresponding multiset *)
 val lemma_count_mem (#a:eqtype) (s: seq a) (x: a):
   Lemma (count x s = mem x (seq2mset s))
+
+(* union of two multisets *)
+val union (#a:eqtype) (s1 s2: mset a): Tot (mset a)
+
+(* the membership count of an element in a union of two multisets is 
+ * the sum of its membership counts in the two sets *)
+val lemma_union_count (#a:eqtype) (s1 s2: mset a) (x: a):
+  Lemma (mem x (union s1 s2) = (mem x s1) + (mem x s2))
+
+val lemma_union_comm (#a:eqtype) (s1 s2: mset a):
+  Lemma (union s1 s2 == union s2 s1)
+
+val lemma_union_assoc (#a:eqtype) (s1 s2 s3: mset a):
+  Lemma (union (union s1 s2) s3 == union s1 (union s2 s3))
+
+(* append of two sequences corresponds to the union in multiset domain *)
+val lemma_union_append (#a:eqtype) (s1 s2: seq a):
+  Lemma (seq2mset (append s1 s2) == union (seq2mset s1) (seq2mset s2))
+

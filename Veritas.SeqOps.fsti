@@ -27,6 +27,8 @@ type interleave (#a:eqtype) (#p:pos): seq a -> ss:(seq (seq a)){length ss = p} -
                     -> x:a -> i:nat{i < p} 
                     -> interleave #a #p (append1 s x) (append1seq #a ss x i)     
 
+#push-options "--print_universes --print_implicits"
+
 (* map every element of the interleaved sequence to its source *)
 val interleave_map (#a:eqtype) 
                    (#p:pos) 
