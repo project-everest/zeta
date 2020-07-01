@@ -14,93 +14,99 @@ open Veritas.Verifier
 //Allow the solver to invert inductive definitions at most once (ifuel)
 #push-options "--max_fuel 1 --max_ifuel 1 --initial_fuel 1 --initial_ifuel 1"
 
-(* Does the verifier return Valid (success) for this log *)
-let verifiable (#p:pos) (l:vlog) = Valid? (verifier #p l)
+(* type of thread ids *)
+type tid (p:pos) = id:nat{id < p}
+
+(* does the log leave the verifier thread in a valid state *)
+let t_verifiable (#p:pos) (#id: tid p)  (l: vlog #p) = Valid? (verifier_thread l id)
+
+(* refinement types of valid thread-level logs *)
+type t_verifiable_log (#p:pos) (#id: tid p) = l:(vlog #p){t_verifiable #p #id l}
+
+(* Full collection of verifier logs one per thread *)
+type g_vlog (#p:pos) = ss:seq (vlog #p){length ss <= p}
+
+(* globally verifiable logs *)
+type g_verifiable (#p:pos) (lg:g_vlog #p) = 
+  forall (i:nat{i < length lg}). {:pattern t_verifiable #p #i (index lg i)} 
+  t_verifiable #p #i (index lg i)
 
 (* Refinement type of logs that are verifiable *)
-type verifiable_log (#p:pos) = l:vlog{verifiable #p l}
+type g_verifiable_log (#p:pos) = l:g_vlog{g_verifiable #p l}
 
-(* If a log is verifiable, then each prefix of the log is also verifiable *)
-let rec lemma_verifiable_implies_prefix_verifiable (#p:pos) (l:verifiable_log #p) (i:nat{i <= length l}):
+(* aggregate hadd over all verifier threads *)
+let rec g_hadd (#p:pos) (lg:g_verifiable_log #p) (e:nat)
+  : Tot ms_hash_value (decreases (length lg)) = 
+  let n = length lg in
+  if n = 0 then empty_hash_value
+  else 
+    let lg' = prefix lg (n - 1) in
+    let hv' = g_hadd lg' e in
+    let l = index lg (n - 1) in
+    // TODO: how to remove this side-effect assert?
+    assert(t_verifiable #p #(n - 1) l);
+    let h = thread_hadd (verifier_thread l (n - 1)) e in
+    ms_hashfn_agg hv' h  
+
+(* aggregate hadd over all verifier threads *)
+let rec g_hevict (#p:pos) (lg:g_verifiable_log #p) (e:nat)
+  : Tot ms_hash_value (decreases (length lg)) = 
+  let n = length lg in
+  if n = 0 then empty_hash_value
+  else 
+    let lg' = prefix lg (n - 1) in
+    let hv' = g_hevict lg' e in
+    let l = index lg (n - 1) in
+    // TODO: how to remove this side-effect assert?
+    assert(t_verifiable #p #(n - 1) l);
+    let h = thread_hevict (verifier_thread l (n - 1)) e in
+    ms_hashfn_agg hv' h  
+
+(* verifiable logs where the first e epochs have identical hadd and hevict *)
+let ep_verifieable_log (#p:pos) (ep:pos) = 
+  l:(g_verifiable_log #p){forall (e:nat{e < ep}). g_hadd l e = g_hevict l e}
+
+(* the clock of a verifier thread after processing a verfiable log *)
+let clock_after (#p:pos) (#id:tid p) (l:t_verifiable_log #p #id) = 
+  let vs = verifier_thread l id in
+  Valid?.clk vs
+
+let rec lemma_verifiable_implies_prefix_verifiable
+  (#p:pos) (#id:tid p) (l:t_verifiable_log #p #id) (i:nat{i <= length l}):
   Lemma (requires (True))
-        (ensures (verifiable #p (prefix l i)))
+        (ensures (t_verifiable #p #id (prefix l i)))
         (decreases (length l)) 
-        [SMTPat (prefix l i)]
         =
   let n = length l in
   if n = 0 then ()
   else if i = n then ()
   else
-    lemma_verifiable_implies_prefix_verifiable #p (prefix l (n - 1)) i
+    lemma_verifiable_implies_prefix_verifiable #p #id (prefix l (n - 1)) i
 
-(* 
- * each verifier thread is independent of all other threads except for the 
- * global multiset hashes: it reads and writes local state and only writes (but does not 
- * read) global state. This means if we take a vlog l, partition it and run each thread 
- * log separately, we should get the same sequence of thread states. We prove this formally.
- *)
-
-(* thread id of a vlog entry *)
-let thread_id (#p:pos) (e: vlog_entry_g #p) = TOp?.tid e
-
-(* thread if of an vlog identified by an index *)
-let thread_id_idx (#p:pos) (l:vlog) (i:vl_index l) = thread_id #p (index l i)
-
-(* partition the verification log by thread id *)
-let vlog_by_thread (#p:pos) (l:vlog): ss: (seq vlog){length ss = p} = 
-  partition #(vlog_entry_g #p) #p l (thread_id #p)
-
-(* get the vlog projected to a verifier thread i *)
-let vlog_of_thread (#p:pos) (l:vlog) (i:nat{i < p}): vlog = 
-  index (vlog_by_thread #p l) i
-
-let lemma_thread_local (#p:pos) (l:verifiable_log) (i:nat{i < p}):
-  Lemma (requires (True))
-        (ensures (verifiable (vlog_of_thread #p l i) /\
-                  index (Valid?.tlss (verifier l)) i == 
-                  index (Valid?.tlss (verifier (vlog_of_thread #p l i))) i)) 
-        [SMTPat (vlog_of_thread #p l i)] = 
-   let li = vlog_of_thread l i in
-   let n = length l in
-   if n = 0 then (
-     admit ()
-   )
-   else admit()
-
-(* 
- * the clock of a verifier thread at a particular position of the log
- *)
-let clock_at_idx (#p:pos) (l:verifiable_log) 
-                 (i:nat{i < p}) 
-                 (j: seq_index (vlog_of_thread #p l i)): timestamp =
-  let li = prefix (vlog_of_thread l i) j in
-  let tls = index (Valid?.tlss (verifier li)) i in
-  TLS?.clk tls
+(* TODO: Adding SMTPat (prefix l i) does not work in the lemma_above *)
+let t_vprefix (#p:pos) (#id:tid p) (l:t_verifiable_log #p #id) (i:nat{i <= length l}): 
+  l':(t_verifiable_log #p #id){l' = prefix l i} = 
+  let l' = prefix l i in
+  lemma_verifiable_implies_prefix_verifiable l i;
+  l'
 
 (* the clock of a verifier is monotonic *)
-let lemma_clock_monotonic (#p:pos) (l:verifiable_log)
-                          (i:nat{i < p})
-                          (j:seq_index (vlog_of_thread #p l i)):
-  Lemma (requires(j > 0))
-        (ensures (clock_at_idx l i j `ts_leq` clock_at_idx l i (j - 1))) = admit()
- 
-let is_state_op (e:vlog_entry) = Get? e || Put? e
+let rec lemma_clock_monotonic (#p:pos) (#id:tid p) (l:t_verifiable_log #p #id)
+                          (i:nat{i <= length l}):
+  Lemma (requires(True))
+        (ensures (clock_after (t_vprefix l i) `ts_leq` clock_after l)) 
+  (decreases (length l))        
+        = 
+  let n = length l in
+  if n = 0 then ()
+  else if i = n then ()
+  else
+    let l' = t_vprefix l (n - 1) in
+    lemma_clock_monotonic l' i
 
-let to_state_op (e:vlog_entry{is_state_op e}): state_op = 
-  match e with
-  | Veritas.Verifier.Get k v -> Veritas.State.Get k v
-  | Veritas.Verifier.Put k v -> Veritas.State.Put k v 
 
-(*
-let state_ops_by_thread (#p:pos) (l:vlog): ot: (seq (seq state_op)){length ot = p} = 
-  let lt = vlog_by_thread #p l in
-  let lt' = map (filter is_state_op) lt in
-  map (map to_state_op) lt'
+(* is s' a prefix of s *)
+let is_prefix (#a:eqtype) (s':seq a) (s:seq a) = 
+  length s' <= length s && prefix s (length s') = s'
 
-type hash_collision_union = 
-  | Singleton: c:hash_collision -> hash_collision_union
-  | MultiSet: c:ms_hash_collision -> hash_collision_union
 
-let verifier_correct (#p:pos) (l:verifiable_log):
-  Lemma (seq_consistent (state_ops_by_thread #p l) \/ hash_collision_union) = admit()
-*)
