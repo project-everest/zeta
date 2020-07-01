@@ -109,4 +109,3 @@ let rec lemma_clock_monotonic (#p:pos) (#id:tid p) (l:t_verifiable_log #p #id)
 let is_prefix (#a:eqtype) (s':seq a) (s:seq a) = 
   length s' <= length s && prefix s (length s') = s'
 
-

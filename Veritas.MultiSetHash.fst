@@ -30,3 +30,14 @@ let ms_hashfn_agg (h1: ms_hash_value) (h2: ms_hash_value) : Tot ms_hash_value = 
 
 let lemma_hashfn_agg (s1 s2: seq ms_hashfn_dom):
   Lemma (ms_hashfn (append s1 s2) = ms_hashfn_agg (ms_hashfn s1) (ms_hashfn s2)) = admit()
+
+(* aggregate a sequence of multiset hashes into a single one *)
+let ms_hashfn_agg_seq (hs: seq ms_hash_value): Tot ms_hash_value = admit()
+
+(* TODO: Is the correct way to declare this lemma? *)
+let lemma_empty_seq (_:unit) :
+  Lemma (ms_hashfn_agg_seq FStar.Seq.empty = empty_hash_value) = admit()
+
+let lemma_app_seq (hs1 hs2: seq ms_hash_value):
+  Lemma (ms_hashfn_agg (ms_hashfn_agg_seq hs1) (ms_hashfn_agg_seq hs2) = 
+         ms_hashfn_agg_seq (append hs1 hs2)) = admit()
