@@ -1,6 +1,24 @@
 module Veritas.SeqOps 
 
-open Veritas.SeqAux
+#push-options "--print_implicits --print_universes"
+
+type interleave (#a:eqtype): seq a -> seq a -> seq a -> Type =
+  | IntEmpty: interleave #a (empty #a) (empty #a) (empty #a)
+  | IntLeft: s: seq a -> s1: seq a 
+                      -> s2: seq a 
+                      -> prf: interleave s s1 s2 
+                      -> x:a 
+                      -> interleave (append1 s x) (append1 s1 x) s2
+  | IntRight: s: seq a -> s1: seq a 
+                       -> s2: seq a 
+                       -> prf:interleave s s1 s2 
+                       -> x:a
+                       -> interleave (append1 s x) s1 (append1 s x)
+
+
+// open Veritas.SeqAux
+
+(*
 
 let rec flat_length_aux (#a:Type) (ss: seq (seq a)): Tot nat (decreases (length ss)) = 
   let n = length ss in
@@ -80,3 +98,4 @@ let partition (#a:eqtype) (#p:pos) (s:seq a) (pf: a -> (i:nat{i < p})):
 let merge_interleave (#a:eqtype) (lte: a -> a -> bool) 
                      (ss: seq (seq a) {all_sorted #a lte ss /\ length ss > 0}):
   s:seq a {interleave #a #(length ss) s ss /\ sorted #a lte s}  = admit()
+*)

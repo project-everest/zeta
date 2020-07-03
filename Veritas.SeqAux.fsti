@@ -24,6 +24,10 @@ val lemma_fullprefix_equal (#a:Type) (s:seq a):
         (ensures (prefix s (length s) == s))
         [SMTPat (prefix s (length s))]
 
+val lemma_prefix_append (#a:Type) (s1 s2: seq a):
+  Lemma (requires (True))
+        (ensures (prefix (append s1 s2) (length s1) == s1))
+
 (* Suffix of a sequence *)
 val suffix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
 
@@ -32,8 +36,53 @@ val lemma_suffix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i})
         (ensures (index (suffix s i) j == index s (length s - i + j)))
         [SMTPat (index (suffix s i) j)]
 
+(* projection - a subsequence of the original sequence *)
+val proj (#a:eqtype): seq a -> seq a -> Type0
+
+(* mapping from a subsequence index to the corresponding index in the base sequence *)
+val proj_index_map (#a:eqtype) (ss: seq a) (s: seq a) (prf: proj ss s) (i:seq_index ss):
+  Tot (j:seq_index s{index s j = index ss i})
+
+(* the mapping we construct above is monotonic *)
+val lemma_proj_monotonic (#a:eqtype) (ss s: seq a) (prf: proj ss s) (i1 i2: seq_index ss):
+  Lemma (requires (i1 < i2))
+        (ensures (proj_index_map ss s prf i1 < proj_index_map ss s prf i2))
+
+val lemma_proj_length (#a:eqtype) (ss: seq a) (s:seq a{proj ss s}):
+  Lemma (requires (True))
+        (ensures (length ss <= length s))
+
+(* subsequence of s obtained by applying a filter *)
+val filter (#a:eqtype) (f:a -> bool) (s:seq a): Tot (seq a)
+
+(* filter is a projection *)
+val lemma_filter_is_proj (#a:eqtype) (f:a -> bool) (s:seq a):
+  Lemma (proj (filter f s) s)
+
+(* constructive version of the lemma_filter_is_proj *)
+val filter_is_proj_prf (#a:eqtype) (f:a -> bool) (s:seq a): Tot (proj (filter f s) s)
+
+(* every index in the filtered sequence satisfies the filter predicate *)
+val lemma_filter_correct1 (#a: eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
+  Lemma (requires (True))
+        (ensures (f (index (filter f s) i) = true))
+        [SMTPat (f (index (filter f s) i))]
+  
+val lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
+  Lemma (requires (True))
+        (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true))
+       
+        
 inline_for_extraction
 let refine #a (f:a -> bool) = x:a{f x}
+
+(* if we know that every element of a seq satisfies f, then the same sequence is a sequence over 
+ * the refinement defined by f *)
+val seq_refine (#a:Type) (f:a -> bool) (s:seq a{forall (i:seq_index s). f (index s i)}): Tot (seq (refine f))
+
+(* interleave s s1 s2 is true iff s is an interleaving of s1 and s2 *)
+val interleave (#a:eqtype) (s s1 s2: seq a): Tot bool
+
 
 (* Subsequence of s obtained by applying a filter *)
 val filter (#a:eqtype) (f:a -> bool) (s:seq a): Tot (seq (refine f))
