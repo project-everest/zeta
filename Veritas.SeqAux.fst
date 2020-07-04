@@ -57,7 +57,7 @@ let lemma_prefix_suffix (#a:Type) (s:seq a) (i:nat{i <= length s}):
   ()
 
 (* append a single element to the end of a sequence *)
-let append1 (#a:eqtype) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} =
+let append1 (#a:Type) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} =
   append s (create 1 x)
 
 type proj (#a:eqtype): seq a -> seq a -> Type0 =
@@ -177,92 +177,13 @@ let lemma_filter_correct1 (#a: eqtype) (f:a -> bool) (s:seq a) (i:seq_index (fil
   Lemma (requires (True))
         (ensures (f (index (filter f s) i) = true)) = lemma_filter_correct1_aux f s i
         
-
-
-(*
-
-let rec projection_aux (#a:eqtype) (ss s: seq a): Tot bool (decreases (length s)) =
-  let nss = length ss in
-  let ns = length s in
-  if nss = 0 then true
-  else if ns = 0 then false
-  else
-    let es = index s (ns - 1) in
-    let ess = index ss (nss - 1) in
-    if projection_aux ss (prefix s (ns - 1)) then true
-    else if es = ess then projection_aux (prefix ss (nss - 1)) (prefix s (ns - 1))
-    else false
-
-let projection (#a:eqtype) (ss s: seq a) = projection_aux ss s
-
-let rec lemma_filter_is_projection_aux (#a:eqtype) (f:a -> bool) (s:seq a):
+let lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (True))
-        (ensures (projection (filter f s) s))
-        (decreases (length s)) =
-  let n = length s in
-  if n = 0 then ()
-  else
-    let e = index s (n - 1) in
-    let s' = prefix s (n - 1) in
-    let fs' = filter f s' in
-    if f e then (
-      lemma_filter_is_projection_aux f s';
-      lemma_prefix_append fs' (create 1 e);
-      ()
-    )
-    else
-      lemma_filter_is_projection_aux f s'
+        (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true)) = ()
 
-let lemma_filter_is_projection (#a:eqtype) (f:a -> bool) (s:seq a):
-  Lemma (projection (filter f s) s) = lemma_filter_is_projection_aux f s
-
-(* mapping from a subsequence index to the corresponding index in the base sequence *)
-let rec projection_index_map_aux (#a:eqtype) (ss: seq a) (s: seq a{projection ss s}) (i:seq_index ss):
-  Tot (j:seq_index s{index s j = index ss i})
-  (decreases (length s)) =
-  let n = length s in
-  let ns = length ss in
-  if ns = 0 then 0       (* contradiction since i < ns *)
-  else if n = 0 then 0   (* contradiction since (projection ss s) is false *)
-  else
-    let s' = prefix s (n - 1) in
-    let e = index s (n - 1) in
-    let ss' = prefix ss (ns - 1) in
-    let es = index ss (ns - 1) in
-    if projection ss s' then
-      projection_index_map_aux ss s' i
-    else (
-      assert (e = es);
-      if i = ns - 1 then n - 1
-      else projection_index_map_aux ss' s' i
-    )
-
-(* mapping from a subsequence index to the corresponding index in the base sequence *)
-let projection_index_map (#a:eqtype) (ss: seq a) (s: seq a{projection ss s}) (i:seq_index ss):
-  Tot (j:seq_index s{index s j = index ss i}) = projection_index_map_aux ss s i
-
-let lemma_projection_monotonic (#a:eqtype) (ss: seq a) (s:seq a{projection ss s}) (i1 i2: seq_index ss):
-  Lemma (requires (i1 < i2))
-        (ensures (projection_index_map ss s i1 < projection_index_map ss s i2))
-
-
-(* every index in the filtered sequence satisfies the filter predicate
-let rec lemma_filter_correct1_aux (#a:Type) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
-  Lemma (requires (True))
-        (ensures (f (index (filter f s) i) = true))
-        (decreases (length s)) =
-  let n = length s in
-  if n = 0 then ()
-  else
-    let e = index s (n-  1) in
-    if f e then
-      admit()
-    else
-      admit()
-
-*)
-
-
+let filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)): 
+  Tot (j:seq_index s{index s j = index (filter f s) i}) =
+  proj_index_map (filter f s) s (filter_is_proj_prf f s) i
 
 let rec filter_len_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
   Lemma (requires (True))
@@ -279,6 +200,65 @@ let rec filter_len_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= len
 
 let rank (#a:eqtype) (f:a -> bool)  (s:seq a) (i:nat{i <= length s})
   = length (filter f (prefix s i))
+
+let rank_increases_by_atmost_one (#a:eqtype) (f:a -> bool) (s:seq a)
+  (i:seq_index s):
+  Lemma (requires (True))
+        (ensures (f (index s i) && (rank f s i) + 1 = rank f s (i + 1) ||
+                  not (f (index s i)) && rank f s i = rank f s (i + 1))) = ()
+
+let filter_index_inv_map_aux (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (index s i)}):
+  Tot (seq_index (filter f s)) = 
+  filter_len_monotonic f s (i+1);
+  lemma_len_append (filter f (prefix s i)) (create 1 (index s i));
+  rank f s i
+
+let rec lemma_filter_maps_aux (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Lemma (requires (f (index s i)))
+        (ensures (filter_index_map f s (filter_index_inv_map_aux f s i) = i))
+        (decreases (length s)) = 
+  let n = length s in
+  if n = 0 then ()
+  else 
+    let s' = prefix s (n - 1) in
+    if f (index s (n - 1)) then 
+      if i = n - 1 then ()
+      else 
+        lemma_filter_maps_aux f s' i          
+    else 
+      lemma_filter_maps_aux f s' i
+
+let filter_index_inv_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (index s i)}):
+  Tot (j:seq_index (filter f s){index s i = index (filter f s) j}) = 
+  lemma_filter_maps_aux f s i;
+  filter_index_inv_map_aux f s i
+
+(* if we know that every element of a seq satisfies f, then the same sequence is a sequence over 
+ * the refinement defined by f *)
+let rec seq_refine_aux (#a:Type) (f:a -> bool) (s:seq a{forall (i:seq_index s). f (index s i)})
+  : Tot (seq (refine f)) (decreases (length s)) =
+  let n = length s in
+  if n = 0 then empty
+  else append1 (seq_refine_aux f (prefix s (n - 1))) (index s (n - 1))
+
+let seq_refine (#a:Type) (f:a -> bool) (s:seq a{forall (i:seq_index s). f (index s i)}): Tot (seq (refine f))
+  = seq_refine_aux f s
+
+let filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) 
+  (i:seq_index (filter f s))(j:seq_index (filter f s){j > i}):
+  Lemma (filter_index_map f s i < filter_index_map f s j) = 
+  lemma_proj_monotonic (filter f s) s (filter_is_proj_prf f s) i j
+
+
+(*
+
+
+
+
+
+
+
+
 
 let filter_index_map_aux (#a:eqtype) (f:a -> bool)  (s:seq a)
   (i:seq_index s{f (index s i)}):
@@ -307,11 +287,6 @@ let filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a)
         (ensures (filter_index_map f s i < filter_index_map f s j)) =
   filter_len_monotonic f (prefix s j) (i + 1)
 
-let rank_increases_by_atmost_one (#a:eqtype) (f:a -> bool) (s:seq a)
-  (i:seq_index s):
-  Lemma (requires (True))
-        (ensures (f (index s i) && (rank f s i) + 1 = rank f s (i + 1) ||
-                  not (f (index s i)) && rank f s i = rank f s (i + 1))) = ()
 
 let rec rank_search (#a:eqtype) (f:a -> bool) (s:seq a)
                 (r:seq_index (filter f s))

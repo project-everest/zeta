@@ -71,8 +71,15 @@ val lemma_filter_correct1 (#a: eqtype) (f:a -> bool) (s:seq a) (i:seq_index (fil
 val lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (True))
         (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true))
-       
-        
+
+(* mapping from filtered subseq to satisfying indexes *)
+val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)): 
+  Tot (j:seq_index s{index s j = index (filter f s) i})
+
+(* Mapping from original seq to filtered subseq for satisfying indexes *)
+val filter_index_inv_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (index s i)}):
+  Tot (j:seq_index (filter f s){index s i = index (filter f s) j})
+
 inline_for_extraction
 let refine #a (f:a -> bool) = x:a{f x}
 
@@ -80,32 +87,15 @@ let refine #a (f:a -> bool) = x:a{f x}
  * the refinement defined by f *)
 val seq_refine (#a:Type) (f:a -> bool) (s:seq a{forall (i:seq_index s). f (index s i)}): Tot (seq (refine f))
 
-(* interleave s s1 s2 is true iff s is an interleaving of s1 and s2 *)
-val interleave (#a:eqtype) (s s1 s2: seq a): Tot bool
-
-
-(* Subsequence of s obtained by applying a filter *)
-val filter (#a:eqtype) (f:a -> bool) (s:seq a): Tot (seq (refine f))
-
-(* Mapping from original seq to filtered subseq for satisfying indexes *)
-val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (index s i)}):
-  Tot (j:seq_index (filter f s){index s i = index (filter f s) j})
-
 (* filter_index_map is injective *)
 val filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) 
-  (i:seq_index s)(j:seq_index s{j > i}):
-  Lemma (requires (f (index s i) && f (index s j)))
-        (ensures (filter_index_map f s i < filter_index_map f s j))  
-
-(* Inverse mapping from filtered subseq to satisfying indexes *)
-val filter_index_inv_map (#a:eqtype) (f:a -> bool) (s:seq a) 
-  (i:seq_index (filter f s)): 
-  Tot (j:seq_index s{f (index s j) /\ filter_index_map f s j = i})
+  (i:seq_index (filter f s))(j:seq_index (filter f s){j > i}):
+  Lemma (filter_index_map f s i < filter_index_map f s j)
 
 (* Inverse mapping is injective *)
 val filter_index_inv_map_monotonic (#a:eqtype) (f:a -> bool) (s: seq a)
-  (i:seq_index (filter f s)) (j: seq_index (filter f s) {j > i}):
-    Lemma (requires (True))
+  (i:seq_index s) (j: seq_index s {j > i}):
+    Lemma (requires (f (index s i) /\ f (index s j)))
           (ensures (filter_index_inv_map f s i < filter_index_inv_map f s j))
 
 val lemma_filter_maps_correct (#a:eqtype) (f:a -> bool) (s: seq a) (i:seq_index s):
