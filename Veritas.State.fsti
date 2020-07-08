@@ -1,10 +1,10 @@
 module Veritas.State
 
 open FStar.Seq
+open Veritas.Interleave
 open Veritas.Key
 open Veritas.Record
 open Veritas.SeqAux
-open Veritas.SeqOps
 
 type state_op = 
   | Get: k:data_key -> v:data_value -> state_op
@@ -53,5 +53,5 @@ type rw_consistent (s: (seq state_op)) = forall (i:seq_index s).
   is_get_idx s i ==> value_of_idx s i = last_put_value_or_null (prefix s i) (key_of_idx s i) 
 
 (* sequential consistency of a concurrent sequences of state operations *)
-type seq_consistent (ss: seq (seq state_op){length ss > 0}) = 
-  exists s. interleave #state_op #(length ss) s ss /\ rw_consistent s
+type seq_consistent (ss: seq (seq state_op)) = 
+  exists s. interleave #state_op s ss /\ rw_consistent s

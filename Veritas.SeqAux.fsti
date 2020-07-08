@@ -88,19 +88,24 @@ let refine #a (f:a -> bool) = x:a{f x}
 val seq_refine (#a:Type) (f:a -> bool) (s:seq a{forall (i:seq_index s). f (index s i)}): Tot (seq (refine f))
 
 (* filter_index_map is injective *)
-val filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) 
+val lemma_filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) 
   (i:seq_index (filter f s))(j:seq_index (filter f s){j > i}):
   Lemma (filter_index_map f s i < filter_index_map f s j)
 
 (* Inverse mapping is injective *)
-val filter_index_inv_map_monotonic (#a:eqtype) (f:a -> bool) (s: seq a)
+val lemma_filter_index_inv_map_monotonic (#a:eqtype) (f:a -> bool) (s: seq a)
   (i:seq_index s) (j: seq_index s {j > i}):
     Lemma (requires (f (index s i) /\ f (index s j)))
           (ensures (filter_index_inv_map f s i < filter_index_inv_map f s j))
 
 val lemma_filter_maps_correct (#a:eqtype) (f:a -> bool) (s: seq a) (i:seq_index s):
   Lemma (requires (f (index s i)))
+        (ensures (filter_index_map f s (filter_index_inv_map f s i) = i))
+
+val lemma_filter_maps_correct2 (#a:eqtype) (f:a -> bool) (s: seq a) (i: seq_index (filter f s)):
+  Lemma (requires(True))
         (ensures (filter_index_inv_map f s (filter_index_map f s i) = i))
+        [SMTPat (filter_index_map f s i)]
   
 
 (* The index of the last entry that satisfies a given property *)

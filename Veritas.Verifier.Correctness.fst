@@ -6,7 +6,6 @@ open Veritas.Key
 open Veritas.MultiSetHash
 open Veritas.Record
 open Veritas.SeqAux
-open Veritas.SeqOps
 open Veritas.State
 open Veritas.Verifier
 
