@@ -177,3 +177,26 @@ val lemma_map_index (#a #b: Type) (f:a -> b) (s:seq a) (i:seq_index s):
   Lemma (requires (True))
         (ensures (f (index s i) == index (map f s) i))
         [SMTPat (index (map f s) i)]
+
+val zip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}):
+  sab: seq (a * b){length sab = length sa}
+
+val lemma_zip_index (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}) (i: seq_index sa):
+  Lemma (requires (True))
+        (ensures (fst (index (zip sa sb) i) = index sa i /\
+                  snd (index (zip sa sb) i) = index sb i))
+        [SMTPat (index (zip sa sb) i)]
+
+val unzip (#a #b: eqtype) (sab: seq (a * b)): sasb: (seq a * seq b) 
+  {length (fst sasb) = length sab /\
+   length (snd sasb) = length sab}
+
+val lemma_unzip_index (#a #b: eqtype) (sab: seq (a * b)) (i:seq_index sab):
+  Lemma (requires (True))
+        (ensures (fst (index sab i) = index (fst (unzip sab)) i /\
+                  snd (index sab i) = index (snd (unzip sab)) i))
+        [SMTPat (index (fst (unzip sab)) i); SMTPat (index (snd (unzip sab)) i)]
+
+val lemma_zip_unzip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}):
+  Lemma (requires (True))
+        (ensures ((sa, sb) = unzip (zip sa sb)))

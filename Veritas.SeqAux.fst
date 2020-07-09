@@ -403,3 +403,80 @@ let lemma_map_index (#a #b: Type) (f:a -> b) (s:seq a) (i:seq_index s):
   Lemma (requires (True))
         (ensures (f (index s i) == index (map f s) i)) =
   lemma_map_index_aux f s i
+
+let rec zip_aux (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}):
+  Tot (sab: (seq (a * b)){length sab = length sa}) 
+  (decreases (length sa)) = 
+  let n = length sa in
+  if n = 0 then empty
+  else
+    let sa' = prefix sa (n - 1) in
+    let sb' = prefix sb (n - 1) in
+    append1 (zip_aux sa' sb') (index sa (n - 1), index sb (n - 1))
+
+let zip = zip_aux
+
+let rec lemma_zip_index_aux (#a #b: eqtype) (sa: seq a) (sb: seq b{length sa = length sb}) (i:seq_index sa):
+  Lemma (requires (True))
+        (ensures (fst (index (zip sa sb) i) = index sa i /\
+                  snd (index (zip sa sb) i) = index sb i))
+        (decreases (length sa)) =
+  let n = length sa in
+  if n = 0 then ()
+  else if i = n - 1 then ()
+  else 
+    let sa' = prefix sa (n - 1) in
+    let sb' = prefix sb (n - 1) in
+    lemma_zip_index_aux sa' sb' i
+
+let lemma_zip_index = lemma_zip_index_aux
+
+let rec unzip_aux (#a #b: eqtype) (sab: seq (a * b)): 
+  Tot (sasb: (seq a * seq b) {length (fst sasb) = length sab /\
+                              length (snd sasb) = length sab})
+  (decreases (length sab)) = 
+  let n = length sab in 
+  if n = 0 then (empty, empty)
+  else 
+    let (sa',sb') = unzip_aux (prefix sab (n - 1)) in
+    let (ea, eb) = index sab (n - 1) in
+    (append1 sa' ea, append1 sb' eb)
+
+let unzip = unzip_aux
+
+let rec lemma_unzip_index_aux (#a #b: eqtype) (sab: seq (a * b)) (i:seq_index sab):
+  Lemma (requires (True))
+        (ensures (fst (index sab i) = index (fst (unzip sab)) i /\
+                  snd (index sab i) = index (snd (unzip sab)) i))
+        (decreases (length sab)) = 
+  let n = length sab in
+  if n = 0 then ()
+  else if i = n - 1 then ()
+  else
+    let sab' = prefix sab (n - 1) in
+    lemma_unzip_index_aux sab' i
+
+let lemma_unzip_index = lemma_unzip_index_aux
+
+let lemma_zip_unzip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}):
+  Lemma (requires (True))
+        (ensures ((sa, sb) = unzip (zip sa sb))) =
+  let sab = zip sa sb in
+  assert(length sa = length (fst (unzip sab)));
+  let aux1 (i:seq_index sa):
+    Lemma (requires (True)) 
+          (ensures (index sa i = index (fst (unzip sab)) i))
+          [SMTPat (index sa i)] = 
+    lemma_unzip_index sab i;
+    lemma_zip_index sa sb i
+  in
+  assert(equal sa (fst (unzip sab)));
+  let aux2 (i:seq_index sb):
+    Lemma (requires (True)) 
+          (ensures (index sb i = index (snd (unzip sab)) i))
+          [SMTPat (index sb i)] = 
+    lemma_unzip_index sab i;
+    lemma_zip_index sa sb i
+  in  
+  assert(equal sb (snd (unzip sab)));
+  ()

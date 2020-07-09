@@ -290,10 +290,11 @@ let vevictbm (#p:pos) (k:key) (k':merkle_key) (t:timestamp)
                          let st_upd = update_store st k' (MVal v'_upd) in
                          vevictb k t (update_thread_store vs st_upd)
                        else Failed
- 
-let verifier_thread_step (#p:pos)
-                         (e:vlog_entry #p)
-                         (vs:vtls #p): vtls #p =                           
+
+(* thread-level verification step *)
+let t_verify_step (#p:pos)
+                  (vs:vtls #p)
+                  (e:vlog_entry #p): vtls #p =                           
   match vs with
   | Failed -> Failed
   | _ ->
@@ -307,15 +308,15 @@ let verifier_thread_step (#p:pos)
     | EvictBM k k' t -> vevictbm k k' t vs
 
 (* verify a log from a specified initial state *)
-let rec verifier_thread_aux (#p:pos) (l:vlog) (vs:vtls): Tot vtls
+let rec t_verify_aux (#p:pos) (vs:vtls) (l:vlog): Tot vtls
   (decreases (length l)) =
   let n = length l in
   if n = 0 then vs
   else
     let l' = prefix l (n - 1) in
-    let vs' = verifier_thread_aux l' vs in
+    let vs' = t_verify_aux vs l' in
     let e' = index l (n - 1) in
-    verifier_thread_step #p e' vs'
+    t_verify_step #p vs' e'
 
 let init_epoch_hash = fun e -> empty_hash_value
 
@@ -330,6 +331,6 @@ let init_thread_state (#p:pos) (id:nat{id < p}): vtls =
     update_thread_store #p vs st0_upd    
   else vs
 
-let verifier_thread (#p:pos) (l:vlog) (id:nat{id < p}): vtls =
-  verifier_thread_aux #p l (init_thread_state id)
+let t_verify (#p:pos) (id:nat{id < p}) (l:vlog): vtls = 
+  t_verify_aux #p (init_thread_state id) l 
 
