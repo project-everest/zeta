@@ -1,16 +1,34 @@
-module VCache
+module Veritas.VCache
+
 open VerifierTraits
 
-/// We started trying to model some of the key data structures and
-/// APIs reachable from vcache.h.
+/// Based on veritas/verifier/vcache.h
 ///
-/// Here's some F* pseudocode sketching our understanding so far, with
-/// several questions along the way.
+/// The vcache is a vector of entries (i.e. a dynamically-sized array of size
+/// ``CacheSize``, called ``_entries``), where each entry holds a slot. A slot
+/// is an array of 20 64-bit integers; when cast to raw bytes, this is enough
+/// space to hold either a MerkleLeafVCell or a MerkleInternalVCell. In C++,
+/// clients of the VCache call its API to obtain a pointer to a raw slot
+/// (pointer to bytes, via std::array.data), then proceed to call a placement
+/// constructor to allocate an object at that location.
+///
+/// In Low*, we go for something much simpler: we introduce a data type that is
+/// either a MerkleLeaf or a MerkleInternal. We know that KreMLin will compile
+/// this to a tagged union, whose size will be the greater of the two, meaning
+/// we implement the cache simply as an array of ``slot``.
+///
+/// This module, like the rest of the verified Veritas development, is agile
+/// over the verifier traits, a set of compile-time parameters used to
+/// specialize the code for e.g. a given cell implementation or hash algorithm.
+/// See Veritas.VerifierTraits.fsti.
 
-
+/// Type definitions
+/// ----------------
 
 /// From vcell.h
 /// class Addr: an address of a memory
+///
+/// Note: this is a value which greatly simplifies things in Low*.
 type addr = {
   a0:uint_64;
   a1:uint_64;
@@ -26,49 +44,60 @@ type merkle_addr = {
 }
 
 /// From merkle_vcell.h
-type merkle_leaf (v:Type) [| verifier_traits v |] = {
+type merkle_leaf = {
   addr: merkle_addr;   //32 bytes
-  data_vcell: B.pointer vcell
+  data_vcell: B.pointer VCell.t
 }
 
-let hashValue = UInt128.t * UInt128.t
+// 32 bytes
+let hash_value = UInt128.t & UInt128.t
 
 /// From merkle_vcell.h
-type merkle_internal (v:Type) [| verifier_traits v |] = //64 bytes * 2; 4; 4 {
-   left: hashValue;    // Typically, say, 32 bytes as a pair of UInt128s
-   right: hashValue;
-   dpath: addr * addr; // Not yet sure exactly what these additional fields represent
+///
+/// 32; 32; 64; 4; 4 = 136 <= sizeof uint64 * 20
+type merkle_internal =
+{
+   left: hash_value;    // Typically, say, 32 bytes as a pair of UInt128s
+   right: hash_value;
+   dpath: addr & addr; // Not yet sure exactly what these additional fields represent
    depth: uint32;
-   ddepth: uint16 * uint16
+   ddepth: uint16 & uint16
 }
-
 
 /// From vcache.h
 /// CachePolicy is an enum in C++. We encode it ...
-let merkle = 0x01
-let blum = 0x02
-let blumHash = 0x04
+///
+/// JP: we voted against ``type cache_policy = Merkle | Blum | BlumHash``. Why?
+/// (The constants would be 1, 2, 3 instead of 1, 2, 4 but not a big deal?). It
+/// would also give use pattern-matches.
+let merkle = 0x01ul
+let blum = 0x02ul
+let blum_hash = 0x04ul
 let cache_policy = u:uint8_t{ u = 0x01 \/ u = 0x02 \/ u=0x04 }
 
 /// A slot in the cache stores either a leaf or an internal node
-type slot (v:Type) [| verifier_traits v |] =
-  | MerkleLeaf  of merkle_leaf v
-  | MerkleInternal of merkle_internal v //
+type slot =
+  | MerkleLeaf  of merkle_leaf
+  | MerkleInternal of merkle_internal
+
 
 /// An entry is a slot paired with the metadata for use by the cache
-type entry (v:Type) [| verifier_traits v |] = {
-  slot: slot v;
-  cp:cache_policy;
-  occupied:bool;
-  touched:bool;
+type entry = {
+  slot: slot; // this is the field that is an std::array<uint64, 20> in C++
+  cp: cache_policy;
+  occupied: bool;
+  touched: bool;
 }
 
 /// The main type provided by vcache encapsulates a fixed array of
 /// cache entries.
 ///
-type t (v:Type) [| verifier_traits v |] = {
-  entries:Buffer.lbuffer (entry v) cacheSize
+type t (tr: VerifierTraits.t) = {
+  entries:Buffer.lbuffer entry (UInt32.v tr.cache_size)
 }
+
+/// Stateful API
+/// ------------
 
 /// We have some abstract invariants on caches, e.g., liveness properties etc.
 val cache_invariant (#v:Type) [| verifier_traits v |] (c: t v) : mem -> prop
@@ -128,25 +157,3 @@ val get_entry (v:Type) [| verifier_traits v |] (cache:t v) (idx:vcache_idx {idx 
        (requires fun m0 e m1 ->
          idx_of_entry e == idx /\
          m0 == m1)
-
-/// Mutating an entry
-val set_data (#cache: _) (e:entry_ref cache) (v:slot)
-  : ST unit
-       (requires fun m0 -> cache_invariant cache m0)
-       (requires fun m0 e m1 ->
-         cache_invariant cache m1 /\
-         entries m1 e == Seq.update (entries cache m1) (idx_of_entry e) ({ entry_ref_value e m0 with slot=v}) /\
-         modifies (footprint cache) m0 m1)
-
-/// Reading an entry. Need to understand whether the client will want to modify
-/// the data, or if this is read-only. We probably need to encapsulate the slot
-/// of each entry in a region, at the very least. We could probably provide a
-/// lemma of the form "if client modifies loc_buffer (not loc_addr_of_buffer!)
-/// of a slot then the update can be reflected on `entries` and the invariant is
-/// preserved".
-val get_data (#cache:_) (e:entry_ref cache)
-  : ST slot
-       (requires fun m0 -> cache_invariant cache m0)
-       (ensures fun m0 s m1 ->
-         m0 == m1 /\
-         s == (entry_ref_value e m1).slot)
