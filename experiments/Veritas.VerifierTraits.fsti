@@ -11,13 +11,19 @@ module Veritas.VerifierTraits
 /// that's a little fancy and probably overkill. We could also keep pointers to
 /// hash functions at run-time, but this requires more expertise. Maybe later.)
 
-inline_for_extraction noextract
-let vcache_idx_max = 0xffff
-
+// VerificationSchemeT
 type verification_scheme =
   | Blum
   | BlumNC
   | Merkle
+
+// CacheUsePolicyT, veritas/server/srv_common.h
+type cache_use_policy =
+  | Clock
+  | Minimal
+
+type cache_size =
+  UInt16.t
 
 /// Most of the code is templatized in C++ by verifier traits. We can model that
 /// in F*. We're gathering elements of this "verifier_traits" type as we go.
@@ -36,11 +42,11 @@ type verification_scheme =
 /// the first argument to our functions, to get ML polymorphism at
 /// extraction-time followed by KreMLin's whole-program monomorphization.
 type t = {
-  cache_size: (cache_size: UInt32.t { UInt32.v cache_size <= vcache_idx_max });
-    // JP: picking UInt32t.t here because this will be used at runtime for dynamic memory allocation
+  cache_size: cache_size;
     // See common/common.h: using VCacheIdx = uint16_t;
   hash_alg: Spec.Agile.Hash.hash_alg;
     // JP: this should actually be a hash_impl; TODO fixme once Son lands his patch in HACL
     // JP: not all hash algorithms are valid, see remark in Veritas.VCell.fsti
   verification_scheme: verification_scheme;
+  cache_use_policy: cache_use_policy;
 }
