@@ -9,6 +9,11 @@ type seq_index (#a:Type) (s:seq a) = i:nat{i < length s}
 (* Prefix of a sequence *)
 val prefix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
 
+(* append a single element to the end of a sequence *)
+let append1 (#a:Type) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} =
+  append s (create 1 x)
+
+
 val lemma_prefix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
   Lemma (requires (True))
         (ensures (index (prefix s i) j == index s j))
@@ -86,6 +91,10 @@ let refine #a (f:a -> bool) = x:a{f x}
 (* if we know that every element of a seq satisfies f, then the same sequence is a sequence over 
  * the refinement defined by f *)
 val seq_refine (#a:Type) (f:a -> bool) (s:seq a{forall (i:seq_index s). f (index s i)}): Tot (seq (refine f))
+
+let filter_refine (#a:eqtype) (f:a -> bool) (s: seq a): Tot (seq (refine f)) =
+  let fs = filter f s in
+  seq_refine f fs
 
 (* filter_index_map is injective *)
 val lemma_filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) 

@@ -56,10 +56,6 @@ let lemma_prefix_suffix (#a:Type) (s:seq a) (i:nat{i <= length s}):
   assert(equal (append (prefix s i) (suffix s (length s - i))) s);
   ()
 
-(* append a single element to the end of a sequence *)
-let append1 (#a:Type) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} =
-  append s (create 1 x)
-
 type proj (#a:eqtype): seq a -> seq a -> Type0 =
   | PrjEmpty: proj (empty #a) (empty #a)
   | PrjIncl: ss: seq a -> s:seq a -> prf:proj ss s -> x:a -> proj (append1 ss x) (append1 s x)
