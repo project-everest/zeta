@@ -2,6 +2,7 @@ module Veritas.Verifier.Correctness
 
 open FStar.Seq
 open Veritas.Hash
+open Veritas.Interleave
 open Veritas.Key
 open Veritas.MultiSetHash
 open Veritas.Record
@@ -149,12 +150,8 @@ let rec attach_clock (tl:t_verifiable_log):
     let e = tv_index tl (n - 1) in
     append1 cl' (e, t)
 
-let g_verifiable_refine (lg: g_verifiable_log):
-  Tot (seq t_verifiable_log) = 
-  let ilg = attach_index lg in
-  assert(forall (i:nat{i < length lg}). t_verifiable (i, (index lg i)));
-  //assert(forall (i:nat{i < length lg}). (i, (index lg i)) = index ilg i);
-  admit()
+let g_clock_ordered (lg: g_verifiable_log):
+  Tot (lg': seq vlog_entry{interleave lg' lg}) = admit()
 
 
 (* the state operations of a vlog *)
