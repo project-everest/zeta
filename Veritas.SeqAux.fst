@@ -237,7 +237,7 @@ let rec seq_refine_aux (#a:Type) (f:a -> bool) (s:seq a{forall (i:seq_index s). 
   if n = 0 then empty
   else append1 (seq_refine_aux f (prefix s (n - 1))) (index s (n - 1))
 
-let seq_refine (#a:Type) (f:a -> bool) (s:seq a{forall (i:seq_index s). f (index s i)}): Tot (seq (refine f))
+let seq_refine (#a:Type) (f:a -> bool) (s:seq a{all f s}): Tot (seq (refine f))
   = seq_refine_aux f s
 
 let lemma_filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) 

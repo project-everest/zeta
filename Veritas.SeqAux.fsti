@@ -87,9 +87,12 @@ val filter_index_inv_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (i
 inline_for_extraction
 let refine #a (f:a -> bool) = x:a{f x}
 
+type all (#a:Type) (f:a -> bool) (s: seq a) = 
+  forall (i:seq_index s). f (index s i)
+
 (* if we know that every element of a seq satisfies f, then the same sequence is a sequence over 
  * the refinement defined by f *)
-val seq_refine (#a:Type) (f:a -> bool) (s:seq a{forall (i:seq_index s). f (index s i)}): Tot (seq (refine f))
+val seq_refine (#a:Type) (f:a -> bool) (s:seq a{all f s}): Tot (seq (refine f))
 
 let filter_refine (#a:eqtype) (f:a -> bool) (s: seq a): Tot (seq (refine f)) =
   let fs = filter f s in

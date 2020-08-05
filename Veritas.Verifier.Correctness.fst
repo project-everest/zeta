@@ -55,7 +55,7 @@ type t_verifiable_log = il: tid_vlog {t_verifiable il}
 type g_vlog = seq vlog
 
 (* globally verifiable logs *)
-type g_verifiable (lg:g_vlog) = 
+type g_verifiable (lg:g_vlog) =   
   forall (i:nat{i < length lg}). {:pattern t_verifiable (i, (index lg i))}
   t_verifiable (i, (index lg i))
 

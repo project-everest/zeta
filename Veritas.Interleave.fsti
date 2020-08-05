@@ -6,6 +6,14 @@ open Veritas.SeqAux
 (* sequence of sequences *)
 type sseq (a:Type) = seq (seq a)
 
+(* an index into an element of sseq *)
+type sseq_index (#a:Type) (ss: sseq a) = 
+  (ij:(nat * nat){(fst ij) < length ss /\ 
+                (snd ij) < length (index ss (fst ij))})
+
+(* retrieve an element of an sseq given its index *)
+val indexss (#a:Type) (ss: sseq a) (ij: sseq_index ss): Tot a
+
 (* sum of lengths of all sequences in a sequence of seqs *)
 val flat_length (#a:Type) (ss: sseq a): Tot nat
 
@@ -22,36 +30,35 @@ val lemma_flat_length_app (#a:Type) (ss1 ss2: sseq a):
   Lemma (flat_length ss1 + flat_length ss2 = flat_length (append ss1 ss2))
 
 (* interleaving of n sequences *)
-val interleave (#a:eqtype): seq a -> ss:(seq (seq a)) -> Type 
+val interleave (#a:eqtype): seq a -> ss:sseq a -> Type 
+
+(* length of an interleaving is the sum of the lengths of the individual sequences *)
+val lemma_interleave_length (#a:eqtype) (s: seq a) (ss: sseq a{interleave s ss}):
+  Lemma (length s = flat_length ss)
+  [SMTPat (interleave #a s ss)]
 
 (* if we have a proof of interleaving we can construct a mapping from 
  * interleaved sequence to the sources *)
-val interleave_map (#a:eqtype) (s: seq a) (ss: seq (seq a)) 
+val interleave_map (#a:eqtype) (s: seq a) (ss: sseq a)
      (prf:interleave #a s ss) (i: seq_index s): 
-  Tot (j: (nat*nat){fst j < length ss /\
-                 snd j < length (index ss (fst j)) /\
-                 index (index ss (fst j)) (snd j) = index s i})
-
+  Tot (j: (sseq_index ss){indexss ss j = index s i})
+  
 (* inverse of interleave map *)
-val interleave_map_inv (#a:eqtype) (s: seq a) (ss: seq (seq a))
-      (prf:interleave #a s ss) (i: seq_index ss) (j: seq_index (index ss i)): 
-  Tot (k: seq_index s{index s k = index (index ss i) j})
-
-(* length of an interleaving is the sum of the lengths of the individual sequences *)
-val lemma_interleave_length (#a:eqtype) (s: seq a) (ss: seq (seq a){interleave s ss}):
-  Lemma (length s = flat_length ss)
+val interleave_map_inv (#a:eqtype) (s: seq a) (ss: sseq a)
+      (prf:interleave #a s ss) (i: sseq_index ss):
+  Tot (j: seq_index s{index s j = indexss ss i})
 
 (* an interleave constructor that specifies the construction of 
  * an interleaving *)
-type interleave_ctor (#a:eqtype) (ss: seq (seq a)) =
-  (i: seq_index ss) -> (j: seq_index (index ss i)) -> k:nat{k < flat_length ss}
+type interleave_ctor (#a:eqtype) (ss: sseq a) =
+  (i: sseq_index ss) -> j:nat{j < flat_length ss}
 
 (* from an interleave_ constructor we can get an interleaving *)
-val interleaved_seq (#a:eqtype) (ss: seq (seq a)) (ic: interleave_ctor ss):
+val interleaved_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
   Tot (s: seq a{interleave s ss})
 
 (* we can also construct a proof of interleaving *)
-val interleaving_prf (#a: eqtype) (ss: seq (seq a)) (ic: interleave_ctor ss):
+val interleaving_prf (#a: eqtype) (ss: sseq a) (ic: interleave_ctor ss):
   Tot (interleave (interleaved_seq ss ic) ss)
 
 (* sortedness of a sequence *)
@@ -60,11 +67,11 @@ type sorted (#a:Type) (lte: a -> a -> bool) (s: seq a) =
 
 (* sort-merge interleaving *)
 val sort_merge (#a:eqtype) (lte: a-> a-> bool) 
-               (ss: seq (seq a){forall (i:seq_index ss). sorted lte (index ss i)}): 
+               (ss: sseq a{forall (i:seq_index ss). sorted lte (index ss i)}): 
   Tot (interleave_ctor ss)
 
 val lemma_sort_merge (#a:eqtype) (lte: a -> a -> bool)
-  (ss: seq (seq a){forall (i: seq_index ss). sorted lte (index ss i)}):
+  (ss: sseq a{forall (i: seq_index ss). sorted lte (index ss i)}):
   Lemma (requires (True))
         (ensures (sorted lte (interleaved_seq ss (sort_merge lte ss))))
         [SMTPat (sort_merge lte ss)]
