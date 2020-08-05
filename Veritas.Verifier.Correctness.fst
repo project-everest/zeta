@@ -150,9 +150,6 @@ let rec attach_clock (tl:t_verifiable_log):
     let e = tv_index tl (n - 1) in
     append1 cl' (e, t)
 
-let g_clock_ordered (lg: g_verifiable_log):
-  Tot (lg': seq vlog_entry{interleave lg' lg}) = admit()
-
 
 (* the state operations of a vlog *)
 let is_state_op (e: vlog_entry) = 
