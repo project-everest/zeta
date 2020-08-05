@@ -476,3 +476,40 @@ let lemma_zip_unzip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa
   in  
   assert(equal sb (snd (unzip sab)));
   ()
+
+let rec attach_index_aux (#a:Type) (s:seq a): Tot (seq (nat * a)) 
+  (decreases (length s)) =
+  let n = length s in
+  if n = 0 then empty
+  else
+    let s' = prefix s (n - 1) in
+    let e = index s (n - 1) in
+    let is' = attach_index_aux s' in
+    append1 is' (n - 1, e)
+  
+let attach_index = attach_index_aux
+
+let rec lemma_attach_len_aux (#a:Type) (s: seq a):
+  Lemma (requires (True))
+        (ensures (length (attach_index s) = length s))
+        (decreases (length s)) = 
+  let n = length s in
+  if n = 0 then ()
+  else lemma_attach_len_aux (prefix s (n - 1))
+
+let lemma_attach_len = lemma_attach_len_aux
+
+let rec lemma_attach_correct_aux (#a:Type) (s: seq a) (i: seq_index s):
+  Lemma (requires (True))
+        (ensures (length (attach_index s) = length s /\        
+                  snd (index (attach_index s) i) == index s i /\
+                  fst (index (attach_index s) i) = i))
+        (decreases (length s)) = 
+  lemma_attach_len s;
+  let n = length s in
+  if n = 0 then ()
+  else if i = n - 1 then ()
+  else lemma_attach_correct_aux (prefix s (n - 1)) i
+
+let lemma_attach_correct = lemma_attach_correct_aux
+

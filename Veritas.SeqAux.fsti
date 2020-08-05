@@ -13,7 +13,6 @@ val prefix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' =
 let append1 (#a:Type) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} =
   append s (create 1 x)
 
-
 val lemma_prefix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
   Lemma (requires (True))
         (ensures (index (prefix s i) j == index s j))
@@ -209,3 +208,19 @@ val lemma_unzip_index (#a #b: eqtype) (sab: seq (a * b)) (i:seq_index sab):
 val lemma_zip_unzip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}):
   Lemma (requires (True))
         (ensures ((sa, sb) = unzip (zip sa sb)))
+
+(* attach their index to elements of a sequence *)
+val attach_index (#a:Type) (s:seq a): Tot (seq (nat * a))
+
+val lemma_attach_len (#a:Type) (s: seq a):
+  Lemma (requires (True))
+        (ensures (length (attach_index s) = length s))
+        [SMTPat (attach_index s)]
+
+val lemma_attach_correct (#a:Type) (s:seq a) (i: seq_index s):
+  Lemma (requires (True))
+        (ensures (length (attach_index s) = length s /\        
+                  snd (index (attach_index s) i) == index s i /\
+                  fst (index (attach_index s) i) = i))
+        [SMTPat (index (attach_index s) i)]
+  

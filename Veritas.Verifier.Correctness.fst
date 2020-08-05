@@ -89,9 +89,16 @@ let rec g_hevict (lg:g_verifiable_log) (e:nat)
     let h = thread_hevict (t_verify (n- 1) l) e in
     ms_hashfn_agg hv' h  
 
-(* verifiable logs where the first e epochs have identical hadd and hevict *)
-type ep_verifiable_log (ep:pos) = 
-  l:(g_verifiable_log){forall (e:nat{e < ep}). g_hadd l e = g_hevict l e}
+(* 
+ * a global log is hash verifiable if add and 
+ * evict hashes agree for every epoch 
+ *)
+let g_hash_verifiable (lg: g_verifiable_log) = 
+  forall (e:nat). g_hadd lg e = g_hevict lg e
+
+(* refinement type of hash verifiable log *)
+let g_hash_verifiable_log = 
+  lg:g_verifiable_log {g_hash_verifiable lg}
 
 (* the clock of a verifier thread after processing a verifiable log *)
 let clock_after (il:t_verifiable_log) = 
@@ -142,6 +149,14 @@ let rec attach_clock (tl:t_verifiable_log):
     let e = tv_index tl (n - 1) in
     append1 cl' (e, t)
 
+let g_verifiable_refine (lg: g_verifiable_log):
+  Tot (seq t_verifiable_log) = 
+  let ilg = attach_index lg in
+  assert(forall (i:nat{i < length lg}). t_verifiable (i, (index lg i)));
+  //assert(forall (i:nat{i < length lg}). (i, (index lg i)) = index ilg i);
+  admit()
+
+
 (* the state operations of a vlog *)
 let is_state_op (e: vlog_entry) = 
   match e with
@@ -163,7 +178,11 @@ let to_state_op_vlog (l: vlog) =
 let to_state_op_gvlog (gl: g_vlog) = 
   map to_state_op_vlog gl
 
+(* generalized single- and multi-set hash collision *)
+type hash_collision_gen = 
+  | SingleHashCollision: hc: hash_collision -> hash_collision_gen 
+  | MultiHashCollision: hc: ms_hash_collision -> hash_collision_gen
 
-let lemma_verifier_correct (ep:pos) (l:(ep_verifiable_log ep)):
-  Lemma (requires (True))
-        (ensures (False)) = admit()
+(* final verifier correctness theorem *)
+let lemma_verifier_correct (lg: g_hash_verifiable_log { ~ (seq_consistent (to_state_op_gvlog lg))}):
+  Tot hash_collision_gen = admit()
