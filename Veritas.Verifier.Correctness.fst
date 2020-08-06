@@ -54,41 +54,31 @@ type t_verifiable_log = il: tid_vlog {t_verifiable il}
 (* Full collection of verifier logs one per thread *)
 type g_vlog = seq vlog
 
-(* globally verifiable logs *)
-type g_verifiable (lg:g_vlog) =   
-  forall (i:nat{i < length lg}). {:pattern t_verifiable (i, (index lg i))}
-  t_verifiable (i, (index lg i))
+(* a slightly different view of verifier log obtained by 
+ * attaching a tid (index) to each thread verifier log *)
+let g_tid_vlog (gl: g_vlog) = attach_index gl
+
+(* globally verifiable logs: every thread-level log is verifiable *)
+type g_verifiable (gl:g_vlog) = all t_verifiable (g_tid_vlog gl)
 
 (* Refinement type of logs that are verifiable *)
 type g_verifiable_log = l:g_vlog{g_verifiable l}
 
-(* aggregate hadd over all verifier threads *)
-let rec g_hadd (lg:g_verifiable_log) (e:nat)
-  : Tot ms_hash_value (decreases (length lg)) = 
-  let n = length lg in
-  if n = 0 then empty_hash_value
-  else 
-    let lg' = prefix lg (n - 1) in
-    let hv' = g_hadd lg' e in
-    let l = index lg (n - 1) in
-    // TODO: how to remove this side-effect assert?
-    assert(t_verifiable ((n - 1), l));
-    let h = thread_hadd (t_verify (n-1) l) e in
-    ms_hashfn_agg hv' h  
+(* view gl as a sequence of t_verifiable_logs *)
+let g_verifiable_refine (gl: g_verifiable_log): Tot (seq t_verifiable_log)
+  = seq_refine t_verifiable (g_tid_vlog gl)
 
 (* aggregate hadd over all verifier threads *)
-let rec g_hevict (lg:g_verifiable_log) (e:nat)
-  : Tot ms_hash_value (decreases (length lg)) = 
-  let n = length lg in
-  if n = 0 then empty_hash_value
-  else 
-    let lg' = prefix lg (n - 1) in
-    let hv' = g_hevict lg' e in
-    let l = index lg (n - 1) in
-    // TODO: how to remove this side-effect assert?
-    assert(t_verifiable  ((n - 1), l));
-    let h = thread_hevict (t_verify (n- 1) l) e in
-    ms_hashfn_agg hv' h  
+let g_hadd (gl: g_verifiable_log) (e:nat) = 
+  let he = fun (tl:t_verifiable_log) -> (thread_hadd (t_verify (fst tl) (snd tl)) e) in
+  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (he tl) h) in     
+  reduce empty_hash_value f (g_verifiable_refine gl)
+
+(* aggregate hadd over all verifier threads *)
+let g_hevict (gl: g_verifiable_log) (e:nat) = 
+  let ha = fun (tl:t_verifiable_log) -> (thread_hevict (t_verify (fst tl) (snd tl)) e) in
+  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (ha tl) h) in     
+  reduce empty_hash_value f (g_verifiable_refine gl)  
 
 (* 
  * a global log is hash verifiable if add and 
@@ -100,11 +90,6 @@ let g_hash_verifiable (lg: g_verifiable_log) =
 (* refinement type of hash verifiable log *)
 let g_hash_verifiable_log = 
   lg:g_verifiable_log {g_hash_verifiable lg}
-
-(* the clock of a verifier thread after processing a verifiable log *)
-let clock_after (il:t_verifiable_log) = 
-  let vs = t_verify (tid il) (vlog_of il) in
-  Valid?.clk vs
 
 let rec lemma_verifiable_implies_prefix_verifiable
   (tl:t_verifiable_log) (i:nat{i <= tv_length tl}):
@@ -119,6 +104,11 @@ let rec lemma_verifiable_implies_prefix_verifiable
   else
     lemma_verifiable_implies_prefix_verifiable (tv_prefix tl (n - 1)) i
 
+(* the clock of a verifier thread after processing a verifiable log *)
+let clock_after (tl:t_verifiable_log) = 
+  let vs = t_verify (tid tl) (vlog_of tl) in
+  Valid?.clk vs
+
 (* the clock of a verifier is monotonic *)
 let rec lemma_clock_monotonic (tl:t_verifiable_log) (i:nat{i <= tv_length tl}):
   Lemma (requires(True))
@@ -132,23 +122,32 @@ let rec lemma_clock_monotonic (tl:t_verifiable_log) (i:nat{i <= tv_length tl}):
     let tl' = tv_prefix tl (n - 1) in
     lemma_clock_monotonic tl' i
 
-type clocked_vlog_entry = vlog_entry * timestamp
+(* We assign a time to every entry thread log *)
+let t_entry_time (tl: t_verifiable_log) (i:nat{i < tv_length tl}) =   
+  let tl' = tv_prefix tl (i+1) in  
+  clock_after tl'
 
-type clocked_vlog = seq (clocked_vlog_entry)
+(* the clock of entry j <= clock of entry i if j occurs before i *)
+let lemma_time_monotonic_in_thread (tl: t_verifiable_log) (i:nat{i < tv_length tl}) (j:nat{j <= i}):
+  Lemma (requires (True))
+        (ensures (t_entry_time tl j `ts_leq` t_entry_time tl i)) = 
+  let tli = tv_prefix tl (i + 1) in
+  lemma_clock_monotonic tli (j + 1)
 
-(* construct an augmented vlog with the clock
- * attached to every vlog entry *)
-let rec attach_clock (tl:t_verifiable_log): 
-  Tot (clocked_vlog) 
-  (decreases (tv_length tl)) = 
-  let n = tv_length tl in
-  if n = 0 then empty 
-  else 
-    let tl' = tv_prefix tl (n - 1) in
-    let cl' = attach_clock tl' in
-    let t = clock_after tl in
-    let e = tv_index tl (n - 1) in
-    append1 cl' (e, t)
+(* Time of an entry in global verifiable log *)
+let g_entry_time (gl: g_verifiable_log) (i: sseq_index gl) = admit()
+
+(* define time sequence obtained by ordering all log entries across all threads 
+ * by their assigned time as defined above *)
+let time_seq_ctor (gl: g_verifiable_log): 
+  Tot (interleave_ctor gl) =
+  admit()
+
+let time_seq (gl: g_verifiable_log) = interleaved_seq gl (time_seq_ctor gl)
+
+(* map every entry of the time sequence to its origin entry in the thread logs *)
+let time_seq_source (gl: g_verifiable_log) (i: seq_index (time_seq gl)) =
+  interleave_map (time_seq gl) gl (interleaving_prf gl (time_seq_ctor gl)) i
 
 
 (* the state operations of a vlog *)

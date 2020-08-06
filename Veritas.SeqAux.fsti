@@ -227,3 +227,6 @@ val lemma_attach_correct (#a:Type) (s:seq a) (i: seq_index s):
                   fst (index (attach_index s) i) = i))
         [SMTPat (index (attach_index s) i)]
   
+
+(* reduce operation over sequences *)
+val reduce (#a:Type) (#b:Type) (b0: b) (f: a -> b -> b) (s: seq a): Tot b

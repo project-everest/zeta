@@ -513,3 +513,14 @@ let rec lemma_attach_correct_aux (#a:Type) (s: seq a) (i: seq_index s):
 
 let lemma_attach_correct = lemma_attach_correct_aux
 
+let rec reduce_aux (#a:Type) (#b:Type) (b0: b) (f: a -> b -> b) (s: seq a): 
+  Tot b (decreases (length s)) = 
+  let n = length s in
+  if n = 0 then b0
+  else
+    let s' = prefix s (n - 1) in
+    let b' = reduce_aux b0 f s' in
+    let e = index s (n - 1) in
+    f e b' 
+
+let reduce = reduce_aux
