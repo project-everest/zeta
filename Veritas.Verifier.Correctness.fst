@@ -145,10 +145,15 @@ let time_seq_ctor (gl: g_verifiable_log):
 
 let time_seq (gl: g_verifiable_log) = interleaved_seq gl (time_seq_ctor gl)
 
-(* map every entry of the time sequence to its origin entry in the thread logs *)
+(* map every entry of the time sequence to its source entry in the thread logs *)
 let time_seq_source (gl: g_verifiable_log) (i: seq_index (time_seq gl)) =
   interleave_map (time_seq gl) gl (interleaving_prf gl (time_seq_ctor gl)) i
 
+(* if i <= j are two indexes in the time_seq, then the time of entry i <= time of entry j*)
+let lemma_time_seq_correct (gl: g_verifiable_log) 
+                           (i: seq_index (time_seq gl))
+                           (j: seq_index (time_seq gl){j >= i}):
+  Lemma (g_entry_time gl (time_seq_source gl i) <= g_entry_time gl (time_seq_source gl j)) = admit()
 
 (* the state operations of a vlog *)
 let is_state_op (e: vlog_entry) = 
