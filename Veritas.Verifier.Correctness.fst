@@ -69,23 +69,23 @@ let g_verifiable_refine (gl: g_verifiable_log): Tot (seq t_verifiable_log)
   = seq_refine t_verifiable (g_tid_vlog gl)
 
 (* aggregate hadd over all verifier threads *)
-let g_hadd (gl: g_verifiable_log) (e:nat) = 
-  let he = fun (tl:t_verifiable_log) -> (thread_hadd (t_verify (fst tl) (snd tl)) e) in
-  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (he tl) h) in     
+let g_hadd (gl: g_verifiable_log) = 
+  let th = fun (tl:t_verifiable_log) -> (thread_hadd (t_verify (fst tl) (snd tl))) in
+  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (th tl) h) in     
   reduce empty_hash_value f (g_verifiable_refine gl)
 
 (* aggregate hadd over all verifier threads *)
-let g_hevict (gl: g_verifiable_log) (e:nat) = 
-  let ha = fun (tl:t_verifiable_log) -> (thread_hevict (t_verify (fst tl) (snd tl)) e) in
-  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (ha tl) h) in     
+let g_hevict (gl: g_verifiable_log) = 
+  let th = fun (tl:t_verifiable_log) -> (thread_hevict (t_verify (fst tl) (snd tl))) in
+  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (th tl) h) in     
   reduce empty_hash_value f (g_verifiable_refine gl)  
 
 (* 
  * a global log is hash verifiable if add and 
- * evict hashes agree for every epoch 
+ * evict hashes agree
  *)
 let g_hash_verifiable (lg: g_verifiable_log) = 
-  forall (e:nat). g_hadd lg e = g_hevict lg e
+  g_hadd lg = g_hevict lg
 
 (* refinement type of hash verifiable log *)
 let g_hash_verifiable_log = 
