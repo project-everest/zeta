@@ -49,10 +49,10 @@ let last_put_value_or_null (s: seq state_op) (k: data_key) =
     Null
 
 let rw_consistent_idx (s: seq state_op) (i: seq_index s) = 
-  is_get_idx s i ==> value_of_idx s i = last_put_value_or_null (prefix s i) (key_of_idx s i) 
+  not (is_get_idx s i) || (value_of_idx s i = last_put_value_or_null (prefix s i) (key_of_idx s i))
 
 let rw_inconsistent_idx (s: seq state_op) (i: seq_index s) = 
-  ~ (rw_consistent_idx s i)
+  not (rw_consistent_idx s i)
 
 (* read-write consistency (correctness) of a sequence of state operations *)
 type rw_consistent (s: (seq state_op)) = forall (i:seq_index s). rw_consistent_idx s i
