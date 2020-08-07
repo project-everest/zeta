@@ -20,16 +20,13 @@ type vlog_entry =
   | Get: k:data_key -> v:data_value -> vlog_entry
   | Put: k:data_key -> v:data_value -> vlog_entry
   | AddM: r:record -> k':merkle_key -> vlog_entry
-  | EvictM: k:key -> k':merkle_key -> vlog_entry
+  | EvictM: r:record -> k':merkle_key -> vlog_entry
   | AddB: r:record -> t:timestamp -> j:nat -> vlog_entry
-  | EvictB: k:key -> t:timestamp -> vlog_entry
-  | EvictBM: k:key -> k':merkle_key -> t:timestamp -> vlog_entry
+  | EvictB: r:record -> t:timestamp -> vlog_entry
+  | EvictBM: r:record -> k':merkle_key -> t:timestamp -> vlog_entry
 
 (* verifier log *)
 type vlog = seq (vlog_entry)
-
-(* index in the verifier log *)
-type vl_index (l:vlog) = seq_index l
 
 (* for records in the store, how were they added? *)
 type add_method =
@@ -44,9 +41,6 @@ type vstore_entry (k:key) =
 (* we also track how the key was added merkle/blum *)
 type vstore = (k:key) -> option (vstore_entry k)
 
-(* per-epoch hash value *)
-type epoch_hash = nat -> ms_hash_value
-
 (* verifier thread local state  *)
 noeq type vtls =
   | Failed
@@ -54,8 +48,8 @@ noeq type vtls =
            st:vstore -> 
            clk:timestamp -> 
            lk:key -> 
-           hadd: epoch_hash ->
-           hevict: epoch_hash ->
+           hadd: ms_hash_value ->
+           hevict: ms_hash_value ->
            vtls
 
 (* does the store contain address a *)
@@ -121,21 +115,17 @@ let thread_hadd (vs:vtls {Valid? vs}) =
 let thread_hevict (vs:vtls {Valid? vs}) = 
   Valid?.hevict vs
 
-let update_epoch_hash (eh: epoch_hash) (e:nat) (h:ms_hash_value) = 
-  fun e' -> if e = e' then h else eh e'
-
-let update_thread_hadd (vs:vtls {Valid? vs}) (e:nat) (h: ms_hash_value): vtls = 
+let update_thread_hadd (vs:vtls {Valid? vs}) (ha': ms_hash_value): vtls = 
   match vs with
-  | Valid id st clk lk ha he -> Valid id st clk lk (update_epoch_hash ha e h) he
+  | Valid id st clk lk ha he -> Valid id st clk lk ha' he
 
-let update_thread_hevict (vs:vtls {Valid? vs}) (e:nat) (h:ms_hash_value): vtls = 
+let update_thread_hevict (vs:vtls {Valid? vs}) (he':ms_hash_value): vtls = 
   match vs with
-  | Valid id st clk lk ha he -> Valid id st clk lk ha (update_epoch_hash he e h)
+  | Valid id st clk lk ha he -> Valid id st clk lk ha he'
 
 (* verifier read operation *)
 let vget (k:data_key) (v:data_value) (vs: vtls {Valid? vs}): vtls =
   let st = thread_store vs in
-  (* check store contains key *)
   if not (store_contains st k) then Failed
   (* check stored value is v *)
   else if to_data_value (stored_value st k) <> v then Failed
@@ -200,13 +190,15 @@ let vaddm (r:record)
                          let st_upd2 = add_to_store st_upd k (MVal mv_upd) MAdd in
                          update_thread_store vs st_upd2
 
-let vevictm (k:key)
+let vevictm (r:record)
             (k':merkle_key)
             (vs: vtls {Valid? vs}): vtls = 
+  let k,v = r in
   let st = thread_store vs in
   (* check store contains a and a' *)
   if not (store_contains st k && store_contains st k') then Failed
   else if not (is_proper_desc k k') then Failed
+  else if stored_value st k <> v then Failed
   else
     let v' = to_merkle_value (stored_value st k') in
     let v = stored_value st k in
@@ -228,8 +220,6 @@ let vaddb (r:record)
           (t:timestamp)
           (j:nat)
           (vs:vtls {Valid? vs}): vtls = 
-  (* epoch of timestamp of last evict *)
-  let e = MkTimestamp?.e t in
   let st = thread_store vs in  
   let (k,v) = r in
   (* check value type consistent with key k *)
@@ -238,11 +228,11 @@ let vaddb (r:record)
   else if store_contains st k then Failed
   else 
     (* current h_add *)
-    let h = thread_hadd vs e in
+    let h = thread_hadd vs in
     (* updated h_add *)
     let h_upd = ms_hashfn_upd (MHDom r t j) h in
     (* update verifier state *)
-    let vs_upd = update_thread_hadd vs e h_upd in
+    let vs_upd = update_thread_hadd vs h_upd in
     (* current clock of thread i *)
     let clk = thread_clock vs in
     (* updated clock *)
@@ -253,26 +243,31 @@ let vaddb (r:record)
     let st_upd = add_to_store st k v BAdd in
     update_thread_store vs_upd2 st_upd
 
-let vevictb (k:key) (t:timestamp)
+let vevictb (r:record) 
+            (t:timestamp)
             (vs:vtls {Valid? vs}): vtls = 
+  let k,v = r in
   let clk = thread_clock vs in
-  let e = MkTimestamp?.e t in
   let st = thread_store vs in
   if not (ts_lt clk t) then Failed
   else if not (store_contains st k) then Failed  
+  else if stored_value st k <> v then Failed
   else 
     (* current h_evict *)
-    let h = thread_hevict vs e in
+    let h = thread_hevict vs in
     let v = stored_value st k in
     let h_upd = ms_hashfn_upd (MHDom (k,v) t (thread_id vs)) h in
-    let vs_upd = update_thread_hevict vs e h_upd in
+    let vs_upd = update_thread_hevict vs h_upd in
     let vs_upd2 = update_thread_clock vs_upd t in    
     let st_upd = evict_from_store st k in
     update_thread_store vs_upd2 st_upd
 
-let vevictbm (k:key) (k':merkle_key) (t:timestamp)
+let vevictbm (r:record) 
+             (k':merkle_key) 
+             (t:timestamp)
              (vs:vtls {Valid? vs}): vtls = 
   let st = thread_store vs in
+  let k,v = r in
   if not (store_contains st k') then Failed 
   else if not (is_proper_desc k k') then Failed
   else
@@ -284,7 +279,7 @@ let vevictbm (k:key) (k':merkle_key) (t:timestamp)
     | Desc k2 h2 b2 -> if k2 = k && b2 = false then
                          let v'_upd = update_merkle_value v' d k h2 true in
                          let st_upd = update_store st k' (MVal v'_upd) in
-                         vevictb k t (update_thread_store vs st_upd)
+                         vevictb r t (update_thread_store vs st_upd)
                        else Failed
 
 (* thread-level verification step *)
@@ -297,10 +292,10 @@ let t_verify_step (vs:vtls)
     | Get k v -> vget k v vs
     | Put k v -> vput k v vs
     | AddM r k'  -> vaddm r k' vs
-    | EvictM k k' -> vevictm k k' vs
+    | EvictM r k' -> vevictm r k' vs
     | AddB r t j -> vaddb r t j vs
-    | EvictB k t -> vevictb k t vs
-    | EvictBM k k' t -> vevictbm k k' t vs
+    | EvictB r t -> vevictb r t vs
+    | EvictBM r k' t -> vevictbm r k' t vs
 
 (* verify a log from a specified initial state *)
 let rec t_verify_aux (vs:vtls) (l:vlog): Tot vtls
@@ -313,13 +308,11 @@ let rec t_verify_aux (vs:vtls) (l:vlog): Tot vtls
     let e' = index l (n - 1) in
     t_verify_step vs' e'
 
-let init_epoch_hash = fun e -> empty_hash_value
-
 let empty_store:vstore = fun (k:key) -> None
 
 (* initialize verifier state *)
 let init_thread_state (id:nat): vtls = 
-  let vs = Valid id empty_store (MkTimestamp 0 0) Root init_epoch_hash init_epoch_hash in  
+  let vs = Valid id empty_store (MkTimestamp 0 0) Root empty_hash_value empty_hash_value in  
   if id = 0 then
     let st0 = thread_store vs in
     let st0_upd = add_to_store st0 Root (init_value Root) MAdd in
@@ -328,4 +321,3 @@ let init_thread_state (id:nat): vtls =
 
 let t_verify (id:nat) (l:vlog): vtls = 
   t_verify_aux (init_thread_state id) l 
-
