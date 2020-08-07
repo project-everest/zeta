@@ -69,23 +69,23 @@ let g_verifiable_refine (gl: g_verifiable_log): Tot (seq t_verifiable_log)
   = seq_refine t_verifiable (g_tid_vlog gl)
 
 (* aggregate hadd over all verifier threads *)
-let g_hadd (gl: g_verifiable_log) = 
-  let th = fun (tl:t_verifiable_log) -> (thread_hadd (t_verify (fst tl) (snd tl))) in
-  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (th tl) h) in     
+let g_hadd (gl: g_verifiable_log) (e:nat) = 
+  let he = fun (tl:t_verifiable_log) -> (thread_hadd (t_verify (fst tl) (snd tl)) e) in
+  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (he tl) h) in     
   reduce empty_hash_value f (g_verifiable_refine gl)
 
 (* aggregate hadd over all verifier threads *)
-let g_hevict (gl: g_verifiable_log) = 
-  let th = fun (tl:t_verifiable_log) -> (thread_hevict (t_verify (fst tl) (snd tl))) in
-  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (th tl) h) in     
+let g_hevict (gl: g_verifiable_log) (e:nat) = 
+  let ha = fun (tl:t_verifiable_log) -> (thread_hevict (t_verify (fst tl) (snd tl)) e) in
+  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (ha tl) h) in     
   reduce empty_hash_value f (g_verifiable_refine gl)  
 
 (* 
  * a global log is hash verifiable if add and 
- * evict hashes agree
+ * evict hashes agree for every epoch 
  *)
 let g_hash_verifiable (lg: g_verifiable_log) = 
-  g_hadd lg = g_hevict lg
+  forall (e:nat). g_hadd lg e = g_hevict lg e
 
 (* refinement type of hash verifiable log *)
 let g_hash_verifiable_log = 
@@ -158,8 +158,8 @@ let lemma_time_seq_correct (gl: g_verifiable_log)
 (* the state operations of a vlog *)
 let is_state_op (e: vlog_entry) = 
   match e with
-  | Get _ _ -> true
-  | Put _ _ -> true 
+  | Get k v -> true
+  | Put k v -> true 
   | _ -> false
 
 (* map vlog entry to state op *)
@@ -184,4 +184,3 @@ type hash_collision_gen =
 (* final verifier correctness theorem *)
 let lemma_verifier_correct (lg: g_hash_verifiable_log { ~ (seq_consistent (to_state_op_gvlog lg))}):
   Tot hash_collision_gen = admit()
-

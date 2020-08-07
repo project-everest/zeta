@@ -34,10 +34,6 @@ type value =
   | MVal: v:merkle_value -> value
   | DVal: v:data_value -> value
 
-let is_data_value (v: value) = DVal? v
-
-let is_merkle_value (v:value) = MVal? v
-
 (* check merkle/data consistency of k and v *)
 let is_value_of (k:key) (v:value) = 
   if is_data_key k then DVal? v
