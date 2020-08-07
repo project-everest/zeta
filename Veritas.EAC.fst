@@ -95,3 +95,7 @@ let to_state_op_vlog (l: vlog) =
 (* evict add consistency implies rw-consistency *)
 let lemma_eac_implies_rw_consistent (l:eac_log):
   Lemma (rw_consistent (to_state_op_vlog l)) = admit()
+
+
+    
+    
