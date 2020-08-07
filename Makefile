@@ -17,6 +17,7 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.Hash.fsti \
                Veritas.Interleave.fsti \
                Veritas.Verifier.fst \
+               Veritas.EAC.fst \
                Veritas.Verifier.Correctness.fst
 
 

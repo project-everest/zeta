@@ -155,23 +155,9 @@ let lemma_time_seq_correct (gl: g_verifiable_log)
                            (j: seq_index (time_seq gl){j >= i}):
   Lemma (g_entry_time gl (time_seq_source gl i) <= g_entry_time gl (time_seq_source gl j)) = admit()
 
-(* the state operations of a vlog *)
-let is_state_op (e: vlog_entry) = 
-  match e with
-  | Get k v -> true
-  | Put k v -> true 
-  | _ -> false
 
-(* map vlog entry to state op *)
-let to_state_op (e:vlog_entry {is_state_op e}) = 
-  match e with
-  | Get k v -> Veritas.State.Get k v
-  | Put k v -> Veritas.State.Put k v
 
-(* filter out the state ops of vlog *)
-let to_state_op_vlog (l: vlog) = 
-  map to_state_op (filter_refine is_state_op l)
-
+(*
 (* state ops of all vlogs of all verifier threads *)
 let to_state_op_gvlog (gl: g_vlog) = 
   map to_state_op_vlog gl
@@ -184,3 +170,4 @@ type hash_collision_gen =
 (* final verifier correctness theorem *)
 let lemma_verifier_correct (lg: g_hash_verifiable_log { ~ (seq_consistent (to_state_op_gvlog lg))}):
   Tot hash_collision_gen = admit()
+  *)
