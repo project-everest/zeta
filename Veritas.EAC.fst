@@ -68,42 +68,44 @@ let vlog_entry_key (e: vlog_entry) =
   | EvictB k _ -> k
   | EvictBM k _ _ -> k
 
+let lemma_eac_fail_sticky ():
+  Lemma (forall (e:vlog_entry). eac_add e EACFail = EACFail) = ()
+
 let rec lemma_eac_valid_implies_prefix (l: vlog{eac_valid l}) (i: nat{i <= length l}):
   Lemma (requires True)
         (ensures (eac_valid (prefix l i)))
-        (decreases (length l)) = 
+        (decreases (length l)) 
+        [SMTPat (prefix l i)]
+        = 
   let n = length l in
   if n = 0 then ()
   else if i = n then ()
-  else (
+  else 
     let l' = prefix l (n - 1) in
     if eac_valid l' then (
       lemma_eac_valid_implies_prefix l' i;
       ()
     )
     else (
-      
-      //assert(not (eac_valid l));
-      admit()
+      lemma_reduce_prefix EACInit eac_add l (n - 1);
+      lemma_reduce_identity EACFail eac_add (suffix l 1)
     )
-  )
 
+let attached_key (s: eac_state{EACInCache? s || EACEvicted? s}) = 
+  match s with
+  | EACInCache _ k _ -> k
+  | EACEvicted _ k _ -> k
 
-(*
 let rec lemma_eac_valid_implies_same_key (l: vlog {eac_valid l}) (i: seq_index l) (j: nat{j <= i}):  
   Lemma (requires True)
         (ensures (vlog_entry_key (index l j) = vlog_entry_key (index l i)))
         (decreases (length l)) = 
   let n = length l in
   if n = 0 then ()
-  else if i < n - 1 then ( 
-    lemma_eac_valid_implies_same_key (prefix l (n - 1)) i j;
-    admit()
-  )
+  else if i < n - 1 then
+    lemma_eac_valid_implies_same_key (prefix l (n - 1)) i j  
   else
     admit()
-
-*)
 
 (* filter out entries of vlog affecting key k *)
 let key_vlog (k: key) (l: vlog) = filter (fun e -> k = vlog_entry_key e) l

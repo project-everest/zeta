@@ -544,13 +544,18 @@ let rec lemma_reduce_prefix_aux (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (
 
 let lemma_reduce_prefix = lemma_reduce_prefix_aux
 
-let rec lemma_reduce_identity_aux (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: seq a):
-  Lemma (requires (forall (x:a). f x b0 = b0))
-        (ensures (reduce b0 f s = b0))
+let rec lemma_reduce_property_closure_aux (#a:Type) (#b:eqtype) (p: b -> bool) (b0:b) (f: a -> b -> b) (s: seq a):
+  Lemma (requires (p b0 /\ (forall (x:a). forall (y:b). (p y ==> p (f x y)))))
+        (ensures (p (reduce b0 f s)))
         (decreases (length s)) = 
   let n = length s in
   if n = 0 then ()
-  else 
-    lemma_reduce_identity_aux b0 f (prefix s (n - 1))
+  else
+    lemma_reduce_property_closure_aux p b0 f (prefix s (n - 1))
 
-let lemma_reduce_identity = lemma_reduce_identity_aux
+let lemma_reduce_property_closure = lemma_reduce_property_closure_aux
+
+let lemma_reduce_identity (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: seq a):
+  Lemma (requires (forall (x:a). f x b0 = b0))
+        (ensures (reduce b0 f s = b0)) = 
+  lemma_reduce_property_closure (fun y -> y = b0) b0 f s
