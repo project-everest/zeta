@@ -56,6 +56,8 @@ let eac_add (e: vlog_entry) (s: eac_state) : eac_state =
                                 
 let eac_verify (l: vlog) = reduce EACInit eac_add l
 
+let eac_valid (l: vlog) = not (EACFail? (eac_verify l))
+
 let vlog_entry_key (e: vlog_entry) = 
   match e with
   | Get k _ -> k
@@ -65,6 +67,43 @@ let vlog_entry_key (e: vlog_entry) =
   | AddB (k,_) _ _ -> k
   | EvictB k _ -> k
   | EvictBM k _ _ -> k
+
+let rec lemma_eac_valid_implies_prefix (l: vlog{eac_valid l}) (i: nat{i <= length l}):
+  Lemma (requires True)
+        (ensures (eac_valid (prefix l i)))
+        (decreases (length l)) = 
+  let n = length l in
+  if n = 0 then ()
+  else if i = n then ()
+  else (
+    let l' = prefix l (n - 1) in
+    if eac_valid l' then (
+      lemma_eac_valid_implies_prefix l' i;
+      ()
+    )
+    else (
+      
+      //assert(not (eac_valid l));
+      admit()
+    )
+  )
+
+
+(*
+let rec lemma_eac_valid_implies_same_key (l: vlog {eac_valid l}) (i: seq_index l) (j: nat{j <= i}):  
+  Lemma (requires True)
+        (ensures (vlog_entry_key (index l j) = vlog_entry_key (index l i)))
+        (decreases (length l)) = 
+  let n = length l in
+  if n = 0 then ()
+  else if i < n - 1 then ( 
+    lemma_eac_valid_implies_same_key (prefix l (n - 1)) i j;
+    admit()
+  )
+  else
+    admit()
+
+*)
 
 (* filter out entries of vlog affecting key k *)
 let key_vlog (k: key) (l: vlog) = filter (fun e -> k = vlog_entry_key e) l

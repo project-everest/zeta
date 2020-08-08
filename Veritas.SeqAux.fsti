@@ -227,6 +227,15 @@ val lemma_attach_correct (#a:Type) (s:seq a) (i: seq_index s):
                   fst (index (attach_index s) i) = i))
         [SMTPat (index (attach_index s) i)]
   
-
 (* reduce operation over sequences *)
 val reduce (#a:Type) (#b:Type) (b0: b) (f: a -> b -> b) (s: seq a): Tot b
+
+val lemma_reduce_empty (#a:Type) (#b:eqtype) (b0:b) (f:a -> b -> b):
+  Lemma (reduce b0 f (empty #a) = b0)
+
+val lemma_reduce_prefix (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: seq a) (i: seq_index s):
+  Lemma (reduce b0 f s = reduce (reduce b0 f (prefix s i)) f (suffix s (length s - i)))
+  
+val lemma_reduce_identity (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: seq a):
+  Lemma (requires (forall (x:a). f x b0 = b0))
+        (ensures (reduce b0 f s = b0))
