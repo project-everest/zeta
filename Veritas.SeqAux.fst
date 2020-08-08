@@ -559,3 +559,10 @@ let lemma_reduce_identity (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: seq
   Lemma (requires (forall (x:a). f x b0 = b0))
         (ensures (reduce b0 f s = b0)) = 
   lemma_reduce_property_closure (fun y -> y = b0) b0 f s
+
+let lemma_reduce_singleton (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: seq a{length s = 1}):
+  Lemma (reduce b0 f s = f (index s 0) b0) = ()
+
+let lemma_reduce_append (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a) (x:a):
+  Lemma (reduce b0 f (append1 s x) = f x (reduce b0 f s)) =
+  lemma_prefix_append s (create 1 x)

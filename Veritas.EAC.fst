@@ -91,21 +91,39 @@ let rec lemma_eac_valid_implies_prefix (l: vlog{eac_valid l}) (i: nat{i <= lengt
       lemma_reduce_identity EACFail eac_add (suffix l 1)
     )
 
-let attached_key (s: eac_state{EACInCache? s || EACEvicted? s}) = 
-  match s with
-  | EACInCache _ k _ -> k
-  | EACEvicted _ k _ -> k
+let invalid_or_attached_to (k: key) (s: eac_state) =
+  match s with 
+  | EACInit -> false
+  | EACFail -> true
+  | EACInCache _ k' _ -> k' = k
+  | EACEvicted _ k' _ -> k' = k
 
-let rec lemma_eac_valid_implies_same_key (l: vlog {eac_valid l}) (i: seq_index l) (j: nat{j <= i}):  
-  Lemma (requires True)
-        (ensures (vlog_entry_key (index l j) = vlog_entry_key (index l i)))
+let lemma_eac_invariant (k: key): 
+  Lemma (forall s. forall e. invalid_or_attached_to k s ==> invalid_or_attached_to k (eac_add e s)) = ()
+
+let lemma_eac_valid_implies_same_key (l: vlog) (i: seq_index l):
+  Lemma (requires eac_valid l /\ length l > 0)
+        (ensures (vlog_entry_key (index l i) = vlog_entry_key (index l 0)))
         (decreases (length l)) = 
-  let n = length l in
-  if n = 0 then ()
-  else if i < n - 1 then
-    lemma_eac_valid_implies_same_key (prefix l (n - 1)) i j  
-  else
-    admit()
+  let e0 = index l 0 in
+  let k = vlog_entry_key e0 in
+  let li = prefix l (i + 1) in
+  let s0 = eac_verify (prefix l 1) in
+  lemma_eac_valid_implies_prefix l 1;
+  lemma_reduce_singleton EACInit eac_add (prefix l 1);
+  if i = 0 then ()
+  else if i = 1 then (
+    lemma_reduce_prefix EACInit eac_add li 1;
+    lemma_reduce_singleton s0 eac_add (suffix li 1)
+  )
+  else ( 
+    let li' = prefix l i in
+    lemma_reduce_prefix EACInit eac_add li' 1;
+    lemma_reduce_property_closure (invalid_or_attached_to k) s0 eac_add (suffix li' (i - 1));
+    let si' = eac_verify li' in
+    lemma_reduce_prefix EACInit eac_add li i;    
+    lemma_reduce_singleton si' eac_add (suffix li 1)
+  )
 
 (* filter out entries of vlog affecting key k *)
 let key_vlog (k: key) (l: vlog) = filter (fun e -> k = vlog_entry_key e) l
@@ -136,7 +154,3 @@ let to_state_op_vlog (l: vlog) =
 (* evict add consistency implies rw-consistency *)
 let lemma_eac_implies_rw_consistent (l:eac_log):
   Lemma (rw_consistent (to_state_op_vlog l)) = admit()
-
-
-    
-    
