@@ -36,13 +36,12 @@ let lemma_empty_seq_valid_all (psm: pseq_machine):
   let key = key_type psm in
   let sm = seq_machine_of psm in
   let pf = partn_fn psm in
-  let iskey (k: key) = fun e -> pf e = k in
   let aux(k: key):
     Lemma (requires True)
-          (ensures (valid sm (filter (fun e -> pf e = k) s)))
-          [SMTPat (valid sm (filter (iskey k) s))]
+          (ensures (valid sm (partn psm k s)))
+          [SMTPat (valid sm (partn psm k s))]
           =
-    lemma_filter_empty (iskey k);
+    lemma_filter_empty (iskey pf k);
     lemma_empty_seq_valid sm
   in
   ()
@@ -56,40 +55,33 @@ let lemma_valid_all_prefix (psm: pseq_machine)
   let key = key_type psm in
   let sm = seq_machine_of psm in
   let pf = partn_fn psm in
-  let iskey (k: key) = fun e -> pf e = k in
   let aux(k: key):
     Lemma (requires True)
-          (ensures (valid sm (filter (iskey k) si)))
-          [SMTPat (valid sm (filter (iskey k) si))]
+          (ensures (valid sm (partn psm k si)))
+          [SMTPat (valid sm (partn psm k si))]
     =
-    lemma_filter_prefix (iskey k) s si;
-    lemma_valid_prefix sm (filter (iskey k) s) (length (filter (iskey k) si))
+    lemma_filter_prefix (iskey pf k) s si;
+    lemma_valid_prefix sm (partn psm k s) (length (partn psm k si))
   in
   ()
-
-(* for some reason fstar requires this trivial lemma in the proof below *)
-let lemma_not_valid_k (psm: pseq_machine) (k: (key_type psm)) (s: seq (elem_type_p psm)):
-  Lemma (requires (~ (valid (seq_machine_of psm) (filter (fun e -> (partn_fn psm e) = k) s))))
-        (ensures (~ (valid_all psm s))) = ()
 
 let lemma_valid_all_extend (psm: pseq_machine) (s: seq (elem_type_p psm)):
   Lemma (requires (length s > 0 /\
                    valid_all psm (prefix s (length s - 1)) /\
                    valid (seq_machine_of psm)
-                         (filter (fun e -> (partn_fn psm e) = (partn_fn psm (index s (length s - 1)))) s)))
+                         (partn psm (partn_fn psm (index s (length s - 1))) s)))
         (ensures (valid_all psm s)) =
   let n = length s in
   let sm = seq_machine_of psm in
   let pf = partn_fn psm in
   let key = key_type psm in
-  let iskey (k: key) = fun e -> pf e = k in
   let k' = pf (index s (n - 1)) in
   let aux(k: key):
     Lemma (requires True)
-          (ensures (valid sm (filter (iskey k) s)))
-          [SMTPat (valid sm (filter (iskey k) s))] =
-    if k' = k then lemma_filter_extensionality (iskey k') (iskey k) s
-    else lemma_filter_extend1 (iskey k) s
+          (ensures (valid sm (partn psm k s)))
+          [SMTPat (valid sm (partn psm k s))] =
+    if k' = k then ()
+    else lemma_filter_extend1 (iskey pf k) s    
   in
   ()
 
@@ -102,8 +94,6 @@ let rec max_valid_all_prefix_aux (psm: pseq_machine) (s: seq (elem_type_p psm))
   let n = length s in
   let sm = seq_machine_of psm in
   let pf = partn_fn psm in
-  let key = key_type psm in
-  let iskey (k: key) = fun e -> pf e = k in
   if n = 0 then (
     lemma_prefix0_empty s;
     lemma_empty_seq_valid_all psm;
@@ -115,15 +105,45 @@ let rec max_valid_all_prefix_aux (psm: pseq_machine) (s: seq (elem_type_p psm))
     if i = n - 1 then
       let e = index s (n - 1) in
       let k = pf e in
-      let sk = filter (iskey k) s in
+      let sk = partn psm k s in
       if valid sm sk then (
         lemma_valid_all_extend psm s;
         n
       )
-      else (
-        lemma_not_valid_k psm k s;
-        i
-      )    
+      else i
     else i
   
 let max_valid_all_prefix = max_valid_all_prefix_aux
+
+let invalid (psm: pseq_machine) 
+            (s: seq (elem_type_p psm)) = 
+  max_valid_all_prefix psm s < length s
+
+let invalid_key (psm: pseq_machine)
+                (s: seq (elem_type_p psm){invalid psm s}) = 
+  let n = length s in
+  let i = max_valid_all_prefix psm s in
+  let e = index s i in
+  let pf = partn_fn psm in
+  pf e  
+
+let lemma_invalid_key (psm: pseq_machine)
+                      (s: seq (elem_type_p psm){invalid psm s}):
+  Lemma (False) = 
+  let sm = seq_machine_of psm in
+  let k = invalid_key psm s in
+  let i = max_valid_all_prefix psm s in
+  let pf = partn_fn psm in
+  let s' = prefix s i in
+  let s'' = prefix s (i + 1) in
+  assert(valid_all psm s');
+  let sk' = partn psm k s' in    
+  assert(valid (seq_machine_of psm) sk');
+  admit()
+
+let valid_all_comp (psm: pseq_machine) (s: seq (elem_type_p psm)): Tot (r:bool{r <==> valid_all psm s}) = 
+  let i = max_valid_all_prefix psm s in
+  if i = length s then true
+  else (    
+    admit()
+  )

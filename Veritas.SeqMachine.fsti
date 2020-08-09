@@ -79,8 +79,15 @@ let partn_fn (psm: pseq_machine): (elem_type_p psm -> key_type psm)  =
   match psm with
   | PSM _ pf -> pf
 
+let iskey (#key:eqtype) (#a:eqtype) (kf: a -> key) (k: key) (x: a) = kf x = k
+
+let partn (psm: pseq_machine) (k: (key_type psm)) (s: seq (elem_type_p psm)): 
+  Tot (seq (elem_type_p psm)) = 
+  let pf = partn_fn psm in
+  filter (iskey pf k) s  
+
 let valid_all (psm: pseq_machine) (s: seq (elem_type_p psm)) = 
-  forall (k:(key_type psm)). valid (seq_machine_of psm) (filter (fun e -> (partn_fn psm e) = k) s)
+  forall (k:(key_type psm)). valid (seq_machine_of psm) (partn psm k s)
 
 val lemma_empty_seq_valid_all (psm: pseq_machine):
   Lemma (valid_all psm (empty #(elem_type_p psm)))
@@ -94,3 +101,5 @@ val max_valid_all_prefix (psm: pseq_machine) (s: seq (elem_type_p psm))
                valid_all psm (prefix s i) /\
                (i < length s ==> ~ (valid_all psm (prefix s (i + 1))))})
 
+(* valid all is computable *)
+val valid_all_comp (psm: pseq_machine) (s: seq (elem_type_p psm)): Tot (r:bool{r <==> valid_all psm s})
