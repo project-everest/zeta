@@ -32,6 +32,14 @@ val lemma_prefix_append (#a:Type) (s1 s2: seq a):
   Lemma (requires (True))
         (ensures (prefix (append s1 s2) (length s1) == s1))
 
+val lemma_prefix0_empty (#a:Type) (s: seq a):
+  Lemma (prefix s 0 == empty #a)
+
+(* is ps a prefix of s *)
+let is_prefix (#a:eqtype) (s:seq a) (ps: seq a): Tot bool =
+  length ps <= length s &&
+  ps = prefix s (length ps)
+
 (* Suffix of a sequence *)
 val suffix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
 
@@ -118,6 +126,19 @@ val lemma_filter_maps_correct2 (#a:eqtype) (f:a -> bool) (s: seq a) (i: seq_inde
         (ensures (filter_index_inv_map f s (filter_index_map f s i) = i))
         [SMTPat (filter_index_map f s i)]
   
+val lemma_filter_empty (#a:eqtype) (f:a -> bool):
+  Lemma (filter f (empty #a) == empty #a)
+
+val lemma_filter_prefix (#a:eqtype) (f:a -> bool) (s: seq a) (ps: seq a{is_prefix s ps}):
+  Lemma (is_prefix (filter f s) (filter f ps))
+
+val lemma_filter_extend1 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
+  Lemma (requires (not (f (index s (length s - 1)))))
+        (ensures (filter f s = filter f (prefix s (length s - 1))))
+
+val lemma_filter_extensionality (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
+  Lemma (requires (forall x. f1 x = f2 x))
+        (ensures (filter f1 s = filter f2 s))
 
 (* The index of the last entry that satisfies a given property *)
 val last_index_opt (#a:eqtype) (f:a -> bool) (s:seq a):

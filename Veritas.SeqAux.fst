@@ -42,6 +42,9 @@ let lemma_prefix_append (#a:Type) (s1 s2: seq a):
   assert(equal (prefix (append s1 s2) (length s1)) s1);
   ()
 
+let lemma_prefix0_empty (#a:Type) (s: seq a):
+  Lemma (prefix s 0 == empty #a) = ()
+
 let suffix (#a:Type) (s:seq a) (i:nat{i <= length s}) =
   slice s (length s - i) (length s)
 
@@ -268,6 +271,49 @@ let lemma_filter_maps_correct2 (#a:eqtype) (f:a -> bool) (s: seq a) (i: seq_inde
   else if i > i' then 
     lemma_filter_index_map_monotonic f s i' i
   else ()
+
+let lemma_filter_empty (#a:eqtype) (f:a -> bool):
+  Lemma (filter f (empty #a) == (empty #a)) =
+  let se = (empty #a) in
+  let fse = filter f se in
+  lemma_filter_is_proj f se;
+  lemma_proj_length fse se;
+  lemma_empty fse
+
+let rec lemma_filter_prefix_aux (#a:eqtype) (f:a -> bool) (s: seq a) (ps: seq a{is_prefix s ps}):
+  Lemma (requires True)
+        (ensures (is_prefix (filter f s) (filter f ps))) 
+        (decreases (length s))
+        = 
+  let n = length s in
+  let fs = filter f s in
+  let fps = filter f ps in
+  let i = length ps in
+  if n = 0 then ()
+  else if i = n then ()
+  else (
+    let s' = prefix s (n - 1) in
+    lemma_filter_prefix_aux f s' ps;
+    let e = index s (n - 1) in
+    if f e then lemma_prefix_append (filter f s') (create 1 e)      
+    else ()
+  )
+
+let lemma_filter_prefix = lemma_filter_prefix_aux
+
+let lemma_filter_extend1 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
+  Lemma (requires (not (f (index s (length s - 1)))))
+        (ensures (filter f s = filter f (prefix s (length s - 1)))) = ()
+
+let rec lemma_filter_extensionality_aux (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
+  Lemma (requires (forall x. f1 x = f2 x))
+        (ensures (filter f1 s = filter f2 s))
+        (decreases (length s)) = 
+  let n = length s in
+  if n = 0 then ()
+  else lemma_filter_extensionality_aux f1 f2 (prefix s (n - 1))
+
+let lemma_filter_extensionality = lemma_filter_extensionality_aux
 
 let last_index_opt (#a:eqtype) (f:a -> bool) (s:seq a):
   Tot (option (i:seq_index s{f (index s i)})) =
