@@ -305,6 +305,11 @@ let lemma_filter_extend1 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (not (f (index s (length s - 1)))))
         (ensures (filter f s = filter f (prefix s (length s - 1)))) = ()
 
+let lemma_filter_extend2 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
+  Lemma (requires (f (index s (length s - 1))))
+        (ensures (filter f s = append1 (filter f (prefix s (length s - 1))) (index s (length s - 1))))
+   = ()
+
 let rec lemma_filter_extensionality_aux (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
   Lemma (requires (forall x. f1 x = f2 x))
         (ensures (filter f1 s = filter f2 s))
