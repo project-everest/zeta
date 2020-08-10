@@ -579,19 +579,16 @@ let reduce = reduce_aux
 let lemma_reduce_empty (#a:Type) (#b:eqtype) (b0:b) (f:a -> b -> b):
   Lemma (reduce b0 f (empty #a) = b0) = ()
 
-let rec lemma_reduce_prefix_aux (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: seq a) (i: seq_index s):
+let rec lemma_reduce_prefix_aux (#a:Type) (#b:eqtype) 
+                                (b0: b) (f: a -> b -> b) (s: seq a) 
+                                (i:nat{i <= length s}):
   Lemma (requires True)
         (ensures (reduce b0 f s = reduce (reduce b0 f (prefix s i)) f (suffix s (length s - i))))
         (decreases (length s)) = 
   let n = length s in
   if n = 0 then ()
-  else 
-    let s' = prefix s (n - 1) in
-    let b' = reduce b0 f s' in
-    let e = index s (n - 1) in
-    if i = n - 1 then ()
-    else 
-      lemma_reduce_prefix_aux b0 f s' i
+  else if i = n then ()
+  else lemma_reduce_prefix_aux b0 f (prefix s (n - 1)) i
 
 let lemma_reduce_prefix = lemma_reduce_prefix_aux
 

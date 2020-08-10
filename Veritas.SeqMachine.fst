@@ -16,6 +16,14 @@ let lemma_valid_prefix (sm: seq_machine) (s: (seq (elem_type sm)){valid sm s}) (
     lemma_reduce_identity (fail_state sm) (trans_fn sm) (suffix s (length s - i))
   )
 
+let lemma_notempty_implies_noninit (sm: seq_machine) (s: seq (elem_type sm){length s > 0}):
+  Lemma (init_state sm <> seq_machine_run sm s) = 
+  let n = length s in
+  let s1 = seq_machine_run sm (prefix s 1) in  
+  lemma_reduce_prefix (init_state sm) (trans_fn sm) s 1;
+  lemma_reduce_singleton (init_state sm) (trans_fn sm) (prefix s 1);
+  lemma_reduce_property_closure (fun si -> si <> init_state sm) s1 (trans_fn sm) (suffix s (n - 1))
+
 let rec max_valid_prefix_aux (sm: seq_machine) (s: seq (elem_type sm))
   : Tot (i:nat{i <= length s /\
               valid sm (prefix s i) /\

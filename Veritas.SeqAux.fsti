@@ -258,7 +258,7 @@ val reduce (#a:Type) (#b:Type) (b0: b) (f: a -> b -> b) (s: seq a): Tot b
 val lemma_reduce_empty (#a:Type) (#b:eqtype) (b0:b) (f:a -> b -> b):
   Lemma (reduce b0 f (empty #a) = b0)
 
-val lemma_reduce_prefix (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: seq a) (i: seq_index s):
+val lemma_reduce_prefix (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: seq a) (i:nat{i <= length s}):
   Lemma (reduce b0 f s = reduce (reduce b0 f (prefix s i)) f (suffix s (length s - i)))
 
 val lemma_reduce_property_closure (#a:Type) (#b:eqtype) (p: b -> bool) (b0:b) (f: a -> b -> b) (s: seq a):

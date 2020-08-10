@@ -9,12 +9,16 @@ open Veritas.SeqAux
 let failure_prop_fn (#a:eqtype) (#st:eqtype) (sf:st) (tr:a -> st -> st) 
   = forall (a1:a). tr a1 sf = sf
 
+let noninit_prop_fn (#a:eqtype) (#st:eqtype) (s0:st) (tr:a -> st -> st)
+ = forall (x:a). forall (y:st). tr x y <> s0
+
 noeq type seq_machine = 
   | SeqMachine: #a:eqtype ->                                  // elements of sequence
                 #st:eqtype ->                               // state type
                 s0:st ->                                    // initial state
                 sf:st{sf <> s0} ->                           // final state
-                tr: (a -> st -> st){failure_prop_fn sf tr}  // transition function
+                tr: (a -> st -> st){failure_prop_fn sf tr /\
+                                   noninit_prop_fn s0 tr}  // transition function
                 -> seq_machine
 
 let elem_type (sm: seq_machine) = 
@@ -53,6 +57,9 @@ val lemma_empty_seq_valid (sm: seq_machine):
 
 val lemma_valid_prefix (sm: seq_machine) (s: (seq (elem_type sm)){valid sm s}) (i:nat{i <= length s}):
   Lemma (valid sm (prefix s i))
+
+val lemma_notempty_implies_noninit (sm: seq_machine) (s: seq (elem_type sm){length s > 0}):
+  Lemma (init_state sm <> seq_machine_run sm s)
 
 (* the maximum valid prefix of a sequence is computable *)
 val max_valid_prefix (sm: seq_machine) (s: seq (elem_type sm))
