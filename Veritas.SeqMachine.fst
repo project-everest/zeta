@@ -182,3 +182,24 @@ let valid_all_comp (psm: pseq_machine) (s: seq (elem_type_p psm)): Tot (r:bool{r
       false
     )
   )
+
+let invalidating_key (psm: pseq_machine)
+                     (s: seq (elem_type_p psm){~ (valid_all psm s)}):
+  Tot (k:(key_type psm){not (valid (seq_machine_of psm) (partn psm k s))}) = 
+  let sm = seq_machine_of psm in
+  let pf = partn_fn psm in
+  let k = invalid_key psm s in
+  let sk = partn psm k s in
+  let i = max_valid_all_prefix psm s in
+  let si = prefix s (i + 1) in
+  let ski = partn psm k si in
+  
+  lemma_invalid psm s;
+  assert(not (valid sm ski));
+
+  lemma_filter_prefix (iskey pf k) s si;
+  assert(ski = prefix sk (length ski));
+  if valid sm (partn psm k s) then 
+    lemma_valid_prefix sm sk (length ski)
+  else k
+  

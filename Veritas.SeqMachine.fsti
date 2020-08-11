@@ -110,3 +110,9 @@ val max_valid_all_prefix (psm: pseq_machine) (s: seq (elem_type_p psm))
 
 (* valid all is computable *)
 val valid_all_comp (psm: pseq_machine) (s: seq (elem_type_p psm)): Tot (r:bool{r <==> valid_all psm s})
+
+(* if a sequence is not valid_all, get the key that causes the invalidation *)
+val invalidating_key (psm: pseq_machine)
+                     (s: seq (elem_type_p psm){~ (valid_all psm s)}):
+  Tot (k:(key_type psm){not (valid (seq_machine_of psm) (partn psm k s))})
+

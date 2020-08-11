@@ -301,6 +301,11 @@ let rec lemma_filter_prefix_aux (#a:eqtype) (f:a -> bool) (s: seq a) (ps: seq a{
 
 let lemma_filter_prefix = lemma_filter_prefix_aux
 
+let lemma_filter_prefix_comm (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s):
+  Lemma (requires (f (index s i)))
+        (ensures (filter f (prefix s i) = prefix (filter f s) (filter_index_inv_map f s i))) = 
+  lemma_filter_prefix f s (prefix s i)
+
 let lemma_filter_extend1 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (not (f (index s (length s - 1)))))
         (ensures (filter f s = filter f (prefix s (length s - 1)))) = ()
@@ -311,7 +316,7 @@ let lemma_filter_extend2 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
    = ()
 
 let rec lemma_filter_extensionality_aux (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
-  Lemma (requires (forall x. f1 x = f2 x))
+  Lemma (requires (ext_pred f1 f2))
         (ensures (filter f1 s = filter f2 s))
         (decreases (length s)) = 
   let n = length s in
@@ -325,7 +330,7 @@ let last_index_opt (#a:eqtype) (f:a -> bool) (s:seq a):
   let fs = filter f s in
   if length fs = 0 then None
   else Some (filter_index_map f s ((length fs) - 1))
-
+   
 let lemma_last_index_correct1 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
   Lemma (requires (exists_sat_elems f s /\ i > last_index f s))
         (ensures (not (f (index s i)))) =
@@ -397,6 +402,58 @@ let lemma_last_index_last_elem_sat (#a:eqtype) (f:a -> bool) (s:seq a{length s >
         (ensures (exists_sat_elems f s /\ last_index f s = length s - 1)) =
   let n = length s in
   lemma_last_index_correct2 f s (n - 1)
+
+let lemma_exists_sat_elems_extensionality (#a:eqtype) (f1 f2:a -> bool) (s: seq a):
+  Lemma (requires (ext_pred f1 f2))
+        (ensures (exists_sat_elems f1 s = exists_sat_elems f2 s))
+        (decreases (length s)) = 
+  if exists_sat_elems f1 s then
+    let i = last_index f1 s in
+    lemma_last_index_correct2 f2 s i  
+  else if exists_sat_elems f2 s then
+    let i = last_index f2 s in
+    lemma_last_index_correct2 f1 s i
+  else ()
+
+let lemma_last_index_extensionality (#a:eqtype) (f1 f2:a -> bool) (s: seq a{exists_sat_elems f1 s}):
+  Lemma (requires (ext_pred f1 f2))
+        (ensures (exists_sat_elems f2 s /\
+                  last_index f1 s = last_index f2 s)) =
+  lemma_exists_sat_elems_extensionality f1 f2 s;
+  let i1 = last_index f1 s in
+  let i2 = last_index f2 s in
+  lemma_last_index_correct2 f2 s i1;
+  lemma_last_index_correct2 f1 s i2
+
+let lemma_exists_sat_conj (#a:eqtype) (f1 f2: a -> bool) (s: seq a):
+  Lemma(requires True)
+       (ensures (exists_sat_elems (conj f1 f2) s = exists_sat_elems f1 (filter f2 s)))
+       [SMTPat (exists_sat_elems (conj f1 f2) s)] = 
+  let s2 = filter f2 s in
+  if exists_sat_elems (conj f1 f2) s then 
+    let i = last_index (conj f1 f2) s in
+    let j = filter_index_inv_map f2 s i in
+    lemma_last_index_correct2 f1 s2 j  
+  else if exists_sat_elems f1 s2 then 
+    let j = last_index f1 s2 in
+    let i = filter_index_map f2 s j in
+    lemma_last_index_correct2 (conj f1 f2) s i  
+  else ()
+
+let lemma_last_idx_conj (#a:eqtype) (f1 f2: a -> bool) 
+                        (s: seq a{exists_sat_elems (conj f1 f2) s}):
+  Lemma (last_index (conj f1 f2) s = filter_index_map f2 s (last_index f1 (filter f2 s))) =
+  let s2 = filter f2 s in  
+  let i = last_index (conj f1 f2) s in
+  let j = filter_index_inv_map f2 s i in
+  lemma_filter_maps_correct f2 s i;
+  lemma_last_index_correct2 f1 s2 j;
+  let j' = last_index f1 s2 in
+  if j' = j then ()
+  else
+    let i' = filter_index_map f2 s j' in
+    lemma_last_index_correct2 (conj f1 f2) s i';
+    lemma_filter_index_map_monotonic f2 s j j'
 
 let first_index (#a:eqtype) (f:a -> bool) (s:seq a{exists_sat_elems f s})
   : Tot (i:seq_index s{f (index s i)}) =
@@ -614,3 +671,6 @@ let lemma_reduce_singleton (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: se
 let lemma_reduce_append (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a) (x:a):
   Lemma (reduce b0 f (append1 s x) = f x (reduce b0 f s)) =
   lemma_prefix_append s (create 1 x)
+
+let lemma_reduce_append2 (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a{length s > 0}):
+  Lemma (reduce b0 f s = f (index s (length s - 1)) (reduce b0 f (prefix s (length s - 1)))) = ()

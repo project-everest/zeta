@@ -132,6 +132,10 @@ val lemma_filter_empty (#a:eqtype) (f:a -> bool):
 val lemma_filter_prefix (#a:eqtype) (f:a -> bool) (s: seq a) (ps: seq a{is_prefix s ps}):
   Lemma (is_prefix (filter f s) (filter f ps))
 
+val lemma_filter_prefix_comm (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s):
+  Lemma (requires (f (index s i)))
+        (ensures (filter f (prefix s i) = prefix (filter f s) (filter_index_inv_map f s i)))
+
 val lemma_filter_extend1 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (not (f (index s (length s - 1)))))
         (ensures (filter f s = filter f (prefix s (length s - 1))))
@@ -140,8 +144,11 @@ val lemma_filter_extend2 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (f (index s (length s - 1))))
         (ensures (filter f s = append1 (filter f (prefix s (length s - 1))) (index s (length s - 1))))
 
+let ext_pred (#a:eqtype) (f1 f2:a -> bool) = 
+  forall x. f1 x = f2 x
+
 val lemma_filter_extensionality (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
-  Lemma (requires (forall x. f1 x = f2 x))
+  Lemma (requires (ext_pred f1 f2))
         (ensures (filter f1 s = filter f2 s))
 
 (* The index of the last entry that satisfies a given property *)
@@ -191,7 +198,27 @@ val lemma_last_index_last_elem_sat (#a:eqtype) (f:a -> bool) (s:seq a{length s >
   Lemma (requires (f (index s (length s - 1))))
         (ensures (exists_sat_elems f s /\ last_index f s = length s - 1))
 
+val lemma_exists_sat_elems_extensionality (#a:eqtype) (f1 f2:a -> bool) (s: seq a):
+  Lemma (requires (ext_pred f1 f2))
+        (ensures (exists_sat_elems f1 s = exists_sat_elems f2 s))
 
+val lemma_last_index_extensionality (#a:eqtype) (f1 f2:a -> bool) (s: seq a{exists_sat_elems f1 s}):
+  Lemma (requires (ext_pred f1 f2))
+        (ensures (exists_sat_elems f2 s /\
+                  last_index f1 s = last_index f2 s))
+
+let conj (#a:eqtype) (f1 f2: a -> bool) (x: a) = 
+  f1 x && f2 x
+
+val lemma_exists_sat_conj (#a:eqtype) (f1 f2: a -> bool) (s: seq a):
+  Lemma(requires True)
+       (ensures (exists_sat_elems (conj f1 f2) s = exists_sat_elems f1 (filter f2 s)))
+       [SMTPat (exists_sat_elems (conj f1 f2) s)]
+
+val lemma_last_idx_conj (#a:eqtype) (f1 f2: a -> bool) 
+                        (s: seq a{exists_sat_elems (conj f1 f2) s}):
+  Lemma (last_index (conj f1 f2) s = filter_index_map f2 s (last_index f1 (filter f2 s)))
+  
 (* The index of the first entry that satisfies a given property *)
 val first_index (#a:eqtype) (f:a -> bool) (s:seq a{exists_sat_elems f s})
   : Tot (i:seq_index s{f (index s i)})
@@ -274,3 +301,7 @@ val lemma_reduce_singleton (#a:Type) (#b:eqtype) (b0: b) (f: a -> b -> b) (s: se
 
 val lemma_reduce_append (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a) (x:a):
   Lemma (reduce b0 f (append1 s x) = f x (reduce b0 f s))
+
+val lemma_reduce_append2 (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a{length s > 0}):
+  Lemma (reduce b0 f s = f (index s (length s - 1)) (reduce b0 f (prefix s (length s - 1))))
+
