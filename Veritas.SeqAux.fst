@@ -325,6 +325,49 @@ let rec lemma_filter_extensionality_aux (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
 
 let lemma_filter_extensionality = lemma_filter_extensionality_aux
 
+let rec lemma_filter_conj_aux (#a:eqtype) (f1 f2: a -> bool) (s:seq a):
+  Lemma (requires True)
+        (ensures (filter (conj f1 f2) s = filter f1 (filter f2 s)))
+        (decreases (length s)) =
+  let n = length s in
+  if n = 0 then ()
+  else (
+    let s' = prefix s (n - 1) in
+    let e = index s (n - 1) in
+    lemma_filter_conj_aux f1 f2 s';    
+    if conj f1 f2 e then (
+      lemma_filter_extend2 (conj f1 f2) s;
+      lemma_filter_extend2 f2 s;
+      let s2' = filter f2 s' in
+      let s2 = append1 s2' e in
+      lemma_prefix_append s2' (create 1 e);
+      lemma_filter_extend2 f1 s2
+    )
+    else if not (f2 e) then (
+      lemma_filter_extend1 (conj f1 f2) s;
+      lemma_filter_extend1 f2 s
+    )
+    else (
+      lemma_filter_extend1 (conj f1 f2) s;
+      lemma_filter_extend2 f2 s;
+      let s2' = filter f2 s' in
+      let s2 = append1 s2' e in
+      lemma_prefix_append s2' (create 1 e);
+      lemma_filter_extend1 f1 s2
+    )
+  )
+
+let lemma_filter_conj = lemma_filter_conj_aux
+
+let lemma_filter_comm (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
+  Lemma (filter f2 (filter f1 s) = filter f1 (filter f2 s)) = 
+  let cf12 = conj f1 f2 in
+  let cf21 = conj f2 f1 in
+  assert(ext_pred cf12 cf21);
+  lemma_filter_extensionality cf12 cf21 s;
+  lemma_filter_conj f1 f2 s;
+  lemma_filter_conj f2 f1 s
+
 let last_index_opt (#a:eqtype) (f:a -> bool) (s:seq a):
   Tot (option (i:seq_index s{f (index s i)})) =
   let fs = filter f s in

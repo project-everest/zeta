@@ -151,6 +151,15 @@ val lemma_filter_extensionality (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
   Lemma (requires (ext_pred f1 f2))
         (ensures (filter f1 s = filter f2 s))
 
+let conj (#a:eqtype) (f1 f2: a -> bool) (x: a) = 
+  f1 x && f2 x
+
+val lemma_filter_conj (#a:eqtype) (f1 f2: a -> bool) (s:seq a):
+  Lemma (filter (conj f1 f2) s = filter f1 (filter f2 s))
+
+val lemma_filter_comm (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
+  Lemma (filter f2 (filter f1 s) = filter f1 (filter f2 s))
+
 (* The index of the last entry that satisfies a given property *)
 val last_index_opt (#a:eqtype) (f:a -> bool) (s:seq a):
   Tot (option (i:seq_index s{f (index s i)}))
@@ -206,10 +215,7 @@ val lemma_last_index_extensionality (#a:eqtype) (f1 f2:a -> bool) (s: seq a{exis
   Lemma (requires (ext_pred f1 f2))
         (ensures (exists_sat_elems f2 s /\
                   last_index f1 s = last_index f2 s))
-
-let conj (#a:eqtype) (f1 f2: a -> bool) (x: a) = 
-  f1 x && f2 x
-
+                  
 val lemma_exists_sat_conj (#a:eqtype) (f1 f2: a -> bool) (s: seq a):
   Lemma(requires True)
        (ensures (exists_sat_elems (conj f1 f2) s = exists_sat_elems f1 (filter f2 s)))
