@@ -126,7 +126,7 @@ let value_of (st:eac_state {valid_eac_state st}) =
 let to_vlog (l:vlog_ext) = 
   map to_vlog_entry l
 
-let rec lemma_comm (le:vlog_ext) (k:data_key):
+let lemma_comm (le:vlog_ext) (k:data_key):
   Lemma (to_state_op_vlog (to_vlog (partn eac_sm k le)) = 
          partn ssm k (to_state_op_vlog (to_vlog le))) = 
   let lek = partn eac_sm k le in
@@ -137,7 +137,6 @@ let rec lemma_comm (le:vlog_ext) (k:data_key):
   let lsk = partn ssm k ls in
   admit()
 
-  
 let lemma_eac_k_implies_ssm_k_valid (le:eac_log) (k:data_key):
   Lemma (valid ssm_k (to_state_op_vlog (to_vlog (partn eac_sm k le)))) = 
   let lek = partn eac_sm k le in
@@ -151,13 +150,9 @@ let lemma_eac_k_implies_ssm_k_valid (le:eac_log) (k:data_key):
     assert(ssti = StateFail);
     
     let ssti' = seq_machine_run ssm_k (prefix lks i) in
-    if i = 0 then (
-      lemma_reduce_singleton StateInit apply_state_op (prefix lks (i + 1));
-      assert(StateFail = apply_state_op op StateInit);
-      assert(Veritas.State.Get? op && Veritas.State.Get?.v op <> Null);
-      admit()
-    )
-    else admit()
+    lemma_first_invalid_implies_invalid_get (prefix lks (i + 1));
+    assert(Veritas.State.Get?.v op <> last_put_value_or_null_k (prefix lks i));
+    admit()
   )
 
 (* evict add consistency implies rw-consistency *)

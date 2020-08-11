@@ -7,16 +7,6 @@ open Veritas.State
 open Veritas.SeqAux
 open Veritas.SeqMachine
 
-let has_some_put_k (s: seq state_op) =
-  exists_sat_elems Put? s
-
-let last_put_idx_k (s: seq state_op{has_some_put_k s}) =
-  last_index Put? s
-
-let last_put_value_or_null_k (s: seq state_op) =
-  if has_some_put_k s then Put?.v (index s (last_put_idx_k s))
-  else Null
-
 let value_of_state (s: ssm_state{StateVal? s}) =
   match s with
   | StateVal v -> v
@@ -101,7 +91,7 @@ let lemma_valid_all_implies_rw_consistent (s: seq state_op {valid_all ssm s}):
   in  
   ()
 
-let lemma_first_invalid_is_get (s: seq state_op{length s > 0}):
+let lemma_first_invalid_implies_invalid_get (s: seq state_op{length s > 0}):
   Lemma (requires (not (valid ssm_k s) /\ valid ssm_k (prefix s (length s - 1))))
         (ensures (Get? (index s (length s - 1)) /\
                   Get?.v (index s (length s - 1)) <> 
@@ -126,7 +116,7 @@ let lemma_not_valid_all_implies_not_rw_consistent (s: seq state_op {~ (valid_all
   let skj = prefix sk j in
   let skj' = prefix sk (j + 1) in
   
-  lemma_first_invalid_is_get skj';    
+  lemma_first_invalid_implies_invalid_get skj';    
   let v = Get?.v (index sk j) in  
   assert(v <> last_put_value_or_null_k skj);
   
