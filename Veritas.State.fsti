@@ -56,16 +56,6 @@ let rw_inconsistent_idx (s: seq state_op) (i: seq_index s) =
 
 (* read-write consistency (correctness) of a sequence of state operations *)
 type rw_consistent (s: (seq state_op)) = forall (i:seq_index s). rw_consistent_idx s i
-  
-(* 
- * rw_consistency: computational version: determine if sequence is rw_consistent;
- * if it is not, return the smallest index causing inconsistency 
- *)
-val eval_rw_consistency (s: seq (state_op)): 
-  Tot (r:(bool * nat){(fst r <==> rw_consistent s) /\
-                     (~(rw_consistent s) ==> (snd r < length s /\ 
-                                             rw_inconsistent_idx s (snd r) /\
-                                             rw_consistent (prefix s (snd r))))})
 
 (* sequential consistency of a concurrent sequences of state operations *)
 type seq_consistent (ss: seq (seq state_op)) = 

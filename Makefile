@@ -12,7 +12,7 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.Key.fsti Veritas.Record.fsti \
                Veritas.SeqAux.fsti Veritas.SeqAux.fst \
                Veritas.SeqMachine.fsti Veritas.SeqMachine.fst \
-               Veritas.State.fsti Veritas.State.fst \
+               Veritas.State.fsti \
                Veritas.StateSeqMachine.fsti Veritas.StateSeqMachine.fst \
                Veritas.MultiSet.fsti Veritas.MultiSet.fst \
                Veritas.MultiSetHash.fsti Veritas.MultiSetHash.fst \
