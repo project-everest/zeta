@@ -239,13 +239,80 @@ let lemma_state_partn_append (le:vlog_ext{length le > 0}) (k:data_key):
                    iskey vlog_entry_key k (index le (length le - 1))))
         (ensures (partn ssm k (to_state_op_vlog (to_vlog le)) =
                   append1 (partn ssm k (to_state_op_vlog (to_vlog (prefix le (length le - 1)))))
-                          (to_state_op (to_vlog_entry (index le (length le - 1)))))) = admit()
+                          (to_state_op (to_vlog_entry (index le (length le - 1)))))) =
+  let n = length le in
+  let l = to_vlog le in
+  let lsr = filter_refine is_state_op l in
+  let ls = to_state_op_vlog l in
+  let lsk = partn ssm k ls in
+  let le' = prefix le (n - 1) in
+  let l' = to_vlog le' in
+  let ls' = to_state_op_vlog l' in
+  let lsr' = filter_refine is_state_op l' in
+  let lsk' = partn ssm k ls' in
+  let ee = index le (n - 1) in
+  let e = to_vlog_entry ee in
+  let op = to_state_op e in
+  assert(is_state_op e);
+  assert(vlog_entry_key ee = k);
+
+  lemma_map_extend to_vlog_entry le;
+  lemma_prefix1_append l' e;
+  assert(l = append1 l' e);
+
+  lemma_filter_extend2 is_state_op l;
+  assert(equal lsr (append1 lsr' e));
+  lemma_prefix1_append lsr' e;
+
+  lemma_map_extend to_state_op lsr;
+  lemma_prefix1_append ls' op;
+  assert(ls = append1 ls' op);
+
+  lemma_filter_extend2 (iskey key_of k) ls;
+  assert(lsk = append1 lsk' op);
+  ()
 
 let lemma_state_partn_same (le:vlog_ext{length le > 0}) (k:data_key):
   Lemma (requires (not (is_state_op (to_vlog_entry (index le (length le - 1)))) \/
                    not (iskey vlog_entry_key k (index le (length le - 1)))))
         (ensures (partn ssm k (to_state_op_vlog (to_vlog le)) =
-                  partn ssm k (to_state_op_vlog (to_vlog (prefix le (length le - 1)))))) = admit()
+                  partn ssm k (to_state_op_vlog (to_vlog (prefix le (length le - 1)))))) =
+  let n = length le in
+  let l = to_vlog le in
+  let lsr = filter_refine is_state_op l in
+  let ls = to_state_op_vlog l in
+  let lsk = partn ssm k ls in
+  let le' = prefix le (n - 1) in
+  let l' = to_vlog le' in
+  let ls' = to_state_op_vlog l' in
+  let lsr' = filter_refine is_state_op l' in
+  let lsk' = partn ssm k ls' in
+  let ee = index le (n - 1) in
+  let e = to_vlog_entry ee in
+
+  lemma_map_extend to_vlog_entry le;
+  lemma_prefix1_append l' e;
+  assert(l = append1 l' e);
+
+  if not (is_state_op e) then (
+    lemma_filter_extend1 is_state_op l;
+    assert (lsr = lsr');
+    ()
+  )
+  else (
+    let op = to_state_op e in
+    lemma_filter_extend2 is_state_op l;
+    assert(equal lsr (append1 lsr' e));
+    lemma_prefix1_append lsr' e;
+
+    lemma_map_extend to_state_op lsr;
+    lemma_prefix1_append ls' op;
+    assert(ls = append1 ls' op);
+
+    lemma_filter_extend1 (iskey key_of k) ls;
+    assert(lsk = lsk');
+    ()
+  )
 
 
 let rec lemma_comm (le:vlog_ext) (k:data_key):
