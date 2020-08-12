@@ -158,9 +158,13 @@ let lemma_eac_k_implies_valid_get (le:vlog_ext) (i:seq_index le):
 let state_op_map (l:vlog) (i:seq_index (to_state_op_vlog l)):
   Tot (j:(seq_index l){is_state_op (index l j) /\
                        to_state_op (index l j) =  index (to_state_op_vlog l) i /\
-                       to_state_op_vlog (prefix l j) = prefix (to_state_op_vlog l) i})
-  = admit()
-
+                       to_state_op_vlog (prefix l j) = prefix (to_state_op_vlog l) i}) =
+  let ls = to_state_op_vlog l in
+  let j = filter_index_map is_state_op l i in
+  lemma_filter_prefix_comm is_state_op l j;
+  lemma_map_prefix to_state_op (filter_refine is_state_op l) i;
+  assert(equal (prefix (filter_refine is_state_op l) i) (filter_refine is_state_op (prefix l j)));
+  j
 
 let lemma_last_put_map (l:vlog):
   Lemma (last_put_value_or_null l =
