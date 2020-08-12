@@ -51,7 +51,8 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
     match e with
     | NEvict (Get _ v') -> if (DVal v') = v then s
                            else EACFail
-    | NEvict (Put _ v') -> EACInCache m (DVal v')
+    | NEvict (Put _ v') -> if (DVal? v) then EACInCache m (DVal v')
+                           else EACFail
     | Evict (EvictM _ _) v' -> if DVal? v && v' <> v then EACFail
                                else EACEvicted MAdd v
     | Evict (EvictBM _ _ _) v' -> if DVal? v && v' <> v || m <> MAdd then EACFail
@@ -146,14 +147,130 @@ let last_put_value_or_null (l:vlog) =
   if has_some_put l then Put?.v (index l (last_put_idx l))
   else Null
 
+//let lemma_eac_add_closure (st: eac_state {EACFail st ||
+
+let lemma_value_type (le:vlog_ext {length le > 0}):
+  Lemma (EACFail = seq_machine_run eac_smk le \/
+         EACFail <> seq_machine_run eac_smk (prefix le 1) /\
+         DVal? (value_of (seq_machine_run eac_smk le)) =
+         DVal? (value_of (seq_machine_run eac_smk (prefix le 1)))) =
+
+  admit()
+
+let lemma_first_entry_is_madd (le:vlog_ext):
+  Lemma (requires (valid eac_smk le /\ length le > 0))
+        (ensures (AddM? (to_vlog_entry (index le 0)))) =
+  let le1 = prefix le 1 in
+  let st1 = seq_machine_run eac_smk le1 in
+  lemma_valid_prefix eac_smk le 1;
+  lemma_reduce_singleton EACInit eac_add le1;
+  assert(st1 = eac_add (index le 0) EACInit);
+  ()
+
+let rec lemma_data_val_state_implies_last_put (le:vlog_ext):
+  Lemma (requires (valid eac_smk le /\
+                   DVal? (value_of (seq_machine_run eac_smk le))))
+        (ensures (DVal?.v (value_of (seq_machine_run eac_smk le)) =
+                  last_put_value_or_null (to_vlog le)))
+        (decreases (length le)) =
+  let l = to_vlog le in
+  let n = length le in
+  let st = seq_machine_run eac_smk le in
+
+  if n = 0 then (
+    lemma_reduce_empty EACInit eac_add;
+    lemma_empty le;
+    assert (EACInit = seq_machine_run eac_smk le);
+    ()
+  )
+
+  else if n = 1 then (
+    lemma_first_entry_is_madd le;
+    lemma_reduce_singleton EACInit eac_add le;
+
+    if has_some_put l then (
+      let i = last_put_idx l in
+      ()
+    )
+    else match (index le 0) with
+    | NEvict (AddM (k, v) _ ) ->
+      assert(value_of st = v);
+      ()
+  )
+
+  else (
+    let le' = prefix le (n - 1) in
+    let l' = prefix l (n - 1) in
+    lemma_map_prefix to_vlog_entry le (n - 1);
+    lemma_valid_prefix eac_smk le (n - 1);
+
+    // le and le' have the same value type
+    lemma_value_type le;
+    lemma_value_type le';
+    assert(DVal? (value_of (seq_machine_run eac_smk le')));
+
+    // induction
+    lemma_data_val_state_implies_last_put le';
+
+    // IH
+    let st' = seq_machine_run eac_smk le' in
+    assert(DVal?.v (value_of st') = last_put_value_or_null (to_vlog le'));
+
+    lemma_reduce_append2 EACInit eac_add le;
+    assert(st = eac_add (index le (n - 1)) st');
+
+    if Put? (to_vlog_entry (index le (n - 1))) then
+      lemma_last_index_last_elem_sat Put? l
+
+    else (
+      assert(value_of st' = value_of st);
+      lemma_last_index_last_elem_nsat Put? l;
+
+      if has_some_put l' then
+        lemma_last_index_prefix Put? l (n - 1)
+      else ()
+
+    )
+  )
+
+let lemma_get_implies_data_val_state (le:vlog_ext) (i:seq_index le):
+  Lemma (requires (valid eac_smk le /\ Get? (to_vlog_entry (index le i))))
+        (ensures (valid eac_smk (prefix le i) /\
+                  EACInCache? (seq_machine_run eac_smk (prefix le i)) /\
+                  DVal? (value_of (seq_machine_run eac_smk (prefix le i))))) =
+  let lei = prefix le i in
+  let lei' = prefix le (i + 1) in
+
+  lemma_valid_prefix eac_smk le i;
+  lemma_valid_prefix eac_smk le (i + 1);
+  lemma_reduce_append2 EACInit eac_add lei';
+  ()
+
 let lemma_eac_k_implies_valid_get (le:vlog_ext) (i:seq_index le):
   Lemma (requires (valid eac_smk le /\ Get? (to_vlog_entry (index le i))))
         (ensures (Get?.v (to_vlog_entry (index le i)) =
                   last_put_value_or_null (to_vlog (prefix le i)))) =
   let n = length le in
-  if n = 0 then admit()
-  else
-  admit()
+  let lei = prefix le i in
+
+  lemma_first_entry_is_madd le;
+  assert(n > 1);
+
+  lemma_get_implies_data_val_state le i;
+  assert(valid eac_smk lei);
+  assert(DVal? (value_of (seq_machine_run eac_smk lei)));
+
+  lemma_data_val_state_implies_last_put lei;
+  let sti = seq_machine_run eac_smk lei in
+  assert(DVal? (value_of sti));
+
+  let lei' = prefix le (i + 1) in
+  lemma_valid_prefix eac_smk le (i + 1);
+  assert(EACFail <> (seq_machine_run eac_smk lei'));
+
+  lemma_reduce_append2 EACInit eac_add lei';
+  assert(seq_machine_run eac_smk lei' = eac_add (index le i) sti);
+  ()
 
 let state_op_map (l:vlog) (i:seq_index (to_state_op_vlog l)):
   Tot (j:(seq_index l){is_state_op (index l j) /\
