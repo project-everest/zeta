@@ -292,7 +292,7 @@ let bv_to_bin_tree_node (#n:pos) (b:bv_t n): Tot (t:bin_tree_node{depth t = n}) 
   traverse_adds_size_to_depth b Root; traverse_bin_tree b Root
 
 (* Given a binary tree node return the path from root as a binary vector *)
-let rec path_from_root (a:bin_tree_node{depth a > 0}): Tot (b:bv_t (depth a)) 
+let rec path_from_root (a:bin_tree_node{depth a > 0}): Tot (bv_t (depth a)) 
   (decreases (depth a)) = 
   if depth a = 1 
   then (match a with

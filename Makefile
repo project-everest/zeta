@@ -13,16 +13,19 @@ FLAKY=
 
 # List the files that should be verified by verify-core and verify-all
 # Those files are the roots from where all dependencies are computed
-FSTAR_FILES := Veritas.SeqAux.fsti Veritas.SeqAux.fst \
-	       Veritas.Memory.fsti Veritas.Memory.fst \
-	       Veritas.BinTree.fsti Veritas.BinTree.fst \
-	       Veritas.MerkleAddr.fsti Veritas.MerkleAddr.fst \
-	       Veritas.Merkle.fsti Veritas.Merkle.fst \
-	       Veritas.SparseMerkle.fsti Veritas.SparseMerkle.fst \
-	       Veritas.BinTreePtr.fsti Veritas.BinTreePtr.fst \
-	       Veritas.MerkleVerifier.fst \
-	       Veritas.SparseMerkleVerifier.fst \
-	       Veritas.SparseMerkleVerifier.Correctness.fst
+FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
+               Veritas.Key.fsti Veritas.Record.fsti \
+               Veritas.SeqAux.fsti Veritas.SeqAux.fst \
+               Veritas.SeqMachine.fsti Veritas.SeqMachine.fst \
+               Veritas.State.fsti \
+               Veritas.StateSeqMachine.fsti Veritas.StateSeqMachine.fst \
+               Veritas.MultiSet.fsti Veritas.MultiSet.fst \
+               Veritas.MultiSetHash.fsti Veritas.MultiSetHash.fst \
+               Veritas.Hash.fsti \
+               Veritas.Interleave.fsti \
+               Veritas.Verifier.fst \
+               Veritas.EAC.fst \
+               Veritas.Verifier.Correctness.fst
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
 
@@ -61,7 +64,6 @@ MY_FSTAR=$(FSTAR) --cache_checked_modules $(FSTAR_OPTIONS)
 # a.fst(i).checked is the binary, checked version of a.fst(i)
 $(OUTPUT_DIRECTORY)/%.checked:
 	$(MY_FSTAR) $<
-	touch $@
 
 all: extract
 
@@ -69,8 +71,7 @@ parsers: verify
 	$(MAKE) -C parsers
 
 clean:
-	rm -rf *.checked $(OUTPUT_DIRECTORY)/*ml
-	$(MAKE) -C _output clean
+	rm -rf *.checked
 
 .depend: $(FSTAR_FILES)
 	$(MY_FSTAR) --dep full --extract 'Veritas -Veritas.SparseMerkleVerifier.Correctness' $^ > .depend
@@ -79,8 +80,7 @@ depend: .depend
 
 include .depend
 
-verify: $(OUTPUT_DIRECTORY)/Veritas.SparseMerkleVerifier.Correctness.fst.checked
-
+verify: $(addprefix $(OUTPUT_DIRECTORY)/,$(addsuffix .checked, $(FSTAR_FILES)))
 driver: $(OUTPUT_DIRECTORY)/VeritasDriver.ml parsers VeritasDriver.fst
 
 $(OUTPUT_DIRECTORY)/VeritasDriver.ml:
