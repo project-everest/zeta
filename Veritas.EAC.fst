@@ -15,7 +15,7 @@ open Veritas.Verifier
 //Allow the solver to unroll recursive functions at most once (fuel)
 #push-options "--max_fuel 1 --max_ifuel 1 --initial_fuel 1 --initial_ifuel 1"
 
-let is_evict (e: vlog_entry) = 
+let is_evict (e: vlog_entry): bool =
   match e with
   | EvictM _ _ -> true
   | EvictB _ _ -> true
@@ -31,27 +31,27 @@ type vlog_entry_ext =
 
 type vlog_ext = seq (vlog_entry_ext)
 
-type eac_state = 
-  | EACFail: eac_state  
+type eac_state =
+  | EACFail: eac_state
   | EACInit: eac_state
   | EACInCache: m:add_method -> v:value -> eac_state
   | EACEvicted: m:add_method -> v:value -> eac_state
 
-let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state = 
+let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
   match s with
   | EACFail -> EACFail
   | EACInit -> (
-    match e with 
+    match e with
     | NEvict (AddM (k,v) _) -> if v = init_value k then EACInCache MAdd v
                                else EACFail
     | _ -> EACFail
     )
-  
+
   | EACInCache m v -> (
-    match e with 
+    match e with
     | NEvict (Get _ v') -> if (DVal v') = v then s
                            else EACFail
-    | NEvict (Put _ v') -> EACInCache m (DVal v')                   
+    | NEvict (Put _ v') -> EACInCache m (DVal v')
     | Evict (EvictM _ _) v' -> if DVal? v && v' <> v then EACFail
                                else EACEvicted MAdd v
     | Evict (EvictBM _ _ _) v' -> if DVal? v && v' <> v || m <> MAdd then EACFail
@@ -60,7 +60,7 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
                                 else EACEvicted BAdd v
     | _ -> EACFail
     )
-  
+
   | EACEvicted m v -> (
     match e with
     | NEvict (AddM (_,v') _) -> if v' = v && m = MAdd then EACInCache MAdd v
@@ -72,12 +72,12 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
 
 let eac_smk = SeqMachine EACInit EACFail eac_add
 
-let to_vlog_entry (ee:vlog_entry_ext): Tot vlog_entry = 
+let to_vlog_entry (ee:vlog_entry_ext): vlog_entry =
   match ee with
   | Evict e _ -> e
   | NEvict e -> e
 
-let vlog_entry_key (e: vlog_entry_ext): key = 
+let vlog_entry_key (e: vlog_entry_ext): key =
   match (to_vlog_entry e) with
   | Get k _ -> k
   | Put k _ -> k
@@ -96,38 +96,38 @@ let eac (l:vlog_ext) = valid_all eac_sm l
 type eac_log = l:vlog_ext{eac l}
 
 (* the state operations of a vlog *)
-let is_state_op (e: vlog_entry) = 
+let is_state_op (e: vlog_entry): bool =
   match e with
   | Get k v -> true
-  | Put k v -> true 
+  | Put k v -> true
   | _ -> false
 
 (* map vlog entry to state op *)
-let to_state_op (e:vlog_entry {is_state_op e}) = 
+let to_state_op (e:vlog_entry {is_state_op e}): state_op =
   match e with
   | Get k v -> Veritas.State.Get k v
   | Put k v -> Veritas.State.Put k v
 
 (* filter out the state ops of vlog *)
-let to_state_op_vlog (l: vlog) = 
+let to_state_op_vlog (l: vlog) =
   map to_state_op (filter_refine is_state_op l)
 
 (* valid eac states *)
-let valid_eac_state (st:eac_state) = not (EACFail? st)
+let valid_eac_state (st:eac_state): bool = not (EACFail? st)
 
 (* value of a valid state *)
-let value_of (st:eac_state {valid_eac_state st}) =
+let value_of (st:eac_state {valid_eac_state st}): value =
   match st with
   | EACInit -> DVal Null
   | EACInCache _ v -> v
   | EACEvicted _ v -> v
 
-let to_vlog (l:vlog_ext) = 
+let to_vlog (l:vlog_ext) =
   map to_vlog_entry l
 
 let lemma_comm (le:vlog_ext) (k:data_key):
-  Lemma (to_state_op_vlog (to_vlog (partn eac_sm k le)) = 
-         partn ssm k (to_state_op_vlog (to_vlog le))) = 
+  Lemma (to_state_op_vlog (to_vlog (partn eac_sm k le)) =
+         partn ssm k (to_state_op_vlog (to_vlog le))) =
   let lek = partn eac_sm k le in
   let lk = to_vlog lek in
   let lks = to_state_op_vlog lk in
@@ -136,20 +136,20 @@ let lemma_comm (le:vlog_ext) (k:data_key):
   let lsk = partn ssm k ls in
   admit()
 
-let has_some_put (l:vlog) = 
+let has_some_put (l:vlog) =
   exists_sat_elems Put? l
 
-let last_put_idx (l:vlog{has_some_put l}) = 
+let last_put_idx (l:vlog{has_some_put l}) =
   last_index Put? l
-  
-let last_put_value_or_null (l:vlog) = 
+
+let last_put_value_or_null (l:vlog) =
   if has_some_put l then Put?.v (index l (last_put_idx l))
   else Null
 
 let lemma_eac_k_implies_valid_get (le:vlog_ext) (i:seq_index le):
   Lemma (requires (valid eac_smk le /\ Get? (to_vlog_entry (index le i))))
-        (ensures (Get?.v (to_vlog_entry (index le i)) = 
-                  last_put_value_or_null (to_vlog (prefix le i)))) = 
+        (ensures (Get?.v (to_vlog_entry (index le i)) =
+                  last_put_value_or_null (to_vlog (prefix le i)))) =
   let n = length le in
   if n = 0 then admit()
   else
@@ -163,44 +163,53 @@ let state_op_map (l:vlog) (i:seq_index (to_state_op_vlog l)):
 
 
 let lemma_last_put_map (l:vlog):
-  Lemma (last_put_value_or_null l = 
-         last_put_value_or_null_k (to_state_op_vlog l)) = admit()
+  Lemma (last_put_value_or_null l =
+         last_put_value_or_null_k (to_state_op_vlog l)) =
+  let ls = to_state_op_vlog l in
+  if has_some_put l then (
+    let j = last_put_idx l in
+    let i = filter_index_inv_map is_state_op l j in
+    assert(index ls i = to_state_op (index l j));
+    lemma_last_index_correct2 Veritas.State.Put? ls i;
+    let i' = last_put_idx_k ls in
+    if i' = i then ()
+    else (
+      let j' = filter_index_map is_state_op l i' in
+      lemma_filter_index_map_monotonic is_state_op l i i';
+      lemma_filter_maps_correct is_state_op l j;
+      lemma_last_index_correct2 Put? l j'
+    )
+  )
+  else if has_some_put_k ls then
+    let i = last_put_idx_k ls in
+    let j = state_op_map l i in
+    lemma_last_index_correct2 Put? l j
+  else ()
 
 let lemma_eac_k_implies_ssm_k_valid (le:eac_log) (k:data_key):
-  Lemma (valid ssm_k (to_state_op_vlog (to_vlog (partn eac_sm k le)))) = 
+  Lemma (valid ssm_k (to_state_op_vlog (to_vlog (partn eac_sm k le)))) =
   let lek = partn eac_sm k le in
   let lk = to_vlog lek in
   let lks = to_state_op_vlog lk in
   if valid ssm_k lks then ()
   else (
-    let i = max_valid_prefix ssm_k lks in  
+    let i = max_valid_prefix ssm_k lks in
     let op = index lks i in
-        
+
     lemma_first_invalid_implies_invalid_get (prefix lks (i + 1));
     assert(Veritas.State.Get?.v op <> last_put_value_or_null_k (prefix lks i));
 
     // index of entry in lk/lek that corresponds to i
-    let j = (state_op_map lk i) in    
+    let j = (state_op_map lk i) in
     assert(to_state_op(index lk j) = op);
-    
-    assert(valid eac_smk lek);
-    assert(to_vlog_entry (index lek j) = index lk j);
     lemma_eac_k_implies_valid_get lek j;
-    assert(Get?.v (index lk j) = 
-                  last_put_value_or_null (to_vlog (prefix lek j)));
-
     lemma_map_prefix to_vlog_entry lek j;
-    assert(lk == to_vlog lek);
-    assert(map to_vlog_entry lek == lk);
-    assert(map to_vlog_entry (prefix lek j) == prefix (map to_vlog_entry lek) j);
-    assert(map to_vlog_entry (prefix lek j) = prefix lk j);
-    assert(to_vlog (prefix lek j) = prefix lk j);                  
-    admit()
+    lemma_last_put_map (prefix lk j)
   )
 
 (* evict add consistency implies rw-consistency *)
 let lemma_eac_implies_rw_consistent (le:eac_log):
-  Lemma (rw_consistent (to_state_op_vlog (to_vlog le))) = 
+  Lemma (rw_consistent (to_state_op_vlog (to_vlog le))) =
   let l = to_vlog le in
   let s = to_state_op_vlog l in
   let rwc = valid_all_comp ssm s in
@@ -208,7 +217,7 @@ let lemma_eac_implies_rw_consistent (le:eac_log):
   if rwc then () // nothing to prove if rw_consistent
   else (
     (* invalidating key *)
-    let k: data_key = invalidating_key ssm s in
-    lemma_eac_k_implies_ssm_k_valid le k;    
+    let k = invalidating_key ssm s in
+    lemma_eac_k_implies_ssm_k_valid le k;
     lemma_comm le k
   )

@@ -1,6 +1,6 @@
 module Veritas.SeqAux
 
-open FStar.Seq 
+open FStar.Seq
 
 (* Legitimate values of an index of a sequence *)
 inline_for_extraction
@@ -79,13 +79,13 @@ val lemma_filter_correct1 (#a: eqtype) (f:a -> bool) (s:seq a) (i:seq_index (fil
   Lemma (requires (True))
         (ensures (f (index (filter f s) i) = true))
         [SMTPat (f (index (filter f s) i))]
-  
+
 val lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (True))
         (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true))
 
 (* mapping from filtered subseq to satisfying indexes *)
-val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)): 
+val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
   Tot (j:seq_index s{index s j = index (filter f s) i})
 
 (* Mapping from original seq to filtered subseq for satisfying indexes *)
@@ -95,19 +95,29 @@ val filter_index_inv_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (i
 inline_for_extraction
 let refine #a (f:a -> bool) = x:a{f x}
 
-type all (#a:Type) (f:a -> bool) (s: seq a) = 
+type all (#a:Type) (f:a -> bool) (s: seq a) =
   forall (i:seq_index s). f (index s i)
 
-(* if we know that every element of a seq satisfies f, then the same sequence is a sequence over 
+(* if we know that every element of a seq satisfies f, then the same sequence is a sequence over
  * the refinement defined by f *)
 val seq_refine (#a:Type) (f:a -> bool) (s:seq a{all f s}): Tot (seq (refine f))
+
+val lemma_seq_refine_len (#a:Type) (f:a->bool) (s:seq a{all f s}):
+  Lemma (requires True)
+        (ensures (length (seq_refine f s) = length s))
+        [SMTPat (seq_refine f s)]
+
+val lemma_seq_refine_equal (#a:Type) (f:a->bool) (s:seq a{all f s}) (i:seq_index s):
+  Lemma (requires True)
+        (ensures (index (seq_refine f s) i == index s i))
+        [SMTPat (index (seq_refine f s) i)]
 
 let filter_refine (#a:eqtype) (f:a -> bool) (s: seq a): Tot (seq (refine f)) =
   let fs = filter f s in
   seq_refine f fs
 
 (* filter_index_map is injective *)
-val lemma_filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a) 
+val lemma_filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a)
   (i:seq_index (filter f s))(j:seq_index (filter f s){j > i}):
   Lemma (filter_index_map f s i < filter_index_map f s j)
 
@@ -125,7 +135,7 @@ val lemma_filter_maps_correct2 (#a:eqtype) (f:a -> bool) (s: seq a) (i: seq_inde
   Lemma (requires(True))
         (ensures (filter_index_inv_map f s (filter_index_map f s i) = i))
         [SMTPat (filter_index_map f s i)]
-  
+
 val lemma_filter_empty (#a:eqtype) (f:a -> bool):
   Lemma (filter f (empty #a) == empty #a)
 
@@ -144,14 +154,14 @@ val lemma_filter_extend2 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (f (index s (length s - 1))))
         (ensures (filter f s = append1 (filter f (prefix s (length s - 1))) (index s (length s - 1))))
 
-let ext_pred (#a:eqtype) (f1 f2:a -> bool) = 
+let ext_pred (#a:eqtype) (f1 f2:a -> bool) =
   forall x. f1 x = f2 x
 
 val lemma_filter_extensionality (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
   Lemma (requires (ext_pred f1 f2))
         (ensures (filter f1 s = filter f2 s))
 
-let conj (#a:eqtype) (f1 f2: a -> bool) (x: a) = 
+let conj (#a:eqtype) (f1 f2: a -> bool) (x: a) =
   f1 x && f2 x
 
 val lemma_filter_conj (#a:eqtype) (f1 f2: a -> bool) (s:seq a):
@@ -165,7 +175,7 @@ val last_index_opt (#a:eqtype) (f:a -> bool) (s:seq a):
   Tot (option (i:seq_index s{f (index s i)}))
 
 (* There exists some element satisfying f if there exists last_index *)
-let exists_sat_elems (#a:eqtype) (f:a -> bool) (s:seq a) = 
+let exists_sat_elems (#a:eqtype) (f:a -> bool) (s:seq a) =
   Some? (last_index_opt f s)
 
 (* The index of the last entry when we know there exists such entry *)
@@ -215,16 +225,16 @@ val lemma_last_index_extensionality (#a:eqtype) (f1 f2:a -> bool) (s: seq a{exis
   Lemma (requires (ext_pred f1 f2))
         (ensures (exists_sat_elems f2 s /\
                   last_index f1 s = last_index f2 s))
-                  
+
 val lemma_exists_sat_conj (#a:eqtype) (f1 f2: a -> bool) (s: seq a):
   Lemma(requires True)
        (ensures (exists_sat_elems (conj f1 f2) s = exists_sat_elems f1 (filter f2 s)))
        [SMTPat (exists_sat_elems (conj f1 f2) s)]
 
-val lemma_last_idx_conj (#a:eqtype) (f1 f2: a -> bool) 
+val lemma_last_idx_conj (#a:eqtype) (f1 f2: a -> bool)
                         (s: seq a{exists_sat_elems (conj f1 f2) s}):
   Lemma (last_index (conj f1 f2) s = filter_index_map f2 s (last_index f1 (filter f2 s)))
-  
+
 (* The index of the first entry that satisfies a given property *)
 val first_index (#a:eqtype) (f:a -> bool) (s:seq a{exists_sat_elems f s})
   : Tot (i:seq_index s{f (index s i)})
@@ -260,7 +270,7 @@ val lemma_zip_index (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa
                   snd (index (zip sa sb) i) = index sb i))
         [SMTPat (index (zip sa sb) i)]
 
-val unzip (#a #b: eqtype) (sab: seq (a * b)): sasb: (seq a * seq b) 
+val unzip (#a #b: eqtype) (sab: seq (a * b)): sasb: (seq a * seq b)
   {length (fst sasb) = length sab /\
    length (snd sasb) = length sab}
 
@@ -284,11 +294,11 @@ val lemma_attach_len (#a:Type) (s: seq a):
 
 val lemma_attach_correct (#a:Type) (s:seq a) (i: seq_index s):
   Lemma (requires (True))
-        (ensures (length (attach_index s) = length s /\        
+        (ensures (length (attach_index s) = length s /\
                   snd (index (attach_index s) i) == index s i /\
                   fst (index (attach_index s) i) = i))
         [SMTPat (index (attach_index s) i)]
-  
+
 (* reduce operation over sequences *)
 val reduce (#a:Type) (#b:Type) (b0: b) (f: a -> b -> b) (s: seq a): Tot b
 
