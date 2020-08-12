@@ -13,7 +13,6 @@ open Veritas.StateSeqMachine
 open Veritas.Verifier
 
 //Allow the solver to unroll recursive functions at most once (fuel)
-//Allow the solver to invert inductive definitions at most once (ifuel)
 #push-options "--max_fuel 1 --max_ifuel 1 --initial_fuel 1 --initial_ifuel 1"
 
 let is_evict (e: vlog_entry) = 
@@ -73,12 +72,12 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
 
 let eac_smk = SeqMachine EACInit EACFail eac_add
 
-let to_vlog_entry (ee:vlog_entry_ext) = 
+let to_vlog_entry (ee:vlog_entry_ext): Tot vlog_entry = 
   match ee with
   | Evict e _ -> e
   | NEvict e -> e
 
-let vlog_entry_key (e: vlog_entry_ext) = 
+let vlog_entry_key (e: vlog_entry_ext): key = 
   match (to_vlog_entry e) with
   | Get k _ -> k
   | Put k _ -> k
@@ -137,6 +136,36 @@ let lemma_comm (le:vlog_ext) (k:data_key):
   let lsk = partn ssm k ls in
   admit()
 
+let has_some_put (l:vlog) = 
+  exists_sat_elems Put? l
+
+let last_put_idx (l:vlog{has_some_put l}) = 
+  last_index Put? l
+  
+let last_put_value_or_null (l:vlog) = 
+  if has_some_put l then Put?.v (index l (last_put_idx l))
+  else Null
+
+let lemma_eac_k_implies_valid_get (le:vlog_ext) (i:seq_index le):
+  Lemma (requires (valid eac_smk le /\ Get? (to_vlog_entry (index le i))))
+        (ensures (Get?.v (to_vlog_entry (index le i)) = 
+                  last_put_value_or_null (to_vlog (prefix le i)))) = 
+  let n = length le in
+  if n = 0 then admit()
+  else
+  admit()
+
+let state_op_map (l:vlog) (i:seq_index (to_state_op_vlog l)):
+  Tot (j:(seq_index l){is_state_op (index l j) /\
+                       to_state_op (index l j) =  index (to_state_op_vlog l) i /\
+                       to_state_op_vlog (prefix l j) = prefix (to_state_op_vlog l) i})
+  = admit()
+
+
+let lemma_last_put_map (l:vlog):
+  Lemma (last_put_value_or_null l = 
+         last_put_value_or_null_k (to_state_op_vlog l)) = admit()
+
 let lemma_eac_k_implies_ssm_k_valid (le:eac_log) (k:data_key):
   Lemma (valid ssm_k (to_state_op_vlog (to_vlog (partn eac_sm k le)))) = 
   let lek = partn eac_sm k le in
@@ -146,12 +175,26 @@ let lemma_eac_k_implies_ssm_k_valid (le:eac_log) (k:data_key):
   else (
     let i = max_valid_prefix ssm_k lks in  
     let op = index lks i in
-    let ssti = seq_machine_run ssm_k (prefix lks (i + 1)) in
-    assert(ssti = StateFail);
-    
-    let ssti' = seq_machine_run ssm_k (prefix lks i) in
+        
     lemma_first_invalid_implies_invalid_get (prefix lks (i + 1));
     assert(Veritas.State.Get?.v op <> last_put_value_or_null_k (prefix lks i));
+
+    // index of entry in lk/lek that corresponds to i
+    let j = (state_op_map lk i) in    
+    assert(to_state_op(index lk j) = op);
+    
+    assert(valid eac_smk lek);
+    assert(to_vlog_entry (index lek j) = index lk j);
+    lemma_eac_k_implies_valid_get lek j;
+    assert(Get?.v (index lk j) = 
+                  last_put_value_or_null (to_vlog (prefix lek j)));
+
+    lemma_map_prefix to_vlog_entry lek j;
+    assert(lk == to_vlog lek);
+    assert(map to_vlog_entry lek == lk);
+    assert(map to_vlog_entry (prefix lek j) == prefix (map to_vlog_entry lek) j);
+    assert(map to_vlog_entry (prefix lek j) = prefix lk j);
+    assert(to_vlog (prefix lek j) = prefix lk j);                  
     admit()
   )
 

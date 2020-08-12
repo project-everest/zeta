@@ -551,6 +551,14 @@ let lemma_map_index (#a #b: Type) (f:a -> b) (s:seq a) (i:seq_index s):
         (ensures (f (index s i) == index (map f s) i)) =
   lemma_map_index_aux f s i
 
+let lemma_map_prefix (#a #b: Type) (f:a -> b) (s:seq a) (i: seq_index s):
+  Lemma (requires True)
+        (ensures (map f (prefix s i) == prefix (map f s) i)) = 
+  let mp = map f (prefix s i) in
+  let pm = prefix (map f s) i in
+  assert(equal mp pm);
+  ()
+
 let rec zip_aux (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}):
   Tot (sab: (seq (a * b)){length sab = length sa}) 
   (decreases (length sa)) = 
