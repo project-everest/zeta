@@ -114,12 +114,12 @@ let to_state_op_vlog (l: vlog) =
   map to_state_op (filter_refine is_state_op l)
 
 (* valid eac states *)
-let valid_eac_state (st:eac_state): bool = not (EACFail? st)
+let valid_eac_state (st:eac_state): bool = st <> EACFail &&
+                                           st <> EACInit
 
 (* value of a valid state *)
 let value_of (st:eac_state {valid_eac_state st}): value =
   match st with
-  | EACInit -> DVal Null
   | EACInCache _ v -> v
   | EACEvicted _ v -> v
 
@@ -151,7 +151,8 @@ let last_put_value_or_null (l:vlog) =
 
 let lemma_value_type (le:vlog_ext {length le > 0}):
   Lemma (EACFail = seq_machine_run eac_smk le \/
-         EACFail <> seq_machine_run eac_smk (prefix le 1) /\
+         valid_eac_state (seq_machine_run eac_smk (prefix le 1)) /\
+         valid_eac_state (seq_machine_run eac_smk le) /\
          DVal? (value_of (seq_machine_run eac_smk le)) =
          DVal? (value_of (seq_machine_run eac_smk (prefix le 1)))) =
 
@@ -168,7 +169,7 @@ let lemma_first_entry_is_madd (le:vlog_ext):
   ()
 
 let rec lemma_data_val_state_implies_last_put (le:vlog_ext):
-  Lemma (requires (valid eac_smk le /\
+  Lemma (requires (valid_eac_state (seq_machine_run eac_smk le) /\
                    DVal? (value_of (seq_machine_run eac_smk le))))
         (ensures (DVal?.v (value_of (seq_machine_run eac_smk le)) =
                   last_put_value_or_null (to_vlog le)))
