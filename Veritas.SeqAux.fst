@@ -581,6 +581,13 @@ let lemma_map_prefix (#a #b: Type) (f:a -> b) (s:seq a) (i: seq_index s):
   assert(equal mp pm);
   ()
 
+let lemma_map_extend (#a #b:Type) (f:a -> b) (s:seq a{length s > 0}):
+  Lemma (map f s == append1 (map f (prefix s (length s - 1)))
+                            (f (index s (length s - 1)))) = 
+  assert(equal (map f s) (append1 (map f (prefix s (length s - 1)))
+                            (f (index s (length s - 1)))));
+  ()
+
 let rec zip_aux (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}):
   Tot (sab: (seq (a * b)){length sab = length sa})
   (decreases (length sa)) =

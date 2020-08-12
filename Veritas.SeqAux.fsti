@@ -32,6 +32,10 @@ val lemma_prefix_append (#a:Type) (s1 s2: seq a):
   Lemma (requires (True))
         (ensures (prefix (append s1 s2) (length s1) == s1))
 
+let lemma_prefix1_append (#a:Type) (s: seq a) (x:a):
+  Lemma (prefix (append1 s x) (length s) == s) =
+  lemma_prefix_append s (create 1 x)
+
 val lemma_prefix0_empty (#a:Type) (s: seq a):
   Lemma (prefix s 0 == empty #a)
 
@@ -260,6 +264,10 @@ val lemma_map_index (#a #b: Type) (f:a -> b) (s:seq a) (i:seq_index s):
 val lemma_map_prefix (#a #b: Type) (f:a -> b) (s:seq a) (i: seq_index s):
   Lemma (requires True)
         (ensures (map f (prefix s i) == prefix (map f s) i))
+
+val lemma_map_extend (#a #b:Type) (f:a -> b) (s:seq a{length s > 0}):
+  Lemma (map f s == append1 (map f (prefix s (length s - 1)))
+                            (f (index s (length s - 1))))
 
 val zip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}):
   sab: seq (a * b){length sab = length sa}
