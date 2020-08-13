@@ -177,8 +177,44 @@ let time_seq_ext (gl: g_verifiable_log):
   (le:vlog_ext{to_vlog le = time_seq gl})
   = admit()
 
-let lemma_time_seq_not_eac_implies_hash_collision
-  (gl: g_hash_verifiable_log { ~ (eac (time_seq_ext gl)) }): hash_collision_gen = admit()
+let eac_glog = gl: g_hash_verifiable_log { eac (time_seq_ext gl) }
+let non_eac_glog = gl : g_hash_verifiable_log { ~ (eac (time_seq_ext gl)) }
+
+let lemma_time_seq_not_eac_implies_hash_collision (gl:non_eac_glog): hash_collision_gen = 
+  let tmsle = time_seq_ext gl in
+
+  (* the key causing the eac violation *)
+  let k:key = invalidating_key eac_sm tmsle in
+
+  (* the sequence of log ops of key k *)
+  let tmsle_k = partn eac_sm k tmsle in
+
+  (* index i in tmsle_k causes the violation *)
+  let i = max_valid_prefix eac_smk tmsle_k in
+  assert(iskey vlog_entry_key k (index tmsle_k i));
+
+  (* the maximal valid eac_prefix of tmsle_k *)
+  let tmsle_ki = prefix tmsle_k i in
+  let tmsle_ki1 = prefix tmsle_k (i + 1) in
+  let e:vlog_entry_ext = index tmsle_k i in  
+  assert(valid eac_smk tmsle_ki);
+  assert(not (valid eac_smk tmsle_ki1));
+  assert(vlog_entry_key e = k);
+
+  //assert(vlog_entry_key e = kc);
+  let st = seq_machine_run eac_smk tmsle_ki in
+
+  match st with
+  | EACInit -> 
+    (
+      match e with
+      | NEvict (Get k' v') -> 
+        assert(k' = k);
+        admit()
+      | _ -> admit()
+    )
+  | EACInCache m v -> admit()
+  | EACEvicted m v -> admit()
 
 let lemma_time_seq_rw_consistent
   (gl: g_hash_verifiable_log { ~ (rw_consistent (to_state_op_vlog (time_seq gl)))}): hash_collision_gen =
