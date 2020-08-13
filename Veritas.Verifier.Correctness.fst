@@ -163,6 +163,17 @@ let lemma_time_seq_correct (gl: g_verifiable_log)
   Lemma (g_entry_time gl (time_seq_source gl i) `ts_leq` g_entry_time gl (time_seq_source gl j))
   = admit()
 
+type ts_log (n:nat) = 
+  s:seq (idx_elem #vlog_entry n){g_verifiable (partition_idx_seq s) /\
+                                 g_hash_verifiable (partition_idx_seq s)}
+
+(* 
+ * an extended version of time sequence where we track the source verifier thread 
+ * for every log entry 
+ *)
+let time_seq_ext (gl: g_hash_verifiable_log): ts_log (length gl) =
+  interleaved_idx_seq gl (time_seq_ctor gl)
+
 (* state ops of all vlogs of all verifier threads *)
 let to_state_op_gvlog (gl: g_vlog) =
   map to_state_op_vlog gl
@@ -172,11 +183,7 @@ type hash_collision_gen =
   | SingleHashCollision: hc: hash_collision -> hash_collision_gen
   | MultiHashCollision: hc: ms_hash_collision -> hash_collision_gen
 
-
-let time_seq_ext (gl: g_verifiable_log):
-  (le:vlog_ext{to_vlog le = time_seq gl})
-  = admit()
-
+(*
 let eac_glog = gl: g_hash_verifiable_log { eac (time_seq_ext gl) }
 let non_eac_glog = gl : g_hash_verifiable_log { ~ (eac (time_seq_ext gl)) }
 
@@ -241,6 +248,13 @@ let lemma_time_seq_rw_consistent
   else
     lemma_time_seq_not_eac_implies_hash_collision gl
 
+
+*)
+
+let lemma_time_seq_rw_consistent (#n:nat) 
+  (tsl: ts_log n{~ (rw_consistent (to_state_op_vlog (project_seq tsl)))}): hash_collision_gen = 
+  admit()
+
 let lemma_vlog_interleave_implies_state_ops_interleave (l: vlog) (gl: g_vlog{interleave l gl}):
   Lemma (interleave (to_state_op_vlog l) (to_state_op_gvlog gl)) = admit()
 
@@ -252,7 +266,8 @@ let lemma_verifier_correct (gl: g_hash_verifiable_log { ~ (seq_consistent (to_st
   let g_ops = to_state_op_gvlog gl in
 
   (* sequence ordered by time of each log entry *)
-  let tmsl = time_seq gl in
+  let tmsle = time_seq_ext gl in
+  let tmsl = project_seq tmsle in
   assert(interleave tmsl gl);
 
   (* sequence of state ops induced by tmsl *)
@@ -277,5 +292,5 @@ let lemma_verifier_correct (gl: g_hash_verifiable_log { ~ (seq_consistent (to_st
     SingleHashCollision (Collision (DVal Null) (DVal Null))
   )
   else
-    (* otherwise we can produce a collision *)
-    lemma_time_seq_rw_consistent gl
+    lemma_time_seq_rw_consistent tmsle
+  

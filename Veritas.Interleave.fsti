@@ -92,3 +92,32 @@ val lemma_map_interleave_commute (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sse
 (* map and interleaving commute (constructive version) *)
 val lemma_map_interleave_commute_prf (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a) (prf: interleave s ss):
   Tot (interleave (map f s) (map (map f) ss))
+
+type idx_elem (#a:eqtype) (n:nat) = a * (i:nat{i < n})
+
+let project_seq (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)): seq a
+  = fst (unzip s)
+
+val interleaved_idx_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
+  Tot (seq (idx_elem #a (length ss)))
+
+val lemma_interleaved_idx_seq (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss):
+  Lemma (requires True)
+        (ensures (interleave (project_seq (interleaved_idx_seq ss ic)) ss))
+        [SMTPat (interleaved_idx_seq ss ic)]
+
+val partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
+  Tot (sseq a)
+
+val lemma_interleave_idx_correct1 (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss):
+  Lemma (requires True)
+        (ensures (partition_idx_seq (interleaved_idx_seq ss ic) = ss))
+        [SMTPat (interleaved_idx_seq ss ic)]
+
+val partition_idx_seq_interleave_ctor (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)):
+  Tot (interleave_ctor (partition_idx_seq s))
+
+val lemma_interleave_idx_correct2 (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss) (i:sseq_index ss):
+  Lemma (partition_idx_seq_interleave_ctor (interleaved_idx_seq ss ic) i = ic i)
+         
+  
