@@ -107,7 +107,7 @@ val lemma_interleaved_idx_seq (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss):
         [SMTPat (interleaved_idx_seq ss ic)]
 
 val partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
-  Tot (sseq a)
+  Tot (ss:sseq a{length ss = n})
 
 val lemma_interleave_idx_correct1 (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss):
   Lemma (requires True)
@@ -120,4 +120,12 @@ val partition_idx_seq_interleave_ctor (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n
 val lemma_interleave_idx_correct2 (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss) (i:sseq_index ss):
   Lemma (partition_idx_seq_interleave_ctor (interleaved_idx_seq ss ic) i = ic i)
          
-  
+val lemma_partition_idx_prefix_comm 
+  (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)) (i:nat{i <= length s}) (id:nat{id < n}):
+  Lemma (is_prefix (index (partition_idx_seq s) id)
+                   (index (partition_idx_seq (prefix s i)) id))
+
+val lemma_partition_idx_extend1 (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n){length s > 0}):
+  Lemma (index (partition_idx_seq s) (snd (telem s)) = 
+         append1 (index (partition_idx_seq (hprefix s)) (snd (telem s)))
+                 (fst (telem s)))

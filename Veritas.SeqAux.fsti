@@ -9,6 +9,12 @@ type seq_index (#a:Type) (s:seq a) = i:nat{i < length s}
 (* Prefix of a sequence *)
 val prefix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
 
+let hprefix (#a:Type) (s:seq a{length s > 0}): seq a = 
+  prefix s (length s - 1)
+
+let telem (#a:Type) (s:seq a{length s > 0}): a =
+  index s (length s - 1)
+
 (* append a single element to the end of a sequence *)
 let append1 (#a:Type) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} =
   append s (create 1 x)
