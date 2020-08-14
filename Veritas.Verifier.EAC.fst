@@ -179,12 +179,30 @@ let lemma_non_eac_init_get (#n:nat)
   assert(Valid? tsli'_id);
 
   lemma_partition_idx_extend1 itsli';
-  assert(index gli' id = append1 (index gli id) (fst (telem itsli')));
+
   assert(telem itsli' = index itsl i);
   let ec = fst (index itsl i) in
-  let tslei' = time_seq_ext itsli' in
+  assert(index gli' id = append1 (index gli id) ec);  
+  lemma_prefix1_append (index gli id) ec;
 
-  admit()
+  let tslei' = time_seq_ext itsli' in
+  lemma_its_prefix_ext itsl (i + 1);
+  assert(tslei' = prefix tsle (i + 1));
+  assert(project_seq itsl = to_vlog tsle);  
+  lemma_unzip_index itsl i;
+  
+  assert(fst (index itsl i) = index (fst (unzip itsl)) i);
+  assert(project_seq itsl = fst (unzip itsl));
+  assert(fst (index itsl i) = index (to_vlog tsle) i);
+  assert(index (to_vlog tsle) i = e);
+  assert(ec = e);
+  
+  assert(tsli'_id = t_verify_step tsli_id ec);
+  match ec with 
+  | Get k v -> 
+  assert(tsli'_id = vget k v tsli_id);
+  assert(store_contains (thread_store tsli_id) k);
+  hash_collision_contra ()
 
 let lemma_non_eac_time_seq_implies_hash_collision (#n:nat) (itsl: non_eac_ts_log #n): hash_collision_gen = 
   let st = last_valid_eac_state itsl in
