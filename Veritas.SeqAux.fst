@@ -328,6 +328,12 @@ let lemma_filter_prefix_comm (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s):
         (ensures (filter f (prefix s i) = prefix (filter f s) (filter_index_inv_map f s i))) =
   lemma_filter_prefix f s (prefix s i)
 
+let lemma_filter_prefix_comm2 (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s):
+  Lemma (requires (f (index s i)))
+        (ensures (filter f (prefix s (i+1)) = prefix (filter f s) (1 + (filter_index_inv_map f s i)))) = 
+  rank_increases_by_atmost_one f s i;
+  lemma_filter_prefix f s (prefix s (i + 1))
+
 let lemma_filter_extend1 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (not (f (index s (length s - 1)))))
         (ensures (filter f s = filter f (prefix s (length s - 1)))) = ()

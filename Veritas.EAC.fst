@@ -96,6 +96,15 @@ let eac (l:vlog_ext) = valid_all eac_sm l
 (* refinement of evict add consistent logs *)
 type eac_log = l:vlog_ext{eac l}
 
+let is_eac_log (l:vlog_ext): (r:bool{r <==> eac l}) = 
+  valid_all_comp eac_sm l
+
+let max_eac_prefix (l:vlog_ext{not (is_eac_log l)}): 
+  (i:nat{i < length l /\
+        is_eac_log (prefix l i) /\
+        not (is_eac_log (prefix l (i + 1)))}) =
+  max_valid_all_prefix eac_sm l
+                                       
 (* the state operations of a vlog *)
 let is_state_op (e: vlog_entry): bool =
   match e with

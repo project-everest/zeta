@@ -163,15 +163,15 @@ let lemma_time_seq_correct (gl: g_verifiable_log)
   Lemma (g_entry_time gl (time_seq_source gl i) `ts_leq` g_entry_time gl (time_seq_source gl j))
   = admit()
 
-type ts_log (n:nat) = 
+type its_log (n:nat) = 
   s:seq (idx_elem #vlog_entry n){g_verifiable (partition_idx_seq s) /\
                                  g_hash_verifiable (partition_idx_seq s)}
 
 (* 
- * an extended version of time sequence where we track the source verifier thread 
+ * an indexed version of time sequence where we track the source verifier thread 
  * for every log entry 
  *)
-let time_seq_ext (gl: g_hash_verifiable_log): ts_log (length gl) =
+let time_seq_idx (gl: g_hash_verifiable_log): its_log (length gl) =
   interleaved_idx_seq gl (time_seq_ctor gl)
 
 (* state ops of all vlogs of all verifier threads *)
@@ -183,77 +183,52 @@ type hash_collision_gen =
   | SingleHashCollision: hc: hash_collision -> hash_collision_gen
   | MultiHashCollision: hc: ms_hash_collision -> hash_collision_gen
 
-(*
-let eac_glog = gl: g_hash_verifiable_log { eac (time_seq_ext gl) }
-let non_eac_glog = gl : g_hash_verifiable_log { ~ (eac (time_seq_ext gl)) }
-
-let lemma_time_seq_not_eac_implies_hash_collision (gl:non_eac_glog): hash_collision_gen = 
-  let tmsle = time_seq_ext gl in
-
-  (* the key causing the eac violation *)
-  let k:key = invalidating_key eac_sm tmsle in
-
-  (* the sequence of log ops of key k *)
-  let tmsle_k = partn eac_sm k tmsle in
-
-  (* index i in tmsle_k causes the violation *)
-  let i = max_valid_prefix eac_smk tmsle_k in
-  assert(iskey vlog_entry_key k (index tmsle_k i));
-
-  (* the maximal valid eac_prefix of tmsle_k *)
-  let tmsle_ki = prefix tmsle_k i in
-  let tmsle_ki1 = prefix tmsle_k (i + 1) in
-  let e:vlog_entry_ext = index tmsle_k i in  
-  assert(valid eac_smk tmsle_ki);
-  assert(not (valid eac_smk tmsle_ki1));
-  assert(vlog_entry_key e = k);
-
-  //assert(vlog_entry_key e = kc);
-  let st = seq_machine_run eac_smk tmsle_ki in
-
-  match st with
-  | EACInit -> 
-    (
-      match e with
-      | NEvict (Get k' v') -> 
-        assert(k' = k);
-        admit()
-      | _ -> admit()
-    )
-  | EACInCache m v -> admit()
-  | EACEvicted m v -> admit()
-
-let lemma_time_seq_rw_consistent
-  (gl: g_hash_verifiable_log { ~ (rw_consistent (to_state_op_vlog (time_seq gl)))}): hash_collision_gen =
-
-  (* time sequence log *)
-  let tmsle = time_seq_ext gl in
-  let tmsl = time_seq gl in
-
-  (* sequence of state ops in time sequence *)
-  let tm_ops = to_state_op_vlog tmsl in
-  assert(~ (rw_consistent tm_ops));
-
-  (* is time seq log evict add consistent? *)
-  let is_eac = valid_all_comp eac_sm tmsle in
-
-  (* if tmsle is evict add consistent then tm_ops is rw_consistent, a contradiction *)
-  if is_eac then (
-     lemma_eac_implies_rw_consistent tmsle;
-     assert(rw_consistent tm_ops);
-
-     (* any return value *)
-     SingleHashCollision (Collision (DVal Null) (DVal Null))
-  )
-  else
-    lemma_time_seq_not_eac_implies_hash_collision gl
+(* extended time sequence log (with evict values) *)
+let time_seq_ext (#n:nat) (itsl: its_log n): (le:vlog_ext{project_seq itsl = to_vlog le}) =
+  admit()
 
 
-*)
+type eac_ts_log (#n:nat) = itsl: its_log n {is_eac_log (time_seq_ext itsl)}
+type non_eac_ts_log (#n:nat) = itsl: its_log n {not (is_eac_log (time_seq_ext itsl))}
+
+let lemma_non_eac_time_seq_implies_hash_collision (#n:nat) (itsl: non_eac_ts_log #n): hash_collision_gen = 
+  let tsl = project_seq itsl in
+  let tsle = time_seq_ext itsl in
+  
+  let i = max_eac_prefix tsle in
+
+  (* maximum eac prefix *)
+  let tslei = prefix tsle i in
+
+  (* minimum non-eac prefix *)
+  let tslei' = prefix tsle (i + 1) in
+
+  
+
+  admit()
+
 
 let lemma_time_seq_rw_consistent (#n:nat) 
-  (tsl: ts_log n{~ (rw_consistent (to_state_op_vlog (project_seq tsl)))}): hash_collision_gen = 
-  admit()
+  (itsl: its_log n{~ (rw_consistent (to_state_op_vlog (project_seq itsl)))}): hash_collision_gen = 
+  let tsl = project_seq itsl in  
+  let tsle = time_seq_ext itsl in
+  assert(to_vlog tsle = tsl);
+
+  (* provided: the sequence of state ops is not rw-consistent *)
+  let ts_ops = to_state_op_vlog tsl in
+  assert(~ (rw_consistent ts_ops));
+
+  (* if time seq log is evict add consistent, the underlying state ops is rw-consistent *)
+  (* a contradiction *)
+  if is_eac_log tsle then (
+    lemma_eac_implies_rw_consistent tsle;
+    assert(rw_consistent ts_ops);
+
+    (* any return value *)
+    SingleHashCollision (Collision (DVal Null) (DVal Null)) 
+  )
+  else 
+    lemma_non_eac_time_seq_implies_hash_collision itsl
 
 let lemma_vlog_interleave_implies_state_ops_interleave (l: vlog) (gl: g_vlog{interleave l gl}):
   Lemma (interleave (to_state_op_vlog l) (to_state_op_gvlog gl)) = admit()
@@ -266,14 +241,14 @@ let lemma_verifier_correct (gl: g_hash_verifiable_log { ~ (seq_consistent (to_st
   let g_ops = to_state_op_gvlog gl in
 
   (* sequence ordered by time of each log entry *)
-  let tmsle = time_seq_ext gl in
-  let tmsl = project_seq tmsle in
-  assert(interleave tmsl gl);
+  let itsl = time_seq_idx gl in
+  let tsl = project_seq itsl in
+  assert(interleave tsl gl);
 
   (* sequence of state ops induced by tmsl *)
-  let tm_ops = to_state_op_vlog tmsl in
+  let tm_ops = to_state_op_vlog tsl in
 
-  lemma_vlog_interleave_implies_state_ops_interleave tmsl gl;
+  lemma_vlog_interleave_implies_state_ops_interleave tsl gl;
   assert(interleave tm_ops g_ops);
 
   (* if tm_ops is read-write consistent then we have a contradiction *)
@@ -292,5 +267,5 @@ let lemma_verifier_correct (gl: g_hash_verifiable_log { ~ (seq_consistent (to_st
     SingleHashCollision (Collision (DVal Null) (DVal Null))
   )
   else
-    lemma_time_seq_rw_consistent tmsle
+    lemma_time_seq_rw_consistent itsl
   

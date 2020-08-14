@@ -116,3 +116,10 @@ val invalidating_key (psm: pseq_machine)
                      (s: seq (elem_type_p psm){~ (valid_all psm s)}):
   Tot (k:(key_type psm){not (valid (seq_machine_of psm) (partn psm k s))})
 
+val lemma_first_invalid_key (psm: pseq_machine) (s: seq (elem_type_p psm){~ (valid_all psm s)}):
+  Lemma (filter_index_inv_map (iskey (partn_fn psm) 
+                                     (partn_fn psm (index s (max_valid_all_prefix psm s)))) 
+                              s 
+                              (max_valid_all_prefix psm s) = 
+         max_valid_prefix (seq_machine_of psm) 
+                          (partn psm (partn_fn psm (index s (max_valid_all_prefix psm s))) s))

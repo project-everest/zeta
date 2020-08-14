@@ -203,3 +203,60 @@ let invalidating_key (psm: pseq_machine)
     lemma_valid_prefix sm sk (length ski)
   else k
   
+let lemma_first_invalid_key (psm: pseq_machine) (s: seq (elem_type_p psm){~ (valid_all psm s)}):
+  Lemma (filter_index_inv_map (iskey (partn_fn psm) 
+                                     (partn_fn psm (index s (max_valid_all_prefix psm s)))) 
+                              s 
+                              (max_valid_all_prefix psm s) = 
+         max_valid_prefix (seq_machine_of psm) 
+                          (partn psm (partn_fn psm (index s (max_valid_all_prefix psm s))) s)) = 
+  let sm = seq_machine_of psm in
+  let i = max_valid_all_prefix psm s in
+  let si = prefix s i in
+  let si' = prefix s (i + 1) in
+  assert(valid_all psm si);
+  assert(~ (valid_all psm si'));
+
+  let k = partn_fn psm (index s i) in
+  let sk = partn psm k s in
+  let pf = partn_fn psm in
+  let j = filter_index_inv_map (iskey pf k) s i in
+  assert(index s i = index sk j);
+
+  lemma_filter_prefix_comm (iskey pf k) s i;
+  assert(partn psm k (prefix s i) = prefix sk j);
+
+  let j' = max_valid_prefix sm sk in
+
+  if j = j' then ()
+  else if j < j' then (
+    assert(valid sm (prefix sk j'));
+    assert(prefix (prefix sk j') (j + 1) = prefix sk (j + 1));
+    lemma_valid_prefix sm (prefix sk j') (j + 1);
+    assert(valid sm (prefix sk (j + 1)));
+    let aux(k':key_type psm):
+      Lemma (requires True)
+            (ensures (valid sm (partn psm k' si')))
+            [SMTPat (valid sm (partn psm k' si'))] = 
+      if k' <> k then (
+        lemma_filter_extend1 (iskey pf k') si';
+        assert(partn psm k' si' = partn psm k' si);
+        assert(valid sm (partn psm k' si));
+        ()
+      )
+      else (
+        lemma_filter_prefix_comm2 (iskey pf k) s i;
+        assert(partn psm k si' = prefix sk (j + 1));
+        ()
+      )
+    in
+    (* contradiction *)
+    assert(valid_all psm si');
+    ()
+ )
+ else (
+   assert(valid sm (prefix sk j));
+   assert(prefix (prefix sk j) (j' + 1) = prefix sk (j' + 1));
+   lemma_valid_prefix sm (prefix sk j) (j' + 1);
+   ()
+ )
