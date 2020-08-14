@@ -45,7 +45,9 @@ let its_prefix (#n:nat) (itsl: its_log n) (i:nat{i <= length itsl}):
   itsl'
 
 let lemma_its_prefix_ext (#n:nat) (itsl:its_log n) (i:nat{i <= length itsl}):
-  Lemma (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i) = 
+  Lemma (requires True)
+        (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i))
+        [SMTPat (time_seq_ext (its_prefix itsl i))] = 
   admit()
 
 (* the eac state of a key after processing an eac_log *)
@@ -72,7 +74,10 @@ let hash_collision_contra (_:unit{False}): hash_collision_gen =
  * when the eac state of a key is Init (no operations on the key yet) no 
  * thread contains the key in its store 
  *)
-let lemma_eac_state_init_store (#n:nat) (itsl: its_log n) (k: key{k <> Root}) (id:nat{id < n}):
+let lemma_eac_state_init_store 
+   (#n:nat) 
+   (itsl: its_log n) (k: key{k <> Root /\ 
+                             EACInit = eac_state_key (time_seq_ext itsl) k}) (id:nat{id < n}):
    Lemma (not (store_contains (thread_store (verifier_thread_state itsl id)) k)) 
    = admit()
 
@@ -145,63 +150,66 @@ let lemma_invalidation (#n:nat) (itsl: non_eac_ts_log #n):
 
   ()         
 
+let its_vlog_entry (#n:nat) (itsl: its_log n) (i:seq_index itsl): vlog_entry =
+  fst (index itsl i)
+
+let its_thread_id (#n:nat) (itsl: its_log n) (i:seq_index itsl): (tid:nat{tid < n}) =
+  snd (index itsl i)
+
+let lemma_verifier_thread_state_extend (#n:nat) (itsl: its_log n{length itsl > 0}):
+  Lemma (verifier_thread_state itsl (its_thread_id itsl (length itsl - 1)) == 
+         t_verify_step (verifier_thread_state (its_prefix itsl (length itsl - 1)) 
+                                              (its_thread_id itsl (length itsl - 1)))
+                       (its_vlog_entry itsl (length itsl - 1))) = 
+  let m = length itsl in
+  let id = its_thread_id itsl (m - 1) in
+  let e = its_vlog_entry itsl (m - 1) in
+  let itsl' = its_prefix itsl (m - 1) in
+  let gl' = partition_idx_seq itsl' in
+  lemma_partition_idx_extend1 itsl;
+  lemma_prefix1_append (index gl' id) e
+
+let lemma_time_seq_ext_correct (#n:nat) (itsl: its_log n) (i:seq_index itsl):
+  Lemma (requires True)
+        (ensures (its_vlog_entry itsl i = to_vlog_entry (index (time_seq_ext itsl) i))) 
+        [SMTPat (to_vlog_entry (index (time_seq_ext itsl) i))] =
+  lemma_unzip_index itsl i
+
 (* eac invalidation is caused by a get as the first operation *)
 let lemma_non_eac_init_get (#n:nat) 
   (itsl: non_eac_ts_log #n{last_valid_eac_state itsl = EACInit /\
                            Get? (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen = 
-  let tsle = time_seq_ext itsl in  
+  let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
-  let ee = invalidating_log_entry itsl in
-  let e = to_vlog_entry ee in
-  let k = vlog_entry_key ee in
-  let st = last_valid_eac_state itsl in
-  assert(st = EACInit);
-  assert(is_data_key k);
-  assert(length tsle = length itsl);
+ 
   let itsli = its_prefix itsl i in
-  let tslei = time_seq_ext itsli in
-  lemma_its_prefix_ext itsl i;
-  assert(tslei = prefix tsle i);
-
-  assert(eac_state_key tslei k = st);
-  let (_,id) = index itsl i in
-  assert(id < n);  
-  lemma_eac_state_init_store itsli k id;
-
-  let gli = partition_idx_seq itsli in
-  let igli = attach_index gli in
-  let tsli_id = verifier_thread_state itsli id in
-  assert(not (store_contains (thread_store tsli_id) k));
-
   let itsli' = its_prefix itsl (i + 1) in
-  let gli' = partition_idx_seq itsli' in
-  let tsli'_id = verifier_thread_state itsli' id in 
-  assert(Valid? tsli'_id);
-
-  lemma_partition_idx_extend1 itsli';
-
-  assert(telem itsli' = index itsl i);
-  let ec = fst (index itsl i) in
-  assert(index gli' id = append1 (index gli id) ec);  
-  lemma_prefix1_append (index gli id) ec;
-
-  let tslei' = time_seq_ext itsli' in
-  lemma_its_prefix_ext itsl (i + 1);
-  assert(tslei' = prefix tsle (i + 1));
-  assert(project_seq itsl = to_vlog tsle);  
-  lemma_unzip_index itsl i;
+  let tid = its_thread_id itsl i in
+  let e = its_vlog_entry itsl i in
+  lemma_verifier_thread_state_extend itsli';
+  assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
   
-  assert(fst (index itsl i) = index (fst (unzip itsl)) i);
-  assert(project_seq itsl = fst (unzip itsl));
-  assert(fst (index itsl i) = index (to_vlog tsle) i);
-  assert(index (to_vlog tsle) i = e);
-  assert(ec = e);
+  match e with
+  | Get k v ->
+  lemma_eac_state_init_store itsli k tid;
+  hash_collision_contra ()
+
+let lemma_non_eac_init_put (#n:nat) 
+  (itsl: non_eac_ts_log #n{last_valid_eac_state itsl = EACInit /\
+                           Put? (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen = 
+  let tsle = time_seq_ext itsl in
+  let i = max_eac_prefix tsle in
+ 
+  let itsli = its_prefix itsl i in
+  let itsli' = its_prefix itsl (i + 1) in
+  let tid = its_thread_id itsl i in
+  let e = its_vlog_entry itsl i in
+  lemma_verifier_thread_state_extend itsli';
+  assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
   
-  assert(tsli'_id = t_verify_step tsli_id ec);
-  match ec with 
-  | Get k v -> 
-  assert(tsli'_id = vget k v tsli_id);
-  assert(store_contains (thread_store tsli_id) k);
+  match e with
+  | Put k v ->
+  lemma_eac_state_init_store itsli k tid;
   hash_collision_contra ()
 
 let lemma_non_eac_time_seq_implies_hash_collision (#n:nat) (itsl: non_eac_ts_log #n): hash_collision_gen = 
@@ -211,6 +219,7 @@ let lemma_non_eac_time_seq_implies_hash_collision (#n:nat) (itsl: non_eac_ts_log
   | EACInit -> (
       match ee with 
       | NEvict (Get _ _) -> lemma_non_eac_init_get itsl            
+      | NEvict (Put _ _) -> lemma_non_eac_init_put itsl
       | _ -> admit()
     )
   | EACInCache m v -> admit()
