@@ -195,6 +195,7 @@ let lemma_non_eac_init_requires_key_in_cache (#n:nat)
   lemma_eac_state_init_store itsli k tid;
   hash_collision_contra ()
 
+(* the first operation for a key cannot be evict *)
 let lemma_non_eac_init_evict (#n:nat)
   (itsl: non_eac_ts_log #n{last_valid_eac_state itsl = EACInit /\
                            requires_key_in_cache (to_vlog_entry (invalidating_log_entry itsl)) /\
@@ -214,6 +215,12 @@ let lemma_non_eac_init_evict (#n:nat)
   assert(k <> Root);                               
   lemma_non_eac_init_requires_key_in_cache itsl
 
+(* the first operation for a key cannot be a blum add *)
+let lemma_non_eac_init_addb (#n)
+  (itsl: non_eac_ts_log #n{last_valid_eac_state itsl = EACInit /\
+                           AddB? (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen =
+  admit()                           
+
 let lemma_non_eac_time_seq_implies_hash_collision (#n:nat) (itsl: non_eac_ts_log #n): hash_collision_gen = 
   let st = last_valid_eac_state itsl in
   let ee = invalidating_log_entry itsl in
@@ -222,6 +229,7 @@ let lemma_non_eac_time_seq_implies_hash_collision (#n:nat) (itsl: non_eac_ts_log
       match ee with 
       | NEvict (Get _ _) -> lemma_non_eac_init_requires_key_in_cache itsl
       | NEvict (Put _ _) -> lemma_non_eac_init_requires_key_in_cache itsl
+      | NEvict (AddB _ _ _) -> lemma_non_eac_init_addb itsl
       | Evict (EvictM _ _) _ -> lemma_non_eac_init_evict itsl
       | _ -> admit()
     )
