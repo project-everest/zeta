@@ -169,10 +169,4 @@ let lemma_requires_key_in_cache (st: vtls) (e:vlog_entry{requires_key_in_cache e
 
 let lemma_root_never_evicted (st:vtls) (e:vlog_entry{is_evict e && 
                                         Valid? (t_verify_step st e)}):
-  Lemma (vlog_entry_key e <> Root) = 
-  match e with
-  | EvictM k _ -> ()
-  | EvictB k _ -> admit()
-  | _ ->
-  admit()
-                                          
+  Lemma (vlog_entry_key e <> Root) = ()

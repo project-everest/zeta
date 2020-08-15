@@ -204,8 +204,15 @@ let lemma_non_eac_init_evict (#n:nat)
  
   let itsli = its_prefix itsl i in
   let itsli' = its_prefix itsl (i + 1) in
-                             
-  admit()                           
+  let tid = its_thread_id itsl i in  
+  let e = its_vlog_entry itsl i in  
+  lemma_verifier_thread_state_extend itsli';
+  assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
+
+  let k = vlog_entry_key e in
+  lemma_root_never_evicted (verifier_thread_state itsli tid) e;  
+  assert(k <> Root);                               
+  lemma_non_eac_init_requires_key_in_cache itsl
 
 let lemma_non_eac_time_seq_implies_hash_collision (#n:nat) (itsl: non_eac_ts_log #n): hash_collision_gen = 
   let st = last_valid_eac_state itsl in
