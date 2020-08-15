@@ -92,7 +92,7 @@ let invalidating_log_entry (#n:nat) (itsl: non_eac_ts_log #n): vlog_entry_ext =
 
 (* the key that causes the eac_invalidation *)
 let eac_invalidating_key (#n:nat) (itsl: non_eac_ts_log #n): key =
-  vlog_entry_key (invalidating_log_entry itsl)
+  vlog_entry_ext_key (invalidating_log_entry itsl)
 
 (* last valid eac state *)
 let last_valid_eac_state (#n:nat) (itsl: non_eac_ts_log #n): eac_state = 
@@ -141,7 +141,7 @@ let lemma_invalidation (#n:nat) (itsl: non_eac_ts_log #n):
   assert(st <> EACFail);
 
   // filtering out k-entries in tslei is the as taking the prefix j in tslekj
-  lemma_filter_prefix_comm (iskey vlog_entry_key k) tsle i;
+  lemma_filter_prefix_comm (iskey vlog_entry_ext_key k) tsle i;
   assert(st = last_valid_eac_state itsl);
 
   lemma_reduce_prefix EACInit eac_add (prefix tslek (j + 1)) j;  
@@ -175,10 +175,12 @@ let lemma_time_seq_ext_correct (#n:nat) (itsl: its_log n) (i:seq_index itsl):
         [SMTPat (to_vlog_entry (index (time_seq_ext itsl) i))] =
   lemma_unzip_index itsl i
 
-(* eac invalidation is caused by a get as the first operation *)
-let lemma_non_eac_init_get (#n:nat) 
+(* if an operation requires the key in cache, it cannot be the first operation *)
+let lemma_non_eac_init_requires_key_in_cache (#n:nat) 
   (itsl: non_eac_ts_log #n{last_valid_eac_state itsl = EACInit /\
-                           Get? (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen = 
+                           requires_key_in_cache (to_vlog_entry (invalidating_log_entry itsl)) /\
+                           Root <> vlog_entry_key (to_vlog_entry (invalidating_log_entry itsl))}):  
+  hash_collision_gen = 
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
  
@@ -189,28 +191,21 @@ let lemma_non_eac_init_get (#n:nat)
   lemma_verifier_thread_state_extend itsli';
   assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
   
-  match e with
-  | Get k v ->
+  let k = vlog_entry_key e in
   lemma_eac_state_init_store itsli k tid;
   hash_collision_contra ()
 
-let lemma_non_eac_init_put (#n:nat) 
+let lemma_non_eac_init_evict (#n:nat)
   (itsl: non_eac_ts_log #n{last_valid_eac_state itsl = EACInit /\
-                           Put? (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen = 
+                           requires_key_in_cache (to_vlog_entry (invalidating_log_entry itsl)) /\
+                           is_evict (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen =
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
  
   let itsli = its_prefix itsl i in
   let itsli' = its_prefix itsl (i + 1) in
-  let tid = its_thread_id itsl i in
-  let e = its_vlog_entry itsl i in
-  lemma_verifier_thread_state_extend itsli';
-  assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
-  
-  match e with
-  | Put k v ->
-  lemma_eac_state_init_store itsli k tid;
-  hash_collision_contra ()
+                             
+  admit()                           
 
 let lemma_non_eac_time_seq_implies_hash_collision (#n:nat) (itsl: non_eac_ts_log #n): hash_collision_gen = 
   let st = last_valid_eac_state itsl in
@@ -218,8 +213,9 @@ let lemma_non_eac_time_seq_implies_hash_collision (#n:nat) (itsl: non_eac_ts_log
   match st with
   | EACInit -> (
       match ee with 
-      | NEvict (Get _ _) -> lemma_non_eac_init_get itsl            
-      | NEvict (Put _ _) -> lemma_non_eac_init_put itsl
+      | NEvict (Get _ _) -> lemma_non_eac_init_requires_key_in_cache itsl
+      | NEvict (Put _ _) -> lemma_non_eac_init_requires_key_in_cache itsl
+      | Evict (EvictM _ _) _ -> lemma_non_eac_init_evict itsl
       | _ -> admit()
     )
   | EACInCache m v -> admit()

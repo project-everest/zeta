@@ -15,13 +15,6 @@ open Veritas.Verifier
 //Allow the solver to unroll recursive functions at most once (fuel)
 #push-options "--max_fuel 1 --max_ifuel 1 --initial_fuel 1 --initial_ifuel 1"
 
-let is_evict (e: vlog_entry): bool =
-  match e with
-  | EvictM _ _ -> true
-  | EvictB _ _ -> true
-  | EvictBM _ _ _ -> true
-  | _ -> false
-
 type evict_vlog_entry = e:vlog_entry {is_evict e}
 type nevict_vlog_entry = e:vlog_entry {not (is_evict e)}
 
@@ -78,17 +71,10 @@ let to_vlog_entry (ee:vlog_entry_ext): vlog_entry =
   | Evict e _ -> e
   | NEvict e -> e
 
-let vlog_entry_key (e: vlog_entry_ext): key =
-  match (to_vlog_entry e) with
-  | Get k _ -> k
-  | Put k _ -> k
-  | AddM (k,_) _ -> k
-  | EvictM k _ -> k
-  | AddB (k,_) _ _ -> k
-  | EvictB k _ -> k
-  | EvictBM k _ _ -> k
-
-let eac_sm = PSM eac_smk vlog_entry_key
+let vlog_entry_ext_key (e: vlog_entry_ext): key =  
+  vlog_entry_key (to_vlog_entry e)
+  
+let eac_sm = PSM eac_smk vlog_entry_ext_key
 
 (* evict add consistency *)
 let eac (l:vlog_ext) = valid_all eac_sm l
@@ -148,7 +134,7 @@ let lemma_comm_empty (le:vlog_ext{length le = 0}) (k:data_key):
   lemma_empty le;
 
   (* since le is empty, lek & lk = filter on k le is empty *)
-  lemma_filter_empty (iskey vlog_entry_key k);
+  lemma_filter_empty (iskey vlog_entry_ext_key k);
   assert(length lek = 0);
   assert(length lk = 0);
 
@@ -168,7 +154,7 @@ let lemma_comm_empty (le:vlog_ext{length le = 0}) (k:data_key):
 
 let lemma_partn_state_append (le:vlog_ext{length le > 0}) (k:data_key):
   Lemma (requires (is_state_op (to_vlog_entry (index le (length le - 1))) /\
-                   iskey vlog_entry_key k (index le (length le - 1))))
+                   iskey vlog_entry_ext_key k (index le (length le - 1))))
         (ensures (to_state_op_vlog (to_vlog (partn eac_sm k le)) =
                   append1 (to_state_op_vlog (to_vlog (partn eac_sm k (prefix le (length le - 1)))))
                           (to_state_op (to_vlog_entry (index le (length le - 1)))))) =
@@ -187,9 +173,9 @@ let lemma_partn_state_append (le:vlog_ext{length le > 0}) (k:data_key):
   let e = to_vlog_entry ee in
   let op = to_state_op e in
   assert(is_state_op e);
-  assert(vlog_entry_key ee = k);
+  assert(vlog_entry_ext_key ee = k);
 
-  lemma_filter_extend2 (iskey vlog_entry_key k) le;
+  lemma_filter_extend2 (iskey vlog_entry_ext_key k) le;
   lemma_prefix1_append lek' ee;
   assert(lek = append1 lek' ee);
 
@@ -207,7 +193,7 @@ let lemma_partn_state_append (le:vlog_ext{length le > 0}) (k:data_key):
 
 let lemma_partn_state_same (le:vlog_ext{length le > 0}) (k:data_key):
   Lemma (requires (not (is_state_op (to_vlog_entry (index le (length le - 1)))) \/
-                   not (iskey vlog_entry_key k (index le (length le - 1)))))
+                   not (iskey vlog_entry_ext_key k (index le (length le - 1)))))
         (ensures (to_state_op_vlog (to_vlog (partn eac_sm k le)) =
                   to_state_op_vlog (to_vlog (partn eac_sm k (prefix le (length le - 1)))))) =
 
@@ -224,13 +210,13 @@ let lemma_partn_state_same (le:vlog_ext{length le > 0}) (k:data_key):
 
   let ee = index le (n - 1) in
   let e = to_vlog_entry ee in
-  if vlog_entry_key ee <> k then (
-    lemma_filter_extend1 (iskey vlog_entry_key k) le;
+  if vlog_entry_ext_key ee <> k then (
+    lemma_filter_extend1 (iskey vlog_entry_ext_key k) le;
     assert(lek' = lek);
     ()
   )
   else (
-    lemma_filter_extend2 (iskey vlog_entry_key k) le;
+    lemma_filter_extend2 (iskey vlog_entry_ext_key k) le;
     lemma_prefix1_append lek' ee;
     assert(lek = append1 lek' ee);
 
@@ -245,7 +231,7 @@ let lemma_partn_state_same (le:vlog_ext{length le > 0}) (k:data_key):
 
 let lemma_state_partn_append (le:vlog_ext{length le > 0}) (k:data_key):
   Lemma (requires (is_state_op (to_vlog_entry (index le (length le - 1))) /\
-                   iskey vlog_entry_key k (index le (length le - 1))))
+                   iskey vlog_entry_ext_key k (index le (length le - 1))))
         (ensures (partn ssm k (to_state_op_vlog (to_vlog le)) =
                   append1 (partn ssm k (to_state_op_vlog (to_vlog (prefix le (length le - 1)))))
                           (to_state_op (to_vlog_entry (index le (length le - 1)))))) =
@@ -263,7 +249,7 @@ let lemma_state_partn_append (le:vlog_ext{length le > 0}) (k:data_key):
   let e = to_vlog_entry ee in
   let op = to_state_op e in
   assert(is_state_op e);
-  assert(vlog_entry_key ee = k);
+  assert(vlog_entry_ext_key ee = k);
 
   lemma_map_extend to_vlog_entry le;
   lemma_prefix1_append l' e;
@@ -283,7 +269,7 @@ let lemma_state_partn_append (le:vlog_ext{length le > 0}) (k:data_key):
 
 let lemma_state_partn_same (le:vlog_ext{length le > 0}) (k:data_key):
   Lemma (requires (not (is_state_op (to_vlog_entry (index le (length le - 1)))) \/
-                   not (iskey vlog_entry_key k (index le (length le - 1)))))
+                   not (iskey vlog_entry_ext_key k (index le (length le - 1)))))
         (ensures (partn ssm k (to_state_op_vlog (to_vlog le)) =
                   partn ssm k (to_state_op_vlog (to_vlog (prefix le (length le - 1)))))) =
   let n = length le in
@@ -352,7 +338,7 @@ let rec lemma_comm (le:vlog_ext) (k:data_key):
 
     let ee = index le (n - 1) in
     let e = to_vlog_entry ee in
-    if is_state_op e && vlog_entry_key ee = k then (
+    if is_state_op e && vlog_entry_ext_key ee = k then (
       let op = to_state_op e in
       lemma_partn_state_append le k;
       assert(lks = append1 lks' op);

@@ -1,6 +1,7 @@
 module Veritas.Verifier.CorrectDefs
 
 open FStar.Seq
+open Veritas.BinTree
 open Veritas.Interleave
 open Veritas.MultiSetHash
 open Veritas.SeqAux
@@ -151,3 +152,27 @@ let lemma_time_seq_correct (gl: g_verifiable_log)
                            (j: seq_index (time_seq gl){j >= i}):
   Lemma (g_entry_time gl (time_seq_source gl i) `ts_leq` g_entry_time gl (time_seq_source gl j))
   = admit()
+
+let requires_key_in_cache (e:vlog_entry): bool = 
+  match e with
+  | Get _ _ -> true
+  | Put _ _ -> true
+  | EvictM _ _ -> true
+  | EvictB _ _ -> true
+  | EvictBM _ _ _ -> true
+  | _ -> false
+
+let lemma_requires_key_in_cache (st: vtls) (e:vlog_entry{requires_key_in_cache e && 
+                                                         Valid? (t_verify_step st e)}):
+  Lemma (Valid? st && store_contains (thread_store st) (vlog_entry_key e)) = 
+  ()
+
+let lemma_root_never_evicted (st:vtls) (e:vlog_entry{is_evict e && 
+                                        Valid? (t_verify_step st e)}):
+  Lemma (vlog_entry_key e <> Root) = 
+  match e with
+  | EvictM k _ -> ()
+  | EvictB k _ -> admit()
+  | _ ->
+  admit()
+                                          

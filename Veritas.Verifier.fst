@@ -252,7 +252,8 @@ let vevictb (k:key) (t:timestamp)
   let clk = thread_clock vs in
   let e = MkTimestamp?.e t in
   let st = thread_store vs in
-  if not (ts_lt clk t) then Failed
+  if k = Root then Failed
+  else if not (ts_lt clk t) then Failed
   else if not (store_contains st k) then Failed  
   else 
     (* current h_evict *)
@@ -321,3 +322,22 @@ let init_thread_state (id:nat): vtls =
 let t_verify (id:nat) (l:vlog): vtls = 
   t_verify_aux (init_thread_state id) l 
 
+(* TODO: move to a different location? *)
+let vlog_entry_key (e:vlog_entry): key =
+  match e with 
+  | Get k _ -> k
+  | Put k _ -> k
+  | AddM (k,_) _ -> k
+  | EvictM k _ -> k
+  | AddB (k,_) _ _ -> k
+  | EvictB k _ -> k
+  | EvictBM k _ _ -> k
+
+let is_evict (e: vlog_entry): bool =
+  match e with
+  | EvictM _ _ -> true
+  | EvictB _ _ -> true
+  | EvictBM _ _ _ -> true
+  | _ -> false
+
+  
