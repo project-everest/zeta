@@ -25,6 +25,9 @@ val lemma_eq_elim (#a:eqtype) (s1 s2: mset a):
 (* empty set *)
 val empty (#a:eqtype): Tot (mset a)
 
+(* create a multiset of m copies of x *)
+val create (#a:eqtype) (x:a) (m:nat): Tot (mset a)
+
 (* construct a multiset given a sequence *)
 val seq2mset (#a:eqtype) (s: seq a): Tot (mset a)
 

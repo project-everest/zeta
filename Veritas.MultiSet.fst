@@ -21,6 +21,8 @@ let lemma_eq_elim (#a:eqtype) (s1 s2: mset a):
 (* empty set *)
 let empty (#a:eqtype): Tot (mset a) = admit()
 
+let create (#a:eqtype) (x:a) (m:nat): Tot (mset a) = admit()
+
 (* construct a multiset given a sequence *)
 let seq2mset (#a:eqtype) (s: seq a): Tot (mset a) = admit()
 

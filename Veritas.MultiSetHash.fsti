@@ -50,6 +50,13 @@ val lemma_mshashfn_correct (s1 s2: seq ms_hashfn_dom):
   Lemma (requires (seq2mset s1 == seq2mset s2))
         (ensures (ms_hashfn s1 = ms_hashfn s2))
 
+(* the hash of an empty seq (mset) is empty_hash_value *)
+val lemma_hashfn_empty (_:unit):
+  Lemma (ms_hashfn (Seq.empty #ms_hashfn_dom) = empty_hash_value)
+
+val lemma_hashfn_app (s: seq ms_hashfn_dom) (e: ms_hashfn_dom):
+  Lemma (ms_hashfn (append1 s e) = ms_hashfn_upd e (ms_hashfn s))
+
 (* aggregation of multiset hashes *)
 val ms_hashfn_agg (h1: ms_hash_value) (h2: ms_hash_value) : Tot ms_hash_value
 
@@ -60,7 +67,7 @@ val lemma_hashfn_agg (s1 s2: seq ms_hashfn_dom):
 val ms_hashfn_agg_seq (hs: seq ms_hash_value): Tot ms_hash_value
 
 (* TODO: Is the correct way to declare this lemma? *)
-val lemma_empty_seq (_:unit) :
+val lemma_empty_agg_seq (_:unit) :
   Lemma (ms_hashfn_agg_seq FStar.Seq.empty = empty_hash_value)
 
 val lemma_app_seq (hs1 hs2: seq ms_hash_value):
