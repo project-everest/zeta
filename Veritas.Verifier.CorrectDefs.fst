@@ -2,8 +2,10 @@ module Veritas.Verifier.CorrectDefs
 
 open FStar.Seq
 open Veritas.BinTree
+open Veritas.EAC
 open Veritas.Interleave
 open Veritas.MultiSetHash
+open Veritas.Record
 open Veritas.SeqAux
 open Veritas.Verifier
 
@@ -170,3 +172,30 @@ let lemma_requires_key_in_cache (st: vtls) (e:vlog_entry{requires_key_in_cache e
 let lemma_root_never_evicted (st:vtls) (e:vlog_entry{is_evict e && 
                                         Valid? (t_verify_step st e)}):
   Lemma (vlog_entry_key e <> Root) = ()
+
+let evict_value (il:t_verifiable_log) (i:nat{i < tv_length il /\
+                                            is_evict (tv_index il i)}): value =
+  let (id, l) = il in
+  let li = prefix l i in
+  lemma_verifiable_implies_prefix_verifiable il i;
+  let vsi = t_verify id li in
+  let sti = thread_store vsi in
+  let li' = prefix l (i + 1) in
+  
+  lemma_verifiable_implies_prefix_verifiable il (i + 1);
+  let vsi' = t_verify id li' in
+  assert(Valid? vsi');
+  let e = index l i in
+  assert(vsi' == t_verify_step vsi e);
+  match e with
+  | EvictM k _ -> 
+    stored_value sti k 
+  | EvictB k _ -> stored_value sti k
+  | EvictBM k _ _ -> stored_value sti k
+
+type its_log (n:nat) = 
+  s:seq (idx_elem #vlog_entry n){g_verifiable (partition_idx_seq s)}
+
+(* extended time sequence log (with evict values) *)
+let time_seq_ext (#n:nat) (itsl: its_log n): (le:vlog_ext{project_seq itsl = to_vlog le}) =
+  admit()

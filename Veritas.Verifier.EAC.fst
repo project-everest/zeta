@@ -14,13 +14,6 @@ open Veritas.State
 open Veritas.Verifier
 open Veritas.Verifier.CorrectDefs
 
-type its_log (n:nat) = 
-  s:seq (idx_elem #vlog_entry n){g_verifiable (partition_idx_seq s)}
-
-(* extended time sequence log (with evict values) *)
-let time_seq_ext (#n:nat) (itsl: its_log n): (le:vlog_ext{project_seq itsl = to_vlog le}) =
-  admit()
-
 (* the prefix of an its log *)
 let its_prefix (#n:nat) (itsl: its_log n) (i:nat{i <= length itsl}): 
   (itsl':its_log n{length itsl' = i}) =
