@@ -14,35 +14,6 @@ open Veritas.State
 open Veritas.Verifier
 open Veritas.Verifier.CorrectDefs
 
-(* the prefix of an its log *)
-let its_prefix (#n:nat) (itsl: its_log n) (i:nat{i <= length itsl}): 
-  (itsl':its_log n{length itsl' = i}) =
-  let itsl': seq (idx_elem #vlog_entry n) = prefix itsl i in
-  let gl = partition_idx_seq itsl in
-  let idgl = g_tid_vlog gl in
-  
-  let gl' = partition_idx_seq itsl' in
-  let idgl' = g_tid_vlog gl' in
-
-  let aux (id:nat{id < n}):
-    Lemma (requires True)
-          (ensures (t_verifiable (index idgl' id)))
-          [SMTPat (t_verifiable (index idgl' id))]    
-    = 
-    let (_,l') = index idgl' id in
-    //let (_,l) = index idgl id in    
-    lemma_partition_idx_prefix_comm itsl i  id;
-    lemma_verifiable_implies_prefix_verifiable (index idgl id) (length l');
-    ()
-  in
-  itsl'
-
-let lemma_its_prefix_ext (#n:nat) (itsl:its_log n) (i:nat{i <= length itsl}):
-  Lemma (requires True)
-        (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i))
-        [SMTPat (time_seq_ext (its_prefix itsl i))] = 
-  admit()
-
 (* the eac state of a key after processing an eac_log *)
 let eac_state_key (le: vlog_ext) (k:key): eac_state = 
   let lek = partn eac_sm k le in

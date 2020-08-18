@@ -302,6 +302,10 @@ val lemma_zip_unzip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa
   Lemma (requires (True))
         (ensures ((sa, sb) = unzip (zip sa sb)))
 
+val lemma_unzip_extend (#a #b: eqtype) (sab: seq (a * b){length sab > 0}):
+  Lemma (fst (unzip sab) = append1 (fst (unzip (hprefix sab))) (fst (telem sab)) /\
+         snd (unzip sab) = append1 (snd (unzip (hprefix sab))) (snd (telem sab)))
+
 (* attach their index to elements of a sequence *)
 val attach_index (#a:Type) (s:seq a): Tot (seq (nat * a))
 

@@ -119,7 +119,7 @@ val partition_idx_seq_interleave_ctor (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n
 
 val lemma_interleave_idx_correct2 (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss) (i:sseq_index ss):
   Lemma (partition_idx_seq_interleave_ctor (interleaved_idx_seq ss ic) i = ic i)
-         
+
 val lemma_partition_idx_prefix_comm 
   (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)) (i:nat{i <= length s}) (id:nat{id < n}):
   Lemma (is_prefix (index (partition_idx_seq s) id)

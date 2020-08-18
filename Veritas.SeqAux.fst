@@ -671,6 +671,11 @@ let lemma_zip_unzip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa
   assert(equal sb (snd (unzip sab)));
   ()
 
+let lemma_unzip_extend (#a #b: eqtype) (sab: seq (a * b){length sab > 0}):
+  Lemma (requires True)
+        (ensures (fst (unzip sab) = append1 (fst (unzip (hprefix sab))) (fst (telem sab)) /\
+                  snd (unzip sab) = append1 (snd (unzip (hprefix sab))) (snd (telem sab)))) = ()
+
 let rec attach_index_aux (#a:Type) (s:seq a): Tot (seq (nat * a))
   (decreases (length s)) =
   let n = length s in

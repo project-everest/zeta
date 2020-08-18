@@ -196,6 +196,53 @@ let evict_value (il:t_verifiable_log) (i:nat{i < tv_length il /\
 type its_log (n:nat) = 
   s:seq (idx_elem #vlog_entry n){g_verifiable (partition_idx_seq s)}
 
+(* the prefix of an its log *)
+let its_prefix (#n:nat) (itsl: its_log n) (i:nat{i <= length itsl}): 
+  (itsl':its_log n{length itsl' = i}) =
+  let itsl': seq (idx_elem #vlog_entry n) = prefix itsl i in
+  let gl = partition_idx_seq itsl in
+  let idgl = g_tid_vlog gl in
+  
+  let gl' = partition_idx_seq itsl' in
+  let idgl' = g_tid_vlog gl' in
+
+  let aux (id:nat{id < n}):
+    Lemma (requires True)
+          (ensures (t_verifiable (index idgl' id)))
+          [SMTPat (t_verifiable (index idgl' id))]    
+    = 
+    let (_,l') = index idgl' id in
+    //let (_,l) = index idgl id in    
+    lemma_partition_idx_prefix_comm itsl i  id;
+    lemma_verifiable_implies_prefix_verifiable (index idgl id) (length l');
+    ()
+  in
+  itsl'
+
+
 (* extended time sequence log (with evict values) *)
-let time_seq_ext (#n:nat) (itsl: its_log n): (le:vlog_ext{project_seq itsl = to_vlog le}) =
+let rec time_seq_ext (#n:nat) (itsl: its_log n): 
+  Tot (le:vlog_ext{project_seq itsl = to_vlog le}) 
+  (decreases (length itsl))
+  =
+  let m = length itsl in
+  if m = 0 then (
+    lemma_empty itsl;
+    lemma_empty (project_seq itsl);
+    let r = empty #vlog_entry_ext in
+    lemma_empty (to_vlog r);
+    r
+  )
+  else (
+    let itsl' = its_prefix itsl (m - 1) in
+    let r' = time_seq_ext itsl' in
+    let (id,e) = telem itsl in
+    
+    admit()
+  )
+
+let lemma_its_prefix_ext (#n:nat) (itsl:its_log n) (i:nat{i <= length itsl}):
+  Lemma (requires True)
+        (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i))
+        [SMTPat (time_seq_ext (its_prefix itsl i))] = 
   admit()
