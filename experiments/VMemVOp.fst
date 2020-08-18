@@ -14,6 +14,7 @@ let vstore = Veritas.VCache.t tr
 
 assume
 val prf_set_hash : Type0
+
 module VStore = Veritas.VCache
 noeq
 type thread_state_t = {
@@ -23,6 +24,7 @@ type thread_state_t = {
   hadd         : prf_set_hash; //current incremental set hash values; TODO
   hevict       : prf_set_hash;
 }
+
 let thread_state_inv (t:thread_state_t) (h:HS.mem)
   = VStore.invariant h t.st (* /\ ... *)
 let loc_thread_state (t:thread_state_t) = VStore.footprint t.st
@@ -30,7 +32,9 @@ let loc_thread_state (t:thread_state_t) = VStore.footprint t.st
 ////////////////////////////////////////////////////////////////////////////////
 
 let slot_id = Veritas.VCache.vcache_idx //uint16
-let key = UInt128.t & UInt128.t //256 bit keys
+
+let u_256 = uint_64 & uint_64 & uint_64 & uint_64
+let key = u_256 & UInt8.t   //size of a merkle key, excluding leading zeroes
 
 type desc_type =
   | Left
@@ -94,7 +98,7 @@ effect StackErr (a:Type) (pre:HS.mem -> Type) (post:HS.mem -> a -> HS.mem -> Typ
 
 assume
 val raise (#a:Type) (err:string)
-  : Stack a
+  : StackErr a
     (requires fun h -> True)
     (ensures fun h0 _ h1 -> h0 == h1)
 
