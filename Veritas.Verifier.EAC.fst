@@ -45,8 +45,16 @@ let lemma_eac_state_init_store
    Lemma (not (store_contains (thread_store (verifier_thread_state itsl id)) k)) 
    = admit()
 
-type eac_ts_log (#n:nat) = itsl: its_log n {is_eac_log (time_seq_ext itsl)}
-type non_eac_ts_log (#n:nat) = itsl: its_log n {not (is_eac_log (time_seq_ext itsl))}
+(* when the eac state of a key is EACEvicted then no thread contains the key in its store *)
+let lemma_eac_state_evicted_store (#n:nat) (itsl: its_log n) 
+  (k: key{EACEvicted? (eac_state_key (time_seq_ext itsl) k)}) (id:nat{id < n}):
+    Lemma (not (store_contains (thread_store (verifier_thread_state itsl id)) k)) = admit()
+
+(* when the eac state of a key is EACInCache return the index of the last add that transitioned
+ * the key k to "in cache" *)
+let last_add_idx (#n:nat) (itsl: its_log n)
+  (k: key{EACInCache? (eac_state_key (time_seq_ext itsl) k)}): seq_index itsl =
+    admit()
 
 (* the entry that causes the eac_invalidation *)
 let invalidating_log_entry (#n:nat) (itsl: non_eac_ts_log #n): vlog_entry_ext = 

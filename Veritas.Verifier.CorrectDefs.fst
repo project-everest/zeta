@@ -275,3 +275,6 @@ let lemma_its_prefix_ext (#n:nat) (itsl:its_log n) (i:nat{i <= length itsl}):
         (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i))
         [SMTPat (time_seq_ext (its_prefix itsl i))] = 
   admit()
+
+type eac_ts_log (#n:nat) = itsl: its_log n {is_eac_log (time_seq_ext itsl)}
+type non_eac_ts_log (#n:nat) = itsl: its_log n {not (is_eac_log (time_seq_ext itsl))}
