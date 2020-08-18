@@ -221,8 +221,8 @@ let its_prefix (#n:nat) (itsl: its_log n) (i:nat{i <= length itsl}):
 
 
 (* extended time sequence log (with evict values) *)
-let rec time_seq_ext (#n:nat) (itsl: its_log n): 
-  Tot (le:vlog_ext{project_seq itsl = to_vlog le}) 
+let rec time_seq_ext (#n:nat) (itsl: its_log n):
+  Tot (le:vlog_ext{project_seq itsl = to_vlog le})
   (decreases (length itsl))
   =
   let m = length itsl in
@@ -234,11 +234,40 @@ let rec time_seq_ext (#n:nat) (itsl: its_log n):
     r
   )
   else (
+    let (e,id) = telem itsl in
+
+    (* recurse *)
     let itsl' = its_prefix itsl (m - 1) in
     let r' = time_seq_ext itsl' in
-    let (id,e) = telem itsl in
-    
-    admit()
+
+    (* project seq of itsl and itsl' differ by log entry e *)
+    lemma_unzip_extend itsl;
+    assert(project_seq itsl = append1 (project_seq itsl') e);
+
+    if is_evict e then (
+      (* log entries of verifier thread id *)
+      let gl = partition_idx_seq itsl in
+      let l = index gl id in
+      assert(snd (index (g_tid_vlog gl) id) = l);
+
+      (* since l is verifiable, the value at last position is well-defined *)
+      assert(t_verifiable (id, l));
+      (* prove length l > 0 *)
+      lemma_partition_idx_extend1 itsl;
+
+      let v = evict_value (id, l) (length l - 1) in
+
+      let r = append1 r' (Evict e v) in
+      lemma_prefix1_append r' (Evict e v);
+      lemma_map_extend to_vlog_entry r;
+      r
+    )
+    else (
+      let r = append1 r' (NEvict e) in
+      lemma_prefix1_append r' (NEvict e);
+      lemma_map_extend to_vlog_entry r;
+      r
+    )
   )
 
 let lemma_its_prefix_ext (#n:nat) (itsl:its_log n) (i:nat{i <= length itsl}):
