@@ -22,7 +22,7 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.EAC.fst \
 	       Veritas.Verifier.CorrectDefs.fst \
 	       Veritas.Verifier.Blum.fst \
-               Veritas.Verifier.Merkle.fst \
+               Veritas.Verifier.Merkle.fsti Veritas.Verifier.Merkle.fst \
                Veritas.Verifier.EAC.fst \
                Veritas.Verifier.Correctness.fst
 
