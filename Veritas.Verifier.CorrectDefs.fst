@@ -4,8 +4,10 @@ open FStar.Seq
 open Veritas.BinTree
 open Veritas.EAC
 open Veritas.Interleave
+open Veritas.Key
 open Veritas.MultiSetHash
 open Veritas.Record
+open Veritas.SeqMachine
 open Veritas.SeqAux
 open Veritas.Verifier
 
@@ -278,3 +280,79 @@ let lemma_its_prefix_ext (#n:nat) (itsl:its_log n) (i:nat{i <= length itsl}):
 
 type eac_ts_log (n:nat) = itsl: its_log n {is_eac_log (time_seq_ext itsl)}
 type non_eac_ts_log (n:nat) = itsl: its_log n {not (is_eac_log (time_seq_ext itsl))}
+
+(* the eac state of a key after processing an eac_log *)
+let eac_state_key (le: vlog_ext) (k:key): eac_state = 
+  let lek = partn eac_sm k le in
+  seq_machine_run eac_smk lek
+
+(* the eac state of a key at the end of an its log *)
+let eac_state_of_key (#n:nat) (itsl: its_log n) (k:key): eac_state = 
+  let tsle = time_seq_ext itsl in 
+  let tslek = partn eac_sm k tsle in
+  seq_machine_run eac_smk tslek
+
+(* is the eac state of key at the end of its_log init *)
+let is_eac_state_init (#n:nat) (itsl: its_log n) (k:key): bool =
+  eac_state_of_key itsl k = EACInit
+
+(* is the key k in evicted state in *)
+let is_eac_state_evicted (#n:nat) (itsl: its_log n) (k:key): bool = 
+  EACEvicted? (eac_state_of_key itsl k)
+
+(* is the key k in instore state after processing its_log *)
+let is_eac_state_instore (#n:nat) (itsl: its_log n) (k:key):bool = 
+  EACInStore? (eac_state_of_key itsl k)
+
+(* the state of a verifier thread after processing entries in a log *)
+let verifier_thread_state (#n:nat) (itsl: its_log n) (id:nat{id < n}): (st:vtls{Valid? st}) = 
+  let gl = partition_idx_seq itsl in
+  assert(t_verifiable (index (attach_index gl) id));
+  t_verify id (index gl id)
+
+(* 
+ * when the eac state of a key is Init (no operations on the key yet) no 
+ * thread contains the key in its store 
+ *)
+let lemma_eac_state_init_store 
+   (#n:nat) 
+   (itsl: eac_ts_log n) (k: key{k <> Root && is_eac_state_init itsl k}) (id:nat{id < n}):
+   Lemma (not (store_contains (thread_store (verifier_thread_state itsl id)) k)) 
+   = admit()
+
+(* when the eac state of a key is EACEvicted then no thread contains the key in its store *)
+let lemma_eac_state_evicted_store (#n:nat) (itsl: eac_ts_log n) 
+  (k: key{is_eac_state_evicted itsl k}) (id:nat{id < n}):
+    Lemma (not (store_contains (thread_store (verifier_thread_state itsl id)) k)) = admit()
+
+(* does a log have some add entry *)
+let has_some_add (l:seq vlog_entry): bool = 
+  exists_sat_elems is_add l
+
+(* does a log have some add of key k *)
+let has_some_add_of_key (k:key) (l:seq vlog_entry): bool = 
+  exists_sat_elems (is_add_of_key k) l 
+  
+(* when the eac state of a key is "instore" then there is always a previous add *)
+let lemma_eac_state_instore_implies_prev_add (#n:nat) (itsl: eac_ts_log n) (k:key{is_eac_state_instore itsl k}):
+  Lemma (has_some_add_of_key k (project_seq itsl)) = admit()
+
+(* when the eac state of a key is instore return the index of the last add that transitioned
+ * the key k to "instore" *)
+let last_add_idx (#n:nat) (itsl: eac_ts_log n) (k: key{is_eac_state_instore itsl k}): seq_index itsl =
+   lemma_eac_state_instore_implies_prev_add itsl k;
+   last_index (is_add_of_key k) (project_seq itsl)
+
+(* the verifier thread where the last add of key k happens *)
+let last_add_tid (#n:nat) (itsl: eac_ts_log n) (k: key{is_eac_state_instore itsl k}): (tid:nat{tid < n}) =
+  snd (index itsl (last_add_idx itsl k))
+
+(* if the eac_state of k is instore, then that k is in the store of the verifier thread of its last add *)
+let lemma_eac_state_instore (#n:nat) (itsl: eac_ts_log n) (k:key{is_eac_state_instore itsl k}):
+  Lemma (store_contains (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k) = admit()
+
+(* if the eac state of k is instore, then k is not in the store of any verifier thread other than 
+ * its last add thread *)
+let lemma_eac_state_instore2 (#n:nat) (itsl: eac_ts_log n) (k:key{is_eac_state_instore itsl k}) (id:nat{id < n}):
+  Lemma (requires (id <> last_add_tid itsl k))
+        (ensures (not (store_contains (thread_store (verifier_thread_state itsl id)) k))) = admit()

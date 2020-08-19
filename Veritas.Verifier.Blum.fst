@@ -1,4 +1,4 @@
-module Veritas.Blum
+module Veritas.Verifier.Blum
 
 open FStar.Seq
 open Veritas.EAC

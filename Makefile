@@ -21,7 +21,8 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.Verifier.fst \
                Veritas.EAC.fst \
 	       Veritas.Verifier.CorrectDefs.fst \
-	       Veritas.Blum.fst \
+	       Veritas.Verifier.Blum.fst \
+               Veritas.Verifier.Merkle.fst \
                Veritas.Verifier.EAC.fst \
                Veritas.Verifier.Correctness.fst
 
