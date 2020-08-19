@@ -356,3 +356,38 @@ let lemma_eac_state_instore (#n:nat) (itsl: eac_ts_log n) (k:key{is_eac_state_in
 let lemma_eac_state_instore2 (#n:nat) (itsl: eac_ts_log n) (k:key{is_eac_state_instore itsl k}) (id:nat{id < n}):
   Lemma (requires (id <> last_add_tid itsl k))
         (ensures (not (store_contains (thread_store (verifier_thread_state itsl id)) k))) = admit()
+
+(* the root is always in thread 0 *)
+let lemma_root_in_store0 (#n:pos) (itsl: eac_ts_log n):
+  Lemma (store_contains (thread_store (verifier_thread_state itsl 0)) Root) = admit()
+
+let lemma_root_not_in_store (#n:pos) (itsl: eac_ts_log n) (tid:pos {tid < n}):
+  Lemma (not (store_contains (thread_store (verifier_thread_state itsl tid)) Root)) = admit()
+
+(* the evicted value is always of the correct type for the associated key *)
+let lemma_evict_value_correct_type (#n:pos) (itsl: eac_ts_log n) (k:key{is_eac_state_evicted itsl k}):
+  Lemma (is_value_of k (EACEvicted?.v (eac_state_of_key itsl k))) = admit()
+
+(* 
+ * for keys in a thread store, return the value in the thread store; 
+ * for other keys return the last evict value or null (init)
+ *)
+let eac_value (#n:pos) (itsl: eac_ts_log n) (k:key): value_type_of k = 
+  if k = Root then (
+    lemma_root_in_store0 itsl;
+    stored_value (thread_store (verifier_thread_state itsl 0)) Root
+  )
+  else 
+    let es = eac_state_of_key itsl k in
+    match es with
+    | EACInit -> init_value k 
+    | EACEvicted _ v -> lemma_evict_value_correct_type itsl k; v
+    | EACInStore _ _ -> 
+      (* the store where the last add happened contains key k *)
+      let tid = last_add_tid itsl k in
+      let st = thread_store (verifier_thread_state itsl tid) in
+        
+      lemma_eac_state_instore itsl k;
+      assert(store_contains st k);
+
+      stored_value st k
