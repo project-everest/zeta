@@ -27,7 +27,7 @@ type vlog_ext = seq (vlog_entry_ext)
 type eac_state =
   | EACFail: eac_state
   | EACInit: eac_state
-  | EACInCache: m:add_method -> v:value -> eac_state
+  | EACInStore: m:add_method -> v:value -> eac_state
   | EACEvicted: m:add_method -> v:value -> eac_state
 
 let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
@@ -35,16 +35,16 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
   | EACFail -> EACFail
   | EACInit -> (
     match e with
-    | NEvict (AddM (k,v) _) -> if v = init_value k then EACInCache MAdd v
+    | NEvict (AddM (k,v) _) -> if v = init_value k then EACInStore MAdd v
                                else EACFail
     | _ -> EACFail
     )
 
-  | EACInCache m v -> (
+  | EACInStore m v -> (
     match e with
     | NEvict (Get _ v') -> if (DVal v') = v then s
                            else EACFail
-    | NEvict (Put _ v') -> if (DVal? v) then EACInCache m (DVal v')
+    | NEvict (Put _ v') -> if (DVal? v) then EACInStore m (DVal v')
                            else EACFail
     | Evict (EvictM _ _) v' -> if DVal? v && v' <> v then EACFail
                                else EACEvicted MAdd v
@@ -57,9 +57,9 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
 
   | EACEvicted m v -> (
     match e with
-    | NEvict (AddM (_,v') _) -> if v' = v && m = MAdd then EACInCache MAdd v
+    | NEvict (AddM (_,v') _) -> if v' = v && m = MAdd then EACInStore MAdd v
                                 else EACFail
-    | NEvict (AddB (_,v') _ _) -> if v' = v && m = BAdd then EACInCache BAdd v
+    | NEvict (AddB (_,v') _ _) -> if v' = v && m = BAdd then EACInStore BAdd v
                                 else EACFail
     | _ -> EACFail
   )
@@ -115,7 +115,7 @@ let valid_eac_state (st:eac_state): bool = st <> EACFail &&
 (* value of a valid state *)
 let value_of (st:eac_state {valid_eac_state st}): value =
   match st with
-  | EACInCache _ v -> v
+  | EACInStore _ v -> v
   | EACEvicted _ v -> v
 
 let to_vlog (l:vlog_ext) =
@@ -486,7 +486,7 @@ let rec lemma_data_val_state_implies_last_put (le:vlog_ext):
 let lemma_get_implies_data_val_state (le:vlog_ext) (i:seq_index le):
   Lemma (requires (valid eac_smk le /\ Get? (to_vlog_entry (index le i))))
         (ensures (valid eac_smk (prefix le i) /\
-                  EACInCache? (seq_machine_run eac_smk (prefix le i)) /\
+                  EACInStore? (seq_machine_run eac_smk (prefix le i)) /\
                   DVal? (value_of (seq_machine_run eac_smk (prefix le i))))) =
   let lei = prefix le i in
   let lei' = prefix le (i + 1) in

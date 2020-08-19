@@ -339,5 +339,15 @@ let is_evict (e: vlog_entry): bool =
   | EvictB _ _ -> true
   | EvictBM _ _ _ -> true
   | _ -> false
-
   
+let is_add (e:vlog_entry): bool = 
+  match e with
+  | AddM _ _ -> true
+  | AddB _ _ _ -> true
+  | _ -> false
+
+let is_add_of_key (k: key) (e:vlog_entry): bool = 
+  match e with
+  | AddM (k,_) _ -> true
+  | AddB (k,_) _ _ -> true
+  | _ -> false 
