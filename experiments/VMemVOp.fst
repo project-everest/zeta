@@ -10,12 +10,12 @@ let timestamp = uint_64
 
 assume
 val tr : Veritas.VerifierTraits.t
-let vstore = Veritas.VCache.t tr
+let vstore = Veritas.VCache.Agile.t tr
 
 assume
 val prf_set_hash : Type0
 
-module VStore = Veritas.VCache
+module VStore = Veritas.VCache.Agile
 noeq
 type thread_state_t = {
   id           : thread_id_t;
@@ -31,7 +31,7 @@ let loc_thread_state (t:thread_state_t) = VStore.footprint t.st
 
 ////////////////////////////////////////////////////////////////////////////////
 
-let slot_id = Veritas.VCache.vcache_idx //uint16
+let slot_id = Veritas.VCache.Agile.vcache_idx //uint16
 
 let u_256 = uint_64 & uint_64 & uint_64 & uint_64
 let key = u_256 & UInt8.t   //size of a merkle key, excluding leading zeroes
