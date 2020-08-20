@@ -282,6 +282,7 @@ type eac_ts_log (n:nat) = itsl: its_log n {is_eac_log (time_seq_ext itsl)}
 type non_eac_ts_log (n:nat) = itsl: its_log n {not (is_eac_log (time_seq_ext itsl))}
 
 (* the eac state of a key after processing an eac_log *)
+(* TODO: remove this *)
 let eac_state_key (le: vlog_ext) (k:key): eac_state = 
   let lek = partn eac_sm k le in
   seq_machine_run eac_smk lek
@@ -299,6 +300,20 @@ let is_eac_state_init (#n:nat) (itsl: its_log n) (k:key): bool =
 (* is the key k in evicted state in *)
 let is_eac_state_evicted (#n:nat) (itsl: its_log n) (k:key): bool = 
   EACEvicted? (eac_state_of_key itsl k)
+
+(* is the key currently evicted into merkle *)
+let is_eac_state_evicted_merkle (#n:nat) (itsl: its_log n) (k:key): bool = 
+  let st = eac_state_of_key itsl k in
+  match st with
+  | EACEvicted m v -> m = MAdd 
+  | _ -> false
+
+(* is the key currently evicted into merkle *)
+let is_eac_state_evicted_blum (#n:nat) (itsl: its_log n) (k:key): bool = 
+  let st = eac_state_of_key itsl k in
+  match st with
+  | EACEvicted m v -> m = BAdd
+  | _ -> false
 
 (* is the key k in instore state after processing its_log *)
 let is_eac_state_instore (#n:nat) (itsl: its_log n) (k:key):bool = 

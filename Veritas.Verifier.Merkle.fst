@@ -64,3 +64,16 @@ let lemma_proving_ancestor_initial (#p:pos) (itsl: eac_ts_log p) (k:key{k <> Roo
                   not (is_desc k (mv_pointed_key (to_merkle_value (eac_value itsl (proving_ancestor itsl k)))
                                                  (desc_dir k (proving_ancestor itsl k)))))) = admit()
 
+let lemma_proving_ancestor_has_hash (#p:pos) (itsl: eac_ts_log p) (k:key{k<> Root}):
+  Lemma (requires (is_eac_state_evicted_merkle itsl k))
+        (ensures (mv_pointed_hash (eac_merkle_value itsl (proving_ancestor itsl k))
+                                  (desc_dir k (proving_ancestor itsl k)) = 
+                  hashfn (eac_value itsl k))) = admit()
+
+(* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
+let lemma_proving_ancestor_blum_bit (#p:pos) (itsl: eac_ts_log p) (k:key{k <> Root}):
+  Lemma (requires (is_eac_state_evicted itsl k))
+        (ensures (mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
+                                     (desc_dir k (proving_ancestor itsl k)) = 
+                  is_eac_state_evicted_blum itsl k)) = admit()
+      
