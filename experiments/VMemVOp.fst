@@ -60,8 +60,8 @@ val compute_hash (d:value)
 
 //We should introduce this as a layer with exceptions
 //in a way that allows us to discard error continuations --- I don't think we need to have any error recovery
-effect StackErr (a:Type) (pre:HS.mem -> Type) (post:HS.mem -> a -> HS.mem -> Type)
-  = Stack a pre post
+// effect StackErr (a:Type) (pre:HS.mem -> Type) (post:HS.mem -> a -> HS.mem -> Type)
+//   = Stack a pre post
 
 // assume
 // val raise (#a:Type) (err:string)

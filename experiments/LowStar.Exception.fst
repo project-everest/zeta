@@ -91,4 +91,3 @@ let test2 (n:nat) : STEXN nat (fun p m0 -> p (n+2) m0) =
 effect StackExn (a:Type) (pre:st_pre) (post:(m0:mem -> st_post' a (pre m0))) =
   STEXN a (fun p m0 ->
     pre m0 /\ (forall a m1. (pre m0 /\ post m0 a m1 /\ equal_domains m0 m1) ==> p a m1))
-    
