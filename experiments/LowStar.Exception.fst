@@ -16,14 +16,17 @@ assume ST_WP_monotonic:
     (forall p q. (forall x m1. p x m1 ==> q x m1) ==>
             (forall m0. wp p m0 ==> wp q m0))
 
-type repr (a:Type) (wp:st_wp a) =
+inline_for_extraction
+let repr (a:Type) (wp:st_wp a) =
   unit ->
   STATE
     (option a)
     (fun p m0 -> (forall m1. p None m1) /\ (wp (fun x m1 -> p (Some x) m1) m0))
 
+inline_for_extraction
 let return (a:Type) (x:a) : repr a (fun p m0 -> p x m0) = fun _ -> Some x
 
+inline_for_extraction
 let bind (a:Type) (b:Type)
   (wp_f:st_wp a) (wp_g:a -> st_wp b)
   (f:repr a wp_f) (g:(x:a -> repr b (wp_g x)))
@@ -34,6 +37,7 @@ let bind (a:Type) (b:Type)
     | None -> None
     | Some x -> (g x) ()
 
+inline_for_extraction
 let subcomp (a:Type)
   (wp_f:st_wp a) (wp_g:st_wp a)
   (f:repr a wp_f)
@@ -43,6 +47,7 @@ let subcomp (a:Type)
       (ensures fun _ -> True)
   = f
 
+inline_for_extraction
 let if_then_else (a:Type)
   (wp_then:st_wp a) (wp_else:st_wp a)
   (f:repr a wp_then) (g:repr a wp_else)
@@ -64,6 +69,7 @@ layered_effect {
   if_then_else = if_then_else
 }
 
+inline_for_extraction
 let lift_div_stexn (a:Type) (wp:pure_wp a) (f:eqtype_as_type unit -> DIV a wp)
   : repr a (fun p m0 -> wp (fun x -> p x m0))
   = fun _ -> Some (f ())
