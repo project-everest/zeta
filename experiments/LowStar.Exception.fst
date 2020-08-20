@@ -80,11 +80,9 @@ let raise (#a:Type) (s:string) : STEXN a (fun p m0 -> True) =
   STEXN?.reflect (fun _ -> None)
 
 let test (n:nat) : STEXN nat (fun p m0 -> p (n+1) m0) =
-  if n = 0 then raise "error"
-  else begin
-    assert (n > 0);
-    n+1
-  end
+  if n = 0 then raise "error";  
+  assert (n > 0);
+  n+1
 
 let test2 (n:nat) : STEXN nat (fun p m0 -> p (n+2) m0) =
   let n = test n in
