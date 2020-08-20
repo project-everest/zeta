@@ -8,14 +8,16 @@ let thread_id_t = uint_8
 let counter_t = B.pointer uint_64
 let timestamp = uint_64
 
-assume
-val tr : Veritas.VerifierTraits.t
-let vstore = Veritas.VCache.Agile.t tr
+let vstore = Veritas.VCache.vstore
 
 assume
 val prf_set_hash : Type0
 
-module VStore = Veritas.VCache.Agile
+module VStore = Veritas.VCache
+
+open Veritas.VCache
+
+
 noeq
 type thread_state_t = {
   id           : thread_id_t;
@@ -26,15 +28,10 @@ type thread_state_t = {
 }
 
 let thread_state_inv (t:thread_state_t) (h:HS.mem)
-  = VStore.invariant h t.st (* /\ ... *)
+  = VStore.invariant t.st h (* /\ ... *)
 let loc_thread_state (t:thread_state_t) = VStore.footprint t.st
 
 ////////////////////////////////////////////////////////////////////////////////
-
-let slot_id = Veritas.VCache.Agile.vcache_idx //uint16
-
-let u_256 = uint_64 & uint_64 & uint_64 & uint_64
-let key = u_256 & UInt8.t   //size of a merkle key, excluding leading zeroes
 
 type desc_type =
   | Left
@@ -47,33 +44,8 @@ assume
 val is_descendent (k0 k1:key)
   : option desc_type
 
-assume
-val most_significant_bit (k:key) : bool
-let is_data_key k = most_significant_bit k
 let data_key   = k:key { is_data_key k }
 let merkle_key = k:key { not (is_data_key k) }
-
-assume
-val data_t : eqtype //Pick a concrete data value?
-let data_value = option data_t
-
-(* size of a hash value *)
-let hash_size = 256
-(* hash value *)
-type hash_value = UInt128.t & UInt128.t
-
-(* information about a desc stored in a merkle node *)
-type descendent_hash =
-  | Empty: descendent_hash
-  | Desc: k:key -> //Q: do we really need to store this here? I guess because its sparse we can't compute the key of the descendent?
-          h:hash_value ->
-          evicted_to_blum:bool -> //Q: What does this represent?
-          in_store:bool -> //The descendent with key k is in the VStore
-          descendent_hash
-
-type value =
-  | MVal : l:descendent_hash -> r:descendent_hash -> value
-  | DVal : data_value -> value
 
 let mvalue = v:value{ MVal? v }
 let dvalue = v:value{ DVal? v }
@@ -83,13 +55,6 @@ val compute_hash (d:value)
   : Stack hash_value
     (requires fun _ -> True)
     (ensures fun h0 _ h1 -> B.modifies B.loc_none h0 h1)
-
-let record = key & value
-
-let is_value_of (k:key) (v:value)
-  : bool
-  = if is_data_key k then DVal? v else MVal? v
-
 
 //We should introduce this as a layer with exceptions
 //in a way that allows us to discard error continuations --- I don't think we need to have any error recovery
@@ -102,15 +67,15 @@ val raise (#a:Type) (err:string)
     (requires fun h -> True)
     (ensures fun h0 _ h1 -> h0 == h1)
 
-assume
-val vstore_try_get_record (v:vstore) (s:slot_id)
+let vstore_try_get_record (v:vstore) (s:slot_id)
   : Stack (option record)
-    (requires fun h -> VStore.invariant h v)
+    (requires fun h -> VStore.invariant v h)
     (ensures fun h0 r h1 -> h0 == h1 (* /\ r = h0.v.entries s *))
+  = VStore.vcache_get_record v s
 
 let vstore_get_record (v:vstore) (s:slot_id)
   : StackErr record
-    (requires fun h -> VStore.invariant h v)
+    (requires fun h -> VStore.invariant v h)
     (ensures fun h0 r h1 -> h0 == h1 (* /\ r = h0.v.entries s *))
   = match vstore_try_get_record v s with
     | None -> raise "vstore does not contain slot"
@@ -118,7 +83,7 @@ let vstore_get_record (v:vstore) (s:slot_id)
 
 let check_vstore_contains_key (v:vstore) (s:slot_id) (k:key)
   : StackErr (v:value{is_value_of k v})
-    (requires fun h -> VStore.invariant h v)
+    (requires fun h -> VStore.invariant v h)
     (ensures fun h0 r h1 -> h0 == h1 (* /\ r = h0.v.entries s *))
   = match vstore_try_get_record v s with
     | None -> raise "vstore does not contain slot"
@@ -126,36 +91,32 @@ let check_vstore_contains_key (v:vstore) (s:slot_id) (k:key)
       if k <> k' then raise "vstore contains unexpected key at given slot"
       else (assume (is_value_of k v); v)
 
-assume
-val vstore_update_record (v:vstore) (s:slot_id) (r:record)
+let vstore_update_record (v:vstore) (s:slot_id) (r:record)
   : StackErr unit
-    (requires fun h -> VStore.invariant h v)
+    (requires fun h -> VStore.invariant v h)
     (ensures fun h0 _ h1 ->
-      VStore.invariant h1 v // /\
+      VStore.invariant v h1 // /\
       // h1.v.entries == upd h0.v.entries s r
     )
+  = VStore.vcache_update_record v s r
 
-type add_method =
-  | MAdd: add_method       (* AddM *)
-  | BAdd: add_method         (* AddB *)
-
-assume
-val vstore_add_record (v:vstore) (s:slot_id) (k:key) (vk:value{is_value_of k vk}) (a:add_method)
+let vstore_add_record (v:vstore) (s:slot_id) (k:key) (vk:value{is_value_of k vk}) (a:add_method)
   : StackErr unit
-    (requires fun h -> VStore.invariant h v)
+    (requires fun h -> VStore.invariant v h)
     (ensures fun h0 _ h1 ->
-      VStore.invariant h1 v // /\
+      VStore.invariant v h1 // /\
       // h1.v.entries == upd h0.v.entries s r
     )
+  = VStore.vcache_add_record v s k vk a
 
-assume
-val vstore_evict_record (v:vstore) (s:slot_id) (k:key)
+let vstore_evict_record (v:vstore) (s:slot_id) (k:key)
   : StackErr unit
-    (requires fun h -> VStore.invariant h v)
+    (requires fun h -> VStore.invariant v h)
     (ensures fun h0 _ h1 ->
-      VStore.invariant h1 v // /\
+      VStore.invariant v h1 // /\
       // h1.v.entries == upd h0.v.entries s r
     )
+  = VStore.vcache_evict_record v s k
 
 let vget (s:slot_id) (k:data_key) (v:data_value) (vs: thread_state_t)
   : StackErr unit
