@@ -4,6 +4,8 @@ open FStar.HyperStack.ST
 module B = LowStar.Buffer
 module HS = FStar.HyperStack
 
+open LowStar.Exception
+
 let thread_id_t = uint_8
 let counter_t = B.pointer uint_64
 let timestamp = uint_64
@@ -61,11 +63,11 @@ val compute_hash (d:value)
 effect StackErr (a:Type) (pre:HS.mem -> Type) (post:HS.mem -> a -> HS.mem -> Type)
   = Stack a pre post
 
-assume
-val raise (#a:Type) (err:string)
-  : StackErr a
-    (requires fun h -> True)
-    (ensures fun h0 _ h1 -> h0 == h1)
+// assume
+// val raise (#a:Type) (err:string)
+//   : StackErr a
+//     (requires fun h -> True)
+//     (ensures fun h0 _ h1 -> h0 == h1)
 
 let vstore_try_get_record (v:vstore) (s:slot_id)
   : Stack (option record)
@@ -74,7 +76,7 @@ let vstore_try_get_record (v:vstore) (s:slot_id)
   = VStore.vcache_get_record v s
 
 let vstore_get_record (v:vstore) (s:slot_id)
-  : StackErr record
+  : StackExn record
     (requires fun h -> VStore.invariant v h)
     (ensures fun h0 r h1 -> h0 == h1 (* /\ r = h0.v.entries s *))
   = match vstore_try_get_record v s with
@@ -82,7 +84,7 @@ let vstore_get_record (v:vstore) (s:slot_id)
     | Some r -> r
 
 let check_vstore_contains_key (v:vstore) (s:slot_id) (k:key)
-  : StackErr (v:value{is_value_of k v})
+  : StackExn (v:value{is_value_of k v})
     (requires fun h -> VStore.invariant v h)
     (ensures fun h0 r h1 -> h0 == h1 (* /\ r = h0.v.entries s *))
   = match vstore_try_get_record v s with
@@ -92,7 +94,7 @@ let check_vstore_contains_key (v:vstore) (s:slot_id) (k:key)
       else (assume (is_value_of k v); v)
 
 let vstore_update_record (v:vstore) (s:slot_id) (r:record)
-  : StackErr unit
+  : Stack unit
     (requires fun h -> VStore.invariant v h)
     (ensures fun h0 _ h1 ->
       VStore.invariant v h1 // /\
@@ -101,7 +103,7 @@ let vstore_update_record (v:vstore) (s:slot_id) (r:record)
   = VStore.vcache_update_record v s r
 
 let vstore_add_record (v:vstore) (s:slot_id) (k:key) (vk:value{is_value_of k vk}) (a:add_method)
-  : StackErr unit
+  : Stack unit
     (requires fun h -> VStore.invariant v h)
     (ensures fun h0 _ h1 ->
       VStore.invariant v h1 // /\
@@ -110,7 +112,7 @@ let vstore_add_record (v:vstore) (s:slot_id) (k:key) (vk:value{is_value_of k vk}
   = VStore.vcache_add_record v s k vk a
 
 let vstore_evict_record (v:vstore) (s:slot_id) (k:key)
-  : StackErr unit
+  : Stack unit
     (requires fun h -> VStore.invariant v h)
     (ensures fun h0 _ h1 ->
       VStore.invariant v h1 // /\
@@ -119,7 +121,7 @@ let vstore_evict_record (v:vstore) (s:slot_id) (k:key)
   = VStore.vcache_evict_record v s k
 
 let vget (s:slot_id) (k:data_key) (v:data_value) (vs: thread_state_t)
-  : StackErr unit
+  : StackExn unit
     (requires fun h -> thread_state_inv vs h)
     (ensures fun h0 _ h1 -> h0 == h1)
   = let key, value = vstore_get_record vs.st s in
@@ -134,7 +136,7 @@ let vget (s:slot_id) (k:data_key) (v:data_value) (vs: thread_state_t)
 
 (* verifier write operation *)
 let vput (s:slot_id) (k:data_key) (v:data_value) (vs: thread_state_t)
-  : StackErr unit
+  : StackExn unit
     (requires fun h -> thread_state_inv vs h)
     (ensures fun h0 _ h1 ->
       thread_state_inv vs h1)
@@ -160,7 +162,7 @@ let vaddm (s:slot_id)
           (s':slot_id)
           (k':merkle_key)
           (vs: thread_state_t)
-  : StackErr unit
+  : StackExn unit
     (requires fun h -> thread_state_inv vs h)
     (ensures fun h0 _ h1 -> thread_state_inv vs h1)
   = let (k,v) = r in
@@ -188,10 +190,7 @@ let vaddm (s:slot_id)
      | None -> ()
      | Some _ -> raise "slot s already exists");
     (* check that type of value is consistent with key *)
-    let _ : squash (is_value_of k v) = //NS: should be able to avoid this once we have StackErr property defined
-      if not (is_value_of k v)
-      then raise "vaddm: value is not consistent for key"
-    in
+    if not (is_value_of k v) then raise "vaddm: value is not consistent for key";
     let h = compute_hash v in
     match desc_hash_dir with
     | Empty ->
@@ -228,7 +227,7 @@ let vevictm (s:slot_id)
             (s':slot_id)
             (k':merkle_key)
             (vs: thread_state_t)
-  : StackErr unit
+  : StackExn unit
     (requires fun h -> thread_state_inv vs h)
     (ensures fun h0 _ h1 -> thread_state_inv vs h1)
   = let v = check_vstore_contains_key vs.st s k in
@@ -333,7 +332,7 @@ let v_context_inv (vs:v_context) (h:HS.mem) =
     (loc_thread_state vs.thread_state)
 
 let t_verify_step (vs:v_context)
-  : StackErr unit
+  : StackExn unit
     (requires fun h ->
       v_context_inv vs h)
     (ensures fun h0 _ h1 ->
@@ -352,7 +351,7 @@ let t_verify_step (vs:v_context)
       raise "t_verify_step: unhandled operation"
 
 let rec t_verify (vs:v_context)
-  : StackErr unit
+  : StackExn unit
     (requires fun h ->
       v_context_inv vs h)
     (ensures fun h0 _ h1 ->
