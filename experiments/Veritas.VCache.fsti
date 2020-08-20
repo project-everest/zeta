@@ -71,6 +71,15 @@ val footprint (st:vstore) : GTot B.loc
 val as_seq (st:vstore) (h:HS.mem)
   : GTot (Seq.lseq (option record) (UInt.max_int U16.n))
 
+val frame_invariant (st:vstore) (l:B.loc) (h0 h1:HS.mem)
+  : Lemma
+      (requires
+        invariant st h0 /\
+        B.modifies l h0 h1 /\
+        B.loc_disjoint l (footprint st))
+      (ensures invariant st h1)
+      [SMTPat (invariant st h1); SMTPat (B.modifies l h0 h1)]
+
 val vcache_create (_:unit)
   : ST vstore
       (requires fun h -> True)

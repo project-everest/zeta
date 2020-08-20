@@ -29,6 +29,8 @@ let footprint st = B.loc_buffer st
 
 let as_seq st h = B.as_seq h st
 
+let frame_invariant _ _ _ _ = ()
+
 let vcache_create () =
   B.gcmalloc #(option record) HS.root None (U32.uint_to_t (UInt.max_int U16.n))
 
