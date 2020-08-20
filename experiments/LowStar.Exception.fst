@@ -69,15 +69,14 @@ layered_effect {
   if_then_else = if_then_else
 }
 
-inline_for_extraction
-let lift_div_stexn (a:Type) (wp:pure_wp a) (f:eqtype_as_type unit -> DIV a wp)
-  : repr a (fun p m0 -> wp (fun x -> p x m0))
-  = fun _ -> Some (f ())
-
-sub_effect DIV ~> STEXN = lift_div_stexn
-
 let raise (#a:Type) (s:string) : STEXN a (fun p m0 -> True) =
   STEXN?.reflect (fun _ -> None)
+
+let lift_state_stexn (a:Type) (wp:st_wp a) (f:eqtype_as_type unit -> STATE a wp)
+  : repr a wp
+  = fun _ -> Some (f ())
+
+sub_effect STATE ~> STEXN = lift_state_stexn
 
 let test (n:nat) : STEXN nat (fun p m0 -> p (n+1) m0) =
   if n = 0 then raise "error";  
@@ -87,3 +86,9 @@ let test (n:nat) : STEXN nat (fun p m0 -> p (n+1) m0) =
 let test2 (n:nat) : STEXN nat (fun p m0 -> p (n+2) m0) =
   let n = test n in
   test n
+
+
+effect StackExn (a:Type) (pre:st_pre) (post:(m0:mem -> st_post' a (pre m0))) =
+  STEXN a (fun p m0 ->
+    pre m0 /\ (forall a m1. (pre m0 /\ post m0 a m1 /\ equal_domains m0 m1) ==> p a m1))
+    
