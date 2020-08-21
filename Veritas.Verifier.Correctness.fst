@@ -24,7 +24,7 @@ open Veritas.Verifier.TSLog
  * an indexed version of time sequence where we track the source verifier thread 
  * for every log entry 
  *)
-let time_seq_idx (gl: g_hash_verifiable_log): its_log (length gl) =
+let time_seq_idx (gl: g_hash_verifiable_log): its_hash_verifiable_log (length gl) =
   interleaved_idx_seq gl (time_seq_ctor gl)
 
 (* state ops of all vlogs of all verifier threads *)
@@ -32,7 +32,8 @@ let to_state_op_gvlog (gl: g_vlog) =
   map to_state_op_vlog gl
 
 let lemma_time_seq_rw_consistent (#n:pos) 
-  (itsl: its_log n{~ (rw_consistent (to_state_op_vlog (project_seq itsl)))}): hash_collision_gen = 
+  (itsl: its_hash_verifiable_log n{~ (rw_consistent (to_state_op_vlog (project_seq itsl)))})
+  : hash_collision_gen = 
   let tsl = project_seq itsl in  
   let tsle = time_seq_ext itsl in
   assert(to_vlog tsle = tsl);

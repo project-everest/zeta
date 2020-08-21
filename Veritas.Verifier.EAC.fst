@@ -17,6 +17,7 @@ open Veritas.Verifier.Blum
 open Veritas.Verifier.CorrectDefs
 open Veritas.Verifier.TSLog
 
+module MS = Veritas.MultiSet
 module MH = Veritas.MultiSetHash
 
 (* generalized single- and multi-set hash collision *)
@@ -136,13 +137,12 @@ let lemma_non_eac_init_requires_key_in_store (#n:pos)
   let itsli' = its_prefix itsl (i + 1) in
   let tid = its_thread_id itsl i in
   let e = its_vlog_entry itsl i in
-  //assert(e = its_vlog_entry itsli' (length itsli' - 1));
+  assert(e = its_vlog_entry itsli' (length itsli' - 1));
   lemma_verifier_thread_state_extend itsli';
   //assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
   let k = vlog_entry_key e in
   lemma_eac_state_init_store itsli k tid;
   hash_collision_contra ()
-
 
 (* the first operation for a key cannot be evict *)
 let lemma_non_eac_init_evict (#n:pos)
@@ -160,11 +160,45 @@ let lemma_non_eac_init_evict (#n:pos)
   lemma_root_never_evicted (verifier_thread_state itsli tid) e;  
   assert(k <> Root);                               
   lemma_non_eac_init_requires_key_in_store itsl
-                           
+
+(* 
+ * if the key is in an EACInit state at the end of itsl, then 
+ * there cannot be an log entries with key k 
+ *)
+let lemma_eac_init_implies_no_key_entries 
+  (#n:pos)
+  (itsl: its_log n)
+  (k:key):
+  Lemma (requires (eac_state_of_key itsl k = EACInit))
+        (ensures (not (has_some_entry_of_key itsl k))) = 
+  let tsle = time_seq_ext itsl in          
+
+  (* partition of log stream of key k *)
+  let tslek = partn eac_sm k tsle in
+  assert(seq_machine_run eac_smk tslek = EACInit);
+
+  (* partition is of length 0 *)
+  lemma_notempty_implies_noninit eac_smk tslek;
+  assert(length tslek = 0);
+
+  if has_some_entry_of_key itsl k then (  
+    (* if there is some entry of key k, we can find an index into tslek, a contradiction *)
+    let i = last_index (entry_of_key k) itsl in
+    let j = filter_index_inv_map (iskey vlog_entry_ext_key k) tsle i in  
+    ()
+  )
+  else ()
+
 (* the first operation for a key cannot be a blum add *)
 let lemma_non_eac_init_addb (#n)
-  (itsl: non_eac_ts_log n{last_valid_eac_state itsl = EACInit /\
-                           AddB? (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen =
+  (itsl: non_eac_ts_log n{
+    g_hash_verifiable (partition_idx_seq itsl) /\
+    last_valid_eac_state itsl = EACInit /\
+                          AddB? (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen =
+  (* hash verifiable - evict hash and add hash equal *)                          
+  let gl = partition_idx_seq itsl in                           
+  assert(g_hadd gl = g_hevict gl);
+
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
   let (e,tid) = index itsl i in
@@ -173,37 +207,53 @@ let lemma_non_eac_init_addb (#n)
   (* the i'th entry is a blum add *)
   assert(is_blum_add (index itsl i));
   let be = blum_add_elem (index itsl i) in
-
   
-  assert(to_vlog_entry (index tsle i) = e);
+  (* pre-condition: state of key after processing i entries i EACInit *)
   let itsli = its_prefix itsl i in
-  let tslei = time_seq_ext itsli in
-  assert(tslei = prefix tsle i);
-  let tsleik = partn eac_sm k tslei in
-  
-  lemma_notempty_implies_noninit eac_smk tsleik;
-  assert(length tsleik = 0);
+  assert(eac_state_of_key itsli k = EACInit);
 
+  (* the first i entries cannot contain any entry with key k *)
+  lemma_eac_init_implies_no_key_entries itsli k;
+  assert(not (has_some_entry_of_key itsli k));
 
-
-
+  (* if the add element be is in the evict set *)
   if contains be (ts_evict_set itsl) then (
     (* the evict that corresponds to blum add happens before i *)
     let j = index_blum_evict itsl be in
     lemma_evict_before_add itsl i;
     assert(j < i);
 
-    assert(blum_evict_elem itsl j = be);
-    assert(MH.key_of be = key_of itsl j);        
-    assert(k = key_of itsl j);
-
-    admit()                           
+    (* this emplies itsli contains an entry with key k *)
+    (* a contradiction *)
+    lemma_last_index_correct2 (entry_of_key k) itsli j;
+    
+    hash_collision_contra ()                           
   )
-  else
-  
-    admit()
+  else (  
+    lemma_add_elem_correct itsl i;
+    lemma_ts_add_set_correct itsl;
+    lemma_ts_evict_set_correct itsl;
 
-let lemma_non_eac_time_seq_implies_hash_collision (#n:pos) (itsl: non_eac_ts_log n): hash_collision_gen = 
+    assert(contains be (ts_add_set itsl));
+    assert(not (contains be (ts_evict_set itsl)));
+    
+    lemma_ts_add_set_correct itsl;
+    lemma_ts_evict_set_correct itsl;
+
+    assert(ts_add_set itsl == g_add_set gl);
+    assert(ts_evict_set itsl == g_evict_set gl);
+    MS.lemma_not_equal (g_add_set gl) (g_evict_set gl) be;    
+    assert(~ (g_add_set gl == g_evict_set gl));
+
+    lemma_g_hadd_correct gl;
+    lemma_ghevict_correct gl;
+
+    MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
+  )
+
+let lemma_non_eac_time_seq_implies_hash_collision 
+  (#n:pos) 
+  (itsl: non_eac_ts_log n{g_hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
   let st = last_valid_eac_state itsl in
   let ee = invalidating_log_entry itsl in
   match st with

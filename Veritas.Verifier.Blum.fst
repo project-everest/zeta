@@ -118,9 +118,10 @@ let rec lemma_hevict_evict_set (il:t_verifiable_log):
     | _ -> ()
   )
 
-(* sequence of blum adds in a time sequenced log *)
-let ts_add_seq (#n:pos) (itsl: its_log n): seq ms_hashfn_dom =
-  map blum_add_elem (filter_refine is_blum_add itsl)
+let lemma_add_elem_correct (#n:pos) (itsl: its_log n) (i:seq_index itsl{is_blum_add (index itsl i)}):
+  Lemma (requires (is_blum_add (index itsl i)))
+        (ensures (contains (blum_add_elem (index itsl i)) (ts_add_set itsl))) = admit()
+
 
 let ts_add_seq_key (#n:pos) (itsl: its_log n) (k:key): seq ms_hashfn_dom
  = admit()

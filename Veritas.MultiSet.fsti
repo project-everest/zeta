@@ -26,6 +26,10 @@ val lemma_eq_elim (#a:eqtype) (s1 s2: mset a):
   Lemma (requires (equal s1 s2))
         (ensures (s1 == s2))
 
+val lemma_not_equal (#a:eqtype) (s1 s2: mset a) (x: a):
+  Lemma (requires (mem x s1 <> mem x s2))
+        (ensures (~(s1 == s2)))
+
 (* empty set *)
 val empty (#a:eqtype): Tot (mset a)
 

@@ -52,11 +52,16 @@ let blum_add_elem (#p:nat) (ie:idx_elem #vlog_entry p{is_blum_add ie}):
   | AddB r t j -> MHDom r t j
 
 (* sequence of blum adds in the time sequenced log *)
-val ts_add_seq (#n:pos) (itsl: its_log n): seq ms_hashfn_dom
+let ts_add_seq (#n:pos) (itsl: its_log n): seq ms_hashfn_dom =
+  map blum_add_elem (filter_refine is_blum_add itsl)
 
 (* the addset in a time sequenced log *)
 let ts_add_set (#n:pos) (itsl: its_log n): mset ms_hashfn_dom 
   = seq2mset (ts_add_seq itsl)
+
+val lemma_add_elem_correct (#n:pos) (itsl: its_log n) (i:seq_index itsl{is_blum_add (index itsl i)}):
+  Lemma (requires (is_blum_add (index itsl i)))
+        (ensures (contains (blum_add_elem (index itsl i)) (ts_add_set itsl)))
 
 (* sequence of blum adds restricted to key k *)
 val ts_add_seq_key (#n:pos) (itsl: its_log n) (k:key): seq ms_hashfn_dom

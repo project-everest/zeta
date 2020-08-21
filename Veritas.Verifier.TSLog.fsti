@@ -26,6 +26,9 @@ type clock_sorted (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable 
 type its_log (p:pos) = 
   s:seq (idx_elem #vlog_entry p){partition_verifiable p s /\ clock_sorted p s}
 
+type its_hash_verifiable_log (p:pos) = 
+  itsl:its_log p {g_hash_verifiable (partition_idx_seq itsl)}
+
 (* prefix of an its log *)
 val its_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}): 
   (itsl':its_log p{itsl' = prefix itsl i})
@@ -140,3 +143,10 @@ val lemma_evict_value_correct_type (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_s
 let key_of (#p:pos) (itsl: its_log p) (i: seq_index itsl): key = 
   let (e,_) = index itsl i in
   vlog_entry_key e
+
+let entry_of_key (k:key) (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
+  let (e,_) = ie in
+  vlog_entry_key e = k
+
+let has_some_entry_of_key (#p:pos) (itsl: its_log p) (k:key): bool = 
+  exists_sat_elems (entry_of_key k) itsl
