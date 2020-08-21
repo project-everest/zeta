@@ -130,46 +130,37 @@ let lemma_non_eac_init_requires_key_in_store (#n:pos)
                            requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl)) /\
                            Root <> vlog_entry_key (to_vlog_entry (invalidating_log_entry itsl))}):  
   hash_collision_gen = 
-  admit()
-  (*
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
- 
   let itsli = its_prefix itsl i in
   let itsli' = its_prefix itsl (i + 1) in
   let tid = its_thread_id itsl i in
   let e = its_vlog_entry itsl i in
+  //assert(e = its_vlog_entry itsli' (length itsli' - 1));
   lemma_verifier_thread_state_extend itsli';
-  assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
-  
+  //assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
   let k = vlog_entry_key e in
   lemma_eac_state_init_store itsli k tid;
   hash_collision_contra ()
-  *)
+
 
 (* the first operation for a key cannot be evict *)
 let lemma_non_eac_init_evict (#n:pos)
   (itsl: non_eac_ts_log n{last_valid_eac_state itsl = EACInit /\
                            requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl)) /\
                            is_evict (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen =
-  admit()
-  (*
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
- 
   let itsli = its_prefix itsl i in
   let itsli' = its_prefix itsl (i + 1) in
   let tid = its_thread_id itsl i in  
   let e = its_vlog_entry itsl i in  
   lemma_verifier_thread_state_extend itsli';
-  assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
-
   let k = vlog_entry_key e in
   lemma_root_never_evicted (verifier_thread_state itsli tid) e;  
   assert(k <> Root);                               
   lemma_non_eac_init_requires_key_in_store itsl
-  *)
-
+                           
 (* the first operation for a key cannot be a blum add *)
 let lemma_non_eac_init_addb (#n)
   (itsl: non_eac_ts_log n{last_valid_eac_state itsl = EACInit /\
