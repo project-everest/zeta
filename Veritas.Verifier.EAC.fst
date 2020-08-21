@@ -262,8 +262,10 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | NEvict (Get _ _) -> lemma_non_eac_init_requires_key_in_store itsl
       | NEvict (Put _ _) -> lemma_non_eac_init_requires_key_in_store itsl
       | NEvict (AddB _ _ _) -> lemma_non_eac_init_addb itsl
+      | NEvict (AddM _ _) -> admit()
       | Evict (EvictM _ _) _ -> lemma_non_eac_init_evict itsl
-      | _ -> admit()
+      | Evict (EvictB _ _) _ -> lemma_non_eac_init_evict itsl
+      | Evict (EvictBM _ _ _) _ -> lemma_non_eac_init_evict itsl
     )
   | EACInStore m v -> admit()
   | EACEvicted m v -> admit()
