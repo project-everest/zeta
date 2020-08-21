@@ -1,15 +1,8 @@
 module Veritas.Verifier.Merkle
 
 open FStar.Seq
-open Veritas.BinTree
 open Veritas.BinTreePtr
-
-open Veritas.EAC
 open Veritas.Interleave
-open Veritas.Key
-open Veritas.Record
-open Veritas.Verifier
-open Veritas.Verifier.CorrectDefs
 
 
 (* eac_value is either empty or points to a a descendant *)

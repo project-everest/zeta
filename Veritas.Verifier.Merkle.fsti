@@ -5,6 +5,7 @@ open Veritas.Hash
 open Veritas.Key
 open Veritas.Record
 open Veritas.Verifier.CorrectDefs
+open Veritas.Verifier.TSLog
 
 let mv_points_to_none (v: merkle_value) (d:bin_tree_dir): bool = 
   desc_hash_dir v d = Empty

@@ -36,6 +36,10 @@ let ts_leq (t1 t2: timestamp) =
 type ms_hashfn_dom = 
   | MHDom: r:record -> t:timestamp -> i:nat -> ms_hashfn_dom
 
+let key_of (e:ms_hashfn_dom): key = 
+  match e with
+  | MHDom (k,_) _ _ -> k
+
 (* 
  * incremental multiset hash function - update the 
  * hash given a new element

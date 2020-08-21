@@ -7,6 +7,10 @@ val mset (a:eqtype): Type0
 (* membership: how many copies of x are in multiset s *)
 val mem (#a:eqtype) (x:a) (s:mset a): Tot nat
 
+(* does a multiset contain an element x *)
+let contains (#a:eqtype) (x:a) (s:mset a) = 
+  mem x s > 0
+
 (* equality of two multisets *)
 val equal (#a:eqtype) (s1 s2:mset a): Tot prop
 
@@ -53,3 +57,5 @@ val lemma_union_assoc (#a:eqtype) (s1 s2 s3: mset a):
 val lemma_union_append (#a:eqtype) (s1 s2: seq a):
   Lemma (seq2mset (append s1 s2) == union (seq2mset s1) (seq2mset s2))
 
+(* a multiset is a pure set if there is at most one copy of each element *)
+let is_set (#a:eqtype) (s: mset a) = forall (x:a). mem x s <= 1

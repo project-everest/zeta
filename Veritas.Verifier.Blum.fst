@@ -1,13 +1,6 @@
 module Veritas.Verifier.Blum
 
-open FStar.Seq
 open Veritas.EAC
-open Veritas.Interleave
-open Veritas.MultiSet
-open Veritas.MultiSetHash
-open Veritas.SeqAux
-open Veritas.Verifier
-open Veritas.Verifier.CorrectDefs
 
 (* get the add seq of a log *)
 let rec add_seq (il:t_verifiable_log): 
@@ -58,10 +51,6 @@ let g_add_seq (gl: g_verifiable_log): seq (ms_hashfn_dom) =
   let l_adds = map add_seq gl' in
   reduce (Seq.empty #ms_hashfn_dom) append l_adds
 
-(* multiset derived from all the blum adds in gl *)
-let g_add_set (gl: g_verifiable_log): mset ms_hashfn_dom =
-  seq2mset (g_add_seq gl)
-
 (* the hadd that the verifier computes is the multiset hash of all the adds *)
 let lemma_g_hadd_correct (gl: g_verifiable_log):
   Lemma (g_hadd gl = ms_hashfn (g_add_seq gl)) = admit()
@@ -99,22 +88,11 @@ let g_evict_seq (gl: g_verifiable_log): seq ms_hashfn_dom =
   let l_evicts = map evict_seq gl' in
   reduce (Seq.empty #ms_hashfn_dom) append l_evicts 
 
-let g_evict_set (gl: g_verifiable_log): mset ms_hashfn_dom = 
-  seq2mset (g_evict_seq gl)
+let g_evict_set_is_set (gl: g_verifiable_log): 
+  Lemma (is_set (g_evict_set gl)) = admit()
 
 let lemma_ghevict_correct (gl: g_verifiable_log):
   Lemma (g_hevict gl = ms_hashfn (g_evict_seq gl)) = admit()
-
-(* the thread id of a verifier remains unchanged *)
-let rec lemma_thread_id (il:t_verifiable_log):
-  Lemma (requires True)
-        (ensures (thread_id (t_verify (fst il) (snd il)) = (fst il)))
-        (decreases (tv_length il)) = 
-  let (id,l) = il in
-  let n = length l in
-  if n = 0 then ()
-  else
-    lemma_thread_id (id, hprefix l)
 
 let rec lemma_hevict_evict_set (il:t_verifiable_log):
   Lemma (requires True)
@@ -140,33 +118,25 @@ let rec lemma_hevict_evict_set (il:t_verifiable_log):
     | _ -> ()
   )
 
-type blum_add_log_entry = e:vlog_entry {AddB? e}
-
 (* sequence of blum adds in a time sequenced log *)
-let ts_add_seq (#n:nat) (itsl: its_log n): seq ms_hashfn_dom =
-  (* all log entries *)
-  let l = project_seq itsl in
-  (* blum add log entries *)
-  let ba: seq blum_add_log_entry = filter_refine AddB? l in
-  map (fun (e:blum_add_log_entry) -> match e with
-                                   | AddB r t j -> MHDom r t j) 
-      ba
+let ts_add_seq (#n:pos) (itsl: its_log n): seq ms_hashfn_dom =
+  map blum_add_elem (filter_refine is_blum_add itsl)
 
-(* the addset in a time sequenced log *)
-let ts_add_set (#n:nat) (itsl: its_log n): mset ms_hashfn_dom 
-  = seq2mset (ts_add_seq itsl)
+let ts_add_seq_key (#n:pos) (itsl: its_log n) (k:key): seq ms_hashfn_dom
+ = admit()
 
-let lemma_ts_add_set_correct (#n:nat) (itsl: its_log n): 
+let lemma_ts_add_set_correct (#n:pos) (itsl: its_log n): 
   Lemma (ts_add_set itsl == g_add_set (partition_idx_seq itsl)) = admit()
 
-let is_blum_evict (#n:nat) (itsl: its_log n) (i: seq_index itsl): bool = 
+let is_blum_evict (#n:pos) (itsl: its_log n) (i: seq_index itsl): bool = 
   let (e,_) = index itsl i in
   match e with
   | EvictB _ _ -> true
   | EvictBM _ _ _ -> true
   | _ -> false
 
-let blum_evict_elem (#n:nat) (itsl:its_log n) (i:seq_index itsl{is_blum_evict itsl i}): ms_hashfn_dom = 
+let blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict itsl i}):
+  (e:ms_hashfn_dom{M.key_of e = TL.key_of itsl i}) =
   let (e,id) = index itsl i in
   let tsle = time_seq_ext itsl in
   assert(project_seq itsl = to_vlog tsle);
@@ -180,18 +150,28 @@ let blum_evict_elem (#n:nat) (itsl:its_log n) (i:seq_index itsl{is_blum_evict it
     let v = Evict?.v (index tsle i) in
     MHDom (k,v) t id
  
-let rec ts_evict_seq (#n:nat) (itsl: its_log n): Tot (seq ms_hashfn_dom) 
+let rec ts_evict_seq_aux (#n:pos) (itsl: its_log n): Tot (seq ms_hashfn_dom) 
   (decreases (length itsl)) =
   let m = length itsl in 
   if m = 0 then Seq.empty #ms_hashfn_dom
   else if is_blum_evict itsl (m - 1) then
-    append1 (ts_evict_seq (its_prefix itsl (m - 1))) (blum_evict_elem itsl (m - 1))   
+    append1 (ts_evict_seq_aux (its_prefix itsl (m - 1))) (blum_evict_elem itsl (m - 1))   
   else
-    ts_evict_seq (its_prefix itsl (m - 1))
+    ts_evict_seq_aux (its_prefix itsl (m - 1))
 
-let ts_evict_set (#n:nat) (itsl: its_log n): mset ms_hashfn_dom = 
-  seq2mset (ts_evict_seq itsl)
+let ts_evict_seq = ts_evict_seq_aux
 
-let lemma_ts_evict_set_correct (#n:nat) (itsl: its_log n):
+let ts_evict_seq_key (#n:pos) (itsl: its_log n) (k:key): seq ms_hashfn_dom = 
+  admit()
+
+let lemma_ts_evict_set_correct (#n:pos) (itsl: its_log n):
   Lemma (ts_evict_set itsl == g_evict_set (partition_idx_seq itsl)) = admit()
 
+let index_blum_evict (#p:pos) (itsl: its_log p) (e: ms_hashfn_dom {contains e (ts_evict_set itsl)}):
+  (i:seq_index itsl{is_blum_evict itsl i /\ 
+                    blum_evict_elem itsl i = e}) = admit()
+
+let lemma_evict_before_add (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_add (index itsl i)}):
+  Lemma (requires True)
+        (ensures (not (contains (blum_add_elem (index itsl i)) (ts_evict_set itsl)) \/
+                  index_blum_evict itsl (blum_add_elem (index itsl i)) < i)) = admit()
