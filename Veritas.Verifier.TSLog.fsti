@@ -23,8 +23,15 @@ let clock (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable p s}) (i
 type clock_sorted (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable p s}) =
   forall (i:seq_index s). i > 0 ==> clock p s (i - 1) `ts_leq` clock p s i
 
+(* TODO: this makes the emacs interactive fstar unstable *)
 type its_log (p:pos) = 
   s:seq (idx_elem #vlog_entry p){partition_verifiable p s /\ clock_sorted p s}
+  
+
+(*
+type its_log (p:pos) = 
+  s:seq (idx_elem #vlog_entry p){partition_verifiable p s}
+*)
 
 type its_hash_verifiable_log (p:pos) = 
   itsl:its_log p {g_hash_verifiable (partition_idx_seq itsl)}
@@ -44,6 +51,12 @@ val lemma_its_prefix_ext (#n:pos) (itsl:its_log n) (i:nat{i <= length itsl}):
   
 type eac_ts_log (p:pos) = itsl: its_log p {is_eac_log (time_seq_ext itsl)}
 type non_eac_ts_log (p:pos) = itsl: its_log p {not (is_eac_log (time_seq_ext itsl))}
+
+(* if itsl is eac, then any prefix is also eac *)
+val lemma_eac_implies_prefix_eac (#p:pos) (itsl: its_log p) (i:nat {i <= length itsl}):
+  Lemma (requires True)
+        (ensures (is_eac_log (time_seq_ext (its_prefix itsl i))))
+        [SMTPat (its_prefix itsl i)]
 
 (* the eac state of a key at the end of an its log *)
 let eac_state_of_key (#p:pos) (itsl: its_log p) (k:key): eac_state = 
@@ -123,6 +136,10 @@ val lemma_eac_state_instore2 (#p:pos) (itsl: eac_ts_log p)
   Lemma (requires (id <> last_add_tid itsl k))
         (ensures (not (store_contains (thread_store (verifier_thread_state itsl id)) k)))
 
+(* if k is in a verifier store, then its eac_state is instore *)
+val lemma_instore_implies_eac_state_instore (#p:pos) (itsl:eac_ts_log p) (k:key{k <> Root}) (tid:nat{tid < p}):
+  Lemma (store_contains (thread_store (verifier_thread_state itsl tid)) k ==> is_eac_state_instore itsl k)
+         
 (* the root is always in thread 0 *)
 val lemma_root_in_store0 (#p:pos) (itsl: eac_ts_log p):
   Lemma (store_contains (thread_store (verifier_thread_state itsl 0)) Root)
@@ -150,3 +167,9 @@ let entry_of_key (k:key) (#p:pos) (ie:idx_elem #vlog_entry p): bool =
 
 let has_some_entry_of_key (#p:pos) (itsl: its_log p) (k:key): bool = 
   exists_sat_elems (entry_of_key k) itsl
+
+let its_vlog_entry (#n:pos) (itsl: its_log n) (i:seq_index itsl): vlog_entry =
+  fst (index itsl i)
+
+let its_thread_id (#n:pos) (itsl: its_log n) (i:seq_index itsl): (tid:nat{tid < n}) =
+  snd (index itsl i)

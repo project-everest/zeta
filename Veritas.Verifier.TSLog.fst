@@ -83,6 +83,13 @@ let lemma_its_prefix_ext (#n:pos) (itsl:its_log n) (i:nat{i <= length itsl}):
         (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i)) = 
   admit()
 
+(* if itsl is eac, then any prefix is also eac *)
+let lemma_eac_implies_prefix_eac (#p:pos) (itsl: its_log p) (i:nat {i <= length itsl}):
+  Lemma (requires True)
+        (ensures (is_eac_log (time_seq_ext (its_prefix itsl i))))
+        [SMTPat (its_prefix itsl i)] = admit()
+
+
 (* 
  * when the eac state of a key is Init (no operations on the key yet) no 
  * thread contains the key in its store 
@@ -112,6 +119,10 @@ let lemma_eac_state_instore2 (#p:pos) (itsl: eac_ts_log p)
   (k:key{is_eac_state_instore itsl k}) (id:nat{id < p}):
   Lemma (requires (id <> last_add_tid itsl k))
         (ensures (not (store_contains (thread_store (verifier_thread_state itsl id)) k))) = admit()
+
+let lemma_instore_implies_eac_state_instore (#p:pos) (itsl:eac_ts_log p) (k:key{k <> Root}) (tid:nat{tid < p}):
+  Lemma (store_contains (thread_store (verifier_thread_state itsl tid)) k ==> is_eac_state_instore itsl k) = 
+  admit()
 
 (* the root is always in thread 0 *)
 let lemma_root_in_store0 (#p:pos) (itsl: eac_ts_log p):

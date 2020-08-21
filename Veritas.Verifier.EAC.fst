@@ -15,6 +15,7 @@ open Veritas.State
 open Veritas.Verifier
 open Veritas.Verifier.Blum
 open Veritas.Verifier.CorrectDefs
+open Veritas.Verifier.Merkle
 open Veritas.Verifier.TSLog
 
 module MS = Veritas.MultiSet
@@ -53,8 +54,11 @@ let last_valid_eac_state (#n:pos) (itsl: non_eac_ts_log n): eac_state =
   
 (* applying the invalidating entry on the last valid state produces EAC failure *)
 let lemma_invalidation (#n:pos) (itsl: non_eac_ts_log n):
-  Lemma (EACFail <> last_valid_eac_state itsl /\
-         EACFail = eac_add (invalidating_log_entry itsl) (last_valid_eac_state itsl)) =            
+  Lemma (requires True)
+        (ensures (EACFail <> last_valid_eac_state itsl /\
+                  EACFail = eac_add (invalidating_log_entry itsl) (last_valid_eac_state itsl)))
+        [SMTPat (last_valid_eac_state itsl)]
+        =            
   let tsl = project_seq itsl in
   let tsle = time_seq_ext itsl in
   
@@ -99,12 +103,6 @@ let lemma_invalidation (#n:pos) (itsl: non_eac_ts_log n):
   assert(eac_add ee st = EACFail);
 
   ()         
-
-let its_vlog_entry (#n:pos) (itsl: its_log n) (i:seq_index itsl): vlog_entry =
-  fst (index itsl i)
-
-let its_thread_id (#n:pos) (itsl: its_log n) (i:seq_index itsl): (tid:nat{tid < n}) =
-  snd (index itsl i)
 
 let lemma_verifier_thread_state_extend (#n:pos) (itsl: its_log n{length itsl > 0}):
   Lemma (verifier_thread_state itsl (its_thread_id itsl (length itsl - 1)) == 
@@ -251,18 +249,67 @@ let lemma_non_eac_init_addb (#n)
     MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
   )
 
+let lemma_non_eac_init_addm
+  (#p:pos) 
+  (itsl: non_eac_ts_log p{
+    last_valid_eac_state itsl = EACInit /\
+    AddM? (to_vlog_entry (invalidating_log_entry itsl))
+   })
+   : hash_collision_gen =
+   
+  let st = last_valid_eac_state itsl in   
+  let ee = invalidating_log_entry itsl in
+  assert(eac_add ee st = EACFail);
+
+  let tsle = time_seq_ext itsl in
+  let i = max_eac_prefix tsle in
+  let (e,tid) = index itsl i in
+  assert(to_vlog_entry ee = e);
+
+  let itsli = its_prefix itsl i in
+  let vsi = verifier_thread_state itsli tid in
+  let itsli' = its_prefix itsl (i+1) in
+  let vsi' = verifier_thread_state itsli' tid in
+  
+  lemma_verifier_thread_state_extend itsli';  
+  assert(vsi' == t_verify_step vsi e);
+
+  match e with
+  | AddM (k,v) k' -> 
+    (* otherwise eac_add ee st <> EACFail *)
+    assert(v <> init_value k);
+
+    (* verifier checks this *)
+    assert(is_proper_desc k k');
+
+    (* k' is the proving ancestor of k*)
+    lemma_addm_ancestor_is_proving itsli';
+    assert(k' = proving_ancestor itsli k);
+
+    (* k' points to none or some non-ancestor of k *)
+    assert(is_eac_state_init itsli k);
+    lemma_proving_ancestor_initial itsli k;
+
+    (* this causes the verifier to fail, a contradiction *)
+    hash_collision_contra()
+    
+
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
   (itsl: non_eac_ts_log n{g_hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
+  
   let st = last_valid_eac_state itsl in
   let ee = invalidating_log_entry itsl in
+  let tsle = time_seq_ext itsl in  
+  let i = max_eac_prefix tsle in
+  
   match st with
   | EACInit -> (
       match ee with 
       | NEvict (Get _ _) -> lemma_non_eac_init_requires_key_in_store itsl
       | NEvict (Put _ _) -> lemma_non_eac_init_requires_key_in_store itsl
       | NEvict (AddB _ _ _) -> lemma_non_eac_init_addb itsl
-      | NEvict (AddM _ _) -> admit()
+      | NEvict (AddM (k,v) _) -> lemma_non_eac_init_addm itsl
       | Evict (EvictM _ _) _ -> lemma_non_eac_init_evict itsl
       | Evict (EvictB _ _) _ -> lemma_non_eac_init_evict itsl
       | Evict (EvictBM _ _ _) _ -> lemma_non_eac_init_evict itsl

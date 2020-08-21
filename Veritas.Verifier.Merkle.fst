@@ -1,6 +1,5 @@
 module Veritas.Verifier.Merkle
 
-open FStar.Seq
 open Veritas.BinTreePtr
 open Veritas.Interleave
 
@@ -57,6 +56,25 @@ let lemma_proving_ancestor_initial (#p:pos) (itsl: eac_ts_log p) (k:key{k <> Roo
                   not (is_desc k (mv_pointed_key (to_merkle_value (eac_value itsl (proving_ancestor itsl k)))
                                                  (desc_dir k (proving_ancestor itsl k)))))) = admit()
 
+(* if the proving ancestor of k is not Root, then Root points to some proper ancestor of 
+ * k along that direction *)
+let lemma_non_proving_ancestor_root (#p:pos) (itsl: eac_ts_log p) (k:key{k <> Root}):
+  Lemma (requires (Root <> proving_ancestor itsl k))
+        (ensures (is_proper_desc k Root /\
+                  mv_points_to_some (eac_merkle_value itsl Root)
+                                    (desc_dir k Root) /\
+                  is_proper_desc k (mv_pointed_key (eac_merkle_value itsl Root)
+                                                   (desc_dir k Root)))) = admit()
+
+(* version of the previous lemma for non-root keys *)
+let lemma_non_proving_ancestor (#p:pos) (itsl: eac_ts_log p) (k:key{k <> Root}) (k':key{is_proper_desc k k'}):
+  Lemma (requires (k' <> proving_ancestor itsl k) /\ not (is_eac_state_init itsl k))
+        (ensures (mv_points_to_some (eac_merkle_value itsl k')
+                                    (desc_dir k k')) /\
+                 (is_proper_desc k (mv_pointed_key (eac_merkle_value itsl k')
+                                                   (desc_dir k k')))) = admit()
+
+
 let lemma_proving_ancestor_has_hash (#p:pos) (itsl: eac_ts_log p) (k:key{k<> Root}):
   Lemma (requires (is_eac_state_evicted_merkle itsl k))
         (ensures (mv_pointed_hash (eac_merkle_value itsl (proving_ancestor itsl k))
@@ -70,3 +88,9 @@ let lemma_proving_ancestor_blum_bit (#p:pos) (itsl: eac_ts_log p) (k:key{k <> Ro
                                      (desc_dir k (proving_ancestor itsl k)) = 
                   is_eac_state_evicted_blum itsl k)) = admit()
       
+let lemma_addm_ancestor_is_proving (#p:pos) (itsl: eac_ts_log p {length itsl > 0}):
+  Lemma (requires (AddM? (its_vlog_entry itsl (length itsl - 1))))
+        (ensures (Root <> vlog_entry_key (its_vlog_entry itsl (length itsl - 1)) /\        
+                  AddM?.k' (its_vlog_entry itsl (length itsl - 1)) = 
+                  proving_ancestor (its_prefix itsl (length itsl - 1))
+                                   (vlog_entry_key (its_vlog_entry itsl (length itsl - 1))))) = admit()
