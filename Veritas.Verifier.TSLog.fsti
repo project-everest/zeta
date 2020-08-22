@@ -23,15 +23,13 @@ let clock (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable p s}) (i
 type clock_sorted (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable p s}) =
   forall (i:seq_index s). i > 0 ==> clock p s (i - 1) `ts_leq` clock p s i
 
-(* TODO: this makes the emacs interactive fstar unstable *)
+(* TODO: this makes the emacs interactive fstar unstable 
 type its_log (p:pos) = 
   s:seq (idx_elem #vlog_entry p){partition_verifiable p s /\ clock_sorted p s}
-  
+  *)
 
-(*
 type its_log (p:pos) = 
   s:seq (idx_elem #vlog_entry p){partition_verifiable p s}
-*)
 
 type its_hash_verifiable_log (p:pos) = 
   itsl:its_log p {g_hash_verifiable (partition_idx_seq itsl)}
@@ -127,7 +125,9 @@ let last_add_tid (#p:pos) (itsl: eac_ts_log p) (k: key{is_eac_state_instore itsl
 
 (* if the eac_state of k is instore, then that k is in the store of the verifier thread of its last add *)
 val lemma_eac_state_instore (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_instore itsl k}):
-  Lemma (store_contains (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k)
+  Lemma (store_contains (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k /\
+         stored_value (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k = 
+         EACInStore?.v (eac_state_of_key itsl k))
 
 (* if the eac state of k is instore, then k is not in the store of any verifier thread other than 
  * its last add thread *)

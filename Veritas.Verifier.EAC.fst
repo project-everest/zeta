@@ -294,6 +294,59 @@ let lemma_non_eac_init_addm
     hash_collision_contra()
     
 
+let lemma_non_eac_instore_get (#p:pos)   
+  (itsl: non_eac_ts_log p{
+    EACInStore? (last_valid_eac_state itsl)  /\
+    Get? (to_vlog_entry (invalidating_log_entry itsl))
+   })
+  : hash_collision_gen = 
+  let st = last_valid_eac_state itsl in   
+  let ee = invalidating_log_entry itsl in
+  assert(eac_add ee st = EACFail);
+
+  let tsle = time_seq_ext itsl in
+  let i = max_eac_prefix tsle in
+  let (e,tid) = index itsl i in
+  assert(to_vlog_entry ee = e);
+
+  let itsli = its_prefix itsl i in
+  let vsi = verifier_thread_state itsli tid in
+  let itsli' = its_prefix itsl (i+1) in
+  let vsi' = verifier_thread_state itsli' tid in
+  
+  lemma_verifier_thread_state_extend itsli';  
+  assert(vsi' == t_verify_step vsi e);
+
+  match st with 
+  | EACInStore m v -> (
+    match ee with 
+    | NEvict (Get k v') -> 
+      (* otherwise there will not be an eac failure *)
+      assert(DVal v' <> v);
+
+      (* the thread id where k was last added *)
+      let tid_add = last_add_tid itsli k in
+
+      (* we expect the get operation to go to tid of last add *)
+      if tid_add = tid then (
+        lemma_eac_state_instore itsli k;
+
+        (* the stored value of k = v <> v' *)
+        assert(stored_value (thread_store vsi) k = v);
+
+        (* this implies a verification failure, a contradiction *)
+        hash_collision_contra()
+      )
+      else (
+        (* if the get goes to tid <> tid_add, then the cache of tid does not contain k *)   
+        lemma_eac_state_instore2 itsli k tid;
+        assert(not (store_contains (thread_store vsi) k));
+
+        (* this implies that verification fails on get, a contradiction *)
+        hash_collision_contra()
+      )
+  )
+
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
   (itsl: non_eac_ts_log n{g_hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
@@ -314,5 +367,23 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | Evict (EvictB _ _) _ -> lemma_non_eac_init_evict itsl
       | Evict (EvictBM _ _ _) _ -> lemma_non_eac_init_evict itsl
     )
-  | EACInStore m v -> admit()
-  | EACEvicted m v -> admit()
+  | EACInStore m v -> (
+    match ee with 
+      | NEvict (Get _ _) -> lemma_non_eac_instore_get itsl
+      | NEvict (Put _ _) -> admit()
+      | NEvict (AddB _ _ _) -> admit()
+      | NEvict (AddM (k,v) _) -> admit()
+      | Evict (EvictM _ _) _ -> admit()
+      | Evict (EvictB _ _) _ -> admit()
+      | Evict (EvictBM _ _ _) _ -> admit()
+  )
+  | EACEvicted m v -> (
+    match ee with 
+      | NEvict (Get _ _) -> admit()
+      | NEvict (Put _ _) -> admit()
+      | NEvict (AddB _ _ _) -> admit()
+      | NEvict (AddM (k,v) _) -> admit()
+      | Evict (EvictM _ _) _ -> admit()
+      | Evict (EvictB _ _) _ -> admit()
+      | Evict (EvictBM _ _ _) _ -> admit()
+  )

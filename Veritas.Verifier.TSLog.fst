@@ -111,7 +111,9 @@ let lemma_eac_state_instore_implies_prev_add (#p:pos) (itsl: eac_ts_log p) (k:ke
 
 (* if the eac_state of k is instore, then that k is in the store of the verifier thread of its last add *)
 let lemma_eac_state_instore (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_instore itsl k}):
-  Lemma (store_contains (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k) = admit()
+  Lemma (store_contains (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k /\
+         stored_value (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k = 
+         EACInStore?.v (eac_state_of_key itsl k)) = admit()
 
 (* if the eac state of k is instore, then k is not in the store of any verifier thread other than 
  * its last add thread *)
