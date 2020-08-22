@@ -30,6 +30,9 @@ val lemma_not_equal (#a:eqtype) (s1 s2: mset a) (x: a):
   Lemma (requires (mem x s1 <> mem x s2))
         (ensures (~(s1 == s2)))
 
+(* size of a multi set *)
+val size (#a:eqtype) (s: mset a): nat
+
 (* empty set *)
 val empty (#a:eqtype): Tot (mset a)
 
@@ -63,3 +66,15 @@ val lemma_union_append (#a:eqtype) (s1 s2: seq a):
 
 (* a multiset is a pure set if there is at most one copy of each element *)
 let is_set (#a:eqtype) (s: mset a) = forall (x:a). mem x s <= 1
+
+(* if one multiset s1 is larger than the other (s2) we can find an element whose membership in s1 is larger *)
+val diff_elem (#a:eqtype) (s1: mset a) (s2: mset a{size s1 > size s2}): (x:a{mem x s1 > mem x s2})
+
+(* add an element to a multiset *)
+val add_elem (#a:eqtype) (s: mset a) (x:a): mset a
+
+(* add increases the size by 1 *)
+val lemma_add_size (#a:eqtype) (s:mset a) (x:a):
+  Lemma (requires True)
+        (ensures (size (add_elem s x) = size s + 1))
+        [SMTPat (add_elem s x)]
