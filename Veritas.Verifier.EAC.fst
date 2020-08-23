@@ -454,7 +454,79 @@ let lemma_non_eac_instore_addb (#p:pos)
   lemma_ghevict_correct gl;
 
   MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
+
+let lemma_non_eac_instore_addm (#p:pos)   
+  (itsl: non_eac_ts_log p{
+    EACInStore? (last_valid_eac_state itsl)  /\
+    AddM? (to_vlog_entry (invalidating_log_entry itsl))
+   })
+  : hash_collision_gen = 
+
+  let tsle = time_seq_ext itsl in
+  let i = max_eac_prefix tsle in
+  let (e,tid) = index itsl i in
+  let k = vlog_entry_key e in
+
+  let itsli = its_prefix itsl i in  
+  (* verifier thread state of tid after itsli *)
+  let vsi = verifier_thread_state itsli tid in
   
+  lemma_eac_state_instore itsli k;
+
+  (* the tid of the last add to k prior to i *)
+  let ltid = last_add_tid itsli k in
+
+  let itsli' = its_prefix itsl (i + 1) in
+  let vsi' = verifier_thread_state itsli tid in    
+  lemma_verifier_thread_state_extend itsli';  
+  assert(vsi' == t_verify_step vsi e);    
+
+  if ltid = tid then (
+    (* the store of tid contains the key k already *)
+    assert(store_contains (thread_store vsi) k);
+
+
+    (* if store of tid already contained k then verifier should fail - a contradiction *)
+    hash_collision_contra()
+  )
+  else (
+    match e with
+    | AddM _ k' ->
+
+    (* k' is the proving ancestor of k *)
+    lemma_addm_ancestor_is_proving itsli';
+    assert(k' = proving_ancestor itsli k);
+
+    (* thread store of tid contains k' *)
+    assert(store_contains (thread_store vsi) k');
+
+    (* k is present in the store of last add - ltid *)
+    assert(store_contains (thread_store (verifier_thread_state itsli ltid)) k);
+
+    (* this implies k' is in the store of ltid *)
+    lemma_store_contains_proving_ancestor itsli ltid k;
+    assert(store_contains (thread_store (verifier_thread_state itsli ltid)) k);
+
+    lemma_instore_implies_eac_state_instore itsli k' ltid;
+    assert(is_eac_state_instore itsli k');
+    lemma_eac_state_instore itsli k';
+
+    (* last add thread id of k' *)
+    let ltid' = last_add_tid itsli k' in
+
+    if ltid' = ltid then (
+      (* this would imply k' is not in store of tid, a contradiction *)
+      lemma_eac_state_instore2 itsli k' tid;
+
+      hash_collision_contra()
+    )
+    else (
+      (* this would imply k' is not in the store of ltid, a contradiction *)
+      lemma_eac_state_instore2 itsli k' ltid;
+      hash_collision_contra()
+    )
+  )
+
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
   (itsl: non_eac_ts_log n{g_hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
@@ -480,7 +552,7 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | NEvict (Get _ _) -> lemma_non_eac_instore_get itsl
       | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl
       | NEvict (AddB _ _ _) -> lemma_non_eac_instore_addb itsl
-      | NEvict (AddM (k,v) _) -> admit()
+      | NEvict (AddM (k,v) _) -> lemma_non_eac_instore_addm itsl
       | Evict (EvictM _ _) _ -> admit()
       | Evict (EvictB _ _) _ -> admit()
       | Evict (EvictBM _ _ _) _ -> admit()

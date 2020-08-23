@@ -94,3 +94,9 @@ let lemma_addm_ancestor_is_proving (#p:pos) (itsl: eac_ts_log p {length itsl > 0
                   AddM?.k' (its_vlog_entry itsl (length itsl - 1)) = 
                   proving_ancestor (its_prefix itsl (length itsl - 1))
                                    (vlog_entry_key (its_vlog_entry itsl (length itsl - 1))))) = admit()
+
+ let lemma_store_contains_proving_ancestor (#p:pos) (itsl: eac_ts_log p) 
+  (tid:nat{tid < p}) (k:key{k <> Root}):
+  Lemma (store_contains (thread_store (verifier_thread_state itsl tid)) k ==>
+         store_contains (thread_store (verifier_thread_state itsl tid)) 
+                        (proving_ancestor itsl k)) = admit()
