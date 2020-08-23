@@ -396,6 +396,10 @@ let lemma_non_eac_instore_addb (#p:pos)
     AddB? (to_vlog_entry (invalidating_log_entry itsl))
    })
   : hash_collision_gen = 
+  (* hash verifiable - evict hash and add hash equal *)                          
+  let gl = partition_idx_seq itsl in                           
+  assert(g_hadd gl = g_hevict gl);
+
   let st = last_valid_eac_state itsl in   
   let ee = invalidating_log_entry itsl in
   assert(eac_add ee st = EACFail);
@@ -444,10 +448,13 @@ let lemma_non_eac_instore_addb (#p:pos)
   assert(MS.mem be (ts_add_set itsl) > MS.mem be (ts_evict_set itsl));  
   
   MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;
+  assert(~ (g_add_set gl == g_evict_set gl));
+  
+  lemma_g_hadd_correct gl;
+  lemma_ghevict_correct gl;
 
-
-  admit()
-
+  MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
+  
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
   (itsl: non_eac_ts_log n{g_hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
