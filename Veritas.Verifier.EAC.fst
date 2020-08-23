@@ -569,6 +569,42 @@ let lemma_non_eac_instore_evictm (#p:pos)
       hash_collision_contra()
     )
 
+let lemma_non_eac_instore_evictb (#p:pos)   
+  (itsl: non_eac_ts_log p{
+    EACInStore? (last_valid_eac_state itsl)  /\
+    EvictB? (to_vlog_entry (invalidating_log_entry itsl))
+   })
+  : hash_collision_gen = 
+  let st = last_valid_eac_state itsl in   
+  let ee = invalidating_log_entry itsl in
+  assert(eac_add ee st = EACFail);
+  match st with
+  | EACInStore m v -> (
+    match ee with
+    | Evict (EvictB k t) v' ->     
+      assert(DVal? v && v' <> v || m <> BAdd);    
+
+      let tsle = time_seq_ext itsl in
+      let i = max_eac_prefix tsle in
+      let (e,tid) = index itsl i in
+
+      let itsli = its_prefix itsl i in  
+      (* verifier thread state of tid after itsli *)
+      let vsi = verifier_thread_state itsli tid in
+
+      let itsli' = its_prefix itsl (i + 1) in
+      let vsi' = verifier_thread_state itsli tid in    
+      lemma_verifier_thread_state_extend itsli';  
+      assert(vsi' == t_verify_step vsi e);    
+      
+      (* the thread store of tid contains k *)
+      assert(store_contains (thread_store vsi) k);
+
+      
+
+      admit()
+  )
+
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
   (itsl: non_eac_ts_log n{g_hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
@@ -596,7 +632,7 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | NEvict (AddB _ _ _) -> lemma_non_eac_instore_addb itsl
       | NEvict (AddM (k,v) _) -> lemma_non_eac_instore_addm itsl
       | Evict (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl
-      | Evict (EvictB _ _) _ -> admit()
+      | Evict (EvictB _ _) _ -> lemma_non_eac_instore_evictb itsl
       | Evict (EvictBM _ _ _) _ -> admit()
   )
   | EACEvicted m v -> (
