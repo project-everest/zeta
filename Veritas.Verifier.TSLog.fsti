@@ -173,3 +173,16 @@ let its_vlog_entry (#n:pos) (itsl: its_log n) (i:seq_index itsl): vlog_entry =
 
 let its_thread_id (#n:pos) (itsl: its_log n) (i:seq_index itsl): (tid:nat{tid < n}) =
   snd (index itsl i)
+
+val lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index itsl):
+  Lemma (requires (is_evict (fst (index itsl i))))
+        (ensures (Evict? (index (time_seq_ext itsl) i) /\
+                  store_contains (thread_store (verifier_thread_state (its_prefix itsl i)
+                                                                      (snd (index itsl i))))
+                                 (vlog_entry_key (fst (index itsl i))) /\
+                  Evict?.v (index (time_seq_ext itsl) i) = 
+                  stored_value (thread_store (verifier_thread_state (its_prefix itsl i)
+                                                                    (snd (index itsl i))))
+                               (vlog_entry_key (fst (index itsl i)))))
+                  
+                  

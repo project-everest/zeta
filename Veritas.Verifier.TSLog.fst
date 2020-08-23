@@ -161,3 +161,14 @@ let eac_value (#n:pos) (itsl: eac_ts_log n) (k:key): value_type_of k =
       assert(store_contains st k);
 
       stored_value st k
+
+let lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index itsl):
+  Lemma (requires (is_evict (fst (index itsl i))))
+        (ensures (Evict? (index (time_seq_ext itsl) i) /\
+                  store_contains (thread_store (verifier_thread_state (its_prefix itsl i)
+                                                                      (snd (index itsl i))))
+                                 (vlog_entry_key (fst (index itsl i))) /\
+                  Evict?.v (index (time_seq_ext itsl) i) = 
+                  stored_value (thread_store (verifier_thread_state (its_prefix itsl i)
+                                                                    (snd (index itsl i))))
+                               (vlog_entry_key (fst (index itsl i))))) = admit()
