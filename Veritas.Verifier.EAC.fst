@@ -690,6 +690,33 @@ let lemma_non_eac_instore_evictbm (#p:pos)
       )
  )
 
+let lemma_non_eac_evicted_requires_key_in_store (#p:pos)   
+  (itsl: non_eac_ts_log p{
+    EACEvicted? (last_valid_eac_state itsl)  /\
+    requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl))
+   })
+  : hash_collision_gen = 
+  let st = last_valid_eac_state itsl in   
+  let ee = invalidating_log_entry itsl in
+  assert(eac_add ee st = EACFail);  
+
+  let tsle = time_seq_ext itsl in
+  let i = max_eac_prefix tsle in
+  let (e,tid) = index itsl i in
+  let k = vlog_entry_key e in
+  let itsli = its_prefix itsl i in  
+  (* verifier thread state of tid after itsli *)
+  let vsi = verifier_thread_state itsli tid in
+
+  let itsli' = its_prefix itsl (i + 1) in
+  let vsi' = verifier_thread_state itsli tid in    
+  lemma_verifier_thread_state_extend itsli';  
+  assert(vsi' == t_verify_step vsi e);    
+  
+  assert(store_contains (thread_store vsi) k);
+  lemma_eac_state_evicted_store itsli k tid;
+  hash_collision_contra()
+  
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
   (itsl: non_eac_ts_log n{g_hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
@@ -722,11 +749,11 @@ let lemma_non_eac_time_seq_implies_hash_collision
   )
   | EACEvicted m v -> (
     match ee with 
-      | NEvict (Get _ _) -> admit()
-      | NEvict (Put _ _) -> admit()
+      | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
       | NEvict (AddB _ _ _) -> admit()
       | NEvict (AddM (k,v) _) -> admit()
-      | Evict (EvictM _ _) _ -> admit()
-      | Evict (EvictB _ _) _ -> admit()
-      | Evict (EvictBM _ _ _) _ -> admit()
+      | Evict (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | Evict (EvictB _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | Evict (EvictBM _ _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
   )
