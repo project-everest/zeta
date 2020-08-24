@@ -27,10 +27,11 @@ let its_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}):
   its_prefix_aux itsl i
 
 (* extended time sequence log (with evict values) *)
-let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
+let time_seq_ext_aux (#p:pos) (itsl: its_log p):
   Tot (le:vlog_ext{project_seq itsl = to_vlog le})
   (decreases (length itsl))
-  =
+  = admit()
+  (*
   let m = length itsl in
   if m = 0 then (
     lemma_empty itsl;
@@ -75,6 +76,7 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
       r
     )
   )
+*)
 
 let time_seq_ext = time_seq_ext_aux
 
@@ -143,8 +145,7 @@ let lemma_root_not_in_store (#p:pos) (itsl: eac_ts_log p) (tid:pos {tid < p}):
 
 (* the evicted value is always of the correct type for the associated key *)
 let lemma_evict_value_correct_type (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_evicted itsl k}):
-  Lemma (is_value_of k (EACEvicted?.v (eac_state_of_key itsl k))) = admit()
-
+  Lemma (is_value_of k (E.value_of (eac_state_of_key itsl k))) = admit()
 
 (* 
  * for keys in a thread store, return the value in the thread store; 
@@ -159,7 +160,8 @@ let eac_value (#n:pos) (itsl: eac_ts_log n) (k:key): value_type_of k =
     let es = eac_state_of_key itsl k in
     match es with
     | EACInit -> init_value k 
-    | EACEvicted _ v -> lemma_evict_value_correct_type itsl k; v
+    | EACEvictedMerkle v -> lemma_evict_value_correct_type itsl k; v
+    | EACEvictedBlum v _ _ -> lemma_evict_value_correct_type itsl k; v
     | EACInStore _ _ -> 
       (* the store where the last add happened contains key k *)
       let tid = last_add_tid itsl k in
@@ -170,13 +172,15 @@ let eac_value (#n:pos) (itsl: eac_ts_log n) (k:key): value_type_of k =
 
       stored_value st k
 
+
 let lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index itsl):
   Lemma (requires (is_evict (fst (index itsl i))))
-        (ensures (Evict? (index (time_seq_ext itsl) i) /\
+        (ensures (is_evict_ext (index (time_seq_ext itsl) i) /\
                   store_contains (thread_store (verifier_thread_state (its_prefix itsl i)
                                                                       (snd (index itsl i))))
                                  (vlog_entry_key (fst (index itsl i))) /\
-                  Evict?.v (index (time_seq_ext itsl) i) = 
+                  value_ext (index (time_seq_ext itsl) i) = 
                   stored_value (thread_store (verifier_thread_state (its_prefix itsl i)
                                                                     (snd (index itsl i))))
                                (vlog_entry_key (fst (index itsl i))))) = admit()
+

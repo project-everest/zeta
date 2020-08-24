@@ -1,6 +1,7 @@
 module Veritas.Verifier.Blum
 
 open Veritas.EAC
+module E = Veritas.EAC
 
 (* get the add seq of a log *)
 let rec add_seq (il:t_verifiable_log): 
@@ -145,10 +146,10 @@ let blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict i
   assert(to_vlog_entry (index tsle i) = e);
   match e with
   | EvictB k t -> 
-    let v = Evict?.v (index tsle i) in
+    let v = value_ext (index tsle i) in
     MHDom (k,v) t id
   | EvictBM k _ t -> 
-    let v = Evict?.v (index tsle i) in
+    let v = value_ext (index tsle i) in
     MHDom (k,v) t id
  
 let rec ts_evict_seq_aux (#n:pos) (itsl: its_log n): Tot (seq ms_hashfn_dom) 

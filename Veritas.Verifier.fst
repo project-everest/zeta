@@ -342,7 +342,18 @@ let is_evict (e: vlog_entry): bool =
   | EvictB _ _ -> true
   | EvictBM _ _ _ -> true
   | _ -> false
-  
+
+let is_evict_to_merkle (e:vlog_entry): bool = 
+  match e with
+  | EvictM _ _ -> true
+  | _ -> false
+
+let is_evict_to_blum (e:vlog_entry): bool = 
+  match e with
+  | EvictB _ _ -> true
+  | EvictBM _ _ _ -> true
+  | _ -> false
+
 let is_add (e:vlog_entry): bool = 
   match e with
   | AddM _ _ -> true

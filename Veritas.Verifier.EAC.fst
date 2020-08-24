@@ -18,6 +18,7 @@ open Veritas.Verifier.CorrectDefs
 open Veritas.Verifier.Merkle
 open Veritas.Verifier.TSLog
 
+module EC = Veritas.EAC
 module MS = Veritas.MultiSet
 module MH = Veritas.MultiSetHash
 
@@ -540,7 +541,7 @@ let lemma_non_eac_instore_evictm (#p:pos)
   match st with
   | EACInStore m v -> (
     match ee with
-    | Evict (EvictM k k') v' -> 
+    | EvictMerkle (EvictM k k') v' -> 
       (* otherwise we would not have an eac failure *)
       assert(DVal? v && v' <> v);
 
@@ -581,7 +582,7 @@ let lemma_non_eac_instore_evictb (#p:pos)
   match st with
   | EACInStore m v -> (
     match ee with
-    | Evict (EvictB k t) v' ->     
+    | EvictBlum (EvictB k t) v' tid' ->     
       assert(DVal? v && v' <> v || m <> BAdd);    
 
       let tsle = time_seq_ext itsl in
@@ -642,7 +643,7 @@ let lemma_non_eac_instore_evictbm (#p:pos)
   match st with
   | EACInStore m v -> (
     match ee with
-    | Evict (EvictBM k k' t) v' ->     
+    | EvictBlum (EvictBM k k' t) v' tid' ->     
       assert(DVal? v && v' <> v || m <> MAdd);        
       let tsle = time_seq_ext itsl in
       let i = max_eac_prefix tsle in
@@ -692,7 +693,7 @@ let lemma_non_eac_instore_evictbm (#p:pos)
 
 let lemma_non_eac_evicted_requires_key_in_store (#p:pos)   
   (itsl: non_eac_ts_log p{
-    EACEvicted? (last_valid_eac_state itsl)  /\
+    EC.is_eac_state_evicted (last_valid_eac_state itsl)  /\
     requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl))
    })
   : hash_collision_gen = 
@@ -717,9 +718,9 @@ let lemma_non_eac_evicted_requires_key_in_store (#p:pos)
   lemma_eac_state_evicted_store itsli k tid;
   hash_collision_contra()
 
-let lemma_non_eac_evicted_addm (#p:pos)   
+let lemma_non_eac_evicted_merkle_addm (#p:pos)   
   (itsl: non_eac_ts_log p{
-    EACEvicted? (last_valid_eac_state itsl)  /\
+    EACEvictedMerkle? (last_valid_eac_state itsl)  /\
     AddM? (to_vlog_entry (invalidating_log_entry itsl))
    })
   : hash_collision_gen = 
@@ -727,11 +728,61 @@ let lemma_non_eac_evicted_addm (#p:pos)
   let ee = invalidating_log_entry itsl in
   assert(eac_add ee st = EACFail);  
   match st with
-  | EACEvicted m v_e -> (
+  | EACEvictedMerkle v_e -> (
     match ee with
     | NEvict (AddM (k,v) k') ->
-      assert(v_e <> v || m <> MAdd);  
+      assert(v_e <> v);
+      let tsle = time_seq_ext itsl in
+      let i = max_eac_prefix tsle in
+      let (e,tid) = index itsl i in
 
+      let itsli = its_prefix itsl i in  
+      (* verifier thread state of tid after itsli *)
+      let vsi = verifier_thread_state itsli tid in
+
+      let itsli' = its_prefix itsl (i + 1) in
+      let vsi' = verifier_thread_state itsli tid in    
+      lemma_verifier_thread_state_extend itsli';  
+      assert(vsi' == t_verify_step vsi e);    
+
+      (* k' is a proper ancestor, so k cannot be root *)
+      assert(k <> Root);
+
+      (* k' is the proving ancestor of k *)
+      lemma_addm_ancestor_is_proving itsli';
+      assert(k' = proving_ancestor itsli k);
+
+      (* k' points to k *)
+      lemma_proving_ancestor_points_to_self itsli k;
+      let mv' = to_merkle_value (stored_value (thread_store vsi) k') in
+      let d = desc_dir k k' in
+      let dh = desc_hash_dir mv' d in
+      assert(Desc?.k dh = k);
+      
+      (* verifier checks for addm *)
+      assert(Desc?.h dh = hashfn v);
+
+      (* for eac_sequences, the proving ancestor stores the evicted value v_e *)
+      lemma_proving_ancestor_has_hash itsli k;
+      assert(Desc?.h dh = hashfn v_e);
+
+      (* which gives us a hash collision *)
+      SingleHashCollision (Collision v v_e)     
+    )
+
+let lemma_non_eac_evicted_blum_addm (#p:pos)   
+  (itsl: non_eac_ts_log p{
+    EACEvictedBlum? (last_valid_eac_state itsl)  /\
+    AddM? (to_vlog_entry (invalidating_log_entry itsl))
+   })
+  : hash_collision_gen = 
+  let st = last_valid_eac_state itsl in   
+  let ee = invalidating_log_entry itsl in
+  assert(eac_add ee st = EACFail);  
+  match st with
+  | EACEvictedBlum v_e _ _ -> (
+    match ee with
+    | NEvict (AddM (k,v) k') ->
       let tsle = time_seq_ext itsl in
       let i = max_eac_prefix tsle in
       let (e,tid) = index itsl i in
@@ -759,34 +810,18 @@ let lemma_non_eac_evicted_addm (#p:pos)
       let dh = desc_hash_dir mv' d in
       assert(Desc?.k dh = k);
 
-      if m <> MAdd then (
-        assert(Desc?.b dh = false);
+      assert(Desc?.b dh = false);
 
-        (* since m = BAdd, this bit should be set to true, a contradiction *)
-        lemma_proving_ancestor_blum_bit itsli k;
-        
-        hash_collision_contra()
-      )
-      else (
-        (* otherwise, no EAC failure *)
-        assert(v_e <> v);
-
-        (* verifier checks for addm *)
-        assert(Desc?.h dh = hashfn v);
-
-        (* for eac_sequences, the proving ancestor stores the evicted value v_e *)
-        lemma_proving_ancestor_has_hash itsli k;
-        assert(Desc?.h dh = hashfn v_e);
-
-        (* which gives us a hash collision *)
-        SingleHashCollision (Collision v v_e)
-      )
+      (* since m = BAdd, this bit should be set to true, a contradiction *)
+      lemma_proving_ancestor_blum_bit itsli k;
+      
+      hash_collision_contra()
   )
 
-let lemma_non_eac_evicted_addb (#p:pos)   
+let lemma_non_eac_evicted_merkle_addb (#p:pos)   
   (itsl: non_eac_ts_log p{
     g_hash_verifiable (partition_idx_seq itsl) /\  
-    EACEvicted? (last_valid_eac_state itsl)  /\
+    EACEvictedMerkle? (last_valid_eac_state itsl)  /\
     AddB? (to_vlog_entry (invalidating_log_entry itsl))
    })
   : hash_collision_gen = 
@@ -798,11 +833,9 @@ let lemma_non_eac_evicted_addb (#p:pos)
   let ee = invalidating_log_entry itsl in
   assert(eac_add ee st = EACFail);  
   match st with
-  | EACEvicted m v_e -> (
+  | EACEvictedMerkle v_e -> (
     match ee with
     | NEvict (AddB (k,v) t j) ->
-      assert(v_e <> v || m <> BAdd);
-
       let tsle = time_seq_ext itsl in
       let i = max_eac_prefix tsle in
       let (e,tid) = index itsl i in
@@ -816,60 +849,56 @@ let lemma_non_eac_evicted_addb (#p:pos)
       lemma_verifier_thread_state_extend itsli';  
       assert(vsi' == t_verify_step vsi e);    
 
-      if m <> BAdd then (
-        (* number of blum evicts is the same as blum adds in the first i entries *)
-        lemma_evict_add_count_same_evictedm itsli k;
-        assert(MS.size (ts_add_set_key itsli k) = MS.size (ts_evict_set_key itsli k));
+
+      (* number of blum evicts is the same as blum adds in the first i entries *)
+      lemma_evict_add_count_same_evictedm itsli k;
+      assert(MS.size (ts_add_set_key itsli k) = MS.size (ts_evict_set_key itsli k));
+    
+      (* the ith element is a blum add *)
+      assert(is_blum_add #p (e,tid));
+      lemma_ts_add_set_key_extend itsli;
+      assert(ts_add_set_key itsli' k == ts_add_set_key itsli k);
       
-        (* the ith element is a blum add *)
-        assert(is_blum_add #p (e,tid));
-        lemma_ts_add_set_key_extend itsli;
-        assert(ts_add_set_key itsli' k == ts_add_set_key itsli k);
-        
-        (* the ith element is not a blum evict *)
-        assert(not (is_blum_evict itsl i));
-        lemma_ts_evict_set_key_extend2 itsli';
-        assert(ts_evict_set_key itsli' k == ts_evict_set_key itsli k);
-  
-        (* this implies that the size of the add set after processing (i+1) elements 
-           * is one larger than the evict set at this point *)
-        assert(MS.size (ts_add_set_key itsli' k) = 1 + (MS.size (ts_evict_set_key itsli' k)));
+      (* the ith element is not a blum evict *)
+      assert(not (is_blum_evict itsl i));
+      lemma_ts_evict_set_key_extend2 itsli';
+      assert(ts_evict_set_key itsli' k == ts_evict_set_key itsli k);
 
-        (* this implies that in the first (i+1) entries there is an element whose membership in 
-           * add multiset is > its membership in evict multiset *)
-        let be = diff_elem (ts_add_set_key itsli' k) (ts_evict_set_key itsli' k) in
-        lemma_mem_key_add_set_same itsli' be;
-        lemma_mem_key_evict_set_same itsli' be;  
-        assert(MS.mem be (ts_add_set itsli') > MS.mem be (ts_evict_set itsli'));
+      (* this implies that the size of the add set after processing (i+1) elements 
+         * is one larger than the evict set at this point *)
+      assert(MS.size (ts_add_set_key itsli' k) = 1 + (MS.size (ts_evict_set_key itsli' k)));
 
-        (* this implies that in the first (i+1) entries there is an element whose membership in 
-           * add multiset is > its membership in evict multiset *)
-        let be = diff_elem (ts_add_set_key itsli' k) (ts_evict_set_key itsli' k) in
-        lemma_mem_key_add_set_same itsli' be;
-        lemma_mem_key_evict_set_same itsli' be;  
-        assert(MS.mem be (ts_add_set itsli') > MS.mem be (ts_evict_set itsli'));
+      (* this implies that in the first (i+1) entries there is an element whose membership in 
+         * add multiset is > its membership in evict multiset *)
+      let be = diff_elem (ts_add_set_key itsli' k) (ts_evict_set_key itsli' k) in
+      lemma_mem_key_add_set_same itsli' be;
+      lemma_mem_key_evict_set_same itsli' be;  
+      assert(MS.mem be (ts_add_set itsli') > MS.mem be (ts_evict_set itsli'));
+
+      (* this implies that in the first (i+1) entries there is an element whose membership in 
+         * add multiset is > its membership in evict multiset *)
+      let be = diff_elem (ts_add_set_key itsli' k) (ts_evict_set_key itsli' k) in
+      lemma_mem_key_add_set_same itsli' be;
+      lemma_mem_key_evict_set_same itsli' be;  
+      assert(MS.mem be (ts_add_set itsli') > MS.mem be (ts_evict_set itsli'));
 
 
-        (* from clock orderedness any evict_set entry for be should happen before i *)
-        lemma_evict_before_add2 itsl i;
-        assert(MS.mem be (ts_evict_set itsl) = MS.mem be (ts_evict_set itsli'));
-        assert(MS.mem be (ts_add_set itsli') > MS.mem be (ts_evict_set itsl));
+      (* from clock orderedness any evict_set entry for be should happen before i *)
+      lemma_evict_before_add2 itsl i;
+      assert(MS.mem be (ts_evict_set itsl) = MS.mem be (ts_evict_set itsli'));
+      assert(MS.mem be (ts_add_set itsli') > MS.mem be (ts_evict_set itsl));
 
-        lemma_mem_monotonic be itsl (i + 1);
-        assert(MS.mem be (ts_add_set itsl) > MS.mem be (ts_evict_set itsl));  
+      lemma_mem_monotonic be itsl (i + 1);
+      assert(MS.mem be (ts_add_set itsl) > MS.mem be (ts_evict_set itsl));  
 
-        MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;
-        assert(~ (g_add_set gl == g_evict_set gl));
-  
+      MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;
+      assert(~ (g_add_set gl == g_evict_set gl));
 
-        lemma_g_hadd_correct gl;
-        lemma_ghevict_correct gl;
 
-        MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
-      )
-      else (
-        admit()
-      )
+      lemma_g_hadd_correct gl;
+      lemma_ghevict_correct gl;
+
+      MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))      
   )
 
 let lemma_non_eac_time_seq_implies_hash_collision 
@@ -888,9 +917,9 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | NEvict (Put _ _) -> lemma_non_eac_init_requires_key_in_store itsl
       | NEvict (AddB _ _ _) -> lemma_non_eac_init_addb itsl
       | NEvict (AddM (k,v) _) -> lemma_non_eac_init_addm itsl
-      | Evict (EvictM _ _) _ -> lemma_non_eac_init_evict itsl
-      | Evict (EvictB _ _) _ -> lemma_non_eac_init_evict itsl
-      | Evict (EvictBM _ _ _) _ -> lemma_non_eac_init_evict itsl
+      | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_init_evict itsl
+      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_init_evict itsl
+      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_init_evict itsl
     )
   | EACInStore m v -> (
     match ee with 
@@ -898,17 +927,27 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl
       | NEvict (AddB _ _ _) -> lemma_non_eac_instore_addb itsl
       | NEvict (AddM (k,v) _) -> lemma_non_eac_instore_addm itsl
-      | Evict (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl
-      | Evict (EvictB _ _) _ -> lemma_non_eac_instore_evictb itsl
-      | Evict (EvictBM _ _ _) _ -> lemma_non_eac_instore_evictbm itsl
+      | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl
+      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_instore_evictb itsl
+      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_instore_evictbm itsl
   )
-  | EACEvicted m v -> (
+  | EACEvictedMerkle v -> (
     match ee with 
       | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
       | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
-      | NEvict (AddB _ _ _) -> lemma_non_eac_evicted_addb itsl
-      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_addm itsl
-      | Evict (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
-      | Evict (EvictB _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
-      | Evict (EvictBM _ _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | NEvict (AddB _ _ _) ->  lemma_non_eac_evicted_merkle_addb itsl
+      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_merkle_addm itsl
+      | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+  )
+  | EACEvictedBlum v t tid -> (
+    match ee with 
+      | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | NEvict (AddB _ _ _) ->  admit() //lemma_non_eac_evicted_addb itsl
+      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_blum_addm itsl
+      | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
   )

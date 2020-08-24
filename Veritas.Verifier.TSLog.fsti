@@ -12,6 +12,8 @@ open Veritas.SeqMachine
 open Veritas.Verifier
 open Veritas.Verifier.CorrectDefs  
 
+module E=Veritas.EAC
+
 type partition_verifiable (p:pos) (s: seq (idx_elem #vlog_entry p)) = 
   g_verifiable (partition_idx_seq s)
 
@@ -68,20 +70,21 @@ let is_eac_state_init (#p:pos) (itsl: its_log p) (k:key): bool =
 
 (* is the key k in evicted state in *)
 let is_eac_state_evicted (#p:pos) (itsl: its_log p) (k:key): bool = 
-  EACEvicted? (eac_state_of_key itsl k)
+  EACEvictedMerkle? (eac_state_of_key itsl k) ||
+  EACEvictedBlum? (eac_state_of_key itsl k) 
 
 (* is the key currently evicted into merkle *)
 let is_eac_state_evicted_merkle (#p:pos) (itsl: its_log p) (k:key): bool = 
   let st = eac_state_of_key itsl k in
   match st with
-  | EACEvicted m v -> m = MAdd 
+  | EACEvictedMerkle v -> true
   | _ -> false
 
 (* is the key currently evicted into merkle *)
 let is_eac_state_evicted_blum (#p:pos) (itsl: its_log p) (k:key): bool = 
   let st = eac_state_of_key itsl k in
   match st with
-  | EACEvicted m v -> m = BAdd
+  | EACEvictedBlum v t j -> true
   | _ -> false
 
 (* is the key k in instore state after processing its_log *)
@@ -157,7 +160,7 @@ val lemma_root_not_in_store (#p:pos) (itsl: eac_ts_log p) (tid:pos {tid < p}):
 
 (* the evicted value is always of the correct type for the associated key *)
 val lemma_evict_value_correct_type (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_evicted itsl k}):
-  Lemma (is_value_of k (EACEvicted?.v (eac_state_of_key itsl k)))
+  Lemma (is_value_of k (E.value_of (eac_state_of_key itsl k)))
 
 (* 
  * for keys in a thread store, return the value in the thread store; 
@@ -184,13 +187,11 @@ let its_thread_id (#n:pos) (itsl: its_log n) (i:seq_index itsl): (tid:nat{tid < 
 
 val lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index itsl):
   Lemma (requires (is_evict (fst (index itsl i))))
-        (ensures (Evict? (index (time_seq_ext itsl) i) /\
+        (ensures (is_evict_ext (index (time_seq_ext itsl) i) /\
                   store_contains (thread_store (verifier_thread_state (its_prefix itsl i)
                                                                       (snd (index itsl i))))
                                  (vlog_entry_key (fst (index itsl i))) /\
-                  Evict?.v (index (time_seq_ext itsl) i) = 
+                  value_ext (index (time_seq_ext itsl) i) = 
                   stored_value (thread_store (verifier_thread_state (its_prefix itsl i)
                                                                     (snd (index itsl i))))
                                (vlog_entry_key (fst (index itsl i)))))
-                  
-                  
