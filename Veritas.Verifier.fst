@@ -255,6 +255,7 @@ let vevictb (k:key) (t:timestamp)
   if k = Root then Failed
   else if not (ts_lt clk t) then Failed
   else if not (store_contains st k) then Failed  
+  else if add_method_of st k <> BAdd then Failed
   else 
     (* current h_evict *)
     let h = thread_hevict vs in
@@ -270,6 +271,8 @@ let vevictbm (k:key) (k':merkle_key) (t:timestamp)
   let st = thread_store vs in
   if not (store_contains st k') then Failed 
   else if not (is_proper_desc k k') then Failed
+  else if not (store_contains st k) then Failed    
+  else if add_method_of st k <> MAdd then Failed  
   else
     let v' = to_merkle_value (stored_value st k') in
     let d = desc_dir k k' in
@@ -351,3 +354,8 @@ let is_add_of_key (k: key) (e:vlog_entry): bool =
   | AddM (k,_) _ -> true
   | AddB (k,_) _ _ -> true
   | _ -> false 
+
+let addm_of_entry (e:vlog_entry{is_add e}): add_method = 
+  match e with
+  | AddM _ _ -> MAdd
+  | AddB _ _ _ -> BAdd

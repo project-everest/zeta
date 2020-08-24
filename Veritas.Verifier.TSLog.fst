@@ -115,6 +115,14 @@ let lemma_eac_state_instore (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_in
          stored_value (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k = 
          EACInStore?.v (eac_state_of_key itsl k)) = admit()
 
+let lemma_eac_state_instore_addm (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_instore itsl k}):
+  Lemma (is_add (index (project_seq itsl) (last_add_idx itsl k)) /\
+         store_contains (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k /\
+         EACInStore?.m (eac_state_of_key itsl k) = 
+         addm_of_entry (index (project_seq itsl) (last_add_idx itsl k)) /\
+         EACInStore?.m (eac_state_of_key itsl k) = 
+         add_method_of (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k) = admit()
+
 (* if the eac state of k is instore, then k is not in the store of any verifier thread other than 
  * its last add thread *)
 let lemma_eac_state_instore2 (#p:pos) (itsl: eac_ts_log p) 

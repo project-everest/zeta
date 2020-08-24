@@ -600,9 +600,34 @@ let lemma_non_eac_instore_evictb (#p:pos)
       (* the thread store of tid contains k *)
       assert(store_contains (thread_store vsi) k);
 
-      
+      let lidx = last_add_idx itsli k in
+      let ltid = last_add_tid itsli k in
+      let li = project_seq itsli in
 
-      admit()
+      lemma_eac_state_instore_addm itsli k;
+      assert(addm_of_entry (index li lidx) = m);
+      assert(add_method_of (thread_store vsi) k = m);
+      assert(add_method_of (thread_store vsi) k = BAdd);
+      
+      if ltid = tid then (
+        assert(m = BAdd);
+        assert(DVal? v && v' <> v);
+        lemma_eac_state_instore itsli k;
+        assert(stored_value (thread_store vsi) k = v);
+
+        lemma_ext_evict_val_is_stored_val itsl i;      
+        assert(v' = stored_value (thread_store vsi) k);
+
+        hash_collision_contra()
+      )
+      else (    
+        (* only the store of last add contains the key k *)
+        lemma_eac_state_instore2 itsli k tid;
+        assert(not (store_contains (thread_store vsi) k));
+
+        (* ... which is a contradiction *)
+        hash_collision_contra()
+      )
   )
 
 let lemma_non_eac_time_seq_implies_hash_collision 
