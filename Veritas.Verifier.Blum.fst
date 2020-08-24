@@ -195,6 +195,12 @@ let lemma_evict_add_count_same (#p:pos) (itsl: eac_ts_log p) (k:key):
   Lemma (requires (is_eac_state_instore itsl k))
         (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = admit()
 
+(* for an eac ts log, if the eac state of a key k is evicted to merkle, the count of blum evicts 
+ * is the same of blum adds for that key *)
+let lemma_evict_add_count_same_evictedm (#p:pos) (itsl: eac_ts_log p) (k:key):
+  Lemma (requires (is_eac_state_evicted_merkle itsl k))
+        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = admit()
+
 let lemma_mem_key_add_set_same (#p:pos) (itsl: eac_ts_log p) (be: ms_hashfn_dom):
   Lemma (mem be (ts_add_set itsl) = mem be (ts_add_set_key itsl (MH.key_of be))) = admit()
 
