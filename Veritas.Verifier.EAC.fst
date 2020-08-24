@@ -630,6 +630,15 @@ let lemma_non_eac_instore_evictb (#p:pos)
       )
   )
 
+let lemma_non_eac_instore_evictbm (#p:pos)   
+  (itsl: non_eac_ts_log p{
+    EACInStore? (last_valid_eac_state itsl)  /\
+    EvictBM? (to_vlog_entry (invalidating_log_entry itsl))
+   })
+  : hash_collision_gen = 
+  admit()
+
+
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
   (itsl: non_eac_ts_log n{g_hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
@@ -658,7 +667,7 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | NEvict (AddM (k,v) _) -> lemma_non_eac_instore_addm itsl
       | Evict (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl
       | Evict (EvictB _ _) _ -> lemma_non_eac_instore_evictb itsl
-      | Evict (EvictBM _ _ _) _ -> admit()
+      | Evict (EvictBM _ _ _) _ -> lemma_non_eac_instore_evictbm itsl
   )
   | EACEvicted m v -> (
     match ee with 
