@@ -180,7 +180,7 @@ let vaddm (r:record)
                  update_thread_store vs st_upd2
                else Failed
     | Desc k2 h2 b2 -> if k2 = k then
-                         if h2 = h then
+                         if h2 = h && b2 = false then
                            update_thread_store vs (add_to_store st k v MAdd)
                          else Failed
                        else if v <> init_value k then Failed

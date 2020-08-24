@@ -716,7 +716,73 @@ let lemma_non_eac_evicted_requires_key_in_store (#p:pos)
   assert(store_contains (thread_store vsi) k);
   lemma_eac_state_evicted_store itsli k tid;
   hash_collision_contra()
-  
+
+let lemma_non_eac_evicted_addm (#p:pos)   
+  (itsl: non_eac_ts_log p{
+    EACEvicted? (last_valid_eac_state itsl)  /\
+    AddM? (to_vlog_entry (invalidating_log_entry itsl))
+   })
+  : hash_collision_gen = 
+  let st = last_valid_eac_state itsl in   
+  let ee = invalidating_log_entry itsl in
+  assert(eac_add ee st = EACFail);  
+  match st with
+  | EACEvicted m v_e -> (
+    match ee with
+    | NEvict (AddM (k,v) k') ->
+      assert(v_e <> v || m <> MAdd);  
+
+      let tsle = time_seq_ext itsl in
+      let i = max_eac_prefix tsle in
+      let (e,tid) = index itsl i in
+
+      let itsli = its_prefix itsl i in  
+      (* verifier thread state of tid after itsli *)
+      let vsi = verifier_thread_state itsli tid in
+
+      let itsli' = its_prefix itsl (i + 1) in
+      let vsi' = verifier_thread_state itsli tid in    
+      lemma_verifier_thread_state_extend itsli';  
+      assert(vsi' == t_verify_step vsi e);    
+
+      (* k' is a proper ancestor, so k cannot be root *)
+      assert(k <> Root);
+
+      (* k' is the proving ancestor of k *)
+      lemma_addm_ancestor_is_proving itsli';
+      assert(k' = proving_ancestor itsli k);
+
+      (* k' points to k *)
+      lemma_proving_ancestor_points_to_self itsli k;
+      let mv' = to_merkle_value (stored_value (thread_store vsi) k') in
+      let d = desc_dir k k' in
+      let dh = desc_hash_dir mv' d in
+      assert(Desc?.k dh = k);
+
+      if m <> MAdd then (
+        assert(Desc?.b dh = false);
+
+        (* since m = BAdd, this bit should be set to true, a contradiction *)
+        lemma_proving_ancestor_blum_bit itsli k;
+        
+        hash_collision_contra()
+      )
+      else (
+        (* otherwise, no EAC failure *)
+        assert(v_e <> v);
+
+        (* verifier checks for addm *)
+        assert(Desc?.h dh = hashfn v);
+
+        (* for eac_sequences, the proving ancestor stores the evicted value v_e *)
+        lemma_proving_ancestor_has_hash itsli k;
+        assert(Desc?.h dh = hashfn v_e);
+
+        (* which gives us a hash collision *)
+        SingleHashCollision (Collision v v_e)
+      )
+  )
+
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
   (itsl: non_eac_ts_log n{g_hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
@@ -752,7 +818,7 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
       | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
       | NEvict (AddB _ _ _) -> admit()
-      | NEvict (AddM (k,v) _) -> admit()
+      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_addm itsl
       | Evict (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
       | Evict (EvictB _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
       | Evict (EvictBM _ _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
