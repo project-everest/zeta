@@ -347,3 +347,26 @@ val lemma_reduce_append (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a)
 val lemma_reduce_append2 (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a{length s > 0}):
   Lemma (reduce b0 f s = f (index s (length s - 1)) (reduce b0 f (prefix s (length s - 1))))
 
+(* The index of the next entry that satisfies a filter predicate *)
+val next_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Tot (option (j:seq_index s{j > i && f (index s j)}))
+
+(* is there a next element in the sequence that satisfies a filter predicate *)
+let has_next (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s): bool = 
+  Some? (next_index_opt f s i)
+
+(* the next index satisfying a filter predicate *)
+let next_index (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{has_next f s i}): 
+  (j:seq_index s{j > i && f (index s j)}) = Some?.v (next_index_opt f s i)
+
+(* The index of the next entry that satisfies a filter predicate *)
+val prev_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Tot (option (j:seq_index s{j < i && f (index s j)}))
+
+(* is there a next element in the sequence that satisfies a filter predicate *)
+let has_prev (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s): bool = 
+  Some? (prev_index_opt f s i)
+
+(* the next index satisfying a filter predicate *)
+let prev_index (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{has_prev f s i}): 
+  (j:seq_index s{j < i && f (index s j)}) = Some?.v (prev_index_opt f s i)

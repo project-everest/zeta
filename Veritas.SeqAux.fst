@@ -765,3 +765,11 @@ let lemma_reduce_append (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a)
 
 let lemma_reduce_append2 (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a{length s > 0}):
   Lemma (reduce b0 f s = f (index s (length s - 1)) (reduce b0 f (prefix s (length s - 1)))) = ()
+
+(* The index of the next entry that satisfies a filter predicate *)
+let next_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Tot (option (j:seq_index s{j > i && f (index s j)})) = admit()
+
+let prev_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Tot (option (j:seq_index s{j < i && f (index s j)})) = admit()
+

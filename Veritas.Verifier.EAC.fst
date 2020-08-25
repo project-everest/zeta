@@ -21,6 +21,7 @@ open Veritas.Verifier.TSLog
 module EC = Veritas.EAC
 module MS = Veritas.MultiSet
 module MH = Veritas.MultiSetHash
+module V = Veritas.Verifier
 
 (* generalized single- and multi-set hash collision *)
 type hash_collision_gen =
@@ -147,7 +148,7 @@ let lemma_non_eac_init_requires_key_in_store (#n:pos)
 let lemma_non_eac_init_evict (#n:pos)
   (itsl: non_eac_ts_log n{last_valid_eac_state itsl = EACInit /\
                            requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl)) /\
-                           is_evict (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen =
+                           V.is_evict (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen =
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
   let itsli = its_prefix itsl i in
@@ -425,7 +426,7 @@ let lemma_non_eac_instore_addb (#p:pos)
   assert(ts_add_set_key itsli' k == ts_add_set_key itsli k);
 
   (* the ith element is not a blum evict *)
-  assert(not (is_blum_evict itsl i));
+  assert(not (is_blum_evict (index itsl i)));
   lemma_ts_evict_set_key_extend2 itsli';
   assert(ts_evict_set_key itsli' k == ts_evict_set_key itsli k);
 
@@ -860,7 +861,7 @@ let lemma_non_eac_evicted_merkle_addb (#p:pos)
       assert(ts_add_set_key itsli' k == ts_add_set_key itsli k);
       
       (* the ith element is not a blum evict *)
-      assert(not (is_blum_evict itsl i));
+      assert(not (is_blum_evict (index itsl i)));
       lemma_ts_evict_set_key_extend2 itsli';
       assert(ts_evict_set_key itsli' k == ts_evict_set_key itsli k);
 
@@ -899,6 +900,61 @@ let lemma_non_eac_evicted_merkle_addb (#p:pos)
       lemma_ghevict_correct gl;
 
       MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))      
+  )
+
+let lemma_non_eac_evicted_blum_addb (#p:pos)   
+  (itsl: non_eac_ts_log p{
+    g_hash_verifiable (partition_idx_seq itsl) /\  
+    EACEvictedBlum? (last_valid_eac_state itsl)  /\
+    AddB? (to_vlog_entry (invalidating_log_entry itsl))
+   })
+  : hash_collision_gen = 
+  (* hash verifiable - evict hash and add hash equal *)                          
+  let gl = partition_idx_seq itsl in                           
+  assert(g_hadd gl = g_hevict gl);
+
+  let st = last_valid_eac_state itsl in   
+  let ee = invalidating_log_entry itsl in
+  assert(eac_add ee st = EACFail);  
+  match st with
+  | EACEvictedBlum v_e t j -> (
+    match ee with
+    | NEvict (AddB (k, v) t' j') ->
+    assert(v_e <> v || t' <> t || j' <> j);
+
+    let tsle = time_seq_ext itsl in
+    let i = max_eac_prefix tsle in
+    let (e,tid) = index itsl i in
+
+    let itsli = its_prefix itsl i in  
+    (* verifier thread state of tid after itsli *)
+    let vsi = verifier_thread_state itsli tid in
+
+    let itsli' = its_prefix itsl (i + 1) in
+    let vsi' = verifier_thread_state itsli tid in    
+    lemma_verifier_thread_state_extend itsli';  
+    assert(vsi' == t_verify_step vsi e);    
+
+    assert(is_blum_add (index itsl i));
+    let be = blum_add_elem (index itsl i) in
+
+    (* the previous operation of k is a blum evict *)
+    lemma_eac_evicted_blum_implies_previous_evict itsli k;
+    let i' = last_idx_of_key itsli k in
+    assert(is_blum_evict (index itsli i'));
+
+    (* since EAC failed, the blum element added to evict set at i' <> blum element added to 
+     * add set at i *)
+    let be' = blum_evict_elem itsl i' in
+    assert(be <> be');
+    
+    if MS.contains be (ts_evict_set itsl) then
+      admit()
+    else (
+      lemma_ts_add_set_key_extend itsli';
+      
+      admit()
+    )
   )
 
 let lemma_non_eac_time_seq_implies_hash_collision 
@@ -945,7 +1001,7 @@ let lemma_non_eac_time_seq_implies_hash_collision
     match ee with 
       | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
       | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
-      | NEvict (AddB _ _ _) ->  admit() //lemma_non_eac_evicted_addb itsl
+      | NEvict (AddB _ _ _) ->  lemma_non_eac_evicted_blum_addb itsl
       | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_blum_addm itsl
       | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl

@@ -336,6 +336,9 @@ let vlog_entry_key (e:vlog_entry): key =
   | EvictB k _ -> k
   | EvictBM k _ _ -> k
 
+let is_of_key (e:vlog_entry) (k:key): bool =
+  vlog_entry_key e = k
+
 let is_evict (e: vlog_entry): bool =
   match e with
   | EvictM _ _ -> true
@@ -366,7 +369,18 @@ let is_add_of_key (k: key) (e:vlog_entry): bool =
   | AddB (k,_) _ _ -> true
   | _ -> false 
 
+let is_evict_of_key (k:key) (e:vlog_entry): bool = 
+  match e with
+  | EvictM k _ -> true
+  | EvictB k _ -> true
+  | EvictBM k _ _ -> true
+  | _ -> false
+
 let addm_of_entry (e:vlog_entry{is_add e}): add_method = 
   match e with
   | AddM _ _ -> MAdd
   | AddB _ _ _ -> BAdd
+
+let is_add_or_evict_of_key (k:key) (e:vlog_entry): bool = 
+  is_add_of_key k e ||
+  is_evict_of_key k e

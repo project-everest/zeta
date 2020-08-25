@@ -13,6 +13,7 @@ open Veritas.Verifier
 open Veritas.Verifier.CorrectDefs  
 
 module E=Veritas.EAC
+module V=Veritas.Verifier
 
 type partition_verifiable (p:pos) (s: seq (idx_elem #vlog_entry p)) = 
   g_verifiable (partition_idx_seq s)
@@ -168,9 +169,9 @@ val lemma_evict_value_correct_type (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_s
  *)
  val eac_value (#n:pos) (itsl: eac_ts_log n) (k:key): value_type_of k
 
-let key_of (#p:pos) (itsl: its_log p) (i: seq_index itsl): key = 
-  let (e,_) = index itsl i in
-  vlog_entry_key e
+let key_of (#p:pos) (ie:idx_elem #vlog_entry p): key = 
+  let (e,_) = ie in
+  V.vlog_entry_key e
 
 let entry_of_key (k:key) (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
   let (e,_) = ie in
@@ -195,3 +196,53 @@ val lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index i
                   stored_value (thread_store (verifier_thread_state (its_prefix itsl i)
                                                                     (snd (index itsl i))))
                                (vlog_entry_key (fst (index itsl i)))))
+
+let is_of_key (k:key) (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
+  let (e,_) = ie in
+  V.is_of_key e k
+
+let is_add (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
+  let (e,_) = ie in
+  V.is_add e
+
+let is_evict (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
+  let (e,_) = ie in
+  V.is_evict e
+
+(* is the i'th index of itsl a blum add *)
+let is_blum_add (#p:nat) (ie:idx_elem #vlog_entry p):bool =
+  let (e,_) = ie in
+  match e with
+  | AddB _ _ _ -> true
+  | _ -> false
+
+(* is the index i of ts log an blum evict *)
+let is_blum_evict (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
+  let (e,_) = ie in
+  match e with
+  | EvictB _ _ -> true
+  | EvictBM _ _ _ -> true
+  | _ -> false
+
+let is_add_of_key (k:key) (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
+  is_add ie &&
+  is_of_key k ie
+
+let is_evict_of_key (k:key) (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
+  is_evict ie &&
+  is_of_key k ie
+  
+let has_next_add_of_key (#p:pos) (itsl: its_log p) (i:seq_index itsl) (k:key): bool =
+  has_next (is_add_of_key k) itsl i
+
+let next_add_of_key (#p:pos) 
+  (itsl: its_log p) 
+  (i:seq_index itsl) (k:key{has_next_add_of_key itsl i k}): 
+  (j:seq_index itsl{j > i && is_add_of_key k (index itsl j)}) = 
+  next_index (is_add_of_key k) itsl i
+
+let last_idx_of_key (#p:pos) (itsl: its_log p) (k:key{has_some_entry_of_key itsl k}):
+  seq_index itsl = 
+  last_index (entry_of_key k) itsl
+
+                  

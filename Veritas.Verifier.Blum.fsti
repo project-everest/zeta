@@ -1,6 +1,7 @@
 module Veritas.Verifier.Blum
 
 open FStar.Seq
+open Veritas.EAC
 open Veritas.Interleave
 open Veritas.Key
 open Veritas.MultiSet
@@ -10,6 +11,7 @@ open Veritas.Verifier
 open Veritas.Verifier.CorrectDefs
 open Veritas.Verifier.TSLog
 
+module E=Veritas.EAC
 module MS=Veritas.MultiSet
 module MH=Veritas.MultiSetHash
 module TL=Veritas.Verifier.TSLog
@@ -37,13 +39,6 @@ val g_evict_set_is_set (gl: g_verifiable_log):
 
 val lemma_ghevict_correct (gl: g_verifiable_log):
   Lemma (g_hevict gl = ms_hashfn (g_evict_seq gl))
-
-(* is the i'th index of itsl a blum add *)
-let is_blum_add (#p:nat) (ie:idx_elem #vlog_entry p):bool =
-  let (e,_) = ie in
-  match e with
-  | AddB _ _ _ -> true
-  | _ -> false
 
 (* get the blum add element from an index *)
 let blum_add_elem (#p:nat) (ie:idx_elem #vlog_entry p{is_blum_add ie}):
@@ -79,22 +74,14 @@ val lemma_ts_add_set_correct (#n:pos) (itsl: its_log n):
  * blum add to the prefix *)
 val lemma_ts_add_set_key_extend (#n:pos) (itsl: its_log n {length itsl > 0}):
   Lemma (requires (is_blum_add (telem itsl)))
-        (ensures (ts_add_set_key itsl (key_of itsl (length itsl - 1)) == 
+        (ensures (ts_add_set_key itsl (key_of (index itsl (length itsl - 1))) == 
                   add_elem (ts_add_set_key (its_prefix itsl (length itsl - 1))
-                                           (key_of itsl (length itsl - 1)))
+                                           (key_of (index itsl (length itsl - 1))))
                            (blum_add_elem (telem itsl))))
 
-(* is the index i of ts log an blum evict *)
-let is_blum_evict (#n:pos) (itsl: its_log n) (i: seq_index itsl): bool = 
-  let (e,_) = index itsl i in
-  match e with
-  | EvictB _ _ -> true
-  | EvictBM _ _ _ -> true
-  | _ -> false
-
 (* get the blum evict element from an index *)
-val blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict itsl i}):
-  (e:ms_hashfn_dom{MH.key_of e = TL.key_of itsl i})
+val blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict (index itsl i)}):
+  (e:ms_hashfn_dom{MH.key_of e = TL.key_of (index itsl i)})
 
 (* sequence of evicts in time sequence log *)
 val ts_evict_seq (#n:pos) (itsl: its_log n): seq ms_hashfn_dom
@@ -117,15 +104,15 @@ val lemma_ts_evict_set_correct (#n:pos) (itsl: its_log n):
  * set of the length - 1 prefix 
  *)
 val lemma_ts_evict_set_key_extend2 (#n:pos) (itsl: its_log n {length itsl > 0}):
-  Lemma (requires (not (is_blum_evict itsl (length itsl - 1))))
-        (ensures (ts_evict_set_key itsl (key_of itsl (length itsl - 1)) == 
+  Lemma (requires (not (is_blum_evict (index itsl (length itsl - 1)))))
+        (ensures (ts_evict_set_key itsl (key_of (index itsl (length itsl - 1))) == 
                   ts_evict_set_key (its_prefix itsl (length itsl - 1))
-                                           (key_of itsl (length itsl - 1))))
+                                           (key_of (index itsl (length itsl - 1)))))
 
 (* since evict_set is a pure set (not a multiset) we can identify the unique index 
  * for each element of the set *)
 val index_blum_evict (#p:pos) (itsl: its_log p) (e: ms_hashfn_dom {contains e (ts_evict_set itsl)}):
-  (i:seq_index itsl{is_blum_evict itsl i /\ 
+  (i:seq_index itsl{is_blum_evict (index itsl i) /\ 
                     blum_evict_elem itsl i = e})
 
 (* if the blum add occurs in the blum evict set, its index is earlier *)
@@ -163,3 +150,23 @@ val lemma_mem_key_evict_set_same (#p:pos) (itsl: eac_ts_log p) (be: ms_hashfn_do
 val lemma_mem_monotonic (#p:pos) (be:ms_hashfn_dom) (itsl: eac_ts_log p) (i:nat{i < length itsl}):
   Lemma (mem be (ts_evict_set itsl) >= mem be (ts_evict_set (its_prefix itsl i)) /\
          mem be (ts_add_set itsl) >= mem be (ts_add_set (its_prefix itsl i)))
+
+(* the next add of a blum evict is a blum add of the same "element" *)
+val lemma_blum_evict_add_same (#p:pos) (itsl: eac_ts_log p) (i:seq_index itsl):
+  Lemma (requires (TL.is_blum_evict (index itsl i) /\
+                   TL.has_next_add_of_key itsl i (TL.key_of (index itsl i))))
+        (ensures (TL.is_blum_add (index itsl (TL.next_add_of_key itsl i (TL.key_of (index itsl i)))) /\
+                  blum_evict_elem itsl i =                                   
+                  blum_add_elem (index itsl (TL.next_add_of_key itsl i (TL.key_of (index itsl i))))))
+
+let to_blum_elem (s: eac_state{EACEvictedBlum? s}) (k:key): ms_hashfn_dom = 
+  match s with
+  | EACEvictedBlum v t j -> MHDom (k,v) t j
+
+(* when the eac store is evicted, there exists a previous evict *)
+val lemma_eac_evicted_blum_implies_previous_evict (#p:pos) (itsl: its_log p) (k:key):
+  Lemma (requires (is_eac_state_evicted_blum itsl k))
+        (ensures (has_some_entry_of_key itsl k /\
+                  is_blum_evict (index itsl (last_idx_of_key itsl k)) /\
+                  blum_evict_elem itsl (last_idx_of_key itsl k) = 
+                  to_blum_elem (eac_state_of_key itsl k) k))

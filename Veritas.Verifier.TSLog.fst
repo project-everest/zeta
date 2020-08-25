@@ -184,3 +184,4 @@ let lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index i
                                                                     (snd (index itsl i))))
                                (vlog_entry_key (fst (index itsl i))))) = admit()
 
+
