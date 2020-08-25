@@ -30,7 +30,7 @@ val lemma_flat_length_app (#a:Type) (ss1 ss2: sseq a):
   Lemma (flat_length ss1 + flat_length ss2 = flat_length (append ss1 ss2))
 
 (* interleaving of n sequences *)
-val interleave (#a:eqtype): seq a -> ss:sseq a -> Type 
+val interleave (#a:eqtype): seq a -> ss:sseq a -> Type0 
 
 (* length of an interleaving is the sum of the lengths of the individual sequences *)
 val lemma_interleave_length (#a:eqtype) (s: seq a) (ss: sseq a{interleave s ss}):
