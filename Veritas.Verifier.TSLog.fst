@@ -185,3 +185,8 @@ let lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index i
                                (vlog_entry_key (fst (index itsl i))))) = admit()
 
 
+let lemma_evict_has_next_add (#p:pos) (itsl: its_log p) (i:seq_index itsl):
+  Lemma (requires (is_evict (index itsl i) /\
+                   exists_sat_elems (entry_of_key (key_of (index itsl i))) itsl) /\
+                   i < last_idx_of_key itsl (key_of (index itsl i)))
+        (ensures (has_next_add_of_key itsl i (key_of (index itsl i)))) = admit()

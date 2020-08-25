@@ -137,6 +137,11 @@ let lemma_ts_add_set_key_extend (#n:pos) (itsl: its_log n {length itsl > 0}):
                                            (key_of (index itsl (length itsl - 1))))
                            (blum_add_elem (telem itsl)))) = admit()
 
+let lemma_ts_add_set_contains_add_elem (#n:pos) (itsl: its_log n) (i:seq_index itsl):
+  Lemma (requires (is_blum_add (index itsl i)))
+        (ensures (MS.contains (blum_add_elem (index itsl i)) (ts_add_set itsl))) = admit()
+
+
 let blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict (index itsl i)}):
   (e:ms_hashfn_dom{MH.key_of e = TL.key_of (index itsl i)}) =
   let (e,id) = index itsl i in

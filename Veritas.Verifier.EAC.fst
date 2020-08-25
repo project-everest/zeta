@@ -947,13 +947,43 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
      * add set at i *)
     let be' = blum_evict_elem itsl i' in
     assert(be <> be');
-    
-    if MS.contains be (ts_evict_set itsl) then
-      admit()
+
+    if MS.contains be (ts_evict_set itsl) then (
+
+      (* since evict set is a set we can identify the unique index that produces be *)
+      let j = index_blum_evict itsl be in
+      assert(is_blum_evict (index itsl j));
+      assert(blum_evict_elem itsl i = be);
+
+      (* from clock ordering j has to occur before i *)
+      assert(entry_of_key k (index itsl j));
+
+      (* j cannot be i' since evict_elem at i' is be *)
+      assert(j <> i');
+
+      lemma_last_index_correct2 (entry_of_key k) itsli j;
+      assert(j < i');
+
+      lemma_evict_has_next_add itsli j;
+      lemma_blum_evict_add_same itsli j;
+
+      (* TODO: fill in details *)
+
+      hash_collision_contra()
+    )
     else (
-      lemma_ts_add_set_key_extend itsli';
+      lemma_ts_add_set_contains_add_elem itsl i;
+      assert(MS.contains be (ts_add_set itsl));
       
-      admit()
+      MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;
+      lemma_ts_evict_set_correct itsl;
+      lemma_ts_add_set_correct itsl;
+      assert(~ (g_add_set gl = g_evict_set gl));
+
+      lemma_ghevict_correct gl;
+      lemma_g_hadd_correct gl;
+
+      MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
     )
   )
 

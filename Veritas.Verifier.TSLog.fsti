@@ -245,4 +245,12 @@ let last_idx_of_key (#p:pos) (itsl: its_log p) (k:key{has_some_entry_of_key itsl
   seq_index itsl = 
   last_index (entry_of_key k) itsl
 
+(* if an evict is not the last entry of a key, then there is a add subsequent to the 
+ * evict *)
+val lemma_evict_has_next_add (#p:pos) (itsl: its_log p) (i:seq_index itsl):
+  Lemma (requires (is_evict (index itsl i) /\
+                   exists_sat_elems (entry_of_key (key_of (index itsl i))) itsl) /\
+                   i < last_idx_of_key itsl (key_of (index itsl i)))
+        (ensures (has_next_add_of_key itsl i (key_of (index itsl i))))
+
                   
