@@ -48,18 +48,20 @@ val interleave_map_inv (#a:eqtype) (s: seq a) (ss: sseq a)
       (prf:interleave #a s ss) (i: sseq_index ss):
   Tot (j: seq_index s{index s j = indexss ss i})
 
-(* an interleave constructor that specifies the construction of 
- * an interleaving *)
-type interleave_ctor (#a:eqtype) (ss: sseq a) =
-  (i: sseq_index ss) -> j:nat{j < flat_length ss}
+noeq type interleave_ctor (#a:eqtype) (ss: sseq a) = 
+  | IntCtr: s: seq a -> prf: interleave s ss -> interleave_ctor ss
 
 (* from an interleave_ constructor we can get an interleaving *)
-val interleaved_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Tot (s: seq a{interleave s ss})
+let interleaved_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
+  Tot (s: seq a{interleave s ss}) = 
+  match ic with
+  | IntCtr s _ -> s
 
 (* we can also construct a proof of interleaving *)
-val interleaving_prf (#a: eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Tot (interleave (interleaved_seq ss ic) ss)
+let interleaving_prf (#a: eqtype) (ss: sseq a) (ic: interleave_ctor ss):
+  Tot (interleave (interleaved_seq ss ic) ss) = 
+  match ic with
+  | IntCtr _ prf -> prf
 
 (* sortedness of a sequence *)
 type sorted (#a:Type) (lte: a -> a -> bool) (s: seq a) = 
@@ -116,9 +118,6 @@ val lemma_interleave_idx_correct1 (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss
 
 val partition_idx_seq_interleave_ctor (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)):
   Tot (interleave_ctor (partition_idx_seq s))
-
-val lemma_interleave_idx_correct2 (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss) (i:sseq_index ss):
-  Lemma (partition_idx_seq_interleave_ctor (interleaved_idx_seq ss ic) i = ic i)
 
 val lemma_partition_idx_prefix_comm 
   (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)) (i:nat{i <= length s}) (id:nat{id < n}):
