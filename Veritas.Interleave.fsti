@@ -78,22 +78,23 @@ val lemma_sort_merge (#a:eqtype) (lte: a -> a -> bool)
         (ensures (sorted lte (interleaved_seq ss (sort_merge lte ss))))
         [SMTPat (sort_merge lte ss)]
 
-(* filter and interleaving commute *)
-val lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a{interleave s ss}):  
-  Lemma (interleave (filter f s) (map (filter f) ss))
-
 (* filter and interleaving commute (constructive version) *)
 val lemma_filter_interleave_commute_prf (#a:eqtype) 
   (f:a -> bool) (s: seq a) (ss: sseq a) (prf: interleave s ss): 
   Tot (interleave (filter f s) (map (filter f) ss))
 
-(* map and interleaving commute *)
-val lemma_map_interleave_commute (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a{interleave s ss}):
-  Lemma (interleave (map f s) (map (map f) ss))
+(* filter and interleaving commute *)
+val lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a{interleave s ss}):  
+  Lemma (interleave (filter f s) (map (filter f) ss))
 
 (* map and interleaving commute (constructive version) *)
 val lemma_map_interleave_commute_prf (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a) (prf: interleave s ss):
   Tot (interleave (map f s) (map (map f) ss))
+
+(* map and interleaving commute *)
+val lemma_map_interleave_commute (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a{interleave s ss}):
+  Lemma (interleave (map f s) (map (map f) ss))
+
 
 type idx_elem (#a:eqtype) (n:nat) = a * (i:nat{i < n})
 

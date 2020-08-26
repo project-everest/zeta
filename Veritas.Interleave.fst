@@ -251,31 +251,106 @@ let rec interleave_map_inv_aux (#a:eqtype) (s: seq a) (ss: sseq a)
 
 let interleave_map_inv = interleave_map_inv_aux
 
+(* if s is sorted, any prefix of s is sorted *)
+let lemma_sorted_prefix (#a:Type) (lte: a -> a -> bool) (s: seq a{sorted lte s}) (i:nat {i <= length s}):
+  Lemma (sorted lte (prefix s i)) 
+  = ()
+
+let rec idx_of_greatest 
+  (#a:eqtype) (lte: a-> a-> bool) 
+  (ss: sseq a{flat_length ss > 0 /\ (forall (i:seq_index ss). sorted lte (index ss i))}): 
+  Tot (j:seq_index ss{
+    length (index ss j) > 0 /\
+    (forall (k:seq_index ss). length (index ss k) > 0 ==> telem (index ss k) `lte` telem (index ss j))
+  })
+  (decreases (length ss)) =
+  let n = length ss in
+  let fn = flat_length ss in
+  
+  admit()
+
+let rec sort_merge_aux (#a:eqtype) (lte: a-> a-> bool) 
+               (ss: sseq a{forall (i:seq_index ss). sorted lte (index ss i)}):                
+    Tot (interleave_ctor ss) = admit()
+
 (* sort-merge interleaving *)
-let sort_merge (#a:eqtype) (lte: a-> a-> bool) 
-               (ss: sseq a{forall (i:seq_index ss). sorted lte (index ss i)}): 
-  Tot (interleave_ctor ss) = admit()
+let sort_merge = sort_merge_aux
 
 let lemma_sort_merge (#a:eqtype) (lte: a -> a -> bool)
   (ss: sseq a{forall (i: seq_index ss). sorted lte (index ss i)}):
   Lemma (requires (True))
         (ensures (sorted lte (interleaved_seq ss (sort_merge lte ss)))) = admit()
 
-let lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a{interleave s ss}):  
-  Lemma (interleave (filter f s) (map (filter f) ss)) = admit()
+(* filter and interleaving commute (constructive version) *)
+let rec lemma_filter_interleave_commute_prf_aux (#a:eqtype) 
+  (f:a -> bool) (s: seq a) (ss: sseq a) (prf: interleave s ss): 
+  Tot (interleave (filter f s) (map (filter f) ss)) 
+  (decreases prf) = 
+  let fs = filter f s in
+  let fss = map (filter f) ss in
+  match prf with
+  | IntEmpty -> 
+    lemma_filter_empty f;
+    lemma_empty fss;    
+    IntEmpty 
+    
+  | IntAdd s' ss' prf' -> 
+    let fss' = map (filter f) ss' in
+    let fprf':(interleave fs fss')  = lemma_filter_interleave_commute_prf_aux f s' ss' prf' in
+    lemma_prefix1_append ss' (empty #a);
+    lemma_map_extend (filter f) ss;
+    lemma_filter_empty f;
+    IntAdd fs fss' fprf'
+    
+  | IntExtend s' ss' prf' x k ->
+    assert(ss == sseq_extend ss' x k);
+    let fss' = map (filter f) ss' in
+    let fs' = filter f s' in
+    let fprf':interleave fs' fss' = lemma_filter_interleave_commute_prf_aux f s' ss' prf' in
+    if f x then
+      admit()
+    else (
+      lemma_prefix1_append s' x;
+      lemma_filter_extend1 f s;
+      assert(fs' = fs);
+
+      let aux (i:seq_index ss):
+        Lemma (requires True)
+              (ensures (index fss i = index fss' i))
+              [SMTPat (index fss i)] = 
+        assert(index fss i = filter f (index ss i));
+        assert(index fss' i = filter f (index ss' i));
+        
+        if i = k then (          
+          admit()
+        )
+        else 
+          lemma_sseq_correct2 ss' x k i        
+      in
+      assert(equal fss fss');
+      fprf'
+    )
 
 (* filter and interleaving commute (constructive version) *)
 let lemma_filter_interleave_commute_prf (#a:eqtype) 
   (f:a -> bool) (s: seq a) (ss: sseq a) (prf: interleave s ss): 
-  Tot (interleave (filter f s) (map (filter f) ss)) = admit()
+  Tot (interleave (filter f s) (map (filter f) ss)) = 
+  admit()
+
+
+let lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a{interleave s ss}):  
+  Lemma (interleave (filter f s) (map (filter f) ss)) = admit()
+
+
+(* map and interleaving commute (constructive version) *)
+let lemma_map_interleave_commute_prf (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a) (prf: interleave s ss):
+  Tot (interleave (map f s) (map (map f) ss)) = admit()
+
 
 (* map and interleaving commute *)
 let lemma_map_interleave_commute (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a{interleave s ss}):
   Lemma (interleave (map f s) (map (map f) ss)) = admit()
 
-(* map and interleaving commute (constructive version) *)
-let lemma_map_interleave_commute_prf (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a) (prf: interleave s ss):
-  Tot (interleave (map f s) (map (map f) ss)) = admit()
 
 let interleaved_idx_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
   Tot (seq (idx_elem #a (length ss))) = admit()
