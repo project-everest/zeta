@@ -3,9 +3,6 @@ module LowStar.Exception
 open FStar.HyperStack
 open FStar.HyperStack.ST
 
-module HS = FStar.HyperStack
-module ST = FStar.HyperStack.ST
-
 assume ST_WP_monotonic:
   forall (a:Type) (wp:st_wp a).
     (forall p q. (forall x m1. p x m1 ==> q x m1) ==>
