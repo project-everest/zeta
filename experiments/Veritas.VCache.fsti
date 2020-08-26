@@ -80,6 +80,14 @@ val frame_invariant (st:vstore) (l:B.loc) (h0 h1:HS.mem)
       (ensures invariant st h1)
       [SMTPat (invariant st h1); SMTPat (B.modifies l h0 h1)]
 
+// JP: so that, given a vstore in scope whose invariant holds, client can deduce
+// disjointness of their own fresh allocations from the vstore footprint
+val invariant_loc_in_footprint: h:HS.mem -> st:vstore -> Lemma
+    (requires (invariant st h))
+    (ensures (B.loc_in (footprint st) h))
+    [ SMTPat (invariant st h) ]
+
+
 val vcache_create (_:unit)
   : ST vstore
       (requires fun h -> True)
