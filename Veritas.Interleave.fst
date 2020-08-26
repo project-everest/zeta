@@ -442,6 +442,23 @@ let lemma_partition_idx_extend1 (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n){len
          append1 (index (partition_idx_seq (hprefix s)) (snd (telem s)))
                  (fst (telem s))) = admit()
 
+let rec interleaved_idx_seq_aux (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
+  Tot (seq (idx_elem #a (length ss))) 
+  (decreases (IntCtr?.prf ic)) = 
+  match ic with
+  | IntCtr s prf -> (
+    match prf with
+    | IntEmpty -> 
+      assert(ss == empty #(seq a));
+      empty #(idx_elem #a 0)
+    | IntAdd s' ss' prf' -> 
+      assert(s' == s);      
+      admit()
+    | IntExtend s' ss' prf' x i ->
+      admit()
+  )
+
+
 let interleaved_idx_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
   Tot (seq (idx_elem #a (length ss))) = admit()
 
