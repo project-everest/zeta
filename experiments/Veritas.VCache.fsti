@@ -33,7 +33,7 @@ let data_value = option data_t
 let hash_size : nat = 256
 
 (* hash value *)
-type hash_value = u128 & u128
+type hash_value = u64 & u64 & u64 & u64
 
 (* information about a desc stored in a merkle node *)
 type descendent_hash =

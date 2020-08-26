@@ -52,11 +52,40 @@ let merkle_key = k:key { not (is_data_key k) }
 let mvalue = v:value{ MVal? v }
 let dvalue = v:value{ DVal? v }
 
-assume
 val compute_hash (d:value)
   : Stack hash_value
     (requires fun _ -> True)
     (ensures fun h0 _ h1 -> B.modifies B.loc_none h0 h1)
+
+assume val serialize_length: value -> l:UInt32.t { UInt32.v l > 0 }
+
+assume val serialize_value: v:value -> dst: B.lbuffer UInt8.t (UInt32.v (serialize_length v)) ->
+  Stack unit
+    (requires fun _ -> True)
+    (ensures fun h0 _ h1 -> B.(modifies (loc_buffer dst) h0 h1))
+
+let compute_hash d =
+  Veritas.Reveal.reveal_u8 ();
+  assert_norm (8 <= Spec.Hash.Definitions.max_input_length Spec.Hash.Definitions.SHA2_256);
+  assert_norm (pow2 32 < pow2 61);
+  push_frame ();
+  let l = serialize_length d in
+  let tmp = B.alloca 0uy l in
+  serialize_value d tmp;
+  let hash = B.alloca 0uy 32ul in
+  Hacl.Hash.SHA2.hash_256 tmp l hash;
+  let hash0 = B.sub hash 0ul 8ul in
+  let hash1 = B.sub hash 8ul 8ul in
+  let hash2 = B.sub hash 16ul 8ul in
+  let hash3 = B.sub hash 24ul 8ul in
+  let r =
+    LowStar.Endianness.load64_le hash0,
+    LowStar.Endianness.load64_le hash1,
+    LowStar.Endianness.load64_le hash2,
+    LowStar.Endianness.load64_le hash3
+  in
+  pop_frame ();
+  r
 
 //We should introduce this as a layer with exceptions
 //in a way that allows us to discard error continuations --- I don't think we need to have any error recovery
