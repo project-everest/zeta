@@ -256,7 +256,7 @@ let lemma_sorted_prefix (#a:Type) (lte: a -> a -> bool) (s: seq a{sorted lte s})
   Lemma (sorted lte (prefix s i)) 
   = ()
 
-let rec idx_of_greatest 
+let idx_of_greatest 
   (#a:eqtype) (lte: a-> a-> bool) 
   (ss: sseq a{flat_length ss > 0 /\ (forall (i:seq_index ss). sorted lte (index ss i))}): 
   Tot (j:seq_index ss{
@@ -269,7 +269,7 @@ let rec idx_of_greatest
   
   admit()
 
-let rec sort_merge_aux (#a:eqtype) (lte: a-> a-> bool) 
+let sort_merge_aux (#a:eqtype) (lte: a-> a-> bool) 
                (ss: sseq a{forall (i:seq_index ss). sorted lte (index ss i)}):                
     Tot (interleave_ctor ss) = admit()
 
@@ -280,6 +280,29 @@ let lemma_sort_merge (#a:eqtype) (lte: a -> a -> bool)
   (ss: sseq a{forall (i: seq_index ss). sorted lte (index ss i)}):
   Lemma (requires (True))
         (ensures (sorted lte (interleaved_seq ss (sort_merge lte ss)))) = admit()
+
+let lemma_sseq_extend_filter_sat 
+  (#a:eqtype) (f:a -> bool) (ss: sseq a) (x:a{f x}) (i:seq_index ss):
+  Lemma (map (filter f) (sseq_extend ss x i) = 
+         sseq_extend (map (filter f) ss) x i) = 
+  let ss' = sseq_extend ss x i in
+  let fss' = map (filter f) ss' in
+  let fss = map (filter f) ss in
+  let fss2' = sseq_extend fss x i in
+  let aux(j:seq_index ss):
+    Lemma (requires True)
+          (ensures (index fss' j = index fss2' j))
+          [SMTPat (index fss' j)] = 
+    if j = i then (
+      lemma_sseq_correct1 ss x i;
+      lemma_prefix1_append (index ss i) x;
+      lemma_filter_extend2 f (index ss' i)
+    )
+    else 
+      lemma_sseq_correct2 ss x i j          
+    in
+  assert(equal fss' fss2');
+  ()
 
 (* filter and interleaving commute (constructive version) *)
 let rec lemma_filter_interleave_commute_prf_aux (#a:eqtype) 
@@ -307,8 +330,12 @@ let rec lemma_filter_interleave_commute_prf_aux (#a:eqtype)
     let fss' = map (filter f) ss' in
     let fs' = filter f s' in
     let fprf':interleave fs' fss' = lemma_filter_interleave_commute_prf_aux f s' ss' prf' in
-    if f x then
-      admit()
+    if f x then (
+      lemma_sseq_extend_filter_sat f ss' x k;
+      lemma_prefix1_append s' x;
+      lemma_filter_extend2 f s;
+      IntExtend fs' fss' fprf' x k
+    )
     else (
       lemma_prefix1_append s' x;
       lemma_filter_extend1 f s;
@@ -321,8 +348,10 @@ let rec lemma_filter_interleave_commute_prf_aux (#a:eqtype)
         assert(index fss i = filter f (index ss i));
         assert(index fss' i = filter f (index ss' i));
         
-        if i = k then (          
-          admit()
+        if i = k then (
+          lemma_sseq_correct1 ss' x k;
+          lemma_prefix1_append (index ss' i) x;
+          lemma_filter_extend1 f (index ss i)
         )
         else 
           lemma_sseq_correct2 ss' x k i        
