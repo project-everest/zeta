@@ -6,11 +6,6 @@ open FStar.HyperStack.ST
 module HS = FStar.HyperStack
 module ST = FStar.HyperStack.ST
 
-assume PURE_WP_monotonic:
-  forall (a:Type) (wp:pure_wp a).
-    (forall p q. (forall x. p x ==> q x) ==>
-            (wp p ==> wp q))
-
 assume ST_WP_monotonic:
   forall (a:Type) (wp:st_wp a).
     (forall p q. (forall x m1. p x m1 ==> q x m1) ==>
