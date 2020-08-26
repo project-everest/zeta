@@ -403,6 +403,10 @@ let rec lemma_project_seq_index_aux (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n
 
 let lemma_project_seq_index = lemma_project_seq_index_aux
 
+let lemma_project_seq_extend (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n){length is > 0}):
+  Lemma (project_seq is = append1 (project_seq (hprefix is)) (fst (telem is))) = 
+  ()
+
 let rec partition_idx_seq_aux (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)):
   Tot (ss:sseq a{length ss = p}) 
   (decreases (length s)) =

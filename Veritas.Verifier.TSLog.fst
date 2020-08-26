@@ -44,17 +44,12 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
     (* recurse *)
     let itsl' = its_prefix itsl (m - 1) in
     let r' = time_seq_ext_aux itsl' in
-  
-    admit()
-  )
-  (*
-  
 
     (* project seq of itsl and itsl' differ by log entry e *)
-    lemma_unzip_extend itsl;
+    lemma_project_seq_extend itsl;
     assert(project_seq itsl = append1 (project_seq itsl') e);
 
-    if is_evict e then (
+    if is_evict_to_merkle e then (
       (* log entries of verifier thread id *)
       let gl = partition_idx_seq itsl in
       let l = index gl id in
@@ -66,9 +61,25 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
       lemma_partition_idx_extend1 itsl;
 
       let v = evict_value (id, l) (length l - 1) in
+      let r = append1 r' (EvictMerkle e v) in
+      lemma_prefix1_append r' (EvictMerkle e v);
+      lemma_map_extend to_vlog_entry r;
+      r
+    )
+    else if is_evict_to_blum e then (
+      (* log entries of verifier thread id *)
+      let gl = partition_idx_seq itsl in
+      let l = index gl id in
+      assert(snd (index (g_tid_vlog gl) id) = l);
 
-      let r = append1 r' (Evict e v) in
-      lemma_prefix1_append r' (Evict e v);
+      (* since l is verifiable, the value at last position is well-defined *)
+      assert(t_verifiable (id, l));
+      (* prove length l > 0 *)
+      lemma_partition_idx_extend1 itsl;
+
+      let v = evict_value (id, l) (length l - 1) in
+      let r = append1 r' (EvictBlum e v id) in
+      lemma_prefix1_append r' (EvictBlum e v id);
       lemma_map_extend to_vlog_entry r;
       r
     )
@@ -79,7 +90,6 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
       r
     )
   )
-*)
 
 let time_seq_ext = time_seq_ext_aux
 

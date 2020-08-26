@@ -95,6 +95,9 @@ val project_seq (#a:eqtype) (#n:nat) (is:seq (idx_elem #a n)):
 val lemma_project_seq_index (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n)) (i:seq_index is):
   Lemma (fst (index is i) = index (project_seq is) i)
 
+val lemma_project_seq_extend (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n){length is > 0}):
+  Lemma (project_seq is = append1 (project_seq (hprefix is)) (fst (telem is)))
+
 val partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
   Tot (ss:sseq a{length ss = n})
 
