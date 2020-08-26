@@ -33,10 +33,28 @@ let lemma_flat_length_app1 (#a:Type) (ss: sseq a) (s: seq a)
   ()
 
 let lemma_append_extend (#a:Type) (s1: seq a) (s2: seq a{length s2 > 0}):
-  Lemma (append s1 s2 == append1 (append s1 (hprefix s2)) (telem s2)) = admit()
+  Lemma (append s1 s2 == append1 (append s1 (hprefix s2)) (telem s2)) = 
+  let s2' = hprefix s2 in
+  let e2 = telem s2 in
+  let aux (i: seq_index (append s1 s2)):
+    Lemma (requires True)
+          (ensures (index (append s1 s2) i == index (append1 (append s1 s2') e2) i))
+          [SMTPat (index (append1 (append s1 s2') e2) i)] = ()
+  in
+  assert(equal (append s1 s2) (append1 (append s1 s2') e2));
+  ()
 
 let lemma_hprefix_append1 (#a:Type) (s: seq a{length s > 0}):
-  Lemma (s == append1 (hprefix s) (telem s)) = admit()
+  Lemma (s == append1 (hprefix s) (telem s)) = 
+  let s' = hprefix s in
+  let e = telem s in
+  let aux (i:seq_index s):
+    Lemma (requires True)
+          (ensures (index s i == index (append1 s' e) i))
+          [SMTPat (index s i)] = ()
+    in
+  assert(equal s (append1 s' e));
+  ()
 
 (* appending adds to the flat length *)
 let rec lemma_flat_length_app_aux (#a:Type) (ss1 ss2: sseq a)
@@ -65,14 +83,71 @@ let sseq_extend (#a:eqtype) (ss: sseq a) (x:a) (i:seq_index ss): sseq a =
   let si' = append1 si x in
   upd ss i si'
 
-let lemma_sseq_extend_len (#a:eqtype) (ss: sseq a) (x:a) (i:seq_index ss):
-  Lemma (flat_length (sseq_extend ss x i) = 1 + flat_length ss) = admit()
-
 let lemma_sseq_correct1 (#a:eqtype) (ss: sseq a) (x:a) (i:seq_index ss):
-  Lemma (index (sseq_extend ss x i) i = append1 (index ss i) x) = admit()
+  Lemma (index (sseq_extend ss x i) i = append1 (index ss i) x) = 
+  ()
 
 let lemma_sseq_correct2 (#a:eqtype) (ss: sseq a) (x:a) (i:seq_index ss) (j:seq_index ss{j <> i}):
-  Lemma (index (sseq_extend ss x i) j = index ss j) = admit()
+  Lemma (index (sseq_extend ss x i) j = index ss j) = ()
+
+let lemma_sseq_extend_len_base (#a:eqtype) (ss: sseq a{length ss > 0}) (x:a):
+  Lemma (flat_length (sseq_extend ss x (length ss - 1)) = 1 + flat_length ss) = 
+  let n = length ss in
+  let i = n - 1 in
+  let ss' = sseq_extend ss x i in  
+  let ss'i = prefix ss' i in
+  let ssi = prefix ss i in
+  let iss' = suffix ss' (n - i) in
+  let iss = suffix ss (n - i) in
+
+  assert(equal ssi ss'i);
+
+  let fl = flat_length ss in
+  let fl' = flat_length ss' in
+  let fli = flat_length ssi in
+
+  let l = map length ss in
+  let l' = map length ss' in
+  
+  let l'i = prefix l' i in
+  let li = prefix l i in 
+  assert(equal li l'i);
+
+  let il' = suffix l' (n - i) in
+  let il = suffix l (n - i) in
+
+
+  lemma_reduce_prefix 0 nat_add l' i;
+  lemma_reduce_prefix 0 nat_add l i;
+  lemma_map_prefix length ss' i;
+  lemma_map_prefix length ss i;
+  assert(fl' = reduce fli nat_add il');  
+  assert(fl = reduce fli nat_add il);
+
+  lemma_reduce_singleton fli nat_add il';
+  lemma_reduce_singleton fli nat_add il
+
+
+let rec lemma_sseq_extend_len (#a:eqtype) (ss: sseq a) (x:a) (i:seq_index ss):
+  Lemma (requires True)
+        (ensures (flat_length (sseq_extend ss x i) = 1 + flat_length ss))
+        (decreases (length ss)) = 
+  let n = length ss in
+
+  if i = n - 1 then (
+    lemma_sseq_extend_len_base ss x
+  )
+  else (
+    let ss' = hprefix ss in
+    let ssx = sseq_extend ss x i in
+    let ssx' = sseq_extend ss' x i in 
+
+    lemma_sseq_extend_len ss' x i;
+    assert(equal ssx (append1 ssx' (telem ss)));
+    lemma_flat_length_app1 ssx' (telem ss);
+    lemma_hprefix_append1 ss;
+    lemma_flat_length_app1 ss' (telem ss)
+  )
 
 type interleave (#a:eqtype): seq a -> ss:sseq a -> Type0 = 
   | IntEmpty: interleave (empty #a) (empty #(seq a))

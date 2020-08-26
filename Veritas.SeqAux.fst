@@ -587,6 +587,14 @@ let lemma_map_prefix (#a #b: Type) (f:a -> b) (s:seq a) (i: seq_index s):
   assert(equal mp pm);
   ()
 
+let lemma_map_suffix (#a #b: Type) (f:a -> b) (s:seq a) (i:nat{i <= length s}):
+  Lemma (requires True)
+        (ensures (map f (suffix s i) == suffix (map f s) i)) =
+  let ms = map f (suffix s i) in
+  let sm = suffix (map f s) i in
+  assert(equal ms sm);
+  ()
+
 let lemma_map_extend (#a #b:Type) (f:a -> b) (s:seq a{length s > 0}):
   Lemma (map f s == append1 (map f (prefix s (length s - 1)))
                             (f (index s (length s - 1)))) = 

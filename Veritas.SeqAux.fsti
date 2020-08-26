@@ -275,6 +275,10 @@ val lemma_map_prefix (#a #b: Type) (f:a -> b) (s:seq a) (i: seq_index s):
   Lemma (requires True)
         (ensures (map f (prefix s i) == prefix (map f s) i))
 
+val lemma_map_suffix (#a #b: Type) (f:a -> b) (s:seq a) (i:nat{i <= length s}):
+  Lemma (requires True)
+        (ensures (map f (suffix s i) == suffix (map f s) i))
+
 val lemma_map_extend (#a #b:Type) (f:a -> b) (s:seq a{length s > 0}):
   Lemma (map f s == append1 (map f (prefix s (length s - 1)))
                             (f (index s (length s - 1))))
