@@ -252,7 +252,6 @@ let lemma_non_eac_init_addb (#n)
     MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
   )
 
-
 let lemma_non_eac_init_addm
   (#p:pos) 
   (itsl: non_eac_ts_log p{
@@ -291,26 +290,29 @@ let lemma_non_eac_init_addm
 
     (* k' is the verifier cache *)
     assert(store_contains (thread_store vsi) k');
-    //assert(eac_value itsli k' = stored_value (thread_store vsi) k');
+    lemma_eac_value_is_stored_value itsli k' tid;
+    assert(eac_value itsli k' = stored_value (thread_store vsi) k');
+
+    let v' = eac_merkle_value itsli k' in
+    assert(v' = to_merkle_value( stored_value (thread_store vsi) k'));
+    let d = desc_dir k k' in
+    let dh' = desc_hash_dir v' d in
 
     (* k' points to none or some non-ancestor of k *)
     assert(is_eac_state_init itsli k);
     lemma_proving_ancestor_initial itsli k;
 
-    
+    assert(mv_points_to_none v' d \/ 
+          not (is_desc k (mv_pointed_key v' d)));
 
-    (* this causes the verifier to fail, a contradiction *)
-    //hash_collision_contra()
-    admit()
+    match dh' with
+    | Empty -> hash_collision_contra()
+    | Desc k2 _ _ -> 
+      assert(not (is_desc k k2));
+      lemma_desc_reflexive k;
+      assert(k <> k2);
+      hash_collision_contra()
 
-  (*
-
-
-
-
-    *)
-
-(*
 let lemma_non_eac_instore_get (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACInStore? (last_valid_eac_state itsl)  /\
@@ -406,6 +408,7 @@ let lemma_non_eac_instore_put (#p:pos)
       hash_collision_contra()
   )
 
+(*
 let lemma_non_eac_instore_addb (#p:pos)   
   (itsl: non_eac_ts_log p{
     g_hash_verifiable (partition_idx_seq itsl) /\
