@@ -372,12 +372,65 @@ let lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: ss
   Lemma (interleave (filter f s) (map (filter f) ss)) = 
   bind_squash () (lemma_as_squash (lemma_filter_interleave_commute_aux f s ss))
 
-let partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
-  Tot (ss:sseq a{length ss = n}) = admit()
+let rec partition_idx_seq_aux (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)):
+  Tot (ss:sseq a{length ss = p}) 
+  (decreases (length s)) =
+  let n = length s in
+  if n = 0 then 
+    create p (empty #a)
+  else 
+    let s' = hprefix s in
+    let (e,id) = telem s in
+    let ss' = partition_idx_seq_aux s' in
+    sseq_extend ss' e id
+  
+let partition_idx_seq = partition_idx_seq_aux
+
+let rec lemma_seq_empty_interleave_empty (#a:eqtype) (n:nat):
+  Tot (interleave (empty #a) (create n (empty #a)))
+  (decreases n) = 
+  let ln: sseq a = create n (empty #a) in
+  if n = 0 then (
+    lemma_empty ln;
+    IntEmpty
+  )
+  else (
+    let ln' = hprefix ln in
+    assert(equal ln' (create (n - 1) (empty #a)));
+    let prfn':interleave (empty #a) ln' = lemma_seq_empty_interleave_empty #a (n - 1) in
+    assert(equal ln (append1 ln' (empty #a)));
+    IntAdd (empty #a) ln' prfn' 
+  )
+
+let rec lemma_partition_idx_seq_interleaving_prf (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)):
+  Tot (interleave (project_seq s) (partition_idx_seq s))
+  (decreases (length s)) =
+  let n = length s in 
+  let ps = project_seq s in
+  assert(length ps = n);  
+  if n = 0 then (
+    lemma_empty ps;
+    lemma_seq_empty_interleave_empty #a p
+  )
+  else (
+    let s' = hprefix s in
+    let ss' = partition_idx_seq s' in
+    let ps' = project_seq s' in
+    let (e,id) = telem s in
+    let prf': interleave ps' ss'  = lemma_partition_idx_seq_interleaving_prf s' in
+    
+    lemma_unzip_extend s;
+    assert(ps = append1 ps' e);
+
+    let ss = partition_idx_seq s in
+    assert(ss == sseq_extend ss' e id);
+  
+    IntExtend ps' ss' prf' e id
+  )
 
 let lemma_partition_idx_seq_interleaving (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
-  Lemma (interleave (project_seq s) (partition_idx_seq s)) = admit()
-
+  Lemma (interleave (project_seq s) (partition_idx_seq s)) = 
+  return_squash (lemma_partition_idx_seq_interleaving_prf s)
 
 let lemma_partition_idx_prefix_comm 
   (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)) (i:nat{i <= length s}) (id:nat{id < n}):
