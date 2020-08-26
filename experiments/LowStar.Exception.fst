@@ -16,7 +16,7 @@ let repr (a:Type) (wp:st_wp a) =
     (fun p m0 -> (forall m1. p None m1) /\ (wp (fun x m1 -> p (Some x) m1) m0))
 
 inline_for_extraction
-let return (a:Type) (x:a) : repr a (fun p m0 -> p x m0) = fun _ -> Some x
+let return (a:Type) (x:a) : repr a (fun p -> p x) = fun _ -> Some x
 
 inline_for_extraction
 let bind (a:Type) (b:Type)
@@ -62,7 +62,7 @@ layered_effect {
 }
 
 inline_for_extraction
-let raise (#a:Type) (s:string) : STEXN a (fun p m0 -> True) =
+let raise (#a:Type) (s:string) : STEXN a (fun _ _ -> True) =
   STEXN?.reflect (fun _ -> None)
 
 inline_for_extraction
