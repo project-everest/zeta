@@ -92,24 +92,11 @@ type idx_elem (#a:eqtype) (n:nat) = a * (i:nat{i < n})
 let project_seq (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)): seq a
   = fst (unzip s)
 
-val interleaved_idx_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Tot (seq (idx_elem #a (length ss)))
-
-val lemma_interleaved_idx_seq (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss):
-  Lemma (requires True)
-        (ensures (interleave (project_seq (interleaved_idx_seq ss ic)) ss))
-        [SMTPat (interleaved_idx_seq ss ic)]
-
 val partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
   Tot (ss:sseq a{length ss = n})
 
-val lemma_interleave_idx_correct1 (#a:eqtype) (ss:sseq a) (ic:interleave_ctor ss):
-  Lemma (requires True)
-        (ensures (partition_idx_seq (interleaved_idx_seq ss ic) = ss))
-        [SMTPat (interleaved_idx_seq ss ic)]
-
-val partition_idx_seq_interleave_ctor (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)):
-  Tot (interleave_ctor (partition_idx_seq s))
+val lemma_partition_idx_seq_interleaving (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
+  Lemma (interleave (project_seq s) (partition_idx_seq s))
 
 val lemma_partition_idx_prefix_comm 
   (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)) (i:nat{i <= length s}) (id:nat{id < n}):
@@ -120,3 +107,11 @@ val lemma_partition_idx_extend1 (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n){len
   Lemma (index (partition_idx_seq s) (snd (telem s)) = 
          append1 (index (partition_idx_seq (hprefix s)) (snd (telem s)))
                  (fst (telem s)))
+
+val interleaved_idx_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
+  Tot (seq (idx_elem #a (length ss)))
+
+val lemma_interleaved_idx_seq_correct (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
+  Lemma (requires True)
+        (ensures (partition_idx_seq (interleaved_idx_seq ss ic) = ss))
+        [SMTPat (interleaved_idx_seq ss ic)]

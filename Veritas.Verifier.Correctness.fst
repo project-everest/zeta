@@ -66,6 +66,7 @@ let lemma_verifier_correct (gl: g_hash_verifiable_log { ~ (seq_consistent (to_st
 
   (* sequence ordered by time of each log entry *)
   let itsl = time_seq_idx gl in
+  lemma_partition_idx_seq_interleaving itsl;
   let tsl = project_seq itsl in
   assert(interleave tsl gl);
 
