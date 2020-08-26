@@ -61,9 +61,11 @@ layered_effect {
   if_then_else = if_then_else
 }
 
+inline_for_extraction
 let raise (#a:Type) (s:string) : STEXN a (fun p m0 -> True) =
   STEXN?.reflect (fun _ -> None)
 
+inline_for_extraction
 let lift_state_stexn (a:Type) (wp:st_wp a) (f:eqtype_as_type unit -> STATE a wp)
   : repr a wp
   = fun _ -> Some (f ())
