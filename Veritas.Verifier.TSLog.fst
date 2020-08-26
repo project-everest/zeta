@@ -27,11 +27,9 @@ let its_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}):
   its_prefix_aux itsl i
 
 (* extended time sequence log (with evict values) *)
-let time_seq_ext_aux (#p:pos) (itsl: its_log p):
+let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
   Tot (le:vlog_ext{project_seq itsl = to_vlog le})
-  (decreases (length itsl))
-  = admit()
-  (*
+  (decreases (length itsl)) =
   let m = length itsl in
   if m = 0 then (
     lemma_empty itsl;
@@ -46,6 +44,11 @@ let time_seq_ext_aux (#p:pos) (itsl: its_log p):
     (* recurse *)
     let itsl' = its_prefix itsl (m - 1) in
     let r' = time_seq_ext_aux itsl' in
+  
+    admit()
+  )
+  (*
+  
 
     (* project seq of itsl and itsl' differ by log entry e *)
     lemma_unzip_extend itsl;
