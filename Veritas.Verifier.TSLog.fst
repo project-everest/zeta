@@ -49,17 +49,17 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
     lemma_project_seq_extend itsl;
     assert(project_seq itsl = append1 (project_seq itsl') e);
 
+    (* log entries of verifier thread id *)
+    let gl = partition_idx_seq itsl in
+    let l = index gl id in
+    assert(snd (index (g_tid_vlog gl) id) = l);
+
+    (* since l is verifiable, the value at last position is well-defined *)
+    assert(t_verifiable (id, l));
+    (* prove length l > 0 *)
+    lemma_partition_idx_extend1 itsl;
+
     if is_evict_to_merkle e then (
-      (* log entries of verifier thread id *)
-      let gl = partition_idx_seq itsl in
-      let l = index gl id in
-      assert(snd (index (g_tid_vlog gl) id) = l);
-
-      (* since l is verifiable, the value at last position is well-defined *)
-      assert(t_verifiable (id, l));
-      (* prove length l > 0 *)
-      lemma_partition_idx_extend1 itsl;
-
       let v = evict_value (id, l) (length l - 1) in
       let r = append1 r' (EvictMerkle e v) in
       lemma_prefix1_append r' (EvictMerkle e v);
@@ -67,16 +67,6 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
       r
     )
     else if is_evict_to_blum e then (
-      (* log entries of verifier thread id *)
-      let gl = partition_idx_seq itsl in
-      let l = index gl id in
-      assert(snd (index (g_tid_vlog gl) id) = l);
-
-      (* since l is verifiable, the value at last position is well-defined *)
-      assert(t_verifiable (id, l));
-      (* prove length l > 0 *)
-      lemma_partition_idx_extend1 itsl;
-
       let v = evict_value (id, l) (length l - 1) in
       let r = append1 r' (EvictBlum e v id) in
       lemma_prefix1_append r' (EvictBlum e v id);
@@ -93,17 +83,27 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
 
 let time_seq_ext = time_seq_ext_aux
 
-let lemma_its_prefix_ext (#n:pos) (itsl:its_log n) (i:nat{i <= length itsl}):
+let rec lemma_its_prefix_ext (#n:pos) (itsl:its_log n) (i:nat{i <= length itsl}):
   Lemma (requires True)
-        (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i)) = 
-  admit()
+        (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i)) 
+        (decreases (length itsl)) = 
+  let n = length itsl in          
+  if i = n then ()
+  else (
+    assert(n > 0 && i < n);
+
+    if i = n - 1 then
+      admit()
+    else
+
+    admit()
+  )
 
 (* if itsl is eac, then any prefix is also eac *)
-let lemma_eac_implies_prefix_eac (#p:pos) (itsl: its_log p) (i:nat {i <= length itsl}):
+let lemma_eac_implies_prefix_eac (#p:pos) (itsl: eac_ts_log p) (i:nat {i <= length itsl}):
   Lemma (requires True)
-        (ensures (is_eac_log (time_seq_ext (its_prefix itsl i))))
+        (ensures (is_eac_log (its_prefix itsl i)))
         [SMTPat (its_prefix itsl i)] = admit()
-
 
 (* 
  * when the eac state of a key is Init (no operations on the key yet) no 
@@ -185,6 +185,10 @@ let eac_value (#n:pos) (itsl: eac_ts_log n) (k:key): value_type_of k =
 
       stored_value st k
 
+let lemma_eac_value_is_stored_value (#p:pos) (itsl: eac_ts_log p) (k:key) (id:nat{id < p}):
+  Lemma (requires (store_contains (thread_store (verifier_thread_state itsl id)) k))
+        (ensures (eac_value itsl k = 
+                  stored_value (thread_store (verifier_thread_state itsl id)) k)) = admit()
 
 let lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index itsl):
   Lemma (requires (is_evict (fst (index itsl i))))

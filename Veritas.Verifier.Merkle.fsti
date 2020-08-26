@@ -9,6 +9,8 @@ open Veritas.Verifier
 open Veritas.Verifier.CorrectDefs
 open Veritas.Verifier.TSLog
 
+module TL = Veritas.Verifier.TSLog
+
 let mv_points_to_none (v: merkle_value) (d:bin_tree_dir): bool = 
   desc_hash_dir v d = Empty
 
@@ -82,8 +84,9 @@ val lemma_proving_ancestor_blum_bit (#p:pos) (itsl: eac_ts_log p) (k:key{k <> Ro
                                      (desc_dir k (proving_ancestor itsl k)) = 
                   is_eac_state_evicted_blum itsl k))
       
-val lemma_addm_ancestor_is_proving (#p:pos) (itsl: eac_ts_log p {length itsl > 0}):
-  Lemma (requires (AddM? (its_vlog_entry itsl (length itsl - 1))))
+val lemma_addm_ancestor_is_proving (#p:pos) (itsl: its_log p {length itsl > 0}):
+  Lemma (requires (TL.is_eac_log (its_prefix itsl (length itsl - 1)) /\
+                   AddM? (its_vlog_entry itsl (length itsl - 1))))
         (ensures (Root <> vlog_entry_key (its_vlog_entry itsl (length itsl - 1)) /\        
                   AddM?.k' (its_vlog_entry itsl (length itsl - 1)) = 
                   proving_ancestor (its_prefix itsl (length itsl - 1))

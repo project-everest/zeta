@@ -49,14 +49,16 @@ val lemma_its_prefix_ext (#n:pos) (itsl:its_log n) (i:nat{i <= length itsl}):
   Lemma (requires True)
         (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i))
         [SMTPat (time_seq_ext (its_prefix itsl i))]
-  
-type eac_ts_log (p:pos) = itsl: its_log p {is_eac_log (time_seq_ext itsl)}
-type non_eac_ts_log (p:pos) = itsl: its_log p {not (is_eac_log (time_seq_ext itsl))}
+
+let is_eac_log (#p:pos) (itsl: its_log p):bool = E.is_eac_log (time_seq_ext itsl)
+
+type eac_ts_log (p:pos) = itsl: its_log p {is_eac_log itsl}
+type non_eac_ts_log (p:pos) = itsl: its_log p {not (is_eac_log itsl)}
 
 (* if itsl is eac, then any prefix is also eac *)
-val lemma_eac_implies_prefix_eac (#p:pos) (itsl: its_log p) (i:nat {i <= length itsl}):
+val lemma_eac_implies_prefix_eac (#p:pos) (itsl: eac_ts_log p) (i:nat {i <= length itsl}):
   Lemma (requires True)
-        (ensures (is_eac_log (time_seq_ext (its_prefix itsl i))))
+        (ensures (is_eac_log (its_prefix itsl i)))
         [SMTPat (its_prefix itsl i)]
 
 (* the eac state of a key at the end of an its log *)
@@ -167,7 +169,12 @@ val lemma_evict_value_correct_type (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_s
  * for keys in a thread store, return the value in the thread store; 
  * for other keys return the last evict value or null (init)
  *)
- val eac_value (#n:pos) (itsl: eac_ts_log n) (k:key): value_type_of k
+val eac_value (#n:pos) (itsl: eac_ts_log n) (k:key): value_type_of k
+
+val lemma_eac_value_is_stored_value (#p:pos) (itsl: eac_ts_log p) (k:key) (id:nat{id < p}):
+  Lemma (requires (store_contains (thread_store (verifier_thread_state itsl id)) k))
+        (ensures (eac_value itsl k = 
+                  stored_value (thread_store (verifier_thread_state itsl id)) k))
 
 let key_of (#p:pos) (ie:idx_elem #vlog_entry p): key = 
   let (e,_) = ie in

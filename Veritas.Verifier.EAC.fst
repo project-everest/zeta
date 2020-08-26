@@ -252,6 +252,7 @@ let lemma_non_eac_init_addb (#n)
     MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
   )
 
+
 let lemma_non_eac_init_addm
   (#p:pos) 
   (itsl: non_eac_ts_log p{
@@ -276,7 +277,6 @@ let lemma_non_eac_init_addm
   
   lemma_verifier_thread_state_extend itsli';  
   assert(vsi' == t_verify_step vsi e);
-
   match e with
   | AddM (k,v) k' -> 
     (* otherwise eac_add ee st <> EACFail *)
@@ -289,14 +289,28 @@ let lemma_non_eac_init_addm
     lemma_addm_ancestor_is_proving itsli';
     assert(k' = proving_ancestor itsli k);
 
+    (* k' is the verifier cache *)
+    assert(store_contains (thread_store vsi) k');
+    //assert(eac_value itsli k' = stored_value (thread_store vsi) k');
+
     (* k' points to none or some non-ancestor of k *)
     assert(is_eac_state_init itsli k);
     lemma_proving_ancestor_initial itsli k;
 
-    (* this causes the verifier to fail, a contradiction *)
-    hash_collision_contra()
     
 
+    (* this causes the verifier to fail, a contradiction *)
+    //hash_collision_contra()
+    admit()
+
+  (*
+
+
+
+
+    *)
+
+(*
 let lemma_non_eac_instore_get (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACInStore? (last_valid_eac_state itsl)  /\
@@ -1038,3 +1052,4 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
   )
+*)
