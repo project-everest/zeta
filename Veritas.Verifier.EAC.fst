@@ -123,7 +123,8 @@ let lemma_time_seq_ext_correct (#n:pos) (itsl: its_log n) (i:seq_index itsl):
   Lemma (requires True)
         (ensures (its_vlog_entry itsl i = to_vlog_entry (index (time_seq_ext itsl) i))) 
         [SMTPat (to_vlog_entry (index (time_seq_ext itsl) i))] =
-  lemma_unzip_index itsl i
+  //lemma_unzip_index itsl i
+  lemma_project_seq_index itsl i
 
 (* if an operation requires the key in store, it cannot be the first operation *)
 let lemma_non_eac_init_requires_key_in_store (#n:pos) 

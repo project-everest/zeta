@@ -87,10 +87,13 @@ val lemma_filter_interleave_commute_prf (#a:eqtype)
 val lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a{interleave s ss}):  
   Lemma (interleave (filter f s) (map (filter f) ss))
 
-type idx_elem (#a:eqtype) (n:nat) = a * (i:nat{i < n})
+type idx_elem (#a:eqtype) (n:nat) = e:(a * nat){snd e < n}
 
-let project_seq (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)): seq a
-  = fst (unzip s)
+val project_seq (#a:eqtype) (#n:nat) (is:seq (idx_elem #a n)): 
+  (s:seq a{length s = length is})
+
+val lemma_project_seq_index (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n)) (i:seq_index is):
+  Lemma (fst (index is i) = index (project_seq is) i)
 
 val partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
   Tot (ss:sseq a{length ss = n})

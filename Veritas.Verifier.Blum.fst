@@ -147,7 +147,7 @@ let blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict (
   let (e,id) = index itsl i in
   let tsle = time_seq_ext itsl in
   assert(project_seq itsl = to_vlog tsle);
-  lemma_unzip_index itsl i;
+  lemma_project_seq_index itsl i;
   assert(to_vlog_entry (index tsle i) = e);
   match e with
   | EvictB k t -> 

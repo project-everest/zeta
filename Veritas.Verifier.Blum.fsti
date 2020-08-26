@@ -48,8 +48,8 @@ let blum_add_elem (#p:nat) (ie:idx_elem #vlog_entry p{is_blum_add ie}):
   | AddB r t j -> MHDom r t j
 
 (* sequence of blum adds in the time sequenced log *)
-let ts_add_seq (#n:pos) (itsl: its_log n): seq ms_hashfn_dom =
-  map blum_add_elem (filter_refine is_blum_add itsl)
+let ts_add_seq (#p:pos) (itsl: its_log p): seq ms_hashfn_dom =
+  map (blum_add_elem #p) (filter_refine is_blum_add itsl)
 
 (* the addset in a time sequenced log *)
 let ts_add_set (#n:pos) (itsl: its_log n): mset ms_hashfn_dom 
