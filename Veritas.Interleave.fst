@@ -361,25 +361,16 @@ let rec lemma_filter_interleave_commute_prf_aux (#a:eqtype)
     )
 
 (* filter and interleaving commute (constructive version) *)
-let lemma_filter_interleave_commute_prf (#a:eqtype) 
-  (f:a -> bool) (s: seq a) (ss: sseq a) (prf: interleave s ss): 
-  Tot (interleave (filter f s) (map (filter f) ss)) = 
-  admit()
+let lemma_filter_interleave_commute_prf = lemma_filter_interleave_commute_prf_aux
 
-
+let lemma_filter_interleave_commute_aux (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a)
+  (prf:interleave s ss):  
+  Lemma (interleave (filter f s) (map (filter f) ss)) = 
+  return_squash (lemma_filter_interleave_commute_prf f s ss prf)
+  
 let lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a{interleave s ss}):  
-  Lemma (interleave (filter f s) (map (filter f) ss)) = admit()
-
-
-(* map and interleaving commute (constructive version) *)
-let lemma_map_interleave_commute_prf (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a) (prf: interleave s ss):
-  Tot (interleave (map f s) (map (map f) ss)) = admit()
-
-
-(* map and interleaving commute *)
-let lemma_map_interleave_commute (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a{interleave s ss}):
-  Lemma (interleave (map f s) (map (map f) ss)) = admit()
-
+  Lemma (interleave (filter f s) (map (filter f) ss)) = 
+  bind_squash () (lemma_as_squash (lemma_filter_interleave_commute_aux f s ss))
 
 let interleaved_idx_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
   Tot (seq (idx_elem #a (length ss))) = admit()

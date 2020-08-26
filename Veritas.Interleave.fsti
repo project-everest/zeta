@@ -87,15 +87,6 @@ val lemma_filter_interleave_commute_prf (#a:eqtype)
 val lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a{interleave s ss}):  
   Lemma (interleave (filter f s) (map (filter f) ss))
 
-(* map and interleaving commute (constructive version) *)
-val lemma_map_interleave_commute_prf (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a) (prf: interleave s ss):
-  Tot (interleave (map f s) (map (map f) ss))
-
-(* map and interleaving commute *)
-val lemma_map_interleave_commute (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a{interleave s ss}):
-  Lemma (interleave (map f s) (map (map f) ss))
-
-
 type idx_elem (#a:eqtype) (n:nat) = a * (i:nat{i < n})
 
 let project_seq (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)): seq a
