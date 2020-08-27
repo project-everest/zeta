@@ -6,7 +6,7 @@ module HS = FStar.HyperStack
 
 open LowStar.Exception
 
-let thread_id_t = uint_8
+let thread_id_t = uint_16
 let counter_t = B.pointer uint_64
 let timestamp = uint_64
 
@@ -87,17 +87,6 @@ let compute_hash d =
   pop_frame ();
   r
 
-//We should introduce this as a layer with exceptions
-//in a way that allows us to discard error continuations --- I don't think we need to have any error recovery
-// effect StackErr (a:Type) (pre:HS.mem -> Type) (post:HS.mem -> a -> HS.mem -> Type)
-//   = Stack a pre post
-
-// assume
-// val raise (#a:Type) (err:string)
-//   : StackErr a
-//     (requires fun h -> True)
-//     (ensures fun h0 _ h1 -> h0 == h1)
-
 let vstore_try_get_record (v:vstore) (s:slot_id)
   : Stack (option record)
     (requires fun h -> VStore.invariant v h)
@@ -111,16 +100,6 @@ let vstore_get_record (v:vstore) (s:slot_id)
   = match vstore_try_get_record v s with
     | None -> raise "vstore does not contain slot"
     | Some r -> r
-
-let check_vstore_contains_key (v:vstore) (s:slot_id) (k:key)
-  : StackExn (v:value{is_value_of k v})
-    (requires fun h -> VStore.invariant v h)
-    (ensures fun h0 r h1 -> h0 == h1 (* /\ r = h0.v.entries s *))
-  = match vstore_try_get_record v s with
-    | None -> raise "vstore does not contain slot"
-    | Some (k', v) ->
-      if k <> k' then raise "vstore contains unexpected key at given slot"
-      else (assume (is_value_of k v); v)
 
 let vstore_update_record (v:vstore) (s:slot_id) (r:record)
   : Stack unit
@@ -149,28 +128,27 @@ let vstore_evict_record (v:vstore) (s:slot_id) (k:key)
     )
   = VStore.vcache_evict_record v s k
 
-let vget (s:slot_id) (k:data_key) (v:data_value) (vs: thread_state_t)
+let vget (s:slot_id) (v:data_value) (vs: thread_state_t)
   : StackExn unit
     (requires fun h -> thread_state_inv vs h)
     (ensures fun h0 _ h1 -> h0 == h1)
-  = let key, value = vstore_get_record vs.st s in
-    match value with
+  = let r = vstore_get_record vs.st s in
+    match r.record_value with
     | MVal _ _ ->
       raise "expected a data value"
     | DVal dv ->
-      if key = k
-      && dv = v
+      if dv = v
       then ()
       else raise "Failed: inconsistent key or value in Get"
 
 (* verifier write operation *)
-let vput (s:slot_id) (k:data_key) (v:data_value) (vs: thread_state_t)
+let vput (s:slot_id) (v:data_value) (vs: thread_state_t)
   : StackExn unit
     (requires fun h -> thread_state_inv vs h)
     (ensures fun h0 _ h1 ->
       thread_state_inv vs h1)
-  = let _ = check_vstore_contains_key vs.st s k in
-    vstore_update_record vs.st s (k, DVal v)
+  = let r = vstore_get_record vs.st s in
+    vstore_update_record vs.st s ({r with record_value = DVal v})
 
 (* update merkle value *)
 let update_merkle_value (v:value{MVal? v})
@@ -182,6 +160,13 @@ let update_merkle_value (v:value{MVal? v})
     | Left -> MVal dh dhr
     | Right -> MVal dhl dh
 
+unfold
+let with_in_store_direction r (d:desc_type_lr) (flag:bool)
+  : record
+  = match d with
+    | Left -> {r with record_l_child_in_store = flag}
+    | Right -> {r with record_r_child_in_store = flag}
+
 let init_value (k:key): v:value{is_value_of k v} =
   if is_data_key k then DVal None
   else MVal Empty Empty
@@ -189,15 +174,20 @@ let init_value (k:key): v:value{is_value_of k v} =
 let vaddm (s:slot_id)
           (r:record)
           (s':slot_id)
-          (k':merkle_key)
           (vs: thread_state_t)
   : StackExn unit
     (requires fun h -> thread_state_inv vs h)
     (ensures fun h0 _ h1 -> thread_state_inv vs h1)
-  = let (k,v) = r in
+  = let { record_key = k; record_value = v } = r in
     (* check k is a proper desc of k' and that k is not already in the store *)
-    let (k'', mv) = vstore_get_record vs.st s' in
-    if k' <> k'' then raise "vaddm: slot contains wrong key";
+    let {
+          record_key = k';
+          record_value = mv;
+          record_l_child_in_store = l_in_store;
+          record_r_child_in_store = r_in_store;
+          record_add_method = add_method'
+        } = vstore_get_record vs.st s'
+    in
     let direction, mval, desc_hash_dir
       : desc_type_lr & mvalue & descendent_hash
       = match mv with
@@ -205,11 +195,11 @@ let vaddm (s:slot_id)
         | MVal l r ->
           match is_descendent k k' with
           | Some Left ->
-            if Desc? l && Desc?.in_store l
+            if Desc? l && l_in_store
             then raise "vaddm: key is already in the store"
             else Left, mv, l
           | Some Right ->
-            if Desc? r && Desc?.in_store r
+            if Desc? r && r_in_store
             then raise "vaddm: key is already in the store"
             else Right, mv, r
           | _ -> raise "vaddm: not a proper descendant"
@@ -224,12 +214,12 @@ let vaddm (s:slot_id)
     match desc_hash_dir with
     | Empty ->
       if v <> init_value k then raise "vaddm: First add expected initial value";
-      let dh = Desc k h false false in
+      let dh = Desc k h false in
       let mval' = update_merkle_value mval direction dh in
-      vstore_update_record vs.st s' (k', mval');
+      vstore_update_record vs.st s' (mk_record k' mval' add_method');
       vstore_add_record vs.st s k v MAdd
 
-    | Desc k2 h2 k2_in_blum k2_in_store ->
+    | Desc k2 h2 k2_in_blum ->
       if k2 = k then
          if h2 = h then
             vstore_add_record vs.st s k v MAdd
@@ -241,8 +231,8 @@ let vaddm (s:slot_id)
            | Some lr ->
              assume (MVal? v); //k has a strict descendent, so it cannot be a data key
              let mv_upd = update_merkle_value v lr desc_hash_dir in
-             let mval' = update_merkle_value mval direction (Desc k h false true) in
-             vstore_update_record vs.st s' (k', mval');
+             let mval' = update_merkle_value mval direction (Desc k h false) in
+             vstore_update_record vs.st s' (with_in_store_direction (mk_record k' mval' add_method') direction true);
              vstore_add_record vs.st s k mv_upd MAdd
 
 let desc_hash_dir (v:mvalue) (lr:desc_type_lr)
@@ -252,15 +242,23 @@ let desc_hash_dir (v:mvalue) (lr:desc_type_lr)
     | Right -> MVal?.r v
 
 let vevictm (s:slot_id)
-            (k:key)
             (s':slot_id)
-            (k':merkle_key)
+            // (k':merkle_key)
             (vs: thread_state_t)
   : StackExn unit
     (requires fun h -> thread_state_inv vs h)
     (ensures fun h0 _ h1 -> thread_state_inv vs h1)
-  = let v = check_vstore_contains_key vs.st s k in
-    let v' = check_vstore_contains_key vs.st s' k' in
+  = let {
+          record_key = k;
+          record_value = v;
+        } = vstore_get_record vs.st s
+    in
+    let {
+          record_key = k';
+          record_value = v';
+          record_add_method = a'
+        } = vstore_get_record vs.st s'
+    in
      match is_descendent k k' with
     | None
     | Some Eq -> raise "vevictm: expected a proper descendant"
@@ -271,47 +269,42 @@ let vevictm (s:slot_id)
       match dh' with
       | Empty ->
         raise "vevictm: Evicting child node should be in the merkle tree"
-      | Desc k2 h2 b2 in_store ->
+      | Desc k2 h2 b2 ->
         if k2 = k then
-           let v'_upd = update_merkle_value v' lr (Desc k h b2 false) in
-           vstore_update_record vs.st s' (k', v'_upd);
-           vstore_evict_record vs.st s k
-
+        begin
+           vstore_evict_record vs.st s k; //evict s, k first
+           //then update parent with in_store bit = false
+           let v'_upd = update_merkle_value v' lr (Desc k h b2) in
+           vstore_update_record vs.st s' (with_in_store_direction (mk_record k' v'_upd a') lr false)
+        end
 
 ////////////////////////////////////////////////////////////////////////////////
 (* Each entry of the verifier log *)
 noeq
 type vlog_entry =
   | Get:     s:slot_id ->
-             k:data_key ->
              v:data_value ->
              vlog_entry
   | Put:     s:slot_id ->
-             k:data_key ->
              v:data_value ->
              vlog_entry
   | AddM:    s:slot_id ->
              r:record ->
              s':slot_id ->
-             k':merkle_key ->
              vlog_entry
   | EvictM:  s:slot_id ->
-             k:key ->
              s':slot_id ->
-             k':merkle_key ->
              vlog_entry
   | AddB:    s:slot_id ->
              r:record ->
              t:timestamp ->
-             j:nat -> //What's this field?
+             j:thread_id_t ->
              vlog_entry
   | EvictB:  s:slot_id ->
-             k:key ->
              t:timestamp ->
              vlog_entry
   | EvictBM: s:slot_id ->
-             k:key ->
-             k':merkle_key ->
+             s':slot_id ->
              t:timestamp ->
              vlog_entry
 
@@ -368,14 +361,14 @@ let t_verify_step (vs:v_context)
       v_context_inv vs h1)
   = let entry = extract_log_entry vs.log_stream in
     match entry with
-    | Get s k v ->
-      vget s k v vs.thread_state
-    | Put s k v ->
-      vput s k v vs.thread_state
-    | AddM s r s' k' ->
-      vaddm s r s' k' vs.thread_state
-    | EvictM s k s' k' ->
-      vevictm s k s' k' vs.thread_state
+    | Get s v ->
+      vget s v vs.thread_state
+    | Put s v ->
+      vput s v vs.thread_state
+    | AddM s r s' ->
+      vaddm s r s' vs.thread_state
+    | EvictM s s' ->
+      vevictm s s' vs.thread_state
     | _ ->
       raise "t_verify_step: unhandled operation"
 

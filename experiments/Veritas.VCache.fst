@@ -40,6 +40,6 @@ let vcache_get_record st s = B.index st (C.uint16_to_uint32 s)
 
 let vcache_update_record st s r = B.upd st (C.uint16_to_uint32 s) (Some r)
 
-let vcache_add_record st s k v _a = vcache_update_record st s (k, v)
+let vcache_add_record st s k v a = vcache_update_record st s (mk_record k v a)
 
 let vcache_evict_record st s _k = B.upd st (C.uint16_to_uint32 s) None

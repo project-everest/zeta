@@ -41,18 +41,25 @@ type descendent_hash =
   | Desc: k:key -> //Q: do we really need to store this here? I guess because its sparse we can't compute the key of the descendent?
           h:hash_value ->
           evicted_to_blum:bool -> //Q: What does this represent?
-          in_store:bool -> //The descendent with key k is in the VStore
+          // in_store:bool -> //The descendent with key k is in the VStore
           descendent_hash
 
 type value =
   | MVal : l:descendent_hash -> r:descendent_hash -> value
   | DVal : data_value -> value
 
-type record = key & value
-
 type add_method =
   | MAdd: add_method  (* AddM *)
   | BAdd: add_method  (* AddB *)
+
+type record = {
+  record_key:key;
+  record_value:value;
+  record_add_method:add_method;
+  record_l_child_in_store:bool;
+  record_r_child_in_store:bool
+}
+
 
 val most_significant_bit (k:key) : bool
 
@@ -112,6 +119,14 @@ val vcache_update_record (st:vstore) (s:slot_id) (r:record)
         invariant st h1 /\
         as_seq st h1 == Seq.upd (as_seq st h0) (U16.v s) (Some r))
 
+let mk_record k v a : record = {
+  record_key = k;
+  record_value = v;
+  record_add_method = a;
+  record_l_child_in_store = false;
+  record_r_child_in_store = false;
+}
+
 val vcache_add_record  //AR: Difference from vcache_update_record?
   (st:vstore)
   (s:slot_id)
@@ -123,7 +138,7 @@ val vcache_add_record  //AR: Difference from vcache_update_record?
       (ensures fun h0 _ h1 ->
         B.(modifies (footprint st) h0 h1) /\
         invariant st h1 /\
-        as_seq st h1 == Seq.upd (as_seq st h0) (U16.v s) (Some (k, v)))
+        as_seq st h1 == Seq.upd (as_seq st h0) (U16.v s) (Some (mk_record k v a)))
 
 val vcache_evict_record (st:vstore) (s:slot_id) (k:key)  //AR: Do we need k here?
   : Stack unit
