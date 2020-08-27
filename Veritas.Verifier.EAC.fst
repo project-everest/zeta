@@ -984,16 +984,14 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
   : hash_collision_gen = 
   (* hash verifiable - evict hash and add hash equal *)                          
   let gl = partition_idx_seq itsl in                           
-  assert(g_hadd gl = g_hevict gl);
 
   let st = last_valid_eac_state itsl in   
   let ee = invalidating_log_entry itsl in
-  assert(eac_add ee st = EACFail);  
   match st with
   | EACEvictedBlum v_e t j -> (
     match ee with
     | NEvict (AddB (k, v) t' j') ->
-    assert(v_e <> v || t' <> t || j' <> j);
+    //assert(v_e <> v || t' <> t || j' <> j);
 
     let tsle = time_seq_ext itsl in
     let i = max_eac_prefix tsle in
@@ -1006,22 +1004,57 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
     let itsli' = its_prefix itsl (i + 1) in
     let vsi' = verifier_thread_state itsli' tid in    
     lemma_verifier_thread_state_extend itsli';  
-    assert(vsi' == t_verify_step vsi e);    
+    //assert(vsi' == t_verify_step vsi e);    
 
-    assert(is_blum_add (index itsl i));
     let be = blum_add_elem (index itsl i) in
 
     (* the previous operation of k is a blum evict *)
     lemma_eac_evicted_blum_implies_previous_evict itsli k;
     let i' = last_idx_of_key itsli k in
-    assert(is_blum_evict (index itsli i'));
+    //assert(is_blum_evict (index itsli i'));
 
     (* since EAC failed, the blum element added to evict set at i' <> blum element added to 
      * add set at i *)
-    let be' = blum_evict_elem itsl i' in
+    let be' = blum_evict_elem itsli i' in
     //assert(be <> be');
 
-    admit()
+    if MS.contains be (ts_evict_set itsl) then (
+
+      (* since evict set is a set we can identify the unique index that produces be *)
+      let j = index_blum_evict itsl be in
+      //assert(is_blum_evict (index itsl j));
+      //assert(blum_evict_elem itsl j = be);
+
+      (* from clock ordering j has to occur before i *)
+      assume (j < i);
+      
+      //assert(entry_of_key k (index itsli j));
+      lemma_last_index_correct2 (entry_of_key k) itsli j;
+
+      //lemma_index_blum_evict_prefix itsl i i';
+      //assert(be' = blum_evict_elem itsli i');
+      //assert(blum_evict_elem itsl i' = blum_evict_elem itsli i');
+      assert(j < i');
+      //assert(be' = blum_evict_elem itsl i');
+
+
+      admit()
+    )
+    else (
+      
+      lemma_ts_add_set_contains_add_elem itsl i;
+      //assert(MS.contains be (ts_add_set itsl));
+
+      MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;     
+      lemma_ts_evict_set_correct itsl;
+      lemma_ts_add_set_correct itsl;     
+      //assert(~ (g_add_set gl == g_evict_set gl));
+
+      lemma_ghevict_correct gl;
+      lemma_g_hadd_correct gl;
+
+      MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))      
+    )
  )
 
  (*
@@ -1030,10 +1063,6 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
 
     if MS.contains be (ts_evict_set itsl) then (
 
-      (* since evict set is a set we can identify the unique index that produces be *)
-      let j = index_blum_evict itsl be in
-      assert(is_blum_evict (index itsl j));
-      assert(blum_evict_elem itsl i = be);
 
       (* from clock ordering j has to occur before i *)
       assert(entry_of_key k (index itsl j));

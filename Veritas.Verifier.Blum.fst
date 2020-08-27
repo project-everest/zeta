@@ -165,7 +165,13 @@ let blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict (
   | EvictBM k _ t -> 
     let v = value_ext (index tsle i) in
     MHDom (k,v) t id
- 
+
+let lemma_index_blum_evict_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}) (j:nat{j < i}):
+  Lemma (requires (is_blum_evict (index itsl j)))
+        (ensures (blum_evict_elem itsl j = blum_evict_elem (its_prefix itsl i) j))
+        [SMTPat (blum_evict_elem (its_prefix itsl i) j)] = admit()
+
+
 let rec ts_evict_seq_aux (#n:pos) (itsl: its_log n): Tot (seq ms_hashfn_dom) 
   (decreases (length itsl)) =
   let m = length itsl in 

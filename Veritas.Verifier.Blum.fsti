@@ -96,6 +96,12 @@ val some_add_elem_idx (#p:pos) (itsl: its_log p)
 val blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict (index itsl i)}):
   (e:ms_hashfn_dom{MH.key_of e = TL.key_of (index itsl i)})
 
+val lemma_index_blum_evict_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}) (j:nat{j < i}):
+  Lemma (requires (is_blum_evict (index itsl j)))
+        (ensures (blum_evict_elem itsl j = blum_evict_elem (its_prefix itsl i) j))
+        [SMTPat (blum_evict_elem (its_prefix itsl i) j)]
+
+
 (* sequence of evicts in time sequence log *)
 val ts_evict_seq (#n:pos) (itsl: its_log n): seq ms_hashfn_dom
 

@@ -23,13 +23,13 @@ let clock (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable p s}) (i
   let gl = partition_idx_seq s in
   admit()
 
-type clock_sorted (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable p s}) =
+let clock_sorted (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable p s}) =
   forall (i:seq_index s). i > 0 ==> clock p s (i - 1) `ts_leq` clock p s i
 
 (* TODO: this makes the emacs interactive fstar unstable 
 type its_log (p:pos) = 
   s:seq (idx_elem #vlog_entry p){partition_verifiable p s /\ clock_sorted p s}
-  *)
+*)
 
 type its_log (p:pos) = 
   s:seq (idx_elem #vlog_entry p){partition_verifiable p s}
