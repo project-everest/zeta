@@ -636,8 +636,6 @@ let lemma_non_eac_instore_evictm (#p:pos)
       )
     )
 
-*)
-
 let lemma_non_eac_instore_evictb (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACInStore? (last_valid_eac_state itsl)  /\
@@ -698,10 +696,8 @@ let lemma_non_eac_instore_evictb (#p:pos)
         hash_collision_contra()
       )
   )
+*)
 
-(******************************************)
-
-(*
 let lemma_non_eac_instore_evictbm (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACInStore? (last_valid_eac_state itsl)  /\
@@ -725,7 +721,7 @@ let lemma_non_eac_instore_evictbm (#p:pos)
       let vsi = verifier_thread_state itsli tid in
 
       let itsli' = its_prefix itsl (i + 1) in
-      let vsi' = verifier_thread_state itsli tid in    
+      let vsi' = verifier_thread_state itsli' tid in    
       lemma_verifier_thread_state_extend itsli';  
       assert(vsi' == t_verify_step vsi e);    
       
@@ -738,10 +734,10 @@ let lemma_non_eac_instore_evictbm (#p:pos)
 
       lemma_eac_state_instore_addm itsli k;
       assert(addm_of_entry (index li lidx) = m);
-      assert(add_method_of (thread_store vsi) k = m);
       assert(add_method_of (thread_store vsi) k = MAdd);
 
       if ltid = tid then (
+        assert(add_method_of (thread_store vsi) k = m);
         assert(m = MAdd);
         assert(DVal? v && v' <> v);
         lemma_eac_state_instore itsli k;
@@ -762,6 +758,9 @@ let lemma_non_eac_instore_evictbm (#p:pos)
       )
  )
 
+(******************************************)
+
+(*
 let lemma_non_eac_evicted_requires_key_in_store (#p:pos)   
   (itsl: non_eac_ts_log p{
     EC.is_eac_state_evicted (last_valid_eac_state itsl)  /\
