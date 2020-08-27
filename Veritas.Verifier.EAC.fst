@@ -696,7 +696,6 @@ let lemma_non_eac_instore_evictb (#p:pos)
         hash_collision_contra()
       )
   )
-*)
 
 let lemma_non_eac_instore_evictbm (#p:pos)   
   (itsl: non_eac_ts_log p{
@@ -758,9 +757,8 @@ let lemma_non_eac_instore_evictbm (#p:pos)
       )
  )
 
-(******************************************)
+*)
 
-(*
 let lemma_non_eac_evicted_requires_key_in_store (#p:pos)   
   (itsl: non_eac_ts_log p{
     EC.is_eac_state_evicted (last_valid_eac_state itsl)  /\
@@ -780,7 +778,7 @@ let lemma_non_eac_evicted_requires_key_in_store (#p:pos)
   let vsi = verifier_thread_state itsli tid in
 
   let itsli' = its_prefix itsl (i + 1) in
-  let vsi' = verifier_thread_state itsli tid in    
+  let vsi' = verifier_thread_state itsli' tid in    
   lemma_verifier_thread_state_extend itsli';  
   assert(vsi' == t_verify_step vsi e);    
   
@@ -788,6 +786,10 @@ let lemma_non_eac_evicted_requires_key_in_store (#p:pos)
   lemma_eac_state_evicted_store itsli k tid;
   hash_collision_contra()
 
+
+(******************************************)
+
+(*
 let lemma_non_eac_evicted_merkle_addm (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACEvictedMerkle? (last_valid_eac_state itsl)  /\
