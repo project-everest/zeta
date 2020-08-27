@@ -1,4 +1,4 @@
-module VMemVOp
+module Veritas.LowLevelVerifier
 open FStar.Integers
 open FStar.HyperStack.ST
 module B = LowStar.Buffer
