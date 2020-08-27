@@ -16,6 +16,8 @@ open Veritas.Verifier.CorrectDefs
 open Veritas.Verifier.EAC
 open Veritas.Verifier.TSLog
 
+module E = Veritas.EAC
+
 //Allow the solver to unroll recursive functions at most once (fuel)
 //Allow the solver to invert inductive definitions at most once (ifuel)
 #push-options "--max_fuel 1 --max_ifuel 1 --initial_fuel 1 --initial_ifuel 1"
@@ -44,7 +46,7 @@ let lemma_time_seq_rw_consistent (#n:pos)
 
   (* if time seq log is evict add consistent, the underlying state ops is rw-consistent *)
   (* a contradiction *)
-  if is_eac_log tsle then (
+  if E.is_eac_log tsle then (
     lemma_eac_implies_rw_consistent tsle;
     assert(rw_consistent ts_ops);
 

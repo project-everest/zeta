@@ -123,10 +123,8 @@ let lemma_time_seq_ext_correct (#n:pos) (itsl: its_log n) (i:seq_index itsl):
   Lemma (requires True)
         (ensures (its_vlog_entry itsl i = to_vlog_entry (index (time_seq_ext itsl) i))) 
         [SMTPat (to_vlog_entry (index (time_seq_ext itsl) i))] =
-  //lemma_unzip_index itsl i
   lemma_project_seq_index itsl i
 
-(*
 (* if an operation requires the key in store, it cannot be the first operation *)
 let lemma_non_eac_init_requires_key_in_store (#n:pos) 
   (itsl: non_eac_ts_log n{last_valid_eac_state itsl = EACInit /\
@@ -885,7 +883,6 @@ let lemma_non_eac_evicted_blum_addm (#p:pos)
       lemma_proving_ancestor_blum_bit itsli k;
       hash_collision_contra()      
   )
-*)
 
 let lemma_non_eac_evicted_merkle_addb (#p:pos)   
   (itsl: non_eac_ts_log p{
@@ -978,9 +975,6 @@ let lemma_non_eac_evicted_merkle_addb (#p:pos)
       MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
   )
 
-(******************************************)
-
-(*
 let lemma_non_eac_evicted_blum_addb (#p:pos)   
   (itsl: non_eac_ts_log p{
     g_hash_verifiable (partition_idx_seq itsl) /\  
@@ -1010,7 +1004,7 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
     let vsi = verifier_thread_state itsli tid in
 
     let itsli' = its_prefix itsl (i + 1) in
-    let vsi' = verifier_thread_state itsli tid in    
+    let vsi' = verifier_thread_state itsli' tid in    
     lemma_verifier_thread_state_extend itsli';  
     assert(vsi' == t_verify_step vsi e);    
 
@@ -1025,7 +1019,14 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
     (* since EAC failed, the blum element added to evict set at i' <> blum element added to 
      * add set at i *)
     let be' = blum_evict_elem itsl i' in
-    assert(be <> be');
+    //assert(be <> be');
+
+    admit()
+ )
+
+ (*
+
+
 
     if MS.contains be (ts_evict_set itsl) then (
 
@@ -1065,6 +1066,8 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
       MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
     )
   )
+*)
+
 
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
@@ -1116,4 +1119,4 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
   )
-*)
+
