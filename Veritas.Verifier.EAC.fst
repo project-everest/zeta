@@ -580,7 +580,6 @@ let lemma_non_eac_instore_addm (#p:pos)
       )
     )
   )
-*)    
 
 let lemma_non_eac_instore_evictm (#p:pos)   
   (itsl: non_eac_ts_log p{
@@ -637,7 +636,8 @@ let lemma_non_eac_instore_evictm (#p:pos)
       )
     )
 
-(*
+*)
+
 let lemma_non_eac_instore_evictb (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACInStore? (last_valid_eac_state itsl)  /\
@@ -651,7 +651,7 @@ let lemma_non_eac_instore_evictb (#p:pos)
   | EACInStore m v -> (
     match ee with
     | EvictBlum (EvictB k t) v' tid' ->     
-      assert(DVal? v && v' <> v || m <> BAdd);    
+      assert(DVal? v && v' <> v || m <> BAdd);          
 
       let tsle = time_seq_ext itsl in
       let i = max_eac_prefix tsle in
@@ -662,10 +662,10 @@ let lemma_non_eac_instore_evictb (#p:pos)
       let vsi = verifier_thread_state itsli tid in
 
       let itsli' = its_prefix itsl (i + 1) in
-      let vsi' = verifier_thread_state itsli tid in    
+      let vsi' = verifier_thread_state itsli' tid in    
       lemma_verifier_thread_state_extend itsli';  
       assert(vsi' == t_verify_step vsi e);    
-      
+
       (* the thread store of tid contains k *)
       assert(store_contains (thread_store vsi) k);
 
@@ -675,10 +675,10 @@ let lemma_non_eac_instore_evictb (#p:pos)
 
       lemma_eac_state_instore_addm itsli k;
       assert(addm_of_entry (index li lidx) = m);
-      assert(add_method_of (thread_store vsi) k = m);
       assert(add_method_of (thread_store vsi) k = BAdd);
-      
+
       if ltid = tid then (
+        assert(add_method_of (thread_store vsi) k = m);
         assert(m = BAdd);
         assert(DVal? v && v' <> v);
         lemma_eac_state_instore itsli k;
@@ -689,7 +689,7 @@ let lemma_non_eac_instore_evictb (#p:pos)
 
         hash_collision_contra()
       )
-      else (    
+      else (
         (* only the store of last add contains the key k *)
         lemma_eac_state_instore2 itsli k tid;
         assert(not (store_contains (thread_store vsi) k));
@@ -699,6 +699,9 @@ let lemma_non_eac_instore_evictb (#p:pos)
       )
   )
 
+(******************************************)
+
+(*
 let lemma_non_eac_instore_evictbm (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACInStore? (last_valid_eac_state itsl)  /\
