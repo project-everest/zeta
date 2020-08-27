@@ -190,6 +190,10 @@ let lemma_eac_value_is_stored_value (#p:pos) (itsl: eac_ts_log p) (k:key) (id:na
         (ensures (eac_value itsl k = 
                   stored_value (thread_store (verifier_thread_state itsl id)) k)) = admit()
 
+let lemma_eac_value_is_evicted_value (#p:pos) (itsl: eac_ts_log p) (k:key):
+  Lemma (requires (is_eac_state_evicted itsl k))
+        (ensures (eac_state_evicted_value itsl k = eac_value itsl k)) = admit()
+
 let lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index itsl):
   Lemma (requires (is_evict (fst (index itsl i))))
         (ensures (is_evict_ext (index (time_seq_ext itsl) i) /\

@@ -757,7 +757,6 @@ let lemma_non_eac_instore_evictbm (#p:pos)
       )
  )
 
-*)
 
 let lemma_non_eac_evicted_requires_key_in_store (#p:pos)   
   (itsl: non_eac_ts_log p{
@@ -785,11 +784,8 @@ let lemma_non_eac_evicted_requires_key_in_store (#p:pos)
   assert(store_contains (thread_store vsi) k);
   lemma_eac_state_evicted_store itsli k tid;
   hash_collision_contra()
+*)
 
-
-(******************************************)
-
-(*
 let lemma_non_eac_evicted_merkle_addm (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACEvictedMerkle? (last_valid_eac_state itsl)  /\
@@ -813,7 +809,7 @@ let lemma_non_eac_evicted_merkle_addm (#p:pos)
       let vsi = verifier_thread_state itsli tid in
 
       let itsli' = its_prefix itsl (i + 1) in
-      let vsi' = verifier_thread_state itsli tid in    
+      let vsi' = verifier_thread_state itsli' tid in    
       lemma_verifier_thread_state_extend itsli';  
       assert(vsi' == t_verify_step vsi e);    
 
@@ -826,22 +822,27 @@ let lemma_non_eac_evicted_merkle_addm (#p:pos)
 
       (* k' points to k *)
       lemma_proving_ancestor_points_to_self itsli k;
+      lemma_eac_value_is_stored_value itsli k' tid;
       let mv' = to_merkle_value (stored_value (thread_store vsi) k') in
       let d = desc_dir k k' in
       let dh = desc_hash_dir mv' d in
       assert(Desc?.k dh = k);
-      
+
       (* verifier checks for addm *)
       assert(Desc?.h dh = hashfn v);
 
-      (* for eac_sequences, the proving ancestor stores the evicted value v_e *)
+      assert(is_eac_state_evicted_merkle itsli k);
       lemma_proving_ancestor_has_hash itsli k;
+      lemma_eac_value_is_evicted_value itsli k;
       assert(Desc?.h dh = hashfn v_e);
 
       (* which gives us a hash collision *)
       SingleHashCollision (Collision v v_e)     
     )
 
+(******************************************)
+
+(*
 let lemma_non_eac_evicted_blum_addm (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACEvictedBlum? (last_valid_eac_state itsl)  /\

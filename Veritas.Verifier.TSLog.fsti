@@ -76,6 +76,12 @@ let is_eac_state_evicted (#p:pos) (itsl: its_log p) (k:key): bool =
   EACEvictedMerkle? (eac_state_of_key itsl k) ||
   EACEvictedBlum? (eac_state_of_key itsl k) 
 
+let eac_state_evicted_value (#p:pos) (itsl: its_log p) (k:key{is_eac_state_evicted itsl k}): value =
+  let st = eac_state_of_key itsl k in
+  match st with
+  | EACEvictedMerkle v -> v
+  | EACEvictedBlum v _ _ -> v
+
 (* is the key currently evicted into merkle *)
 let is_eac_state_evicted_merkle (#p:pos) (itsl: its_log p) (k:key): bool = 
   let st = eac_state_of_key itsl k in
@@ -175,6 +181,10 @@ val lemma_eac_value_is_stored_value (#p:pos) (itsl: eac_ts_log p) (k:key) (id:na
   Lemma (requires (store_contains (thread_store (verifier_thread_state itsl id)) k))
         (ensures (eac_value itsl k = 
                   stored_value (thread_store (verifier_thread_state itsl id)) k))
+
+val lemma_eac_value_is_evicted_value (#p:pos) (itsl: eac_ts_log p) (k:key):
+  Lemma (requires (is_eac_state_evicted itsl k))
+        (ensures (eac_state_evicted_value itsl k = eac_value itsl k))
 
 let key_of (#p:pos) (ie:idx_elem #vlog_entry p): key = 
   let (e,_) = ie in
