@@ -1,0 +1,74 @@
+struct {
+  uint64 v1;
+  uint64 v2;
+  uint64 v3;
+  uint64 v4;
+} uint256;
+
+struct {
+  uint256 k;
+  uint8 significant_digits;
+} key;
+
+uint256 value;
+
+enum {
+  vnone,
+  vsome,
+  (255)
+} voption;
+
+struct {
+  voption tag;
+  select(tag) {
+    case vnone: Empty;
+    case vsome: value;
+  } payload;
+} data_value;
+
+uint256 hash_value;
+
+enum {
+  vfalse,
+  vtrue,
+  (255)
+} vbool;
+
+struct {
+   key k;
+   hash_value h;
+   vbool evicted_to_blum;
+   vbool in_store;
+} descendent_hash_desc;
+
+struct {
+  voption tag;
+  select(tag) {
+    case vnone: Empty;
+    case vsome: descendent_hash_desc;
+  } payload;
+} descendent_hash;
+
+enum {
+  mval,
+  dval,
+  (256)
+} value_kind;
+
+struct {
+  descendent_hash l;
+  descendent_hash r;
+} mval_value;
+
+struct {
+  value_kind tag;
+  select(tag) {
+    case mval: mval_value;
+    case dval: data_value;
+  } payload;
+} value;
+
+struct {
+  key k;
+  value v;
+} record;
