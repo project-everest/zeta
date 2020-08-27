@@ -212,6 +212,12 @@ let lemma_evict_before_add2 (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum
          (ensures (MS.mem (blum_add_elem (index itsl i)) (ts_evict_set itsl) =
                    MS.mem (blum_add_elem (index itsl i)) (ts_evict_set (its_prefix itsl i)))) = admit()
 
+let lemma_evict_before_add3 (#p:pos) (itsl: its_log p) (i: seq_index itsl) (j:seq_index itsl):
+  Lemma (requires (is_blum_add (index itsl i) /\
+                   is_blum_evict (index itsl j) /\
+                   blum_add_elem (index itsl i) = blum_evict_elem itsl j))
+        (ensures (j < i)) = admit()
+
 let lemma_evict_add_count_same (#p:pos) (itsl: eac_ts_log p) (k:key):
   Lemma (requires (is_eac_state_instore itsl k))
         (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = admit()
@@ -246,3 +252,11 @@ let lemma_eac_evicted_blum_implies_previous_evict (#p:pos) (itsl: its_log p) (k:
                   is_blum_evict (index itsl (last_idx_of_key itsl k)) /\
                   blum_evict_elem itsl (last_idx_of_key itsl k) = 
                   to_blum_elem (eac_state_of_key itsl k) k)) = admit()
+
+(* if we provide two indexes having the same add element then the membership of the element in the 
+ * add set is at least two *)
+let lemma_add_set_mem (#p:pos) (itsl: its_log p) (i: seq_index itsl) (j:seq_index itsl{j <> i}):
+  Lemma (requires (is_blum_add (index itsl i) /\
+                   is_blum_add (index itsl j) /\
+                   blum_add_elem (index itsl i) = blum_add_elem (index itsl j)))
+        (ensures (MS.mem (blum_add_elem (index itsl i)) (ts_add_set itsl) >= 2)) = admit()

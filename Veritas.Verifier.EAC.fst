@@ -1026,7 +1026,8 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
       //assert(blum_evict_elem itsl j = be);
 
       (* from clock ordering j has to occur before i *)
-      assume (j < i);
+      lemma_evict_before_add3 itsl i j;
+      //assert (j < i);
       
       //assert(entry_of_key k (index itsli j));
       lemma_last_index_correct2 (entry_of_key k) itsli j;
@@ -1034,11 +1035,29 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
       //lemma_index_blum_evict_prefix itsl i i';
       //assert(be' = blum_evict_elem itsli i');
       //assert(blum_evict_elem itsl i' = blum_evict_elem itsli i');
-      assert(j < i');
+      //assert(j < i');
       //assert(be' = blum_evict_elem itsl i');
 
+      lemma_evict_has_next_add itsli j;
+      lemma_blum_evict_add_same itsli j;
 
-      admit()
+      let j' = next_add_of_key itsli j k in
+      //assert(blum_add_elem (index itsli j') = be);
+      //assert(j' <> i);
+      lemma_add_set_mem itsl i j';
+      //assert(MS.mem be (ts_add_set itsl) >= 2);
+
+      lemma_ts_add_set_correct itsl;
+      //assert(MS.mem be (g_add_set gl) >= 2);
+      g_evict_set_is_set gl;
+      //assert(is_set (g_evict_set gl));
+      //assert(MS.mem be (g_evict_set gl) <= 1);
+      MS.lemma_not_equal (g_add_set gl) (g_evict_set gl) be;
+
+      lemma_ghevict_correct gl;
+      lemma_g_hadd_correct gl;
+
+      MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))      
     )
     else (
       
@@ -1056,47 +1075,6 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
       MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))      
     )
  )
-
- (*
-
-
-
-    if MS.contains be (ts_evict_set itsl) then (
-
-
-      (* from clock ordering j has to occur before i *)
-      assert(entry_of_key k (index itsl j));
-
-      (* j cannot be i' since evict_elem at i' is be *)
-      assert(j <> i');
-
-      lemma_last_index_correct2 (entry_of_key k) itsli j;
-      assert(j < i');
-
-      lemma_evict_has_next_add itsli j;
-      lemma_blum_evict_add_same itsli j;
-
-      (* TODO: fill in details *)
-
-      hash_collision_contra()
-    )
-    else (
-      lemma_ts_add_set_contains_add_elem itsl i;
-      assert(MS.contains be (ts_add_set itsl));
-      
-      MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;
-      lemma_ts_evict_set_correct itsl;
-      lemma_ts_add_set_correct itsl;
-      assert(~ (g_add_set gl = g_evict_set gl));
-
-      lemma_ghevict_correct gl;
-      lemma_g_hadd_correct gl;
-
-      MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
-    )
-  )
-*)
-
 
 let lemma_non_eac_time_seq_implies_hash_collision 
   (#n:pos) 
