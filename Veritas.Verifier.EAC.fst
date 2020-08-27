@@ -86,8 +86,8 @@ let lemma_invalidation (#n:pos) (itsl: non_eac_ts_log n):
 
   (* j the index in tslek causing invalidation *)
   let j = max_valid_prefix eac_smk tslek in
-  //assert(filter_index_inv_map (iskey vlog_entry_key k) tsle i = j);  
-  //assert(vlog_entry_key ee = k);
+  //assert(filter_index_inv_map (iskey V.key_of k) tsle i = j);  
+  //assert(V.key_of ee = k);
   //assert(index tslek j = ee);
 
   let tslekj = prefix tslek j in
@@ -129,7 +129,7 @@ let lemma_time_seq_ext_correct (#n:pos) (itsl: its_log n) (i:seq_index itsl):
 let lemma_non_eac_init_requires_key_in_store (#n:pos) 
   (itsl: non_eac_ts_log n{last_valid_eac_state itsl = EACInit /\
                            requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl)) /\
-                           Root <> vlog_entry_key (to_vlog_entry (invalidating_log_entry itsl))}):  
+                           Root <> V.key_of (to_vlog_entry (invalidating_log_entry itsl))}):  
   hash_collision_gen = 
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
@@ -140,7 +140,7 @@ let lemma_non_eac_init_requires_key_in_store (#n:pos)
   assert(e = its_vlog_entry itsli' (length itsli' - 1));
   lemma_verifier_thread_state_extend itsli';
   //assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
-  let k = vlog_entry_key e in
+  let k = V.key_of e in
   lemma_eac_state_init_store itsli k tid;
   hash_collision_contra ()
 
@@ -157,7 +157,7 @@ let lemma_non_eac_init_evict (#n:pos)
   let tid = its_thread_id itsl i in  
   let e = its_vlog_entry itsl i in  
   lemma_verifier_thread_state_extend itsli';
-  let k = vlog_entry_key e in
+  let k = V.key_of e in
   lemma_root_never_evicted (verifier_thread_state itsli tid) e;  
   assert(k <> Root);                               
   lemma_non_eac_init_requires_key_in_store itsl
@@ -203,7 +203,7 @@ let lemma_non_eac_init_addb (#n)
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
   let (e,tid) = index itsl i in
-  let k = vlog_entry_key e in
+  let k = V.key_of e in
 
   (* the i'th entry is a blum add *)
   assert(is_blum_add (index itsl i));
@@ -427,7 +427,7 @@ let lemma_non_eac_instore_addb (#p:pos)
   let i = max_eac_prefix tsle in
   let (e,tid) = index itsl i in
   assert(to_vlog_entry ee = e);
-  let k = vlog_entry_key e in
+  let k = V.key_of e in
 
   let itsli = its_prefix itsl i in
   let vsi = verifier_thread_state itsli tid in
@@ -502,7 +502,7 @@ let lemma_non_eac_instore_addm (#p:pos)
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in  
   let (e,tid) = index itsl i in
-  let k = vlog_entry_key e in
+  let k = V.key_of e in
   let itsli = its_prefix itsl i in    
 
   (* verifier thread state of tid after itsli *)
@@ -769,7 +769,7 @@ let lemma_non_eac_evicted_requires_key_in_store (#p:pos)
   let tsle = time_seq_ext itsl in
   let i = max_eac_prefix tsle in
   let (e,tid) = index itsl i in
-  let k = vlog_entry_key e in
+  let k = V.key_of e in
   let itsli = its_prefix itsl i in  
   (* verifier thread state of tid after itsli *)
   let vsi = verifier_thread_state itsli tid in

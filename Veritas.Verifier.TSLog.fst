@@ -199,11 +199,11 @@ let lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index i
         (ensures (is_evict_ext (index (time_seq_ext itsl) i) /\
                   store_contains (thread_store (verifier_thread_state (its_prefix itsl i)
                                                                       (snd (index itsl i))))
-                                 (vlog_entry_key (fst (index itsl i))) /\
+                                 (V.key_of (fst (index itsl i))) /\
                   value_ext (index (time_seq_ext itsl) i) = 
                   stored_value (thread_store (verifier_thread_state (its_prefix itsl i)
                                                                     (snd (index itsl i))))
-                               (vlog_entry_key (fst (index itsl i))))) = admit()
+                               (V.key_of (fst (index itsl i))))) = admit()
 
 
 let lemma_evict_has_next_add (#p:pos) (itsl: its_log p) (i:seq_index itsl):

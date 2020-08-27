@@ -25,6 +25,17 @@ type vlog_entry =
   | EvictB: k:key -> t:timestamp -> vlog_entry
   | EvictBM: k:key -> k':merkle_key -> t:timestamp -> vlog_entry
 
+let key_of (e:vlog_entry): key =
+  match e with 
+  | Get k _ -> k
+  | Put k _ -> k
+  | AddM (k,_) _ -> k
+  | EvictM k _ -> k
+  | AddB (k,_) _ _ -> k
+  | EvictB k _ -> k
+  | EvictBM k _ _ -> k
+
+
 (* verifier log *)
 type vlog = seq (vlog_entry)
 
@@ -325,19 +336,8 @@ let init_thread_state (id:nat): vtls =
 let t_verify (id:nat) (l:vlog): vtls = 
   t_verify_aux (init_thread_state id) l 
 
-(* TODO: move to a different location? *)
-let vlog_entry_key (e:vlog_entry): key =
-  match e with 
-  | Get k _ -> k
-  | Put k _ -> k
-  | AddM (k,_) _ -> k
-  | EvictM k _ -> k
-  | AddB (k,_) _ _ -> k
-  | EvictB k _ -> k
-  | EvictBM k _ _ -> k
-
 let is_of_key (e:vlog_entry) (k:key): bool =
-  vlog_entry_key e = k
+  key_of e = k
 
 let is_evict (e: vlog_entry): bool =
   match e with

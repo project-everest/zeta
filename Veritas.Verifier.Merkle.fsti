@@ -9,6 +9,7 @@ open Veritas.Verifier
 open Veritas.Verifier.CorrectDefs
 open Veritas.Verifier.TSLog
 
+module V = Veritas.Verifier
 module TL = Veritas.Verifier.TSLog
 
 let mv_points_to_none (v: merkle_value) (d:bin_tree_dir): bool = 
@@ -87,10 +88,10 @@ val lemma_proving_ancestor_blum_bit (#p:pos) (itsl: eac_ts_log p) (k:key{k <> Ro
 val lemma_addm_ancestor_is_proving (#p:pos) (itsl: its_log p {length itsl > 0}):
   Lemma (requires (TL.is_eac_log (its_prefix itsl (length itsl - 1)) /\
                    AddM? (its_vlog_entry itsl (length itsl - 1))))
-        (ensures (Root <> vlog_entry_key (its_vlog_entry itsl (length itsl - 1)) /\        
+        (ensures (Root <> V.key_of (its_vlog_entry itsl (length itsl - 1)) /\        
                   AddM?.k' (its_vlog_entry itsl (length itsl - 1)) = 
                   proving_ancestor (its_prefix itsl (length itsl - 1))
-                                   (vlog_entry_key (its_vlog_entry itsl (length itsl - 1)))))
+                                   (V.key_of (its_vlog_entry itsl (length itsl - 1)))))
 
 (* if the store contains a k, it contains its proving ancestor *)
 val lemma_store_contains_proving_ancestor (#p:pos) (itsl: eac_ts_log p) 

@@ -11,6 +11,8 @@ open Veritas.SeqMachine
 open Veritas.SeqAux
 open Veritas.Verifier
 
+module V = Veritas.Verifier
+
 (*
  * an indexed vlog attaches an nat index to a vlog
  * indicating the id of the verifier thread processing
@@ -168,12 +170,12 @@ let requires_key_in_store (e:vlog_entry): bool =
 
 let lemma_requires_key_in_store (st: vtls) (e:vlog_entry{requires_key_in_store e && 
                                                          Valid? (t_verify_step st e)}):
-  Lemma (Valid? st && store_contains (thread_store st) (vlog_entry_key e)) = 
+  Lemma (Valid? st && store_contains (thread_store st) (V.key_of e)) = 
   ()
 
 let lemma_root_never_evicted (st:vtls) (e:vlog_entry{is_evict e && 
                                         Valid? (t_verify_step st e)}):
-  Lemma (vlog_entry_key e <> Root) = ()
+  Lemma (V.key_of e <> Root) = ()
 
 let evict_value (il:t_verifiable_log) (i:nat{i < tv_length il /\
                                             is_evict (tv_index il i)}): value =

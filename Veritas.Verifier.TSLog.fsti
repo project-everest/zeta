@@ -188,11 +188,11 @@ val lemma_eac_value_is_evicted_value (#p:pos) (itsl: eac_ts_log p) (k:key):
 
 let key_of (#p:pos) (ie:idx_elem #vlog_entry p): key = 
   let (e,_) = ie in
-  V.vlog_entry_key e
+  V.key_of e
 
 let entry_of_key (k:key) (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
   let (e,_) = ie in
-  vlog_entry_key e = k
+  V.key_of e = k
 
 let has_some_entry_of_key (#p:pos) (itsl: its_log p) (k:key): bool = 
   exists_sat_elems (entry_of_key k) itsl
@@ -208,11 +208,11 @@ val lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index i
         (ensures (is_evict_ext (index (time_seq_ext itsl) i) /\
                   store_contains (thread_store (verifier_thread_state (its_prefix itsl i)
                                                                       (snd (index itsl i))))
-                                 (vlog_entry_key (fst (index itsl i))) /\
+                                 (V.key_of (fst (index itsl i))) /\
                   value_ext (index (time_seq_ext itsl) i) = 
                   stored_value (thread_store (verifier_thread_state (its_prefix itsl i)
                                                                     (snd (index itsl i))))
-                               (vlog_entry_key (fst (index itsl i)))))
+                               (V.key_of (fst (index itsl i)))))
 
 let is_of_key (k:key) (#p:pos) (ie:idx_elem #vlog_entry p): bool = 
   let (e,_) = ie in
