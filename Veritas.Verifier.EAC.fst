@@ -494,7 +494,6 @@ let lemma_non_eac_instore_addb (#p:pos)
   lemma_ghevict_correct gl;
 
   MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
-*)
 
 let lemma_non_eac_instore_addm (#p:pos)   
   (itsl: non_eac_ts_log p{
@@ -581,11 +580,8 @@ let lemma_non_eac_instore_addm (#p:pos)
       )
     )
   )
-    
+*)    
 
-(*******************************)
-  
-(*
 let lemma_non_eac_instore_evictm (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACInStore? (last_valid_eac_state itsl)  /\
@@ -612,7 +608,7 @@ let lemma_non_eac_instore_evictm (#p:pos)
       let vsi = verifier_thread_state itsli tid in
 
       let itsli' = its_prefix itsl (i + 1) in
-      let vsi' = verifier_thread_state itsli tid in    
+      let vsi' = verifier_thread_state itsli' tid in    
       lemma_verifier_thread_state_extend itsli';  
       assert(vsi' == t_verify_step vsi e);    
 
@@ -622,12 +618,26 @@ let lemma_non_eac_instore_evictm (#p:pos)
       lemma_ext_evict_val_is_stored_val itsl i;      
       assert(v' = stored_value (thread_store vsi) k);
 
-      lemma_eac_state_instore itsli k;
-      assert(v = stored_value (thread_store vsi) k);
+      (* the tid of the last add to k prior to i *)
+      let ltid = last_add_tid itsli k in      
 
-      hash_collision_contra()
+      (* the store of ltid contains k and the value is v *)
+      lemma_eac_state_instore itsli k;      
+      assert(v = stored_value (thread_store (verifier_thread_state itsli ltid)) k);
+      
+      if ltid = tid then
+        (* since both v' and v are equal to stored value, v = v' => a contradiction *)
+        hash_collision_contra()
+      else (
+        (* we know that k is not in any store other than the last add store *)
+        lemma_eac_state_instore2 itsli k tid;
+
+        (* k is not in store of tid, a contradiction *)
+        hash_collision_contra()
+      )
     )
 
+(*
 let lemma_non_eac_instore_evictb (#p:pos)   
   (itsl: non_eac_ts_log p{
     EACInStore? (last_valid_eac_state itsl)  /\
