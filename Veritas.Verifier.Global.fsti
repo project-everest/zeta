@@ -15,21 +15,15 @@ module VT = Veritas.Verifier.Thread
 (* Full collection of verifier logs one per thread *)
 let g_vlog = (gl:seq vlog{length gl > 0})
 
-(* a slightly different view of verifier log obtained by
- * attaching a tid (index) to each thread verifier log *)
-let g_tid_vlog (gl: g_vlog): seq thread_id_vlog = 
-  attach_index gl
-
+let thread_log (gl: g_vlog) (tid: seq_index gl): thread_id_vlog = 
+   (tid, index gl tid)
+  
 (* globally verifiable logs: every thread-level log is verifiable *)
 let verifiable (gl: g_vlog) = 
-  all VT.verifiable (g_tid_vlog gl)
+  forall (tid:seq_index gl). {:pattern (thread_log gl tid)} VT.verifiable (thread_log gl tid)
 
 (* Refinement type of logs that are verifiable *)
 let verifiable_log = gl:g_vlog{verifiable gl}
-
-(* verifiable thread-level logs *)
-let verifiable_threads (gl: verifiable_log): seq VT.verifiable_log
-  = seq_refine VT.verifiable (g_tid_vlog gl)
 
 (* add-set hash over all verifier threads *)
 val hadd (gl: verifiable_log): ms_hash_value

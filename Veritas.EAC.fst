@@ -253,10 +253,10 @@ let last_put_value_or_null (l:vlog) =
   else Null
 
 let eac_closure_pred1 (st: eac_state): bool =
-  EACFail = st ||  valid_eac_state st && DVal? (value_of st)
+  EACFail = st ||  is_eac_state_active st && DVal? (value_of st)
 
 let eac_closure_pred2 (st: eac_state): bool =
-  EACFail = st ||  valid_eac_state st && MVal? (value_of st)
+  EACFail = st ||  is_eac_state_active st && MVal? (value_of st)
 
 let lemma_eac_add_closure1 (e:vlog_entry_ext) (st: eac_state):
   Lemma (eac_closure_pred1 st ==> eac_closure_pred1 (eac_add e st)) = ()
@@ -266,8 +266,8 @@ let lemma_eac_add_closure2 (e:vlog_entry_ext) (st: eac_state):
 
 let lemma_value_type (le:vlog_ext {length le > 0}):
   Lemma (EACFail = seq_machine_run eac_smk le \/
-         valid_eac_state (seq_machine_run eac_smk (prefix le 1)) /\
-         valid_eac_state (seq_machine_run eac_smk le) /\
+         is_eac_state_active (seq_machine_run eac_smk (prefix le 1)) /\
+         is_eac_state_active (seq_machine_run eac_smk le) /\
          DVal? (value_of (seq_machine_run eac_smk le)) =
          DVal? (value_of (seq_machine_run eac_smk (prefix le 1)))) =
 
@@ -281,7 +281,7 @@ let lemma_value_type (le:vlog_ext {length le > 0}):
     lemma_valid_prefix eac_smk le 1;
     lemma_notempty_implies_noninit eac_smk (prefix le 1);
     let st1 = seq_machine_run eac_smk (prefix le 1) in
-    //assert(valid_eac_state st1);
+    //assert(is_eac_state_active st1);
 
     lemma_reduce_prefix EACInit eac_add le 1;
     //assert(st = reduce st1 eac_add (suffix le (n - 1)));
@@ -303,7 +303,7 @@ let lemma_first_entry_is_madd (le:vlog_ext):
   ()
 
 let rec lemma_data_val_state_implies_last_put (le:vlog_ext):
-  Lemma (requires (valid_eac_state (seq_machine_run eac_smk le) /\
+  Lemma (requires (is_eac_state_active (seq_machine_run eac_smk le) /\
                    DVal? (value_of (seq_machine_run eac_smk le))))
         (ensures (DVal?.v (value_of (seq_machine_run eac_smk le)) =
                   last_put_value_or_null (to_vlog le)))

@@ -89,3 +89,4 @@ val lemma_requires_key_in_store
   (i:idx tl{requires_key_in_store (index tl i)}):
   Lemma (store_contains (store_idx tl i) (V.key_of (index tl i)))
 
+

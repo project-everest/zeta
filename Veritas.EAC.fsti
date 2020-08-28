@@ -34,6 +34,11 @@ let is_eac_state_evicted (s: eac_state): bool =
   | EACEvictedBlum _ _ _ -> true
   | _ -> false
 
+let is_eac_state_instore (s: eac_state): bool = 
+  match s with
+  | EACInStore _ _ -> true
+  | _ -> false
+
 let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
   match s with
   | EACFail -> EACFail
@@ -119,7 +124,7 @@ let to_state_op_vlog (l: vlog) =
   map to_state_op (filter_refine is_state_op l)
 
 (* valid eac states *)
-let valid_eac_state (st:eac_state): bool = st <> EACFail &&
+let is_eac_state_active (st:eac_state): bool = st <> EACFail &&
                                            st <> EACInit
 
 let is_evict_ext (e:vlog_entry_ext): bool = 
@@ -134,11 +139,15 @@ let value_ext (e:vlog_entry_ext{is_evict_ext e}): value =
   | EvictBlum _ v _ -> v
 
 (* value of a valid state *)
-let value_of (st:eac_state {valid_eac_state st}): value =
+let value_of (st:eac_state {is_eac_state_active st}): value =
   match st with
   | EACInStore _ v -> v
   | EACEvictedMerkle v -> v
   | EACEvictedBlum v _ _ -> v
+
+let add_method_of (st:eac_state {is_eac_state_instore st}): add_method =
+  match st with
+  | EACInStore m _ -> m
 
 let to_vlog (l:vlog_ext) =
   map to_vlog_entry l

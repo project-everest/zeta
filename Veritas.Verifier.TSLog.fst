@@ -1,11 +1,16 @@
 module Veritas.Verifier.TSLog
 
-let clock (#p:pos) (s: idx_seq_vlog p{verifiable s}) (i: seq_index s): timestamp = 
+let clock (#p:pos) (s: idx_seq_vlog p{verifiable s}) (i: seq_index s): timestamp =  
+  let gl = partition_idx_seq s in
+  let (e,tid) = index s i in
+  
   admit()
 
 let lemma_prefix_verifiable (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}):
   Lemma (requires True)
-        (ensures (verifiable (prefix itsl i))) = admit()
+        (ensures (verifiable (prefix itsl i))) = 
+          
+  admit()
         
 
 
