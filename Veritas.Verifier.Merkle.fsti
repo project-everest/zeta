@@ -5,8 +5,8 @@ open Veritas.BinTree
 open Veritas.Hash
 open Veritas.Key
 open Veritas.Record
+open Veritas.SeqAux
 open Veritas.Verifier
-open Veritas.Verifier.CorrectDefs
 open Veritas.Verifier.TSLog
 
 module V = Veritas.Verifier
@@ -86,11 +86,11 @@ val lemma_proving_ancestor_blum_bit (#p:pos) (itsl: eac_ts_log p) (k:key{k <> Ro
                   is_eac_state_evicted_blum itsl k))
       
 val lemma_addm_ancestor_is_proving (#p:pos) (itsl: its_log p {length itsl > 0}):
-  Lemma (requires (TL.is_eac_log (its_prefix itsl (length itsl - 1)) /\
+  Lemma (requires (TL.is_eac_log (prefix itsl (length itsl - 1)) /\
                    AddM? (its_vlog_entry itsl (length itsl - 1))))
         (ensures (Root <> V.key_of (its_vlog_entry itsl (length itsl - 1)) /\        
                   AddM?.k' (its_vlog_entry itsl (length itsl - 1)) = 
-                  proving_ancestor (its_prefix itsl (length itsl - 1))
+                  proving_ancestor (prefix itsl (length itsl - 1))
                                    (V.key_of (its_vlog_entry itsl (length itsl - 1)))))
 
 (* if the store contains a k, it contains its proving ancestor *)

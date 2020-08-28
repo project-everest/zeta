@@ -1,6 +1,5 @@
 module Veritas.Verifier.TSLog
 
-open FStar.Seq
 open Veritas.BinTree
 open Veritas.EAC
 open Veritas.Interleave
@@ -10,36 +9,48 @@ open Veritas.Record
 open Veritas.SeqAux
 open Veritas.SeqMachine
 open Veritas.Verifier
-open Veritas.Verifier.CorrectDefs  
+open Veritas.Verifier.Global
+open Veritas.Verifier.Thread
+
+open Veritas.SeqAux
+open FStar.Seq
 
 module E=Veritas.EAC
 module V=Veritas.Verifier
+module S = FStar.Seq
+module VT = Veritas.Verifier.Thread
+module VG = Veritas.Verifier.Global
 
-type partition_verifiable (p:pos) (s: seq (idx_elem #vlog_entry p)) = 
-  g_verifiable (partition_idx_seq s)
+(* 
+ * an indexed sequence log represents and interleaving of a global log (a sequence of thread-level
+ * verifier logs. It is a sequence of the form (e,tid) where e denotes a verifier log entry
+ * and tid denotes the verifier thread that the entry comes from
+ *)
+let idx_seq_vlog (p:pos) = seq (idx_elem #vlog_entry p)
 
-let clock (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable p s}) (i: seq_index s): 
-  timestamp = 
-  let gl = partition_idx_seq s in
-  admit()
+(* 
+ * an idx_seq_vlog is verifiable if the global sequence of logs that results from partitioning 
+ * by the second element (tid) of a pair is verifiable 
+ *)
+let verifiable (#p:pos) (s: idx_seq_vlog p) = 
+  VG.verifiable (partition_idx_seq s)
 
-let clock_sorted (p:pos) (s: seq (idx_elem #vlog_entry p){partition_verifiable p s}) =
-  forall (i:seq_index s). i > 0 ==> clock p s (i - 1) `ts_leq` clock p s i
+(* the clock of an entry in a verifiable idx seq *)
+val clock (#p:pos) (s: idx_seq_vlog p{verifiable s}) (i: seq_index s): timestamp
 
-(* TODO: this makes the emacs interactive fstar unstable 
-type its_log (p:pos) = 
-  s:seq (idx_elem #vlog_entry p){partition_verifiable p s /\ clock_sorted p s}
-*)
+let clock_sorted (#p:pos) (s: idx_seq_vlog p{verifiable s}) =
+  forall (i:seq_index s). i > 0 ==> clock s (i - 1) `ts_leq` clock s i
 
-type its_log (p:pos) = 
-  s:seq (idx_elem #vlog_entry p){partition_verifiable p s}
+let its_log (p:pos) = 
+  s:idx_seq_vlog p{verifiable s}
 
-type its_hash_verifiable_log (p:pos) = 
-  itsl:its_log p {g_hash_verifiable (partition_idx_seq itsl)}
+let hash_verifiable_log (p:pos) = 
+  itsl:its_log p {VG.hash_verifiable (partition_idx_seq itsl)}
 
-(* prefix of an its log *)
-val its_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}): 
-  (itsl':its_log p{itsl' = prefix itsl i})
+val lemma_prefix_verifiable (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}):
+  Lemma (requires True)
+        (ensures (verifiable (prefix itsl i)))
+        [SMTPat (prefix itsl i)]
 
 (* extended time sequence log (with evict values) *)
 val time_seq_ext (#p:pos) (itsl: its_log p):
@@ -47,8 +58,8 @@ val time_seq_ext (#p:pos) (itsl: its_log p):
 
 val lemma_its_prefix_ext (#n:pos) (itsl:its_log n) (i:nat{i <= length itsl}):
   Lemma (requires True)
-        (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i))
-        [SMTPat (time_seq_ext (its_prefix itsl i))]
+        (ensures (time_seq_ext (prefix itsl i) = prefix (time_seq_ext itsl) i))
+        [SMTPat (time_seq_ext (prefix itsl i))]
 
 let is_eac_log (#p:pos) (itsl: its_log p):bool = E.is_eac_log (time_seq_ext itsl)
 
@@ -58,8 +69,8 @@ type non_eac_ts_log (p:pos) = itsl: its_log p {not (is_eac_log itsl)}
 (* if itsl is eac, then any prefix is also eac *)
 val lemma_eac_implies_prefix_eac (#p:pos) (itsl: eac_ts_log p) (i:nat {i <= length itsl}):
   Lemma (requires True)
-        (ensures (is_eac_log (its_prefix itsl i)))
-        [SMTPat (its_prefix itsl i)]
+        (ensures (is_eac_log (prefix itsl i)))
+        [SMTPat (prefix itsl i)]
 
 (* the eac state of a key at the end of an its log *)
 let eac_state_of_key (#p:pos) (itsl: its_log p) (k:key): eac_state = 
@@ -103,7 +114,7 @@ let is_eac_state_instore (#p:pos) (itsl: its_log p) (k:key):bool =
 (* the state of a verifier thread after processing entries in a log *)
 let verifier_thread_state (#p:pos) (itsl: its_log p) (id:nat{id < p}): (st:vtls{Valid? st}) = 
   let gl = partition_idx_seq itsl in
-  assert(t_verifiable (index (attach_index gl) id));
+  assert(VT.verifiable (index (attach_index gl) id));
   t_verify id (index gl id)
 
 (* 
@@ -206,11 +217,11 @@ let its_thread_id (#n:pos) (itsl: its_log n) (i:seq_index itsl): (tid:nat{tid < 
 val lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index itsl):
   Lemma (requires (is_evict (fst (index itsl i))))
         (ensures (is_evict_ext (index (time_seq_ext itsl) i) /\
-                  store_contains (thread_store (verifier_thread_state (its_prefix itsl i)
+                  store_contains (thread_store (verifier_thread_state (prefix itsl i)
                                                                       (snd (index itsl i))))
                                  (V.key_of (fst (index itsl i))) /\
                   value_ext (index (time_seq_ext itsl) i) = 
-                  stored_value (thread_store (verifier_thread_state (its_prefix itsl i)
+                  stored_value (thread_store (verifier_thread_state (prefix itsl i)
                                                                     (snd (index itsl i))))
                                (V.key_of (fst (index itsl i)))))
 

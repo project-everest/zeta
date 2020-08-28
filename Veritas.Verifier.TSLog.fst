@@ -1,5 +1,14 @@
 module Veritas.Verifier.TSLog
 
+let clock (#p:pos) (s: idx_seq_vlog p{verifiable s}) (i: seq_index s): timestamp = 
+  admit()
+
+let lemma_prefix_verifiable (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}):
+  Lemma (requires True)
+        (ensures (verifiable (prefix itsl i))) = admit()
+        
+
+
 let its_prefix_aux (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}): 
   (itsl':its_log p{length itsl' = i}) =
   let itsl': seq (idx_elem #vlog_entry p) = prefix itsl i in
@@ -11,8 +20,8 @@ let its_prefix_aux (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}):
 
   let aux (id:nat{id < p}):
     Lemma (requires True)
-          (ensures (t_verifiable (index idgl' id)))
-          [SMTPat (t_verifiable (index idgl' id))]    
+          (ensures (VT.verifiable (index idgl' id)))
+          [SMTPat (VT.verifiable (index idgl' id))]    
     = 
     let (_,l') = index idgl' id in
     //let (_,l) = index idgl id in    
@@ -30,6 +39,7 @@ let its_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}):
 let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
   Tot (le:vlog_ext{project_seq itsl = to_vlog le})
   (decreases (length itsl)) =
+  (*
   let m = length itsl in
   if m = 0 then (
     lemma_empty itsl;
@@ -55,7 +65,7 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
     assert(snd (index (g_tid_vlog gl) id) = l);
 
     (* since l is verifiable, the value at last position is well-defined *)
-    assert(t_verifiable (id, l));
+    assert(VT.verifiable (id, l));
     (* prove length l > 0 *)
     lemma_partition_idx_extend1 itsl;
 
@@ -80,6 +90,8 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
       r
     )
   )
+  *)
+  admit()
 
 let time_seq_ext = time_seq_ext_aux
 

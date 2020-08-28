@@ -8,37 +8,38 @@ open Veritas.MultiSet
 open Veritas.MultiSetHash
 open Veritas.SeqAux
 open Veritas.Verifier
-open Veritas.Verifier.CorrectDefs
+open Veritas.Verifier.Global
 open Veritas.Verifier.TSLog
 
 module E=Veritas.EAC
 module MS=Veritas.MultiSet
 module MH=Veritas.MultiSetHash
 module TL=Veritas.Verifier.TSLog
+module VG = Veritas.Verifier.Global
 
 (* global add sequence *)
-val g_add_seq (gl: g_verifiable_log): seq (ms_hashfn_dom)
+val g_add_seq (gl: VG.verifiable_log): seq (ms_hashfn_dom)
 
 (* multiset derived from all the blum adds in gl *)
-let g_add_set (gl: g_verifiable_log): mset ms_hashfn_dom =
+let g_add_set (gl: VG.verifiable_log): mset ms_hashfn_dom =
   seq2mset (g_add_seq gl)
 
 (* the hadd that the verifier computes is the multiset hash of all the adds *)
-val lemma_g_hadd_correct (gl: g_verifiable_log):
-  Lemma (g_hadd gl = ms_hashfn (g_add_seq gl))
+val lemma_g_hadd_correct (gl: VG.verifiable_log):
+  Lemma (VG.hadd gl = ms_hashfn (g_add_seq gl))
 
 (* a single sequence containing all the blum evicts *)
-val g_evict_seq (gl: g_verifiable_log): seq ms_hashfn_dom 
+val g_evict_seq (gl: VG.verifiable_log): seq ms_hashfn_dom 
 
-let g_evict_set (gl: g_verifiable_log): mset ms_hashfn_dom = 
+let g_evict_set (gl: VG.verifiable_log): mset ms_hashfn_dom = 
   seq2mset (g_evict_seq gl)
 
 (* the global evict set is a set (not a multiset) *)
-val g_evict_set_is_set (gl: g_verifiable_log): 
+val g_evict_set_is_set (gl: VG.verifiable_log): 
   Lemma (is_set (g_evict_set gl))
 
-val lemma_ghevict_correct (gl: g_verifiable_log):
-  Lemma (g_hevict gl = ms_hashfn (g_evict_seq gl))
+val lemma_ghevict_correct (gl: VG.verifiable_log):
+  Lemma (VG.hevict gl = ms_hashfn (g_evict_seq gl))
 
 (* get the blum add element from an index *)
 let blum_add_elem (#p:nat) (ie:idx_elem #vlog_entry p{is_blum_add ie}):
@@ -75,7 +76,7 @@ val lemma_ts_add_set_correct (#n:pos) (itsl: its_log n):
 val lemma_ts_add_set_key_extend (#n:pos) (itsl: its_log n {length itsl > 0}):
   Lemma (requires (is_blum_add (telem itsl)))
         (ensures (ts_add_set_key itsl (key_of (index itsl (length itsl - 1))) == 
-                  add_elem (ts_add_set_key (its_prefix itsl (length itsl - 1))
+                  add_elem (ts_add_set_key (prefix itsl (length itsl - 1))
                                            (key_of (index itsl (length itsl - 1))))
                            (blum_add_elem (telem itsl))))
 
@@ -98,8 +99,8 @@ val blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict (
 
 val lemma_index_blum_evict_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}) (j:nat{j < i}):
   Lemma (requires (is_blum_evict (index itsl j)))
-        (ensures (blum_evict_elem itsl j = blum_evict_elem (its_prefix itsl i) j))
-        [SMTPat (blum_evict_elem (its_prefix itsl i) j)]
+        (ensures (blum_evict_elem itsl j = blum_evict_elem (prefix itsl i) j))
+        [SMTPat (blum_evict_elem (prefix itsl i) j)]
 
 
 (* sequence of evicts in time sequence log *)
@@ -125,7 +126,7 @@ val lemma_ts_evict_set_correct (#n:pos) (itsl: its_log n):
 val lemma_ts_evict_set_key_extend2 (#n:pos) (itsl: its_log n {length itsl > 0}):
   Lemma (requires (not (is_blum_evict (index itsl (length itsl - 1)))))
         (ensures (ts_evict_set_key itsl (key_of (index itsl (length itsl - 1))) == 
-                  ts_evict_set_key (its_prefix itsl (length itsl - 1))
+                  ts_evict_set_key (prefix itsl (length itsl - 1))
                                            (key_of (index itsl (length itsl - 1)))))
 
 (* since evict_set is a pure set (not a multiset) we can identify the unique index 
@@ -145,7 +146,7 @@ val lemma_evict_before_add (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_
 val lemma_evict_before_add2 (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_add (index itsl i)}):
    Lemma (requires True)
          (ensures (MS.mem (blum_add_elem (index itsl i)) (ts_evict_set itsl) =
-                   MS.mem (blum_add_elem (index itsl i)) (ts_evict_set (its_prefix itsl i))))
+                   MS.mem (blum_add_elem (index itsl i)) (ts_evict_set (prefix itsl i))))
 
 val lemma_evict_before_add3 (#p:pos) (itsl: its_log p) (i: seq_index itsl) (j:seq_index itsl):
   Lemma (requires (is_blum_add (index itsl i) /\
@@ -173,8 +174,8 @@ val lemma_mem_key_evict_set_same (#p:pos) (itsl: its_log p) (be: ms_hashfn_dom):
 
 (* the count of an element can only decrease in a prefix of itsl *)
 val lemma_mem_monotonic (#p:pos) (be:ms_hashfn_dom) (itsl: its_log p) (i:nat{i <= length itsl}):
-  Lemma (mem be (ts_evict_set itsl) >= mem be (ts_evict_set (its_prefix itsl i)) /\
-         mem be (ts_add_set itsl) >= mem be (ts_add_set (its_prefix itsl i)))
+  Lemma (mem be (ts_evict_set itsl) >= mem be (ts_evict_set (prefix itsl i)) /\
+         mem be (ts_add_set itsl) >= mem be (ts_add_set (prefix itsl i)))
 
 (* the next add of a blum evict is a blum add of the same "element" *)
 val lemma_blum_evict_add_same (#p:pos) (itsl: eac_ts_log p) (i:seq_index itsl):

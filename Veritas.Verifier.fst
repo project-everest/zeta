@@ -381,3 +381,11 @@ let addm_of_entry (e:vlog_entry{is_add e}): add_method =
   match e with
   | AddM _ _ -> MAdd
   | AddB _ _ _ -> BAdd
+
+(* does a log have some add entry *)
+let has_some_add (l:seq vlog_entry): bool = 
+  exists_sat_elems is_add l
+
+(* does a log have some add of key k *)
+let has_some_add_of_key (k:key) (l:seq vlog_entry): bool = 
+  exists_sat_elems (is_add_of_key k) l 
