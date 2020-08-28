@@ -19,6 +19,8 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.Hash.fsti \
                Veritas.Interleave.fsti Veritas.Interleave.fst \
                Veritas.Verifier.fst \
+	       Veritas.Verifier.Thread.fsti Veritas.Verifier.Thread.fst \
+               Veritas.Verifier.Global.fsti Veritas.Verifier.Global.fst \
                Veritas.EAC.fsti Veritas.EAC.fst \
 	       Veritas.Verifier.CorrectDefs.fst \
                Veritas.Verifier.TSLog.fsti Veritas.Verifier.TSLog.fst \

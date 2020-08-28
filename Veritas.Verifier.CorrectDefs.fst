@@ -208,7 +208,7 @@ let has_some_add_of_key (k:key) (l:seq vlog_entry): bool =
 (* the thread id of a verifier remains unchanged *)
 let rec lemma_thread_id (il:t_verifiable_log):
   Lemma (requires True)
-        (ensures (thread_id (t_verify (fst il) (snd il)) = (fst il)))
+        (ensures (thread_id_of (t_verify (fst il) (snd il)) = (fst il)))
         (decreases (tv_length il)) = 
   let (id,l) = il in
   let n = length l in

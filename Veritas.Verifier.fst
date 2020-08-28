@@ -15,13 +15,15 @@ open Veritas.MultiSetHash
  * operations are read-write consistent
  *)
 
+let thread_id = nat
+
 (* Each entry of the verifier log *)
 type vlog_entry =
   | Get: k:data_key -> v:data_value -> vlog_entry
   | Put: k:data_key -> v:data_value -> vlog_entry
   | AddM: r:record -> k':merkle_key -> vlog_entry
   | EvictM: k:key -> k':merkle_key -> vlog_entry
-  | AddB: r:record -> t:timestamp -> j:nat -> vlog_entry
+  | AddB: r:record -> t:timestamp -> j:thread_id -> vlog_entry
   | EvictB: k:key -> t:timestamp -> vlog_entry
   | EvictBM: k:key -> k':merkle_key -> t:timestamp -> vlog_entry
 
@@ -35,12 +37,51 @@ let key_of (e:vlog_entry): key =
   | EvictB k _ -> k
   | EvictBM k _ _ -> k
 
+let is_of_key (e:vlog_entry) (k:key): bool =
+  key_of e = k
+
+let is_add (e:vlog_entry): bool = 
+  match e with
+  | AddM _ _ -> true
+  | AddB _ _ _ -> true
+  | _ -> false
+
+let is_evict (e: vlog_entry): bool =
+  match e with
+  | EvictM _ _ -> true
+  | EvictB _ _ -> true
+  | EvictBM _ _ _ -> true
+  | _ -> false
+
+let is_evict_to_merkle (e:vlog_entry): bool = 
+  match e with
+  | EvictM _ _ -> true
+  | _ -> false
+
+let is_evict_to_blum (e:vlog_entry): bool = 
+  match e with
+  | EvictB _ _ -> true
+  | EvictBM _ _ _ -> true
+  | _ -> false
+
+let is_add_of_key (k: key) (e:vlog_entry): bool = 
+  match e with
+  | AddM (k,_) _ -> true
+  | AddB (k,_) _ _ -> true
+  | _ -> false 
+
+let is_evict_of_key (k:key) (e:vlog_entry): bool = 
+  match e with
+  | EvictM k _ -> true
+  | EvictB k _ -> true
+  | EvictBM k _ _ -> true
+  | _ -> false
 
 (* verifier log *)
-type vlog = seq (vlog_entry)
+let vlog = seq (vlog_entry)
 
 (* index in the verifier log *)
-type vl_index (l:vlog) = seq_index l
+let vl_index (l:vlog) = seq_index l
 
 (* for records in the store, how were they added? *)
 type add_method =
@@ -53,7 +94,7 @@ type vstore_entry (k:key) =
 
 (* verifier store is a subset of (k,v) records *)
 (* we also track how the key was added merkle/blum *)
-type vstore = (k:key) -> option (vstore_entry k)
+let vstore = (k:key) -> option (vstore_entry k)
 
 (* verifier thread local state  *)
 noeq type vtls =
@@ -99,7 +140,7 @@ let evict_from_store (st:vstore)
                      (k:key{store_contains st k}) =
   fun k' -> if k' = k then None else st k'
 
-let thread_id (vs:vtls {Valid? vs}): nat = 
+let thread_id_of (vs:vtls {Valid? vs}): nat = 
   Valid?.id vs
 
 (* get the store of a specified verifier thread *)
@@ -271,7 +312,7 @@ let vevictb (k:key) (t:timestamp)
     (* current h_evict *)
     let h = thread_hevict vs in
     let v = stored_value st k in
-    let h_upd = ms_hashfn_upd (MHDom (k,v) t (thread_id vs)) h in
+    let h_upd = ms_hashfn_upd (MHDom (k,v) t (thread_id_of vs)) h in
     let vs_upd = update_thread_hevict vs h_upd in
     let vs_upd2 = update_thread_clock vs_upd t in    
     let st_upd = evict_from_store st k in
@@ -336,51 +377,7 @@ let init_thread_state (id:nat): vtls =
 let t_verify (id:nat) (l:vlog): vtls = 
   t_verify_aux (init_thread_state id) l 
 
-let is_of_key (e:vlog_entry) (k:key): bool =
-  key_of e = k
-
-let is_evict (e: vlog_entry): bool =
-  match e with
-  | EvictM _ _ -> true
-  | EvictB _ _ -> true
-  | EvictBM _ _ _ -> true
-  | _ -> false
-
-let is_evict_to_merkle (e:vlog_entry): bool = 
-  match e with
-  | EvictM _ _ -> true
-  | _ -> false
-
-let is_evict_to_blum (e:vlog_entry): bool = 
-  match e with
-  | EvictB _ _ -> true
-  | EvictBM _ _ _ -> true
-  | _ -> false
-
-let is_add (e:vlog_entry): bool = 
-  match e with
-  | AddM _ _ -> true
-  | AddB _ _ _ -> true
-  | _ -> false
-
-let is_add_of_key (k: key) (e:vlog_entry): bool = 
-  match e with
-  | AddM (k,_) _ -> true
-  | AddB (k,_) _ _ -> true
-  | _ -> false 
-
-let is_evict_of_key (k:key) (e:vlog_entry): bool = 
-  match e with
-  | EvictM k _ -> true
-  | EvictB k _ -> true
-  | EvictBM k _ _ -> true
-  | _ -> false
-
 let addm_of_entry (e:vlog_entry{is_add e}): add_method = 
   match e with
   | AddM _ _ -> MAdd
   | AddB _ _ _ -> BAdd
-
-let is_add_or_evict_of_key (k:key) (e:vlog_entry): bool = 
-  is_add_of_key k e ||
-  is_evict_of_key k e
