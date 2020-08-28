@@ -41,7 +41,7 @@ val prf_set_hash_inv_framing (v:prf_set_hash) (h0 h1:HS.mem) (l:B.loc)
            SMTPat (B.modifies l h0 h1)]
 
 assume
-val multiset_hash_upd (r:record) (t:timestamp) (j:thread_id_t) (v:prf_set_hash)
+val multiset_hash_upd (r:record) (t:timestamp) (j:thread_id) (v:prf_set_hash)
   : Stack unit
     (requires fun h -> prf_set_hash_inv v h)
     (ensures fun h0 _ h1 ->
@@ -338,7 +338,7 @@ let update_clock (t:timestamp) (clk:counter_t)
 let vaddb (s:slot_id)
           (r:record)
           (t:timestamp)
-          (thread_id:thread_id_t)
+          (thread_id:thread_id)
           (vs:thread_state_t)
   : StackExn unit
     (requires fun h -> thread_state_inv vs h)
@@ -385,13 +385,13 @@ let vevictbm (s s':slot_id) (t:timestamp) (vs:thread_state_t)
     | Some Eq
     | None -> raise "vevictbm: Not a proper descendant"
     | Some lr ->
-      assume (MVal? r'.record_value);
+      assume (V_mval? r'.record_value);
       let dh' = desc_hash_dir r'.record_value lr in
       match dh' with
-      | Empty -> raise "vevictbm: parent entry is empty for this child"
-      | Desc k2 h2 b2 ->
-        if k2 = r.record_key && b2 = false then
-           let v'_upd = update_merkle_value r'.record_value lr (Desc r.record_key h2 true) in
+      | Dh_vnone _ -> raise "vevictbm: parent entry is empty for this child"
+      | Dh_vsome ({ dhd_key = k2; dhd_h = h2; evicted_to_blum = b2 ;}) ->
+        if k2 = r.record_key && b2 = Vfalse then
+           let v'_upd = update_merkle_value r'.record_value lr (Dh_vsome ({ dhd_key = r.record_key; dhd_h = h2; evicted_to_blum = Vtrue; })) in
            let r' = { r with record_value = v'_upd } in
            vstore_update_record vs.st s' r';
            vevictb s t vs
@@ -460,11 +460,11 @@ let t_verify_step (vs:v_context)
       vaddm s r s' vs.thread_state
     | Ve_EvictM ({ veem_s = s; veem_s2 = s' ;}) ->
       vevictm s s' vs.thread_state
-    | AddB s r t j ->
+    | Ve_AddB ({ veab_s = s; veab_r = r; veab_t = t; veab_j = j; }) ->
       vaddb s r t j vs.thread_state
-    | EvictB s t ->
+    | Ve_EvictB ({ veeb_s = s; veeb_t = t; }) ->
       vevictb s t vs.thread_state
-    | EvictBM s s' t ->
+    | Ve_EvictBM ({ veebm_s = s; veebm_s2 = s'; veebm_t = t ;}) ->
       vevictbm s s' t vs.thread_state
 
 let rec t_verify (vs:v_context)
