@@ -81,9 +81,18 @@ struct {
   } v;
 } value;
 
+enum {
+  MAdd,
+  BAdd,
+  (255)
+} add_method;
+
 struct {
-  key rk;
-  value rv;
+  key record_key;
+  value record_value;
+  add_method record_add_method;
+  vbool record_l_child_in_store;
+  vbool record_r_child_in_store;
 } record;
 
 enum {

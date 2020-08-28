@@ -10,6 +10,7 @@ include Veritas.Formats.Descendent_hash_desc
 include Veritas.Formats.Descendent_hash
 include Veritas.Formats.Mval_value
 include Veritas.Formats.Value
+include Veritas.Formats.Add_method
 include Veritas.Formats.Record
 include Veritas.Formats.Vlog_entry_get_put
 include Veritas.Formats.Vlog_entry_addm
