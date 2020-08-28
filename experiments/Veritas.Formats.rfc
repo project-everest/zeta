@@ -16,14 +16,14 @@ struct {
   uint64 v2;
   uint64 v1;
   uint64 v0;
-} uint256;
+} u256;
 
 struct {
-  uint256 k;
+  u256 k;
   uint8 significant_digits;
 } key;
 
-uint256 data_t;
+u256 data_t;
 
 enum {
   vnone,
@@ -39,7 +39,7 @@ struct {
   } dv;
 } data_value;
 
-uint256 hash_value;
+u256 hash_value;
 
 enum {
   vfalse,

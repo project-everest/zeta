@@ -1,7 +1,7 @@
 module Veritas.Formats
 include Veritas.Formats.Uint16_is_max
 include Veritas.Formats.Slot_id
-include Veritas.Formats.Uint256
+include Veritas.Formats.U256
 include Veritas.Formats.Key
 include Veritas.Formats.Data_value
 include Veritas.Formats.Hash_value
