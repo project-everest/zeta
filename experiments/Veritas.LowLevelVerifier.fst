@@ -6,17 +6,47 @@ module B = LowStar.Buffer
 module HS = FStar.HyperStack
 
 open LowStar.Exception
+module VStore = Veritas.VCache
+open Veritas.VCache
+
 
 let counter_t = B.pointer uint_64
+
+assume
+val timestamp_lt (t1 t2: timestamp) : bool
+
+let max (t1 t2: timestamp) =
+  if t1 `timestamp_lt` t2 then t2 else t1
+
+let epoch_of_timestamp (t:timestamp)
+  : uint_64
+  = admit()
 
 let vstore = Veritas.VCache.vstore
 
 assume
 val prf_set_hash : Type0
+assume
+val prf_set_hash_loc (v:prf_set_hash) : B.loc
+assume
+val prf_set_hash_inv (v:prf_set_hash) (h:HS.mem) : Type
+assume
+val prf_set_hash_inv_framing (v:prf_set_hash) (h0 h1:HS.mem) (l:B.loc)
+  : Lemma (ensures
+             prf_set_hash_inv v h0 /\
+             B.modifies l h0 h1 /\
+             B.loc_disjoint l (prf_set_hash_loc v) ==>
+             prf_set_hash_inv v h1)
+          [SMTPat (prf_set_hash_inv v h1);
+           SMTPat (B.modifies l h0 h1)]
 
-module VStore = Veritas.VCache
-
-open Veritas.VCache
+assume
+val multiset_hash_upd (r:record) (t:timestamp) (j:thread_id_t) (v:prf_set_hash)
+  : Stack unit
+    (requires fun h -> prf_set_hash_inv v h)
+    (ensures fun h0 _ h1 ->
+      prf_set_hash_inv v h1 /\
+      B.modifies (prf_set_hash_loc v) h0 h1)
 
 noeq
 type thread_state_t = {
@@ -27,9 +57,27 @@ type thread_state_t = {
   hevict       : prf_set_hash;
 }
 
+
 let thread_state_inv (t:thread_state_t) (h:HS.mem)
-  = VStore.invariant t.st h (* /\ ... *)
-let loc_thread_state (t:thread_state_t) = VStore.footprint t.st
+  = VStore.invariant t.st h /\
+    prf_set_hash_inv t.hadd h /\
+    prf_set_hash_inv t.hevict h /\
+    B.live h t.clock /\
+    B.loc_disjoint (VStore.footprint t.st)
+                   (B.loc_union (B.loc_buffer t.clock)
+                     (B.loc_union (prf_set_hash_loc t.hadd)
+                                  (prf_set_hash_loc t.hevict))) /\
+    B.loc_disjoint (B.loc_buffer t.clock)
+                   (B.loc_union (prf_set_hash_loc t.hadd)
+                                (prf_set_hash_loc t.hevict)) /\
+    B.loc_disjoint (prf_set_hash_loc t.hadd)
+                   (prf_set_hash_loc t.hevict)
+    (* /\ ... *)
+let loc_thread_state (t:thread_state_t) =
+    B.loc_union (VStore.footprint t.st)
+                   (B.loc_union (B.loc_buffer t.clock)
+                     (B.loc_union (prf_set_hash_loc t.hadd)
+                                  (prf_set_hash_loc t.hevict)))
 
 ////////////////////////////////////////////////////////////////////////////////
 type desc_type =
@@ -103,16 +151,17 @@ let vstore_update_record (v:vstore) (s:slot_id) (r:record)
   : Stack unit
     (requires fun h -> VStore.invariant v h)
     (ensures fun h0 _ h1 ->
-      VStore.invariant v h1 // /\
+      VStore.invariant v h1 /\
+      B.modifies (VStore.footprint v) h0 h1)
       // h1.v.entries == upd h0.v.entries s r
-    )
   = VStore.vcache_update_record v s r
 
 let vstore_add_record (v:vstore) (s:slot_id) (k:key) (vk:value{is_value_of k vk}) (a:add_method)
   : Stack unit
     (requires fun h -> VStore.invariant v h)
     (ensures fun h0 _ h1 ->
-      VStore.invariant v h1 // /\
+      VStore.invariant v h1 /\
+      B.modifies (VStore.footprint v) h0 h1
       // h1.v.entries == upd h0.v.entries s r
     )
   = VStore.vcache_add_record v s k vk a
@@ -121,7 +170,8 @@ let vstore_evict_record (v:vstore) (s:slot_id) (k:key)
   : Stack unit
     (requires fun h -> VStore.invariant v h)
     (ensures fun h0 _ h1 ->
-      VStore.invariant v h1 // /\
+      VStore.invariant v h1 /\
+      B.modifies (VStore.footprint v) h0 h1 // /\
       // h1.v.entries == upd h0.v.entries s r
     )
   = VStore.vcache_evict_record v s k
@@ -241,7 +291,6 @@ let desc_hash_dir (v:mvalue) (lr:desc_type_lr)
 
 let vevictm (s:slot_id)
             (s':slot_id)
-            // (k':merkle_key)
             (vs: thread_state_t)
   : StackExn unit
     (requires fun h -> thread_state_inv vs h)
@@ -275,6 +324,79 @@ let vevictm (s:slot_id)
            let v'_upd = update_merkle_value v' lr (Dh_vsome ({ dhd_key = k; dhd_h = h; evicted_to_blum = b2; })) in
            vstore_update_record vs.st s' (with_in_store_direction (mk_record k' v'_upd a') lr false)
         end
+
+let update_clock (t:timestamp) (clk:counter_t)
+  : Stack unit
+    (requires fun h -> B.live h clk)
+    (ensures fun h0 _ h1 ->
+      B.modifies (B.loc_buffer clk) h0 h1 /\
+      B.live h1 clk /\
+      B.get h1 clk 0 = max (B.get h0 clk 0) t)
+  = let c0 = B.index clk 0ul in
+    B.upd clk 0ul (max c0 t)
+
+let vaddb (s:slot_id)
+          (r:record)
+          (t:timestamp)
+          (thread_id:thread_id_t)
+          (vs:thread_state_t)
+  : StackExn unit
+    (requires fun h -> thread_state_inv vs h)
+    (ensures fun h0 _ h1 -> thread_state_inv vs h1)
+  = (* epoch of timestamp of last evict *)
+    let e = epoch_of_timestamp t in
+    // let st = thread_store vs in
+    let { record_key = k;
+          record_value = v } = r in
+    (* check value type consistent with key k *)
+    if not (is_value_of k v) then raise "vaddm: value is incompatible with key";
+    if Some? (vstore_try_get_record vs.st s) then raise "vaddm: slot s already exists";
+    //TODO: need to check that the key does not exist
+    (* updated h_add *)
+    multiset_hash_upd r t thread_id vs.hadd;
+    (* updated clock *)
+    update_clock t vs.clock;
+    (* add record to store *)
+    vcache_add_record vs.st s k v BAdd
+
+let vevictb (s:slot_id) (t:timestamp) (vs:thread_state_t)
+  : StackExn unit
+    (requires fun h -> thread_state_inv vs h)
+    (ensures fun h0 _ h1 -> thread_state_inv vs h1)
+  = let e = epoch_of_timestamp in
+    let clk = B.index vs.clock 0ul in
+    if not (clk `timestamp_lt` t) then raise "vevictb: timestamp does not exceed the clock";
+    (* check that the vstore contains s *)
+    let r = vstore_get_record vs.st s in
+    (* update the evict hash *)
+    multiset_hash_upd r t vs.id vs.hevict;
+    (* advance clock to t *)
+    update_clock t vs.clock;
+    (* evict record *)
+    vstore_evict_record vs.st s r.record_key
+
+let vevictbm (s s':slot_id) (t:timestamp) (vs:thread_state_t)
+  : StackExn unit
+    (requires fun h -> thread_state_inv vs h)
+    (ensures fun h0 _ h1 -> thread_state_inv vs h1)
+  = let r = vstore_get_record vs.st s in
+    let r' = vstore_get_record vs.st s' in
+    match is_descendent r.record_key r'.record_key with
+    | Some Eq
+    | None -> raise "vevictbm: Not a proper descendant"
+    | Some lr ->
+      assume (MVal? r'.record_value);
+      let dh' = desc_hash_dir r'.record_value lr in
+      match dh' with
+      | Empty -> raise "vevictbm: parent entry is empty for this child"
+      | Desc k2 h2 b2 ->
+        if k2 = r.record_key && b2 = false then
+           let v'_upd = update_merkle_value r'.record_value lr (Desc r.record_key h2 true) in
+           let r' = { r with record_value = v'_upd } in
+           vstore_update_record vs.st s' r';
+           vevictb s t vs
+        else raise "vevictbm: evicted to blum is already set in parent"
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -338,8 +460,12 @@ let t_verify_step (vs:v_context)
       vaddm s r s' vs.thread_state
     | Ve_EvictM ({ veem_s = s; veem_s2 = s' ;}) ->
       vevictm s s' vs.thread_state
-    | _ ->
-      raise "t_verify_step: unhandled operation"
+    | AddB s r t j ->
+      vaddb s r t j vs.thread_state
+    | EvictB s t ->
+      vevictb s t vs.thread_state
+    | EvictBM s s' t ->
+      vevictbm s s' t vs.thread_state
 
 let rec t_verify (vs:v_context)
   : StackExn unit
