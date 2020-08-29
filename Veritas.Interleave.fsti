@@ -3,6 +3,9 @@ module Veritas.Interleave
 open FStar.Seq
 open Veritas.SeqAux
 
+module S = FStar.Seq
+module SA = Veritas.SeqAux
+
 (* sequence of sequences *)
 type sseq (a:Type) = seq (seq a)
 
@@ -48,76 +51,46 @@ val interleave_map_inv (#a:eqtype) (s: seq a) (ss: sseq a)
       (prf:interleave #a s ss) (i: sseq_index ss):
   Tot (j: seq_index s{index s j = indexss ss i})
 
-noeq type interleave_ctor (#a:eqtype) (ss: sseq a) = 
-  | IntCtr: s: seq a -> prf: interleave s ss -> interleave_ctor ss
+(* 
+ * interleaving: a triple that holds interleaved sequence, source sequences, and 
+ * proof of interleaving *
+ *)
+noeq type interleaving (a:eqtype) = 
+  | IL: s:seq a -> ss: sseq a -> prf:interleave s ss -> interleaving a
 
-(* from an interleave_ constructor we can get an interleaving *)
-let interleaved_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Tot (s: seq a{interleave s ss}) = 
-  match ic with
-  | IntCtr s _ -> s
+(* interleaved sequence *)
+let i_seq (#a:eqtype) (il: interleaving a): seq a = 
+  IL?.s il
 
-(* we can also construct a proof of interleaving *)
-let interleaving_prf (#a: eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Tot (interleave (interleaved_seq ss ic) ss) = 
-  match ic with
-  | IntCtr _ prf -> prf
+(* source sequences *)
+let s_seq (#a:eqtype) (il: interleaving a): sseq a = 
+  IL?.ss il
 
-(* sortedness of a sequence *)
-type sorted (#a:Type) (lte: a -> a -> bool) (s: seq a) = 
-  forall (i:seq_index s). i > 0 ==> index s (i - 1) `lte` index s i
+let length (#a:eqtype) (il: interleaving a): nat = 
+  S.length (i_seq il)
 
-(* sort-merge interleaving *)
-val sort_merge (#a:eqtype) (lte: a-> a-> bool) 
-               (ss: sseq a{forall (i:seq_index ss). sorted lte (index ss i)}): 
-  Tot (interleave_ctor ss)
+let seq_index (#a:eqtype) (il: interleaving a) = i:nat{i < length il}
 
-val lemma_sort_merge (#a:eqtype) (lte: a -> a -> bool)
-  (ss: sseq a{forall (i: seq_index ss). sorted lte (index ss i)}):
-  Lemma (requires (True))
-        (ensures (sorted lte (interleaved_seq ss (sort_merge lte ss))))
-        [SMTPat (sort_merge lte ss)]
+let index (#a: eqtype) (il: interleaving a) (i: seq_index il): a =
+  (index (i_seq il) i)
 
-(* filter and interleaving commute (constructive version) *)
-val lemma_filter_interleave_commute_prf (#a:eqtype) 
-  (f:a -> bool) (s: seq a) (ss: sseq a) (prf: interleave s ss): 
-  Tot (interleave (filter f s) (map (filter f) ss))
+val i2s_map (#a:eqtype) (il:interleaving a) (i:seq_index il): 
+  (si:sseq_index (s_seq il){index il i = indexss (s_seq il) si})
 
-(* filter and interleaving commute *)
-val lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a{interleave s ss}):  
-  Lemma (interleave (filter f s) (map (filter f) ss))
+val s2i_map (#a:eqtype) (il:interleaving a) (si: sseq_index (s_seq il)):
+  (i:seq_index il{index il i = indexss (s_seq il) si})
 
-type idx_elem (#a:eqtype) (n:nat) = e:(a * nat){snd e < n}
+val prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}): 
+  Tot (il':interleaving a{length il' = i /\ S.length (s_seq il) = S.length (s_seq il')})
 
-val project_seq (#a:eqtype) (#n:nat) (is:seq (idx_elem #a n)): 
-  (s:seq a{length s = length is})
-
-val lemma_project_seq_index (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n)) (i:seq_index is):
-  Lemma (fst (index is i) = index (project_seq is) i)
-
-val lemma_project_seq_extend (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n){length is > 0}):
-  Lemma (project_seq is = append1 (project_seq (hprefix is)) (fst (telem is)))
-
-val partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
-  Tot (ss:sseq a{length ss = n})
-
-val lemma_partition_idx_seq_interleaving (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
-  Lemma (interleave (project_seq s) (partition_idx_seq s))
-
-val lemma_partition_idx_prefix_comm 
-  (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)) (i:nat{i <= length s}) (id:nat{id < n}):
-  Lemma (is_prefix (index (partition_idx_seq s) id)
-                   (index (partition_idx_seq (prefix s i)) id))
-
-val lemma_partition_idx_extend1 (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n){length s > 0}):
-  Lemma (index (partition_idx_seq s) (snd (telem s)) = 
-         append1 (index (partition_idx_seq (hprefix s)) (snd (telem s)))
-                 (fst (telem s)))
-
-val interleaved_idx_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Tot (seq (idx_elem #a (length ss)))
-
-val lemma_interleaved_idx_seq_correct (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
+val lemma_prefix_index (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}):
   Lemma (requires True)
-        (ensures (partition_idx_seq (interleaved_idx_seq ss ic) = ss))
-        [SMTPat (interleaved_idx_seq ss ic)]
+        (ensures (index (prefix il i) j = index il j))
+        [SMTPat (index (prefix il i) j)]
+
+val lemma_prefix_prefix (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j <= i}):
+  Lemma (requires (True))
+        (ensures (prefix (prefix il i) j == prefix il j))
+        [SMTPat (prefix (prefix il i) j)]
+
+val filter (#a:eqtype) (f:a -> bool) (il:interleaving a): interleaving a

@@ -251,36 +251,6 @@ let rec interleave_map_inv_aux (#a:eqtype) (s: seq a) (ss: sseq a)
 
 let interleave_map_inv = interleave_map_inv_aux
 
-(* if s is sorted, any prefix of s is sorted *)
-let lemma_sorted_prefix (#a:Type) (lte: a -> a -> bool) (s: seq a{sorted lte s}) (i:nat {i <= length s}):
-  Lemma (sorted lte (prefix s i)) 
-  = ()
-
-let idx_of_greatest 
-  (#a:eqtype) (lte: a-> a-> bool) 
-  (ss: sseq a{flat_length ss > 0 /\ (forall (i:seq_index ss). sorted lte (index ss i))}): 
-  Tot (j:seq_index ss{
-    length (index ss j) > 0 /\
-    (forall (k:seq_index ss). length (index ss k) > 0 ==> telem (index ss k) `lte` telem (index ss j))
-  })
-  (decreases (length ss)) =
-  let n = length ss in
-  let fn = flat_length ss in
-  
-  admit()
-
-let sort_merge_aux (#a:eqtype) (lte: a-> a-> bool) 
-               (ss: sseq a{forall (i:seq_index ss). sorted lte (index ss i)}):                
-    Tot (interleave_ctor ss) = admit()
-
-(* sort-merge interleaving *)
-let sort_merge = sort_merge_aux
-
-let lemma_sort_merge (#a:eqtype) (lte: a -> a -> bool)
-  (ss: sseq a{forall (i: seq_index ss). sorted lte (index ss i)}):
-  Lemma (requires (True))
-        (ensures (sorted lte (interleaved_seq ss (sort_merge lte ss)))) = admit()
-
 let lemma_sseq_extend_filter_sat 
   (#a:eqtype) (f:a -> bool) (ss: sseq a) (x:a{f x}) (i:seq_index ss):
   Lemma (map (filter f) (sseq_extend ss x i) = 
@@ -437,7 +407,7 @@ let rec lemma_seq_empty_interleave_empty (#a:eqtype) (n:nat):
     IntAdd (empty #a) ln' prfn' 
   )
 
-let rec lemma_partition_idx_seq_interleaving_prf (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)):
+let rec lemma_partition_idx_seq_interleaving_prf_aux (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)):
   Tot (interleave (project_seq s) (partition_idx_seq s))
   (decreases (length s)) =
   let n = length s in 
@@ -452,7 +422,7 @@ let rec lemma_partition_idx_seq_interleaving_prf (#a:eqtype) (#p:nat) (s: seq (i
     let ss' = partition_idx_seq s' in
     let ps' = project_seq s' in
     let (e,id) = telem s in
-    let prf': interleave ps' ss'  = lemma_partition_idx_seq_interleaving_prf s' in
+    let prf': interleave ps' ss'  = lemma_partition_idx_seq_interleaving_prf_aux s' in
     
     assert(ps = append1 ps' e);
 
@@ -461,6 +431,8 @@ let rec lemma_partition_idx_seq_interleaving_prf (#a:eqtype) (#p:nat) (s: seq (i
   
     IntExtend ps' ss' prf' e id
   )
+
+let lemma_partition_idx_seq_interleaving_prf = lemma_partition_idx_seq_interleaving_prf_aux
 
 let lemma_partition_idx_seq_interleaving (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
   Lemma (interleave (project_seq s) (partition_idx_seq s)) = 
@@ -671,3 +643,32 @@ let rec lemma_interleaved_idx_seq_correct_aux (#a:eqtype) (ss: sseq a) (ic: inte
   )
 
 let lemma_interleaved_idx_seq_correct = lemma_interleaved_idx_seq_correct_aux
+
+let rec lemma_partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)) (idx: nat{idx < n}):
+  Lemma (requires True)
+        (ensures (index (partition_idx_seq s) idx = 
+                  project_seq (filter (is_of_idx a n idx) s)))
+        (decreases (length s)) = 
+  let n = length s in 
+  let ss = partition_idx_seq s in
+  let ssi = index ss idx in
+  let si = filter (is_of_idx a n idx2) s in
+  
+  if n = 0 then (
+    assert(length ssi = 0);
+    lemma_empty ssi;
+    assert(ssi == empty #a);
+    lemma_filter_empty (is_of_idx a n idx);
+    assert(si == empty #(idx_elem #a n));
+    admit()
+  )
+  else admit()
+
+
+let idx_seq_map (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)) (i: seq_index s):
+  Tot (j: sseq_index (partition_idx_seq s)
+  {
+      index (project_seq s) i = indexss (partition_idx_seq s) j /\
+      fst j = snd (index s i) 
+  }) = admit()
+

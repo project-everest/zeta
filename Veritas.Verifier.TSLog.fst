@@ -1,49 +1,53 @@
 module Veritas.Verifier.TSLog
 
 let clock (#p:pos) (s: idx_seq_vlog p{verifiable s}) (i: seq_index s): timestamp =  
-  let gl = partition_idx_seq s in
-  let (e,tid) = index s i in
-  
-  admit()
+  let gl = partition_idx_seq s in  
+  let j = idx_seq_map s i in
+  VG.clock gl j
 
 let lemma_prefix_verifiable (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}):
   Lemma (requires True)
         (ensures (verifiable (prefix itsl i))) = 
-          
-  admit()
-        
-
-
-let its_prefix_aux (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}): 
-  (itsl':its_log p{length itsl' = i}) =
-  let itsl': seq (idx_elem #vlog_entry p) = prefix itsl i in
   let gl = partition_idx_seq itsl in
-  let idgl = g_tid_vlog gl in
-  
+  let itsl' = prefix itsl i in  
   let gl' = partition_idx_seq itsl' in
-  let idgl' = g_tid_vlog gl' in
-
-  let aux (id:nat{id < p}):
+  
+  let aux (tid:valid_tid p):
     Lemma (requires True)
-          (ensures (VT.verifiable (index idgl' id)))
-          [SMTPat (VT.verifiable (index idgl' id))]    
-    = 
-    let (_,l') = index idgl' id in
-    //let (_,l) = index idgl id in    
-    lemma_partition_idx_prefix_comm itsl i  id;
-    lemma_verifiable_implies_prefix_verifiable (index idgl id) (length l');
-    ()
+          (ensures (VT.verifiable (VG.thread_log gl' tid)))
+          [SMTPat (VT.verifiable (VG.thread_log gl' tid))] = 
+    let tl' = VG.thread_log gl' tid in            
+    let tl = VG.thread_log gl tid in
+    lemma_partition_idx_prefix_comm itsl i tid;
+    VT.lemma_verifiable_implies_prefix_verifiable tl (VT.length tl')
   in
-  itsl'
+  //assert(verifiable itsl');
+  ()
 
-let its_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}): 
-  (itsl':its_log p{itsl' = prefix itsl i}) = 
-  its_prefix_aux itsl i
+let create (gl: VG.verifiable_log): its_log (length gl) = 
+  admit()
 
-(* extended time sequence log (with evict values) *)
+let lemma_create_correct (gl: VG.verifiable_log):
+  Lemma (gl = to_g_vlog (create gl)) = admit()
+
+let thread_state (#p:pos) (itsl: its_log p) (tid: valid_tid p): (vs:vtls{Valid? vs}) = 
+  let gl = partition_idx_seq itsl in
+  let tl = VG.thread_log gl tid in
+  VT.verify tl
+
+let lemma_verifier_thread_state_extend (#p:pos) (itsl: its_log p) (i:seq_index itsl):
+  Lemma (thread_state (prefix itsl (i + 1)) (thread_id_of itsl i)== 
+         t_verify_step (thread_state (prefix itsl i) (thread_id_of itsl i))
+                       (vlog_entry_at itsl i)) = 
+  let gl = partition_idx_seq itsl in                       
+  let tid = thread_id_of itsl i in                       
+  
+  admit()                       
+
+(* extended time sequence log (with evict values) 
 let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
   Tot (le:vlog_ext{project_seq itsl = to_vlog le})
-  (decreases (length itsl)) =
+  (decreases (length itsl)) =*)
   (*
   let m = length itsl in
   if m = 0 then (
@@ -96,9 +100,7 @@ let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
     )
   )
   *)
-  admit()
 
-let time_seq_ext = time_seq_ext_aux
 
 let rec lemma_its_prefix_ext (#n:pos) (itsl:its_log n) (i:nat{i <= length itsl}):
   Lemma (requires True)

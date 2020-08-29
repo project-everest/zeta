@@ -1,6 +1,6 @@
 module Veritas.Verifier.Global
 
-let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl{i > 0}):
+let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl):
   Lemma (verifiable (prefix gl i)) = 
   let pgl = prefix gl i in
   let aux (tid:seq_index pgl):
@@ -16,10 +16,9 @@ let rec hadd_aux (gl: verifiable_log):
   Tot (ms_hash_value)
   (decreases (length gl)) = 
   let p = length gl in
-  if p = 1 then 
-    thread_hadd (VT.verify (thread_log gl 0))  
+  if p = 0 then empty_hash_value
   else  (
-    let gl': g_vlog = prefix gl (p - 1) in
+    let gl' = prefix gl (p - 1) in
     lemma_prefix_verifiable gl (p - 1);
     let h1 = hadd_aux gl' in
     let h2 = thread_hadd (VT.verify (thread_log gl (p - 1))) in
@@ -34,10 +33,9 @@ let rec hevict_aux (gl: verifiable_log):
   Tot (ms_hash_value)
   (decreases (length gl)) = 
   let p = length gl in
-  if p = 1 then 
-    thread_hevict (VT.verify (thread_log gl 0))  
+  if p = 0 then empty_hash_value
   else  (
-    let gl': g_vlog = prefix gl (p - 1) in
+    let gl' = prefix gl (p - 1) in
     lemma_prefix_verifiable gl (p - 1);
     let h1 = hevict_aux gl' in
     let h2 = thread_hevict (VT.verify (thread_log gl (p - 1))) in
@@ -53,5 +51,4 @@ let clock (gl: verifiable_log) (i: sseq_index gl): timestamp =
   let tl = thread_log gl tid in
   VT.clock tl idx
 
-let time_seq_ctor (gl: verifiable_log): (interleave_ctor gl) = admit()
 
