@@ -217,13 +217,32 @@ let eac_boundary_entry (itsl: neac_log): vlog_entry =
 val lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl):
   Lemma (eac_state_post itsl i = 
          eac_add (vlog_entry_ext_at itsl i) (eac_state_pre itsl i))
-                 
+
+val lemma_eac_boundary_state_transition (itsl: neac_log):
+  Lemma (requires True)
+        (ensures (eac_add (vlog_entry_ext_at itsl (eac_boundary itsl))
+                          (eac_boundary_state_pre itsl) = EACFail))
+        [SMTPat (eac_boundary itsl)]
+
+let lemma_verifier_boundary_thread_state (itsl: neac_log):
+  Lemma (requires True)
+        (ensures (thread_state_post itsl (eac_boundary itsl) == 
+                  t_verify_step (thread_state_pre itsl (eac_boundary itsl)) 
+                                (I.index itsl (eac_boundary itsl))))
+        [SMTPat (eac_boundary itsl)] =
+  lemma_verifier_thread_state_extend itsl (eac_boundary itsl)
+
 (* when the eac state of a key is "instore" then there is always a previous add *)
 val lemma_eac_state_active_implies_prev_add (itsl: eac_log) 
   (k:key{is_eac_state_active itsl k}):
   Lemma (requires True)
         (ensures (has_some_add_of_key itsl k))
         [SMTPat (is_eac_state_instore itsl k)]
+
+(* the converse of the previous, eac state init implies no previous add *)
+val lemma_eac_state_init_no_entry (itsl: eac_log) (k:key):
+  Lemma (requires (is_eac_state_init itsl k))
+        (ensures (not (has_some_entry_of_key itsl k)))
 
 (* add method of an eac state *)
 val lemma_eac_state_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k}):
