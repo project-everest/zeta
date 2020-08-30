@@ -569,7 +569,7 @@ let lemma_non_eac_evicted_requires_key_in_store
   let ee = TL.vlog_entry_ext_at itsl i in
 
   (* since e requires the store to contain the key k for verification success *)
-  assert(V.store_contains (thread_store itsli tid) k);
+  //assert(V.store_contains (thread_store itsli tid) k);
 
   (* evicted => no store contains k, a contradiction *)
   lemma_eac_state_evicted_store itsli k tid;
@@ -577,88 +577,60 @@ let lemma_non_eac_evicted_requires_key_in_store
   hash_collision_contra()
 
 
-(*
-
-let lemma_non_eac_evicted_requires_key_in_store (#p:pos)
-  (itsl: non_eac_ts_log p{
-    EC.is_eac_state_evicted (last_valid_eac_state itsl)  /\
-    requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl))
+let lemma_non_eac_evicted_merkle_addm
+  (itsl: neac_log {
+    EACEvictedMerkle? (eac_boundary_state_pre itsl) /\
+    AddM? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let st = last_valid_eac_state itsl in
-  let ee = invalidating_log_entry itsl in
-  assert(eac_add ee st = EACFail);
 
-  let tsle = time_seq_ext itsl in
-  let i = max_eac_prefix tsle in
-  let (e,tid) = index itsl i in
+  let st = eac_boundary_state_pre itsl in
+
+  (* the maximum eac prefix of itsl *)
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
+  let itsli' = I.prefix itsl (i + 1) in
+
+  // vlog entry e going at thread tid causes the eac failure
+  let e = I.index itsl i in
   let k = V.key_of e in
-  let itsli = prefix itsl i in
-  (* verifier thread state of tid after itsli *)
-  let vsi = verifier_thread_state itsli tid in
+  let tid = thread_id_of itsl i in
+  let ee = TL.vlog_entry_ext_at itsl i in
 
-  let itsli' = prefix itsl (i + 1) in
-  let vsi' = verifier_thread_state itsli' tid in
-  lemma_verifier_thread_state_extend itsli';
-  assert(vsi' == t_verify_step vsi e);
-
-  assert(store_contains (thread_store vsi) k);
-  lemma_eac_state_evicted_store itsli k tid;
-  hash_collision_contra()
-
-let lemma_non_eac_evicted_merkle_addm (#p:pos)
-  (itsl: non_eac_ts_log p{
-    EACEvictedMerkle? (last_valid_eac_state itsl)  /\
-    AddM? (to_vlog_entry (invalidating_log_entry itsl))
-   })
-  : hash_collision_gen =
-  let st = last_valid_eac_state itsl in
-  let ee = invalidating_log_entry itsl in
-  assert(eac_add ee st = EACFail);
   match st with
   | EACEvictedMerkle v_e -> (
     match ee with
     | NEvict (AddM (k,v) k') ->
-      assert(v_e <> v);
-      let tsle = time_seq_ext itsl in
-      let i = max_eac_prefix tsle in
-      let (e,tid) = index itsl i in
-
-      let itsli = prefix itsl i in
-      (* verifier thread state of tid after itsli *)
-      let vsi = verifier_thread_state itsli tid in
-
-      let itsli' = prefix itsl (i + 1) in
-      let vsi' = verifier_thread_state itsli' tid in
-      lemma_verifier_thread_state_extend itsli';
-      assert(vsi' == t_verify_step vsi e);
 
       (* k' is a proper ancestor, so k cannot be root *)
-      assert(k <> Root);
-
+      // assert(k <> Root);
+      
       (* k' is the proving ancestor of k *)
       lemma_addm_ancestor_is_proving itsli';
-      assert(k' = proving_ancestor itsli k);
+      // assert(k' = proving_ancestor itsli k);
 
       (* k' points to k *)
       lemma_proving_ancestor_points_to_self itsli k;
       lemma_eac_value_is_stored_value itsli k' tid;
-      let mv' = to_merkle_value (stored_value (thread_store vsi) k') in
+      let mv' = to_merkle_value (V.stored_value (thread_store itsli tid) k') in
       let d = desc_dir k k' in
       let dh = desc_hash_dir mv' d in
-      assert(Desc?.k dh = k);
+      // assert(Desc?.k dh = k);
 
       (* verifier checks for addm *)
-      assert(Desc?.h dh = hashfn v);
+      // assert(Desc?.h dh = hashfn v);
 
-      assert(is_eac_state_evicted_merkle itsli k);
-      lemma_proving_ancestor_has_hash itsli k;
-      lemma_eac_value_is_evicted_value itsli k;
-      assert(Desc?.h dh = hashfn v_e);
+      (* invariant - the proving ancestors stores the hash of evicted value v_e *)
+      lemma_proving_ancestor_has_hash itsli k;      
+      lemma_eac_value_is_evicted_value itsli k;      
+      // assert(Desc?.h dh = hashfn v_e);
 
       (* which gives us a hash collision *)
       SingleHashCollision (Collision v v_e)
-    )
+  )
+
+(*
+
 
 let lemma_non_eac_evicted_blum_addm (#p:pos)
   (itsl: non_eac_ts_log p{
@@ -933,6 +905,7 @@ let lemma_non_eac_time_seq_implies_hash_collision
     match ee with
       | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
       | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl      
+      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_merkle_addm itsl      
       | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl   
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl      

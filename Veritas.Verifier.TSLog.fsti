@@ -334,7 +334,7 @@ val lemma_eac_value_is_stored_value (itsl: eac_log) (k:key) (tid: valid_tid itsl
 
 val lemma_eac_value_is_evicted_value (itsl: eac_log) (k:key):
   Lemma (requires (is_eac_state_evicted itsl k))
-        (ensures (eac_state_evicted_value itsl k = eac_state_value itsl k))
+        (ensures (eac_state_evicted_value itsl k = eac_value itsl k))
 
 val lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl):
   Lemma (requires (is_evict (I.index itsl i)))
