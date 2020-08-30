@@ -38,133 +38,45 @@ type hash_collision_gen =
 let hash_collision_contra (_:unit{False}): hash_collision_gen = 
   SingleHashCollision (Collision (DVal Null) (DVal Null))
 
-(*
-
-(* the entry that causes the eac_invalidation *)
-let invalidating_log_entry (#n:pos) (itsl: non_eac_ts_log n): vlog_entry_ext = 
-  let tsle = time_seq_ext itsl in  
-  let i = max_eac_prefix tsle in  
-  index tsle i
-
-(* the key that causes the eac_invalidation *)
-let eac_invalidating_key (#n:pos) (itsl: non_eac_ts_log n): key =
-  vlog_entry_ext_key (invalidating_log_entry itsl)
-
-(* last valid eac state *)
-let last_valid_eac_state (#n:pos) (itsl: non_eac_ts_log n): eac_state = 
-  let tsle = time_seq_ext itsl in  
-  let i = max_eac_prefix tsle in
-  let k = eac_invalidating_key itsl in
-  eac_state_of_key (prefix itsl i) k
-  
-(* applying the invalidating entry on the last valid state produces EAC failure *)
-let lemma_invalidation (#n:pos) (itsl: non_eac_ts_log n):
-  Lemma (requires True)
-        (ensures (EACFail <> last_valid_eac_state itsl /\
-                  EACFail = eac_add (invalidating_log_entry itsl) (last_valid_eac_state itsl)))
-        [SMTPat (last_valid_eac_state itsl)]
-        =            
-  let tsl = project_seq itsl in
-  let tsle = time_seq_ext itsl in
-  
-  let i = max_eac_prefix tsle in
-
-  (* maximum eac prefix *)
-  let tslei = prefix tsle i in
-
-  (* minimum non-eac prefix *)
-  let tslei' = prefix tsle (i + 1) in
-
-  lemma_first_invalid_key eac_sm tsle;
-
-  (* ee is the entry causing eac invalidation *)
-  let ee = index tsle i in
-  assert(ee = invalidating_log_entry itsl);
-
-  (* the key causing the invalidation *)
-  let k = eac_invalidating_key itsl in
-
-  (* log entries of only key k *)
-  let tslek = partn eac_sm k tsle in
-
-  (* j the index in tslek causing invalidation *)
-  let j = max_valid_prefix eac_smk tslek in
-  //assert(filter_index_inv_map (iskey V.key_of k) tsle i = j);  
-  //assert(V.key_of ee = k);
-  //assert(index tslek j = ee);
-
-  let tslekj = prefix tslek j in
-  assert(valid eac_smk tslekj);  
-
-  let st = seq_machine_run eac_smk tslekj in
-  assert(st <> EACFail);
-
-  // filtering out k-entries in tslei is the as taking the prefix j in tslekj
-  lemma_filter_prefix_comm (iskey vlog_entry_ext_key k) tsle i;
-  assert(st = last_valid_eac_state itsl);
-
-  lemma_reduce_prefix EACInit eac_add (prefix tslek (j + 1)) j;  
-  lemma_reduce_singleton st eac_add (suffix (prefix tslek (j + 1)) 1);
-  assert(eac_add ee st = EACFail);
-
-  ()         
-
-let lemma_verifier_thread_state_extend (#n:pos) (itsl: its_log n{length itsl > 0}):
-  Lemma (verifier_thread_state itsl (its_thread_id itsl (length itsl - 1)) == 
-         t_verify_step (verifier_thread_state (prefix itsl (length itsl - 1)) 
-                                              (its_thread_id itsl (length itsl - 1)))
-                       (its_vlog_entry itsl (length itsl - 1))) = 
-  let m = length itsl in
-  let id = its_thread_id itsl (m - 1) in
-  let e = its_vlog_entry itsl (m - 1) in
-  let itsl' = prefix itsl (m - 1) in
-  let gl' = partition_idx_seq itsl' in
-  lemma_partition_idx_extend1 itsl;
-  lemma_prefix1_append (index gl' id) e
-
-let lemma_time_seq_ext_correct (#n:pos) (itsl: its_log n) (i:seq_index itsl):
-  Lemma (requires True)
-        (ensures (its_vlog_entry itsl i = to_vlog_entry (index (time_seq_ext itsl) i))) 
-        [SMTPat (to_vlog_entry (index (time_seq_ext itsl) i))] =
-  lemma_project_seq_index itsl i
-
 (* if an operation requires the key in store, it cannot be the first operation *)
-let lemma_non_eac_init_requires_key_in_store (#n:pos) 
-  (itsl: non_eac_ts_log n{last_valid_eac_state itsl = EACInit /\
-                           VT.requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl)) /\
-                           Root <> V.key_of (to_vlog_entry (invalidating_log_entry itsl))}):  
-  hash_collision_gen = 
-  let tsle = time_seq_ext itsl in
-  let i = max_eac_prefix tsle in
-  let itsli = prefix itsl i in
-  let itsli' = prefix itsl (i + 1) in
-  let tid = its_thread_id itsl i in
-  let e = its_vlog_entry itsl i in
-  assert(e = its_vlog_entry itsli' (length itsli' - 1));
-  lemma_verifier_thread_state_extend itsli';
-  //assert(verifier_thread_state itsli' tid == t_verify_step (verifier_thread_state itsli tid) e);
-  let k = V.key_of e in
-  lemma_eac_state_init_store itsli k tid;
+let lemma_non_eac_init_requires_key_in_store 
+  (itsl: neac_log {
+    TL.eac_state_pre itsl (TL.eac_boundary itsl) = EACInit /\
+    VT.requires_key_in_store (I.index itsl (TL.eac_boundary itsl)) /\
+    Root <> V.key_of (I.index itsl (TL.eac_boundary itsl))
+  }): 
+  hash_collision_gen =   
+  let i = TL.eac_boundary itsl in
+
+  // assert: itsli is eac, while adding the i'th element makes it non-eac
+  let itsli = I.prefix itsl i in
+
+  // vlog entry e going to thread tid causes the eac failure 
+  let e = I.index itsl i in
+  let k = V.key_of e in  
+  let tid = thread_id_of itsl i in
+
+  // Store of tid does not contain the key k after processing i elements
+  TL.lemma_eac_state_init_store itsli k tid;
+  //assert(not (store_contains (thread_store itsli tid) k));
+
+  // but we know that the tid state is still valid after processing e
+  // which does require k to be in the store, a contradiction
+  TL.lemma_verifier_thread_state_extend itsl i;
+  
   hash_collision_contra ()
 
-
 (* the first operation for a key cannot be evict *)
-let lemma_non_eac_init_evict (#n:pos)
-  (itsl: non_eac_ts_log n{last_valid_eac_state itsl = EACInit /\
-                           requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl)) /\
-                           V.is_evict (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen =
-  let tsle = time_seq_ext itsl in
-  let i = max_eac_prefix tsle in
-  let itsli = prefix itsl i in
-  let itsli' = prefix itsl (i + 1) in
-  let tid = its_thread_id itsl i in  
-  let e = its_vlog_entry itsl i in  
-  lemma_verifier_thread_state_extend itsli';
-  let k = V.key_of e in
-  //lemma_root_never_evicted (verifier_thread_state itsli tid) e;  
-  assume(k <> Root);                               
+let lemma_non_eac_init_evict 
+  (itsl: neac_log {
+    TL.eac_state_pre itsl (TL.eac_boundary itsl) = EACInit /\
+    V.is_evict (I.index itsl (TL.eac_boundary itsl))
+  }): hash_collision_gen =  
+  let i = TL.eac_boundary itsl in
+  TL.lemma_root_never_evicted itsl i;
   lemma_non_eac_init_requires_key_in_store itsl
 
+(*
 (* 
  * if the key is in an EACInit state at the end of itsl, then 
  * there cannot be an log entries with key k 
@@ -1080,10 +992,35 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
  )
 *)
 
+
+
 let lemma_non_eac_time_seq_implies_hash_collision 
-  (itsl: neac_log {VG.hash_verifiable (g_vlog_of itsl)}): hash_collision_gen = 
-admit()
+  (itsl: neac_log {VG.hash_verifiable (g_vlog_of itsl)}): hash_collision_gen =   
+  let i = TL.eac_boundary itsl in
+  let st = TL.eac_state_pre itsl i in
+  let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in 
+  
+  match st with
+  | EACInit -> (
+      match ee with 
+      | NEvict (Get _ _) -> lemma_non_eac_init_requires_key_in_store itsl
+      | NEvict (Put _ _) -> lemma_non_eac_init_requires_key_in_store itsl
+      | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_init_evict itsl
+      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_init_evict itsl
+      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_init_evict itsl      
+      | _ -> admit()
+    )
+  | _ ->
+
+  admit()
+
+
 (*
+
+  last_valid_eac_state itsl = EACInit /\
+                           VT.requires_key_in_store (to_vlog_entry (invalidating_log_entry itsl)) /\
+                           Root <> V.key_of (to_vlog_entry (invalidating_log_entry itsl))}):  
+                           
   let st = last_valid_eac_state itsl in
   let ee = invalidating_log_entry itsl in
   let tsle = time_seq_ext itsl in  

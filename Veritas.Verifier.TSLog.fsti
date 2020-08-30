@@ -109,15 +109,22 @@ val thread_state (itsl: its_log) (tid: valid_tid itsl): (vs:vtls{Valid? vs})
 let thread_store (itsl: its_log) (tid: valid_tid itsl): vstore =
   Valid?.st (thread_state itsl tid)
 
+let thread_state_pre (itsl: its_log) (i: I.seq_index itsl): (vs:vtls{Valid? vs}) = 
+  let tid = thread_id_of itsl i in
+  thread_state (I.prefix itsl i) tid
+
+let thread_state_post (itsl: its_log) (i: I.seq_index itsl): (vs:vtls{Valid? vs}) = 
+  let tid = thread_id_of itsl i in
+  thread_state (I.prefix itsl (i + 1)) tid
+
 (* 
  * let tid = thread_id_of itsl i. 
  * this lemma states that state of tid at (i+1) is obtained by the state at (i) 
  * applying the vlog entry at i.
  *)
 val lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl):
-  Lemma (thread_state (I.prefix itsl (i + 1)) (thread_id_of itsl i) == 
-         t_verify_step (thread_state (I.prefix itsl i) (thread_id_of itsl i))
-                       (I.index itsl i))
+  Lemma (thread_state_post itsl i == 
+         t_verify_step (thread_state_pre itsl i) (I.index itsl i))
 
 (* is this an evict add consistent log *)
 val is_eac (itsl: its_log):bool
@@ -190,12 +197,19 @@ let is_eac_state_active (itsl: its_log) (k:key): bool =
 val vlog_entry_ext_at (itsl: its_log) (i:I.seq_index itsl): 
   (e:vlog_entry_ext{E.to_vlog_entry e = I.index itsl i})
 
+let eac_state_pre (itsl: its_log) (i:I.seq_index itsl): eac_state =
+  let k = key_at itsl i in
+  eac_state_of_key (I.prefix itsl i) k
+
+let eac_state_post (itsl: its_log) (i:I.seq_index itsl): eac_state = 
+  let k = key_at itsl i in
+  eac_state_of_key (I.prefix itsl (i+1)) k
+  
 (* the eac state transition induced by the i'th entry *)
 val lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl):
-  Lemma (eac_state_of_key (I.prefix itsl (i + 1)) (key_at itsl i) = 
-         eac_add (vlog_entry_ext_at itsl i) 
-                 (eac_state_of_key (I.prefix itsl i) (key_at itsl i)))
-
+  Lemma (eac_state_post itsl i = 
+         eac_add (vlog_entry_ext_at itsl i) (eac_state_pre itsl i))
+                 
 (* when the eac state of a key is "instore" then there is always a previous add *)
 val lemma_eac_state_active_implies_prev_add (itsl: eac_log) 
   (k:key{is_eac_state_active itsl k}):
@@ -298,3 +312,7 @@ val lemma_evict_has_next_add (itsl: its_log) (i:I.seq_index itsl):
                    exists_sat_elems (is_entry_of_key (key_of (I.index itsl i))) (I.i_seq itsl)) /\
                    i < last_idx_of_key itsl (key_of (I.index itsl i)))
         (ensures (has_next_add_of_key itsl i (key_of (I.index itsl i))))
+
+val lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl):
+  Lemma (requires (is_evict (I.index itsl i)))
+        (ensures (V.key_of (I.index itsl i) <> Root))
