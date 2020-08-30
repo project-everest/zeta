@@ -435,68 +435,62 @@ let lemma_non_eac_instore_evictm
       hash_collision_contra()
     )
 
-(*
-
-let lemma_non_eac_instore_evictb (#p:pos)
-  (itsl: non_eac_ts_log p{
-    EACInStore? (last_valid_eac_state itsl)  /\
-    EvictB? (to_vlog_entry (invalidating_log_entry itsl))
+let lemma_non_eac_instore_evictb
+  (itsl: neac_log {
+    EACInStore? (eac_boundary_state_pre itsl) /\
+    EvictB? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let st = last_valid_eac_state itsl in
-  let ee = invalidating_log_entry itsl in
-  assert(eac_add ee st = EACFail);
+  let st = eac_boundary_state_pre itsl in
+
+  (* the maximum eac prefix of itsl *)
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
+
+  // vlog entry e going at thread tid causes the eac failure
+  let e = I.index itsl i in
+  let k = V.key_of e in
+  let tid = thread_id_of itsl i in
+  let ee = TL.vlog_entry_ext_at itsl i in
+
   match st with
   | EACInStore m v -> (
     match ee with
     | EvictBlum (EvictB k t) v' tid' ->
-      assert(DVal? v && v' <> v || m <> BAdd);
-
-      let tsle = time_seq_ext itsl in
-      let i = max_eac_prefix tsle in
-      let (e,tid) = index itsl i in
-
-      let itsli = prefix itsl i in
-      (* verifier thread state of tid after itsli *)
-      let vsi = verifier_thread_state itsli tid in
-
-      let itsli' = prefix itsl (i + 1) in
-      let vsi' = verifier_thread_state itsli' tid in
-      lemma_verifier_thread_state_extend itsli';
-      assert(vsi' == t_verify_step vsi e);
+      (* otherwise there won't be an eac failure *)
+      // assert(DVal? v && v' <> v || m <> BAdd);
 
       (* the thread store of tid contains k *)
-      assert(store_contains (thread_store vsi) k);
+      // assert(store_contains (thread_store itsli tid) k);
 
-      let lidx = last_add_idx itsli k in
-      let ltid = last_add_tid itsli k in
-      let li = project_seq itsli in
+      (* key k is in only one store *)
+      lemma_key_in_unique_store itsli k tid;
+      // assert(stored_tid itsli k = tid);
 
-      lemma_eac_state_instore_addm itsli k;
-      assert(addm_of_entry (index li lidx) = m);
-      assert(add_method_of (thread_store vsi) k = BAdd);
+      (* the add method stored with k is m *)
+      lemma_eac_stored_addm itsli k;
+      // assert(m = stored_add_method itsli k);
 
-      if ltid = tid then (
-        assert(add_method_of (thread_store vsi) k = m);
-        assert(m = BAdd);
-        assert(DVal? v && v' <> v);
-        lemma_eac_state_instore itsli k;
-        assert(stored_value (thread_store vsi) k = v);
+      (* since the verifier checks that the stored add method is blum, we have *)
+      // assert(m = BAdd);
 
-        lemma_ext_evict_val_is_stored_val itsl i;
-        assert(v' = stored_value (thread_store vsi) k);
+      (* this implies *)
+      // assert(DVal? v && v' <> v);
 
-        hash_collision_contra()
-      )
-      else (
-        (* only the store of last add contains the key k *)
-        lemma_eac_state_instore2 itsli k tid;
-        assert(not (store_contains (thread_store vsi) k));
+      (* the eac value is always the correct type based on key k *)
+      lemma_eac_value_correct_type itsli k;
+      // assert(is_data_key k);
 
-        (* ... which is a contradiction *)
-        hash_collision_contra()
-      )
+      lemma_eac_stored_value itsli k;
+      // assert(v = stored_value itsli k);
+
+      lemma_ext_evict_val_is_stored_val itsl i;
+      // assert(v' = stored_value itsli k);
+
+      hash_collision_contra()
   )
+
+(*
 
 let lemma_non_eac_instore_evictbm (#p:pos)
   (itsl: non_eac_ts_log p{
@@ -905,7 +899,8 @@ let lemma_non_eac_time_seq_implies_hash_collision
     | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl    
     | NEvict (AddB _ _ _) -> lemma_non_eac_instore_addb itsl    
     | NEvict (AddM (k,v) _) -> lemma_non_eac_instore_addm itsl    
-      | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl    
+    | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl    
+    | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_instore_evictb itsl      
     | _ -> admit()
     )
   | _ ->
