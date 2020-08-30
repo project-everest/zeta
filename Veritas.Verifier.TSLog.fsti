@@ -203,7 +203,10 @@ let eac_state_pre (itsl: its_log) (i:I.seq_index itsl): eac_state =
   let k = key_at itsl i in
   eac_state_of_key (I.prefix itsl i) k
 
-let eac_boundary_state_pre (itsl: neac_log): eac_state =
+let eac_boundary_state_pre (itsl: neac_log): (st:eac_state{EACFail <> st}) =
+  let i = eac_boundary itsl in
+  let k = key_at itsl i in
+  lemma_eac_state_of_key_valid (I.prefix itsl i) k;
   eac_state_pre itsl (eac_boundary itsl)
 
 let eac_state_post (itsl: its_log) (i:I.seq_index itsl): eac_state = 
