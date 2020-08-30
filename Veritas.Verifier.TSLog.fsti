@@ -8,6 +8,7 @@ open Veritas.MultiSetHash
 open Veritas.Record
 open Veritas.SeqAux
 open Veritas.SeqMachine
+open Veritas.State
 open Veritas.Verifier
 open Veritas.Verifier.Global
 open Veritas.Verifier.Thread
@@ -57,6 +58,9 @@ val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
 
 (* create a ts log *)
 val create (gl: VG.verifiable_log): (itsl:its_log{g_vlog_of itsl == gl})
+
+let state_ops (itsl: its_log): seq (state_op) =
+  to_state_op_vlog (i_seq itsl)
 
 let key_at (itsl: its_log) (i: I.seq_index itsl): key = 
   V.key_of (I.index itsl i)
@@ -124,12 +128,20 @@ let eac_log = itsl: its_log {is_eac itsl}
 (* non-eac ts log *)
 type neac_log = itsl: its_log {not (is_eac itsl)}
 
+val eac_boundary (itsl: neac_log):
+  (i:I.seq_index itsl{is_eac (I.prefix itsl i) &&
+                      not (is_eac (I.prefix itsl (i + 1)))})
+                      
 (* if itsl is eac, then any prefix is also eac *)
 val lemma_eac_implies_prefix_eac (itsl: eac_log) (i:nat {i <= I.length itsl}):
   Lemma (requires True)
         (ensures (is_eac (I.prefix itsl i)))
         [SMTPat (I.prefix itsl i)]
 
+(* if the ts log is eac, then its state ops are read-write consistent *)
+val lemma_eac_implies_state_ops_rw_consistent (itsl: eac_log):
+  Lemma (rw_consistent (state_ops itsl))
+  
 (* the eac state of a key at the end of an its log *)
 val eac_state_of_key (itsl: its_log) (k:key): eac_state 
 

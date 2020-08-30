@@ -22,9 +22,9 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
 	       Veritas.Verifier.Thread.fsti Veritas.Verifier.Thread.fst \
                Veritas.Verifier.Global.fsti Veritas.Verifier.Global.fst \
                Veritas.EAC.fsti Veritas.EAC.fst \
-               Veritas.Verifier.TSLog.fsti Veritas.Verifier.TSLog.fst \
-	       Veritas.Verifier.Blum.fsti Veritas.Verifier.Blum.fst \
-               Veritas.Verifier.Merkle.fsti Veritas.Verifier.Merkle.fst \
+               Veritas.Verifier.TSLog.fsti  \
+	       Veritas.Verifier.Blum.fsti  \
+               Veritas.Verifier.Merkle.fsti  \
                Veritas.Verifier.EAC.fst \
                Veritas.Verifier.Correctness.fst
 

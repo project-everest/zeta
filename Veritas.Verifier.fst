@@ -46,6 +46,11 @@ let is_add (e:vlog_entry): bool =
   | AddB _ _ _ -> true
   | _ -> false
 
+let is_blum_add (e:vlog_entry): bool = 
+  match e with
+  | AddB _ _ _ -> true
+  | _ -> false
+
 let is_evict (e: vlog_entry): bool =
   match e with
   | EvictM _ _ -> true

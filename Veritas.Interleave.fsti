@@ -1,6 +1,7 @@
 module Veritas.Interleave
 
 open FStar.Seq
+open FStar.Squash
 open Veritas.SeqAux
 
 module S = FStar.Seq
@@ -66,6 +67,10 @@ let i_seq (#a:eqtype) (il: interleaving a): seq a =
 let s_seq (#a:eqtype) (il: interleaving a): sseq a = 
   IL?.ss il
 
+let lemma_interleaving_correct (#a:eqtype) (il:interleaving a):
+  Lemma (interleave (i_seq il) (s_seq il)) = 
+  return_squash (IL?.prf il)
+
 let length (#a:eqtype) (il: interleaving a): nat = 
   S.length (i_seq il)
 
@@ -82,6 +87,12 @@ val s2i_map (#a:eqtype) (il:interleaving a) (si: sseq_index (s_seq il)):
 
 val prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}): 
   Tot (il':interleaving a{length il' = i /\ S.length (s_seq il) = S.length (s_seq il')})
+
+let hprefix (#a:eqtype) (il:interleaving a {length il > 0}): interleaving a =
+  prefix il (length il - 1)
+
+let telem (#a:eqtype) (il:interleaving a {length il > 0}): a =
+  SA.telem (i_seq il)
 
 val lemma_prefix_index (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}):
   Lemma (requires True)

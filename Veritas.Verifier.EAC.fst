@@ -20,9 +20,11 @@ open Veritas.Verifier.TSLog
 open FStar.Seq
 open Veritas.SeqAux
 
+module I = Veritas.Interleave
 module EC = Veritas.EAC
 module MS = Veritas.MultiSet
 module MH = Veritas.MultiSetHash
+module TL = Veritas.Verifier.TSLog
 module V = Veritas.Verifier
 module VG = Veritas.Verifier.Global
 module VT = Veritas.Verifier.Thread
@@ -36,10 +38,7 @@ type hash_collision_gen =
 let hash_collision_contra (_:unit{False}): hash_collision_gen = 
   SingleHashCollision (Collision (DVal Null) (DVal Null))
 
-let max_eac_ts_prefix (#p:pos) (itsl: non_eac_ts_log p): eac_ts_log p =
-  let tsle = time_seq_ext itsl in
-  let i = max_eac_prefix tsle in
-  prefix itsl i
+(*
 
 (* the entry that causes the eac_invalidation *)
 let invalidating_log_entry (#n:pos) (itsl: non_eac_ts_log n): vlog_entry_ext = 
@@ -1079,11 +1078,12 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
       MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))      
     )
  )
+*)
 
 let lemma_non_eac_time_seq_implies_hash_collision 
-  (#n:pos) 
-  (itsl: non_eac_ts_log n{VG.hash_verifiable (partition_idx_seq itsl)}): hash_collision_gen = 
-  
+  (itsl: neac_log {VG.hash_verifiable (g_vlog_of itsl)}): hash_collision_gen = 
+admit()
+(*
   let st = last_valid_eac_state itsl in
   let ee = invalidating_log_entry itsl in
   let tsle = time_seq_ext itsl in  
@@ -1130,4 +1130,4 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
   )
-
+ *)
