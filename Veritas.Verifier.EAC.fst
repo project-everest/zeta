@@ -629,55 +629,53 @@ let lemma_non_eac_evicted_merkle_addm
       SingleHashCollision (Collision v v_e)
   )
 
-(*
-
-
-let lemma_non_eac_evicted_blum_addm (#p:pos)
-  (itsl: non_eac_ts_log p{
-    EACEvictedBlum? (last_valid_eac_state itsl)  /\
-    AddM? (to_vlog_entry (invalidating_log_entry itsl))
+let lemma_non_eac_evicted_blum_addm
+  (itsl: neac_log {
+    EACEvictedBlum? (eac_boundary_state_pre itsl) /\
+    AddM? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let st = last_valid_eac_state itsl in
-  let ee = invalidating_log_entry itsl in
-  assert(eac_add ee st = EACFail);
+
+  let st = eac_boundary_state_pre itsl in
+
+  (* the maximum eac prefix of itsl *)
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
+  let itsli' = I.prefix itsl (i + 1) in
+
+  // vlog entry e going at thread tid causes the eac failure
+  let e = I.index itsl i in
+  let k = V.key_of e in
+  let tid = thread_id_of itsl i in
+  let ee = TL.vlog_entry_ext_at itsl i in
+
   match st with
   | EACEvictedBlum v_e _ _ -> (
     match ee with
     | NEvict (AddM (k,v) k') ->
-      let tsle = time_seq_ext itsl in
-      let i = max_eac_prefix tsle in
-      let (e,tid) = index itsl i in
-
-      let itsli = prefix itsl i in
-      (* verifier thread state of tid after itsli *)
-      let vsi = verifier_thread_state itsli tid in
-
-      let itsli' = prefix itsl (i + 1) in
-      let vsi' = verifier_thread_state itsli' tid in
-      lemma_verifier_thread_state_extend itsli';
-      assert(vsi' == t_verify_step vsi e);
 
       (* k' is a proper ancestor, so k cannot be root *)
-      assert(k <> Root);
+      // assert(k <> Root);
 
       (* k' is the proving ancestor of k *)
       lemma_addm_ancestor_is_proving itsli';
-      assert(k' = proving_ancestor itsli k);
+      // assert(k' = proving_ancestor itsli k);
 
       (* k' points to k *)
       lemma_proving_ancestor_points_to_self itsli k;
       lemma_eac_value_is_stored_value itsli k' tid;
-      let mv' = to_merkle_value (stored_value (thread_store vsi) k') in
+      let mv' = to_merkle_value (V.stored_value (thread_store itsli tid) k') in
       let d = desc_dir k k' in
       let dh = desc_hash_dir mv' d in
-      assert(Desc?.k dh = k);
-      assert(Desc?.b dh = false);
+      // assert(Desc?.k dh = k);
+      // assert(Desc?.b dh = false);
 
       (* since m = BAdd, this bit should be set to true, a contradiction *)
       lemma_proving_ancestor_blum_bit itsli k;
       hash_collision_contra()
   )
+
+(*
 
 let lemma_non_eac_evicted_merkle_addb (#p:pos)
   (itsl: non_eac_ts_log p{
@@ -915,6 +913,7 @@ let lemma_non_eac_time_seq_implies_hash_collision
     match ee with
     | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
       | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl          
+      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_blum_addm itsl      
       | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl   
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl      
