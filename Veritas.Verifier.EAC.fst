@@ -41,17 +41,16 @@ let hash_collision_contra (_:unit{False}): hash_collision_gen =
 (* if an operation requires the key in store, it cannot be the first operation *)
 let lemma_non_eac_init_requires_key_in_store 
   (itsl: neac_log {
-    TL.eac_state_pre itsl (TL.eac_boundary itsl) = EACInit /\
-    VT.requires_key_in_store (I.index itsl (TL.eac_boundary itsl)) /\
-    Root <> V.key_of (I.index itsl (TL.eac_boundary itsl))
+    eac_boundary_state_pre itsl = EACInit /\
+    requires_key_in_store (eac_boundary_entry itsl) /\
+    Root <> key_of (eac_boundary_entry itsl)
   }): 
   hash_collision_gen =   
-  let i = TL.eac_boundary itsl in
-
-  // assert: itsli is eac, while adding the i'th element makes it non-eac
+  // maximum prefix of itsl that is eac
+  let i = eac_boundary itsl in  
   let itsli = I.prefix itsl i in
 
-  // vlog entry e going to thread tid causes the eac failure 
+  // vlog entry e going at thread tid causes the eac failure 
   let e = I.index itsl i in
   let k = V.key_of e in  
   let tid = thread_id_of itsl i in
@@ -69,48 +68,21 @@ let lemma_non_eac_init_requires_key_in_store
 (* the first operation for a key cannot be evict *)
 let lemma_non_eac_init_evict 
   (itsl: neac_log {
-    TL.eac_state_pre itsl (TL.eac_boundary itsl) = EACInit /\
-    V.is_evict (I.index itsl (TL.eac_boundary itsl))
+    eac_boundary_state_pre itsl = EACInit /\
+    V.is_evict (eac_boundary_entry itsl)
   }): hash_collision_gen =  
   let i = TL.eac_boundary itsl in
   TL.lemma_root_never_evicted itsl i;
   lemma_non_eac_init_requires_key_in_store itsl
 
-(*
-(* 
- * if the key is in an EACInit state at the end of itsl, then 
- * there cannot be an log entries with key k 
- *)
-let lemma_eac_init_implies_no_key_entries 
-  (#n:pos)
-  (itsl: its_log n)
-  (k:key):
-  Lemma (requires (eac_state_of_key itsl k = EACInit))
-        (ensures (not (has_some_entry_of_key itsl k))) = 
-  let tsle = time_seq_ext itsl in          
-
-  (* partition of log stream of key k *)
-  let tslek = partn eac_sm k tsle in
-  assert(seq_machine_run eac_smk tslek = EACInit);
-
-  (* partition is of length 0 *)
-  lemma_notempty_implies_noninit eac_smk tslek;
-  assert(length tslek = 0);
-
-  if has_some_entry_of_key itsl k then (  
-    (* if there is some entry of key k, we can find an index into tslek, a contradiction *)
-    let i = last_index (entry_of_key k) itsl in
-    let j = filter_index_inv_map (iskey vlog_entry_ext_key k) tsle i in  
-    ()
-  )
-  else ()
-
 (* the first operation for a key cannot be a blum add *)
-let lemma_non_eac_init_addb (#n)
-  (itsl: non_eac_ts_log n{
-    VG.hash_verifiable (partition_idx_seq itsl) /\
-    last_valid_eac_state itsl = EACInit /\
-                          AddB? (to_vlog_entry (invalidating_log_entry itsl))}): hash_collision_gen =
+let lemma_non_eac_init_addb
+  (itsl: neac_log {
+    TL.hash_verifiable itsl /\
+    eac_boundary_state_pre itsl = EACInit /\
+    AddB? (eac_boundary_entry itsl)}): hash_collision_gen =
+  admit()
+  (*
   (* hash verifiable - evict hash and add hash equal *)                          
   let gl = partition_idx_seq itsl in                           
   assert(VG.hadd gl = VG.hevict gl);
@@ -166,6 +138,10 @@ let lemma_non_eac_init_addb (#n)
 
     MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
   )
+*)
+
+(*
+
 
 let lemma_non_eac_init_addm
   (#p:pos) 

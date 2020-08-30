@@ -48,8 +48,10 @@ let clock_sorted (il: il_vlog{verifiable il}) =
 (* TODO: add clock_sorted *)
 let its_log = il:il_vlog{verifiable il}
 
+let hash_verifiable (itsl: its_log) = VG.hash_verifiable (g_vlog_of itsl)
+
 let hash_verifiable_log = 
-  itsl:its_log {VG.hash_verifiable (g_vlog_of itsl)}
+  itsl:its_log {hash_verifiable itsl}
 
 val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
   Lemma (requires True)
@@ -201,10 +203,16 @@ let eac_state_pre (itsl: its_log) (i:I.seq_index itsl): eac_state =
   let k = key_at itsl i in
   eac_state_of_key (I.prefix itsl i) k
 
+let eac_boundary_state_pre (itsl: neac_log): eac_state =
+  eac_state_pre itsl (eac_boundary itsl)
+
 let eac_state_post (itsl: its_log) (i:I.seq_index itsl): eac_state = 
   let k = key_at itsl i in
   eac_state_of_key (I.prefix itsl (i+1)) k
-  
+
+let eac_boundary_entry (itsl: neac_log): vlog_entry = 
+  I.index itsl (eac_boundary itsl)
+
 (* the eac state transition induced by the i'th entry *)
 val lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl):
   Lemma (eac_state_post itsl i = 
