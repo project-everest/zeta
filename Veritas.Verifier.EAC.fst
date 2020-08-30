@@ -342,148 +342,100 @@ let lemma_non_eac_instore_addb
   MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
 
 
-(*
-
-let lemma_non_eac_instore_addm (#p:pos)
-  (itsl: non_eac_ts_log p{
-    EACInStore? (last_valid_eac_state itsl)  /\
-    AddM? (to_vlog_entry (invalidating_log_entry itsl))
+let lemma_non_eac_instore_addm
+  (itsl: neac_log {
+    EACInStore? (eac_boundary_state_pre itsl) /\
+    AddM? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let tsle = time_seq_ext itsl in
-  let i = max_eac_prefix tsle in
-  let (e,tid) = index itsl i in
+  (* the maximum eac prefix of itsl *)
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
+  let itsli' = I.prefix itsl (i + 1) in
+
+  // vlog entry e going at thread tid causes the eac failure
+  let e = I.index itsl i in
   let k = V.key_of e in
-  let itsli = prefix itsl i in
+  let tid = thread_id_of itsl i in
+  let ee = TL.vlog_entry_ext_at itsl i in
 
-  (* verifier thread state of tid after itsli *)
-  let vsi = verifier_thread_state itsli tid in
-  lemma_eac_state_instore itsli k;
+  (* instore state implies that k is in some (unique) thread store *)
+  let tid_stored = stored_tid itsli k in
 
-  (* the tid of the last add to k prior to i *)
-  let ltid = last_add_tid itsli k in
-
-  let itsli' = prefix itsl (i + 1) in
-  let vsi' = verifier_thread_state itsli' tid in
-  lemma_verifier_thread_state_extend itsli';
-  assert(vsi' == t_verify_step vsi e);
-
-  if ltid = tid then (
-    (* the store of tid contains the key k already *)
-    assert(store_contains (thread_store vsi) k);
-
-    (* if store of tid already contained k then verifier should fail - a contradiction *)
-    hash_collision_contra()
-  )
+  (* if store already contains k, adding should cause verification failure *)
+  if tid = tid_stored then
+    hash_collision_contra()  
+      
   else (
     match e with
     | AddM _ k' ->
 
     (* k' is the proving ancestor of k *)
     lemma_addm_ancestor_is_proving itsli';
-    assert(k' = proving_ancestor itsli k);
+    //assert(k' = proving_ancestor itsli k);
 
     (* thread store of tid contains k' *)
-    assert(store_contains (thread_store vsi) k');
+    //assert(store_contains (TL.thread_store itsli tid) k');
 
-    (* k is present in the store of last add - ltid *)
-    assert(store_contains (thread_store (verifier_thread_state itsli ltid)) k);
+    (* k is present in the store of tid_stored, by definition *)
+    //assert(store_contains (TL.thread_store itsli tid_stored) k);
 
     (* this implies k' is in the store of ltid *)
-    lemma_store_contains_proving_ancestor itsli ltid k;
-    assert(store_contains (thread_store (verifier_thread_state itsli ltid)) k');
+    lemma_store_contains_proving_ancestor itsli tid_stored k;    
+    //assert(store_contains (TL.thread_store itsli tid_stored) k');
 
-    if k' = Root then (
-      (* the root is never contained in a non-zero thread id, and either ltid or tid is non-zero *)
-      assert(ltid <> 0 || tid <> 0);
+    (* but k' cannot be in two stores *)
+    lemma_key_in_unique_store2 itsli k' tid tid_stored;
 
-      if ltid <> 0 then (
-        lemma_root_not_in_store itsli ltid;
-        hash_collision_contra()
-      )
-      else (
-        lemma_root_not_in_store itsli tid;
-        hash_collision_contra()
-      )
-    )
-    else (
-
-      lemma_instore_implies_eac_state_instore itsli k' ltid;
-      assert(is_eac_state_instore itsli k');
-
-      lemma_eac_state_instore itsli k';
-
-      (* last add thread id of k' *)
-      let ltid' = last_add_tid itsli k' in
-
-      if ltid' = ltid then (
-        (* this would imply k' is not in store of tid, a contradiction *)
-        lemma_eac_state_instore2 itsli k' tid;
-
-        hash_collision_contra()
-      )
-      else (
-        (* this would imply k' is not in the store of ltid, a contradiction *)
-        lemma_eac_state_instore2 itsli k' ltid;
-        hash_collision_contra()
-      )
-    )
+    hash_collision_contra()
   )
 
-let lemma_non_eac_instore_evictm (#p:pos)
-  (itsl: non_eac_ts_log p{
-    EACInStore? (last_valid_eac_state itsl)  /\
-    EvictM? (to_vlog_entry (invalidating_log_entry itsl))
+let lemma_non_eac_instore_evictm
+  (itsl: neac_log {
+    EACInStore? (eac_boundary_state_pre itsl) /\
+    EvictM? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let st = last_valid_eac_state itsl in
-  let ee = invalidating_log_entry itsl in
-  assert(eac_add ee st = EACFail);
+
+  let st = eac_boundary_state_pre itsl in
+
+  (* the maximum eac prefix of itsl *)
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
+
+  // vlog entry e going at thread tid causes the eac failure
+  let e = I.index itsl i in
+  let k = V.key_of e in
+  let tid = thread_id_of itsl i in
+  let ee = TL.vlog_entry_ext_at itsl i in
 
   match st with
   | EACInStore m v -> (
     match ee with
     | EvictMerkle (EvictM k k') v' ->
       (* otherwise we would not have an eac failure *)
-      assert(DVal? v && v' <> v);
+      //assert(DVal? v && v' <> v);
 
-      let tsle = time_seq_ext itsl in
-      let i = max_eac_prefix tsle in
-      let (e,tid) = index itsl i in
+      (* since DVal? v, k should be a data key *)
+      lemma_eac_value_correct_type itsli k;
+      //assert(is_data_key k);
 
-      let itsli = prefix itsl i in
-      (* verifier thread state of tid after itsli *)
-      let vsi = verifier_thread_state itsli tid in
-
-      let itsli' = prefix itsl (i + 1) in
-      let vsi' = verifier_thread_state itsli' tid in
-      lemma_verifier_thread_state_extend itsli';
-      assert(vsi' == t_verify_step vsi e);
-
-      (* the thread store of tid contains k *)
-      assert(store_contains (thread_store vsi) k);
-
+      (* ee is constructed by using the stored value, so ... *)
       lemma_ext_evict_val_is_stored_val itsl i;
-      assert(v' = stored_value (thread_store vsi) k);
+      //assert(v' = V.stored_value (thread_store itsli tid) k);
 
-      (* the tid of the last add to k prior to i *)
-      let ltid = last_add_tid itsli k in
+      lemma_key_in_unique_store itsli k tid;
+      //assert(tid = stored_tid itsli k);
+      //assert(V.stored_value (thread_store itsli tid) k = TL.stored_value itsli k);
 
-      (* the store of ltid contains k and the value is v *)
-      lemma_eac_state_instore itsli k;
-      assert(v = stored_value (thread_store (verifier_thread_state itsli ltid)) k);
-
-      if ltid = tid then
-        (* since both v' and v are equal to stored value, v = v' => a contradiction *)
-        hash_collision_contra()
-      else (
-        (* we know that k is not in any store other than the last add store *)
-        lemma_eac_state_instore2 itsli k tid;
-
-        (* k is not in store of tid, a contradiction *)
-        hash_collision_contra()
-      )
+      (* for data keys, the value in EACInStore is identical to the stored value *)
+      lemma_eac_stored_value itsli k;
+      
+      (* ... which provides a contradiction *)
+      hash_collision_contra()
     )
+
+(*
 
 let lemma_non_eac_instore_evictb (#p:pos)
   (itsl: non_eac_ts_log p{
@@ -952,6 +904,8 @@ let lemma_non_eac_time_seq_implies_hash_collision
     | NEvict (Get _ _) -> lemma_non_eac_instore_get itsl
     | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl    
     | NEvict (AddB _ _ _) -> lemma_non_eac_instore_addb itsl    
+    | NEvict (AddM (k,v) _) -> lemma_non_eac_instore_addm itsl    
+      | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl    
     | _ -> admit()
     )
   | _ ->

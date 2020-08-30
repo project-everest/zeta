@@ -284,8 +284,13 @@ val stored_tid (itsl: eac_log) (k:key{is_eac_state_instore itsl k}):
 
 (* uniqueness: k is not in any store other than stored_tid *)
 val lemma_key_in_unique_store (itsl: eac_log) (k:key) (tid: valid_tid itsl):
-  Lemma (requires (is_eac_state_instore itsl k /\ tid <> stored_tid itsl k))
-        (ensures (not (store_contains (thread_store itsl tid) k)))
+  Lemma (requires (is_eac_state_instore itsl k))
+        (ensures (tid <> stored_tid itsl k ==> not (store_contains (thread_store itsl tid) k)))
+
+val lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid itsl):
+  Lemma (requires (tid1 <> tid2))
+        (ensures (not (store_contains (thread_store itsl tid1) k &&
+                       store_contains (thread_store itsl tid2) k)))
 
 (* it is therefore meaningful to talk of the stored value of a key *)
 let stored_value (itsl: eac_log) (k:key{is_eac_state_instore itsl k}): value_type_of k =
@@ -330,9 +335,9 @@ val lemma_eac_value_is_evicted_value (itsl: eac_log) (k:key):
 
 val lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl):
   Lemma (requires (is_evict (I.index itsl i)))
-        (ensures (store_contains (thread_store itsl (thread_id_of itsl i)) (key_at itsl i) /\
+        (ensures (store_contains (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) /\
                   is_evict_ext (vlog_entry_ext_at itsl i) /\
-                  V.stored_value (thread_store itsl (thread_id_of itsl i)) (key_at itsl i) = 
+                  V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) = 
                   value_ext (vlog_entry_ext_at itsl i)))
 
 (* if an evict is not the last entry of a key, then there is a add subsequent to the 
