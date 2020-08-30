@@ -179,32 +179,23 @@ let lemma_non_eac_init_addm
       hash_collision_contra()
 
 
-(*
-
-
-
-let lemma_non_eac_instore_get (#p:pos)
-  (itsl: non_eac_ts_log p{
-    EACInStore? (last_valid_eac_state itsl)  /\
-    Get? (to_vlog_entry (invalidating_log_entry itsl))
+let lemma_non_eac_instore_get
+  (itsl: neac_log {
+    EACInStore? (eac_boundary_state_pre itsl) /\
+    Get? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let st = last_valid_eac_state itsl in
-  let ee = invalidating_log_entry itsl in
-  assert(eac_add ee st = EACFail);
+  let st = eac_boundary_state_pre itsl in
 
-  let tsle = time_seq_ext itsl in
-  let i = max_eac_prefix tsle in
-  let (e,tid) = index itsl i in
-  assert(to_vlog_entry ee = e);
+  (* the maximum eac prefix of itsl *)
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
 
-  let itsli = prefix itsl i in
-  let vsi = verifier_thread_state itsli tid in
-  let itsli' = prefix itsl (i+1) in
-  let vsi' = verifier_thread_state itsli' tid in
-
-  lemma_verifier_thread_state_extend itsli';
-  assert(vsi' == t_verify_step vsi e);
+  // vlog entry e going at thread tid causes the eac failure
+  let e = I.index itsl i in
+  let k = V.key_of e in
+  let tid = thread_id_of itsl i in
+  let ee = TL.vlog_entry_ext_at itsl i in
 
   match st with
   | EACInStore m v -> (
@@ -213,70 +204,66 @@ let lemma_non_eac_instore_get (#p:pos)
       (* otherwise there will not be an eac failure *)
       assert(DVal v' <> v);
 
-      (* the thread id where k was last added *)
-      let tid_add = last_add_tid itsli k in
+      (* instore state implies that k is in some (unique) thread store *)
+      let tid_stored = stored_tid itsli k in
 
-      (* we expect the get operation to go to tid of last add *)
-      if tid_add = tid then (
-        lemma_eac_state_instore itsli k;
+      if tid_stored = tid then (
 
-        (* the stored value of k = v <> v' *)
-        assert(stored_value (thread_store vsi) k = v);
+        (* the verifier checks that the stored value is the value v' in Get *)
+        //assert(DVal v' = stored_value itsli k);
 
-        (* this implies a verification failure, a contradiction *)
-        hash_collision_contra()
+        (* for data keys, the value in EACInStore state v is equal to the stored value *)
+        lemma_eac_stored_value itsli k;
+        //assert(stored_value itsli k = v);
+
+        (* this implies a contradiction *)
+        hash_collision_contra()        
       )
       else (
-        (* if the get goes to tid <> tid_add, then the cache of tid does not contain k *)
-        lemma_eac_state_instore2 itsli k tid;
-        assert(not (store_contains (thread_store vsi) k));
+        (* since tid <> tid_stored, k is not in store of tid *)
+        lemma_key_in_unique_store itsli k tid;
 
-        (* this implies that verification fails on get, a contradiction *)
+        (* this gives a contradiction since for verification k has to be in store of tid *)
         hash_collision_contra()
       )
   )
 
-let lemma_non_eac_instore_put (#p:pos)
-  (itsl: non_eac_ts_log p{
-    EACInStore? (last_valid_eac_state itsl)  /\
-    Put? (to_vlog_entry (invalidating_log_entry itsl))
+let lemma_non_eac_instore_put
+  (itsl: neac_log {
+    EACInStore? (eac_boundary_state_pre itsl) /\
+    Put? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let st = last_valid_eac_state itsl in
-  let ee = invalidating_log_entry itsl in
-  assert(eac_add ee st = EACFail);
+  let st = eac_boundary_state_pre itsl in
 
-  let tsle = time_seq_ext itsl in
-  let i = max_eac_prefix tsle in
-  let (e,tid) = index itsl i in
-  assert(to_vlog_entry ee = e);
+  (* the maximum eac prefix of itsl *)
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
 
-  let itsli = prefix itsl i in
-  let vsi = verifier_thread_state itsli tid in
-  let itsli' = prefix itsl (i+1) in
-  let vsi' = verifier_thread_state itsli' tid in
-
-  lemma_verifier_thread_state_extend itsli';
-  assert(vsi' == t_verify_step vsi e);
+  // vlog entry e going at thread tid causes the eac failure
+  let e = I.index itsl i in
+  let k = V.key_of e in
+  let tid = thread_id_of itsl i in
+  let ee = TL.vlog_entry_ext_at itsl i in
 
   match st with
   | EACInStore m v -> (
     match ee with
     | NEvict (Put k v') ->
+      (* otherwise there will not be an eac failure *)
       assert(not (DVal? v));
 
-      (* the thread id where k was last added *)
-      let tid_add = last_add_tid itsli k in
+      (* for any EACInStore v, the value of v is the type of k *)
+      (* this implies DVal? v since k is a data key *)
+      lemma_eac_value_correct_type itsli k;
 
-      (* the store of tid_add contains the value of key k *)
-      lemma_eac_state_instore itsli k;
-
-      (* the store ensures the values are consistent with key types;
-       * this implies (DVal? v), a contradiction *)
-      assert(DVal? v);
-
+      (* this gives a contradiction since for verification k has to be in store of tid *)
       hash_collision_contra()
   )
+
+
+
+(*
 
 let lemma_non_eac_instore_addb (#p:pos)
   (itsl: non_eac_ts_log p{
@@ -952,7 +939,7 @@ let lemma_non_eac_evicted_blum_addb (#p:pos)
 let lemma_non_eac_time_seq_implies_hash_collision
   (itsl: neac_log {VG.hash_verifiable (g_vlog_of itsl)}): hash_collision_gen =
   let i = TL.eac_boundary itsl in
-  let st = TL.eac_state_pre itsl i in
+  let st = TL.eac_boundary_state_pre itsl in
   let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in
 
   match st with
@@ -965,6 +952,12 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_init_evict itsl
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_init_evict itsl
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_init_evict itsl
+    )
+  | EACInStore m v -> (
+    match ee with
+    | NEvict (Get _ _) -> lemma_non_eac_instore_get itsl
+    | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl    
+    | _ -> admit()
     )
   | _ ->
 

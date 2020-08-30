@@ -255,7 +255,10 @@ val lemma_eac_value_correct_type (itsl: eac_log) (k:key):
         (ensures is_value_of k (E.value_of (eac_state_of_key itsl k)))
 
 (* value associated with eac state *)
-val eac_state_value (itsl: eac_log) (k:key{is_eac_state_active itsl k}): value_type_of k
+let eac_state_value (itsl: eac_log) (k:key{is_eac_state_active itsl k}): value_type_of k = 
+  let st = eac_state_of_key itsl k in
+  lemma_eac_value_correct_type itsl k;
+  E.value_of st
 
 (* we never see operations on Root so its eac state is always init *)
 val lemma_eac_state_of_root_init (itsl: eac_log):
