@@ -63,9 +63,9 @@ val g_evict_seq (gl: verifiable_log): seq ms_hashfn_dom
 let g_evict_set (gl: verifiable_log): mset ms_hashfn_dom = 
   seq2mset (g_evict_seq gl)
 
+val lemma_ghevict_correct (gl: verifiable_log):
+  Lemma (hevict gl = ms_hashfn (g_evict_seq gl))
+
 (* the global evict set is a set (not a multiset) *)
 val g_evict_set_is_set (gl: verifiable_log): 
   Lemma (is_set (g_evict_set gl))
-
-val lemma_ghevict_correct (gl: verifiable_log):
-  Lemma (hevict gl = ms_hashfn (g_evict_seq gl))

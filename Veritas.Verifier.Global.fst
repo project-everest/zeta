@@ -1,5 +1,7 @@
 module Veritas.Verifier.Global
 
+module MS = Veritas.MultiSet
+
 let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl):
   Lemma (verifiable (prefix gl i)) = 
   let pgl = prefix gl i in
@@ -118,10 +120,6 @@ let rec g_evict_seq_aux (gl: verifiable_log):
 let g_evict_seq (gl: verifiable_log): seq ms_hashfn_dom  = 
   g_evict_seq_aux gl
 
-(* the global evict set is a set (not a multiset) *)
-let g_evict_set_is_set (gl: verifiable_log): 
-  Lemma (is_set (g_evict_set gl)) = admit()
-
 let rec lemma_ghevict_correct_aux (gl: verifiable_log):
   Lemma (requires True)
         (ensures (hevict gl = ms_hashfn (g_evict_seq gl)))
@@ -151,3 +149,26 @@ let rec lemma_ghevict_correct_aux (gl: verifiable_log):
 let lemma_ghevict_correct (gl: verifiable_log):
   Lemma (hevict gl = ms_hashfn (g_evict_seq gl)) = 
   lemma_ghevict_correct_aux gl
+
+let rec lemma_evict_elem_tids (gl: verifiable_log) (i: seq_index (g_evict_seq gl)):
+  Lemma (MH.thread_id_of (index (g_evict_seq gl) i) < length gl) = admit()
+
+let rec lemma_evict_elem_unique (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq gl)):
+  Lemma (i1 <> i2 ==> index (g_evict_seq gl) i1 <> index (g_evict_seq gl) i2) = admit()
+
+let lemma_evict_elem_count (gl: verifiable_log) (x: ms_hashfn_dom):
+  Lemma (count x (g_evict_seq gl) <= 1) = admit()
+
+(* the global evict set is a set (not a multiset) *)
+let g_evict_set_is_set (gl: verifiable_log): 
+  Lemma (is_set (g_evict_set gl)) = 
+  let es = g_evict_set gl in
+  let aux (x:ms_hashfn_dom):
+    Lemma (requires True)
+          (ensures (MS.mem x es <= 1))
+          [SMTPat (MS.mem x es)] = 
+    lemma_evict_elem_count gl x;
+    lemma_count_mem (g_evict_seq gl) x
+  in
+  //assert(is_set es);
+  ()
