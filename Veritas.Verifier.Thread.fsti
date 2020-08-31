@@ -90,3 +90,27 @@ val lemma_requires_key_in_store
   Lemma (store_contains (store_idx tl i) (V.key_of (index tl i)))
 
 
+(* get the blum add element from an index *)
+let blum_add_elem (e:vlog_entry {is_blum_add e}):
+  ms_hashfn_dom = 
+  match e with
+  | AddB r t j -> MHDom r t j
+
+let blum_add_seq (tl: verifiable_log): S.seq ms_hashfn_dom = 
+  map blum_add_elem (filter_refine is_blum_add (vlog_of tl))
+
+let hadd (tl: verifiable_log): ms_hash_value = 
+  Valid?.hadd (verify tl)
+
+val lemma_hadd_correct (tl: verifiable_log):
+  Lemma (hadd tl = ms_hashfn (blum_add_seq tl))
+
+val blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom
+
+val blum_evict_seq (tl: verifiable_log): S.seq ms_hashfn_dom
+
+let hevict (tl: verifiable_log): ms_hash_value = 
+  Valid?.hevict (verify tl)
+
+val lemma_hevict_correct (tl: verifiable_log):
+  Lemma (hevict tl = ms_hashfn (blum_evict_seq tl))

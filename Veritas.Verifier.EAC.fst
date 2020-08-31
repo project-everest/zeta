@@ -26,6 +26,7 @@ module MS = Veritas.MultiSet
 module MH = Veritas.MultiSetHash
 module TL = Veritas.Verifier.TSLog
 module V = Veritas.Verifier
+module VB = Veritas.Verifier.Blum
 module VG = Veritas.Verifier.Global
 module VT = Veritas.Verifier.Thread
 
@@ -798,7 +799,7 @@ let lemma_non_eac_evicted_blum_addb
 
     (* since EAC failed, the blum element added to evict set at i' <> blum element added to
      * add set at i *)
-    let be' = blum_evict_elem itsli i' in
+    let be' = VB.blum_evict_elem itsli i' in
     //assert(be <> be');
 
     if MS.contains be (ts_evict_set itsl) then (
@@ -806,7 +807,7 @@ let lemma_non_eac_evicted_blum_addb
       (* since evict set is a set we can identify the unique index that produces be *)
       let j = index_blum_evict itsl be in
       //assert(is_blum_evict (index itsl j));
-      //assert(blum_evict_elem itsl j = be);
+      //assert(VB.blum_evict_elem itsl j = be);
 
       (* from clock ordering j has to occur before i *)
       lemma_evict_before_add3 itsl i j;
@@ -817,10 +818,10 @@ let lemma_non_eac_evicted_blum_addb
       lemma_last_index_correct2 (is_entry_of_key k) (I.i_seq itsli) j;
 
       //lemma_index_blum_evict_prefix itsl i i';
-      //assert(be' = blum_evict_elem itsli i');
-      //assert(blum_evict_elem itsl i' = blum_evict_elem itsli i');
+      //assert(be' = VB.blum_evict_elem itsli i');
+      //assert(VB.blum_evict_elem itsl i' = VB.blum_evict_elem itsli i');
       //assert(j < i');
-      //assert(be' = blum_evict_elem itsl i');
+      //assert(be' = VB.blum_evict_elem itsl i');
 
       lemma_evict_has_next_add itsli j;
       lemma_blum_evict_add_same itsli j;

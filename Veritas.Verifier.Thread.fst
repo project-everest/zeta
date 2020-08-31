@@ -45,3 +45,15 @@ let lemma_requires_key_in_store
   (i:idx tl{requires_key_in_store (index tl i)}):
   Lemma (store_contains (store_idx tl i) (V.key_of (index tl i))) =
   admit()
+
+let lemma_hadd_correct (tl: verifiable_log):
+  Lemma (hadd tl = ms_hashfn (blum_add_seq tl)) = admit()
+
+
+let blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom =
+  admit()
+
+let blum_evict_seq (tl: verifiable_log): S.seq ms_hashfn_dom = admit()
+
+let lemma_hevict_correct (tl: verifiable_log):
+  Lemma (hevict tl = ms_hashfn (blum_evict_seq tl)) = admit()

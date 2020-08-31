@@ -21,7 +21,7 @@ let rec hadd_aux (gl: verifiable_log):
     let gl' = prefix gl (p - 1) in
     lemma_prefix_verifiable gl (p - 1);
     let h1 = hadd_aux gl' in
-    let h2 = thread_hadd (VT.verify (thread_log gl (p - 1))) in
+    let h2 = VT.hadd (thread_log gl (p - 1)) in
     ms_hashfn_agg h1 h2
   )
 
@@ -51,4 +51,103 @@ let clock (gl: verifiable_log) (i: sseq_index gl): timestamp =
   let tl = thread_log gl tid in
   VT.clock tl idx
 
+(* global add sequence *)
+let rec g_add_seq_aux (gl: verifiable_log): 
+  Tot (seq (ms_hashfn_dom))
+  (decreases (length gl)) = 
+  let p = length gl in
+  if p = 0 then empty #(ms_hashfn_dom)
+  else (
+    let gl' = prefix gl (p - 1) in
+    lemma_prefix_verifiable gl (p - 1);
+    append (g_add_seq_aux gl') (blum_add_seq (thread_log gl (p - 1)))
+  )
 
+(* global add sequence *)
+let g_add_seq (gl: verifiable_log): seq (ms_hashfn_dom) = g_add_seq_aux gl
+
+(* the hadd that the verifier computes is the multiset hash of all the adds *)
+let rec lemma_g_hadd_correct_aux (gl: verifiable_log):
+  Lemma (requires True)
+        (ensures (hadd gl = ms_hashfn (g_add_seq gl)))
+        (decreases (length gl)) = 
+  let p = length gl in
+  let s = g_add_seq gl in
+  let h = hadd gl in
+  
+  if p = 0 then 
+    lemma_hashfn_empty()
+  
+  else (
+    let gl' = prefix gl (p - 1) in
+    lemma_prefix_verifiable gl (p - 1);    
+    let s' = g_add_seq gl' in
+    let h' = hadd gl' in
+
+    lemma_g_hadd_correct_aux gl';
+    // assert(h' = ms_hashfn s');
+
+    let tl = thread_log gl (p - 1) in
+    let st = blum_add_seq tl in
+    let ht = VT.hadd tl in
+    lemma_hadd_correct tl;
+    // assert(ht = ms_hashfn st);
+
+    // assert(s == append s' st);
+    // assert(h ==  ms_hashfn_agg h' ht);
+    lemma_hashfn_agg s' st
+  )
+
+(* the hadd that the verifier computes is the multiset hash of all the adds *)
+let lemma_g_hadd_correct (gl: verifiable_log):
+  Lemma (hadd gl = ms_hashfn (g_add_seq gl)) =
+  lemma_g_hadd_correct_aux gl
+
+let rec g_evict_seq_aux (gl: verifiable_log):
+  Tot (seq (ms_hashfn_dom))
+  (decreases (length gl)) = 
+  let p = length gl in
+  if p = 0 then empty #(ms_hashfn_dom)
+  else (
+    let gl' = prefix gl (p - 1) in
+    lemma_prefix_verifiable gl (p - 1);
+    append (g_evict_seq_aux gl') (blum_evict_seq (thread_log gl (p - 1)))
+  )
+
+(* a single sequence containing all the blum evicts *)
+let g_evict_seq (gl: verifiable_log): seq ms_hashfn_dom  = 
+  g_evict_seq_aux gl
+
+(* the global evict set is a set (not a multiset) *)
+let g_evict_set_is_set (gl: verifiable_log): 
+  Lemma (is_set (g_evict_set gl)) = admit()
+
+let rec lemma_ghevict_correct_aux (gl: verifiable_log):
+  Lemma (requires True)
+        (ensures (hevict gl = ms_hashfn (g_evict_seq gl)))
+        (decreases (length gl)) = 
+  let p = length gl in 
+  let s = g_evict_seq gl in
+  let h = hevict gl in
+
+  if p = 0 then
+    lemma_hashfn_empty()
+  else (
+    let gl' = prefix gl (p - 1) in
+    lemma_prefix_verifiable gl (p - 1);
+    let s' = g_evict_seq gl' in
+    let h' = hevict gl' in
+
+    lemma_ghevict_correct_aux gl';
+
+    let tl = thread_log gl (p - 1) in
+    let st = blum_evict_seq tl in
+    let ht = VT.hevict tl in
+    lemma_hevict_correct tl;
+    
+    lemma_hashfn_agg s' st
+  )
+
+let lemma_ghevict_correct (gl: verifiable_log):
+  Lemma (hevict gl = ms_hashfn (g_evict_seq gl)) = 
+  lemma_ghevict_correct_aux gl

@@ -1,6 +1,7 @@
 module Veritas.Verifier.Global
 
 open Veritas.Interleave
+open Veritas.MultiSet
 open Veritas.MultiSetHash
 open Veritas.Verifier
 open Veritas.Verifier.Thread
@@ -44,3 +45,27 @@ let hash_verifiable_log = gl:verifiable_log{hash_verifiable gl}
  * in the thread log
  *)
 val clock (gl: verifiable_log) (i: sseq_index gl): timestamp
+
+(* global add sequence *)
+val g_add_seq (gl: verifiable_log): seq (ms_hashfn_dom)
+
+(* multiset derived from all the blum adds in gl *)
+let g_add_set (gl: verifiable_log): mset ms_hashfn_dom =
+  seq2mset (g_add_seq gl)
+
+(* the hadd that the verifier computes is the multiset hash of all the adds *)
+val lemma_g_hadd_correct (gl: verifiable_log):
+  Lemma (hadd gl = ms_hashfn (g_add_seq gl))
+
+(* a single sequence containing all the blum evicts *)
+val g_evict_seq (gl: verifiable_log): seq ms_hashfn_dom 
+
+let g_evict_set (gl: verifiable_log): mset ms_hashfn_dom = 
+  seq2mset (g_evict_seq gl)
+
+(* the global evict set is a set (not a multiset) *)
+val g_evict_set_is_set (gl: verifiable_log): 
+  Lemma (is_set (g_evict_set gl))
+
+val lemma_ghevict_correct (gl: verifiable_log):
+  Lemma (hevict gl = ms_hashfn (g_evict_seq gl))
