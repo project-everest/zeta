@@ -3,7 +3,9 @@ module Veritas.Verifier.Global
 module MS = Veritas.MultiSet
 
 let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl):
-  Lemma (verifiable (prefix gl i)) = 
+  Lemma (requires True)
+        (ensures (verifiable (prefix gl i)))
+        [SMTPat (prefix gl i)] = 
   let pgl = prefix gl i in
   let aux (tid:seq_index pgl):
     Lemma (requires True)
@@ -93,10 +95,7 @@ let rec lemma_g_hadd_correct_aux (gl: verifiable_log):
     let st = blum_add_seq tl in
     let ht = VT.hadd tl in
     lemma_hadd_correct tl;
-    // assert(ht = ms_hashfn st);
 
-    // assert(s == append s' st);
-    // assert(h ==  ms_hashfn_agg h' ht);
     lemma_hashfn_agg s' st
   )
 
@@ -150,14 +149,138 @@ let lemma_ghevict_correct (gl: verifiable_log):
   Lemma (hevict gl = ms_hashfn (g_evict_seq gl)) = 
   lemma_ghevict_correct_aux gl
 
-let rec lemma_evict_elem_tids (gl: verifiable_log) (i: seq_index (g_evict_seq gl)):
-  Lemma (MH.thread_id_of (index (g_evict_seq gl) i) < length gl) = admit()
+(* two indexes of a sequence s are different *)
+let diff_elem (#a:eqtype) (s:seq a) (i1: seq_index s) (i2: seq_index s{i1 <> i2}) = 
+  index s i1 <> index s i2
 
-let rec lemma_evict_elem_unique (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq gl)):
-  Lemma (i1 <> i2 ==> index (g_evict_seq gl) i1 <> index (g_evict_seq gl) i2) = admit()
+(* for any two indexes, the elements at indexes are different *)
+let uniq_prop (#a:eqtype) (s: seq a) = forall (i1: seq_index s). forall (i2: seq_index s{i1 <> i2}). 
+  diff_elem s i1 i2
+
+(* for some reason, fstar is unable to assert (diff_elem s i1 i2) for uniq_prop s without 
+ * this lemma *)
+let lemma_uniq_idx (#a:eqtype) (s: seq a) (i1 i2: seq_index s):
+  Lemma (requires (uniq_prop s /\ i1 <> i2)) 
+        (ensures (diff_elem s i1 i2))
+        [SMTPat (diff_elem s i1 i2)] = () 
+
+(* if s is uniq, then tail of s is also uniq *)
+let lemma_uniq_prop_tail (#a:eqtype) (s: seq a{length s > 0}):
+  Lemma (requires (uniq_prop s))
+        (ensures (uniq_prop (tail s))) = 
+  let s' = tail s in        
+  let aux (i1 i2: seq_index s'):
+    Lemma (requires (i1 <> i2))
+          (ensures (diff_elem s' i1 i2))
+          [SMTPat (diff_elem s' i1 i2)] = 
+    (* needed *)
+    assert(diff_elem s (1 + i1) (1 + i2));
+    ()
+  in
+  ()
+
+let some_elem (#a:eqtype) (s: seq a) (x: a{count x s >= 1}): 
+  Tot (i:seq_index s{index s i = x}) = index_mem x s  
+
+let rec lemma_count_len (#a:eqtype) (s: seq a) (x: a):
+  Lemma (requires True)
+        (ensures (count x s <= length s)) 
+        (decreases (length s))
+        = 
+  let n = length s in
+  if n = 0 then ()
+  else 
+    lemma_count_len (tail s) x
+
+let rec lemma_uniq_prop_counts (#a:eqtype) (s: seq a) (x: a):
+  Lemma (requires (uniq_prop s))
+        (ensures (count x s <= 1)) 
+        (decreases (length s)) = 
+  let n = length s in
+  if n <= 1 then lemma_count_len s x
+  else if count x s <= 1 then ()
+  else (
+    assert(uniq_prop s);
+    let h = head s in
+    let s' = tail s in
+
+    if h = x then (
+      assert(count x s' >= 1);
+      let i2 = some_elem s' x in
+      assert(index s (1 + i2) = x);
+      assert(not (diff_elem s 0 (1 + i2)));
+      assert(diff_elem s 0 (1 + i2));
+      ()
+    )
+    else (
+      assert(count x s = count x s');
+      lemma_uniq_prop_tail s;
+      lemma_uniq_prop_counts s' x
+    )
+  )
+
+let rec lemma_evict_elem_tids (gl: verifiable_log) (i: seq_index (g_evict_seq gl)):
+  Lemma (requires True)
+        (ensures (MH.thread_id_of (index (g_evict_seq gl) i) < length gl))
+        (decreases (length gl)) = 
+  let p = length gl in 
+  let es = g_evict_seq gl in
+  if p = 0 then ()
+  else 
+    let gl' = prefix gl (p - 1) in
+    let es' = g_evict_seq gl' in
+
+    if i < length es' then 
+      lemma_evict_elem_tids gl' i  
+    else 
+      VT.lemma_evict_elem_tid (thread_log gl (p - 1))
+
+let rec lemma_evict_elem_unique_aux (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq gl)):
+  Lemma (requires (i1 < i2))
+        (ensures (diff_elem  (g_evict_seq gl) i1 i2))
+        (decreases (length gl)) =
+  let p = length gl in
+  let es = g_evict_seq gl in
+  if p = 0 then ()
+  else (
+    let gl' = prefix gl (p - 1) in
+    let es' = g_evict_seq gl' in
+    let tl = thread_log gl (p - 1) in
+    let et = VT.blum_evict_seq tl in
+    if i1 < length es' then (
+      if i2 < length es' then 
+        lemma_evict_elem_unique_aux gl' i1 i2
+      else (
+        lemma_evict_elem_tids gl' i1;
+        //assert(MH.thread_id_of (index es i1) < (p - 1));
+        VT.lemma_evict_elem_tid tl
+      )
+    )
+    else 
+      lemma_evict_elem_unique tl (i1 - length es') (i2 - length es')
+    
+  )
+
+
+let lemma_evict_elem_unique (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq gl)):
+  Lemma (requires (i1 <> i2))
+        (ensures (diff_elem  (g_evict_seq gl) i1 i2))
+        [SMTPat (diff_elem (g_evict_seq gl) i1 i2)] = 
+  if i1 < i2 then
+    lemma_evict_elem_unique_aux gl i1 i2
+  else 
+    lemma_evict_elem_unique_aux gl i2 i1
+
+let lemma_evict_elem_unique2 (gl: verifiable_log):
+  Lemma (uniq_prop (g_evict_seq gl)) =   
+  ()
+
 
 let lemma_evict_elem_count (gl: verifiable_log) (x: ms_hashfn_dom):
-  Lemma (count x (g_evict_seq gl) <= 1) = admit()
+  Lemma (count x (g_evict_seq gl) <= 1) = 
+  lemma_evict_elem_unique2 gl;
+  lemma_uniq_prop_counts (g_evict_seq gl) x;
+  ()
 
 (* the global evict set is a set (not a multiset) *)
 let g_evict_set_is_set (gl: verifiable_log): 
