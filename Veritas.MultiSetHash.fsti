@@ -40,6 +40,13 @@ let key_of (e:ms_hashfn_dom): key =
   match e with
   | MHDom (k,_) _ _ -> k
 
+let thread_id_of (e:ms_hashfn_dom): nat = 
+  match e with
+  | MHDom _ _ tid -> tid
+
+let is_of_thread_id (tid:nat) (e:ms_hashfn_dom): bool =
+  thread_id_of e = tid
+
 (* 
  * incremental multiset hash function - update the 
  * hash given a new element

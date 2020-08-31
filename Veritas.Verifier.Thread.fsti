@@ -114,3 +114,10 @@ let hevict (tl: verifiable_log): ms_hash_value =
 
 val lemma_hevict_correct (tl: verifiable_log):
   Lemma (hevict tl = ms_hashfn (blum_evict_seq tl))
+
+(* all elements of tl's blum_evict_seq contain tid of tl *)
+val lemma_evict_elem_tid (tl: verifiable_log):
+  Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq tl))
+  
+val lemma_evict_elem_unique (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evict_seq tl)):
+  Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2)

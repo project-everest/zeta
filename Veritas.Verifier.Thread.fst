@@ -57,3 +57,10 @@ let blum_evict_seq (tl: verifiable_log): S.seq ms_hashfn_dom = admit()
 
 let lemma_hevict_correct (tl: verifiable_log):
   Lemma (hevict tl = ms_hashfn (blum_evict_seq tl)) = admit()
+
+(* all elements of tl's blum_evict_seq contain tid of tl *)
+let lemma_evict_elem_tid (tl: verifiable_log):
+  Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq tl)) = admit()
+  
+let lemma_evict_elem_unique (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evict_seq tl)):
+  Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2) = admit()
