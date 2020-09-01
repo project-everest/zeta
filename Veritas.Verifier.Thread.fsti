@@ -77,8 +77,18 @@ let store (tl:verifiable_log): vstore =
   Valid?.st (verify tl)
 
 (* the store after processing i entries *)
-let store_idx (tl: verifiable_log) (i: idx tl): vstore = 
+let store_at (tl: verifiable_log) (i: idx tl): vstore = 
   store (prefix tl i)
+
+(* the verifier state after processing i entries *)
+let state_at (tl: verifiable_log) (i:nat{i <= length tl}): st:vtls{Valid? st} =
+  (verify (prefix tl i))
+
+(* the state after processing i'th entry is obtained by applying the verify 
+ * step to the state before processing the i'th entry *)
+val lemma_state_transition (tl: verifiable_log) (i: idx tl): 
+  Lemma (state_at tl (i + 1) == 
+         t_verify_step (state_at tl i) (index tl i))
 
 (* 
  * if the (i+1)'th entry requires the key to be in the store, then the verifier store 
@@ -87,7 +97,7 @@ let store_idx (tl: verifiable_log) (i: idx tl): vstore =
 val lemma_requires_key_in_store 
   (tl: verifiable_log) 
   (i:idx tl{requires_key_in_store (index tl i)}):
-  Lemma (store_contains (store_idx tl i) (V.key_of (index tl i)))
+  Lemma (store_contains (store_at tl i) (V.key_of (index tl i)))
 
 
 (* get the blum add element from an index *)
