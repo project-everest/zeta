@@ -44,10 +44,41 @@ let lemma_requires_key_in_store
   (tl: verifiable_log) 
   (i:idx tl{requires_key_in_store (index tl i)}):
   Lemma (store_contains (store_idx tl i) (V.key_of (index tl i))) =
-  admit()
+  lemma_verifiable_implies_prefix_verifiable tl (i + 1)
 
-let lemma_hadd_correct (tl: verifiable_log):
-  Lemma (hadd tl = ms_hashfn (blum_add_seq tl)) = admit()
+let rec blum_add_seq_aux (tl: verifiable_log): 
+  Tot (S.seq ms_hashfn_dom)
+  (decreases (length tl)) =
+  let n = length tl in
+  if n = 0 then S.empty #ms_hashfn_dom
+  else
+    let tl' = prefix tl (n - 1) in
+    let s' = blum_add_seq_aux tl' in
+    let e = index tl (n - 1) in
+    if is_blum_add e then SA.append1 s' (blum_add_elem e)
+    else s'
+
+let blum_add_seq = blum_add_seq_aux
+
+let rec lemma_hadd_correct_aux (tl: verifiable_log):
+  Lemma (requires True)
+        (ensures (hadd tl = ms_hashfn (blum_add_seq tl)))
+        (decreases (length tl)) = 
+  let n = length tl in
+  if n = 0 then 
+    lemma_hashfn_empty()
+  else (
+    let tl' = prefix tl (n - 1) in
+    let s' = blum_add_seq tl' in
+    let e = index tl (n - 1) in
+    let h' = hadd tl' in
+    lemma_hadd_correct_aux tl';
+    if is_blum_add e then 
+      lemma_hashfn_app s' (blum_add_elem e)    
+    else ()
+  )
+
+let lemma_hadd_correct = lemma_hadd_correct_aux 
 
 let blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom =  
   admit()

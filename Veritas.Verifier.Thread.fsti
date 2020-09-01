@@ -96,8 +96,7 @@ let blum_add_elem (e:vlog_entry {is_blum_add e}):
   match e with
   | AddB r t j -> MHDom r t j
 
-let blum_add_seq (tl: verifiable_log): S.seq ms_hashfn_dom = 
-  map blum_add_elem (filter_refine is_blum_add (vlog_of tl))
+val blum_add_seq (tl: verifiable_log): S.seq ms_hashfn_dom
 
 let hadd (tl: verifiable_log): ms_hash_value = 
   Valid?.hadd (verify tl)
