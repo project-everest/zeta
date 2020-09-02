@@ -127,7 +127,7 @@ val lemma_evict_before_add3 (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index
 (* for an eac ts log, if the eac state of a key k is instore, the count of blum evicts 
  * is the same of blum adds for that key *)
 val lemma_evict_add_count_same (itsl: TL.eac_log) (k:key):
-  Lemma (requires (is_eac_state_instore itsl k))
+  Lemma (requires (TL.is_eac_state_instore itsl k))
         (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k)))
 
 (* for an eac ts log, if the eac state of a key k is evicted to merkle, the count of blum evicts 
