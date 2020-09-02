@@ -198,10 +198,44 @@ let clock_pre (tl:verifiable_log) (i:idx tl): timestamp =
   Valid?.clk (state_at tl i)
 
 let lemma_evict_clock_strictly_increasing (tl: verifiable_log) (i: idx tl {is_evict_to_blum (index tl i)}):
-  Lemma (ts_lt (clock_pre tl i) (clock tl i)) = admit()
+  Lemma (ts_lt (clock_pre tl i) (clock tl i)) = ()
 
 let lemma_evict_timestamp_is_clock (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
-  Lemma (timestamp_of (blum_evict_elem tl i) = clock tl i) = admit()
+  Lemma (timestamp_of (blum_evict_elem tl i) = clock tl i) = 
+  ()
+
+let final_clock (tl:verifiable_log): timestamp =
+  Valid?.clk (verify tl)
+
+let lemma_final_clock_monotonic (tl: verifiable_log) (i:idx tl):
+  Lemma (ts_leq (final_clock (prefix tl i)) (final_clock tl)) = 
+  if i = 0 then ()
+  else
+    lemma_clock_monotonic tl (i - 1) (length tl - 1)
+
+let rec lemma_evict_clock_leq_final_clock (tl:verifiable_log) (i: SA.seq_index (blum_evict_seq tl)):
+  Lemma (requires True)
+        (ensures (ts_leq (timestamp_of (S.index (blum_evict_seq tl) i)) (final_clock tl)))
+        (decreases (length tl)) = 
+  let n = length tl in
+  let es = blum_evict_seq tl in
+  let be = S.index es i in
+  let t = timestamp_of be in
+  let c = final_clock tl in
+  if n = 0 then ()
+  else (
+    let tl' = prefix tl (n - 1) in
+    let es' = blum_evict_seq tl' in
+    let c' = final_clock tl' in
+    
+    lemma_final_clock_monotonic tl (n - 1);
+    assert(ts_leq c' c);
+    
+    if i < S.length es' then 
+      lemma_evict_clock_leq_final_clock tl' i    
+    else 
+      lemma_evict_timestamp_is_clock tl (n - 1)
+  )
 
 let rec lemma_evict_seq_clock_strictly_monotonic (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evict_seq tl)):
   Lemma (requires (i1 < i2))
@@ -218,9 +252,18 @@ let rec lemma_evict_seq_clock_strictly_monotonic (tl: verifiable_log) (i1 i2: SA
       lemma_evict_seq_clock_strictly_monotonic tl' i1 i2
     else (
       let e = index tl (n - 1) in
-      assert(is_evict_to_blum e);
-      
-      admit()
+      //assert(is_evict_to_blum e);
+      //assert(timestamp_of (S.index (blum_evict_seq tl) i2) = timestamp_of (blum_evict_elem tl (n - 1)));
+             
+      lemma_evict_timestamp_is_clock tl (n - 1);
+      //assert(timestamp_of (blum_evict_elem tl (n - 1)) =  clock tl (n - 1));
+             
+      lemma_evict_clock_strictly_increasing tl (n - 1);             
+      //assert(ts_lt (clock_pre tl (n - 1)) (clock tl (n - 1)));
+      //assert(i1 < S.length es');
+      //assert(S.index es i1 = S.index es' i1);
+      lemma_evict_clock_leq_final_clock tl' i1;
+      ()
     )
   )
 
@@ -231,4 +274,4 @@ let lemma_evict_elem_unique (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evic
     lemma_evict_seq_clock_strictly_monotonic tl i1 i2
   else 
     lemma_evict_seq_clock_strictly_monotonic tl i2 i1
-   
+
