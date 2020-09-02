@@ -1,5 +1,7 @@
 module Veritas.Verifier.Thread
 
+module MH = Veritas.MultiSetHash
+
 let rec lemma_verifiable_implies_prefix_verifiable_aux
   (tl:verifiable_log) (i:nat{i <= length tl}):
   Lemma (requires (True))
@@ -162,8 +164,35 @@ let lemma_hevict_correct (tl: verifiable_log):
   lemma_hevict_correct_aux tl
 
 (* all elements of tl's blum_evict_seq contain tid of tl *)
+let rec lemma_evict_elem_tid_aux (tl: verifiable_log) (i: SA.seq_index (blum_evict_seq tl)):
+  Lemma (requires True)
+        (ensures (MH.thread_id_of (S.index (blum_evict_seq tl) i) = (thread_id_of tl))) 
+        (decreases (length tl))
+        [SMTPat (is_of_thread_id (thread_id_of tl) (S.index (blum_evict_seq tl) i))] = 
+  let es = blum_evict_seq tl in
+  let tid = thread_id_of tl in
+  let n = length tl in
+  if n = 0 then ()
+  else (
+    let tl' = prefix tl (n - 1) in
+    let es' = blum_evict_seq tl' in
+    let e = index tl (n - 1) in
+    if is_evict_to_blum e then (
+      //assert(es == SA.append1 es' (blum_evict_elem tl (n - 1)));
+      if i = S.length es - 1 then (
+        //assert(S.index es i = (blum_evict_elem tl (n - 1)));        
+        ()
+      )
+      else (
+        //assert(S.index es i = S.index es' i);
+        lemma_evict_elem_tid_aux tl' i
+      )
+    )
+    else lemma_evict_elem_tid_aux tl' i    
+  )
+
 let lemma_evict_elem_tid (tl: verifiable_log):
-  Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq tl)) = admit()
+  Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq tl)) = ()
 
 let lemma_evict_elem_unique (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evict_seq tl)):
   Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2) = admit()
