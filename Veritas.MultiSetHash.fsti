@@ -47,6 +47,10 @@ let thread_id_of (e:ms_hashfn_dom): nat =
 let is_of_thread_id (tid:nat) (e:ms_hashfn_dom): bool =
   thread_id_of e = tid
 
+let timestamp_of (e:ms_hashfn_dom): timestamp = 
+  match e with
+  | MHDom _ t _ -> t
+
 (* 
  * incremental multiset hash function - update the 
  * hash given a new element

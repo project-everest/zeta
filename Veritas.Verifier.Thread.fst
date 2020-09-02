@@ -194,5 +194,41 @@ let rec lemma_evict_elem_tid_aux (tl: verifiable_log) (i: SA.seq_index (blum_evi
 let lemma_evict_elem_tid (tl: verifiable_log):
   Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq tl)) = ()
 
+let clock_pre (tl:verifiable_log) (i:idx tl): timestamp = 
+  Valid?.clk (state_at tl i)
+
+let lemma_evict_clock_strictly_increasing (tl: verifiable_log) (i: idx tl {is_evict_to_blum (index tl i)}):
+  Lemma (ts_lt (clock_pre tl i) (clock tl i)) = admit()
+
+let lemma_evict_timestamp_is_clock (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
+  Lemma (timestamp_of (blum_evict_elem tl i) = clock tl i) = admit()
+
+let rec lemma_evict_seq_clock_strictly_monotonic (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evict_seq tl)):
+  Lemma (requires (i1 < i2))
+        (ensures (ts_lt (timestamp_of (S.index (blum_evict_seq tl) i1)) 
+                        (timestamp_of (S.index (blum_evict_seq tl) i2)))) 
+        (decreases (length tl)) =
+  let n = length tl in
+  let es = blum_evict_seq tl in
+  if n = 0 then ()
+  else (
+    let tl' = prefix tl (n - 1) in
+    let es' = blum_evict_seq tl' in
+    if i2 < S.length es' then
+      lemma_evict_seq_clock_strictly_monotonic tl' i1 i2
+    else (
+      let e = index tl (n - 1) in
+      assert(is_evict_to_blum e);
+      
+      admit()
+    )
+  )
+
 let lemma_evict_elem_unique (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evict_seq tl)):
-  Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2) = admit()
+  Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2) = 
+  if i1 = i2 then ()
+  else if i1 < i2 then
+    lemma_evict_seq_clock_strictly_monotonic tl i1 i2
+  else 
+    lemma_evict_seq_clock_strictly_monotonic tl i2 i1
+   
