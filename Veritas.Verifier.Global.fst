@@ -104,6 +104,19 @@ let lemma_g_hadd_correct (gl: verifiable_log):
   Lemma (hadd gl = ms_hashfn (g_add_seq gl)) =
   lemma_g_hadd_correct_aux gl
 
+let add_set_map (gl: verifiable_log) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
+  (j: seq_index (g_add_seq gl){index (g_add_seq gl) j = blum_add_elem (indexss gl ii)}) = admit()
+
+(* inverse mapping from add_seq to the blum add entries in the verifier logs *)
+let add_set_map_inv (gl: verifiable_log) (j: seq_index (g_add_seq gl)):
+  (ii: sseq_index gl {is_blum_add (indexss gl ii) /\ 
+                      add_set_map gl ii = j}) = admit()
+
+let lemma_add_set_map_into (gl: verifiable_log) (ii1 ii2: sseq_index gl):
+  Lemma (requires (is_blum_add (indexss gl ii1) /\
+                   is_blum_add (indexss gl ii2)))
+        (ensures (ii1 <> ii2 ==> add_set_map gl ii1 <> add_set_map gl ii2)) = admit()
+
 let rec g_evict_seq_aux (gl: verifiable_log):
   Tot (seq (ms_hashfn_dom))
   (decreases (length gl)) = 

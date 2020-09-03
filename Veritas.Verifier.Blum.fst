@@ -40,6 +40,25 @@ let rec add_seq_map
     if i = n - 1 then S.length s'
     else add_seq_map itsl' i
 
+let rec add_seq_map_inv (itsl: its_log) (j: SA.seq_index (ts_add_seq itsl)):
+  Tot (i: I.seq_index itsl {is_blum_add (I.index itsl i) /\ 
+                            add_seq_map itsl i = j})
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let s = ts_add_seq itsl in
+  if n = 0 then 0
+  else (
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq itsl' in
+    let e = I.index itsl (n - 1) in
+    if is_blum_add e then (
+      assert(s == SA.append1 s' (blum_add_elem e));
+      if j = S.length s' then n - 1
+      else add_seq_map_inv itsl' j        
+    )
+    else add_seq_map_inv itsl' j 
+  )
+                            
 let lemma_add_elem_correct (itsl: its_log) (i: I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i)))
         (ensures (contains (blum_add_elem (I.index itsl i)) (ts_add_set itsl))) = 

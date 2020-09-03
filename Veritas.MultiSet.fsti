@@ -48,8 +48,10 @@ let smap (#a:eqtype) (s1 s2: seq a) = f: (seq_index s1 -> seq_index s2)
   { forall (i: seq_index s1). index s1 i = index s2 (f i) }
 
 let into_smap (#a:eqtype) (s1 s2: seq a)  = f: smap s1 s2
-  { forall (i: seq_index s1). forall (j: seq_index s1{i <> j}). f i <> f j }
+  { forall (i: seq_index s1). forall (j: seq_index s1). (i <> j) ==> f i <> f j }
 
+(* if I provide a bijection between elements of two sequences that preserves equality,
+ * the multisets of the two sequences should be the same *)
 val lemma_mset_bijection (#a:eqtype) (s1 s2: seq a) (f12: into_smap s1 s2) (f21: into_smap s2 s1):
   Lemma (seq2mset s1 == seq2mset s2)
 
