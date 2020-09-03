@@ -48,6 +48,11 @@ val multiset_hash_upd (r:record) (t:timestamp) (j:thread_id_t) (v:prf_set_hash)
       prf_set_hash_inv v h1 /\
       B.modifies (prf_set_hash_loc v) h0 h1)
 
+assume
+val get_current_value   (v:prf_set_hash)
+  : Stack u256
+    (requires fun h -> prf_set_hash_inv v h)
+    (ensures fun h0 _ h1 -> h0 == h1)
 
 noeq
 type thread_state_t = {
@@ -271,7 +276,7 @@ let vaddm (s:slot_id)
     | Desc k2 h2 k2_in_blum ->
       if k2 = k then
          if h2 = h then
-            vstore_add_record vs.st s k v MAdd
+            vstore_add_record vs.st s k v MAdd //TODO: Need to update s' in_store bit for s
          else raise "vaddm: adding existing merkle node to store, but hash does not match"
       else if v <> init_value k then raise "vaddm: new node, expected initial value"
       else match is_descendent k2 k with
@@ -346,7 +351,6 @@ let vaddb (s:slot_id)
     (ensures fun h0 _ h1 -> thread_state_inv vs h1)
   = (* epoch of timestamp of last evict *)
     let e = epoch_of_timestamp t in
-    // let st = thread_store vs in
     let { record_key = k;
           record_value = v } = r in
     (* check value type consistent with key k *)
