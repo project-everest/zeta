@@ -24,7 +24,13 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.Hash.fsti \
                Veritas.Interleave.fsti \
                Veritas.Verifier.fst \
-               Veritas.EAC.fst \
+	       Veritas.Verifier.Thread.fsti Veritas.Verifier.Thread.fst \
+               Veritas.Verifier.Global.fsti Veritas.Verifier.Global.fst \
+               Veritas.EAC.fsti Veritas.EAC.fst \
+               Veritas.Verifier.TSLog.fsti  \
+	       Veritas.Verifier.Blum.fsti  \
+               Veritas.Verifier.Merkle.fsti  \
+               Veritas.Verifier.EAC.fst \
                Veritas.Verifier.Correctness.fst
 
 USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true

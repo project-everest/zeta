@@ -1,3 +1,7 @@
+ifeq (,$(QD_HOME))
+  $(error Please define QD_HOME)
+endif
+
 all: verify
 
 clean:

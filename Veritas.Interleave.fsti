@@ -1,7 +1,11 @@
 module Veritas.Interleave
 
 open FStar.Seq
+open FStar.Squash
 open Veritas.SeqAux
+
+module S = FStar.Seq
+module SA = Veritas.SeqAux
 
 (* sequence of sequences *)
 type sseq (a:Type) = seq (seq a)
@@ -30,7 +34,7 @@ val lemma_flat_length_app (#a:Type) (ss1 ss2: sseq a):
   Lemma (flat_length ss1 + flat_length ss2 = flat_length (append ss1 ss2))
 
 (* interleaving of n sequences *)
-val interleave (#a:eqtype): seq a -> ss:sseq a -> Type 
+val interleave (#a:eqtype): seq a -> ss:sseq a -> Type0 
 
 (* length of an interleaving is the sum of the lengths of the individual sequences *)
 val lemma_interleave_length (#a:eqtype) (s: seq a) (ss: sseq a{interleave s ss}):
@@ -48,47 +52,56 @@ val interleave_map_inv (#a:eqtype) (s: seq a) (ss: sseq a)
       (prf:interleave #a s ss) (i: sseq_index ss):
   Tot (j: seq_index s{index s j = indexss ss i})
 
-(* an interleave constructor that specifies the construction of 
- * an interleaving *)
-type interleave_ctor (#a:eqtype) (ss: sseq a) =
-  (i: sseq_index ss) -> j:nat{j < flat_length ss}
+(* 
+ * interleaving: a triple that holds interleaved sequence, source sequences, and 
+ * proof of interleaving *
+ *)
+noeq type interleaving (a:eqtype) = 
+  | IL: s:seq a -> ss: sseq a -> prf:interleave s ss -> interleaving a
 
-(* from an interleave_ constructor we can get an interleaving *)
-val interleaved_seq (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Tot (s: seq a{interleave s ss})
+(* interleaved sequence *)
+let i_seq (#a:eqtype) (il: interleaving a): seq a = 
+  IL?.s il
 
-(* we can also construct a proof of interleaving *)
-val interleaving_prf (#a: eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Tot (interleave (interleaved_seq ss ic) ss)
+(* source sequences *)
+let s_seq (#a:eqtype) (il: interleaving a): sseq a = 
+  IL?.ss il
 
-(* sortedness of a sequence *)
-type sorted (#a:Type) (lte: a -> a -> bool) (s: seq a) = 
-  forall (i:seq_index s). i > 0 ==> index s (i - 1) `lte` index s i
+let lemma_interleaving_correct (#a:eqtype) (il:interleaving a):
+  Lemma (interleave (i_seq il) (s_seq il)) = 
+  return_squash (IL?.prf il)
 
-(* sort-merge interleaving *)
-val sort_merge (#a:eqtype) (lte: a-> a-> bool) 
-               (ss: sseq a{forall (i:seq_index ss). sorted lte (index ss i)}): 
-  Tot (interleave_ctor ss)
+let length (#a:eqtype) (il: interleaving a): nat = 
+  S.length (i_seq il)
 
-val lemma_sort_merge (#a:eqtype) (lte: a -> a -> bool)
-  (ss: sseq a{forall (i: seq_index ss). sorted lte (index ss i)}):
+let seq_index (#a:eqtype) (il: interleaving a) = i:nat{i < length il}
+
+let index (#a: eqtype) (il: interleaving a) (i: seq_index il): a =
+  (index (i_seq il) i)
+
+val i2s_map (#a:eqtype) (il:interleaving a) (i:seq_index il): 
+  (si:sseq_index (s_seq il){index il i = indexss (s_seq il) si})
+
+val s2i_map (#a:eqtype) (il:interleaving a) (si: sseq_index (s_seq il)):
+  (i:seq_index il{index il i = indexss (s_seq il) si})
+
+val prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}): 
+  Tot (il':interleaving a{length il' = i /\ S.length (s_seq il) = S.length (s_seq il')})
+
+let hprefix (#a:eqtype) (il:interleaving a {length il > 0}): interleaving a =
+  prefix il (length il - 1)
+
+let telem (#a:eqtype) (il:interleaving a {length il > 0}): a =
+  SA.telem (i_seq il)
+
+val lemma_prefix_index (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}):
+  Lemma (requires True)
+        (ensures (index (prefix il i) j = index il j))
+        [SMTPat (index (prefix il i) j)]
+
+val lemma_prefix_prefix (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j <= i}):
   Lemma (requires (True))
-        (ensures (sorted lte (interleaved_seq ss (sort_merge lte ss))))
-        [SMTPat (sort_merge lte ss)]
+        (ensures (prefix (prefix il i) j == prefix il j))
+        [SMTPat (prefix (prefix il i) j)]
 
-(* filter and interleaving commute *)
-val lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: sseq a{interleave s ss}):  
-  Lemma (interleave (filter f s) (map (filter f) ss))
-
-(* filter and interleaving commute (constructive version) *)
-val lemma_filter_interleave_commute_prf (#a:eqtype) 
-  (f:a -> bool) (s: seq a) (ss: sseq a) (prf: interleave s ss): 
-  Tot (interleave (filter f s) (map (filter f) ss))
-
-(* map and interleaving commute *)
-val lemma_map_interleave_commute (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a{interleave s ss}):
-  Lemma (interleave (map f s) (map (map f) ss))
-
-(* map and interleaving commute (constructive version) *)
-val lemma_map_interleave_commute_prf (#a #b: eqtype) (f: a -> b) (s: seq a) (ss: sseq a) (prf: interleave s ss):
-  Tot (interleave (map f s) (map (map f) ss))
+val filter (#a:eqtype) (f:a -> bool) (il:interleaving a): interleaving a
