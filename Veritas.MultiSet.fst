@@ -33,8 +33,14 @@ let create (#a:eqtype) (x:a) (m:nat): Tot (mset a) = admit()
 (* construct a multiset given a sequence *)
 let seq2mset (#a:eqtype) (s: seq a): Tot (mset a) = admit()
 
+let lemma_mset_bijection (#a:eqtype) (s1 s2: seq a) (f12: into_smap s1 s2) (f21: into_smap s2 s1):
+  Lemma (seq2mset s1 == seq2mset s2) = admit()
+
 let lemma_count_mem (#a:eqtype) (s: seq a) (x: a):
   Lemma (count x s = mem x (seq2mset s)) = admit()
+
+let lemma_seq_elem (#a:eqtype) (s: seq a) (i:nat{i < length s}):
+  Lemma (contains (index s i) (seq2mset s)) = admit()
 
 (* union of two multisets *)
 let union (#a:eqtype) (s1 s2: mset a): Tot (mset a) = admit()

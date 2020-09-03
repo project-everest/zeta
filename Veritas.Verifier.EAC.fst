@@ -846,7 +846,7 @@ let lemma_non_eac_evicted_blum_addb
     )
     else (
 
-      lemma_ts_add_set_contains_add_elem itsl i;
+      lemma_add_elem_correct itsl i;
       //assert(MS.contains be (ts_add_set itsl));
 
       MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;

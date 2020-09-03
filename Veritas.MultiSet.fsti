@@ -1,6 +1,7 @@
 module Veritas.MultiSet
 
 open FStar.Seq
+open Veritas.SeqAux
 
 val mset (a:eqtype): Type0
 
@@ -42,9 +43,23 @@ val create (#a:eqtype) (x:a) (m:nat): Tot (mset a)
 (* construct a multiset given a sequence *)
 val seq2mset (#a:eqtype) (s: seq a): Tot (mset a)
 
+(* mapping from one sequence to an other *)
+let smap (#a:eqtype) (s1 s2: seq a) = f: (seq_index s1 -> seq_index s2)
+  { forall (i: seq_index s1). index s1 i = index s2 (f i) }
+
+let into_smap (#a:eqtype) (s1 s2: seq a)  = f: smap s1 s2
+  { forall (i: seq_index s1). forall (j: seq_index s1{i <> j}). f i <> f j }
+
+val lemma_mset_bijection (#a:eqtype) (s1 s2: seq a) (f12: into_smap s1 s2) (f21: into_smap s2 s1):
+  Lemma (seq2mset s1 == seq2mset s2)
+
 (* count of an element in seq s is its membership count in its corresponding multiset *)
 val lemma_count_mem (#a:eqtype) (s: seq a) (x: a):
   Lemma (count x s = mem x (seq2mset s))
+
+(* an element at the i'th index of a sequence is in the multiset *)
+val lemma_seq_elem (#a:eqtype) (s: seq a) (i:nat{i < length s}):
+  Lemma (contains (index s i) (seq2mset s))
 
 (* union of two multisets *)
 val union (#a:eqtype) (s1 s2: mset a): Tot (mset a)

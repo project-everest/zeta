@@ -50,10 +50,6 @@ val lemma_ts_add_set_key_extend (itsl: its_log {I.length itsl > 0}):
                                            (key_of (I.index itsl (I.length itsl - 1))))
                            (blum_add_elem (I.telem itsl))))
 
-val lemma_ts_add_set_contains_add_elem (itsl: its_log) (i:I.seq_index itsl):
-  Lemma (requires (is_blum_add (I.index itsl i)))
-        (ensures (MS.contains (blum_add_elem (I.index itsl i)) (ts_add_set itsl)))
-
 val lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_dom):
   Lemma (requires (MS.contains be (ts_add_set_key itsl k)))
         (ensures (MH.key_of be = k))

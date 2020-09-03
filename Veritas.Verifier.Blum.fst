@@ -23,33 +23,47 @@ let rec ts_add_seq_aux (itsl: its_log):
   
 let ts_add_seq = ts_add_seq_aux
 
-let rec lemma_add_elem_correct_aux (itsl: its_log) (i: I.seq_index itsl):
-  Lemma (requires (is_blum_add (I.index itsl i)))
-        (ensures (contains (blum_add_elem (I.index itsl i)) (ts_add_set itsl)))
-        (decreases (I.length itsl)) =
+(* map an index of ts containing a blum add to its position in 
+ * the ts_add_seq *)
+let rec add_seq_map 
+  (itsl: its_log) 
+  (i: I.seq_index itsl{is_blum_add (I.index itsl i)}): 
+  Tot (j:SA.seq_index (ts_add_seq itsl){S.index (ts_add_seq itsl) j = 
+                                        blum_add_elem (I.index itsl i)})
+  (decreases (I.length itsl)) =                                         
   let n = I.length itsl in
-  if n = 0 then ()
-  else (
+  let s = ts_add_seq itsl in
+  if n = 0 then 0    
+  else 
     let itsl' = I.prefix itsl (n - 1) in
-    assert(TL.verifiable itsl');   
-    let s' = ts_add_seq_aux itsl' in
-    let e = I.index itsl (n - 1) in    
-    if i < n- 1 then (
-      assert(I.index itsl i = I.index itsl' i);
-      lemma_add_elem_correct_aux itsl' i;
-      admit()
-    )
-    else
-      admit()
-  )
-
+    let s' = ts_add_seq itsl' in
+    if i = n - 1 then S.length s'
+    else add_seq_map itsl' i
 
 let lemma_add_elem_correct (itsl: its_log) (i: I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i)))
         (ensures (contains (blum_add_elem (I.index itsl i)) (ts_add_set itsl))) = 
-  admit()
+  let sa = ts_add_seq itsl in        
+  let j = add_seq_map itsl i in
+  //assert(S.index sa j = blum_add_elem (I.index itsl i));
+  lemma_seq_elem sa j
 
-let ts_add_seq_key (itsl: its_log) (k:key): seq ms_hashfn_dom = admit()
+let rec ts_add_seq_key_aux (itsl: its_log) (k:key): 
+  Tot (seq ms_hashfn_dom) 
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if n = 0 then S.empty #ms_hashfn_dom
+  else
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq_key_aux itsl' k in
+    let e = I.index itsl (n - 1) in
+    if is_blum_add e && key_of e = k  then 
+      SA.append1 s' (blum_add_elem e)
+    else
+      s'
+
+let ts_add_seq_key (itsl: its_log) (k:key): seq ms_hashfn_dom =
+  ts_add_seq_key_aux itsl k
 
 let lemma_ts_add_set_correct (itsl: its_log): 
   Lemma (ts_add_set itsl == g_add_set (g_vlog_of itsl)) = admit()
@@ -59,11 +73,8 @@ let lemma_ts_add_set_key_extend (itsl: its_log {I.length itsl > 0}):
         (ensures (ts_add_set_key itsl (key_of (I.index itsl (I.length itsl - 1))) == 
                   add_elem (ts_add_set_key (I.prefix itsl (I.length itsl - 1))
                                            (key_of (I.index itsl (I.length itsl - 1))))
-                           (blum_add_elem (I.telem itsl)))) = admit()
-
-let lemma_ts_add_set_contains_add_elem (itsl: its_log) (i:I.seq_index itsl):
-  Lemma (requires (is_blum_add (I.index itsl i)))
-        (ensures (MS.contains (blum_add_elem (I.index itsl i)) (ts_add_set itsl))) = admit()
+                           (blum_add_elem (I.telem itsl)))) =
+  admit()
 
 let lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_dom):
   Lemma (requires (MS.contains be (ts_add_set_key itsl k)))
