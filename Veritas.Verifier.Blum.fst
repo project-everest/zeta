@@ -1,6 +1,7 @@
 module Veritas.Verifier.Blum
 
 open Veritas.EAC
+open FStar.Classical
 
 module S = FStar.Seq
 module SA = Veritas.SeqAux
@@ -58,7 +59,22 @@ let rec add_seq_map_inv (itsl: its_log) (j: SA.seq_index (ts_add_seq itsl)):
     )
     else add_seq_map_inv itsl' j 
   )
-                            
+
+let rec lemma_add_seq_map_inv (itsl: its_log) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
+  Lemma (requires True)
+        (ensures (add_seq_map_inv itsl (add_seq_map itsl i) = i))
+        (decreases (I.length itsl))
+        [SMTPat (add_seq_map itsl i)] = 
+  let n = I.length itsl in
+  let s = ts_add_seq itsl in
+  if n = 0 then ()
+  else 
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq itsl' in
+    if i = n - 1 then ()
+    else 
+      lemma_add_seq_map_inv itsl' i  
+
 let lemma_add_elem_correct (itsl: its_log) (i: I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i)))
         (ensures (contains (blum_add_elem (I.index itsl i)) (ts_add_set itsl))) = 
@@ -84,8 +100,86 @@ let rec ts_add_seq_key_aux (itsl: its_log) (k:key):
 let ts_add_seq_key (itsl: its_log) (k:key): seq ms_hashfn_dom =
   ts_add_seq_key_aux itsl k
 
+(* into mapping from ts add seq to global add seq *)
+let global_to_ts_addset_map_aux (itsl: its_log) (i: SA.seq_index (g_add_seq (g_vlog_of itsl))):
+  Tot (j: SA.seq_index (ts_add_seq itsl) 
+       {
+          S.index (g_add_seq (g_vlog_of itsl)) i = 
+          S.index (ts_add_seq itsl) j
+       }) =          
+  let gl = g_vlog_of itsl in
+  let gs = g_add_seq gl in
+  let ii = VG.add_set_map_inv gl i in
+  let ts = ts_add_seq itsl in
+  let i' = s2i_map itsl ii in
+  let j = add_seq_map itsl i' in
+  j
+
+let lemma_global_to_ts_addset_map_into (itsl: its_log):
+  Lemma (forall (i1: SA.seq_index (g_add_seq (g_vlog_of itsl))).
+         forall (i2: SA.seq_index (g_add_seq (g_vlog_of itsl))).
+         i1 <> i2 ==> global_to_ts_addset_map_aux itsl i1 <> 
+                    global_to_ts_addset_map_aux itsl i2) = 
+  let gl = g_vlog_of itsl in
+  let gs = g_add_seq gl in
+  
+  let aux (i1 i2: SA.seq_index gs):
+    Lemma (requires True)
+          (ensures (i1 <> i2 ==> global_to_ts_addset_map_aux itsl i1 <>
+                               global_to_ts_addset_map_aux itsl i2)) = ()    
+  in  
+  forall_intro_2 aux
+
+let global_to_ts_addset_map (itsl: its_log):
+  into_smap (g_add_seq (g_vlog_of itsl)) 
+       (ts_add_seq itsl) = 
+  lemma_global_to_ts_addset_map_into itsl;
+  global_to_ts_addset_map_aux itsl
+
+let ts_to_global_addset_map_aux (itsl: its_log) (j: SA.seq_index (ts_add_seq itsl)):
+  Tot (i: SA.seq_index (g_add_seq (g_vlog_of itsl))
+       {
+          S.index (g_add_seq (g_vlog_of itsl)) i = 
+          S.index (ts_add_seq itsl) j
+       }) = 
+ let gl = g_vlog_of itsl in
+ let gs = g_add_seq gl in
+ let ts = ts_add_seq itsl in
+ let i' = add_seq_map_inv itsl j in  
+ let ii = i2s_map itsl i' in
+ let i = VG.add_set_map gl ii in
+ i
+
+let lemma_ts_to_global_addset_map_into (itsl: its_log):
+  Lemma (forall (i1: SA.seq_index (ts_add_seq itsl)).
+         forall (i2: SA.seq_index (ts_add_seq itsl)).
+           i1 <> i2 ==> ts_to_global_addset_map_aux itsl i1 <>
+                      ts_to_global_addset_map_aux itsl i2) = 
+  let gl = g_vlog_of itsl in
+  let gs = g_add_seq gl in
+  let ts = ts_add_seq itsl in
+
+  let aux (i1 i2: SA.seq_index ts):
+    Lemma (i1 <> i2 ==> ts_to_global_addset_map_aux itsl i1 <>
+                      ts_to_global_addset_map_aux itsl i2) = ()
+  in
+  forall_intro_2 aux
+
+let ts_to_global_addset_map (itsl: its_log):
+  into_smap (ts_add_seq itsl)
+            (g_add_seq (g_vlog_of itsl)) = 
+  lemma_ts_to_global_addset_map_into itsl;
+  ts_to_global_addset_map_aux itsl
+
 let lemma_ts_add_set_correct (itsl: its_log): 
-  Lemma (ts_add_set itsl == g_add_set (g_vlog_of itsl)) = admit()
+  Lemma (ts_add_set itsl == g_add_set (g_vlog_of itsl)) = 
+  let gl = g_vlog_of itsl in
+  let gs = g_add_seq gl in
+  let ts = ts_add_seq itsl in
+  
+  lemma_mset_bijection gs ts (global_to_ts_addset_map itsl)
+                             (ts_to_global_addset_map itsl);
+  ()
 
 let lemma_ts_add_set_key_extend (itsl: its_log {I.length itsl > 0}):
   Lemma (requires (is_blum_add (I.telem itsl)))

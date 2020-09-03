@@ -83,7 +83,13 @@ val i2s_map (#a:eqtype) (il:interleaving a) (i:seq_index il):
   (si:sseq_index (s_seq il){index il i = indexss (s_seq il) si})
 
 val s2i_map (#a:eqtype) (il:interleaving a) (si: sseq_index (s_seq il)):
-  (i:seq_index il{index il i = indexss (s_seq il) si})
+  (i:seq_index il{index il i = indexss (s_seq il) si /\
+                  i2s_map il i = si})
+
+val lemma_i2s_s2i (#a:eqtype) (il:interleaving a) (i:seq_index il):
+  Lemma (requires True)
+        (ensures (s2i_map il (i2s_map il i) = i))
+        [SMTPat (i2s_map il i)]
 
 val prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}): 
   Tot (il':interleaving a{length il' = i /\ S.length (s_seq il) = S.length (s_seq il')})
