@@ -38,7 +38,7 @@ val invariant (st:vstore) (h:HS.mem) : Type0
 val footprint (st:vstore) : GTot B.loc
 
 val as_seq (st:vstore) (h:HS.mem)
-  : GTot (Seq.lseq (option record) (UInt.max_int U16.n))
+  : GTot (Seq.lseq (option record) (UInt.max_int U16.n + 1))
 
 val frame_invariant (st:vstore) (l:B.loc) (h0 h1:HS.mem)
   : Lemma
@@ -64,14 +64,14 @@ val vcache_create (_:unit)
         B.(modifies loc_none h0 h1) /\
         invariant st h1 /\
         B.fresh_loc (footprint st) h0 h1 /\
-        as_seq st h1 == Seq.create (UInt.max_int U16.n) None)
+        as_seq st h1 == Seq.create (UInt.max_int U16.n + 1) None)
 
 val vcache_get_record (st:vstore) (s:slot_id)
   : Stack (option record)
       (requires fun h -> invariant st h)
       (ensures fun h0 r h1 ->
         h0 == h1 /\
-        r == Seq.index (as_seq st h1) (U16.v (get_slot_id s)))
+        r == Seq.index (as_seq st h1) (U16.v (s)))
 
 val vcache_update_record (st:vstore) (s:slot_id) (r:record)
   : Stack unit
@@ -79,7 +79,7 @@ val vcache_update_record (st:vstore) (s:slot_id) (r:record)
       (ensures fun h0 _ h1 ->
         B.(modifies (footprint st) h0 h1) /\
         invariant st h1 /\
-        as_seq st h1 == Seq.upd (as_seq st h0) (U16.v (get_slot_id s)) (Some r))
+        as_seq st h1 == Seq.upd (as_seq st h0) (U16.v (s)) (Some r))
 
 let mk_record k v a : record = {
   record_key = k;
@@ -100,7 +100,7 @@ val vcache_add_record  //AR: Difference from vcache_update_record?
       (ensures fun h0 _ h1 ->
         B.(modifies (footprint st) h0 h1) /\
         invariant st h1 /\
-        as_seq st h1 == Seq.upd (as_seq st h0) (U16.v (get_slot_id s)) (Some (mk_record k v a)))
+        as_seq st h1 == Seq.upd (as_seq st h0) (U16.v (s)) (Some (mk_record k v a)))
 
 val vcache_evict_record (st:vstore) (s:slot_id) (k:key)  //AR: Do we need k here?
   : Stack unit
@@ -108,4 +108,4 @@ val vcache_evict_record (st:vstore) (s:slot_id) (k:key)  //AR: Do we need k here
       (ensures fun h0 _ h1 ->
         B.(modifies (footprint st) h0 h1) /\
         invariant st h1 /\
-        as_seq st h1 == Seq.upd (as_seq st h0) (U16.v (get_slot_id s)) None)
+        as_seq st h1 == Seq.upd (as_seq st h0) (U16.v (s)) None)

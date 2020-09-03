@@ -1,15 +1,4 @@
-enum /*@open*/ {
-  uint16_max_value(65535),
-  (65535)
-} uint16_is_max;
-
-struct {
-  uint16_is_max sid;
-  select(sid) {
-    case uint16_max_value: Fail;
-    default: Empty;
-  } sid_prf;
-} slot_id;
+uint16 slot_id;
 
 struct {
   uint64 v3;
