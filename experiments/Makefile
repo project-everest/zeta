@@ -1,3 +1,7 @@
+ifeq (,$(QD_HOME))
+  $(error Please define QD_HOME)
+endif
+
 all: verify
 
 VERITAS_SOURCES=$(filter-out ThreadState.fsti Veritas.LogStream.fsti LayeredEffect.fst,$(wildcard *.fst) $(wildcard *.fsti))
