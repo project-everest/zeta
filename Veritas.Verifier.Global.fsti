@@ -1,0 +1,71 @@
+module Veritas.Verifier.Global
+
+open Veritas.Interleave
+open Veritas.MultiSet
+open Veritas.MultiSetHash
+open Veritas.Verifier
+open Veritas.Verifier.Thread
+
+open FStar.Seq
+open Veritas.SeqAux
+
+module I = Veritas.Interleave
+module MH = Veritas.MultiSetHash
+module V = Veritas.Verifier
+module VT = Veritas.Verifier.Thread
+
+(* Full collection of verifier logs one per thread *)
+let g_vlog = seq vlog
+
+let thread_log (gl: g_vlog) (tid: seq_index gl): thread_id_vlog = 
+   (tid, index gl tid)
+  
+(* globally verifiable logs: every thread-level log is verifiable *)
+let verifiable (gl: g_vlog) = 
+  forall (tid:seq_index gl). VT.verifiable (thread_log gl tid)
+
+(* Refinement type of logs that are verifiable *)
+let verifiable_log = gl:g_vlog{verifiable gl}
+
+(* add-set hash over all verifier threads *)
+val hadd (gl: verifiable_log): ms_hash_value
+
+(* hash of evict set over all verifier threads *)
+val hevict (gl: verifiable_log): ms_hash_value
+
+(* a verifiable log is hash verifiable if add and evict set hashes are equal *)
+let hash_verifiable (gl: verifiable_log): bool = 
+  hadd gl = hevict gl
+
+let hash_verifiable_log = gl:verifiable_log{hash_verifiable gl}
+
+(* 
+ * return the clock of a particular log entry. the index i here 
+ * is a pair that identifies the verifier thread and an entry
+ * in the thread log
+ *)
+val clock (gl: verifiable_log) (i: sseq_index gl): timestamp
+
+(* global add sequence *)
+val g_add_seq (gl: verifiable_log): seq (ms_hashfn_dom)
+
+(* multiset derived from all the blum adds in gl *)
+let g_add_set (gl: verifiable_log): mset ms_hashfn_dom =
+  seq2mset (g_add_seq gl)
+
+(* the hadd that the verifier computes is the multiset hash of all the adds *)
+val lemma_g_hadd_correct (gl: verifiable_log):
+  Lemma (hadd gl = ms_hashfn (g_add_seq gl))
+
+(* a single sequence containing all the blum evicts *)
+val g_evict_seq (gl: verifiable_log): seq ms_hashfn_dom 
+
+let g_evict_set (gl: verifiable_log): mset ms_hashfn_dom = 
+  seq2mset (g_evict_seq gl)
+
+val lemma_ghevict_correct (gl: verifiable_log):
+  Lemma (hevict gl = ms_hashfn (g_evict_seq gl))
+
+(* the global evict set is a set (not a multiset) *)
+val g_evict_set_is_set (gl: verifiable_log): 
+  Lemma (is_set (g_evict_set gl))
