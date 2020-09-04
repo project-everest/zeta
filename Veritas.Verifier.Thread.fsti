@@ -144,3 +144,17 @@ val lemma_evict_elem_tid (tl: verifiable_log):
   
 val lemma_evict_elem_unique (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evict_seq tl)):
   Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2)
+
+val evict_seq_map (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
+  (j: SA.seq_index (blum_evict_seq tl) {S.index (blum_evict_seq tl) j = 
+                                        blum_evict_elem tl i})
+
+val evict_seq_inv_map (tl: verifiable_log) (j: SA.seq_index (blum_evict_seq tl)):
+  (i: idx tl{is_evict_to_blum (index tl i) /\
+             blum_evict_elem tl i = S.index (blum_evict_seq tl) j /\
+             evict_seq_map tl i = j})
+
+val lemma_evict_seq_inv (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
+  Lemma (requires True)
+        (ensures (evict_seq_inv_map tl (evict_seq_map tl i) = i))
+        [SMTPat (evict_seq_map tl i)]

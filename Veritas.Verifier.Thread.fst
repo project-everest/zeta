@@ -67,19 +67,67 @@ let rec blum_add_seq_aux (tl: verifiable_log):
 
 let blum_add_seq = blum_add_seq_aux
 
+let rec add_seq_map_aux (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
+  Tot (j: SA.seq_index (blum_add_seq tl){S.index (blum_add_seq tl) j =
+                                         blum_add_elem (index tl i)})
+  (decreases (length tl)) = 
+  let n = length tl in                                     
+  if n = 0 then 0
+  else
+    let tl' = prefix tl (n - 1) in
+    let s' = blum_add_seq tl' in
+    if i = n - 1 then
+      S.length s'
+    else
+      add_seq_map_aux tl' i    
+  
 let add_seq_map (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
   (j: SA.seq_index (blum_add_seq tl){S.index (blum_add_seq tl) j =
-                                     blum_add_elem (index tl i)}) = admit()
+                                     blum_add_elem (index tl i)}) = 
+  add_seq_map_aux tl i                                     
+
+let rec add_seq_map_inv_aux (tl: verifiable_log) (j: SA.seq_index (blum_add_seq tl)):
+  Tot (i: idx tl {is_blum_add (index tl i) /\
+                  blum_add_elem (index tl i) = S.index (blum_add_seq tl) j /\
+                  add_seq_map tl i = j})
+  (decreases (length tl)) = 
+  let n = length tl in
+  if n = 0 then 0
+  else
+    let tl' = prefix tl (n - 1) in
+    let s' = blum_add_seq_aux tl' in
+    let e = index tl (n - 1) in
+    let s = blum_add_seq tl in
+    if j = S.length s' then 
+      n - 1
+    else
+      add_seq_map_inv_aux tl' j
 
 let add_seq_inv_map (tl: verifiable_log) (j: SA.seq_index (blum_add_seq tl)):
   (i: idx tl {is_blum_add (index tl i) /\
               blum_add_elem (index tl i) = S.index (blum_add_seq tl) j /\
-              add_seq_map tl i = j}) = admit()
+              add_seq_map tl i = j}) =
+  add_seq_map_inv_aux tl j              
+
+let rec lemma_add_seq_inv_aux (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
+  Lemma (requires True)
+        (ensures (add_seq_inv_map tl (add_seq_map tl i) = i))
+        (decreases (length tl)) = 
+  let n = length tl in
+  assert (n > 0);
+  let tl' = prefix tl (n - 1) in
+  let s' = blum_add_seq_aux tl' in
+  let e = index tl (n - 1) in
+  let s = blum_add_seq tl in
+
+  if i = n - 1 then ()
+  else
+    lemma_add_seq_inv_aux tl' i 
 
 let lemma_add_seq_inv (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
   Lemma (requires True)
-        (ensures (add_seq_inv_map tl (add_seq_map tl i) = i))
-        [SMTPat (add_seq_map tl i)] = admit()
+        (ensures (add_seq_inv_map tl (add_seq_map tl i) = i)) =
+  lemma_add_seq_inv_aux tl i        
 
 let hadd_at (tl: verifiable_log) (i:nat{i <= length tl}): ms_hash_value =
   Valid?.hadd (state_at tl i)
@@ -289,3 +337,42 @@ let lemma_evict_elem_unique (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evic
   else 
     lemma_evict_seq_clock_strictly_monotonic tl i2 i1
 
+let rec evict_seq_map_aux (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
+  Tot (j: SA.seq_index (blum_evict_seq tl) {S.index (blum_evict_seq tl) j = 
+                                        blum_evict_elem tl i})
+  (decreases (length tl)) =                                         
+  let n = length tl in
+  let tl' = prefix tl (n - 1) in
+  let s' = blum_evict_seq tl' in  
+  if i = n - 1 then
+    S.length s'
+  else
+    evict_seq_map_aux tl' i
+
+let evict_seq_map = evict_seq_map_aux
+
+let rec evict_seq_inv_map_aux (tl: verifiable_log) (j: SA.seq_index (blum_evict_seq tl)):
+  Tot(i: idx tl{is_evict_to_blum (index tl i) /\
+             blum_evict_elem tl i = S.index (blum_evict_seq tl) j /\
+             evict_seq_map tl i = j}) 
+  (decreases (length tl)) =             
+  let n = length tl in
+  let tl' = prefix tl (n - 1) in
+  let s' = blum_evict_seq tl' in  
+  if j = S.length s' then
+    n - 1
+  else
+    evict_seq_inv_map_aux tl' j
+
+let evict_seq_inv_map = evict_seq_inv_map_aux
+
+let rec lemma_evict_seq_inv_aux (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
+  Lemma (requires True)
+        (ensures (evict_seq_inv_map tl (evict_seq_map tl i) = i))
+        (decreases (length tl)) = 
+  let n = length tl in
+  let tl' = prefix tl (n - 1) in
+  if i = n - 1 then()
+  else lemma_evict_seq_inv_aux tl' i
+
+let lemma_evict_seq_inv = lemma_evict_seq_inv_aux

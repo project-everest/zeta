@@ -83,3 +83,23 @@ val lemma_ghevict_correct (gl: verifiable_log):
 (* the global evict set is a set (not a multiset) *)
 val g_evict_set_is_set (gl: verifiable_log): 
   Lemma (is_set (g_evict_set gl))
+
+let blum_evict_elem (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
+  ms_hashfn_dom = 
+  let (tid, i) = ii in
+  let tl = thread_log gl tid in
+  VT.blum_evict_elem tl i
+
+val evict_seq_map (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
+  (j: seq_index (g_evict_seq gl) {index (g_evict_seq gl) j = 
+                                  blum_evict_elem gl ii})
+
+val evict_seq_map_inv (gl: verifiable_log) (j: seq_index (g_evict_seq gl)):
+  (ii: sseq_index gl {is_evict_to_blum (indexss gl ii) /\
+                      blum_evict_elem gl ii = index (g_evict_seq gl) j /\
+                      evict_seq_map gl ii = j})
+
+val lemma_evict_seq_inv (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
+  Lemma (requires True)
+        (ensures (evict_seq_map_inv gl (evict_seq_map gl ii) = ii))
+        [SMTPat (evict_seq_map gl ii)]

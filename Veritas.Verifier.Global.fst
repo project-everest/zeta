@@ -342,7 +342,7 @@ let lemma_evict_elem_count (gl: verifiable_log) (x: ms_hashfn_dom):
   lemma_evict_elem_unique2 gl;
   lemma_uniq_prop_counts (g_evict_seq gl) x;
   ()
-
+ 
 (* the global evict set is a set (not a multiset) *)
 let g_evict_set_is_set (gl: verifiable_log): 
   Lemma (is_set (g_evict_set gl)) = 
@@ -356,3 +356,56 @@ let g_evict_set_is_set (gl: verifiable_log):
   in
   //assert(is_set es);
   ()
+
+let rec evict_seq_map_aux (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
+  Tot (j: seq_index (g_evict_seq gl) {index (g_evict_seq gl) j = 
+                                      blum_evict_elem gl ii})
+  (decreases (length gl)) = 
+  let (tid, i) = ii in
+  let p = length gl in
+  let gl' = prefix gl (p - 1) in
+  let s' = g_evict_seq gl' in
+  let tl = thread_log gl (p - 1) in
+  
+  if tid = p - 1 then
+    length s' + VT.evict_seq_map tl i
+  else
+    evict_seq_map_aux gl' ii
+
+let evict_seq_map = evict_seq_map_aux
+
+let rec evict_seq_map_inv_aux (gl: verifiable_log) (j: seq_index (g_evict_seq gl)):
+  Tot (ii: sseq_index gl {is_evict_to_blum (indexss gl ii) /\
+                          blum_evict_elem gl ii = index (g_evict_seq gl) j /\
+                          evict_seq_map gl ii = j})
+  (decreases (length gl)) = 
+  let p = length gl in
+  let gl' = prefix gl (p - 1) in
+  let s' = g_evict_seq gl' in
+  let tl = thread_log gl (p - 1) in  
+  let s = g_evict_seq gl in
+
+  if j < length s' then
+    evict_seq_map_inv_aux gl' j
+  else
+    let j' = j - length s' in
+    let i = VT.evict_seq_inv_map tl j' in
+    (p-1, i)
+
+let evict_seq_map_inv = evict_seq_map_inv_aux
+
+let rec lemma_evict_seq_inv_aux (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
+  Lemma (requires True)
+        (ensures (evict_seq_map_inv gl (evict_seq_map gl ii) = ii))
+        (decreases (length gl)) = 
+  let (tid,i) = ii in
+  let p = length gl in
+  let gl' = prefix gl (p - 1) in
+  let s' = g_evict_seq gl' in
+  let tl = thread_log gl (p - 1) in
+
+  if tid = p - 1 then ()
+  else 
+    lemma_evict_seq_inv_aux gl' ii
+
+let lemma_evict_seq_inv = lemma_evict_seq_inv_aux
