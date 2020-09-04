@@ -16,7 +16,9 @@ type sseq_index (#a:Type) (ss: sseq a) =
                 (snd ij) < length (index ss (fst ij))})
 
 (* retrieve an element of an sseq given its index *)
-val indexss (#a:Type) (ss: sseq a) (ij: sseq_index ss): Tot a
+let indexss (#a:Type) (ss: sseq a) (ij: sseq_index ss): Tot a = 
+  let (i,j) = ij in
+  index (index ss i) j
 
 (* sum of lengths of all sequences in a sequence of seqs *)
 val flat_length (#a:Type) (ss: sseq a): Tot nat

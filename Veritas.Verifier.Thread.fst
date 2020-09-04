@@ -67,6 +67,20 @@ let rec blum_add_seq_aux (tl: verifiable_log):
 
 let blum_add_seq = blum_add_seq_aux
 
+let add_seq_map (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
+  (j: SA.seq_index (blum_add_seq tl){S.index (blum_add_seq tl) j =
+                                     blum_add_elem (index tl i)}) = admit()
+
+let add_seq_inv_map (tl: verifiable_log) (j: SA.seq_index (blum_add_seq tl)):
+  (i: idx tl {is_blum_add (index tl i) /\
+              blum_add_elem (index tl i) = S.index (blum_add_seq tl) j /\
+              add_seq_map tl i = j}) = admit()
+
+let lemma_add_seq_inv (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
+  Lemma (requires True)
+        (ensures (add_seq_inv_map tl (add_seq_map tl i) = i))
+        [SMTPat (add_seq_map tl i)] = admit()
+
 let hadd_at (tl: verifiable_log) (i:nat{i <= length tl}): ms_hash_value =
   Valid?.hadd (state_at tl i)
 

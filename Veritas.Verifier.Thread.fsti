@@ -108,6 +108,20 @@ let blum_add_elem (e:vlog_entry {is_blum_add e}):
 
 val blum_add_seq (tl: verifiable_log): S.seq ms_hashfn_dom
 
+val add_seq_map (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
+  (j: SA.seq_index (blum_add_seq tl){S.index (blum_add_seq tl) j =
+                                     blum_add_elem (index tl i)})
+
+val add_seq_inv_map (tl: verifiable_log) (j: SA.seq_index (blum_add_seq tl)):
+  (i: idx tl {is_blum_add (index tl i) /\
+              blum_add_elem (index tl i) = S.index (blum_add_seq tl) j /\
+              add_seq_map tl i = j})
+
+val lemma_add_seq_inv (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
+  Lemma (requires True)
+        (ensures (add_seq_inv_map tl (add_seq_map tl i) = i))
+        [SMTPat (add_seq_map tl i)]
+
 let hadd (tl: verifiable_log): ms_hash_value = 
   Valid?.hadd (verify tl)
 
