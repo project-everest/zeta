@@ -14,9 +14,11 @@ From the mathematical model, a verifier state contains three main elements:
 
 2. An evict set: `ev_set: set (key & value & timestamp)`, where
    `timestamp = (nat & nat)` for a pair of an epoch counter and a
-   counter with a total order on timestamps.
+   counter with a total order on timestamps. (Need to actually prove that it is a set ... need thread id with multiple verifiers)
 
 3. An add multiset:  `add_set: multiset (key & value & timestamp)`
+
+4. A high-level `clock:timestamp`
 
 ## Low-level state
 
@@ -38,7 +40,7 @@ record = {
 ```
 
 2. An evict set hash: `ev_hash : prf_set_hash`, which accumulates an
-   XOR of a PRF of `(key & value & timestamp)` elements.
+   XOR of a PRF of `(key & value & timestamp)` elements. (retain card ... but internal)
 
 3. An add set multi hash: `add_hash : prf_set_hash & uint_64`, which
    accumulates an XOR of a PRF of `(key & value & timestamp)`
@@ -174,7 +176,7 @@ We do the following:
 2. check that the timestamp `t` exceeds the current clock
 3. add `e = (r.record_key, r.record_value, t)` to the evict hash
 4. remove `s` from the store
-5. advance the clock to at least `t + 1`
+5. advance the clock to at least `t`
 
 This case is easy, since we are removing `s` from the store and so
 certainly cannot introduce any duplicate keys.
@@ -245,11 +247,12 @@ let eac evict_set add_mset =
     (forall e. e in add_mset ==> e in evict_set) /\
     //3. every element in the evict set has a unique timestamp
     (forall e0 e1 in evict_set. e0 <> e1 ==> e0.timestamp <> e1.timestamp) /\
-    //4. entries can be added at timestamp t1 only if evicted entries at
-    //   earlier timestamps have also been added
-    (forall {(k, _, t1)} in add_mset.
-            {(k, _, t0)} in evict_set.
-            t0 <= t1 ==> exists (k, _, t0) in add_mset)
+    //4. At most one unmatched evict in the evict set for each key
+    //   and that evict has the greatest timestamp for that key
+    (forall key e. e.hs_key == key /\
+              MultiSet.mem e evict ==>
+              MultiSet.mem e add \/
+              max_timestamp_of key evict e.hs_ts)
 ```
 
 Next, a store invariant:
