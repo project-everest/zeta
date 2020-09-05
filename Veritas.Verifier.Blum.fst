@@ -238,8 +238,21 @@ let blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.inde
 
 let lemma_index_blum_evict_prefix (itsl: its_log) (i:nat{i <= I.length itsl}) (j:nat{j < i}):
   Lemma (requires (is_evict_to_blum (I.index itsl j)))
-        (ensures (blum_evict_elem itsl j = blum_evict_elem (I.prefix itsl i) j))
-        [SMTPat (blum_evict_elem (I.prefix itsl i) j)] = admit()
+        (ensures (blum_evict_elem itsl j = blum_evict_elem (I.prefix itsl i) j)) =
+  let gl = g_vlog_of itsl in
+  let (t,j') = i2s_map itsl j in
+  let tl = thread_log gl t in  
+  assert(blum_evict_elem itsl j = VT.blum_evict_elem tl j');
+  
+  let itsl' = I.prefix itsl i in
+  let gl' = g_vlog_of itsl' in
+  let tl' = thread_log gl' t in
+  lemma_prefix_interleaving itsl i t;
+  assert(is_prefix (S.index gl t) (S.index gl' t));
+
+  
+
+  admit()
 
 let rec ts_evict_seq_aux (itsl: its_log): 
   Tot (seq ms_hashfn_dom)

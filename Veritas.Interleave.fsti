@@ -94,7 +94,8 @@ val lemma_i2s_s2i (#a:eqtype) (il:interleaving a) (i:seq_index il):
         [SMTPat (i2s_map il i)]
 
 val prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}): 
-  Tot (il':interleaving a{length il' = i /\ S.length (s_seq il) = S.length (s_seq il')})
+  Tot (il':interleaving a{i_seq il' = SA.prefix (i_seq il) i /\ 
+                          S.length (s_seq il) = S.length (s_seq il')})
 
 let hprefix (#a:eqtype) (il:interleaving a {length il > 0}): interleaving a =
   prefix il (length il - 1)
@@ -113,3 +114,11 @@ val lemma_prefix_prefix (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) 
         [SMTPat (prefix (prefix il i) j)]
 
 val filter (#a:eqtype) (f:a -> bool) (il:interleaving a): interleaving a
+
+(* every component sequence j of a prefix of il is a prefix of the corresponding component sequence of il *)
+val lemma_prefix_interleaving (#a:eqtype) 
+  (il: interleaving a) 
+  (i:nat{ i <= length il}) 
+  (j:nat{j < S.length (s_seq il)}):
+  Lemma (SA.is_prefix (S.index (s_seq il) j) 
+                      (S.index (s_seq (prefix il i)) j))

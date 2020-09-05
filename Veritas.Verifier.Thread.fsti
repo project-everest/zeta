@@ -162,3 +162,8 @@ val lemma_evict_seq_inv (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index 
 
 val lemma_blum_evict_elem_key (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
   Lemma (MH.key_of (blum_evict_elem tl i) = V.key_of (index tl i))
+
+val lemma_blum_evict_elem_prefix (tl: verifiable_log) (i: nat{i <= length tl}) 
+  (j: nat{j < i && is_evict_to_blum (index tl j)}):
+  Lemma (blum_evict_elem tl j = blum_evict_elem (prefix tl i) j)
+
