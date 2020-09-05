@@ -46,7 +46,7 @@ let clock_sorted (il: il_vlog{verifiable il}) =
   forall (i:I.seq_index il). i > 0 ==> clock il (i - 1) `ts_leq` clock il i
 
 (* TODO: add clock_sorted *)
-let its_log = il:il_vlog{verifiable il}
+let its_log = il:il_vlog{verifiable il /\ clock_sorted il}
 
 let hash_verifiable (itsl: its_log) = VG.hash_verifiable (g_vlog_of itsl)
 
@@ -55,7 +55,7 @@ let hash_verifiable_log =
 
 val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
   Lemma (requires True)
-        (ensures (verifiable (I.prefix itsl i)))
+        (ensures (verifiable (I.prefix itsl i) /\ clock_sorted (I.prefix itsl i)))
         [SMTPat (I.prefix itsl i)]
 
 (* create a ts log *)
@@ -354,3 +354,9 @@ val lemma_evict_has_next_add (itsl: its_log) (i:I.seq_index itsl):
 val lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl):
   Lemma (requires (is_evict (I.index itsl i)))
         (ensures (V.key_of (I.index itsl i) <> Root))
+
+(* since the itsl is sorted by clock, the following lemma holds *)
+val lemma_clock_ordering (itsl: its_log) (i1 i2: I.seq_index itsl):
+  Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
+        (ensures (i1 < i2))
+  

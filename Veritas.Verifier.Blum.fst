@@ -418,11 +418,27 @@ let index_blum_evict (itsl: its_log) (e: ms_hashfn_dom {contains e (ts_evict_set
   assert(S.index esq j = e);
   evict_seq_inv_map itsl j
 
+(* the clock of an evict entry is the timestamp in the corresponding blum element *)
+let lemma_evict_clock (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
+  Lemma (TL.clock itsl i = MH.timestamp_of (blum_evict_elem itsl i)) = admit()
+
+(* the clock of a blum add entry is >= timestamp in the corresponding blum element *)
+let lemma_add_clock (itsl: its_log) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
+  Lemma (TL.clock itsl i `ts_geq` MH.timestamp_of (blum_add_elem (I.index itsl i))) = admit()
+
 (* if the blum add occurs in the blum evict set, its index is earlier *)
 let lemma_evict_before_add (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
   Lemma (requires True)
         (ensures (not (contains (blum_add_elem (I.index itsl i)) (ts_evict_set itsl)) \/
-                  index_blum_evict itsl (blum_add_elem (I.index itsl i)) < i)) = admit()
+                  index_blum_evict itsl (blum_add_elem (I.index itsl i)) < i)) = 
+  let be = blum_add_elem (I.index itsl i) in                  
+  let evt_set = ts_evict_set itsl in
+  let add_set = ts_add_set itsl in
+  if contains be evt_set then (
+    
+    admit()
+  )
+  else ()
 
 (* a slightly different version of of the previous lemma - the count of an add element 
  * in the evict set is the same in the prefix as the full sequence *)
