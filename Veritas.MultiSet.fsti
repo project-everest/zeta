@@ -98,3 +98,6 @@ val lemma_add_size (#a:eqtype) (s:mset a) (x:a):
 
 val lemma_add_elem (#a:eqtype) (s: seq a) (x: a):
   Lemma (seq2mset (append1 s x) == add_elem (seq2mset s) x)
+
+val index_of_mselem (#a:eqtype) (s: seq a) (x:a{contains x (seq2mset s)}): 
+  (i:seq_index s{index s i = x})

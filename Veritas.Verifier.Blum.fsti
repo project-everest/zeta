@@ -50,14 +50,14 @@ val lemma_ts_add_set_key_extend (itsl: its_log {I.length itsl > 0}):
                                            (key_of (I.index itsl (I.length itsl - 1))))
                            (blum_add_elem (I.telem itsl))))
 
-val lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_dom):
-  Lemma (requires (MS.contains be (ts_add_set_key itsl k)))
-        (ensures (MH.key_of be = k))
-
 val some_add_elem_idx (itsl: its_log) 
   (be: ms_hashfn_dom{MS.contains be (ts_add_set itsl)}): 
   (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\
                       be = blum_add_elem (I.index itsl i)})
+
+val lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_dom):
+  Lemma (requires (MS.contains be (ts_add_set_key itsl k)))
+        (ensures (MH.key_of be = k))
 
 (* get the blum evict element from an index *)
 val blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):

@@ -195,14 +195,36 @@ let lemma_ts_add_set_key_extend (itsl: its_log {I.length itsl > 0}):
   let be = blum_add_elem e in
   lemma_add_elem s' be
 
-let lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_dom):
-  Lemma (requires (MS.contains be (ts_add_set_key itsl k)))
-        (ensures (MH.key_of be = k)) = admit()
+let rec lemma_ts_add_set_key_contains_only_aux 
+  (itsl: its_log) 
+  (k: key) 
+  (i:SA.seq_index (ts_add_seq_key itsl k)):
+  Lemma (requires True)
+        (ensures (MH.key_of (S.index (ts_add_seq_key itsl k) i) = k))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = ts_add_seq_key itsl' k in
+  if i = S.length s' then ()
+  else 
+    lemma_ts_add_set_key_contains_only_aux itsl' k i
 
 let some_add_elem_idx (itsl: its_log) 
   (be: ms_hashfn_dom{MS.contains be (ts_add_set itsl)}): 
   (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\
-                      be = blum_add_elem (I.index itsl i)}) = admit()
+                      be = blum_add_elem (I.index itsl i)}) = 
+  let s = ts_add_seq itsl in  
+  (* index of element be in s *)
+  let j = index_of_mselem s be in
+  add_seq_map_inv itsl j
+
+let lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_dom):
+  Lemma (requires (MS.contains be (ts_add_set_key itsl k)))
+        (ensures (MH.key_of be = k)) = 
+  let s = ts_add_seq_key itsl k in
+  let j = index_of_mselem s be in  
+  assert(S.index s j = be);
+  lemma_ts_add_set_key_contains_only_aux itsl k j
 
 (* get the blum evict element from an index *)
 let blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
