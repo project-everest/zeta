@@ -187,7 +187,13 @@ let lemma_ts_add_set_key_extend (itsl: its_log {I.length itsl > 0}):
                   add_elem (ts_add_set_key (I.prefix itsl (I.length itsl - 1))
                                            (key_of (I.index itsl (I.length itsl - 1))))
                            (blum_add_elem (I.telem itsl)))) =
-  admit()
+  let n = I.length itsl in
+  let e = I.telem itsl in
+  let k = key_of e in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = ts_add_seq_key itsl' k in
+  let be = blum_add_elem e in
+  lemma_add_elem s' be
 
 let lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_dom):
   Lemma (requires (MS.contains be (ts_add_set_key itsl k)))

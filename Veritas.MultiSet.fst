@@ -70,3 +70,5 @@ let add_elem (#a:eqtype) (s: mset a) (x:a): mset a = admit()
 let lemma_add_size (#a:eqtype) (s:mset a) (x:a):
   Lemma (size (add_elem s x) = size s + 1) = admit()
 
+let lemma_add_elem (#a:eqtype) (s: seq a) (x: a):
+  Lemma (seq2mset (append1 s x) == add_elem (seq2mset s) x) = admit()
