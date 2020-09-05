@@ -7,6 +7,7 @@ open Veritas.Verifier
 module S = FStar.Seq
 module SA = Veritas.SeqAux
 module V = Veritas.Verifier
+module MH = Veritas.MultiSetHash
 
 (*
  * an indexed vlog attaches an nat index to a vlog
@@ -158,3 +159,6 @@ val lemma_evict_seq_inv (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index 
   Lemma (requires True)
         (ensures (evict_seq_inv_map tl (evict_seq_map tl i) = i))
         [SMTPat (evict_seq_map tl i)]
+
+val lemma_blum_evict_elem_key (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
+  Lemma (MH.key_of (blum_evict_elem tl i) = V.key_of (index tl i))

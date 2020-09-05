@@ -376,3 +376,7 @@ let rec lemma_evict_seq_inv_aux (tl: verifiable_log) (i: idx tl{is_evict_to_blum
   else lemma_evict_seq_inv_aux tl' i
 
 let lemma_evict_seq_inv = lemma_evict_seq_inv_aux
+
+let lemma_blum_evict_elem_key (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
+  Lemma (MH.key_of (blum_evict_elem tl i) = V.key_of (index tl i)) = 
+  ()
