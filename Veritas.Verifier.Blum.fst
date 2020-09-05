@@ -247,12 +247,12 @@ let lemma_index_blum_evict_prefix (itsl: its_log) (i:nat{i <= I.length itsl}) (j
   let itsl' = I.prefix itsl i in
   let gl' = g_vlog_of itsl' in
   let tl' = thread_log gl' t in
+  lemma_i2s_map_prefix itsl i j;
+  //assert(i2s_map itsl j = i2s_map itsl' j);
+  //assert(blum_evict_elem itsl' j = VT.blum_evict_elem tl' j');
   lemma_prefix_interleaving itsl i t;
-  assert(is_prefix (S.index gl t) (S.index gl' t));
-
-  
-
-  admit()
+  //assert(tl' = VT.prefix tl (VT.length tl'));
+  lemma_blum_evict_elem_prefix tl (VT.length tl') j'
 
 let rec ts_evict_seq_aux (itsl: its_log): 
   Tot (seq ms_hashfn_dom)
@@ -405,13 +405,18 @@ let lemma_ts_evict_set_key_extend2 (itsl: its_log {I.length itsl > 0}):
   Lemma (requires (not (is_evict_to_blum (I.index itsl (I.length itsl - 1)))))
         (ensures (ts_evict_set_key itsl (key_of (I.index itsl (I.length itsl - 1))) == 
                   ts_evict_set_key (I.prefix itsl (I.length itsl - 1))
-                                           (key_of (I.index itsl (I.length itsl - 1))))) = admit()
+                                           (key_of (I.index itsl (I.length itsl - 1))))) = ()
 
 (* since evict_set is a pure set (not a multiset) we can identify the unique index 
  * for each element of the set *)
 let index_blum_evict (itsl: its_log) (e: ms_hashfn_dom {contains e (ts_evict_set itsl)}):
   (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i) /\ 
-                    blum_evict_elem itsl i = e}) = admit()
+                      blum_evict_elem itsl i = e}) = 
+  let esq = ts_evict_seq itsl in
+  let est = ts_evict_set itsl in
+  let j = index_of_mselem esq e in
+  assert(S.index esq j = e);
+  evict_seq_inv_map itsl j
 
 (* if the blum add occurs in the blum evict set, its index is earlier *)
 let lemma_evict_before_add (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):

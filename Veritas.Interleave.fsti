@@ -115,6 +115,9 @@ val lemma_prefix_prefix (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) 
 
 val filter (#a:eqtype) (f:a -> bool) (il:interleaving a): interleaving a
 
+val lemma_i2s_map_prefix (#a:eqtype) (il: interleaving a) (i: nat{i <= length il}) (j:nat{j < i}):
+  Lemma (i2s_map il j = i2s_map (prefix il i) j)
+
 (* every component sequence j of a prefix of il is a prefix of the corresponding component sequence of il *)
 val lemma_prefix_interleaving (#a:eqtype) 
   (il: interleaving a) 
