@@ -76,3 +76,10 @@ let lemma_add_elem (#a:eqtype) (s: seq a) (x: a):
 let index_of_mselem (#a:eqtype) (s: seq a) (x:a{contains x (seq2mset s)}): 
   (i:seq_index s{index s i = x})
   = admit()
+
+let lemma_prefix_mem (#a:eqtype) (s: seq a) (s': seq a{is_prefix s s'}) (x: a):
+  Lemma (mem x (seq2mset s') <= mem x (seq2mset s)) = admit()
+
+let lemma_seq_elem2 (#a:eqtype) (s: seq a) (i1 i2: seq_index s):
+  Lemma (requires (i1 <> i2 /\ index s i1 = index s i2))
+        (ensures (mem (index s i1) (seq2mset s) >= 2)) = admit()

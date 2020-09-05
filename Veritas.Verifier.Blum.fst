@@ -424,7 +424,7 @@ let lemma_evict_clock (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.in
 
 (* the clock of a blum add entry is >= timestamp in the corresponding blum element *)
 let lemma_add_clock (itsl: its_log) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
-  Lemma (TL.clock itsl i `ts_geq` MH.timestamp_of (blum_add_elem (I.index itsl i))) = admit()
+  Lemma (MH.timestamp_of (blum_add_elem (I.index itsl i)) `ts_lt` TL.clock itsl i) = admit()
 
 (* if the blum add occurs in the blum evict set, its index is earlier *)
 let lemma_evict_before_add (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
@@ -434,24 +434,107 @@ let lemma_evict_before_add (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.in
   let be = blum_add_elem (I.index itsl i) in                  
   let evt_set = ts_evict_set itsl in
   let add_set = ts_add_set itsl in
+  lemma_add_clock itsl i;
   if contains be evt_set then (
-    
-    admit()
+    let j = index_blum_evict itsl be in
+    lemma_evict_clock itsl j;
+    lemma_clock_ordering itsl j i
   )
   else ()
+
+(* the evict set of a prefix is a prefix of the evict set *)
+let lemma_prefix_evict_seq (itsl: its_log) (i:nat{i < I.length itsl}):
+  Lemma (requires True)
+        (ensures (SA.is_prefix (ts_evict_seq itsl) (ts_evict_seq (I.prefix itsl i))))
+        (decreases (I.length itsl)) = 
+          
+  admit()
+
+let lemma_evict_seq_map_prefix (itsl: its_log) (i: nat{i< I.length itsl}) (j:nat):
+  Lemma (requires (j < i /\
+                   is_evict_to_blum (I.index itsl j)))
+        (ensures (evict_seq_map itsl j = evict_seq_map (I.prefix itsl i) j)) = admit()
 
 (* a slightly different version of of the previous lemma - the count of an add element 
  * in the evict set is the same in the prefix as the full sequence *)
 let lemma_evict_before_add2 (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
    Lemma (requires True)
          (ensures (MS.mem (blum_add_elem (I.index itsl i)) (ts_evict_set itsl) =
-                   MS.mem (blum_add_elem (I.index itsl i)) (ts_evict_set (I.prefix itsl i)))) = admit()
+                   MS.mem (blum_add_elem (I.index itsl i)) (ts_evict_set (I.prefix itsl i)))) = 
+   let be = blum_add_elem (I.index itsl i) in
+   let evt_seq = ts_evict_seq itsl in
+   let evt_set = ts_evict_set itsl in
+   let itsl' = I.prefix itsl i in   
+   let evt_seq' = ts_evict_seq itsl' in
+   let evt_set' = ts_evict_set itsl' in
+
+   lemma_prefix_evict_seq itsl i;
+   //assert(is_prefix evt_seq evt_seq');
+
+   lemma_prefix_mem evt_seq evt_seq' be;
+   //assert(mem be evt_set' <= mem be evt_set);
+
+   if mem be evt_set' < mem be evt_set then (
+     (* since evt_set is a set ... *)
+     g_evict_set_is_set (g_vlog_of itsl);
+     lemma_ts_evict_set_correct itsl;
+     //assert(is_set evt_set);
+
+     (* the following mem facts must be true *)
+     //assert(mem be evt_set = 1);
+     //assert(mem be evt_set' = 0);
+
+     (* however from previous lemma, it follows that evt_set' should contain be, a contradiction *)
+     lemma_evict_before_add itsl i;
+     let j = index_blum_evict itsl be in
+     //assert(j < i);
+
+     lemma_evict_seq_map_prefix itsl i j;
+     let j' = evict_seq_map itsl' j in
+     //assert(S.index evt_seq' j' = be);
+
+     lemma_seq_elem evt_seq' j';
+     //assert(contains be evt_set');
+     
+     ()
+   )
+   else ()
 
 let lemma_evict_before_add3 (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i) /\
                    is_evict_to_blum (I.index itsl j) /\
                    blum_add_elem (I.index itsl i) = blum_evict_elem itsl j))
-        (ensures (j < i)) = admit()
+        (ensures (j < i)) = 
+  let be = blum_add_elem (I.index itsl i) in        
+  let evt_seq = ts_evict_seq itsl in
+  let evt_set = ts_evict_set itsl in
+  let add_seq = ts_add_seq itsl in
+  let add_set = ts_add_set itsl in
+  
+  let j1 = evict_seq_map itsl j in  
+  //assert(S.index evt_seq j1 = be);
+
+  (* evict set contains be *)
+  lemma_seq_elem evt_seq j1;
+  assert(contains be evt_set);
+
+  
+  let j' = index_blum_evict itsl be in
+  lemma_evict_before_add itsl i;
+  assert(j' < i);
+
+  if j' <> j then (
+    let j2 = evict_seq_map itsl j' in
+    assert(j1 <> j2);
+
+    lemma_seq_elem2 evt_seq j1 j2;
+    assert(mem be evt_set >= 2);
+
+    (* this is a contradiction since evt_set is a set *)
+    g_evict_set_is_set (g_vlog_of itsl);
+    lemma_ts_evict_set_correct itsl
+  )
+  else ()
 
 (* for an eac ts log, if the eac state of a key k is instore, the count of blum evicts 
  * is the same of blum adds for that key *)

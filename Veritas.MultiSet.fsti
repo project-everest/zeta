@@ -101,3 +101,13 @@ val lemma_add_elem (#a:eqtype) (s: seq a) (x: a):
 
 val index_of_mselem (#a:eqtype) (s: seq a) (x:a{contains x (seq2mset s)}): 
   (i:seq_index s{index s i = x})
+
+(* if s' is a prefix of s, then the membership of x in s' is lesser than s *)
+val lemma_prefix_mem (#a:eqtype) (s: seq a) (s': seq a{is_prefix s s'}) (x: a):
+  Lemma (mem x (seq2mset s') <= mem x (seq2mset s))
+
+(* if I provide two copies of an element, then the membership of that element is >= 2 *)
+val lemma_seq_elem2 (#a:eqtype) (s: seq a) (i1 i2: seq_index s):
+  Lemma (requires (i1 <> i2 /\ index s i1 = index s i2))
+        (ensures (mem (index s i1) (seq2mset s) >= 2))
+        

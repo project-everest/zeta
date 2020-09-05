@@ -33,6 +33,9 @@ let ts_geq (t1 t2: timestamp) =
 let ts_leq (t1 t2: timestamp) = 
   t1 = t2 || t1 `ts_lt` t2
 
+let ts_gt (t1 t2: timestamp): bool = 
+  not (t1 `ts_leq` t2)
+
 type ms_hashfn_dom = 
   | MHDom: r:record -> t:timestamp -> i:nat -> ms_hashfn_dom
 
