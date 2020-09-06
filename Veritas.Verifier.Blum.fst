@@ -462,10 +462,30 @@ let rec lemma_prefix_evict_seq (itsl: its_log) (i:nat{i < I.length itsl}):
     else ()
   )
 
-let lemma_evict_seq_map_prefix (itsl: its_log) (i: nat{i< I.length itsl}) (j:nat):
+let rec lemma_evict_seq_map_prefix (itsl: its_log) (i: nat{i< I.length itsl}) (j:nat):
   Lemma (requires (j < i /\
                    is_evict_to_blum (I.index itsl j)))
-        (ensures (evict_seq_map itsl j = evict_seq_map (I.prefix itsl i) j)) = admit()
+        (ensures (evict_seq_map itsl j = evict_seq_map (I.prefix itsl i) j))
+        (decreases (I.length itsl)) = 
+  let n:nat = I.length itsl in
+  let itsl':its_log = I.prefix itsl (n - 1) in
+  let s' = ts_evict_seq itsl' in  
+  let e = I.index itsl (n - 1) in
+  // for some reason, f* needs this assert
+  assert(I.length itsl' = (n - 1));
+  if i = n - 1 then 
+    if is_evict_to_blum e then
+      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))
+    else ()  
+  else (
+    // for some reason, f* needs this assert
+    //assert(i < I.length itsl');
+    lemma_evict_seq_map_prefix itsl' i j;
+
+    if is_evict_to_blum e then 
+      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))    
+    else ()
+  )
 
 (* a slightly different version of of the previous lemma - the count of an add element 
  * in the evict set is the same in the prefix as the full sequence *)
