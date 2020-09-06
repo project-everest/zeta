@@ -443,12 +443,24 @@ let lemma_evict_before_add (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.in
   else ()
 
 (* the evict set of a prefix is a prefix of the evict set *)
-let lemma_prefix_evict_seq (itsl: its_log) (i:nat{i < I.length itsl}):
+let rec lemma_prefix_evict_seq (itsl: its_log) (i:nat{i < I.length itsl}):
   Lemma (requires True)
         (ensures (SA.is_prefix (ts_evict_seq itsl) (ts_evict_seq (I.prefix itsl i))))
         (decreases (I.length itsl)) = 
-          
-  admit()
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in    
+  let s' = ts_evict_seq itsl' in
+  let e = I.index itsl (n - 1) in
+  if i = n - 1 then 
+    if is_evict_to_blum e then 
+      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))
+    else ()  
+  else (    
+    lemma_prefix_evict_seq itsl' i;
+    if is_evict_to_blum e then
+      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))    
+    else ()
+  )
 
 let lemma_evict_seq_map_prefix (itsl: its_log) (i: nat{i< I.length itsl}) (j:nat):
   Lemma (requires (j < i /\
