@@ -50,11 +50,6 @@ let rec hevict_aux (gl: verifiable_log):
 let hevict (gl: verifiable_log): ms_hash_value =
   hevict_aux gl
 
-let clock (gl: verifiable_log) (i: sseq_index gl): timestamp = 
-  let (tid, idx) = i in  
-  let tl = thread_log gl tid in
-  VT.clock tl idx
-
 (* global add sequence *)
 let rec g_add_seq_aux (gl: verifiable_log): 
   Tot (seq (ms_hashfn_dom))

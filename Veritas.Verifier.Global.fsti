@@ -45,7 +45,13 @@ let hash_verifiable_log = gl:verifiable_log{hash_verifiable gl}
  * in the thread log
  *)
  
-val clock (gl: verifiable_log) (i: sseq_index gl): timestamp
+//val clock (gl: verifiable_log) (i: sseq_index gl): timestamp
+
+let clock (gl: verifiable_log) (i: sseq_index gl): timestamp = 
+  let (tid, idx) = i in  
+  let tl = thread_log gl tid in
+  VT.clock tl idx
+
 
 (* global add sequence *)
 val g_add_seq (gl: verifiable_log): seq (ms_hashfn_dom)

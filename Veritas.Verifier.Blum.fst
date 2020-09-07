@@ -421,11 +421,18 @@ let index_blum_evict (itsl: its_log) (e: ms_hashfn_dom {contains e (ts_evict_set
 (* the clock of an evict entry is the timestamp in the corresponding blum element *)
 let lemma_evict_clock (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
   Lemma (TL.clock itsl i = MH.timestamp_of (blum_evict_elem itsl i)) = 
-  admit()
+  let gl = g_vlog_of itsl in
+  let (tid,j) = i2s_map itsl i in
+  let tl = thread_log gl tid in
+  VT.lemma_evict_clock tl j
 
 (* the clock of a blum add entry is >= timestamp in the corresponding blum element *)
 let lemma_add_clock (itsl: its_log) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
-  Lemma (MH.timestamp_of (blum_add_elem (I.index itsl i)) `ts_lt` TL.clock itsl i) = admit()
+  Lemma (MH.timestamp_of (blum_add_elem (I.index itsl i)) `ts_lt` TL.clock itsl i) = 
+  let gl = g_vlog_of itsl in
+  let (tid,j) = i2s_map itsl i in
+  let tl = thread_log gl tid in
+  VT.lemma_add_clock tl j
 
 (* if the blum add occurs in the blum evict set, its index is earlier *)
 let lemma_evict_before_add (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
@@ -472,19 +479,15 @@ let rec lemma_evict_seq_map_prefix (itsl: its_log) (i: nat{i< I.length itsl}) (j
   let itsl':its_log = I.prefix itsl (n - 1) in
   let s' = ts_evict_seq itsl' in  
   let e = I.index itsl (n - 1) in
-  // for some reason, f* needs this assert
-  assert(I.length itsl' = (n - 1));
   if i = n - 1 then 
-    if is_evict_to_blum e then
-      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))
-    else ()  
-  else (
-    // for some reason, f* needs this assert
-    //assert(i < I.length itsl');
-    lemma_evict_seq_map_prefix itsl' i j;
-
     if is_evict_to_blum e then 
       lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))    
+    else ()  
+  else (
+    lemma_evict_seq_map_prefix itsl' i j;
+
+    if is_evict_to_blum e then  
+      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))
     else ()
   )
 

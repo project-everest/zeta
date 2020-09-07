@@ -40,10 +40,17 @@ let verifiable (il: il_vlog) =
   VG.verifiable (g_vlog_of il)
 
 (* the clock of an entry in a verifiable idx seq *)
-val clock (il: il_vlog{verifiable il}) (i: I.seq_index il): timestamp
+let clock (il: il_vlog{verifiable il}) (i: I.seq_index il): timestamp =
+  let gl = g_vlog_of il in
+  let j = i2s_map il i in
+  VG.clock gl j
 
+
+(*
 let clock_sorted (il: il_vlog{verifiable il}) =
   forall (i:I.seq_index il). i > 0 ==> clock il (i - 1) `ts_leq` clock il i
+*)
+val clock_sorted (il: il_vlog {verifiable il}): bool
 
 (* TODO: add clock_sorted *)
 let its_log = il:il_vlog{verifiable il /\ clock_sorted il}
