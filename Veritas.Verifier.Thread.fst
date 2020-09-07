@@ -384,5 +384,28 @@ let lemma_blum_evict_elem_key (tl: verifiable_log) (i: idx tl{is_evict_to_blum (
 let lemma_blum_evict_elem_prefix (tl: verifiable_log) (i: nat{i <= length tl}) 
   (j: nat{j < i && is_evict_to_blum (index tl j)}):
   Lemma (blum_evict_elem tl j = blum_evict_elem (prefix tl i) j) = ()
-  
+ 
+let lemma_add_clock (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
+  Lemma (MH.timestamp_of (blum_add_elem (index tl i)) `ts_lt`  clock tl i) = 
+  let e = index tl i in
+  lemma_state_transition tl i;
+  let si = state_at tl i in
+  let si' = state_at tl (i + 1) in
+  match e with
+  | AddB r t j ->
+    assert(Valid?.clk si' = max (Valid?.clk si) (next t)); 
+    ()
+
+let lemma_evict_clock (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
+  Lemma (MH.timestamp_of (blum_evict_elem tl i) = clock tl i) = 
+  let e = index tl i in  
+  lemma_state_transition tl i;
+  let si = state_at tl i in
+  let si' = state_at tl (i + 1) in
+  let be = blum_evict_elem tl i in
+  match e with
+  | EvictB k t -> 
+    //assert(MH.timestamp_of be = t);    
+    ()
+  | EvictBM k k' t -> ()
 

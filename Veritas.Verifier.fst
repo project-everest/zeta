@@ -302,7 +302,7 @@ let vaddb (r:record)
     (* current clock of thread i *)
     let clk = thread_clock vs in
     (* updated clock *)
-    let clk_upd = max clk t in
+    let clk_upd = max clk (next t) in
     (* update verifier state with new clock *)
     let vs_upd2 = update_thread_clock vs_upd clk_upd in
     (* add record to store *)

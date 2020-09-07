@@ -11,7 +11,7 @@ open Veritas.SeqAux
 let ms_hash_size = 256
 
 (* multiset hash value *)
-type ms_hash_value = bv_t ms_hash_size
+let ms_hash_value = bv_t ms_hash_size
 
 (* Hash value of an empty set *)
 val empty_hash_value: ms_hash_value
@@ -19,6 +19,10 @@ val empty_hash_value: ms_hash_value
 (* timestamp for blum *)
 type timestamp = 
   | MkTimestamp: e: nat -> c: nat -> timestamp
+
+let next (t: timestamp): timestamp = 
+  match t with
+  | MkTimestamp e c -> MkTimestamp e (c + 1)
 
 let ts_lt (t1 t2: timestamp) = 
   let e1 = MkTimestamp?.e t1 in

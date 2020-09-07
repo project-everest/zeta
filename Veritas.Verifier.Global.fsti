@@ -44,6 +44,7 @@ let hash_verifiable_log = gl:verifiable_log{hash_verifiable gl}
  * is a pair that identifies the verifier thread and an entry
  * in the thread log
  *)
+ 
 val clock (gl: verifiable_log) (i: sseq_index gl): timestamp
 
 (* global add sequence *)

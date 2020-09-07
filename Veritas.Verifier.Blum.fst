@@ -420,7 +420,8 @@ let index_blum_evict (itsl: its_log) (e: ms_hashfn_dom {contains e (ts_evict_set
 
 (* the clock of an evict entry is the timestamp in the corresponding blum element *)
 let lemma_evict_clock (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
-  Lemma (TL.clock itsl i = MH.timestamp_of (blum_evict_elem itsl i)) = admit()
+  Lemma (TL.clock itsl i = MH.timestamp_of (blum_evict_elem itsl i)) = 
+  admit()
 
 (* the clock of a blum add entry is >= timestamp in the corresponding blum element *)
 let lemma_add_clock (itsl: its_log) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):

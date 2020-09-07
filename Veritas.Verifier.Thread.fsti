@@ -167,3 +167,9 @@ val lemma_blum_evict_elem_prefix (tl: verifiable_log) (i: nat{i <= length tl})
   (j: nat{j < i && is_evict_to_blum (index tl j)}):
   Lemma (blum_evict_elem tl j = blum_evict_elem (prefix tl i) j)
 
+val lemma_add_clock (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
+  Lemma (MH.timestamp_of (blum_add_elem (index tl i)) `ts_lt`  clock tl i) 
+
+val lemma_evict_clock (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
+  Lemma (MH.timestamp_of (blum_evict_elem tl i) = clock tl i)
+  
