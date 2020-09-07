@@ -451,23 +451,49 @@ let lemma_evict_before_add (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.in
   else ()
 
 (* the evict set of a prefix is a prefix of the evict set *)
-let rec lemma_prefix_evict_seq (itsl: its_log) (i:nat{i < I.length itsl}):
+let rec lemma_prefix_evict_seq (itsl: its_log) (i:nat{i <= I.length itsl}):
   Lemma (requires True)
         (ensures (SA.is_prefix (ts_evict_seq itsl) (ts_evict_seq (I.prefix itsl i))))
         (decreases (I.length itsl)) = 
   let n = I.length itsl in
-  let itsl' = I.prefix itsl (n - 1) in    
-  let s' = ts_evict_seq itsl' in
-  let e = I.index itsl (n - 1) in
-  if i = n - 1 then 
-    if is_evict_to_blum e then 
-      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))
-    else ()  
-  else (    
-    lemma_prefix_evict_seq itsl' i;
-    if is_evict_to_blum e then
-      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))    
-    else ()
+  if i = n then ()
+  else (
+    let itsl' = I.prefix itsl (n - 1) in    
+    let s' = ts_evict_seq itsl' in
+    let e = I.index itsl (n - 1) in
+  
+    if i = n - 1 then 
+      if is_evict_to_blum e then 
+        lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))
+      else ()  
+    else (    
+      lemma_prefix_evict_seq itsl' i;
+      if is_evict_to_blum e then
+        lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))    
+      else ()
+    )
+ )
+
+let rec lemma_prefix_add_seq (itsl: its_log) (i: nat{ i <= I.length itsl}):
+  Lemma (requires True)
+        (ensures (SA.is_prefix (ts_add_seq itsl) (ts_add_seq (I.prefix itsl i))))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if i = n then () // prefix is the same sequence
+  else (
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq itsl' in
+    let e = I.index itsl (n - 1) in
+    if i = n - 1 then
+      if is_blum_add e then
+        lemma_prefix1_append s' (blum_add_elem e)
+      else ()
+    else (
+      lemma_prefix_add_seq itsl' i;
+      if is_blum_add e then
+        lemma_prefix1_append s' (blum_add_elem e)
+      else ()
+    )
   )
 
 let rec lemma_evict_seq_map_prefix (itsl: its_log) (i: nat{i< I.length itsl}) (j:nat):
@@ -590,10 +616,33 @@ let lemma_mem_key_add_set_same (itsl: its_log) (be: ms_hashfn_dom):
 let lemma_mem_key_evict_set_same (itsl: its_log) (be: ms_hashfn_dom):
   Lemma (mem be (ts_evict_set itsl) = mem be (ts_evict_set_key itsl (MH.key_of be))) =admit()
 
+let lemma_mem_monotonic_add_seq (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length itsl}):
+  Lemma (mem be (ts_add_set itsl) >= mem be (ts_add_set (I.prefix itsl i))) =            
+  let itsl' = I.prefix itsl i in
+  let s' = ts_add_seq itsl' in
+  let s = ts_add_seq itsl in
+  lemma_prefix_add_seq itsl i;
+  //assert(is_prefix s s');
+  lemma_prefix_mem s s' be;
+  ()
+
+let lemma_mem_monotonic_evict_seq (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length itsl}):
+  Lemma (mem be (ts_evict_set itsl) >= mem be (ts_evict_set (I.prefix itsl i))) =            
+  let itsl' = I.prefix itsl i in
+  let s' = ts_evict_seq itsl' in
+  let s = ts_evict_seq itsl in
+  lemma_prefix_evict_seq itsl i;
+  //assert(is_prefix s s');
+  lemma_prefix_mem s s' be;
+  ()
+
 (* the count of an element can only decrease in a prefix of itsl *)
 let lemma_mem_monotonic (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length itsl}):
   Lemma (mem be (ts_evict_set itsl) >= mem be (ts_evict_set (I.prefix itsl i)) /\
-         mem be (ts_add_set itsl) >= mem be (ts_add_set (I.prefix itsl i))) = admit()
+         mem be (ts_add_set itsl) >= mem be (ts_add_set (I.prefix itsl i))) = 
+  lemma_mem_monotonic_add_seq be itsl i;
+  lemma_mem_monotonic_evict_seq be itsl i;
+  ()
 
 (* the next add of a blum evict is a blum add of the same "element" *)
 let lemma_blum_evict_add_same (itsl: TL.eac_log) (i:I.seq_index itsl):
@@ -617,4 +666,10 @@ let lemma_add_set_mem (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index itsl{
   Lemma (requires (is_blum_add (I.index itsl i) /\
                    is_blum_add (I.index itsl j) /\
                    blum_add_elem (I.index itsl i) = blum_add_elem (I.index itsl j)))
-        (ensures (MS.mem (blum_add_elem (I.index itsl i)) (ts_add_set itsl) >= 2)) = admit()
+        (ensures (MS.mem (blum_add_elem (I.index itsl i)) (ts_add_set itsl) >= 2)) = 
+  let be = blum_add_elem (I.index itsl i) in
+  let s = ts_add_seq itsl in
+  let i1 = add_seq_map itsl i in
+  let j1 = add_seq_map itsl j in
+  //assert(i1 <> j1);
+  lemma_seq_elem2 s i1 j1
