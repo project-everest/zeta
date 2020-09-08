@@ -22,11 +22,26 @@ let u8 = Lib.IntTypes.uint8
 noextract inline_for_extraction
 let bytes = S.seq u8
 
-// JP: not being agile over the hash algorithm for the moment, can be improved later
-let hashable_bytes = b:bytes { S.length b <= Spec.Hash.Definitions.(max_input_length SHA2_256) }
+// JP: not being agile over the hash algorithm for the moment, can be improved
+// later; any keyed hash will do, HMAC would also work, AES-CMAC is the one
+// currently used in Veritas
+
+// Note: this restriction does not come from the spec but rather from the
+// implementation. Is this really necessary? See discussion on Slack, could
+// easily be 2 ^ 64 - 128.
+inline_for_extraction noextract
+let blake2_max_input_length = pow2 32 - 1 - 128
+inline_for_extraction noextract
+let blake2_key_length = 64
+
+// NOTE: we do not have an agile spec for the keyed hash functionality :(, so
+// we're making Blake2-dependent assumptions without corresponding agile predicates
+let hashable_bytes = b:bytes { S.length b <= blake2_max_input_length }
+
+let t = Lib.ByteSequence.lbytes Spec.Blake2.(max_output Blake2B)
+let t_key = Lib.ByteSequence.lbytes blake2_key_length
 
 // ---
-
 
 [@CAbstractStruct]
 val state_s: Type0
@@ -37,13 +52,14 @@ let state = B.pointer state_s
 
 val seen: h:HS.mem -> s:state -> GTot (list hashable_bytes)
 
-let t = Spec.Hash.Definitions.(bytes_hash SHA2_256)
-
-let zero: hashable_bytes =
-  assert_norm (32 < pow2 61);
-  S.create 32 (Lib.IntTypes.u8 0)
+let zero: t =
+  S.create 64 (Lib.IntTypes.u8 0)
 
 val v: h:HS.mem -> s:state -> GTot t
+
+/// Combined with the modifies clause over only the footprint_s, clients should
+/// be able to deduce that the initial key is not modified.
+val key: s:state_s -> GTot t_key
 
 /// "As we all know", right folds are the easiest to work with because they
 /// follow the natural structure of recursion (left-folds are evil).
@@ -69,8 +85,8 @@ let xor_bytes_commutative (s1: bytes) (s2: bytes { S.length s1 == S.length s2 })
 =
   admit ()
 
-let fold_and_hash (acc: t) (b: hashable_bytes) =
-  xor_bytes Spec.Agile.Hash.(hash SHA2_256 b) acc
+let fold_and_hash (k: t_key) (acc: t) (b: hashable_bytes) =
+  xor_bytes (Spec.Blake2.blake2b b 64 k 64) acc
 
 // ---
 
@@ -112,7 +128,7 @@ val v_folds_seen (h: HS.mem) (s: state): Lemma
   (requires (
     invariant h s))
   (ensures (
-    v h s == gfold_right fold_and_hash (seen h s) zero))
+    v h s == gfold_right (fold_and_hash (key (B.deref h s))) (seen h s) zero))
   [ SMTPat (invariant h s) ]
 
 val frame: l:B.loc -> s:state -> h0:HS.mem -> h1:HS.mem -> Lemma
@@ -129,12 +145,15 @@ val frame: l:B.loc -> s:state -> h0:HS.mem -> h1:HS.mem -> Lemma
 
 // ---
 
-val create_in: r:HS.rid -> ST state
+val create_in: r:HS.rid -> k:B.buffer u8 -> ST state
   (requires (fun h0 ->
+    B.length k == blake2_key_length /\
+    B.live h0 k /\
     HyperStack.ST.is_eternal_region r))
   (ensures (fun h0 s h1 ->
     invariant h1 s /\
     seen h1 s == [] /\
+    key (B.deref h1 s) == B.as_seq h0 k /\
     B.(modifies loc_none h0 h1) /\
     B.fresh_loc (footprint h1 s) h0 h1 /\
     B.(loc_includes (loc_region_only true r) (footprint h1 s))))
@@ -144,7 +163,9 @@ val add: s:state -> b:B.buffer u8 -> l:U32.t -> Stack unit
     invariant h0 s /\
     B.len b == l /\
     B.live h0 b /\
-    B.length b <= Spec.Hash.Definitions.(max_input_length SHA2_256)))
+    B.length b <= blake2_max_input_length /\
+    // Note: this is blake2 specific.
+    B.(loc_disjoint (loc_buffer b) (footprint h0 s))))
   (ensures (fun h0 _ h1 ->
     invariant h1 s /\
     B.modifies (footprint_s (B.deref h0 s)) h0 h1 /\
