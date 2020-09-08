@@ -83,9 +83,6 @@ assume val xor_inplace (b1: B.buffer u8) (b2: B.buffer u8): Stack unit
     B.(modifies (loc_buffer b1) h0 h1) /\
     B.as_seq h1 b1 == xor_bytes (B.as_seq h0 b1) (B.as_seq h0 b2)))
 
-inline_for_extraction noextract
-let why (x: B.buffer u8) (l: UInt32.t { B.len x == l }): y:Lib.Buffer.lbuffer u8 l = x
-
 #push-options "--fuel 1 --z3rlimit 200"
 let add s b l =
   let _ = allow_inversion state_s in
@@ -100,25 +97,9 @@ let add s b l =
   assert_norm (64 < pow2 32);
   assert_norm (64 <= Spec.Blake2.(max_key Blake2B));
   assert (B.length tmp == 64);
-  [@inline_let]
-  let tmp = why tmp 64ul in
-  [@inline_let]
-  let key = why key 64ul in
   Hacl.Blake2b_32.blake2b 64ul tmp l b 64ul key;
   xor_inplace acc tmp;
   seen *= G.hide (B.as_seq h1 b :: B.deref h1 seen);
-  let h5 = ST.get () in
-  assert (
-    let h = h5 in
-    let s = B.deref h5 s in
-    B.live h s.acc /\ B.freeable s.acc /\
-    B.live h s.seen /\ B.freeable s.seen /\
-    B.live h s.key /\ B.freeable s.key /\
-    B.disjoint s.acc s.seen /\
-    B.disjoint s.acc s.key /\
-    B.disjoint s.seen s.key /\
-    B.as_seq h s.acc == gfold_right (fold_and_hash s.g_key) (G.reveal (B.deref h s.seen)) zero /\
-    G.reveal s.g_key == B.as_seq h s.key);
   pop_frame ()
 #pop-options
 
