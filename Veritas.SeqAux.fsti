@@ -9,6 +9,12 @@ type seq_index (#a:Type) (s:seq a) = i:nat{i < length s}
 (* Prefix of a sequence *)
 val prefix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
 
+let hprefix (#a:Type) (s:seq a{length s > 0}): seq a = 
+  prefix s (length s - 1)
+
+let telem (#a:Type) (s:seq a{length s > 0}): a =
+  index s (length s - 1)
+
 (* append a single element to the end of a sequence *)
 let append1 (#a:Type) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} =
   append s (create 1 x)
@@ -150,6 +156,10 @@ val lemma_filter_prefix_comm (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s):
   Lemma (requires (f (index s i)))
         (ensures (filter f (prefix s i) = prefix (filter f s) (filter_index_inv_map f s i)))
 
+val lemma_filter_prefix_comm2 (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s):
+  Lemma (requires (f (index s i)))
+        (ensures (filter f (prefix s (i+1)) = prefix (filter f s) (1 + (filter_index_inv_map f s i))))
+
 val lemma_filter_extend1 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (not (f (index s (length s - 1)))))
         (ensures (filter f s = filter f (prefix s (length s - 1))))
@@ -265,6 +275,10 @@ val lemma_map_prefix (#a #b: Type) (f:a -> b) (s:seq a) (i: seq_index s):
   Lemma (requires True)
         (ensures (map f (prefix s i) == prefix (map f s) i))
 
+val lemma_map_suffix (#a #b: Type) (f:a -> b) (s:seq a) (i:nat{i <= length s}):
+  Lemma (requires True)
+        (ensures (map f (suffix s i) == suffix (map f s) i))
+
 val lemma_map_extend (#a #b:Type) (f:a -> b) (s:seq a{length s > 0}):
   Lemma (map f s == append1 (map f (prefix s (length s - 1)))
                             (f (index s (length s - 1))))
@@ -291,6 +305,10 @@ val lemma_unzip_index (#a #b: eqtype) (sab: seq (a * b)) (i:seq_index sab):
 val lemma_zip_unzip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa}):
   Lemma (requires (True))
         (ensures ((sa, sb) = unzip (zip sa sb)))
+
+val lemma_unzip_extend (#a #b: eqtype) (sab: seq (a * b){length sab > 0}):
+  Lemma (fst (unzip sab) = append1 (fst (unzip (hprefix sab))) (fst (telem sab)) /\
+         snd (unzip sab) = append1 (snd (unzip (hprefix sab))) (snd (telem sab)))
 
 (* attach their index to elements of a sequence *)
 val attach_index (#a:Type) (s:seq a): Tot (seq (nat * a))
@@ -333,3 +351,26 @@ val lemma_reduce_append (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a)
 val lemma_reduce_append2 (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a{length s > 0}):
   Lemma (reduce b0 f s = f (index s (length s - 1)) (reduce b0 f (prefix s (length s - 1))))
 
+(* The index of the next entry that satisfies a filter predicate *)
+val next_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Tot (option (j:seq_index s{j > i && f (index s j)}))
+
+(* is there a next element in the sequence that satisfies a filter predicate *)
+let has_next (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s): bool = 
+  Some? (next_index_opt f s i)
+
+(* the next index satisfying a filter predicate *)
+let next_index (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{has_next f s i}): 
+  (j:seq_index s{j > i && f (index s j)}) = Some?.v (next_index_opt f s i)
+
+(* The index of the next entry that satisfies a filter predicate *)
+val prev_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Tot (option (j:seq_index s{j < i && f (index s j)}))
+
+(* is there a next element in the sequence that satisfies a filter predicate *)
+let has_prev (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s): bool = 
+  Some? (prev_index_opt f s i)
+
+(* the next index satisfying a filter predicate *)
+let prev_index (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{has_prev f s i}): 
+  (j:seq_index s{j < i && f (index s j)}) = Some?.v (prev_index_opt f s i)

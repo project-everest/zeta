@@ -58,8 +58,8 @@ val lemma_empty_seq_valid (sm: seq_machine):
 val lemma_valid_prefix (sm: seq_machine) (s: (seq (elem_type sm)){valid sm s}) (i:nat{i <= length s}):
   Lemma (valid sm (prefix s i))
 
-val lemma_notempty_implies_noninit (sm: seq_machine) (s: seq (elem_type sm){length s > 0}):
-  Lemma (init_state sm <> seq_machine_run sm s)
+val lemma_notempty_implies_noninit (sm: seq_machine) (s: seq (elem_type sm)):
+  Lemma (length s > 0 ==> init_state sm <> seq_machine_run sm s)
 
 (* the maximum valid prefix of a sequence is computable *)
 val max_valid_prefix (sm: seq_machine) (s: seq (elem_type sm))
@@ -116,3 +116,10 @@ val invalidating_key (psm: pseq_machine)
                      (s: seq (elem_type_p psm){~ (valid_all psm s)}):
   Tot (k:(key_type psm){not (valid (seq_machine_of psm) (partn psm k s))})
 
+val lemma_first_invalid_key (psm: pseq_machine) (s: seq (elem_type_p psm){~ (valid_all psm s)}):
+  Lemma (filter_index_inv_map (iskey (partn_fn psm) 
+                                     (partn_fn psm (index s (max_valid_all_prefix psm s)))) 
+                              s 
+                              (max_valid_all_prefix psm s) = 
+         max_valid_prefix (seq_machine_of psm) 
+                          (partn psm (partn_fn psm (index s (max_valid_all_prefix psm s))) s))

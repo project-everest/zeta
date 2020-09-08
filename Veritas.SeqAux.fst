@@ -328,6 +328,12 @@ let lemma_filter_prefix_comm (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s):
         (ensures (filter f (prefix s i) = prefix (filter f s) (filter_index_inv_map f s i))) =
   lemma_filter_prefix f s (prefix s i)
 
+let lemma_filter_prefix_comm2 (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s):
+  Lemma (requires (f (index s i)))
+        (ensures (filter f (prefix s (i+1)) = prefix (filter f s) (1 + (filter_index_inv_map f s i)))) = 
+  rank_increases_by_atmost_one f s i;
+  lemma_filter_prefix f s (prefix s (i + 1))
+
 let lemma_filter_extend1 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (not (f (index s (length s - 1)))))
         (ensures (filter f s = filter f (prefix s (length s - 1)))) = ()
@@ -581,6 +587,14 @@ let lemma_map_prefix (#a #b: Type) (f:a -> b) (s:seq a) (i: seq_index s):
   assert(equal mp pm);
   ()
 
+let lemma_map_suffix (#a #b: Type) (f:a -> b) (s:seq a) (i:nat{i <= length s}):
+  Lemma (requires True)
+        (ensures (map f (suffix s i) == suffix (map f s) i)) =
+  let ms = map f (suffix s i) in
+  let sm = suffix (map f s) i in
+  assert(equal ms sm);
+  ()
+
 let lemma_map_extend (#a #b:Type) (f:a -> b) (s:seq a{length s > 0}):
   Lemma (map f s == append1 (map f (prefix s (length s - 1)))
                             (f (index s (length s - 1)))) = 
@@ -664,6 +678,11 @@ let lemma_zip_unzip (#a #b: eqtype) (sa: seq a) (sb: seq b{length sb = length sa
   in
   assert(equal sb (snd (unzip sab)));
   ()
+
+let lemma_unzip_extend (#a #b: eqtype) (sab: seq (a * b){length sab > 0}):
+  Lemma (requires True)
+        (ensures (fst (unzip sab) = append1 (fst (unzip (hprefix sab))) (fst (telem sab)) /\
+                  snd (unzip sab) = append1 (snd (unzip (hprefix sab))) (snd (telem sab)))) = ()
 
 let rec attach_index_aux (#a:Type) (s:seq a): Tot (seq (nat * a))
   (decreases (length s)) =
@@ -754,3 +773,11 @@ let lemma_reduce_append (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a)
 
 let lemma_reduce_append2 (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a{length s > 0}):
   Lemma (reduce b0 f s = f (index s (length s - 1)) (reduce b0 f (prefix s (length s - 1)))) = ()
+
+(* The index of the next entry that satisfies a filter predicate *)
+let next_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Tot (option (j:seq_index s{j > i && f (index s j)})) = admit()
+
+let prev_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+  Tot (option (j:seq_index s{j < i && f (index s j)})) = admit()
+
