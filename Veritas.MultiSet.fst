@@ -33,6 +33,9 @@ let create (#a:eqtype) (x:a) (m:nat): Tot (mset a) = admit()
 (* construct a multiset given a sequence *)
 let seq2mset (#a:eqtype) (s: seq a): Tot (mset a) = admit()
 
+let lemma_length_size (#a:eqtype) (s: seq a):
+  Lemma (length s = size (seq2mset s)) = admit()
+
 let lemma_mset_bijection (#a:eqtype) (s1 s2: seq a) (f12: into_smap s1 s2) (f21: into_smap s2 s1):
   Lemma (seq2mset s1 == seq2mset s2) = admit()
 

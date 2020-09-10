@@ -598,17 +598,46 @@ let lemma_evict_before_add3 (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index
   )
   else ()
 
+let lemma_evict_add_count_same_aux (itsl: TL.eac_log) (k:key):
+  Lemma (requires (True))
+        (ensures (is_eac_state_evicted_blum itsl k /\ 1 + MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k) \/
+                  not (is_eac_state_evicted_blum itsl k) /\ MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k)))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let s = eac_state_of_key itsl k in
+
+  (* since itsl is eac, the state of k is valid *)
+  lemma_eac_state_of_key_valid itsl k;
+  //assert(s <> EACFail);
+  
+  if n = 0 then ( 
+    lemma_init_state_empty itsl k;
+    //assert(s = EACInit);
+    //assert(S.length (ts_add_seq_key itsl k) = 0);
+    MS.lemma_length_size (ts_add_seq_key itsl k);    
+    //assert(MS.size (ts_add_set_key itsl k) = 0);
+    MS.lemma_length_size (ts_evict_seq_key itsl k);
+    //assert(MS.size (ts_evict_set_key itsl k) = 0);
+    ()
+  )
+  else (
+    admit()
+  )
+
+
 (* for an eac ts log, if the eac state of a key k is instore, the count of blum evicts 
  * is the same of blum adds for that key *)
 let lemma_evict_add_count_same (itsl: TL.eac_log) (k:key):
   Lemma (requires (TL.is_eac_state_instore itsl k))
-        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = admit()
+        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = 
+  lemma_evict_add_count_same_aux itsl k
 
 (* for an eac ts log, if the eac state of a key k is evicted to merkle, the count of blum evicts 
  * is the same of blum adds for that key *)
 let lemma_evict_add_count_same_evictedm (itsl: TL.eac_log) (k:key):
   Lemma (requires (is_eac_state_evicted_merkle itsl k))
-        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = admit()
+        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = 
+  lemma_evict_add_count_same_aux itsl k
 
 let lemma_mem_key_add_set_same (itsl: its_log) (be: ms_hashfn_dom):
   Lemma (mem be (ts_add_set itsl) = mem be (ts_add_set_key itsl (MH.key_of be))) = admit()

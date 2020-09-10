@@ -228,6 +228,12 @@ val lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl):
   Lemma (eac_state_post itsl i = 
          eac_add (vlog_entry_ext_at itsl i) (eac_state_pre itsl i))
 
+(* if the ith entry does not involve key k, the eac state of k is unchanged *)
+val lemma_eac_state_same (itsl: its_log) (i: I.seq_index itsl) (k: key):
+  Lemma (requires (key_at itsl i <> k))
+        (ensures (eac_state_of_key (I.prefix itsl i) k == 
+                  eac_state_of_key (I.prefix itsl (i + 1)) k))
+
 val lemma_eac_boundary_state_transition (itsl: neac_log):
   Lemma (requires True)
         (ensures (eac_add (vlog_entry_ext_at itsl (eac_boundary itsl))
@@ -367,3 +373,6 @@ val lemma_clock_ordering (itsl: its_log) (i1 i2: I.seq_index itsl):
   Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
         (ensures (i1 < i2))
   
+(* the state of each key for an empty log is init *)
+val lemma_init_state_empty (itsl: its_log {I.length itsl = 0}) (k: key):
+  Lemma (eac_state_of_key itsl k = EACInit)
