@@ -97,6 +97,14 @@ val prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}):
   Tot (il':interleaving a{i_seq il' = SA.prefix (i_seq il) i /\ 
                           S.length (s_seq il) = S.length (s_seq il')})
 
+val per_thread_prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il})
+  : Lemma (let ss = s_seq il in
+           let il' = prefix il i in
+           let ss' = s_seq il' in
+           forall (tid:SA.seq_index ss). 
+           exists (j:nat{j < Seq.length (Seq.index ss tid)}).
+             Seq.index ss' tid == SA.prefix (Seq.index ss tid) j) 
+
 let hprefix (#a:eqtype) (il:interleaving a {length il > 0}): interleaving a =
   prefix il (length il - 1)
 

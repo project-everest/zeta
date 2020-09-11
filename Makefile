@@ -30,8 +30,6 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
 
 
 
-USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
-
 # Uncomment the definition of PROFILE below, if you want some basic
 # profiling of F* runs on Veritas files It will report the time spent
 # on typechecking your file And the time spent in SMT, which is
@@ -39,7 +37,7 @@ USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
 
 # PROFILE=--profile Veritas --profile_component 'FStar.Universal.tc_source_file FStar.SMTEncoding'
 
-OTHERFLAGS+=$(USE_EXTRACTED_INTERFACES) $(PROFILE)
+OTHERFLAGS+=$(PROFILE)
 
 # 271: theory symbols in smt patters
 WARN_ERROR=--warn_error -271

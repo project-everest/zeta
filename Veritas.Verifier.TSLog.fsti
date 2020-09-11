@@ -50,7 +50,7 @@ let clock (il: il_vlog{verifiable il}) (i: I.seq_index il): timestamp =
 let clock_sorted (il: il_vlog{verifiable il}) =
   forall (i:I.seq_index il). i > 0 ==> clock il (i - 1) `ts_leq` clock il i
 *)
-val clock_sorted (il: il_vlog {verifiable il}): bool
+val clock_sorted (il: il_vlog {verifiable il}): prop
 
 (* TODO: add clock_sorted *)
 let its_log = il:il_vlog{verifiable il /\ clock_sorted il}
