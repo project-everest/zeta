@@ -166,9 +166,80 @@ let smap (#a:eqtype) (s1 s2:Seq.seq a) =
 let into_smap (#a:eqtype) (s1 s2:Seq.seq a) =
   f:smap s1 s2{forall (i j:seq_index s1). f i == f j ==> i == j}
 
+let seq_remove (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
+  : Seq.seq a
+  = Seq.append (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
+
+let seq_remove_count1 (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
+  : Lemma (Seq.count (Seq.index s i) s == Seq.count (Seq.index s i) (seq_remove s i) + 1)
+  = let x = Seq.index s i in
+    Seq.lemma_count_slice s i;
+    assert (Seq.count x s ==
+            Seq.count x (Seq.slice s 0 i) + Seq.count x (Seq.slice s i (Seq.length s)));
+    let s1 = Seq.slice s i (Seq.length s) in
+    if Seq.length s1 = 0 then ()
+    else begin
+      assert (Seq.count x s1 ==
+              (if Seq.index s1 0 = x then 1 + Seq.count x (Seq.tail s1)
+               else Seq.count x (Seq.tail s1)));
+      assert (Seq.index s1 0 == Seq.index s i);
+      assert (Seq.count x s1 == 1 + Seq.count x (Seq.tail s1));
+      assert (Seq.equal (Seq.tail s1)
+                        (Seq.slice s (i + 1) (Seq.length s)));
+      assert (Seq.count x s1 == 1 + Seq.count x (Seq.slice s (i + 1) (Seq.length s)));
+      assert (Seq.count x s ==
+              Seq.count x (Seq.slice s 0 i) + Seq.count x (Seq.slice s (i + 1) (Seq.length s)) + 1);
+      Seq.lemma_append_count (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
+    end
+
+let seq_remove_count2 (#a:eqtype) (s:Seq.seq a) (i:seq_index s) (y:a{y =!= Seq.index s i})
+  : Lemma (Seq.count y s == Seq.count y (seq_remove s i))
+  = Seq.lemma_count_slice s i;
+    assert (Seq.count y s ==
+            Seq.count y (Seq.slice s 0 i) + Seq.count y (Seq.slice s i (Seq.length s)));
+    let s1 = Seq.slice s i (Seq.length s) in
+    if Seq.length s1 = 0 then ()
+    else begin
+      assert (Seq.count y s1 ==
+              (if Seq.index s1 0 = y then 1 + Seq.count y (Seq.tail s1)
+               else Seq.count y (Seq.tail s1)));
+      assert (Seq.index s1 0 == Seq.index s i);
+      assert (Seq.count y s1 == Seq.count y (Seq.tail s1));
+      Seq.lemma_append_count (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
+    end
+
+let ismap_next (#a:eqtype) (s1:Seq.seq a{Seq.length s1 > 0}) (s2:Seq.seq a) (f:into_smap s1 s2)
+  : into_smap (Seq.slice s1 1 (Seq.length s1))
+              (seq_remove s2 (f 0))
+  = let s1' = Seq.slice s1 1 (Seq.length s1) in
+    let s2' = seq_remove s2 (f 0) in
+    let f : seq_index s1' -> seq_index s2' = fun i ->
+      let n = f (i + 1) in
+      if n < f 0 then n
+      else n - 1 in
+
+    f
+
+let rec seq_count_into_smap_x (#a:eqtype) (s1 s2:Seq.seq a) (f:into_smap s1 s2) (x:a)
+  : Lemma
+      (requires True)
+      (ensures Seq.count x s1 <= Seq.count x s2)
+      (decreases (Seq.length s1))      
+  = if Seq.length s1 = 0 then ()
+    else begin
+      let s1' = Seq.slice s1 1 (Seq.length s1) in
+      let s2' = seq_remove s2 (f 0) in
+      seq_count_into_smap_x s1' s2' (ismap_next s1 s2 f) x;
+      assert (Seq.count x s1' <= Seq.count x s2');
+      if x = Seq.index s1 0 then seq_remove_count1 s2 (f 0)
+      else seq_remove_count2 s2 (f 0) x
+    end
+
 let seq_count_into_smap (#a:eqtype) (s1 s2:Seq.seq a) (f:into_smap s1 s2)
   : Lemma (forall (x:a). Seq.count x s1 <= Seq.count x s2)
-  = admit ()
+  = let aux (x:a) : Lemma (Seq.count x s1 <= Seq.count x s2) [SMTPat ()]
+      = seq_count_into_smap_x s1 s2 f x
+    in ()
 
 let lemma_count_mem (#a:eqtype) (#f:cmp a) (s:Seq.seq a) (x:a)
   : Lemma (Seq.count x s == mem x (seq2mset #a #f s))
