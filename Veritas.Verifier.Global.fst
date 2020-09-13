@@ -347,7 +347,7 @@ let g_evict_set_is_set (gl: verifiable_log):
           (ensures (MS.mem x es <= 1))
           [SMTPat (MS.mem x es)] = 
     lemma_evict_elem_count gl x;
-    lemma_count_mem (g_evict_seq gl) x
+    seq2mset_mem #_ #ms_hashfn_dom_cmp (g_evict_seq gl) x
   in
   //assert(is_set es);
   ()

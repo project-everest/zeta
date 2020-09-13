@@ -43,6 +43,10 @@ let ts_gt (t1 t2: timestamp): bool =
 type ms_hashfn_dom = 
   | MHDom: r:record -> t:timestamp -> i:nat -> ms_hashfn_dom
 
+let ms_hashfn_dom_cmp : cmp ms_hashfn_dom = magic ()
+
+type mset_ms_hashfn_dom = mset ms_hashfn_dom ms_hashfn_dom_cmp
+
 let key_of (e:ms_hashfn_dom): key = 
   match e with
   | MHDom (k,_) _ _ -> k
@@ -69,7 +73,8 @@ val ms_hashfn (s: seq ms_hashfn_dom): Tot ms_hash_value
 
 (* two sequences that encode the same multiset produce the same hash *)
 val lemma_mshashfn_correct (s1 s2: seq ms_hashfn_dom):
-  Lemma (requires (seq2mset s1 == seq2mset s2))
+  Lemma (requires (seq2mset #_ #ms_hashfn_dom_cmp s1 ==
+                   seq2mset #_ #ms_hashfn_dom_cmp s2))
         (ensures (ms_hashfn s1 = ms_hashfn s2))
 
 (* the hash of an empty seq (mset) is empty_hash_value *)
@@ -89,4 +94,5 @@ val lemma_hashfn_agg (s1 s2: seq ms_hashfn_dom):
 type ms_hash_collision = 
   | MSCollision: s1: seq ms_hashfn_dom -> 
                  s2: seq ms_hashfn_dom { ms_hashfn s1 = ms_hashfn s2 /\
-                                          ~(seq2mset s1 == seq2mset s2)} -> ms_hash_collision
+                                         ~(seq2mset #_ #ms_hashfn_dom_cmp s1 ==
+                                           seq2mset #_ #ms_hashfn_dom_cmp s2)} -> ms_hash_collision

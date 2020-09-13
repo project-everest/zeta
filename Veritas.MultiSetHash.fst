@@ -22,7 +22,8 @@ let ms_hashfn (s: seq ms_hashfn_dom): Tot ms_hash_value = ms_hashfn_aux s
 
 (* two sequences that encode the same multiset produce the same hash *)
 let lemma_mshashfn_correct (s1 s2: seq ms_hashfn_dom):
-  Lemma (requires (seq2mset s1 == seq2mset s2))
+  Lemma (requires (seq2mset #_ #ms_hashfn_dom_cmp s1 ==
+                   seq2mset #_ #ms_hashfn_dom_cmp s2))
         (ensures (ms_hashfn s1 = ms_hashfn s2)) = admit()
 
 let lemma_hashfn_empty (_:unit):
