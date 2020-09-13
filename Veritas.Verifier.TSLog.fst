@@ -1,31 +1,78 @@
 module Veritas.Verifier.TSLog
 
-let clock (#p:pos) (s: idx_seq_vlog p{verifiable s}) (i: seq_index s): timestamp =  
-  let gl = partition_idx_seq s in  
-  let j = idx_seq_map s i in
-  VG.clock gl j
+let clock_sorted (il: il_vlog{verifiable il}) =
+ forall (i j:I.seq_index il). i <= j ==> clock il i `ts_leq` clock il j
 
-let lemma_prefix_verifiable (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}):
-  Lemma (requires True)
-        (ensures (verifiable (prefix itsl i))) = 
-  let gl = partition_idx_seq itsl in
-  let itsl' = prefix itsl i in  
-  let gl' = partition_idx_seq itsl' in
-  
-  let aux (tid:valid_tid p):
-    Lemma (requires True)
-          (ensures (VT.verifiable (VG.thread_log gl' tid)))
-          [SMTPat (VT.verifiable (VG.thread_log gl' tid))] = 
-    let tl' = VG.thread_log gl' tid in            
-    let tl = VG.thread_log gl tid in
-    lemma_partition_idx_prefix_comm itsl i tid;
-    VT.lemma_verifiable_implies_prefix_verifiable tl (VT.length tl')
-  in
-  //assert(verifiable itsl');
-  ()
+module SA = Veritas.SeqAux
+open FStar.Calc
 
-let create (gl: VG.verifiable_log): its_log (length gl) = 
-  admit()
+let lemma_prefix_clock_sorted (itsl: its_log) (i:nat{i <= I.length itsl})
+  : Lemma
+    (requires
+      verifiable (I.prefix itsl i))
+    (ensures
+      clock_sorted (I.prefix itsl i))
+  = assert (clock_sorted itsl);
+    let itsl' = I.prefix itsl i in
+    let aux (t0 t1:I.seq_index itsl')
+      : Lemma (requires t0 <= t1)
+              (ensures clock itsl' t0 `ts_leq` clock itsl' t1)
+              [SMTPat(clock itsl' t0 `ts_leq` clock itsl' t1)]
+      = assert (clock itsl t0 `ts_leq` clock itsl t1);
+        lemma_i2s_map_prefix itsl i t0;
+        lemma_i2s_map_prefix itsl i t1;
+        I.lemma_prefix_index itsl i t0;
+        I.lemma_prefix_index itsl i t1;
+        I.per_thread_prefix itsl i;
+        //This "calc" feature lets you structure
+        //proofs by equational rewriting ... each line is
+        //equal to the next line and the whole calc term
+        //proves that the first line is equal to the last
+        //
+        calc (==) {
+         clock itsl' t0;
+          == {}
+         clock (I.prefix itsl i) t0;
+          == {}
+         VG.clock (g_vlog_of itsl') (i2s_map itsl' t0);
+          == {}
+         VG.clock (g_vlog_of itsl') (i2s_map itsl t0);
+        }
+    in
+    ()
+
+let lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl})
+  : Lemma
+    (ensures
+      verifiable (I.prefix itsl i) /\
+      clock_sorted (I.prefix itsl i))
+  = assert (verifiable itsl);
+    assert (clock_sorted itsl);
+    let ss = g_vlog_of itsl in
+    let itsl' = I.prefix itsl i in
+    let ss' = g_vlog_of itsl' in
+    assert (Seq.length ss = Seq.length ss');
+    let aux (tid:SA.seq_index ss)
+      : Lemma (VT.verifiable (thread_log ss' tid))
+              [SMTPat (thread_log ss' tid)]
+      = let tl = thread_log ss tid in
+        assert (VT.verifiable tl);
+        I.per_thread_prefix itsl i;
+        let tl' = thread_log ss' tid in
+        let aux (j:SA.seq_index (snd tl))
+          : Lemma
+            (requires snd tl' == SA.prefix (snd tl) j)
+            (ensures VT.verifiable tl')
+            [SMTPat (SA.prefix (snd tl) j)]
+          = assert (tl' == VT.prefix tl j);
+            VT.lemma_verifiable_implies_prefix_verifiable tl j
+        in
+        ()
+    in
+    lemma_prefix_clock_sorted itsl i
+
+let create (gl: VG.verifiable_log)
+  =  admit()
 
 let lemma_create_correct (gl: VG.verifiable_log):
   Lemma (gl = to_g_vlog (create gl)) = admit()

@@ -435,3 +435,16 @@ let rec add_size #a #f s x =
     if x = y then ()
     else if f x y then ()
     else add_size (tl s) x
+
+let rec length_size_aux (#a:eqtype) (#f:cmp a) (s:Seq.seq a)
+  : Lemma
+      (ensures Seq.length s == size (seq2mset #a #f s))
+      (decreases (Seq.length s))
+  = if Seq.length s = 0 then ()
+    else
+      let ms_tail = seq2mset #a #f (Seq.tail s) in
+      add_size ms_tail (Seq.index s 0);
+      length_size_aux #a #f (Seq.tail s)
+
+let length_size = length_size_aux
+

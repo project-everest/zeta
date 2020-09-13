@@ -18,6 +18,7 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.MultiSetHash.fsti Veritas.MultiSetHash.fst \
                Veritas.Hash.fsti \
                Veritas.Interleave.fsti \
+               Veritas.Interleave.fst \
                Veritas.Verifier.fst \
 	       Veritas.Verifier.Thread.fsti Veritas.Verifier.Thread.fst \
                Veritas.Verifier.Global.fsti Veritas.Verifier.Global.fst \

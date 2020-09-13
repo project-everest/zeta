@@ -1,9 +1,9 @@
 module Veritas.Interleave
 open FStar.Squash
 
-let indexss (#a:Type) (ss: sseq a) (ij: sseq_index ss): Tot a = 
-  let (i,j) = ij in
-  index (index ss i) j
+// let indexss (#a:Type) (ss: sseq a) (ij: sseq_index ss): Tot a = 
+//   let (i,j) = ij in
+//   index (index ss i) j
 
 (* TODO: surely this should exists somewhere? *)
 let nat_add (a b: nat): nat = a + b
@@ -252,21 +252,21 @@ let rec interleave_map_inv_aux (#a:eqtype) (s: seq a) (ss: sseq a)
 let interleave_map_inv = interleave_map_inv_aux
 
 let lemma_sseq_extend_filter_sat 
-  (#a:eqtype) (f:a -> bool) (ss: sseq a) (x:a{f x}) (i:seq_index ss):
+  (#a:eqtype) (f:a -> bool) (ss: sseq a) (x:a{f x}) (i:SA.seq_index ss):
   Lemma (map (filter f) (sseq_extend ss x i) = 
          sseq_extend (map (filter f) ss) x i) = 
   let ss' = sseq_extend ss x i in
   let fss' = map (filter f) ss' in
   let fss = map (filter f) ss in
   let fss2' = sseq_extend fss x i in
-  let aux(j:seq_index ss):
+  let aux(j:SA.seq_index ss):
     Lemma (requires True)
-          (ensures (index fss' j = index fss2' j))
-          [SMTPat (index fss' j)] = 
+          (ensures (Seq.index fss' j = Seq.index fss2' j))
+          [SMTPat (Seq.index fss' j)] = 
     if j = i then (
       lemma_sseq_correct1 ss x i;
-      lemma_prefix1_append (index ss i) x;
-      lemma_filter_extend2 f (index ss' i)
+      lemma_prefix1_append (Seq.index ss i) x;
+      lemma_filter_extend2 f (Seq.index ss' i)
     )
     else 
       lemma_sseq_correct2 ss x i j          
@@ -310,11 +310,11 @@ let rec lemma_filter_interleave_commute_prf_aux (#a:eqtype)
       lemma_prefix1_append s' x;
       lemma_filter_extend1 f s;
       assert(fs' = fs);
-
-      let aux (i:seq_index ss):
+      let open FStar.Seq in
+      let aux (i:SA.seq_index ss):
         Lemma (requires True)
-              (ensures (index fss i = index fss' i))
-              [SMTPat (index fss i)] = 
+              (ensures (Seq.index fss i = Seq.index fss' i))
+              [SMTPat (Seq.index fss i)] = 
         assert(index fss i = filter f (index ss i));
         assert(index fss' i = filter f (index ss' i));
         
@@ -342,333 +342,399 @@ let lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: ss
   Lemma (interleave (filter f s) (map (filter f) ss)) = 
   bind_squash () (lemma_as_squash (lemma_filter_interleave_commute_aux f s ss))
 
-let rec project_seq_aux (#a:eqtype) (#n:nat) (is:seq (idx_elem #a n)): 
-  Tot (s:seq a{length s = length is})
-  (decreases (length is)) =
-  let n = length is in
-  if n = 0 then empty #a
-  else 
-    let is' = hprefix is in
-    let ps' = project_seq_aux is' in
-    let (e,id) = telem is in
-    append1 ps' e  
-
-let project_seq = project_seq_aux
-
-let rec lemma_project_seq_index_aux (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n)) (i:seq_index is):
-  Lemma (requires True)
-        (ensures (fst (index is i) = index (project_seq is) i))
-        (decreases (length is)) =
-  let n = length is in
-  let ps = project_seq is in
-  if n = 0 then ()
-  else (
-    let is' = hprefix is in
-    let ps' = project_seq is' in
-    let (e,id) = telem is in
-    if i = n- 1 then ()
-    else
-      lemma_project_seq_index_aux is' i
-  )
-
-let lemma_project_seq_index = lemma_project_seq_index_aux
-
-let lemma_project_seq_extend (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n){length is > 0}):
-  Lemma (project_seq is = append1 (project_seq (hprefix is)) (fst (telem is))) = 
-  ()
-
-let rec partition_idx_seq_aux (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)):
-  Tot (ss:sseq a{length ss = p}) 
-  (decreases (length s)) =
-  let n = length s in
-  if n = 0 then 
-    create p (empty #a)
-  else 
-    let s' = hprefix s in
-    let (e,id) = telem s in
-    let ss' = partition_idx_seq_aux s' in
-    sseq_extend ss' e id
-  
-let partition_idx_seq = partition_idx_seq_aux
-
-let rec lemma_seq_empty_interleave_empty (#a:eqtype) (n:nat):
-  Tot (interleave (empty #a) (create n (empty #a)))
-  (decreases n) = 
-  let ln: sseq a = create n (empty #a) in
-  if n = 0 then (
-    lemma_empty ln;
-    IntEmpty
-  )
-  else (
-    let ln' = hprefix ln in
-    assert(equal ln' (create (n - 1) (empty #a)));
-    let prfn':interleave (empty #a) ln' = lemma_seq_empty_interleave_empty #a (n - 1) in
-    assert(equal ln (append1 ln' (empty #a)));
-    IntAdd (empty #a) ln' prfn' 
-  )
-
-let rec lemma_partition_idx_seq_interleaving_prf_aux (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)):
-  Tot (interleave (project_seq s) (partition_idx_seq s))
-  (decreases (length s)) =
-  let n = length s in 
-  let ps = project_seq s in
-  assert(length ps = n);  
-  if n = 0 then (
-    lemma_empty ps;
-    lemma_seq_empty_interleave_empty #a p
-  )
-  else (
-    let s' = hprefix s in
-    let ss' = partition_idx_seq s' in
-    let ps' = project_seq s' in
-    let (e,id) = telem s in
-    let prf': interleave ps' ss'  = lemma_partition_idx_seq_interleaving_prf_aux s' in
-    
-    assert(ps = append1 ps' e);
-
-    let ss = partition_idx_seq s in
-    assert(ss == sseq_extend ss' e id);
-  
-    IntExtend ps' ss' prf' e id
-  )
-
-let lemma_partition_idx_seq_interleaving_prf = lemma_partition_idx_seq_interleaving_prf_aux
-
-let lemma_partition_idx_seq_interleaving (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
-  Lemma (interleave (project_seq s) (partition_idx_seq s)) = 
-  return_squash (lemma_partition_idx_seq_interleaving_prf s)
-
-let rec lemma_partition_idx_prefix_comm_aux
-  (#a:eqtype) (#p:nat) (s:seq (idx_elem #a p)) (i:nat{i <= length s}) (id:nat{id < p}):
-  Lemma (requires True)
-        (ensures (is_prefix (index (partition_idx_seq s) id)
-                            (index (partition_idx_seq (prefix s i)) id)))
-        (decreases (length s)) =
-  let n = length s in
-  if n = i then ()
-  else (
-    assert(n > 0 && i < n);
-    let ps = partition_idx_seq s in
-    let s' = hprefix s in
-    let ps' = partition_idx_seq s' in
-    lemma_partition_idx_prefix_comm_aux s' i id;
-    assert(is_prefix (index ps' id)
-                     (index (partition_idx_seq (prefix s' i)) id));
-
-    let (e,id') = telem s in
-    if id' = id then (
-      assert(prefix s' i = prefix s i);
-      lemma_sseq_correct1 ps' e id';
-      assert(index ps id = append1 (index ps' id) e);
-      lemma_prefix1_append (index ps' id) e
+let rec int_empty (#a:eqtype) (n:nat) 
+  : interleave #a empty (Seq.init #(seq a) n (fun _ -> empty #a))
+  = if n = 0 
+    then (
+      assert (empty #(seq a) `Seq.equal` (Seq.init #(seq a) n (fun _ -> empty #a)));
+      IntEmpty 
     )
     else (
-      assert(ps == sseq_extend ps' e id');
-      lemma_sseq_correct2 ps' e id' id;
-      assert(index ps' id = index ps id);
-      ()
+      assert ((Seq.init #(seq a) n (fun _ -> empty #a)) `Seq.equal`
+              (append1
+                (Seq.init #(seq a) (n - 1) (fun _ -> empty #a))
+                empty));
+      IntAdd _ _ (int_empty (n - 1))
     )
-  )
 
-let lemma_partition_idx_prefix_comm = lemma_partition_idx_prefix_comm_aux
+let rec prefix_aux (#a:eqtype) 
+                   (il: interleaving a)
+                   (i:nat{i <= length il})
+  : Tot (il':interleaving a{i_seq il' = SA.prefix (i_seq il) i /\ 
+                            S.length (s_seq il) = S.length (s_seq il')})
+        (decreases (IL?.prf il))
+  =         
+  match i with
+  | 0 -> 
+    assert (Seq.equal (SA.prefix (i_seq il) i) empty);  
+    IL _ _ (int_empty (Seq.length (s_seq il)))
+  | _ ->
+    match il with
+    | IL _ _ (IntAdd s ss il') ->
+      let sub = prefix_aux (IL s ss il') i in
+      IL _ _ (IntAdd _ _ (IL?.prf sub))
+      
+    | IL _ _ (IntExtend s ss il' x j) ->
+      if i <= Seq.length s then (
+        assert (Seq.equal (SA.prefix s i) (SA.prefix (append1 s x) i));
+        prefix_aux (IL s ss il') i
+      )
+      else (
+        assert (i = Seq.length s + 1);
+        let IL s' ss' prf = prefix_aux (IL s ss il') (i - 1) in
+        IL _ _ (IntExtend _ _ prf x j)
+      )
 
-let lemma_partition_idx_extend1 (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n){length s > 0}):
-  Lemma (index (partition_idx_seq s) (snd (telem s)) = 
-         append1 (index (partition_idx_seq (hprefix s)) (snd (telem s)))
-                 (fst (telem s))) = ()
+let prefix #a il i = prefix_aux #a il i
 
-let to_s_idx_elem (#a:eqtype) (#p:nat) (e:idx_elem #a p): idx_elem #a (p+1) = 
-  let (x,i) = e in
-  (x,i)
 
-let to_s_idx_seq (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)): seq (idx_elem #a (p+1)) = 
-  map to_s_idx_elem s
+let per_thread_prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}) = admit()
 
-let rec interleaved_idx_seq_aux (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Tot (seq (idx_elem #a (length ss))) 
-  (decreases (IntCtr?.prf ic)) = 
-  let p = length ss in
-  match ic with
-  | IntCtr s prf -> (
-    match prf with
+let i2s_map (#a:eqtype) (il:interleaving a) (i:seq_index il) =  admit()
+let s2i_map (#a:eqtype) (il:interleaving a) (si: sseq_index (s_seq il)) = admit()
+let lemma_i2s_s2i (#a:eqtype) (il:interleaving a) (i:seq_index il) = admit()
+
+let lemma_prefix_index (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}) = admit()
+let lemma_prefix_prefix (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j <= i}) = admit()
+let filter (#a:eqtype) (f:a -> bool) (il:interleaving a): interleaving a = admit()
+
+let lemma_i2s_map_prefix (#a:eqtype) (il: interleaving a) (i: nat{i <= length il}) (j:nat{j < i}) = admit()
+let lemma_prefix_interleaving (#a:eqtype) 
+  (il: interleaving a) 
+  (i:nat{ i <= length il}) 
+  (j:nat{j < S.length (s_seq il)}) = admit()
+
+
+(* broken *)
+////////////////////////////////////////////////////////////////////////////////
+
+// let rec project_seq_aux (#a:eqtype) (#n:nat) (is:seq (idx_elem #a n)): 
+//   Tot (s:seq a{length s = length is})
+//   (decreases (length is)) =
+//   let n = length is in
+//   if n = 0 then empty #a
+//   else 
+//     let is' = hprefix is in
+//     let ps' = project_seq_aux is' in
+//     let (e,id) = telem is in
+//     append1 ps' e  
+
+// let project_seq = project_seq_aux
+
+// let rec lemma_project_seq_index_aux (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n)) (i:seq_index is):
+//   Lemma (requires True)
+//         (ensures (fst (index is i) = index (project_seq is) i))
+//         (decreases (length is)) =
+//   let n = length is in
+//   let ps = project_seq is in
+//   if n = 0 then ()
+//   else (
+//     let is' = hprefix is in
+//     let ps' = project_seq is' in
+//     let (e,id) = telem is in
+//     if i = n- 1 then ()
+//     else
+//       lemma_project_seq_index_aux is' i
+//   )
+
+// let lemma_project_seq_index = lemma_project_seq_index_aux
+
+// let lemma_project_seq_extend (#a:eqtype) (#n:nat) (is: seq (idx_elem #a n){length is > 0}):
+//   Lemma (project_seq is = append1 (project_seq (hprefix is)) (fst (telem is))) = 
+//   ()
+
+// let rec partition_idx_seq_aux (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)):
+//   Tot (ss:sseq a{length ss = p}) 
+//   (decreases (length s)) =
+//   let n = length s in
+//   if n = 0 then 
+//     create p (empty #a)
+//   else 
+//     let s' = hprefix s in
+//     let (e,id) = telem s in
+//     let ss' = partition_idx_seq_aux s' in
+//     sseq_extend ss' e id
+  
+// let partition_idx_seq = partition_idx_seq_aux
+
+// let rec lemma_seq_empty_interleave_empty (#a:eqtype) (n:nat):
+//   Tot (interleave (empty #a) (create n (empty #a)))
+//   (decreases n) = 
+//   let ln: sseq a = create n (empty #a) in
+//   if n = 0 then (
+//     lemma_empty ln;
+//     IntEmpty
+//   )
+//   else (
+//     let ln' = hprefix ln in
+//     assert(equal ln' (create (n - 1) (empty #a)));
+//     let prfn':interleave (empty #a) ln' = lemma_seq_empty_interleave_empty #a (n - 1) in
+//     assert(equal ln (append1 ln' (empty #a)));
+//     IntAdd (empty #a) ln' prfn' 
+//   )
+
+// let rec lemma_partition_idx_seq_interleaving_prf_aux (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)):
+//   Tot (interleave (project_seq s) (partition_idx_seq s))
+//   (decreases (length s)) =
+//   let n = length s in 
+//   let ps = project_seq s in
+//   assert(length ps = n);  
+//   if n = 0 then (
+//     lemma_empty ps;
+//     lemma_seq_empty_interleave_empty #a p
+//   )
+//   else (
+//     let s' = hprefix s in
+//     let ss' = partition_idx_seq s' in
+//     let ps' = project_seq s' in
+//     let (e,id) = telem s in
+//     let prf': interleave ps' ss'  = lemma_partition_idx_seq_interleaving_prf_aux s' in
     
-    | IntEmpty -> 
-      assert(ss == empty #(seq a));
-      empty #(idx_elem #a 0)
+//     assert(ps = append1 ps' e);
+
+//     let ss = partition_idx_seq s in
+//     assert(ss == sseq_extend ss' e id);
+  
+//     IntExtend ps' ss' prf' e id
+//   )
+
+// let lemma_partition_idx_seq_interleaving_prf = lemma_partition_idx_seq_interleaving_prf_aux
+
+// let lemma_partition_idx_seq_interleaving (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)):
+//   Lemma (interleave (project_seq s) (partition_idx_seq s)) = 
+//   return_squash (lemma_partition_idx_seq_interleaving_prf s)
+
+// let rec lemma_partition_idx_prefix_comm_aux
+//   (#a:eqtype) (#p:nat) (s:seq (idx_elem #a p)) (i:nat{i <= length s}) (id:nat{id < p}):
+//   Lemma (requires True)
+//         (ensures (is_prefix (index (partition_idx_seq s) id)
+//                             (index (partition_idx_seq (prefix s i)) id)))
+//         (decreases (length s)) =
+//   let n = length s in
+//   if n = i then ()
+//   else (
+//     assert(n > 0 && i < n);
+//     let ps = partition_idx_seq s in
+//     let s' = hprefix s in
+//     let ps' = partition_idx_seq s' in
+//     lemma_partition_idx_prefix_comm_aux s' i id;
+//     assert(is_prefix (index ps' id)
+//                      (index (partition_idx_seq (prefix s' i)) id));
+
+//     let (e,id') = telem s in
+//     if id' = id then (
+//       assert(prefix s' i = prefix s i);
+//       lemma_sseq_correct1 ps' e id';
+//       assert(index ps id = append1 (index ps' id) e);
+//       lemma_prefix1_append (index ps' id) e
+//     )
+//     else (
+//       assert(ps == sseq_extend ps' e id');
+//       lemma_sseq_correct2 ps' e id' id;
+//       assert(index ps' id = index ps id);
+//       ()
+//     )
+//   )
+
+// let lemma_partition_idx_prefix_comm = lemma_partition_idx_prefix_comm_aux
+
+// let lemma_partition_idx_extend1 (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n){length s > 0}):
+//   Lemma (index (partition_idx_seq s) (snd (telem s)) = 
+//          append1 (index (partition_idx_seq (hprefix s)) (snd (telem s)))
+//                  (fst (telem s))) = ()
+
+// let to_s_idx_elem (#a:eqtype) (#p:nat) (e:idx_elem #a p): idx_elem #a (p+1) = 
+//   let (x,i) = e in
+//   (x,i)
+
+// let to_s_idx_seq (#a:eqtype) (#p:nat) (s: seq (idx_elem #a p)): seq (idx_elem #a (p+1)) = 
+//   map to_s_idx_elem s
+
+// let rec interleaved_idx_seq_aux (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
+//   Tot (seq (idx_elem #a (length ss))) 
+//   (decreases (IntCtr?.prf ic)) = 
+//   let p = length ss in
+//   match ic with
+//   | IntCtr s prf -> (
+//     match prf with
+    
+//     | IntEmpty -> 
+//       assert(ss == empty #(seq a));
+//       empty #(idx_elem #a 0)
       
-    | IntAdd s' ss' prf' -> 
-      assert(s' == s);      
-      assert(ss = append1 ss' (empty #a));
+//     | IntAdd s' ss' prf' -> 
+//       assert(s' == s);      
+//       assert(ss = append1 ss' (empty #a));
       
-      let ic' = IntCtr s' prf' in
-      let is':seq (idx_elem #a (p-1)) = interleaved_idx_seq_aux ss' ic' in
-      let is:seq (idx_elem #a p) = to_s_idx_seq is' in      
-      is
+//       let ic' = IntCtr s' prf' in
+//       let is':seq (idx_elem #a (p-1)) = interleaved_idx_seq_aux ss' ic' in
+//       let is:seq (idx_elem #a p) = to_s_idx_seq is' in      
+//       is
       
-    | IntExtend s' ss' prf' x i ->
-      assert(length ss = length ss');
-      assert(s = append1 s' x);
-      let ic' = IntCtr s' prf' in
-      let is' = interleaved_idx_seq_aux ss' ic' in
-      append1 is' (x,i)
-  )
+//     | IntExtend s' ss' prf' x i ->
+//       assert(length ss = length ss');
+//       assert(s = append1 s' x);
+//       let ic' = IntCtr s' prf' in
+//       let is' = interleaved_idx_seq_aux ss' ic' in
+//       append1 is' (x,i)
+//   )
 
-let interleaved_idx_seq = interleaved_idx_seq_aux
+// let interleaved_idx_seq = interleaved_idx_seq_aux
 
-let rec lemma_s_idx_seq1 (#a:eqtype) (#p:nat) (is: seq (idx_elem #a p)) (idx:nat{idx < p}):
-  Lemma (requires True)
-        (ensures (index (partition_idx_seq is) idx = 
-                  index (partition_idx_seq (to_s_idx_seq is)) idx)) 
-        (decreases (length is))=             
-  let n = length is in
-  let iss = to_s_idx_seq is in
-  let ps = partition_idx_seq is in
-  let pss = partition_idx_seq iss in
-  if n = 0 then (
-    assert(partition_idx_seq is == create p (empty #a));
-    assert(partition_idx_seq iss == create (p+1) (empty #a));
-    ()
-  )
-  else (
-    let is' = hprefix is in
-    let ps' = partition_idx_seq is' in
-    let iss' = to_s_idx_seq is' in
-    let pss' = partition_idx_seq iss' in
-    let (e,i) = telem is in
-    lemma_map_extend to_s_idx_elem is;
-    lemma_prefix1_append iss' (to_s_idx_elem (telem is));
-    assert(pss == sseq_extend pss' e i);
-    assert(ps == sseq_extend ps' e i);
+// let rec lemma_s_idx_seq1 (#a:eqtype) (#p:nat) (is: seq (idx_elem #a p)) (idx:nat{idx < p}):
+//   Lemma (requires True)
+//         (ensures (index (partition_idx_seq is) idx = 
+//                   index (partition_idx_seq (to_s_idx_seq is)) idx)) 
+//         (decreases (length is))=             
+//   let n = length is in
+//   let iss = to_s_idx_seq is in
+//   let ps = partition_idx_seq is in
+//   let pss = partition_idx_seq iss in
+//   if n = 0 then (
+//     assert(partition_idx_seq is == create p (empty #a));
+//     assert(partition_idx_seq iss == create (p+1) (empty #a));
+//     ()
+//   )
+//   else (
+//     let is' = hprefix is in
+//     let ps' = partition_idx_seq is' in
+//     let iss' = to_s_idx_seq is' in
+//     let pss' = partition_idx_seq iss' in
+//     let (e,i) = telem is in
+//     lemma_map_extend to_s_idx_elem is;
+//     lemma_prefix1_append iss' (to_s_idx_elem (telem is));
+//     assert(pss == sseq_extend pss' e i);
+//     assert(ps == sseq_extend ps' e i);
 
-    lemma_s_idx_seq1 is' idx;
-    assert(index ps' idx = index pss' idx);
+//     lemma_s_idx_seq1 is' idx;
+//     assert(index ps' idx = index pss' idx);
 
-    assert(i < p);    
+//     assert(i < p);    
 
-    if i = idx then (
-      lemma_sseq_correct1 ps' e i;
-      lemma_sseq_correct1 pss' e i
-    )
-    else (
-      lemma_sseq_correct2 ps' e i idx;
-      lemma_sseq_correct2 pss' e i idx
-    )
-  )
+//     if i = idx then (
+//       lemma_sseq_correct1 ps' e i;
+//       lemma_sseq_correct1 pss' e i
+//     )
+//     else (
+//       lemma_sseq_correct2 ps' e i idx;
+//       lemma_sseq_correct2 pss' e i idx
+//     )
+//   )
 
-let rec lemma_s_idx_seq2 (#a:eqtype) (#p:nat) (is: seq (idx_elem #a p)):
-  Lemma (requires True)
-        (ensures (index (partition_idx_seq (to_s_idx_seq is)) p == empty #a)) 
-        (decreases (length is)) = 
-  let n = length is in        
-  let iss = to_s_idx_seq is in
-  let pss = partition_idx_seq iss in
-  if n = 0 then (
-    assert(partition_idx_seq iss == create (p+1) (empty #a));
-    ()
-  )
-  else (
-    let is' = hprefix is in
-    let iss' = to_s_idx_seq is' in
-    let pss' = partition_idx_seq iss' in
-    let (e,i) = telem is in
-    assert(i < p);        
-    lemma_map_extend to_s_idx_elem is;
-    lemma_prefix1_append iss' (to_s_idx_elem (telem is));
-    assert(pss == sseq_extend pss' e i);  
+// let rec lemma_s_idx_seq2 (#a:eqtype) (#p:nat) (is: seq (idx_elem #a p)):
+//   Lemma (requires True)
+//         (ensures (index (partition_idx_seq (to_s_idx_seq is)) p == empty #a)) 
+//         (decreases (length is)) = 
+//   let n = length is in        
+//   let iss = to_s_idx_seq is in
+//   let pss = partition_idx_seq iss in
+//   if n = 0 then (
+//     assert(partition_idx_seq iss == create (p+1) (empty #a));
+//     ()
+//   )
+//   else (
+//     let is' = hprefix is in
+//     let iss' = to_s_idx_seq is' in
+//     let pss' = partition_idx_seq iss' in
+//     let (e,i) = telem is in
+//     assert(i < p);        
+//     lemma_map_extend to_s_idx_elem is;
+//     lemma_prefix1_append iss' (to_s_idx_elem (telem is));
+//     assert(pss == sseq_extend pss' e i);  
 
-    lemma_s_idx_seq2 is';
-    assert(index pss' p == empty #a);
-    lemma_sseq_correct2 pss' e i p
-  )
+//     lemma_s_idx_seq2 is';
+//     assert(index pss' p == empty #a);
+//     lemma_sseq_correct2 pss' e i p
+//   )
 
-let lemma_s_idx_seq (#a:eqtype) (#p:nat) (is: seq (idx_elem #a p)):
-  Lemma (partition_idx_seq (to_s_idx_seq is) = 
-         append1 (partition_idx_seq is) (empty #a)) = 
-  let iss = to_s_idx_seq is in
-  let pss = partition_idx_seq iss in
-  let ps = partition_idx_seq is in
-  let pss' = append1 ps (empty #a) in
-  assert(length pss = length pss');
-  let aux(i:nat{i <= p}):
-    Lemma (requires True)
-          (ensures (index pss i = index pss' i))
-          [SMTPat (index pss i)] = 
-    if i < p then 
-      lemma_s_idx_seq1 is i    
-    else
-      lemma_s_idx_seq2 is
-    in
-  assert(equal pss pss');
-  ()
+// let lemma_s_idx_seq (#a:eqtype) (#p:nat) (is: seq (idx_elem #a p)):
+//   Lemma (partition_idx_seq (to_s_idx_seq is) = 
+//          append1 (partition_idx_seq is) (empty #a)) = 
+//   let iss = to_s_idx_seq is in
+//   let pss = partition_idx_seq iss in
+//   let ps = partition_idx_seq is in
+//   let pss' = append1 ps (empty #a) in
+//   assert(length pss = length pss');
+//   let aux(i:nat{i <= p}):
+//     Lemma (requires True)
+//           (ensures (index pss i = index pss' i))
+//           [SMTPat (index pss i)] = 
+//     if i < p then 
+//       lemma_s_idx_seq1 is i    
+//     else
+//       lemma_s_idx_seq2 is
+//     in
+//   assert(equal pss pss');
+//   ()
                          
-let rec lemma_interleaved_idx_seq_correct_aux (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
-  Lemma (requires True)
-        (ensures (partition_idx_seq (interleaved_idx_seq ss ic) = ss)) 
-        (decreases (IntCtr?.prf ic)) = 
-  let is = interleaved_idx_seq ss ic in        
-  let ps = partition_idx_seq is in
-  match ic with
-  | IntCtr s prf -> (
-    match prf with
-    | IntEmpty -> 
-      lemma_empty ps
-    | IntAdd s' ss' prf' ->       
-      let ic' = IntCtr s' prf' in
-      let is' = interleaved_idx_seq ss' ic' in
-      let ps' = partition_idx_seq is' in
-      assert(is = to_s_idx_seq is');      
-      lemma_s_idx_seq is';
-      assert(ps = append1 ps' (empty #a));
-      lemma_interleaved_idx_seq_correct_aux ss' ic';
-      assert(ss' = ps');
-      assert(ss = append1 ss' (empty #a));
-      ()
-    | IntExtend s' ss' prf' x i ->
-      assert(length ss = length ss');
-      assert(s = append1 s' x);
-      let ic' = IntCtr s' prf' in
-      let is' = interleaved_idx_seq ss' ic' in
-      assert(is == append1 is' (x,i));
-      lemma_prefix1_append is' (x,i);
+// let rec lemma_interleaved_idx_seq_correct_aux (#a:eqtype) (ss: sseq a) (ic: interleave_ctor ss):
+//   Lemma (requires True)
+//         (ensures (partition_idx_seq (interleaved_idx_seq ss ic) = ss)) 
+//         (decreases (IntCtr?.prf ic)) = 
+//   let is = interleaved_idx_seq ss ic in        
+//   let ps = partition_idx_seq is in
+//   match ic with
+//   | IntCtr s prf -> (
+//     match prf with
+//     | IntEmpty -> 
+//       lemma_empty ps
+//     | IntAdd s' ss' prf' ->       
+//       let ic' = IntCtr s' prf' in
+//       let is' = interleaved_idx_seq ss' ic' in
+//       let ps' = partition_idx_seq is' in
+//       assert(is = to_s_idx_seq is');      
+//       lemma_s_idx_seq is';
+//       assert(ps = append1 ps' (empty #a));
+//       lemma_interleaved_idx_seq_correct_aux ss' ic';
+//       assert(ss' = ps');
+//       assert(ss = append1 ss' (empty #a));
+//       ()
+//     | IntExtend s' ss' prf' x i ->
+//       assert(length ss = length ss');
+//       assert(s = append1 s' x);
+//       let ic' = IntCtr s' prf' in
+//       let is' = interleaved_idx_seq ss' ic' in
+//       assert(is == append1 is' (x,i));
+//       lemma_prefix1_append is' (x,i);
 
-      let ps' = partition_idx_seq is' in
+//       let ps' = partition_idx_seq is' in
 
-      lemma_interleaved_idx_seq_correct_aux ss' ic';
-      assert(ps' = ss');
+//       lemma_interleaved_idx_seq_correct_aux ss' ic';
+//       assert(ps' = ss');
 
-      assert(ps = sseq_extend ss' x i);
-      assert(ss = sseq_extend ss' x i);
+//       assert(ps = sseq_extend ss' x i);
+//       assert(ss = sseq_extend ss' x i);
 
-      ()
-  )
+//       ()
+//   )
 
-let lemma_interleaved_idx_seq_correct = lemma_interleaved_idx_seq_correct_aux
+// let lemma_interleaved_idx_seq_correct = lemma_interleaved_idx_seq_correct_aux
 
-let rec lemma_partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)) (idx: nat{idx < n}):
-  Lemma (requires True)
-        (ensures (index (partition_idx_seq s) idx = 
-                  project_seq (filter (is_of_idx a n idx) s)))
-        (decreases (length s)) = 
-  let n = length s in 
-  let ss = partition_idx_seq s in
-  let ssi = index ss idx in
-  let si = filter (is_of_idx a n idx2) s in
+// let rec lemma_partition_idx_seq (#a:eqtype) (#n:nat) (s: seq (idx_elem #a n)) (idx: nat{idx < n}):
+//   Lemma (requires True)
+//         (ensures (index (partition_idx_seq s) idx = 
+//                   project_seq (filter (is_of_idx a n idx) s)))
+//         (decreases (length s)) = 
+//   let n = length s in 
+//   let ss = partition_idx_seq s in
+//   let ssi = index ss idx in
+//   let si = filter (is_of_idx a n idx2) s in
   
-  if n = 0 then (
-    assert(length ssi = 0);
-    lemma_empty ssi;
-    assert(ssi == empty #a);
-    lemma_filter_empty (is_of_idx a n idx);
-    assert(si == empty #(idx_elem #a n));
-    admit()
-  )
-  else admit()
+//   if n = 0 then (
+//     assert(length ssi = 0);
+//     lemma_empty ssi;
+//     assert(ssi == empty #a);
+//     lemma_filter_empty (is_of_idx a n idx);
+//     assert(si == empty #(idx_elem #a n));
+//     admit()
+//   )
+//   else admit()
 
 
-let idx_seq_map (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)) (i: seq_index s):
-  Tot (j: sseq_index (partition_idx_seq s)
-  {
-      index (project_seq s) i = indexss (partition_idx_seq s) j /\
-      fst j = snd (index s i) 
-  }) = admit()
+// let idx_seq_map (#a:eqtype) (#n:nat) (s:seq (idx_elem #a n)) (i: seq_index s):
+//   Tot (j: sseq_index (partition_idx_seq s)
+//   {
+//       index (project_seq s) i = indexss (partition_idx_seq s) j /\
+//       fst j = snd (index s i) 
+//   }) = admit()
 

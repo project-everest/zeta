@@ -163,7 +163,6 @@ let into_smap (#a:eqtype) (s1 s2:Seq.seq a) = f:smap s1 s2{
   forall (i j: seq_index s1). (i =!= j) ==> f i =!= f j
 }
 
-
 /// If for two sequences, we can provide into_smaps in both the directions
 ///   then their corresponding multisets are equal
 
@@ -195,6 +194,9 @@ val add_size (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
   : Lemma
       (ensures size (add_elem s x) == size s + 1)
       [SMTPat (add_elem s x)]
+
+val length_size (#a:eqtype) (#f:cmp a) (s:Seq.seq a)
+  : Lemma (Seq.length s = size (seq2mset #a #f s))
 
 
 /// A multiset is a set when max cardinality of all elements is 1
