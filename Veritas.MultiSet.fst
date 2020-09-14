@@ -370,7 +370,7 @@ private let seq_remove_count2 (#a:eqtype)
     end
 
 
-/// This is the bijection for the inductive call
+/// This is the bijection for the recursive call
 
 private let ismap_next (#a:eqtype)
   (s1:Seq.seq a{Seq.length s1 > 0})
@@ -451,4 +451,3 @@ let rec length_size_aux (#a:eqtype) (#f:cmp a) (s:Seq.seq a)
       length_size_aux #a #f (Seq.tail s)
 
 let length_size = length_size_aux
-
