@@ -19,6 +19,9 @@ let telem (#a:Type) (s:seq a{length s > 0}): a =
 let append1 (#a:Type) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} =
   append s (create 1 x)
 
+val prefix_slice (#a:Type) (s:Seq.seq a) (i:nat{i <= Seq.length s})
+  : Lemma (Seq.equal (prefix s i) (Seq.slice s 0 i))
+
 val lemma_prefix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
   Lemma (requires (True))
         (ensures (index (prefix s i) j == index s j))

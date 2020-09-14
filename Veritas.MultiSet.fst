@@ -276,13 +276,17 @@ let seq2mset_add_elem #a #f s x =
 
   eq_intro_aux (seq2mset #a #f (append1 s x)) (add_elem (seq2mset #a #f s) x)
 
-private let is_prefix_tail (#a:eqtype) (s1 s2:Seq.seq a)
+let seq_prefix_mset_mem #a #f s s' x =
+  let is_prefix_tail (#a:eqtype) (s1 s2:Seq.seq a)
   : Lemma
       (requires is_prefix s1 s2)
       (ensures Seq.length s2 == 0 \/ is_prefix (Seq.tail s1) (Seq.tail s2))
-  = admit ()
-
-let seq_prefix_mset_mem #a #f s s' x =
+  = if Seq.length s2 = 0 then ()
+    else begin  
+      prefix_slice s1 (Seq.length s2);
+      prefix_slice (Seq.tail s1) (Seq.length s2 - 1)
+    end
+  in
   let rec aux (s1 s2:Seq.seq a) (x:a)
     : Lemma
         (requires is_prefix s1 s2)
