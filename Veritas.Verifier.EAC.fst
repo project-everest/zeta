@@ -97,7 +97,7 @@ let lemma_non_eac_init_addb
   lemma_eac_state_init_no_entry itsli k;
   //assert(not (has_some_entry_of_key itsli k));
 
-  if MS.contains be (ts_evict_set itsl) then (
+  if ts_evict_set itsl `MS.contains` be then (
     (* the evict that corresponds to blum add happens before i *)
     let j = index_blum_evict itsl be in
     lemma_evict_before_add itsl i;
@@ -114,7 +114,7 @@ let lemma_non_eac_init_addb
     lemma_add_elem_correct itsl i;
     lemma_ts_add_set_correct itsl;
     lemma_ts_evict_set_correct itsl;
-    MS.lemma_not_equal (g_add_set gl) (g_evict_set gl) be;
+    MS.not_eq (g_add_set gl) (g_evict_set gl) be;
     //assert(~ (g_add_set gl == g_evict_set gl));
 
     lemma_g_hadd_correct gl;
@@ -329,7 +329,7 @@ let lemma_non_eac_instore_addb
   (* so these two sets are not equal providing a hash collision *)
   //assert(MS.mem be (ts_add_set itsl) > MS.mem be (ts_evict_set itsl));
 
-  MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;
+  MS.not_eq (ts_add_set itsl) (ts_evict_set itsl) be;
   //assert(~( (ts_add_set itsl) == (ts_evict_set itsl)));
 
   lemma_ts_add_set_correct itsl;
@@ -749,7 +749,7 @@ let lemma_non_eac_evicted_merkle_addb
       (* so these two sets are not equal providing a hash collision *)
       // assert(MS.mem be (ts_add_set itsl) > MS.mem be (ts_evict_set itsl));
 
-      MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;
+      MS.not_eq (ts_add_set itsl) (ts_evict_set itsl) be;
       // assert(~( (ts_add_set itsl) == (ts_evict_set itsl)));
 
       lemma_ts_add_set_correct itsl;
@@ -802,7 +802,7 @@ let lemma_non_eac_evicted_blum_addb
     let be' = VB.blum_evict_elem itsli i' in
     //assert(be <> be');
 
-    if MS.contains be (ts_evict_set itsl) then (
+    if ts_evict_set itsl `MS.contains` be then (
 
       (* since evict set is a set we can identify the unique index that produces be *)
       let j = index_blum_evict itsl be in
@@ -837,7 +837,7 @@ let lemma_non_eac_evicted_blum_addb
       g_evict_set_is_set gl;
       //assert(is_set (g_evict_set gl));
       //assert(MS.mem be (g_evict_set gl) <= 1);
-      MS.lemma_not_equal (g_add_set gl) (g_evict_set gl) be;
+      MS.not_eq (g_add_set gl) (g_evict_set gl) be;
 
       lemma_ghevict_correct gl;
       lemma_g_hadd_correct gl;
@@ -849,7 +849,7 @@ let lemma_non_eac_evicted_blum_addb
       lemma_add_elem_correct itsl i;
       //assert(MS.contains be (ts_add_set itsl));
 
-      MS.lemma_not_equal (ts_add_set itsl) (ts_evict_set itsl) be;
+      MS.not_eq (ts_add_set itsl) (ts_evict_set itsl) be;
       lemma_ts_evict_set_correct itsl;
       lemma_ts_add_set_correct itsl;
       //assert(~ (g_add_set gl == g_evict_set gl));

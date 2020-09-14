@@ -57,8 +57,8 @@ let clock (gl: verifiable_log) (i: sseq_index gl): timestamp =
 val g_add_seq (gl: verifiable_log): seq (ms_hashfn_dom)
 
 (* multiset derived from all the blum adds in gl *)
-let g_add_set (gl: verifiable_log): mset ms_hashfn_dom =
-  seq2mset (g_add_seq gl)
+let g_add_set (gl: verifiable_log): mset_ms_hashfn_dom =
+  seq2mset #_ #ms_hashfn_dom_cmp (g_add_seq gl)
 
 (* the hadd that the verifier computes is the multiset hash of all the adds *)
 val lemma_g_hadd_correct (gl: verifiable_log):
@@ -81,8 +81,8 @@ val lemma_add_set_map_inv (gl: verifiable_log)(ii: sseq_index gl {is_blum_add (i
 (* a single sequence containing all the blum evicts *)
 val g_evict_seq (gl: verifiable_log): seq ms_hashfn_dom 
 
-let g_evict_set (gl: verifiable_log): mset ms_hashfn_dom = 
-  seq2mset (g_evict_seq gl)
+let g_evict_set (gl: verifiable_log): mset_ms_hashfn_dom = 
+  seq2mset #_ #ms_hashfn_dom_cmp (g_evict_seq gl)
 
 val lemma_ghevict_correct (gl: verifiable_log):
   Lemma (hevict gl = ms_hashfn (g_evict_seq gl))

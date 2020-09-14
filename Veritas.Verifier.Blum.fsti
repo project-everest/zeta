@@ -23,19 +23,19 @@ module VG = Veritas.Verifier.Global
 val ts_add_seq (itsl: its_log): seq ms_hashfn_dom
 
 (* the addset in a time sequenced log *)
-let ts_add_set (itsl: its_log): mset ms_hashfn_dom 
-  = seq2mset (ts_add_seq itsl)
+let ts_add_set (itsl: its_log): mset_ms_hashfn_dom 
+  = seq2mset #_ #ms_hashfn_dom_cmp (ts_add_seq itsl)
 
 val lemma_add_elem_correct (itsl: its_log) (i: I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i)))
-        (ensures (contains (blum_add_elem (I.index itsl i)) (ts_add_set itsl)))
+        (ensures (ts_add_set itsl `contains` blum_add_elem (I.index itsl i)))
 
 (* sequence of blum adds restricted to key k *)
 val ts_add_seq_key (itsl: its_log) (k:key): seq ms_hashfn_dom
 
 (* the addset restricted to key k *)
-let ts_add_set_key (itsl: its_log) (k:key): mset ms_hashfn_dom
-  = seq2mset (ts_add_seq_key itsl k)
+let ts_add_set_key (itsl: its_log) (k:key): mset_ms_hashfn_dom
+  = seq2mset #_ #ms_hashfn_dom_cmp (ts_add_seq_key itsl k)
 
 (* the blum adds in the time sequenced log should be the same as global add set *)
 val lemma_ts_add_set_correct (itsl: its_log): 
@@ -51,12 +51,12 @@ val lemma_ts_add_set_key_extend (itsl: its_log {I.length itsl > 0}):
                            (blum_add_elem (I.telem itsl))))
 
 val some_add_elem_idx (itsl: its_log) 
-  (be: ms_hashfn_dom{MS.contains be (ts_add_set itsl)}): 
+  (be: ms_hashfn_dom{ts_add_set itsl `MS.contains` be}): 
   (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\
                       be = blum_add_elem (I.index itsl i)})
 
 val lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_dom):
-  Lemma (requires (MS.contains be (ts_add_set_key itsl k)))
+  Lemma (requires (ts_add_set_key itsl k `MS.contains` be))
         (ensures (MH.key_of be = k))
 
 (* get the blum evict element from an index *)
@@ -73,14 +73,14 @@ val lemma_index_blum_evict_prefix (itsl: its_log) (i:nat{i <= I.length itsl}) (j
 val ts_evict_seq (itsl: its_log): seq ms_hashfn_dom
 
 (* set of evicts in time sequence log *)
-let ts_evict_set (itsl: its_log): mset ms_hashfn_dom = 
-  seq2mset (ts_evict_seq itsl)
+let ts_evict_set (itsl: its_log): mset_ms_hashfn_dom = 
+  seq2mset #_ #ms_hashfn_dom_cmp (ts_evict_seq itsl)
 
 (* the evict sequence restricted to key k *)
 val ts_evict_seq_key (itsl: its_log) (k:key): seq ms_hashfn_dom
 
-let ts_evict_set_key (itsl: its_log) (k:key): mset ms_hashfn_dom= 
-  seq2mset (ts_evict_seq_key itsl k)
+let ts_evict_set_key (itsl: its_log) (k:key): mset_ms_hashfn_dom= 
+  seq2mset #_ #ms_hashfn_dom_cmp (ts_evict_seq_key itsl k)
 
 (* the blum evicts in time sequenced log should be the same as global evict set *)
 val lemma_ts_evict_set_correct (itsl: its_log):
@@ -97,14 +97,14 @@ val lemma_ts_evict_set_key_extend2 (itsl: its_log {I.length itsl > 0}):
 
 (* since evict_set is a pure set (not a multiset) we can identify the unique index 
  * for each element of the set *)
-val index_blum_evict (itsl: its_log) (e: ms_hashfn_dom {contains e (ts_evict_set itsl)}):
+val index_blum_evict (itsl: its_log) (e: ms_hashfn_dom {ts_evict_set itsl `contains` e}):
   (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i) /\ 
                     blum_evict_elem itsl i = e})
 
 (* if the blum add occurs in the blum evict set, its index is earlier *)
 val lemma_evict_before_add (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
   Lemma (requires True)
-        (ensures (not (contains (blum_add_elem (I.index itsl i)) (ts_evict_set itsl)) \/
+        (ensures (not (ts_evict_set itsl `contains` blum_add_elem (I.index itsl i)) \/
                   index_blum_evict itsl (blum_add_elem (I.index itsl i)) < i))
 
 (* a slightly different version of of the previous lemma - the count of an add element 

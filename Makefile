@@ -69,7 +69,7 @@ MY_FSTAR=$(FSTAR) --cache_checked_modules --odir $(OUTPUT_DIRECTORY)
 all: verify
 
 clean:
-	rm -rf *.checked
+	rm -rf *.checked .depend
 
 .depend: $(FSTAR_FILES)
 	$(MY_FSTAR) --dep full $(addprefix --include , $(INCLUDE_PATHS)) --extract 'Veritas -Veritas.SparseMerkleVerifier.Correctness' $^ > .depend
