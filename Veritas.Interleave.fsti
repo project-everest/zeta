@@ -81,6 +81,14 @@ let seq_index (#a:eqtype) (il: interleaving a) = i:nat{i < length il}
 let index (#a: eqtype) (il: interleaving a) (i: seq_index il): a =
   (index (i_seq il) i)
 
+let is_prefix #a (s0 s1:seq a) = 
+   exists (j:nat{j <= Seq.length s1}). {:pattern SA.prefix s1 j} s0 == SA.prefix s1 j
+
+let sseq_prefix_all (#a:eqtype) 
+                    (ss0 ss1: sseq a)
+  = S.length ss0 = S.length ss1 /\
+    (forall (tid:SA.seq_index ss1). is_prefix (Seq.index ss0 tid) (Seq.index ss1 tid))
+
 val prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}): 
   Tot (il':interleaving a{i_seq il' = SA.prefix (i_seq il) i /\ 
                           S.length (s_seq il) = S.length (s_seq il')})
@@ -89,9 +97,8 @@ val per_thread_prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il})
   : Lemma (let ss = s_seq il in
            let il' = prefix il i in
            let ss' = s_seq il' in
-           forall (tid:SA.seq_index ss). 
-           exists (j:nat{j < Seq.length (Seq.index ss tid)}).
-             Seq.index ss' tid == SA.prefix (Seq.index ss tid) j) 
+           sseq_prefix_all ss' ss)
+
 
 val i2s_map (#a:eqtype) (il:interleaving a) (i:seq_index il): 
   (si:sseq_index (s_seq il){index il i = indexss (s_seq il) si})
