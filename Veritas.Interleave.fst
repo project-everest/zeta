@@ -362,29 +362,29 @@ let rec interleave_empty_n (#a:eqtype) (n:nat)
             (IntAdd _ _  (interleave_empty_n (n - 1)))
     )
 
-let is_prefix_refl #a (s:seq a)
-  : Lemma (is_prefix s s)
+let is_prefix_refl (#a:eqtype) (s:seq a)
+  : Lemma (s `prefix_of` s)
   = assert (SA.(prefix s (Seq.length s)) `Seq.equal` s)
 
-let is_prefix_empty #a (s:seq a)
-  : Lemma (is_prefix (empty #a) s)
+let is_prefix_empty (#a:eqtype) (s:seq a)
+  : Lemma (empty #a `prefix_of` s)
   = assert (SA.(prefix s 0) `Seq.equal` (empty #a))
 
 let sseq_prefix_all_refl (#a:eqtype) (ss:sseq a)
-  : Lemma (sseq_prefix_all ss ss)
+  : Lemma (ss `sseq_all_prefix_of` ss)
   = FStar.Classical.forall_intro (is_prefix_refl #a)
 
 let sseq_prefix_all_empty (#a:eqtype) (ss:sseq a)
-  : Lemma (sseq_prefix_all (empty_sseq_n a (Seq.length ss)) ss)
+  : Lemma ((empty_sseq_n a (Seq.length ss)) `sseq_all_prefix_of`  ss)
   = FStar.Classical.forall_intro (is_prefix_empty #a)
 
 let sseq_prefix_all_extend (#a:eqtype) (ss0 ss1:sseq a) (x:a) (j:SA.seq_index ss1)
   : Lemma
-    (requires sseq_prefix_all ss0 ss1)
-    (ensures sseq_prefix_all ss0 (sseq_extend ss1 x j))
+    (requires ss0 `sseq_all_prefix_of` ss1)
+    (ensures ss0 `sseq_all_prefix_of` (sseq_extend ss1 x j))
   = let ss1' = sseq_extend ss1 x j in
     let aux (tid:SA.seq_index ss1)
-      : Lemma (is_prefix (Seq.index ss0 tid) (Seq.index ss1' tid))
+      : Lemma ((Seq.index ss0 tid) `prefix_of` (Seq.index ss1' tid))
               [SMTPat (Seq.index ss0 tid)]
       = if tid = j then (
            assert (Seq.equal (SA.prefix (Seq.index ss1' tid) (Seq.length (Seq.index ss1 tid))) 
@@ -396,13 +396,13 @@ let sseq_prefix_all_extend (#a:eqtype) (ss0 ss1:sseq a) (x:a) (j:SA.seq_index ss
 
 let sseq_prefix_all_extend_extend (#a:eqtype) (ss0 ss1:sseq a) (x:a) (j:SA.seq_index ss1)
   : Lemma
-    (requires sseq_prefix_all ss0 ss1 /\
+    (requires ss0 `sseq_all_prefix_of` ss1 /\
               Seq.index ss0 j == Seq.index ss1 j)
-    (ensures sseq_prefix_all (sseq_extend ss0 x j) (sseq_extend ss1 x j))
+    (ensures (sseq_extend ss0 x j) `sseq_all_prefix_of` (sseq_extend ss1 x j))
   = let ss0' = sseq_extend ss0 x j in
     let ss1' = sseq_extend ss1 x j in
     let aux (tid:SA.seq_index ss1)
-      : Lemma (is_prefix (Seq.index ss0' tid) (Seq.index ss1' tid))
+      : Lemma ((Seq.index ss0' tid) `prefix_of` (Seq.index ss1' tid))
               [SMTPat (Seq.index ss0 tid)]
       = if tid = j 
         then is_prefix_refl #a (Seq.index ss0' tid)
@@ -422,7 +422,7 @@ let rec prefix_aux (#a:eqtype)
                    (i:nat{i <= length il})
   : Tot (il':interleaving a{i_seq il' = SA.prefix (i_seq il) i /\ 
                             S.length (s_seq il) = S.length (s_seq il') /\
-                            sseq_prefix_all (s_seq il') (s_seq il) /\
+                            (s_seq il') `sseq_all_prefix_of` (s_seq il) /\
                             (i == length il ==> s_seq il' == s_seq il)})
         (decreases (IL?.prf il))
   =         
@@ -443,10 +443,10 @@ let rec prefix_aux (#a:eqtype)
     match il with
     | IL _ _ (IntAdd s ss il') ->
       let sub = prefix_aux (IL s ss il') i in
-      assert (sseq_prefix_all (s_seq sub) ss);
+      assert ((s_seq sub) `sseq_all_prefix_of` ss);
       assert (s_seq il == append1 ss (empty #a));
       is_prefix_refl (empty #a);
-      assert (sseq_prefix_all
+      assert (sseq_all_prefix_of
                 (append1 (s_seq sub) (empty #a))
                 (append1 ss (empty #a)));
       IL _ _ (IntAdd _ _ (IL?.prf sub))
@@ -455,7 +455,7 @@ let rec prefix_aux (#a:eqtype)
       if i <= Seq.length s then (
         assert (Seq.equal (SA.prefix s i) (SA.prefix (append1 s x) i));
         let res = prefix_aux (IL s ss il') i in
-        assert (sseq_prefix_all (s_seq res) ss);
+        assert ((s_seq res) `sseq_all_prefix_of` ss);
         assert (s_seq il == sseq_extend ss x j);
         sseq_prefix_all_extend (s_seq res) ss x j;
         res
@@ -463,7 +463,7 @@ let rec prefix_aux (#a:eqtype)
       else (
         assert (i = Seq.length s + 1);
         let IL s' ss' prf = prefix_aux (IL s ss il') (i - 1) in
-        assert (sseq_prefix_all ss' ss);
+        assert (ss' `sseq_all_prefix_of` ss);
         sseq_prefix_all_extend_extend ss' ss x j;        
         IL _ _ (IntExtend _ _ prf x j)
       )
@@ -521,6 +521,7 @@ let lemma_i2s_s2i (#a:eqtype) (il:interleaving a) (i:seq_index il)
 let lemma_prefix_index (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}) 
   = ()
 
+#push-options "--z3rlimit_factor 2"
 let lemma_prefix_prefix_aux (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j <= i})
   : Lemma (ensures (prefix (prefix il i) j == prefix il j))
   = let rec aux (il:interleaving a) (i:nat{i <= length il}) (j:nat{j <= i})
@@ -547,6 +548,7 @@ let lemma_prefix_prefix_aux (#a:eqtype) (il:interleaving a) (i:nat{i <= length i
           )
     in
     aux il i j
+#pop-options
 let lemma_prefix_prefix #a il i j = lemma_prefix_prefix_aux il i j
 
 let filter (#a:eqtype) (f:a -> bool) (il:interleaving a)
