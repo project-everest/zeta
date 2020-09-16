@@ -76,8 +76,6 @@ let lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl})
 
 #push-options "--query_stats --fuel 1,0"
 
-
-
 let sseq_same_shape #a #b (s0:sseq a) (s1:sseq b) = 
   Seq.length s0 = Seq.length s1 /\
   (forall (i:seq_index s0). Seq.length (Seq.index s0 i) = Seq.length (Seq.index s1 i))
@@ -411,6 +409,7 @@ let lemma_eac_value_correct_type (itsl: eac_log) (k:key):
         (ensures is_value_of k (E.value_of (eac_state_of_key itsl k)))
  = admit()
 
+#pop-options
 
 (* we never see operations on Root so its eac state is always init *)
 let lemma_eac_state_of_root_init (itsl: eac_log):
