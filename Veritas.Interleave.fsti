@@ -13,7 +13,7 @@ type sseq (a:Type) = seq (seq a)
 (* an index into an element of sseq *)
 type sseq_index (#a:Type) (ss: sseq a) = 
   (ij:(nat * nat){(fst ij) < length ss /\ 
-                (snd ij) < length (index ss (fst ij))})
+               (snd ij) < length (index ss (fst ij))})
 
 (* retrieve an element of an sseq given its index *)
 let indexss (#a:Type) (ss: sseq a) (ij: sseq_index ss): Tot a = 
@@ -21,22 +21,32 @@ let indexss (#a:Type) (ss: sseq a) (ij: sseq_index ss): Tot a =
   index (index ss i) j
 
 (* sum of lengths of all sequences in a sequence of seqs *)
-val flat_length (#a:Type) (ss: sseq a): Tot nat
+val flat_length (#a:Type) (ss: sseq a)
+  : Tot nat
 
 (* flat length of an empty sseq *)
-val lemma_flat_length_empty (#a:Type):
-  Lemma (flat_length (empty #(seq a)) = 0)
+val lemma_flat_length_empty (#a:Type)
+  : Lemma (flat_length (empty #(seq a)) = 0)
 
 (* appending a singleton adds to the flat length *)
-val lemma_flat_length_app1 (#a:Type) (ss: sseq a) (s: seq a):
-  Lemma (flat_length ss + length s = flat_length (append1 ss s))
+val lemma_flat_length_app1 (#a:Type) (ss: sseq a) (s: seq a)
+  : Lemma (flat_length ss + length s = flat_length (append1 ss s))
 
 (* appending adds to the flat length *)
-val lemma_flat_length_app (#a:Type) (ss1 ss2: sseq a):
-  Lemma (flat_length ss1 + flat_length ss2 = flat_length (append ss1 ss2))
+val lemma_flat_length_app (#a:Type) (ss1 ss2: sseq a)
+  : Lemma (flat_length ss1 + flat_length ss2 = flat_length (append ss1 ss2))
+
+let sseq_extend (#a:eqtype) (ss: sseq a) (x:a) (i:seq_index ss): sseq a =
+  let si = index ss i in
+  let si' = append1 si x in
+  upd ss i si'
 
 (* interleaving of n sequences *)
-val interleave (#a:eqtype): seq a -> ss:sseq a -> Type0 
+type interleave (#a:eqtype): seq a -> ss:sseq a -> Type0 = 
+  | IntEmpty: interleave (empty #a) (empty #(seq a))
+  | IntAdd: s:seq a -> ss: sseq a -> prf:interleave s ss -> interleave s (append1 ss (empty #a))
+  | IntExtend: s:seq a -> ss: sseq a -> prf:interleave s ss -> x:a -> i:seq_index ss ->
+               interleave (append1 s x) (sseq_extend ss x i)
 
 (* length of an interleaving is the sum of the lengths of the individual sequences *)
 val lemma_interleave_length (#a:eqtype) (s: seq a) (ss: sseq a{interleave s ss}):
@@ -127,7 +137,13 @@ val lemma_prefix_prefix (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) 
         (ensures (prefix (prefix il i) j == prefix il j))
         [SMTPat (prefix (prefix il i) j)]
 
-val filter (#a:eqtype) (f:a -> bool) (il:interleaving a): interleaving a
+val filter_interleaving (#a:eqtype) (f:a -> bool) (#s:seq a) (#ss:sseq a) (i:interleave s ss)
+  : interleave (filter f s) (map (filter f) ss)
+
+let filter (#a:eqtype) (f:a -> bool) (il:interleaving a)
+  : interleaving a 
+  = let IL is ss prf = il in
+    IL (filter f is) (map (filter f) ss) (filter_interleaving f prf)
 
 val lemma_i2s_map_prefix (#a:eqtype) (il: interleaving a) (i: nat{i <= length il}) (j:nat{j < i}):
   Lemma (i2s_map il j = i2s_map (prefix il i) j)

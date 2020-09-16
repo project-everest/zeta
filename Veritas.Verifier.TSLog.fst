@@ -73,7 +73,249 @@ let lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl})
     in
     lemma_prefix_clock_sorted itsl i
 
-let create (gl: VG.verifiable_log)
+
+#push-options "--query_stats --fuel 1,0"
+
+
+
+let sseq_same_shape #a #b (s0:sseq a) (s1:sseq b) = 
+  Seq.length s0 = Seq.length s1 /\
+  (forall (i:seq_index s0). Seq.length (Seq.index s0 i) = Seq.length (Seq.index s1 i))
+
+let test (vl:VG.verifiable_log) (i j: sseq_index vl) =
+  assume (fst i == fst j /\ snd i <= snd j);
+  VT.lemma_clock_monotonic (VG.thread_log vl (fst i)) (snd i) (snd j);
+  assert (VG.clock vl i `ts_leq` VG.clock vl j)
+  
+assume
+val mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
+  : t:seq b{
+    Seq.length s == Seq.length t /\
+    (forall (i:seq_index s). Seq.index t i == f i)
+   }
+
+let sseq_append #a (ss0:sseq a) (ss1:sseq a{Seq.length ss0 == Seq.length ss1}) 
+  : sseq a 
+  = mapi ss0 (fun i -> Seq.append (Seq.index ss0 i) (Seq.index ss1 i))
+
+let with_clock_i (vl:VG.verifiable_log) (i:seq_index vl)
+  : s:seq (vlog_entry & timestamp){
+      Seq.length s = Seq.length (Seq.index vl i) /\
+      (forall (j:seq_index s). (indexss vl (i,j), VG.clock vl (i,j)) == Seq.index s j)
+    }
+  = let vl_i = Seq.index vl i in
+    mapi vl_i (fun j -> Seq.index vl_i j, VG.clock vl (i, j))
+  
+let with_clock (vl:VG.verifiable_log)
+  : s:sseq (vlog_entry & timestamp) {
+      sseq_same_shape vl s /\
+      (forall (i:sseq_index s). 
+         indexss s i == (indexss vl i, VG.clock vl i))
+    }
+  = mapi vl (with_clock_i vl)
+
+let ts_sorted_seq (s:seq (vlog_entry & timestamp)) = 
+  forall (i j:seq_index s).
+    i <= j ==>
+    snd (Seq.index s i) `ts_leq` snd (Seq.index s j)
+
+let ts_sseq = 
+    s:sseq (vlog_entry & timestamp) {
+      forall (i:seq_index s). ts_sorted_seq (Seq.index s i)
+    }
+
+let is_min_clock_up_to (s:ts_sseq) (i:nat{ i <= Seq.length s }) (min:sseq_index s)
+  =  snd min == 0 /\
+     (forall (j:sseq_index s). 
+       fst j < i ==> snd (indexss s min) `ts_leq` snd (indexss s j))
+    
+let min_clock_up_to (s:ts_sseq) (i:nat{ i <= Seq.length s }) =
+    min:sseq_index s { is_min_clock_up_to s i min }
+
+let min_clock s = min_clock_up_to s (Seq.length s)
+
+let rec pick_min (s:ts_sseq)
+                 (i:nat{i <= Seq.length s})
+                 (min:min_clock_up_to s i)
+  : Tot (min_clock s)
+        (decreases (Seq.length s - i))
+  = if i = Seq.length s then min
+    else (
+      if Seq.length (Seq.index s i) = 0
+      then pick_min s (i + 1) min
+      else (
+        if snd (indexss s (i, 0)) `ts_leq`
+           snd (indexss s min)
+        then pick_min s (i + 1) (i,0)
+        else (assert (snd (indexss s min) `ts_leq`
+                      snd (indexss s (i, 0)));
+              assert (forall (j:sseq_index s). 
+                        fst j = i /\
+                        snd j >= 0 ==>
+                        snd (indexss s min) `ts_leq` 
+                        snd (indexss s (i,0)) /\
+                        snd (indexss s (i,0)) `ts_leq`
+                        snd (indexss s j));
+              pick_min s (i + 1) min
+        )
+      )
+    )
+
+let is_empty_sseq #a (s:sseq a) =
+    forall (i:seq_index s). Seq.index s i `Seq.equal` empty #a
+
+let rec min_sseq_index(s:ts_sseq)
+  : Tot (o:option (sseq_index s) {
+        match o with
+        | None -> is_empty_sseq s
+        | Some min -> is_min_clock_up_to s 0 min
+        })
+        (decreases (Seq.length s))
+  = if Seq.length s = 0 then None
+    else let prefix, last = Seq.un_snoc s in
+         match min_sseq_index prefix with
+         | None -> 
+           if Seq.length last = 0 
+           then None
+           else (
+             let min = (Seq.length s - 1, 0) in
+             Some min
+           )
+         | Some i ->
+           Some i
+
+let split_ts_sseq (s:ts_sseq) 
+  : o:option (i:min_clock s &
+              e:(vlog_entry & timestamp){e == indexss s i} &
+              s':ts_sseq {
+                Seq.length s = Seq.length s' /\
+                s `Seq.equal` Seq.upd s (fst i)
+                              (Seq.cons e (Seq.index s' (fst i))) /\
+                flat_length s' < flat_length s
+             }){
+       None? o ==> is_empty_sseq s
+    }
+  = match min_sseq_index s with
+    | None -> None
+    | Some min ->
+      let j = pick_min s 0 min in
+      let e = Seq.head (Seq.index s (fst j)) in
+      let tl_j = Seq.tail (Seq.index s (fst j)) in
+      let s' = Seq.upd s (fst j) tl_j in
+      assume (flat_length s' < flat_length s);
+      Some (| j, e, s' |)
+
+let ts_seq = s:seq (vlog_entry & timestamp){ ts_sorted_seq s }
+
+let get_min_clock (s:ts_sseq { ~(is_empty_sseq s) })
+  : ts:timestamp {
+      forall (i:sseq_index s). ts `ts_leq` snd (indexss s i)
+    }
+  = let Some (| _, e, _|) = split_ts_sseq s in
+    snd e
+
+let clock_exceeds (s0:ts_seq) (ts:timestamp) =
+  forall (i:seq_index s0). snd (Seq.index s0 i) `ts_leq` ts
+
+module I = Veritas.Interleave
+
+let coerce_interleave (#a:eqtype) (s:seq a) (s0 s1:sseq a) (i:interleave s s0 { Seq.equal s0 s1 })
+  : interleave s s1
+  = i
+  
+let rec interleave_ts_sseq 
+         (s0:ts_seq)
+         (ss0:ts_sseq) 
+         (ss1:ts_sseq {
+           (Seq.length ss0 == Seq.length ss1) /\
+           (is_empty_sseq ss1 \/
+            (clock_exceeds s0 (get_min_clock ss1) /\
+             (forall (i:seq_index ss0). 
+               clock_exceeds (Seq.index ss0 i) (get_min_clock ss1))))
+          })
+         (prefix:interleave s0 ss0)
+   : Tot (s:ts_seq &
+          interleave s
+                     (ss0 `sseq_append` ss1))
+         (decreases (flat_length ss1))
+   = match split_ts_sseq ss1 with
+     | None ->
+       assert (is_empty_sseq ss1);
+       assert (forall (i:seq_index ss0). 
+               Seq.equal (Seq.index ss0 i)
+                         (Seq.append (Seq.index ss0 i) empty));
+       assert (Seq.equal ss0 (ss0 `sseq_append` ss1));
+       (| s0, prefix |)
+       
+     | Some (| i, e, ss1' |) ->
+       let s0' : ts_seq = append1 s0 e in
+       let prefix' : interleave (append1 s0 e) (sseq_extend ss0 e (fst i)) 
+         = I.IntExtend s0 ss0 prefix e (fst i)
+       in
+       let ss0' = sseq_extend ss0 e (fst i) in
+       let aux (j:seq_index ss0)
+         : Lemma 
+           (ensures (Seq.index (sseq_append ss0' ss1') j `Seq.equal` Seq.index (sseq_append ss0 ss1) j))
+           [SMTPat (Seq.index (sseq_append ss0' ss1') j)]
+         = let v = sseq_append ss0 ss1 in
+           let v' = sseq_append ss0' ss1' in
+           if fst i <> j 
+           then ()
+           else (
+             assert (Seq.index v j == Seq.append (Seq.index ss0 j) (Seq.index ss1 j));
+             assert (Seq.index ss1' j == Seq.tail (Seq.index ss1 j));
+             assert (Seq.index ss0' j == Seq.snoc (Seq.index ss0 j) (Seq.head (Seq.index ss1 j)))
+           )
+       in
+       assert ((sseq_append ss0' ss1') `Seq.equal` (sseq_append ss0 ss1));
+       let aux (j:seq_index ss0')
+         : Lemma (ensures ts_sorted_seq (Seq.index ss0' j))
+                 [SMTPat (Seq.index ss0' j)]
+         = if fst i <> j
+           then () 
+           else (
+             assert (Seq.index ss0' j == Seq.snoc (Seq.index ss0 j) (Seq.head (Seq.index ss1 j)));
+             assert (Seq.head (Seq.index ss1 j) == e);
+             assert (clock_exceeds (Seq.index ss0' j) (snd e))
+           )
+       in
+       assert (forall (i:seq_index ss0'). ts_sorted_seq (Seq.index ss0' i));
+       let aux ()
+         : Lemma (requires ~(is_empty_sseq ss1'))
+                 (ensures (clock_exceeds s0' (get_min_clock ss1')))
+                 [SMTPat()]
+         = assert (snd e `ts_leq` (get_min_clock ss1'));
+           assert (s0' == Seq.snoc s0 e);
+           assert (clock_exceeds s0 (snd e));
+           assert (forall (i:seq_index s0').
+                     snd (Seq.index s0' i) `ts_leq` (snd e) /\
+                     snd e `ts_leq` (get_min_clock ss1'))
+       in
+       let aux (j:seq_index ss0')
+         : Lemma (requires ~(is_empty_sseq ss1'))
+                 (ensures (clock_exceeds (Seq.index ss0' j) (get_min_clock ss1')))
+                 [SMTPat()]
+         = assert (clock_exceeds (Seq.index ss0 j) (get_min_clock ss1));
+           assert (clock_exceeds (Seq.index ss0 j) (snd e));
+           assert (snd e `ts_leq` get_min_clock ss1');
+           if fst i <> j 
+           then (
+             assert (Seq.index ss0 j == Seq.index ss0' j)
+           )
+           else (
+             assert (Seq.index ss0' j == Seq.snoc (Seq.index ss0 j) e);
+             let ss = Seq.index ss0' j in
+             assert (forall (i:seq_index ss).
+                     snd (Seq.index ss i) `ts_leq` (snd e) /\
+                     snd e `ts_leq` (get_min_clock ss1'));
+             ()
+           )
+       in
+       let (| s, p |) = interleave_ts_sseq s0' ss0' ss1' prefix' in
+       (| s, coerce_interleave s _ _ p |)
+
+
+let rec create (gl:VG.verifiable_log)
   = let open VG in
     assert (forall (tid:seq_index gl). VT.verifiable (thread_log gl tid));
     admit()
