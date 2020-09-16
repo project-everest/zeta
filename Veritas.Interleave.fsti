@@ -98,6 +98,9 @@ let sseq_all_prefix_of (#a:eqtype)
   = S.length ss0 = S.length ss1 /\
     (forall (tid:SA.seq_index ss1). (Seq.index ss0 tid) `prefix_of` (Seq.index ss1 tid))
 
+val interleave_empty_n (#a:eqtype) (n:nat) 
+  : interleave #a empty (Seq.create n empty)
+
 val prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}): 
   Tot (il':interleaving a{i_seq il' = SA.prefix (i_seq il) i /\ 
                           S.length (s_seq il) = S.length (s_seq il')})
@@ -154,3 +157,7 @@ val lemma_prefix_interleaving (#a:eqtype)
   (i:nat{ i <= length il}) 
   (j:nat{j < S.length (s_seq il)}):
   Lemma ((S.index (s_seq (prefix il i)) j) `prefix_of` (S.index (s_seq il) j))
+
+val map_interleave (#a #b:eqtype) (f:a -> b) (s:seq a) (ss:sseq a) (i:interleave s ss)
+   : Tot (interleave (map f s) (map (map f) ss))
+         (decreases i)

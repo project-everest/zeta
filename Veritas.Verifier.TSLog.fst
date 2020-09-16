@@ -96,22 +96,6 @@ let sseq_append #a (ss0:sseq a) (ss1:sseq a{Seq.length ss0 == Seq.length ss1})
   : sseq a 
   = mapi ss0 (fun i -> Seq.append (Seq.index ss0 i) (Seq.index ss1 i))
 
-let with_clock_i (vl:VG.verifiable_log) (i:seq_index vl)
-  : s:seq (vlog_entry & timestamp){
-      Seq.length s = Seq.length (Seq.index vl i) /\
-      (forall (j:seq_index s). (indexss vl (i,j), VG.clock vl (i,j)) == Seq.index s j)
-    }
-  = let vl_i = Seq.index vl i in
-    mapi vl_i (fun j -> Seq.index vl_i j, VG.clock vl (i, j))
-  
-let with_clock (vl:VG.verifiable_log)
-  : s:sseq (vlog_entry & timestamp) {
-      sseq_same_shape vl s /\
-      (forall (i:sseq_index s). 
-         indexss s i == (indexss vl i, VG.clock vl i))
-    }
-  = mapi vl (with_clock_i vl)
-
 let ts_sorted_seq (s:seq (vlog_entry & timestamp)) = 
   forall (i j:seq_index s).
     i <= j ==>
@@ -182,6 +166,13 @@ let rec min_sseq_index(s:ts_sseq)
          | Some i ->
            Some i
 
+#push-options "--z3rlimit_factor 2"
+let flat_length_single #a (s:seq a)
+  : Lemma (flat_length (create 1 s) == Seq.length s)
+  = assert (Seq.equal (create 1 s) (append1 empty s));
+    lemma_flat_length_app1 empty s;
+    lemma_flat_length_empty #a
+  
 let split_ts_sseq (s:ts_sseq) 
   : o:option (i:min_clock s &
               e:(vlog_entry & timestamp){e == indexss s i} &
@@ -200,7 +191,29 @@ let split_ts_sseq (s:ts_sseq)
       let e = Seq.head (Seq.index s (fst j)) in
       let tl_j = Seq.tail (Seq.index s (fst j)) in
       let s' = Seq.upd s (fst j) tl_j in
-      assume (flat_length s' < flat_length s);
+      assert (length (Seq.index s (fst j)) == length (Seq.index s' (fst j)) + 1);
+      let s'_prefix, s'_suffix = Seq.split s' (fst j) in
+      let s_prefix, s_suffix = Seq.split s (fst j) in
+      assert (s_prefix == s'_prefix);
+      let x', s'_suffix' = Seq.head s'_suffix, Seq.tail s'_suffix in
+      let x, s_suffix' = Seq.head s_suffix, Seq.tail s_suffix in      
+      assert (s'_suffix' == s_suffix');
+      assert (Seq.length x' < Seq.length x);
+      lemma_flat_length_app s'_prefix s'_suffix;
+      lemma_flat_length_app s_prefix s_suffix;      
+      assert (s'_suffix `Seq.equal` Seq.cons x' s'_suffix');
+      assert (s_suffix `Seq.equal` Seq.cons x s_suffix');      
+      assert (s' `Seq.equal` (Seq.append s'_prefix s'_suffix));
+      assert (s `Seq.equal` (Seq.append s_prefix s_suffix));      
+      // assert (flat_length s' == flat_length s'_prefix + flat_length s'_suffix);
+      // assert (flat_length s == flat_length s_prefix + flat_length s_suffix);      
+      lemma_flat_length_app (create 1 x') s'_suffix';
+      // assert (flat_length s'_suffix == flat_length (create 1 x') + flat_length s'_suffix');
+      lemma_flat_length_app (create 1 x) s'_suffix';      
+      // assert (flat_length s_suffix == flat_length (create 1 x) + flat_length s'_suffix');      
+      flat_length_single x;
+      flat_length_single x';      
+      assert (flat_length s' < flat_length s);
       Some (| j, e, s' |)
 
 let ts_seq = s:seq (vlog_entry & timestamp){ ts_sorted_seq s }
@@ -312,14 +325,92 @@ let rec interleave_ts_sseq
        let (| s, p |) = interleave_ts_sseq s0' ss0' ss1' prefix' in
        (| s, coerce_interleave s _ _ p |)
 
+let create_tsseq_interleaving (ss:ts_sseq)
+  : (s:ts_seq & interleave s ss)
+  = let (| s, i |) = interleave_ts_sseq empty (create (Seq.length ss) empty) ss (interleave_empty_n _) in
+    assert (forall (i:seq_index ss). 
+           Seq.index ((create (Seq.length ss) empty) `sseq_append` ss) i 
+           `Seq.equal`
+           Seq.index ss i);
+    assert (((create (Seq.length ss) empty) `sseq_append` ss) `Seq.equal` ss);
+    (| s, coerce_interleave _ _ _ i |)
+    
+let with_clock_i (vl:VG.verifiable_log) (i:seq_index vl)
+  : s:ts_seq {
+      Seq.length s = Seq.length (Seq.index vl i) /\
+      (forall (j:seq_index s). (indexss vl (i,j), VG.clock vl (i,j)) == Seq.index s j)
+    }
+  = let vl_i = Seq.index vl i in
+    let s = mapi vl_i (fun j -> Seq.index vl_i j, VG.clock vl (i, j)) in
+    let aux (a b:seq_index s)
+      : Lemma 
+        (requires a <= b)
+        (ensures snd (Seq.index s a) `ts_leq` snd (Seq.index s b))
+        [SMTPat (Seq.index s a);
+         SMTPat (Seq.index s b)]
+      = VT.lemma_clock_monotonic (VG.thread_log vl i) a b
+    in
+    s
+  
+let ts_seq_of_g_vlog (vl:VG.verifiable_log)
+  : s:ts_sseq {
+      sseq_same_shape vl s /\
+      (forall (i:sseq_index s). 
+         indexss s i == (indexss vl i, VG.clock vl i))
+    }
+  = mapi vl (with_clock_i vl)
 
-let rec create (gl:VG.verifiable_log)
-  = let open VG in
-    assert (forall (tid:seq_index gl). VT.verifiable (thread_log gl tid));
-    admit()
+let map_tsseq (f:(vlog_entry & timestamp) -> 'a) (x:ts_sseq) 
+  : sseq 'a
+  = map (map f) x
 
-// let lemma_create_correct (gl: VG.verifiable_log):
-//   Lemma (gl = to_g_vlog (create gl)) = admit()
+let g_vlog_of_ts_sseq (x:ts_sseq)
+  : g_vlog
+  = map_tsseq fst x
+  
+let inverse_g_vlog_ts_seq (vl:VG.verifiable_log)
+  : Lemma (g_vlog_of_ts_sseq (ts_seq_of_g_vlog vl) == vl)
+  = let ts = ts_seq_of_g_vlog vl in
+    let vl' = g_vlog_of_ts_sseq ts in
+    assert (Seq.length ts == Seq.length vl');
+    let aux (i:seq_index ts)
+      : Lemma (ensures Seq.index vl' i `Seq.equal` Seq.index vl i)
+              [SMTPat (Seq.index vl i)]
+      = ()
+    in
+    assert (Seq.equal vl' vl)
+
+assume
+val map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:I.seq_index prf)
+  : Lemma (i2s_map prf i == i2s_map (IL _ _ (map_interleave f _ _ (IL?.prf prf))) i)
+  
+let create (gl:VG.verifiable_log)
+  = let ts = ts_seq_of_g_vlog gl in
+    let (| s, tsi |) = create_tsseq_interleaving ts in
+    inverse_g_vlog_ts_seq gl;
+    let il = IL _ gl (map_interleave fst _ _ tsi) in
+    assert (verifiable il);
+    assert (g_vlog_of il == gl);
+    let aux (i j: I.seq_index il)
+      : Lemma (requires i <= j)
+              (ensures clock il i `ts_leq` clock il j)
+              [SMTPat ()]
+      = let i' = i2s_map il i in
+        let j' = i2s_map il j in
+        map_interleave_i2s fst (IL _ _ tsi) i;
+        map_interleave_i2s fst (IL _ _ tsi) j;        
+        assert (VG.clock gl i' == snd (indexss ts i'));
+        assert (VG.clock gl j' == snd (indexss ts j'));        
+        lemma_i2s_s2i il i;
+        lemma_i2s_s2i il j;        
+        assert (indexss ts i' == index s (s2i_map il i'));        
+        assert (indexss ts j' == index s (s2i_map il j'));                
+        assert (indexss ts i' == index s i);
+        assert (indexss ts j' == index s j);        
+        assert (VG.clock gl i' `ts_leq` VG.clock gl j')
+    in
+    assert (clock_sorted il);
+    il
 
 (*thread state after processing ts log - guaranteed to be valid *)
 let thread_state (itsl: its_log) (tid: valid_tid itsl): (vs:vtls{Valid? vs})

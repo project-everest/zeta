@@ -333,22 +333,31 @@ let lemma_filter_interleave_commute (#a:eqtype) (f:a -> bool) (s: seq a) (ss: ss
   bind_squash () (lemma_as_squash (lemma_filter_interleave_commute_aux f s ss))
 
 unfold 
-let empty_sseq_n a (n:nat) : sseq a = Seq.init #(seq a) n (fun _ -> empty #a)
+let empty_sseq_n a (n:nat) : sseq a = Seq.create n empty
 
-let interleave_coerce_ss (#a:eqtype) (s:seq a) (ss0:sseq a) (ss1:sseq a{Seq.equal ss0 ss1})
-                         (i:interleave s ss0)
-  : interleave s ss1
+
+unfold
+let sseq_equal (s0 s1:sseq 'a) =
+  Seq.length s0 == Seq.length s1 /\
+  (forall (i:SA.seq_index s0). Seq.index s0 i `Seq.equal` Seq.index s1 i) /\
+  ((forall (i:SA.seq_index s0). Seq.index s0 i `Seq.equal` Seq.index s1 i) ==> Seq.equal s0 s1)
+  
+
+let interleave_coerce (#a:eqtype) 
+                      (#s0:seq a) (#s1:seq a{Seq.equal s0 s1})
+                      (#ss0:sseq a) (#ss1:sseq a{sseq_equal ss0 ss1})
+                      (i:interleave s0 ss0)
+  : interleave s1 ss1
   = i
 
-#push-options "--print_implicits"
 let rec interleave_empty_n (#a:eqtype) (n:nat) 
   : interleave #a empty (empty_sseq_n a n)
   = if n = 0 
     then (
-      interleave_coerce_ss _ _ _ IntEmpty 
+      interleave_coerce IntEmpty 
     )
     else (
-      interleave_coerce_ss _ _ _ 
+      interleave_coerce 
             (IntAdd _ _  (interleave_empty_n (n - 1)))
     )
 
@@ -572,3 +581,14 @@ let lemma_prefix_interleaving (#a:eqtype)
   (i:nat{ i <= length il}) 
   (j:nat{j < S.length (s_seq il)}) = 
   per_thread_prefix il i
+
+let rec map_interleave (#a #b:eqtype) (f:a -> b) (s:seq a) (ss:sseq a) (i:interleave s ss)
+   : Tot (interleave (map f s) (map (map f) ss))
+         (decreases i)
+   = match i with
+     | IntEmpty -> 
+       interleave_coerce IntEmpty
+     | IntAdd _ ss' prf' -> 
+       interleave_coerce (IntAdd _ _ (map_interleave f _ _ prf'))
+     | IntExtend s' ss' prf' x j -> 
+       interleave_coerce (IntExtend _ _ (map_interleave f _ _ prf') (f x) j)
