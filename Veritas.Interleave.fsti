@@ -161,3 +161,6 @@ val lemma_prefix_interleaving (#a:eqtype)
 val map_interleave (#a #b:eqtype) (f:a -> b) (s:seq a) (ss:sseq a) (i:interleave s ss)
    : Tot (interleave (map f s) (map (map f) ss))
          (decreases i)
+
+val map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:seq_index prf)
+  : Lemma (ensures (i2s_map prf i == i2s_map (IL _ _ (map_interleave f _ _ (IL?.prf prf))) i))

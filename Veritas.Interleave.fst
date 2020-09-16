@@ -592,3 +592,18 @@ let rec map_interleave (#a #b:eqtype) (f:a -> b) (s:seq a) (ss:sseq a) (i:interl
        interleave_coerce (IntAdd _ _ (map_interleave f _ _ prf'))
      | IntExtend s' ss' prf' x j -> 
        interleave_coerce (IntExtend _ _ (map_interleave f _ _ prf') (f x) j)
+
+let map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:seq_index prf)
+  : Lemma (ensures (i2s_map prf i == i2s_map (IL _ _ (map_interleave f _ _ (IL?.prf prf))) i))
+  = let rec aux (prf:interleaving a) (i:seq_index prf)
+      : Lemma (ensures (i2s_map prf i == i2s_map (IL _ _ (map_interleave f _ _ (IL?.prf prf))) i))
+              (decreases (IL?.prf prf))
+      = let IL is ss prf = prf in
+        match prf with
+        | IntAdd _ ss' prf' ->
+          aux (IL _ _ prf') i
+        | IntExtend is' ss' prf' x j ->
+          if i < Seq.length is'
+          then aux (IL _ _ prf') i
+    in
+    aux prf i

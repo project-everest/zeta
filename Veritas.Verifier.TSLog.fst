@@ -74,17 +74,12 @@ let lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl})
     lemma_prefix_clock_sorted itsl i
 
 
-#push-options "--query_stats --fuel 1,0"
+#push-options "--fuel 1,0"
 
 let sseq_same_shape #a #b (s0:sseq a) (s1:sseq b) = 
   Seq.length s0 = Seq.length s1 /\
   (forall (i:seq_index s0). Seq.length (Seq.index s0 i) = Seq.length (Seq.index s1 i))
 
-let test (vl:VG.verifiable_log) (i j: sseq_index vl) =
-  assume (fst i == fst j /\ snd i <= snd j);
-  VT.lemma_clock_monotonic (VG.thread_log vl (fst i)) (snd i) (snd j);
-  assert (VG.clock vl i `ts_leq` VG.clock vl j)
-  
 assume
 val mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
   : t:seq b{
@@ -379,10 +374,6 @@ let inverse_g_vlog_ts_seq (vl:VG.verifiable_log)
       = ()
     in
     assert (Seq.equal vl' vl)
-
-assume
-val map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:I.seq_index prf)
-  : Lemma (i2s_map prf i == i2s_map (IL _ _ (map_interleave f _ _ (IL?.prf prf))) i)
   
 let create (gl:VG.verifiable_log)
   = let ts = ts_seq_of_g_vlog gl in
@@ -394,7 +385,7 @@ let create (gl:VG.verifiable_log)
     let aux (i j: I.seq_index il)
       : Lemma (requires i <= j)
               (ensures clock il i `ts_leq` clock il j)
-              [SMTPat ()]
+              [SMTPat (clock il i `ts_leq` clock il j)]
       = let i' = i2s_map il i in
         let j' = i2s_map il j in
         map_interleave_i2s fst (IL _ _ tsi) i;
@@ -411,6 +402,7 @@ let create (gl:VG.verifiable_log)
     in
     assert (clock_sorted il);
     il
+#reset-options
 
 (*thread state after processing ts log - guaranteed to be valid *)
 let thread_state (itsl: its_log) (tid: valid_tid itsl): (vs:vtls{Valid? vs})
@@ -500,7 +492,6 @@ let lemma_eac_value_correct_type (itsl: eac_log) (k:key):
         (ensures is_value_of k (E.value_of (eac_state_of_key itsl k)))
  = admit()
 
-#pop-options
 
 (* we never see operations on Root so its eac state is always init *)
 let lemma_eac_state_of_root_init (itsl: eac_log):
