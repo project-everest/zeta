@@ -477,3 +477,7 @@ let lemma_eac_implies_rw_consistent (le:eac_log):
     lemma_eac_k_implies_ssm_k_valid le k;
     lemma_comm le k
   )
+
+let is_eac (l:vlog_ext)
+  : b:bool{b <==> eac l}
+  = valid_all_comp eac_sm l

@@ -620,12 +620,16 @@ let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl):
         (ensures (V.key_of (I.index itsl i) <> Root))
   = admit()        
 
+#push-options "--fuel 0,0 --ifuel 0,0"
 (* since the itsl is sorted by clock, the following lemma holds *)
 let lemma_clock_ordering (itsl: its_log) (i1 i2: I.seq_index itsl):
   Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
         (ensures (i1 < i2))
-  = admit()        
-  
+  = assert (clock_sorted itsl);
+    if i2 <= i1
+    then assert (clock itsl i2 `ts_leq` clock itsl i1)
+#pop-options  
+
 (* the state of each key for an empty log is init *)
 let lemma_init_state_empty (itsl: its_log {I.length itsl = 0}) (k: key):
   Lemma (eac_state_of_key itsl k = EACInit)

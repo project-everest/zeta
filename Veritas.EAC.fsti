@@ -154,3 +154,5 @@ let to_vlog (l:vlog_ext) =
 
 val lemma_eac_implies_rw_consistent (le:eac_log):
   Lemma (rw_consistent (to_state_op_vlog (to_vlog le)))
+
+val is_eac (l:vlog_ext) : b:bool{b <==> eac l}
