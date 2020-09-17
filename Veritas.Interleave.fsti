@@ -158,6 +158,13 @@ val lemma_prefix_interleaving (#a:eqtype)
   (j:nat{j < S.length (s_seq il)}):
   Lemma ((S.index (s_seq (prefix il i)) j) `prefix_of` (S.index (s_seq il) j))
 
+val lemma_prefix_snoc (#a:eqtype) (il:interleaving a) (i:seq_index il)
+  : Lemma (let tid, j = i2s_map il i in
+           let il_i = prefix il i in
+           let il_i' = prefix il (i + 1) in
+           Seq.index (s_seq il_i') tid == Seq.snoc (Seq.index (s_seq il_i) tid) (index il i))
+
+
 val map_interleave (#a #b:eqtype) (f:a -> b) (s:seq a) (ss:sseq a) (i:interleave s ss)
    : Tot (interleave (map f s) (map (map f) ss))
          (decreases i)

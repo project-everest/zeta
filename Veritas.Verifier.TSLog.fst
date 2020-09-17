@@ -74,7 +74,7 @@ let lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl})
     lemma_prefix_clock_sorted itsl i
 
 
-#push-options "--fuel 1,0"
+#push-options "--fuel 0,0"
 
 let sseq_same_shape #a #b (s0:sseq a) (s1:sseq b) = 
   Seq.length s0 = Seq.length s1 /\
@@ -161,7 +161,7 @@ let rec min_sseq_index(s:ts_sseq)
          | Some i ->
            Some i
 
-#push-options "--z3rlimit_factor 2"
+#push-options "--z3rlimit_factor 4"
 let flat_length_single #a (s:seq a)
   : Lemma (flat_length (create 1 s) == Seq.length s)
   = assert (Seq.equal (create 1 s) (append1 empty s));
@@ -210,7 +210,7 @@ let split_ts_sseq (s:ts_sseq)
       flat_length_single x';      
       assert (flat_length s' < flat_length s);
       Some (| j, e, s' |)
-
+#pop-options
 let ts_seq = s:seq (vlog_entry & timestamp){ ts_sorted_seq s }
 
 let get_min_clock (s:ts_sseq { ~(is_empty_sseq s) })
@@ -228,7 +228,8 @@ module I = Veritas.Interleave
 let coerce_interleave (#a:eqtype) (s:seq a) (s0 s1:sseq a) (i:interleave s s0 { Seq.equal s0 s1 })
   : interleave s s1
   = i
-  
+
+#push-options "--z3rlimit_factor 2"
 let rec interleave_ts_sseq 
          (s0:ts_seq)
          (ss0:ts_sseq) 
@@ -319,6 +320,7 @@ let rec interleave_ts_sseq
        in
        let (| s, p |) = interleave_ts_sseq s0' ss0' ss1' prefix' in
        (| s, coerce_interleave s _ _ p |)
+#pop-options
 
 let create_tsseq_interleaving (ss:ts_sseq)
   : (s:ts_seq & interleave s ss)
@@ -402,17 +404,38 @@ let create (gl:VG.verifiable_log)
     in
     assert (clock_sorted il);
     il
-#reset-options
 
 (*thread state after processing ts log - guaranteed to be valid *)
-let thread_state (itsl: its_log) (tid: valid_tid itsl): (vs:vtls{Valid? vs})
-  = admit()
+let thread_state (itsl: its_log) 
+                 (tid: valid_tid itsl) 
+  : Tot (vs:vtls{Valid? vs})
+  = verify (thread_log (s_seq itsl) tid)
 
-let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl):
-  Lemma (thread_state_post itsl i == 
-         t_verify_step (thread_state_pre itsl i) (I.index itsl i))
-  = admit()
+#push-options "--fuel 1,1"
+let t_verify_aux_snoc (vs:vtls) (l:vlog) (e:vlog_entry)
+  : Lemma (ensures 
+             t_verify_aux vs (Seq.snoc l e) ==
+             t_verify_step (t_verify_aux vs l) e)
+          (decreases (Seq.length l))
+  = assert (prefix (Seq.snoc l e) (Seq.length l) `Seq.equal` l)
+#pop-options
 
+let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl)
+  : Lemma (thread_state_post itsl i == 
+           t_verify_step (thread_state_pre itsl i) (I.index itsl i))
+  = let tid = thread_id_of itsl i in
+    let itsl_i = I.prefix itsl i in
+    let vlog_tid = Seq.index (s_seq itsl_i) tid in    
+    let itsl_i' = I.prefix itsl (i + 1) in
+    let vlog_tid' = Seq.index (s_seq itsl_i') tid in
+    I.lemma_prefix_snoc itsl i;
+    assert (vlog_tid' `Seq.equal` Seq.snoc vlog_tid (I.index itsl i));
+    let init = init_thread_state tid in
+    let lhs = t_verify_aux init vlog_tid' in
+    let rhs = t_verify_step (t_verify_aux init vlog_tid) (I.index itsl i) in
+    t_verify_aux_snoc init vlog_tid (I.index itsl i)
+
+#reset-options
 (* is this an evict add consistent log *)
 let is_eac (itsl: its_log):bool = admit()
 
