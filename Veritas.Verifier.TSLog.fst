@@ -436,8 +436,30 @@ let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl)
     t_verify_aux_snoc init vlog_tid (I.index itsl i)
 
 #reset-options
+
+let vlog_ext_of_its_log (itsl:its_log)
+  : seq vlog_entry_ext
+  = let IL is _ _ = itsl in
+    mapi is (fun i ->
+      let ts = thread_state_pre itsl i in
+      let Valid _ st clk _ _ _  = ts in
+      let vle = I.index itsl i in
+      lemma_verifier_thread_state_extend itsl i;
+      match vle with
+      | EvictM k k' ->
+        let Some (VStore v _) = st k in
+        EvictMerkle vle v
+      | EvictB k ts ->
+        let Some (VStore v _) = st k in
+        EvictBlum vle v (thread_id_of itsl i)
+      | EvictBM k k' ts ->
+        let Some (VStore v _) = st k in
+        EvictBlum vle v (thread_id_of itsl i)
+      | v -> NEvict v)
+
 (* is this an evict add consistent log *)
-let is_eac (itsl: its_log):bool = admit()
+let is_eac (itsl: its_log) : bool =
+  Veritas.EAC.is_eac (vlog_ext_of_its_log itsl)
 
 let eac_boundary (itsl: neac_log):
   (i:I.seq_index itsl{is_eac (I.prefix itsl i) &&
