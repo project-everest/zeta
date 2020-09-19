@@ -80,12 +80,13 @@ let sseq_same_shape #a #b (s0:sseq a) (s1:sseq b) =
   Seq.length s0 = Seq.length s1 /\
   (forall (i:seq_index s0). Seq.length (Seq.index s0 i) = Seq.length (Seq.index s1 i))
 
-assume
-val mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
+
+let mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
   : t:seq b{
     Seq.length s == Seq.length t /\
     (forall (i:seq_index s). Seq.index t i == f i)
    }
+  = Seq.init (Seq.length s) f
 
 let sseq_append #a (ss0:sseq a) (ss1:sseq a{Seq.length ss0 == Seq.length ss1}) 
   : sseq a 
@@ -161,7 +162,7 @@ let rec min_sseq_index(s:ts_sseq)
          | Some i ->
            Some i
 
-#push-options "--z3rlimit_factor 4"
+#push-options "--z3rlimit_factor 8"
 let flat_length_single #a (s:seq a)
   : Lemma (flat_length (create 1 s) == Seq.length s)
   = assert (Seq.equal (create 1 s) (append1 empty s));
@@ -437,13 +438,11 @@ let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl)
 
 #reset-options
 
-let vlog_ext_of_its_log (itsl:its_log)
-  : seq vlog_entry_ext
-  = let IL is _ _ = itsl in
-    mapi is (fun i ->
-      let ts = thread_state_pre itsl i in
+let mk_vlog_entry_ext (itsl:its_log) (i:I.seq_index itsl) 
+  : vlog_entry_ext 
+  =   let ts = thread_state_pre itsl i in
       let Valid _ st clk _ _ _  = ts in
-      let vle = I.index itsl i in
+      let vle = Seq.index (i_seq itsl) i in
       lemma_verifier_thread_state_extend itsl i;
       match vle with
       | EvictM k k' ->
@@ -455,45 +454,76 @@ let vlog_ext_of_its_log (itsl:its_log)
       | EvictBM k k' ts ->
         let Some (VStore v _) = st k in
         EvictBlum vle v (thread_id_of itsl i)
-      | v -> NEvict v)
+      | v -> NEvict v
+let vlog_ext_of_its_log (itsl:its_log)
+  : seq vlog_entry_ext
+  = mapi (i_seq itsl) (mk_vlog_entry_ext itsl)
+let rec map_mapi_fusion (s:seq 'a) (f:SA.seq_index s -> 'b) (g:'b -> 'c)
+  : Lemma (ensures map g (mapi s f) == mapi s (fun i -> g (f i)))
+          (decreases (Seq.length s))
+  = if Seq.length s <> 0 then map_mapi_fusion (Seq.tail s) f g;
+    assert (map g (mapi s f) `Seq.equal` mapi s (fun i -> g (f i)))
 
+let inverse_to_vlog_vlog_ext_of_vlog_entry (itsl:its_log)
+  : Lemma (to_vlog (vlog_ext_of_its_log itsl) `Seq.equal` i_seq itsl)
+  = map_mapi_fusion (i_seq itsl) (mk_vlog_entry_ext itsl) to_vlog_entry
+  
 (* is this an evict add consistent log *)
 let is_eac (itsl: its_log) : bool =
   Veritas.EAC.is_eac (vlog_ext_of_its_log itsl)
 
-let eac_boundary (itsl: neac_log):
-  (i:I.seq_index itsl{is_eac (I.prefix itsl i) &&
-                      not (is_eac (I.prefix itsl (i + 1)))})
-  = admit()
+let vlog_ext_of_prefix (itsl:its_log) (i:nat { i <= I.length itsl })
+  : Lemma (vlog_ext_of_its_log (I.prefix itsl i) `prefix_of`
+           vlog_ext_of_its_log itsl)
+  = admit()           
+
+let eac_boundary (itsl: neac_log)
+  : i:I.seq_index itsl{is_eac (I.prefix itsl i) &&
+                       not (is_eac (I.prefix itsl (i + 1)))}
+  = let vl = vlog_ext_of_its_log itsl in
+    let i = max_valid_all_prefix eac_sm vl in
+    assert (~ (eac vl));
+    assert (i < length vl);
+    assert (Veritas.EAC.is_eac (prefix vl i));
+    assert (~ (Veritas.EAC.is_eac (prefix vl (i + 1))));
+    vlog_ext_of_prefix itsl i;
+    vlog_ext_of_prefix itsl (i + 1);    
+    i            
   
 (* if itsl is eac, then any prefix is also eac *)
-let lemma_eac_implies_prefix_eac (itsl: eac_log) (i:nat {i <= I.length itsl}):
-  Lemma (requires True)
-        (ensures (is_eac (I.prefix itsl i)))
-    = admit()
+let lemma_eac_implies_prefix_eac (itsl: eac_log) (i:nat {i <= I.length itsl})
+  : Lemma (ensures (is_eac (I.prefix itsl i)))
+  = let vlog = vlog_ext_of_its_log itsl in
+    let vlog' = vlog_ext_of_its_log (I.prefix itsl i) in
+    vlog_ext_of_prefix itsl i;
+    lemma_valid_all_prefix eac_sm vlog (Seq.length vlog')
   
 (* if the ts log is eac, then its state ops are read-write consistent *)
-let lemma_eac_implies_state_ops_rw_consistent (itsl: eac_log):
-  Lemma (rw_consistent (state_ops itsl))
-  = admit()
+let lemma_eac_implies_state_ops_rw_consistent (itsl: eac_log)
+  : Lemma (rw_consistent (state_ops itsl))
+  = let vl = vlog_ext_of_its_log itsl in
+    lemma_eac_implies_rw_consistent vl;
+    inverse_to_vlog_vlog_ext_of_vlog_entry itsl;
+    assert (rw_consistent (to_state_op_vlog (to_vlog vl)))
   
 (* the eac state of a key at the end of an its log *)
 let eac_state_of_key (itsl: its_log) (k:key): eac_state 
-  = admit()
+  = seq_machine_run (seq_machine_of eac_sm)
+                    (partn eac_sm k (vlog_ext_of_its_log itsl))
 
-let lemma_eac_state_of_key_valid (itsl: eac_log) (k:key):
-  Lemma (EACFail <> eac_state_of_key itsl k)
-  = admit()
+let lemma_eac_state_of_key_valid (itsl: eac_log) (k:key)
+  : Lemma (EACFail <> eac_state_of_key itsl k)
+  = ()
 
 (* the extended vlog entry to use for eac checking *)
 let vlog_entry_ext_at (itsl: its_log) (i:I.seq_index itsl): 
-  (e:vlog_entry_ext{E.to_vlog_entry e = I.index itsl i})
-  = admit()
+                      (e:vlog_entry_ext{E.to_vlog_entry e = I.index itsl i})
+  = Seq.index (vlog_ext_of_its_log itsl) i
 
 (* the eac state transition induced by the i'th entry *)
-let lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl):
-  Lemma (eac_state_post itsl i = 
-         eac_add (vlog_entry_ext_at itsl i) (eac_state_pre itsl i))
+let lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl)
+  : Lemma (eac_state_post itsl i = 
+           eac_add (vlog_entry_ext_at itsl i) (eac_state_pre itsl i))
   = admit()         
 
 (* if the ith entry does not involve key k, the eac state of k is unchanged *)
@@ -509,7 +539,6 @@ let lemma_eac_boundary_state_transition (itsl: neac_log):
                           (eac_boundary_state_pre itsl) = EACFail))
         [SMTPat (eac_boundary itsl)]
   = admit()
-
 
 (* when the eac state of a key is "instore" then there is always a previous add *)
 let lemma_eac_state_active_implies_prev_add (itsl: eac_log) 
@@ -539,9 +568,9 @@ let lemma_eac_value_correct_type (itsl: eac_log) (k:key):
 
 
 (* we never see operations on Root so its eac state is always init *)
-let lemma_eac_state_of_root_init (itsl: eac_log):
-  Lemma (is_eac_state_init itsl Root)
- = admit()
+let lemma_eac_state_of_root_init (itsl: eac_log)
+  : Lemma (is_eac_state_init itsl Root)
+  = admit()
  
 (* 
  * when the eac state of a key is Init (no operations on the key yet) no 
@@ -642,7 +671,7 @@ let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl):
         (ensures (V.key_of (I.index itsl i) <> Root))
   = admit()        
 
-#push-options "--fuel 0,0 --ifuel 0,0"
+#push-options "--fuel 0,0 --ifuel 0,0 --print_full_names"
 (* since the itsl is sorted by clock, the following lemma holds *)
 let lemma_clock_ordering (itsl: its_log) (i1 i2: I.seq_index itsl):
   Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
@@ -650,207 +679,19 @@ let lemma_clock_ordering (itsl: its_log) (i1 i2: I.seq_index itsl):
   = assert (clock_sorted itsl);
     if i2 <= i1
     then assert (clock itsl i2 `ts_leq` clock itsl i1)
-#pop-options  
+#pop-options
 
 (* the state of each key for an empty log is init *)
-let lemma_init_state_empty (itsl: its_log {I.length itsl = 0}) (k: key):
-  Lemma (eac_state_of_key itsl k = EACInit)
-  = admit()        
+let lemma_init_state_empty (itsl: its_log {I.length itsl = 0}) (k: key)
+  : Lemma (eac_state_of_key itsl k = EACInit)
+  = assert (Seq.equal (vlog_ext_of_its_log itsl) empty);
+    SA.lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
+    assert (eac_state_of_key itsl k == 
+            seq_machine_run (seq_machine_of eac_sm)
+                            (partn eac_sm k empty));
+    lemma_filter_is_proj (iskey #(key_type eac_sm) (partn_fn eac_sm) k) empty;
+    lemma_proj_length (partn eac_sm k empty) empty;
+    assert (Seq.equal (partn eac_sm k empty) empty)
+
 
 (* broken ... but lots of useful stuff below *)
-
-// // let lemma_verifier_thread_state_extend (#p:pos) (itsl: its_log p) (i:seq_index itsl):
-// //   Lemma (thread_state (prefix itsl (i + 1)) (thread_id_of itsl i)== 
-// //          t_verify_step (thread_state (prefix itsl i) (thread_id_of itsl i))
-// //                        (vlog_entry_at itsl i)) = 
-// //   let gl = partition_idx_seq itsl in                       
-// //   let tid = thread_id_of itsl i in                       
-  
-//   admit()                       
-
-// (* extended time sequence log (with evict values) 
-// let rec time_seq_ext_aux (#p:pos) (itsl: its_log p):
-//   Tot (le:vlog_ext{project_seq itsl = to_vlog le})
-//   (decreases (length itsl)) =*)
-//   (*
-//   let m = length itsl in
-//   if m = 0 then (
-//     lemma_empty itsl;
-//     lemma_empty (project_seq itsl);
-//     let r = empty #vlog_entry_ext in
-//     lemma_empty (to_vlog r);
-//     r
-//   )
-//   else (
-//     let (e,id) = telem itsl in
-
-//     (* recurse *)
-//     let itsl' = its_prefix itsl (m - 1) in
-//     let r' = time_seq_ext_aux itsl' in
-
-//     (* project seq of itsl and itsl' differ by log entry e *)
-//     lemma_project_seq_extend itsl;
-//     assert(project_seq itsl = append1 (project_seq itsl') e);
-
-//     (* log entries of verifier thread id *)
-//     let gl = partition_idx_seq itsl in
-//     let l = index gl id in
-//     assert(snd (index (g_tid_vlog gl) id) = l);
-
-//     (* since l is verifiable, the value at last position is well-defined *)
-//     assert(VT.verifiable (id, l));
-//     (* prove length l > 0 *)
-//     lemma_partition_idx_extend1 itsl;
-
-//     if is_evict_to_merkle e then (
-//       let v = evict_value (id, l) (length l - 1) in
-//       let r = append1 r' (EvictMerkle e v) in
-//       lemma_prefix1_append r' (EvictMerkle e v);
-//       lemma_map_extend to_vlog_entry r;
-//       r
-//     )
-//     else if is_evict_to_blum e then (
-//       let v = evict_value (id, l) (length l - 1) in
-//       let r = append1 r' (EvictBlum e v id) in
-//       lemma_prefix1_append r' (EvictBlum e v id);
-//       lemma_map_extend to_vlog_entry r;
-//       r
-//     )
-//     else (
-//       let r = append1 r' (NEvict e) in
-//       lemma_prefix1_append r' (NEvict e);
-//       lemma_map_extend to_vlog_entry r;
-//       r
-//     )
-//   )
-//   *)
-
-
-// let rec lemma_its_prefix_ext (#n:pos) (itsl:its_log n) (i:nat{i <= length itsl}):
-//   Lemma (requires True)
-//         (ensures (time_seq_ext (its_prefix itsl i) = prefix (time_seq_ext itsl) i)) 
-//         (decreases (length itsl)) = 
-//   let n = length itsl in          
-//   if i = n then ()
-//   else (
-//     assert(n > 0 && i < n);
-
-//     if i = n - 1 then
-//       admit()
-//     else
-
-//     admit()
-//   )
-
-// (* if itsl is eac, then any prefix is also eac *)
-// let lemma_eac_implies_prefix_eac (#p:pos) (itsl: eac_ts_log p) (i:nat {i <= length itsl}):
-//   Lemma (requires True)
-//         (ensures (is_eac_log (its_prefix itsl i)))
-//         [SMTPat (its_prefix itsl i)] = admit()
-
-// (* 
-//  * when the eac state of a key is Init (no operations on the key yet) no 
-//  * thread contains the key in its store 
-//  *)
-// let lemma_eac_state_init_store 
-//    (#p:pos) 
-//    (itsl: eac_ts_log p) (k: key{k <> Root && is_eac_state_init itsl k}) (id:nat{id < p}):
-//    Lemma (not (store_contains (thread_store (verifier_thread_state itsl id)) k)) 
-//    = admit()
-
-// (* when the eac state of a key is EACEvicted then no thread contains the key in its store *)
-// let lemma_eac_state_evicted_store (#p:pos) (itsl: eac_ts_log p) 
-//   (k: key{is_eac_state_evicted itsl k}) (id:nat{id < p}):
-//     Lemma (not (store_contains (thread_store (verifier_thread_state itsl id)) k)) = admit()
-
-// (* when the eac state of a key is "instore" then there is always a previous add *)
-// let lemma_eac_state_instore_implies_prev_add (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_instore itsl k}):
-//   Lemma (has_some_add_of_key k (project_seq itsl)) = admit()
-
-// (* if the eac_state of k is instore, then that k is in the store of the verifier thread of its last add *)
-// let lemma_eac_state_instore (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_instore itsl k}):
-//   Lemma (store_contains (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k /\
-//          stored_value (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k = 
-//          EACInStore?.v (eac_state_of_key itsl k)) = admit()
-
-// let lemma_eac_state_instore_addm (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_instore itsl k}):
-//   Lemma (is_add (index (project_seq itsl) (last_add_idx itsl k)) /\
-//          store_contains (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k /\
-//          EACInStore?.m (eac_state_of_key itsl k) = 
-//          addm_of_entry (index (project_seq itsl) (last_add_idx itsl k)) /\
-//          EACInStore?.m (eac_state_of_key itsl k) = 
-//          add_method_of (thread_store (verifier_thread_state itsl (last_add_tid itsl k))) k) = admit()
-
-// (* if the eac state of k is instore, then k is not in the store of any verifier thread other than 
-//  * its last add thread *)
-// let lemma_eac_state_instore2 (#p:pos) (itsl: eac_ts_log p) 
-//   (k:key{is_eac_state_instore itsl k}) (id:nat{id < p}):
-//   Lemma (requires (id <> last_add_tid itsl k))
-//         (ensures (not (store_contains (thread_store (verifier_thread_state itsl id)) k))) = admit()
-
-// let lemma_instore_implies_eac_state_instore (#p:pos) (itsl:eac_ts_log p) (k:key{k <> Root}) (tid:nat{tid < p}):
-//   Lemma (store_contains (thread_store (verifier_thread_state itsl tid)) k ==> is_eac_state_instore itsl k) = 
-//   admit()
-
-// (* the root is always in thread 0 *)
-// let lemma_root_in_store0 (#p:pos) (itsl: eac_ts_log p):
-//   Lemma (store_contains (thread_store (verifier_thread_state itsl 0)) Root) = admit()
-
-// let lemma_root_not_in_store (#p:pos) (itsl: eac_ts_log p) (tid:pos {tid < p}):
-//   Lemma (not (store_contains (thread_store (verifier_thread_state itsl tid)) Root)) = admit()
-
-// (* the evicted value is always of the correct type for the associated key *)
-// let lemma_evict_value_correct_type (#p:pos) (itsl: eac_ts_log p) (k:key{is_eac_state_evicted itsl k}):
-//   Lemma (is_value_of k (E.value_of (eac_state_of_key itsl k))) = admit()
-
-// (* 
-//  * for keys in a thread store, return the value in the thread store; 
-//  * for other keys return the last evict value or null (init)
-//  *)
-// let eac_value (#n:pos) (itsl: eac_ts_log n) (k:key): value_type_of k = 
-//   if k = Root then (
-//     lemma_root_in_store0 itsl;
-//     stored_value (thread_store (verifier_thread_state itsl 0)) Root
-//   )
-//   else 
-//     let es = eac_state_of_key itsl k in
-//     match es with
-//     | EACInit -> init_value k 
-//     | EACEvictedMerkle v -> lemma_evict_value_correct_type itsl k; v
-//     | EACEvictedBlum v _ _ -> lemma_evict_value_correct_type itsl k; v
-//     | EACInStore _ _ -> 
-//       (* the store where the last add happened contains key k *)
-//       let tid = last_add_tid itsl k in
-//       let st = thread_store (verifier_thread_state itsl tid) in
-        
-//       lemma_eac_state_instore itsl k;
-//       assert(store_contains st k);
-
-//       stored_value st k
-
-// let lemma_eac_value_is_stored_value (#p:pos) (itsl: eac_ts_log p) (k:key) (id:nat{id < p}):
-//   Lemma (requires (store_contains (thread_store (verifier_thread_state itsl id)) k))
-//         (ensures (eac_value itsl k = 
-//                   stored_value (thread_store (verifier_thread_state itsl id)) k)) = admit()
-
-// let lemma_eac_value_is_evicted_value (#p:pos) (itsl: eac_ts_log p) (k:key):
-//   Lemma (requires (is_eac_state_evicted itsl k))
-//         (ensures (eac_state_evicted_value itsl k = eac_value itsl k)) = admit()
-
-// let lemma_ext_evict_val_is_stored_val (#p:pos) (itsl: its_log p) (i: seq_index itsl):
-//   Lemma (requires (is_evict (fst (index itsl i))))
-//         (ensures (is_evict_ext (index (time_seq_ext itsl) i) /\
-//                   store_contains (thread_store (verifier_thread_state (its_prefix itsl i)
-//                                                                       (snd (index itsl i))))
-//                                  (V.key_of (fst (index itsl i))) /\
-//                   value_ext (index (time_seq_ext itsl) i) = 
-//                   stored_value (thread_store (verifier_thread_state (its_prefix itsl i)
-//                                                                     (snd (index itsl i))))
-//                                (V.key_of (fst (index itsl i))))) = admit()
-
-
-// let lemma_evict_has_next_add (#p:pos) (itsl: its_log p) (i:seq_index itsl):
-//   Lemma (requires (is_evict (index itsl i) /\
-//                    exists_sat_elems (entry_of_key (key_of (index itsl i))) itsl) /\
-//                    i < last_idx_of_key itsl (key_of (index itsl i)))
-//         (ensures (has_next_add_of_key itsl i (key_of (index itsl i)))) = admit()

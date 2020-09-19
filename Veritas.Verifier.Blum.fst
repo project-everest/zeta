@@ -496,6 +496,7 @@ let rec lemma_prefix_add_seq (itsl: its_log) (i: nat{ i <= I.length itsl}):
     )
   )
 
+#push-options "--fuel 1,1 --ifuel 1,1 --z3rlimit_factor 4"
 let rec lemma_evict_seq_map_prefix (itsl: its_log) (i: nat{i< I.length itsl}) (j:nat):
   Lemma (requires (j < i /\
                    is_evict_to_blum (I.index itsl j)))
@@ -516,6 +517,7 @@ let rec lemma_evict_seq_map_prefix (itsl: its_log) (i: nat{i< I.length itsl}) (j
       lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))
     else ()
   )
+#pop-options
 
 (* a slightly different version of of the previous lemma - the count of an add element 
  * in the evict set is the same in the prefix as the full sequence *)
