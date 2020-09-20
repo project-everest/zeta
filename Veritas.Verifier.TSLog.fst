@@ -565,13 +565,47 @@ let lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl)
                         (vlog_entry_ext_at itsl i);                                        
     assert (lhs == rhs)
 
+let vlog_entry_ext_at_prefix_snoc (itsl: its_log) (i:I.seq_index itsl)
+    : Lemma (vlog_ext_of_its_log (I.prefix itsl (i + 1))
+             `Seq.equal` Seq.snoc (vlog_ext_of_its_log (I.prefix itsl i))
+                                  (mk_vlog_entry_ext itsl i))
+    = I.lemma_prefix_prefix itsl (i + 1) i;
+      assert (I.prefix itsl i ==
+              I.prefix (I.prefix itsl (i + 1)) i);
+      let itsl_i = I.prefix itsl i in
+      let itsl_i' = I.prefix itsl (i + 1) in
+      let vl = vlog_ext_of_its_log itsl_i in
+      let vl' = vlog_ext_of_its_log itsl_i' in
+      vlog_ext_of_prefix (I.prefix itsl (i + 1)) i;
+      assert (vl `prefix_of` vl');
+      assert (vl' `Seq.equal` Seq.snoc vl (Seq.index vl' i));
+      lemma_i2s_map_prefix itsl (i + 1) i;
+      assert (thread_id_of itsl i == 
+              thread_id_of (I.prefix itsl (i + 1)) i);
+      assert (mk_vlog_entry_ext itsl i ==
+              mk_vlog_entry_ext (I.prefix itsl (i + 1)) i)
 
 (* if the ith entry does not involve key k, the eac state of k is unchanged *)
 let lemma_eac_state_same (itsl: its_log) (i: I.seq_index itsl) (k: key):
   Lemma (requires (key_at itsl i <> k))
         (ensures (eac_state_of_key (I.prefix itsl i) k == 
                   eac_state_of_key (I.prefix itsl (i + 1)) k))
-  = admit()
+  = vlog_entry_ext_at_prefix_snoc itsl i;
+    let itsl_i = I.prefix itsl i in
+    let vl_i = (vlog_ext_of_its_log itsl_i) in
+    let itsl_i' = I.prefix itsl (i + 1) in    
+    let vl_i' = (vlog_ext_of_its_log itsl_i') in
+    let lhs =
+      seq_machine_run (seq_machine_of eac_sm)
+                      (partn eac_sm k vl_i)
+    in
+    let rhs = 
+      seq_machine_run (seq_machine_of eac_sm)
+                      (partn eac_sm k (Seq.snoc vl_i (mk_vlog_entry_ext itsl i)))
+    in
+    assert (not (iskey #(key_type eac_sm) (partn_fn eac_sm) k (mk_vlog_entry_ext itsl i)));
+    lemma_filter_extend1 (iskey #(key_type eac_sm) (partn_fn eac_sm) k) vl_i';
+    assert (prefix vl_i' (Seq.length vl_i' - 1) `Seq.equal` vl_i)
 
 let lemma_eac_boundary_state_transition (itsl: neac_log):
   Lemma (requires True)
