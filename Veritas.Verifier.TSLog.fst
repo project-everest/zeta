@@ -694,14 +694,70 @@ let lemma_eac_state_active_implies_prev_add (itsl: eac_log) (k:key{is_eac_state_
       = lemma_last_index_correct2 (is_add_of_key k) (I.i_seq itsl) i
     in
     ()
-#pop-options
-  
+
+let filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a)
+  : Lemma (requires filter f s `Seq.equal` empty)
+          (ensures forall (i:SA.seq_index s). not (f (Seq.index s i)))
+  = admit()
+
+#push-options "--query_stats --fuel 0,0 --ifuel 1,1"
+
 (* the converse of the previous, eac state init implies no previous add *)
-let lemma_eac_state_init_no_entry (itsl: eac_log) (k:key):
-  Lemma (requires (is_eac_state_init itsl k))
-        (ensures (not (has_some_entry_of_key itsl k)))
- = admit()
- 
+let lemma_eac_state_init_no_entry (itsl: eac_log) (k:key)
+  : Lemma (requires (is_eac_state_init itsl k))
+          (ensures (not (has_some_entry_of_key itsl k)))
+  = let vl = vlog_ext_of_its_log itsl in
+    let eacs = eac_state_of_key itsl k in
+    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
+    assert (eacs == EACInit);
+    let vl' : seq vlog_entry_ext = partn eac_sm k vl in
+    assert (forall (j:SA.seq_index vl').{:pattern (Seq.index vl' j)}
+              filter_fn (Seq.index vl' j));
+    assert (eacs == seq_machine_run (seq_machine_of eac_sm) vl');
+    let rec aux (i:nat{i <= Seq.length vl'})
+                (eacs:eac_state{eacs == seq_machine_run (seq_machine_of eac_sm) (SA.prefix vl' i) /\
+                                ((eacs == EACInit /\ (forall (j:SA.seq_index vl'). j < i ==> not (filter_fn (Seq.index vl' j)))) \/
+                                 (eacs <> EACInit))})
+      : Lemma (ensures (Seq.equal vl' Seq.empty))
+              (decreases (Seq.length vl' - i))
+      = if i = Seq.length vl'
+        then (
+          if eacs <> EACInit
+          then (
+            assert (Seq.equal (SA.prefix vl' i) vl');
+            false_elim()
+          )
+          else (
+            assert (forall (j:SA.seq_index vl'). filter_fn (Seq.index vl' j) /\ not (filter_fn (Seq.index vl' j)));
+            assert (Seq.length vl' = 0)
+          )
+        )
+        else (
+          let ve = Seq.index vl' i in
+          let eacs' = eac_add ve eacs in
+          assert (eacs' <> EACInit);
+          assert (SA.prefix vl' (i + 1) `Seq.equal` (Seq.snoc (SA.prefix vl' i) ve));
+          lemma_reduce_append EACInit (trans_fn (seq_machine_of eac_sm)) (SA.prefix vl' i) ve;
+          assert (seq_machine_run (seq_machine_of eac_sm) (SA.prefix vl' (i + 1)) ==
+                  eacs');
+          aux (i + 1) eacs'
+        )
+    in
+    assert (SA.prefix vl' 0 `Seq.equal` Seq.empty);
+    lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
+    aux 0 EACInit;
+    assert (Seq.equal vl' Seq.empty);
+    filter_all_not filter_fn vl;
+    assert (forall (i:SA.seq_index vl). not (filter_fn (Seq.index vl i)));
+    let aux (i:I.seq_index itsl)
+      : Lemma (ensures (not (is_entry_of_key k (Seq.index (I.i_seq itsl) i))))
+              [SMTPat (Seq.index (I.i_seq itsl) i)]
+      = assert (Seq.index vl i == mk_vlog_entry_ext itsl i)
+    in
+    assert (forall (i:I.seq_index itsl). not (is_entry_of_key k (Seq.index (I.i_seq itsl) i)))
+
+#pop-options
+
 (* add method of an eac state *)
 let lemma_eac_state_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k}):
   Lemma (E.add_method_of (eac_state_of_key itsl k) = 
@@ -719,7 +775,7 @@ let lemma_eac_value_correct_type (itsl: eac_log) (k:key):
 let lemma_eac_state_of_root_init (itsl: eac_log)
   : Lemma (is_eac_state_init itsl Root)
   = admit()
- 
+w 
 (* 
  * when the eac state of a key is Init (no operations on the key yet) no 
  * thread contains the key in its store. Valid only for non-root keys 
