@@ -757,7 +757,7 @@ let lemma_eac_state_init_no_entry (itsl: eac_log) (k:key)
     assert (forall (i:I.seq_index itsl). not (is_entry_of_key k (Seq.index (I.i_seq itsl) i)))
 
 #pop-options
-
+#reset-options
 (* add method of an eac state *)
 let lemma_eac_state_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k}):
   Lemma (E.add_method_of (eac_state_of_key itsl k) = 
@@ -775,7 +775,7 @@ let lemma_eac_value_correct_type (itsl: eac_log) (k:key):
 let lemma_eac_state_of_root_init (itsl: eac_log)
   : Lemma (is_eac_state_init itsl Root)
   = admit()
-w 
+ 
 (* 
  * when the eac state of a key is Init (no operations on the key yet) no 
  * thread contains the key in its store. Valid only for non-root keys 
