@@ -230,6 +230,10 @@ val lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
   Lemma (requires (not (exists_sat_elems f s)))
         (ensures (not (exists_sat_elems f (prefix s i))))
 
+let lemma_exists_sat_elems_exists (#a:eqtype) (f:a -> bool) (s:seq a)
+  : Lemma (exists_sat_elems f s <==> (exists (i:seq_index s). f (Seq.index s i)))
+  = admit()
+  
 val lemma_exists_prefix_implies_exists (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
   Lemma (requires (exists_sat_elems f (prefix s i)))
         (ensures (exists_sat_elems f s))

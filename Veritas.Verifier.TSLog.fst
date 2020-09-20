@@ -828,23 +828,73 @@ let lemma_eac_value_correct_type (itsl: eac_log) (k:key)
     lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
     aux 0 EACInit
 
-#reset-options
 
+#push-options "--ifuel 0,0 --fuel 1,1"
 (* we never see operations on Root so its eac state is always init *)
 let lemma_eac_state_of_root_init (itsl: eac_log)
   : Lemma (is_eac_state_init itsl Root)
-  = admit()
+  = 
+  (*  From this part of the state machine:
  
+let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
+  match s with
+  | EACFail -> EACFail
+  | EACInit -> (
+    match e with
+    | NEvict (AddM (k,v) _) -> if v = init_value k then EACInStore MAdd v
+                               else EACFail
+    | _ -> EACFail
+    )
+
+ 
+So long as there is no AddM for the Root (which cannot be since there
+is no proper ancestor) then any sequence of operations involving the
+root should end in either EACInit of EACFail
+*)
+  admit()
+
+
 (* 
  * when the eac state of a key is Init (no operations on the key yet) no 
  * thread contains the key in its store. Valid only for non-root keys 
  * since we start off with the root in the cache of thread 0
  *)
-let lemma_eac_state_init_store (itsl: eac_log) (k: key) (tid:valid_tid itsl):
-  Lemma (requires (k <> Root && is_eac_state_init itsl k))
-        (ensures (not (store_contains (thread_store itsl tid) k)))
- = admit()
-
+let lemma_eac_state_init_store (itsl: eac_log) (k: key) (tid:valid_tid itsl)
+  : Lemma (requires (k <> Root && is_eac_state_init itsl k))
+          (ensures (not (store_contains (thread_store itsl tid) k)))
+  = lemma_eac_state_init_no_entry itsl k;
+    assert (not (has_some_entry_of_key itsl k));
+    SA.lemma_exists_sat_elems_exists (is_entry_of_key k) (I.i_seq itsl);
+    assert (forall (i:I.seq_index itsl). not (is_entry_of_key k (I.index itsl i)));
+    let _, thread_log_tid = thread_log (s_seq itsl) tid in
+    let aux (i:SA.seq_index thread_log_tid)
+      : Lemma (not (is_entry_of_key k (Seq.index thread_log_tid i)))
+              [SMTPat (Seq.index thread_log_tid i)]
+      = assert (Seq.index thread_log_tid i ==
+                Seq.index (I.i_seq itsl) (s2i_map itsl (tid, i)))
+    in 
+    assert (forall (i:SA.seq_index thread_log_tid). not (is_entry_of_key k (Seq.index thread_log_tid i)));
+    let thread_state_tid = verify (tid, thread_log_tid) in
+    let store_tid = Valid?.st thread_state_tid in
+    let rec aux (i:nat{i <= Seq.length thread_log_tid})
+                (ts:vtls{ ts == verify (tid, SA.prefix thread_log_tid i) /\
+                          (Valid? ts ==> not (store_contains (Valid?.st ts) k)) })
+      : Lemma (ensures not (store_contains store_tid k))
+              (decreases (Seq.length thread_log_tid - i))
+      = if i = Seq.length thread_log_tid
+        then (
+          assert (SA.prefix thread_log_tid i `Seq.equal` thread_log_tid)
+        )
+        else (
+          let e = Seq.index thread_log_tid i in
+          assert (not (is_entry_of_key k e));
+          let ts' = t_verify_step ts e in
+          assert (ts' == verify (tid, SA.prefix thread_log_tid (i +  1)));
+          aux (i + 1) ts'
+        )
+    in
+    assert (SA.prefix thread_log_tid 0 `Seq.equal` empty);
+    aux 0 (init_thread_state tid)
 
 (* when the eac state of a key is evicted then no thread contains the key in its store *)
 let lemma_eac_state_evicted_store  (itsl: eac_log) (k: key{is_eac_state_evicted itsl k}) 
