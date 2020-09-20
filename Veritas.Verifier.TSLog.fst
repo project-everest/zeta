@@ -627,7 +627,7 @@ let lemma_eac_boundary_state_transition (itsl: neac_log):
     let aux (k:key)
       : Lemma (requires (not (valid (seq_machine_of eac_sm) (partn eac_sm k vl_i'))))
               (ensures (key_at itsl i == k))
-              [SMTPat()]
+              [SMTPat (partn eac_sm k vl_i')]
       = let k' = key_at itsl i in
         if k' = k 
         then ()
@@ -644,12 +644,57 @@ let lemma_eac_boundary_state_transition (itsl: neac_log):
     ()
 
 (* when the eac state of a key is "instore" then there is always a previous add *)
-let lemma_eac_state_active_implies_prev_add (itsl: eac_log) 
-  (k:key{is_eac_state_active itsl k}):
-  Lemma (requires True)
-        (ensures (has_some_add_of_key itsl k))
+let lemma_eac_state_active_implies_prev_add (itsl: eac_log) (k:key{is_eac_state_active itsl k})
+  : Lemma (ensures (has_some_add_of_key itsl k))
   //      [SMTPat (is_eac_state_instore itsl k)]
-  = admit()
+  = let vl = vlog_ext_of_its_log itsl in
+    let eacs = eac_state_of_key itsl k in
+    assert (EACInStore? eacs ||
+            EACEvictedMerkle? eacs ||
+            EACEvictedBlum? eacs);
+    let vl' : seq vlog_entry_ext = partn eac_sm k vl in
+    assert (eacs == seq_machine_run (seq_machine_of eac_sm) vl');
+    let rec aux (i:nat{i <= Seq.length vl'})
+                (eacs:eac_state{eacs == seq_machine_run (seq_machine_of eac_sm) (SA.prefix vl' i) /\
+                               (eacs == EACInit \/ eacs == EACFail)})
+      : Tot (j:SA.seq_index vl' {
+               let ve = Seq.index vl' j in
+               NEvict? ve /\
+               is_add_of_key k (NEvict?.e ve)
+             })
+             (decreases (Seq.length vl' - i))
+      = if i = Seq.length vl' 
+        then (assert (SA.prefix vl' i `Seq.equal` vl'); false_elim())
+        else match Seq.index vl' i with
+             | NEvict (AddM _ _)
+             | NEvict (AddB _ _ _) -> i
+             | ve ->
+               let eacs' = eac_add ve eacs in
+               assert (eacs' == EACInit \/
+                       eacs' == EACFail);
+               assert (SA.prefix vl' (i + 1) `Seq.equal` (Seq.snoc (SA.prefix vl' i) ve));
+               lemma_reduce_append EACInit (trans_fn (seq_machine_of eac_sm)) (SA.prefix vl' i) ve;
+               assert (seq_machine_run (seq_machine_of eac_sm) (SA.prefix vl' (i + 1)) ==
+                       eacs');
+               aux (i + 1) eacs'        
+    in
+    assert (SA.prefix vl' 0 `Seq.equal` Seq.empty);
+    lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
+    assert (seq_machine_run (seq_machine_of eac_sm) Seq.empty == EACInit);
+    let j = aux 0 EACInit in
+    lemma_filter_is_proj (iskey #(key_type eac_sm) (partn_fn eac_sm) k) vl;
+    assert (proj vl' vl);
+    proj_index_map_exists vl' vl j;
+    assert (exists (k:SA.seq_index vl). Seq.index vl k == Seq.index vl' j);
+    assert (exists i. is_add_of_key k (Seq.index (I.i_seq itsl) i));
+    let aux (i:I.seq_index itsl)
+      : Lemma (requires is_add_of_key k (Seq.index (I.i_seq itsl) i))
+              (ensures has_some_add_of_key itsl k)
+              [SMTPat (Seq.index (I.i_seq itsl) i)]
+      = lemma_last_index_correct2 (is_add_of_key k) (I.i_seq itsl) i
+    in
+    ()
+#pop-options
   
 (* the converse of the previous, eac state init implies no previous add *)
 let lemma_eac_state_init_no_entry (itsl: eac_log) (k:key):

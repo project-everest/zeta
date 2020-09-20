@@ -68,6 +68,16 @@ val proj (#a:eqtype): seq a -> seq a -> Type0
 val proj_index_map (#a:eqtype) (ss: seq a) (s: seq a) (prf: proj ss s) (i:seq_index ss):
   Tot (j:seq_index s{index s j = index ss i})
 
+let proj_index_map_exists (#a:eqtype) (ss: seq a) (s: seq a{proj ss s}) (i:seq_index ss)
+  : Lemma (exists (j:seq_index s). index s j = index ss i)
+  = let p : squash (proj ss s) = FStar.Squash.get_proof (proj ss s) in
+    let _ : squash (exists (j:seq_index s). index s j = index ss i) = 
+      FStar.Squash.bind_squash p (fun p -> 
+        let k = proj_index_map ss s p i in
+        assert (index s k == index ss i))
+    in
+    ()
+
 (* the mapping we construct above is monotonic *)
 val lemma_proj_monotonic (#a:eqtype) (ss s: seq a) (prf: proj ss s) (i1 i2: seq_index ss):
   Lemma (requires (i1 < i2))
