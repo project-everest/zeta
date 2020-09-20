@@ -612,7 +612,36 @@ let lemma_eac_boundary_state_transition (itsl: neac_log):
         (ensures (eac_add (vlog_entry_ext_at itsl (eac_boundary itsl))
                           (eac_boundary_state_pre itsl) = EACFail))
         [SMTPat (eac_boundary itsl)]
-  = admit()
+  = let i = eac_boundary itsl in
+    lemma_eac_state_transition itsl i;
+    let itsl_i = (I.prefix itsl i) in
+    let itsl_i' = (I.prefix itsl (i + 1)) in
+    assert (is_eac itsl_i);
+    assert (not (is_eac itsl_i'));
+    let vl_i = vlog_ext_of_its_log itsl_i in
+    let vl_i' = vlog_ext_of_its_log (I.prefix itsl (i + 1)) in
+    assert (Veritas.EAC.is_eac vl_i);
+    assert (not (Veritas.EAC.is_eac vl_i'));
+    assert (forall k. valid (seq_machine_of eac_sm) (partn eac_sm k vl_i));
+    assert (exists k. not (valid (seq_machine_of eac_sm) (partn eac_sm k vl_i')));
+    let aux (k:key)
+      : Lemma (requires (not (valid (seq_machine_of eac_sm) (partn eac_sm k vl_i'))))
+              (ensures (key_at itsl i == k))
+              [SMTPat()]
+      = let k' = key_at itsl i in
+        if k' = k 
+        then ()
+        else (
+          vlog_entry_ext_at_prefix_snoc itsl i;
+          assert (vl_i' == Seq.snoc vl_i (mk_vlog_entry_ext itsl i));
+          lemma_filter_extend1 (iskey #(key_type eac_sm) (partn_fn eac_sm) k) vl_i';
+          assert (prefix vl_i' (Seq.length vl_i' - 1) `Seq.equal` vl_i);
+          assert (partn eac_sm k vl_i' == partn eac_sm k vl_i)
+        )
+    in
+    assert (eac_state_post itsl i == 
+            eac_add (vlog_entry_ext_at itsl i) (eac_state_pre itsl i));
+    ()
 
 (* when the eac state of a key is "instore" then there is always a previous add *)
 let lemma_eac_state_active_implies_prev_add (itsl: eac_log) 
