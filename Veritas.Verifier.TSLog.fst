@@ -756,20 +756,79 @@ let lemma_eac_state_init_no_entry (itsl: eac_log) (k:key)
     in
     assert (forall (i:I.seq_index itsl). not (is_entry_of_key k (Seq.index (I.i_seq itsl) i)))
 
-#pop-options
-#reset-options
 (* add method of an eac state *)
-let lemma_eac_state_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k}):
-  Lemma (E.add_method_of (eac_state_of_key itsl k) = 
-         V.addm_of_entry (I.index itsl (last_add_idx itsl k)))
- = admit()
- 
-(* the evicted value is always of the correct type for the associated key *)
-let lemma_eac_value_correct_type (itsl: eac_log) (k:key):  
-  Lemma (requires (E.is_eac_state_active (eac_state_of_key itsl k)))
-        (ensures is_value_of k (E.value_of (eac_state_of_key itsl k)))
- = admit()
+let lemma_eac_state_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k})
+  : Lemma (E.add_method_of (eac_state_of_key itsl k) = 
+           V.addm_of_entry (I.index itsl (last_add_idx itsl k)))
+  = let vl = vlog_ext_of_its_log itsl in
+    let eacs = eac_state_of_key itsl k in
+    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
+    let vl' : seq vlog_entry_ext = partn eac_sm k vl in
+    assert (forall (j:SA.seq_index vl').{:pattern (Seq.index vl' j)} filter_fn (Seq.index vl' j));
+    assert (eacs == seq_machine_run (seq_machine_of eac_sm) vl');
+    let last_add_id = last_add_idx itsl k in
+    let vl_last_add = vlog_ext_of_its_log (I.prefix itsl (last_add_id + 1)) in
+    vlog_ext_of_prefix itsl (last_add_id + 1);
+    assert (vl_last_add `prefix_of` vl);
+    let vl'_last_add = partn eac_sm k vl_last_add in
+    let last_add = Seq.index vl_last_add last_add_id in
+    assume (vl'_last_add `prefix_of` vl');       
+    let vl'_tail = Seq.slice vl' (Seq.length vl'_last_add) (Seq.length vl') in
+    assert (vl' `Seq.equal` Seq.append vl'_last_add vl'_tail);
+    assume (forall (i:SA.seq_index vl'_tail). 
+              not (is_add_of_key k (to_vlog_entry (Seq.index vl'_tail i))));
+    let eacs_last_add = eac_state_of_key (I.prefix itsl last_add_id) k in
+    (*  This proof requires a few careful inductions ... 
+        I think the general idea is that
+          - eacs_last_add should be the state resulting from process last_add and should be equal to 
+            the add method of last_add (this itself requires an induction on vl'_last_add)
+          - every entry in vl'_tail is not an add (assumed above and should also be an induction ...)
+          - eacs is equal to running the state machine from eacs_last_add and vl'_tail
+          - we should be able to prove then that the add_method of eacs_last_add
+            is unchanged until we reach eacs (by induction on vl'_tail)
+    *)
+    assert (is_add (I.index itsl last_add_id));
+    assert (to_vlog_entry last_add ==
+            I.index itsl last_add_id);
+    assume (E.add_method_of eacs == 
+            V.addm_of_entry (to_vlog_entry (Seq.index vl_last_add last_add_id)))
 
+(* the evicted value is always of the correct type for the associated key *)
+let lemma_eac_value_correct_type (itsl: eac_log) (k:key)
+  :  Lemma (requires (E.is_eac_state_active (eac_state_of_key itsl k)))
+           (ensures is_value_of k (E.value_of (eac_state_of_key itsl k)))
+  = let vl = vlog_ext_of_its_log itsl in
+    let eacs = eac_state_of_key itsl k in
+    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
+    let vl' : seq vlog_entry_ext = partn eac_sm k vl in
+    assert (forall (j:SA.seq_index vl').{:pattern (Seq.index vl' j)} filter_fn (Seq.index vl' j));
+    assert (eacs == seq_machine_run (seq_machine_of eac_sm) vl');
+    assert (eacs <> EACInit && eacs <> EACFail);
+    let rec aux (i:nat{i <= Seq.length vl'})
+                (eacs':eac_state{eacs' == seq_machine_run (seq_machine_of eac_sm) (SA.prefix vl' i) /\
+                                (E.is_eac_state_active eacs' ==>
+                                 is_value_of k (E.value_of eacs'))})
+      : Lemma (ensures is_value_of k (E.value_of eacs))
+              (decreases (Seq.length vl' - i))
+      = if i = Seq.length vl' 
+        then (
+          assert (Seq.equal (SA.prefix vl' i) vl')
+        )
+        else (
+          let ve = Seq.index vl' i in
+          let eacs'' = eac_add ve eacs' in
+          assert (SA.prefix vl' (i + 1) `Seq.equal` (Seq.snoc (SA.prefix vl' i) ve));
+          lemma_reduce_append EACInit (trans_fn (seq_machine_of eac_sm)) (SA.prefix vl' i) ve;
+          assert (seq_machine_run (seq_machine_of eac_sm) (SA.prefix vl' (i + 1)) ==
+                  eacs'');
+          aux (i + 1) eacs''
+        )
+    in
+    assert (SA.prefix vl' 0 `Seq.equal` Seq.empty);
+    lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
+    aux 0 EACInit
+
+#reset-options
 
 (* we never see operations on Root so its eac state is always init *)
 let lemma_eac_state_of_root_init (itsl: eac_log)
