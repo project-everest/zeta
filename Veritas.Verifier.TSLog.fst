@@ -520,11 +520,51 @@ let vlog_entry_ext_at (itsl: its_log) (i:I.seq_index itsl):
                       (e:vlog_entry_ext{E.to_vlog_entry e = I.index itsl i})
   = Seq.index (vlog_ext_of_its_log itsl) i
 
+#push-options "--fuel 0,0 --ifuel 0,0"
+
+let vlog_entry_ext_at_prefix (itsl: its_log) (i:I.seq_index itsl) (j:nat { i < j /\ j <= I.length itsl })
+  : Lemma (vlog_entry_ext_at itsl i ==
+           vlog_entry_ext_at (I.prefix itsl j) i)
+  = vlog_ext_of_prefix itsl j;
+    lemma_prefix_index (vlog_ext_of_its_log itsl) j i
+
 (* the eac state transition induced by the i'th entry *)
 let lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl)
   : Lemma (eac_state_post itsl i = 
            eac_add (vlog_entry_ext_at itsl i) (eac_state_pre itsl i))
-  = admit()         
+  = let k = key_at itsl i in
+    let itsl_i' = I.prefix itsl (i+1) in
+    let itsl_i = I.prefix itsl i in
+    let vl_i' = vlog_ext_of_its_log itsl_i' in
+    let vl_i = vlog_ext_of_its_log itsl_i in
+    I.lemma_prefix_prefix itsl (i + 1) i;
+    assert (itsl_i == I.prefix itsl_i' i);
+    vlog_ext_of_prefix itsl_i' i;
+    assert (vl_i `prefix_of` vl_i');
+    assert (Seq.length vl_i == i);
+    assert (Seq.length vl_i' == i + 1);    
+    assert (Seq.index vl_i' i == vlog_entry_ext_at itsl_i' i);
+    assert (Seq.index (i_seq itsl_i') i == 
+            Seq.index (i_seq itsl) i);
+    vlog_entry_ext_at_prefix itsl i (i + 1);            
+    assert (Seq.index vl_i' i == vlog_entry_ext_at itsl i);
+    assert (vl_i' `Seq.equal` Seq.snoc vl_i (vlog_entry_ext_at itsl i));
+    lemma_filter_extend2 (iskey #(key_type eac_sm) (partn_fn eac_sm) k)
+                         vl_i';
+    assert (partn eac_sm k vl_i' == 
+            Seq.snoc (partn eac_sm k vl_i)
+                     (vlog_entry_ext_at itsl i));
+    let lhs = seq_machine_run (seq_machine_of eac_sm)
+                              (partn eac_sm k vl_i') in
+    let rhs = eac_add (vlog_entry_ext_at itsl i) 
+                      (seq_machine_run (seq_machine_of eac_sm)
+                                       (partn eac_sm k vl_i)) in
+    lemma_reduce_append (init_state (seq_machine_of eac_sm))
+                        (trans_fn (seq_machine_of eac_sm))
+                        (partn eac_sm k vl_i)                        
+                        (vlog_entry_ext_at itsl i);                                        
+    assert (lhs == rhs)
+
 
 (* if the ith entry does not involve key k, the eac state of k is unchanged *)
 let lemma_eac_state_same (itsl: its_log) (i: I.seq_index itsl) (k: key):
