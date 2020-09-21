@@ -1021,19 +1021,42 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
                 if EACEvictedMerkle? (m'.eacs k)
                 then false_elim() //it can't be in tid0
                 else lemma_eac_state_init_store (I.prefix itsl i) k tid0
-              | NEvict (AddB _ _ _) -> false_elim()
+              | NEvict (AddB _ _ _) -> 
+                false_elim()
             )
           )
         )
         else (
           tid_unchanged tid1;
-          
-          admit()
+          if key_of v <> k
+          then (
+              assume (vl'_k == vl_k);
+              assert (m.eacs k == m'.eacs k);
+              t_verify_step_framing (m'.threads tid0) v k
+          )
+          else (             
+            assume (vl_k == Seq.snoc vl'_k ve);
+            assume (m.eacs k == eac_add ve (m'.eacs k));
+            match ve with
+            | EvictMerkle _ _
+            | EvictBlum _ _ _ ->
+              //removes k, contradicts that k is m
+              false_elim ()
+            | NEvict (Get _ _)
+            | NEvict (Put _ _) -> 
+              //doesn't change k
+              ()
+            | NEvict (AddM r k') ->
+              if EACEvictedMerkle? (m'.eacs k)
+              then () //it's definitely not in tid1
+              else lemma_eac_state_init_store (I.prefix itsl i) k tid1
+            | NEvict (AddB _ _ _) ->
+              //evicted, so nowhere initially
+              ()
+          )
         )
     in
     ()
-
-
 
           
 (* when the eac state of a key is evicted then no thread contains the key in its store *)
