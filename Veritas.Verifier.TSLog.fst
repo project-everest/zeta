@@ -931,6 +931,15 @@ let key_in_unique_store (itsl: eac_log) (k:key) =
     store_contains (VV.thread_store (m.threads tid)) k ==>
     not (store_contains (VV.thread_store (m.threads tid')) k)
 
+let elim_key_in_unique_store (itsl:eac_log) (k:key) (tid tid':valid_tid itsl)
+  : Lemma 
+    (requires key_in_unique_store itsl k /\
+              tid <> tid' /\
+              store_contains (VV.thread_store ((run_monitor itsl).threads tid)) k)
+    (ensures  not (store_contains (VV.thread_store ((run_monitor itsl).threads tid')) k))
+  = ()
+  
+          
 (* when the eac state of a key is evicted then no thread contains the key in its store *)
 let lemma_eac_state_evicted_store (itsl: eac_log) 
                                   (k: key{is_eac_state_evicted itsl k}) 
@@ -974,6 +983,14 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
          let vl_k = partn eac_sm k vl in
          assume (vl `Seq.equal` Seq.snoc vl' ve);
          let tid = thread_id_of itsl i in
+         let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
+         let _, tl = thread_log (I.s_seq itsl) tid in
+         assume (tl `Seq.equal` Seq.snoc tl' v);
+         assert (SA.prefix tl (Seq.length tl - 1) `Seq.equal` tl');
+         assert (m'.threads tid == verify (tid, tl'));
+         assert (m.threads tid == t_verify_step (m'.threads tid) v);
+         let st' = Valid?.st (m'.threads tid) in
+         let st =  Valid?.st (m.threads tid) in
          let rec aux (tid':valid_tid itsl)
            : Lemma 
                (requires evicted (m.eacs k))
@@ -981,14 +998,6 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
                [SMTPat (m.threads tid')]
            = if tid' = tid
              then (
-               let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid' in
-               let _, tl = thread_log (I.s_seq itsl) tid' in
-               assume (tl `Seq.equal` Seq.snoc tl' v);
-               assert (SA.prefix tl (Seq.length tl - 1) `Seq.equal` tl');
-               assert (m'.threads tid' == verify (tid', tl'));
-               assert (m.threads tid' == t_verify_step (m'.threads tid') v);
-               let st' = Valid?.st (m'.threads tid') in
-               let st =  Valid?.st (m.threads tid') in
                if key_of v <> k 
                then (
                  assume (vl'_k == vl_k);
@@ -1001,6 +1010,7 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
                else (
                  assume (vl_k == Seq.snoc vl'_k ve);
                  assume (m.eacs k == eac_add ve (m'.eacs k));
+                 //has to be an evict, since we end in an evict state
                  match ve with
                  | EvictMerkle (EvictM _ k') vv ->
                    assert (v == EvictM k k');
@@ -1015,9 +1025,21 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
                           thread_log (I.s_seq (I.prefix itsl i)) tid');
                   assert (m.threads tid' == m'.threads tid');
                   if key_of v <> k
-                  then (assume (vl'_k == vl_k);
+                  then (
+                        assume (vl'_k == vl_k);
                         assert (m.eacs k == m'.eacs k))
-                  else admit()
+                  else (
+                    assume (vl_k == Seq.snoc vl'_k ve);
+                    assume (m.eacs k == eac_add ve (m'.eacs k));
+                    match ve with
+                    | EvictMerkle (EvictM _ _) _
+                    | EvictBlum _ _ _ ->
+                      assert (store_contains (VV.thread_store (m'.threads tid)) k);
+                      elim_key_in_unique_store (I.prefix itsl i) k tid tid';
+                      assert (not (store_contains (VV.thread_store (m'.threads tid')) k))
+                      // 
+                    | _ -> false_elim()
+                  )
              )
          in
          assume (key_in_unique_store itsl k);           
