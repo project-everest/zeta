@@ -914,15 +914,16 @@ let lemma_eac_state_init_store (itsl: eac_log) (k: key) (tid:valid_tid itsl)
     assert (SA.prefix thread_log_tid 0 `Seq.equal` empty);
     aux 0 (init_thread_state tid)
 
+#push-options "--ifuel 1,1 --fuel 1,1"
 let t_verify_step_framing (v:vtls{Valid? v}) (e:vlog_entry) (k:key{key_of e <> k})
   : Lemma (let open Veritas.Verifier in
            let v' = t_verify_step v e in
            Valid? v' ==>
-           thread_store v' k == thread_store v k)
-  = admit()           
+           store_contains (thread_store v') k == store_contains (thread_store v) k)
+  = ()
+#pop-options
 
 
-#push-options "--ifuel 1,1 --fuel 1,1 --z3rlimit_factor 4"
 module VV = Veritas.Verifier
 let key_in_unique_store (itsl: eac_log) (k:key) =
   let m = run_monitor itsl in
@@ -1058,7 +1059,7 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
     in
     ()
 
-          
+#push-options "--ifuel 1,1 --fuel 1,1 --z3rlimit_factor 4"
 (* when the eac state of a key is evicted then no thread contains the key in its store *)
 let lemma_eac_state_evicted_store (itsl: eac_log) 
                                   (k: key{is_eac_state_evicted itsl k}) 
@@ -1128,7 +1129,8 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
                  t_verify_step_framing (m'.threads tid') v k;
                  assert (evicted (m'.eacs k));
                  assert (not (store_contains (Valid?.st (m'.threads tid')) k));
-                 assert (st k == st' k)
+                 assert (store_contains st k == store_contains st' k);
+                 assert (not (store_contains st' k))
                ) 
                else (
                  assume (vl_k == Seq.snoc vl'_k ve);
@@ -1160,7 +1162,6 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
                       assert (store_contains (VV.thread_store (m'.threads tid)) k);
                       elim_key_in_unique_store (I.prefix itsl i) k tid tid';
                       assert (not (store_contains (VV.thread_store (m'.threads tid')) k))
-                      // 
                     | _ -> false_elim()
                   )
              )
@@ -1174,7 +1175,7 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
    aux itsl m;
    assert (evicted (m.eacs k));
    assert (thread_store itsl tid == Valid?.st (m.threads tid))
- 
+#pop-options 
 
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
 let stored_tid (itsl: eac_log) (k:key{is_eac_state_instore itsl k}): 
