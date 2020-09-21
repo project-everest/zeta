@@ -938,7 +938,24 @@ let elim_key_in_unique_store (itsl:eac_log) (k:key) (tid tid':valid_tid itsl)
               store_contains (VV.thread_store ((run_monitor itsl).threads tid)) k)
     (ensures  not (store_contains (VV.thread_store ((run_monitor itsl).threads tid')) k))
   = ()
-  
+
+let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
+                                   (k: key)
+  : Lemma 
+    (requires (
+      let i = I.length itsl - 1 in
+      let itsl' = I.prefix itsl i in
+      let m = run_monitor itsl' in
+      key_in_unique_store itsl' k /\
+      (forall (tid:valid_tid itsl).
+           (EACEvictedBlum? (m.eacs k) \/ EACEvictedMerkle? (m.eacs k)) ==>
+           not (store_contains (Valid?.st (m.threads tid)) k))))
+    (ensures
+      key_in_unique_store itsl k)
+  = admit()
+
+
+
           
 (* when the eac state of a key is evicted then no thread contains the key in its store *)
 let lemma_eac_state_evicted_store (itsl: eac_log) 
@@ -963,8 +980,10 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
          lemma_filter_empty filter_fn;
          assert (vl' `Seq.equal` empty);
          lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
-         assert (m.eacs k == EACInit); 
-         assume (key_in_unique_store itsl k)
+         assert (m.eacs k == EACInit);
+         //from Interleaving.interleave_empty (expose)
+         assume (forall (tid:valid_tid itsl). Seq.index (I.s_seq itsl) tid `Seq.equal` empty);
+         assert (key_in_unique_store itsl k)
        )
        else (
          let i = I.length itsl - 1 in
@@ -1042,7 +1061,8 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
                   )
              )
          in
-         assume (key_in_unique_store itsl k);           
+         lemma_key_in_unique_store_step itsl k;
+         assert (key_in_unique_store itsl k);           
          ()
        )
    in
@@ -1050,64 +1070,7 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
    aux itsl m;
    assert (evicted (m.eacs k));
    assert (thread_store itsl tid == Valid?.st (m.threads tid))
-
  
- 
- let _, thread_log_tid = thread_log (s_seq itsl) tid in
-   let thread_state_tid = verify (tid, thread_log_tid) in
-   let store_tid = Valid?.st thread_state_tid in
-   let vl = vlog_ext_of_its_log itsl in
-   let eacs = eac_state_of_key itsl k in
-
-   assert (evicted eacs);
-   let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
-   let vl' : seq vlog_entry_ext = partn eac_sm k vl in
-   assert (eacs == seq_machine_run (seq_machine_of eac_sm) vl');
-   lemma_eac_state_of_root_init itsl;
-   assert (k <> Root); //state of Root should be init
-   let rec aux (j:nat{j <= Seq.length vl'})
-               (eacs:eac_state{eacs == seq_machine_run (seq_machine_of eac_sm) (SA.prefix vl' j)})
-     : Lemma (requires 
-               forall
-               (ts:vtls{ ts == verify (tid, SA.prefix thread_log_tid i) /\
-                        (Valid? ts /\ evicted eacs ==> not (store_contains (Valid?.st ts) k)) })
-   
-
-   let rec aux (i:nat{i <= Seq.length thread_log_tid})
-               (j:nat{j <= Seq.length vl' /\ (j = Seq.length vl' ==> i = Seq.length thread_log_tid)})
-               (eacs:eac_state{eacs == seq_machine_run (seq_machine_of eac_sm) (SA.prefix vl' j)})
-               (ts:vtls{ ts == verify (tid, SA.prefix thread_log_tid i) /\
-                        (Valid? ts /\ evicted eacs ==> not (store_contains (Valid?.st ts) k)) })
-      : Lemma (ensures not (store_contains store_tid k))
-              (decreases (Seq.length vl' - j))
-      = if j = Seq.length vl'
-        then (
-          assert (SA.prefix vl' j `Seq.equal` vl');
-          assert (SA.prefix thread_log_tid i `Seq.equal` thread_log_tid)
-        )
-        else (
-          let ve = Seq.index vl' j in
-          let eacs' = eac_add ve eacs in
-          assert (SA.prefix vl' (j + 1) `Seq.equal` (Seq.snoc (SA.prefix vl' j) ve));
-          lemma_reduce_append EACInit (trans_fn (seq_machine_of eac_sm)) (SA.prefix vl' j) ve;
-          assert (seq_machine_run (seq_machine_of eac_sm) (SA.prefix vl' (j + 1)) ==
-                  eacs');
-          let j' = filter_index_map filter_fn vl j in
-          assert (Seq.index vl j' == ve);
-          assert (I.index itsl j' == to_vlog_entry ve);
-          let i' = i2s_map itsl j' in
-          if fst i' = tid 
-          then (
-            assert (Seq.index thread_log_tid (snd i') == to_vlog_entry ve)
-          );
-          admit()
-        )
-   in
-   assert (SA.prefix thread_log_tid 0 `Seq.equal` empty);
-   assert (SA.prefix vl' 0 `Seq.equal` Seq.empty);
-   lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
-   aux 0 0 EACInit (init_thread_state tid)
-
 
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
 let stored_tid (itsl: eac_log) (k:key{is_eac_state_instore itsl k}): 
