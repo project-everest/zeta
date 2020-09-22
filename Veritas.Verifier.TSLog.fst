@@ -965,7 +965,42 @@ let run_monitor_step (itsl:eac_log{I.length itsl > 0}) (k:key)
              tid <> tid' ==>
              thread_log (I.s_seq itsl) tid' ==
              thread_log (I.s_seq (I.prefix itsl i)) tid'))
-  = admit()
+  = let i = I.length itsl - 1 in
+    let itsl' = I.prefix itsl i in
+    let m' = run_monitor itsl' in
+    let m = run_monitor itsl in
+    let v = I.index itsl i in
+    let ve = mk_vlog_entry_ext itsl i in
+    let vl' = vlog_ext_of_its_log itsl' in
+    let vl'_k = partn eac_sm k vl' in
+    let vl = vlog_ext_of_its_log itsl in
+    let vl_k = partn eac_sm k vl in
+    let tid = thread_id_of itsl i in
+    let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
+    let _, tl = thread_log (I.s_seq itsl) tid in
+    vlog_ext_of_prefix itsl i;
+    assert (vl' `prefix_of` vl);
+    assert (vl `Seq.equal` Seq.snoc vl' ve);
+    assume (tl `Seq.equal` Seq.snoc tl' v);
+    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in 
+    assert (vl'_k == filter filter_fn vl');
+    assert (vl_k == filter filter_fn vl);    
+    let _ = 
+      if key_of v <> k 
+      then ( 
+        lemma_filter_extend1 filter_fn vl;
+        assert (vl'_k == vl_k)
+      )
+      else (
+        lemma_filter_extend2 filter_fn vl;
+        assert (vl_k == Seq.snoc vl'_k ve);
+        assume (m.eacs k == eac_add ve (m'.eacs k))
+      )
+    in
+    assume (forall (tid':valid_tid itsl).
+             tid <> tid' ==>
+             thread_log (I.s_seq itsl) tid' ==
+             thread_log (I.s_seq (I.prefix itsl i)) tid')    
 
 let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
                                    (k: key)
