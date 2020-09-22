@@ -409,12 +409,16 @@ let sseq_prefix_all_extend_extend (#a:eqtype) (ss0 ss1:sseq a) (x:a) (j:SA.seq_i
     in
     ()
 
-let rec interleave_empty #a #ss (i:interleave #a Seq.empty ss)
+let interleave_empty #a #ss (i:interleave #a Seq.empty ss)
   : Lemma (ensures ss `Seq.equal` empty_sseq_n a (Seq.length ss))
-          (decreases i)
-  = match i with 
-    | IntEmpty -> ()
-    | IntAdd s ss prf -> interleave_empty prf
+  = let rec aux #ss (i:interleave #a Seq.empty ss)
+      : Lemma (ensures ss `Seq.equal` empty_sseq_n a (Seq.length ss))        
+              (decreases i)
+      = match i with 
+        | IntEmpty -> ()
+        | IntAdd s ss prf -> aux prf
+    in
+    aux i
 
 let rec prefix_aux (#a:eqtype) 
                    (il: interleaving a)

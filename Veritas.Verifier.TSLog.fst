@@ -940,6 +940,33 @@ let elim_key_in_unique_store (itsl:eac_log) (k:key) (tid tid':valid_tid itsl)
     (ensures  not (store_contains (VV.thread_store ((run_monitor itsl).threads tid')) k))
   = ()
 
+
+let run_monitor_step (itsl:eac_log{I.length itsl > 0}) (k:key)
+  : Lemma (let i = I.length itsl - 1 in
+           let itsl' = I.prefix itsl i in
+           let m' = run_monitor itsl' in
+           let m = run_monitor itsl in
+           let v = I.index itsl i in
+           let ve = mk_vlog_entry_ext itsl i in
+           let vl' = vlog_ext_of_its_log itsl' in
+           let vl'_k = partn eac_sm k vl' in
+           let vl = vlog_ext_of_its_log itsl in
+           let vl_k = partn eac_sm k vl in
+           let tid = thread_id_of itsl i in
+           let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
+           let _, tl = thread_log (I.s_seq itsl) tid in
+           vl `Seq.equal` Seq.snoc vl' ve /\
+           tl `Seq.equal` Seq.snoc tl' v /\
+           (if key_of v <> k 
+            then vl'_k == vl_k 
+            else (vl_k == Seq.snoc vl'_k ve /\
+                  m.eacs k == eac_add ve (m'.eacs k))) /\
+           (forall (tid':valid_tid itsl).
+             tid <> tid' ==>
+             thread_log (I.s_seq itsl) tid' ==
+             thread_log (I.s_seq (I.prefix itsl i)) tid'))
+  = admit()
+
 let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
                                    (k: key { k <> Root })
   : Lemma 
@@ -953,7 +980,8 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
            not (store_contains (Valid?.st (m'.threads tid)) k))))
     (ensures
       key_in_unique_store itsl k)
-  = let evicted eacs = (EACEvictedBlum? eacs || EACEvictedMerkle? eacs) in
+  = run_monitor_step itsl k;
+    let evicted eacs = (EACEvictedBlum? eacs || EACEvictedMerkle? eacs) in
     let i = I.length itsl - 1 in
     let itsl' = I.prefix itsl i in
     let m' = run_monitor itsl' in
@@ -965,11 +993,11 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
     let vl'_k = partn eac_sm k vl' in
     let vl = vlog_ext_of_its_log itsl in
     let vl_k = partn eac_sm k vl in
-    assume (vl `Seq.equal` Seq.snoc vl' ve);
+    assert (vl `Seq.equal` Seq.snoc vl' ve);
     let tid = thread_id_of itsl i in
     let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
     let _, tl = thread_log (I.s_seq itsl) tid in
-    assume (tl `Seq.equal` Seq.snoc tl' v);
+    assert (tl `Seq.equal` Seq.snoc tl' v);
     assert (SA.prefix tl (Seq.length tl - 1) `Seq.equal` tl');
     assert (m'.threads tid == verify (tid, tl'));
     assert (m.threads tid == t_verify_step (m'.threads tid) v);
@@ -979,8 +1007,7 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
       : Lemma 
         (requires tid' <> tid)
         (ensures m.threads tid' == m'.threads tid')
-      =  assume (thread_log (I.s_seq itsl) tid' ==
-                 thread_log (I.s_seq (I.prefix itsl i)) tid')
+      = ()
     in
     let aux (tid0 tid1:valid_tid itsl)
       : Lemma 
@@ -1001,13 +1028,13 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
           else (
             if key_of v <> k
             then (
-              assume (vl'_k == vl_k);
+              assert (vl'_k == vl_k);
               assert (m.eacs k == m'.eacs k);
               t_verify_step_framing (m'.threads tid1) v k
             )
             else (
-              assume (vl_k == Seq.snoc vl'_k ve);
-              assume (m.eacs k == eac_add ve (m'.eacs k));
+              assert (vl_k == Seq.snoc vl'_k ve);
+              assert (m.eacs k == eac_add ve (m'.eacs k));
               match ve with
               | EvictMerkle _ _
               | EvictBlum _ _ _
@@ -1031,13 +1058,13 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
           tid_unchanged tid1;
           if key_of v <> k
           then (
-              assume (vl'_k == vl_k);
+              assert (vl'_k == vl_k);
               assert (m.eacs k == m'.eacs k);
               t_verify_step_framing (m'.threads tid0) v k
           )
           else (             
-            assume (vl_k == Seq.snoc vl'_k ve);
-            assume (m.eacs k == eac_add ve (m'.eacs k));
+            assert (vl_k == Seq.snoc vl'_k ve);
+            assert (m.eacs k == eac_add ve (m'.eacs k));
             match ve with
             | EvictMerkle _ _
             | EvictBlum _ _ _ ->
@@ -1058,6 +1085,9 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
         )
     in
     ()
+                  
+
+           
 
 #push-options "--ifuel 1,1 --fuel 1,1 --z3rlimit_factor 4"
 (* when the eac state of a key is evicted then no thread contains the key in its store *)
@@ -1086,11 +1116,13 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
          assert (vl' `Seq.equal` empty);
          lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
          assert (m.eacs k == EACInit);
-         //from Interleaving.interleave_empty (expose)
-         assume (forall (tid:valid_tid itsl). Seq.index (I.s_seq itsl) tid `Seq.equal` empty);
+         assert (Seq.equal (I.i_seq itsl) empty);
+         Veritas.Interleave.interleave_empty (IL?.prf itsl);
+         assert (forall (tid:valid_tid itsl). Seq.index (I.s_seq itsl) tid `Seq.equal` empty);
          assert (key_in_unique_store itsl k)
        )
        else (
+         run_monitor_step itsl k;
          let i = I.length itsl - 1 in
          let itsl' = I.prefix itsl i in
          let m' = run_monitor itsl' in
@@ -1105,11 +1137,11 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
          let vl'_k = partn eac_sm k vl' in
          let vl = vlog_ext_of_its_log itsl in
          let vl_k = partn eac_sm k vl in
-         assume (vl `Seq.equal` Seq.snoc vl' ve);
+         assert (vl `Seq.equal` Seq.snoc vl' ve);
          let tid = thread_id_of itsl i in
          let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
          let _, tl = thread_log (I.s_seq itsl) tid in
-         assume (tl `Seq.equal` Seq.snoc tl' v);
+         assert (tl `Seq.equal` Seq.snoc tl' v);
          assert (SA.prefix tl (Seq.length tl - 1) `Seq.equal` tl');
          assert (m'.threads tid == verify (tid, tl'));
          assert (m.threads tid == t_verify_step (m'.threads tid) v);
@@ -1124,7 +1156,7 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
              then (
                if key_of v <> k 
                then (
-                 assume (vl'_k == vl_k);
+                 assert (vl'_k == vl_k);
                  assert (m.eacs k == m'.eacs k);               
                  t_verify_step_framing (m'.threads tid') v k;
                  assert (evicted (m'.eacs k));
@@ -1133,8 +1165,8 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
                  assert (not (store_contains st' k))
                ) 
                else (
-                 assume (vl_k == Seq.snoc vl'_k ve);
-                 assume (m.eacs k == eac_add ve (m'.eacs k));
+                 assert (vl_k == Seq.snoc vl'_k ve);
+                 assert (m.eacs k == eac_add ve (m'.eacs k));
                  //has to be an evict, since we end in an evict state
                  match ve with
                  | EvictMerkle (EvictM _ k') vv ->
@@ -1146,16 +1178,16 @@ let lemma_eac_state_evicted_store (itsl: eac_log)
                )
              )
              else (
-                  assume (thread_log (I.s_seq itsl) tid' ==
+                  assert (thread_log (I.s_seq itsl) tid' ==
                           thread_log (I.s_seq (I.prefix itsl i)) tid');
                   assert (m.threads tid' == m'.threads tid');
                   if key_of v <> k
                   then (
-                        assume (vl'_k == vl_k);
+                        assert (vl'_k == vl_k);
                         assert (m.eacs k == m'.eacs k))
                   else (
-                    assume (vl_k == Seq.snoc vl'_k ve);
-                    assume (m.eacs k == eac_add ve (m'.eacs k));
+                    assert (vl_k == Seq.snoc vl'_k ve);
+                    assert (m.eacs k == eac_add ve (m'.eacs k));
                     match ve with
                     | EvictMerkle (EvictM _ _) _
                     | EvictBlum _ _ _ ->

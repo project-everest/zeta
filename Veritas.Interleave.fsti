@@ -101,6 +101,9 @@ let sseq_all_prefix_of (#a:eqtype)
 val interleave_empty_n (#a:eqtype) (n:nat) 
   : interleave #a empty (Seq.create n empty)
 
+val interleave_empty (#a:_) (#ss:_) (i:interleave #a Seq.empty ss)
+  : Lemma (ensures ss `Seq.equal` Seq.create (Seq.length ss) empty)
+
 val prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il}): 
   Tot (il':interleaving a{i_seq il' = SA.prefix (i_seq il) i /\ 
                           S.length (s_seq il) = S.length (s_seq il')})
