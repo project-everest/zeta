@@ -1010,6 +1010,26 @@ let t_verify_step_framing (v:vtls{Valid? v}) (e:vlog_entry) (k:key{key_of e <> k
            Valid? v' ==>
            store_contains (thread_store v') k == store_contains (thread_store v) k)
   = ()
+
+let ancestor_key_of (e:vlog_entry) 
+  : option key 
+  = match e with
+    | AddM _ k
+    | EvictM _ k
+    | EvictBM _ k _ -> Some k
+    | _ -> None
+
+let t_verify_step_framing_keys (v:vtls{Valid? v}) (e:vlog_entry) (k:key)
+  : Lemma (let open Veritas.Verifier in
+           let v' = t_verify_step v e in
+           Valid? v' /\
+           key_of e <> k /\
+           ancestor_key_of e <> Some k ==>
+           store_contains (thread_store v') k == store_contains (thread_store v) k /\
+           Valid?.st v' k ==  Valid?.st v k
+           )
+  = ()
+
 #pop-options
 
 
@@ -1274,14 +1294,18 @@ let lemma_unique_store_key (itsl: eac_log)
 let lemma_eac_state_evicted_store itsl k tid = 
     lemma_unique_store_key itsl k tid
 
-#push-options "--ifuel 1,1 --fuel 1,1"
+#restart-solver
+#push-options "--ifuel 1,1 --fuel 1,1 --z3rlimit_factor 4"
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
 let rec stored_tid_aux (itsl: eac_log) 
                        (k:key)
   : Tot (tid_opt:option (valid_tid itsl)
                         { is_eac_state_instore itsl k ==>
                           Some? tid_opt /\
-                          store_contains (thread_store itsl (Some?.v tid_opt)) k
+                          (let Some tid = tid_opt in
+                           let tstore = thread_store itsl tid in
+                           store_contains tstore k  /\
+                           (is_data_key k ==> eac_state_value itsl k == V.stored_value tstore k))
                         })
         (decreases (I.length itsl))
   = if I.length itsl = 0
@@ -1307,17 +1331,48 @@ let rec stored_tid_aux (itsl: eac_log)
       let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
       let _, tl = thread_log (I.s_seq itsl) tid in
       let tid_opt' = stored_tid_aux itsl' k in
+      let ts = thread_state itsl tid in
+      let tstore = thread_store itsl tid in
+      let ts' = thread_state itsl' tid in
+      assert (ts == t_verify_step ts' v);
       if EACInStore? (m.eacs k)
       then (
         if key_of v = k
-        then Some tid
+        then (
+          match v with
+          | Get _ _ 
+          | Put _ _ -> 
+            Some tid
+          | AddM (_, value) k' ->
+            assert (m.eacs k == eac_add ve (m'.eacs k));
+            let EACInStore MAdd value' = m.eacs k in
+            assert (value' == value);
+            let Some r = tstore k in
+            Some tid
+          | AddB _ _ _ ->
+            Some tid
+        )
         else (
           let Some s_tid = tid_opt' in
-          Some s_tid
+          let tstore' = thread_store itsl' s_tid in
+          assert (m.eacs k == m'.eacs k);
+          if tid = s_tid
+          then (
+            match v with
+            | Get _ _ -> 
+              Some tid
+            | Put _ _  -> 
+              Some tid
+            | _ ->
+              t_verify_step_framing_keys ts' v k;            
+              Some tid
+          )
+          else Some s_tid
         )
       )
       else None
     )
+
 #pop-options
 
 let stored_tid (itsl: eac_log) 
@@ -1357,7 +1412,7 @@ let lemma_key_in_unique_store (itsl: eac_log) (k:key) (tid: valid_tid itsl):
     else ()
 
 
-#push-options "--ifuel 1,1 --fuel 1,1"
+#push-options "--ifuel 1,1 --fuel 0,0 --z3rlimit_factor 8"
 (* for data keys, the value in the store is the same as the value associated with the eac state *)
 let lemma_eac_stored_value (itsl: eac_log) (k: data_key{is_eac_state_instore itsl k})
   : Lemma (eac_state_value itsl k = stored_value itsl k)
@@ -1389,23 +1444,25 @@ let lemma_eac_stored_value (itsl: eac_log) (k: data_key{is_eac_state_instore its
               if key_of v = k
               then (
                assert (m.eacs k == eac_add ve (m'.eacs k));
-               match ve with
-               | EvictMerkle _ _
-               | EvictBlum _ _ _ -> ()
-               | NEvict v ->
-                 match v with
-                 | Get _ _
-                 | Put _ _ ->
-                   assert (EACInStore? (m'.eacs k));
-                   admit()
-                 | AddM _ _
-                 | AddB _ _ _ -> admit()
+               let NEvict v = ve in
+               match v with
+               | Get _ _ -> ()
+               | Put dk value ->
+                 assert (EACInStore? (m'.eacs k));
+                 let EACInStore n v0 = m'.eacs k in
+                 norm_spec [delta_only [`%eac_add]; iota]
+                           (eac_add (NEvict (Put dk value))
+                                    (EACInStore n v0));
+                 assert (m.eacs k ==
+                         eac_add (NEvict (Put dk value))
+                                 (EACInStore n v0));
+                 assert (E.value_of (m.eacs k) == DVal value);
+                 admit()
+               | AddM _ _
+               | AddB _ _ _ -> 
+                 admit()
               )
-              else (
-                assert (m.eacs k == m'.eacs k);
-                assume (stored_value itsl k ==
-                        stored_value itsl' k)
-              )
+              else (admit())
             )
             else ()
           )
