@@ -1412,62 +1412,10 @@ let lemma_key_in_unique_store (itsl: eac_log) (k:key) (tid: valid_tid itsl):
     else ()
 
 
-#push-options "--ifuel 1,1 --fuel 0,0 --z3rlimit_factor 8"
 (* for data keys, the value in the store is the same as the value associated with the eac state *)
 let lemma_eac_stored_value (itsl: eac_log) (k: data_key{is_eac_state_instore itsl k})
   : Lemma (eac_state_value itsl k = stored_value itsl k)
-  = let rec aux (itsl:eac_log) (m:monitored_state itsl)
-        : Lemma (ensures
-                    is_eac_state_instore itsl k ==>
-                    eac_state_value itsl k = stored_value itsl k)
-                (decreases (I.length itsl))
-        = if I.length itsl = 0
-          then run_monitor_empty itsl k
-          else (
-            run_monitor_step itsl k;
-            let i = I.length itsl - 1 in
-            let itsl' = I.prefix itsl i in
-            let m' = run_monitor itsl' in
-            let m = run_monitor itsl in
-            let v = I.index itsl i in
-            let ve = mk_vlog_entry_ext itsl i in
-            let vl' = vlog_ext_of_its_log itsl' in
-            let vl'_k = partn eac_sm k vl' in
-            let vl = vlog_ext_of_its_log itsl in
-            let vl_k = partn eac_sm k vl in
-            let tid = thread_id_of itsl i in
-            let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
-            let _, tl = thread_log (I.s_seq itsl) tid in
-            aux itsl' m';
-            if EACInStore? (m.eacs k)
-            then (
-              if key_of v = k
-              then (
-               assert (m.eacs k == eac_add ve (m'.eacs k));
-               let NEvict v = ve in
-               match v with
-               | Get _ _ -> ()
-               | Put dk value ->
-                 assert (EACInStore? (m'.eacs k));
-                 let EACInStore n v0 = m'.eacs k in
-                 norm_spec [delta_only [`%eac_add]; iota]
-                           (eac_add (NEvict (Put dk value))
-                                    (EACInStore n v0));
-                 assert (m.eacs k ==
-                         eac_add (NEvict (Put dk value))
-                                 (EACInStore n v0));
-                 assert (E.value_of (m.eacs k) == DVal value);
-                 admit()
-               | AddM _ _
-               | AddB _ _ _ -> 
-                 admit()
-              )
-              else (admit())
-            )
-            else ()
-          )
-    in
-    aux itsl (run_monitor itsl)
+  = let Some tid = stored_tid_aux itsl k in ()
 
 (* 
  * for all keys, the add method stored in the store is the same as the add method associated 
