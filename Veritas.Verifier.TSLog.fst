@@ -828,10 +828,10 @@ let lemma_eac_value_correct_type (itsl: eac_log) (k:key)
     lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
     aux 0 EACInit
 
-let eacs_t (itsl:eac_log) = k:key -> e:eac_state { e == eac_state_of_key itsl k /\ e <> EACFail }
-let threads_t (itsl:eac_log) = t:valid_tid itsl -> v:vtls { Valid? v /\ v == verify (t, Seq.index (I.s_seq itsl) t) }
+let eacs_t (itsl:its_log) = k:key -> e:eac_state { e == eac_state_of_key itsl k /\ (is_eac itsl ==> e <> EACFail) }
+let threads_t (itsl:its_log) = t:valid_tid itsl -> v:vtls { Valid? v /\ v == verify (t, Seq.index (I.s_seq itsl) t) }
 noeq 
-type monitored_state (itsl:eac_log) = {
+type monitored_state (itsl:its_log) = {
   eacs: eacs_t itsl;
   threads: threads_t itsl
 }
@@ -840,13 +840,13 @@ let eq_mon itsl (m0 m1: monitored_state itsl) =
   FunctionalExtensionality.feq m0.eacs m1.eacs /\
   FunctionalExtensionality.feq m0.threads m1.threads
   
-let run_monitor (itsl:eac_log) 
+let run_monitor (itsl:its_log) 
   : monitored_state itsl 
   = let eacs : eacs_t itsl = fun k -> eac_state_of_key itsl k in
     let threads : threads_t itsl = fun t -> verify (thread_log (I.s_seq itsl) t) in
     { eacs; threads }
 
-let run_monitor_empty (itsl:eac_log{I.length itsl = 0}) (k:key)
+let run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
   : Lemma 
     (let m = run_monitor itsl in
      let vl = vlog_ext_of_its_log itsl in
@@ -866,8 +866,8 @@ let run_monitor_empty (itsl:eac_log{I.length itsl = 0}) (k:key)
     assert (Seq.equal (I.i_seq itsl) empty);
     lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
     Veritas.Interleave.interleave_empty (IL?.prf itsl)
-     
-let run_monitor_step (itsl:eac_log{I.length itsl > 0}) (k:key)
+
+let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
   : Lemma (let i = I.length itsl - 1 in
            let itsl' = I.prefix itsl i in
            let m' = run_monitor itsl' in
@@ -1365,15 +1365,13 @@ let lemma_evict_has_next_add (itsl: its_log) (i:I.seq_index itsl):
         (ensures (has_next_add_of_key itsl i (key_of (I.index itsl i))))
   = admit()        
 
-#push-options "--ifuel 2,2"
-let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl):
-  Lemma (requires (is_evict (I.index itsl i)))
-        (ensures (V.key_of (I.index itsl i) <> Root))
-  = let v = I.index itsl i in
-    match v with
-    | EvictM _ _ 
-    | EvictBM _ _ _ -> admit()
-    | _ -> admit()
+#push-options "--ifuel 1,1 --fuel 1,1"
+let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl)
+  : Lemma (requires (is_evict (I.index itsl i)))
+          (ensures (V.key_of (I.index itsl i) <> Root))
+  = let itsl' = I.prefix itsl (i + 1) in
+    run_monitor_step itsl' Root
+#pop-options    
 
 #push-options "--fuel 0,0 --ifuel 0,0 --print_full_names"
 (* since the itsl is sorted by clock, the following lemma holds *)
