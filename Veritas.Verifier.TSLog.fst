@@ -867,6 +867,7 @@ let run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
     lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
     Veritas.Interleave.interleave_empty (IL?.prf itsl)
 
+#push-options "--fuel 1,1"
 let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
   : Lemma (let i = I.length itsl - 1 in
            let itsl' = I.prefix itsl i in
@@ -883,6 +884,7 @@ let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
            let _, tl = thread_log (I.s_seq itsl) tid in
            vl `Seq.equal` Seq.snoc vl' ve /\
            tl `Seq.equal` Seq.snoc tl' v /\
+           thread_state itsl tid == t_verify_step (thread_state itsl' tid) v /\
            (if key_of v <> k 
             then vl'_k == vl_k 
             else (vl_k == Seq.snoc vl'_k ve /\
@@ -908,6 +910,11 @@ let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
     assert (vl' `prefix_of` vl);
     assert (vl `Seq.equal` Seq.snoc vl' ve);
     assume (tl `Seq.equal` Seq.snoc tl' v);
+    assert (SA.prefix tl (Seq.length tl - 1) `Seq.equal` tl');
+    assert (thread_state itsl tid == 
+            t_verify_aux (init_thread_state tid) tl);
+    assert (thread_state itsl tid == 
+            t_verify_step (t_verify_aux (init_thread_state tid) tl') v);
     let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in 
     assert (vl'_k == filter filter_fn vl');
     assert (vl_k == filter filter_fn vl);    
@@ -929,7 +936,7 @@ let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
              tid <> tid' ==>
              thread_log (I.s_seq itsl) tid' ==
              thread_log (I.s_seq (I.prefix itsl i)) tid')    
-
+#pop-options
 
 #push-options "--ifuel 1,1 --fuel 1,1"
 (* we never see operations on Root so its eac state is always init *)
@@ -1267,11 +1274,57 @@ let lemma_unique_store_key (itsl: eac_log)
 let lemma_eac_state_evicted_store itsl k tid = 
     lemma_unique_store_key itsl k tid
 
+#push-options "--ifuel 1,1 --fuel 1,1"
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
+let rec stored_tid_aux (itsl: eac_log) 
+                       (k:key)
+  : Tot (tid_opt:option (valid_tid itsl)
+                        { is_eac_state_instore itsl k ==>
+                          Some? tid_opt /\
+                          store_contains (thread_store itsl (Some?.v tid_opt)) k
+                        })
+        (decreases (I.length itsl))
+  = if I.length itsl = 0
+    then (
+      run_monitor_empty itsl k;
+      if k = Root && thread_count itsl > 0
+      then Some 0 
+      else None
+    )
+    else (
+      run_monitor_step itsl k;
+      let i = I.length itsl - 1 in
+      let itsl' = I.prefix itsl i in
+      let m' = run_monitor itsl' in
+      let m = run_monitor itsl in
+      let v = I.index itsl i in
+      let ve = mk_vlog_entry_ext itsl i in
+      let vl' = vlog_ext_of_its_log itsl' in
+      let vl'_k = partn eac_sm k vl' in
+      let vl = vlog_ext_of_its_log itsl in
+      let vl_k = partn eac_sm k vl in
+      let tid = thread_id_of itsl i in
+      let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
+      let _, tl = thread_log (I.s_seq itsl) tid in
+      let tid_opt' = stored_tid_aux itsl' k in
+      if EACInStore? (m.eacs k)
+      then (
+        if key_of v = k
+        then Some tid
+        else (
+          let Some s_tid = tid_opt' in
+          Some s_tid
+        )
+      )
+      else None
+    )
+#pop-options
+
 let stored_tid (itsl: eac_log) 
                (k:key{is_eac_state_instore itsl k})
-  : (tid: valid_tid itsl{store_contains (thread_store itsl tid) k})
-  = admit()
+  : Tot (tid: valid_tid itsl{store_contains (thread_store itsl tid) k})
+  = let Some tid = stored_tid_aux itsl k in
+    tid
 
 
 let lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid itsl):
@@ -1304,12 +1357,60 @@ let lemma_key_in_unique_store (itsl: eac_log) (k:key) (tid: valid_tid itsl):
     else ()
 
 
-
+#push-options "--ifuel 1,1 --fuel 1,1"
 (* for data keys, the value in the store is the same as the value associated with the eac state *)
-let lemma_eac_stored_value (itsl: eac_log) (k: data_key{is_eac_state_instore itsl k}):
-  Lemma (eac_state_value itsl k = stored_value itsl k)
-  = admit()
-
+let lemma_eac_stored_value (itsl: eac_log) (k: data_key{is_eac_state_instore itsl k})
+  : Lemma (eac_state_value itsl k = stored_value itsl k)
+  = let rec aux (itsl:eac_log) (m:monitored_state itsl)
+        : Lemma (ensures
+                    is_eac_state_instore itsl k ==>
+                    eac_state_value itsl k = stored_value itsl k)
+                (decreases (I.length itsl))
+        = if I.length itsl = 0
+          then run_monitor_empty itsl k
+          else (
+            run_monitor_step itsl k;
+            let i = I.length itsl - 1 in
+            let itsl' = I.prefix itsl i in
+            let m' = run_monitor itsl' in
+            let m = run_monitor itsl in
+            let v = I.index itsl i in
+            let ve = mk_vlog_entry_ext itsl i in
+            let vl' = vlog_ext_of_its_log itsl' in
+            let vl'_k = partn eac_sm k vl' in
+            let vl = vlog_ext_of_its_log itsl in
+            let vl_k = partn eac_sm k vl in
+            let tid = thread_id_of itsl i in
+            let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
+            let _, tl = thread_log (I.s_seq itsl) tid in
+            aux itsl' m';
+            if EACInStore? (m.eacs k)
+            then (
+              if key_of v = k
+              then (
+               assert (m.eacs k == eac_add ve (m'.eacs k));
+               match ve with
+               | EvictMerkle _ _
+               | EvictBlum _ _ _ -> ()
+               | NEvict v ->
+                 match v with
+                 | Get _ _
+                 | Put _ _ ->
+                   assert (EACInStore? (m'.eacs k));
+                   admit()
+                 | AddM _ _
+                 | AddB _ _ _ -> admit()
+              )
+              else (
+                assert (m.eacs k == m'.eacs k);
+                assume (stored_value itsl k ==
+                        stored_value itsl' k)
+              )
+            )
+            else ()
+          )
+    in
+    aux itsl (run_monitor itsl)
 
 (* 
  * for all keys, the add method stored in the store is the same as the add method associated 
