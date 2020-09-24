@@ -1535,20 +1535,77 @@ let lemma_root_not_in_store (itsl: eac_log) (tid:valid_tid itsl{tid > 0})
   : Lemma (not (store_contains (thread_store itsl tid) Root))
   = lemma_root_in_store0 itsl;
     lemma_key_in_unique_store2 itsl Root 0 tid
-  
-(* we use eac constraints to associate a value with each key *)
-let eac_value (itsl: eac_log) (k:key): value_type_of k = admit()
 
+#push-options "--ifuel 1,1"
+(* we use eac constraints to associate a value with each key *)
+let eac_value_aux (itsl: eac_log) (k:key)
+  : value
+  = let m = run_monitor itsl in
+    match m.eacs k with
+    | EACFail -> false_elim()
+    | EACInit -> 
+      if k = Root && thread_count itsl > 0
+      then (
+        let _ = stored_tid_aux itsl k in
+        V.stored_value (Valid?.st (m.threads 0)) Root
+      )
+      else init_value k
+    | EACInStore _ _ -> stored_value itsl k
+    | EACEvictedBlum v _ _ -> v
+    | EACEvictedMerkle v -> v
+
+#push-options "--ifuel 1,1 --fuel 0,0 --z3rlimit_factor 4"
+let lemma_eac_value_aux_typing (itsl:eac_log) (k:key)
+  : Lemma (is_value_of k (eac_value_aux itsl k))
+  = let rec aux (itsl:eac_log)
+      : Lemma (ensures 
+                 is_value_of k (eac_value_aux itsl k) /\
+                 (is_eac_state_instore itsl k ==> is_value_of k (eac_state_value itsl k)))
+              (decreases (I.length itsl))
+      = if I.length itsl = 0
+        then (
+          run_monitor_empty itsl k
+        )
+        else (
+          let i = I.length itsl - 1 in
+          let itsl' = I.prefix itsl i in
+          aux itsl';
+          run_monitor_step itsl k;
+          let m = run_monitor itsl in
+          match m.eacs k with
+          | EACEvictedBlum _ _ _
+          | EACEvictedMerkle _ -> ()
+          | EACInStore _ _ -> ()
+          | EACInit -> 
+            assert (thread_count itsl > 0)
+        )
+    in
+    aux itsl
+#pop-options
+
+let eac_value itsl k 
+  = lemma_eac_value_aux_typing itsl k;
+    eac_value_aux itsl k
+  
 (* eac_value is consistent with stored value *)
 let lemma_eac_value_is_stored_value (itsl: eac_log) (k:key) (tid: valid_tid itsl):  
   Lemma (requires (store_contains (thread_store itsl tid) k))
         (ensures (eac_value itsl k = V.stored_value (thread_store itsl tid) k))
-  = admit()        
+  = let Some tid' = stored_tid_aux itsl k in
+    if tid = tid' 
+    then (
+      if k <> Root 
+      then ()
+      else ()
+    ) 
+    else (
+      lemma_key_in_unique_store2 itsl k tid tid'
+    )
 
-let lemma_eac_value_is_evicted_value (itsl: eac_log) (k:key):
-  Lemma (requires (is_eac_state_evicted itsl k))
-        (ensures (eac_state_evicted_value itsl k = eac_value itsl k))
-  = admit()        
+let lemma_eac_value_is_evicted_value (itsl: eac_log) (k:key)
+  : Lemma (requires (is_eac_state_evicted itsl k))
+          (ensures (eac_state_evicted_value itsl k = eac_value itsl k))
+  = ()        
 
 let lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl):
   Lemma (requires (is_evict (I.index itsl i)))
@@ -1556,7 +1613,7 @@ let lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl):
                   is_evict_ext (vlog_entry_ext_at itsl i) /\
                   V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) = 
                   value_ext (vlog_entry_ext_at itsl i)))
-  = admit()        
+  = admit()
 
 (* if an evict is not the last entry of a key, then there is a add subsequent to the 
  * evict *)
