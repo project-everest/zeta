@@ -1268,16 +1268,11 @@ let lemma_eac_state_evicted_store itsl k tid =
     lemma_unique_store_key itsl k tid
 
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
-let stored_tid (itsl: eac_log) (k:key{is_eac_state_instore itsl k}): 
-  (tid: valid_tid itsl{store_contains (thread_store itsl tid) k})
- = admit()
-
-
-(* uniqueness: k is not in any store other than stored_tid *)
-let lemma_key_in_unique_store (itsl: eac_log) (k:key) (tid: valid_tid itsl):
-  Lemma (requires (is_eac_state_instore itsl k))
-        (ensures (tid <> stored_tid itsl k ==> not (store_contains (thread_store itsl tid) k)))
+let stored_tid (itsl: eac_log) 
+               (k:key{is_eac_state_instore itsl k})
+  : (tid: valid_tid itsl{store_contains (thread_store itsl tid) k})
   = admit()
+
 
 let lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid itsl):
   Lemma (requires (tid1 <> tid2))
@@ -1296,6 +1291,18 @@ let lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid its
       assert (store_contains (VV.thread_store (m.threads tid1)) k);
       elim_key_in_unique_store itsl k tid1 tid1
     )
+
+(* uniqueness: k is not in any store other than stored_tid *)
+let lemma_key_in_unique_store (itsl: eac_log) (k:key) (tid: valid_tid itsl):
+  Lemma (requires (is_eac_state_instore itsl k))
+        (ensures (tid <> stored_tid itsl k ==> not (store_contains (thread_store itsl tid) k)))
+  = let s_tid = stored_tid itsl k in
+    assert (store_contains (thread_store itsl s_tid) k);
+    if store_contains (thread_store itsl tid) k
+    && tid <> s_tid
+    then lemma_key_in_unique_store2 itsl k s_tid tid
+    else ()
+
 
 
 (* for data keys, the value in the store is the same as the value associated with the eac state *)
@@ -1358,10 +1365,15 @@ let lemma_evict_has_next_add (itsl: its_log) (i:I.seq_index itsl):
         (ensures (has_next_add_of_key itsl i (key_of (I.index itsl i))))
   = admit()        
 
+#push-options "--ifuel 2,2"
 let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl):
   Lemma (requires (is_evict (I.index itsl i)))
         (ensures (V.key_of (I.index itsl i) <> Root))
-  = admit()        
+  = let v = I.index itsl i in
+    match v with
+    | EvictM _ _ 
+    | EvictBM _ _ _ -> admit()
+    | _ -> admit()
 
 #push-options "--fuel 0,0 --ifuel 0,0 --print_full_names"
 (* since the itsl is sorted by clock, the following lemma holds *)

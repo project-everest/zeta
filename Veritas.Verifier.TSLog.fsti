@@ -298,15 +298,16 @@ val lemma_eac_state_evicted_store  (itsl: eac_log) (k: key{is_eac_state_evicted 
 val stored_tid (itsl: eac_log) (k:key{is_eac_state_instore itsl k}): 
   (tid: valid_tid itsl{store_contains (thread_store itsl tid) k})
 
+val lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid itsl):
+  Lemma (requires (tid1 <> tid2))
+        (ensures (not (store_contains (thread_store itsl tid1) k &&
+                       store_contains (thread_store itsl tid2) k)))
+
 (* uniqueness: k is not in any store other than stored_tid *)
 val lemma_key_in_unique_store (itsl: eac_log) (k:key) (tid: valid_tid itsl):
   Lemma (requires (is_eac_state_instore itsl k))
         (ensures (tid <> stored_tid itsl k ==> not (store_contains (thread_store itsl tid) k)))
 
-val lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid itsl):
-  Lemma (requires (tid1 <> tid2))
-        (ensures (not (store_contains (thread_store itsl tid1) k &&
-                       store_contains (thread_store itsl tid2) k)))
 
 (* it is therefore meaningful to talk of the stored value of a key *)
 let stored_value (itsl: eac_log) (k:key{is_eac_state_instore itsl k}): value_type_of k =
