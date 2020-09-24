@@ -1606,14 +1606,48 @@ let lemma_eac_value_is_evicted_value (itsl: eac_log) (k:key)
   : Lemma (requires (is_eac_state_evicted itsl k))
           (ensures (eac_state_evicted_value itsl k = eac_value itsl k))
   = ()        
-
-let lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl):
-  Lemma (requires (is_evict (I.index itsl i)))
-        (ensures (store_contains (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) /\
-                  is_evict_ext (vlog_entry_ext_at itsl i) /\
-                  V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) = 
-                  value_ext (vlog_entry_ext_at itsl i)))
-  = admit()
+#restart-solver
+#push-options "--z3rlimit_factor 4"
+let lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl)
+  : Lemma (requires (is_evict (I.index itsl i)))
+          (ensures (store_contains (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) /\
+                    is_evict_ext (vlog_entry_ext_at itsl i) /\
+                    V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) = 
+                    value_ext (vlog_entry_ext_at itsl i)))
+  = let rec aux (itsl:its_log{I.length itsl > 0})
+      : Lemma (ensures (
+                let i = I.length itsl - 1 in 
+                is_evict (I.index itsl i) ==>
+                store_contains (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) /\
+                is_evict_ext (vlog_entry_ext_at itsl i) /\
+                V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) == 
+                value_ext (vlog_entry_ext_at itsl i)))
+       = let i = I.length itsl - 1 in
+         let itsl' = I.prefix itsl i in       
+         let m' = run_monitor itsl' in
+         let m = run_monitor itsl in
+         let v = I.index itsl i in
+         let ve = mk_vlog_entry_ext itsl i in
+         let vl' = vlog_ext_of_its_log itsl' in
+         let k = key_at itsl i in
+         let vl'_k = partn eac_sm k vl' in
+         let vl = vlog_ext_of_its_log itsl in
+         let vl_k = partn eac_sm k vl in
+         let tid = thread_id_of itsl i in
+         let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
+         let _, tl = thread_log (I.s_seq itsl) tid in
+         run_monitor_step itsl k;
+         if i = 0
+         then run_monitor_empty itsl' (key_at itsl i)
+         else ()
+    in
+    let itsl' = I.prefix itsl (i + 1) in
+    I.lemma_prefix_index itsl (i + 1) i    ;
+    aux itsl';
+    I.lemma_prefix_prefix itsl (i + 1) i;
+    I.lemma_i2s_map_prefix itsl (i + 1) i
+#pop-options    
+  
 
 (* if an evict is not the last entry of a key, then there is a add subsequent to the 
  * evict *)
