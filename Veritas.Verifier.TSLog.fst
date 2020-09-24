@@ -1334,6 +1334,7 @@ let rec stored_tid_aux (itsl: eac_log)
          {
            match tid_opt with
            | None -> 
+             (k <> Root \/ thread_count itsl = 0) /\
              not (is_eac_state_instore itsl k) /\
              (forall tid.{:pattern (thread_store itsl tid)}  
                not (store_contains (thread_store itsl tid) k))
@@ -1520,15 +1521,15 @@ let lemma_eac_stored_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k})
   : Lemma (E.add_method_of (eac_state_of_key itsl k) = stored_add_method itsl k)
   = let Some tid = stored_tid_aux itsl k in ()
 
-
 (* if k is in a verifier store, then its eac_state is instore *)
 let lemma_instore_implies_eac_state_instore (itsl:eac_log) (k:key{k <> Root}) (tid:valid_tid itsl)
   : Lemma (store_contains (thread_store itsl tid) k ==> is_eac_state_instore itsl k)
-  = admit()
+  = let _ = stored_tid_aux itsl k in ()
          
 (* the root is always in thread 0 *)
-let lemma_root_in_store0 (itsl: eac_log{thread_count itsl > 0}):
-  Lemma (store_contains (thread_store itsl 0) Root) = admit()
+let lemma_root_in_store0 (itsl: eac_log{thread_count itsl > 0})
+  : Lemma (store_contains (thread_store itsl 0) Root) 
+  = let _ = stored_tid_aux itsl Root in ()
 
 let lemma_root_not_in_store (itsl: eac_log) (tid:valid_tid itsl{tid > 0})
   : Lemma (not (store_contains (thread_store itsl tid) Root))
