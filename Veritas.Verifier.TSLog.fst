@@ -1294,7 +1294,26 @@ let lemma_unique_store_key (itsl: eac_log)
 let lemma_eac_state_evicted_store itsl k tid = 
     lemma_unique_store_key itsl k tid
 
-#restart-solver
+
+let lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid itsl):
+  Lemma (requires (tid1 <> tid2))
+        (ensures (not (store_contains (thread_store itsl tid1) k &&
+                       store_contains (thread_store itsl tid2) k)))
+  = lemma_unique_store_key itsl k tid1;
+    assert (key_in_unique_store itsl k);
+    if store_contains (thread_store itsl tid1) k
+    && store_contains (thread_store itsl tid2) k
+    then (
+      let m = run_monitor itsl in
+      assert (thread_store itsl tid1 ==
+              VV.thread_store (m.threads tid1));
+      assert (thread_store itsl tid2 ==
+              VV.thread_store (m.threads tid2));
+      assert (store_contains (VV.thread_store (m.threads tid1)) k);
+      elim_key_in_unique_store itsl k tid1 tid1
+    )
+
+
 #push-options "--ifuel 1,1 --fuel 1,1 --z3rlimit_factor 4"
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
 let rec stored_tid_aux (itsl: eac_log) 
@@ -1305,6 +1324,7 @@ let rec stored_tid_aux (itsl: eac_log)
                           (let Some tid = tid_opt in
                            let tstore = thread_store itsl tid in
                            store_contains tstore k  /\
+                           E.add_method_of (eac_state_of_key itsl k) == V.add_method_of tstore k /\
                            (is_data_key k ==> eac_state_value itsl k == V.stored_value tstore k))
                         })
         (decreases (I.length itsl))
@@ -1334,17 +1354,28 @@ let rec stored_tid_aux (itsl: eac_log)
       let ts = thread_state itsl tid in
       let tstore = thread_store itsl tid in
       let ts' = thread_state itsl' tid in
+      let tstore' = thread_store itsl' tid in      
       assert (ts == t_verify_step ts' v);
       if EACInStore? (m.eacs k)
       then (
         if key_of v = k
         then (
+          assert (m.eacs k == eac_add ve (m'.eacs k));
           match v with
-          | Get _ _ 
+          | Get _ _
           | Put _ _ -> 
-            Some tid
+            assert (E.add_method_of (m.eacs k) ==
+                    E.add_method_of (m'.eacs k));
+            assert (V.add_method_of tstore k ==
+                    V.add_method_of tstore' k);
+            let Some tid' = tid_opt' in 
+            if tid' = tid 
+            then Some tid
+            else (
+              lemma_key_in_unique_store2 itsl k tid tid';
+              false_elim()
+            )
           | AddM (_, value) k' ->
-            assert (m.eacs k == eac_add ve (m'.eacs k));
             let EACInStore MAdd value' = m.eacs k in
             assert (value' == value);
             let Some r = tstore k in
@@ -1381,25 +1412,6 @@ let stored_tid (itsl: eac_log)
   = let Some tid = stored_tid_aux itsl k in
     tid
 
-
-let lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid itsl):
-  Lemma (requires (tid1 <> tid2))
-        (ensures (not (store_contains (thread_store itsl tid1) k &&
-                       store_contains (thread_store itsl tid2) k)))
-  = lemma_unique_store_key itsl k tid1;
-    assert (key_in_unique_store itsl k);
-    if store_contains (thread_store itsl tid1) k
-    && store_contains (thread_store itsl tid2) k
-    then (
-      let m = run_monitor itsl in
-      assert (thread_store itsl tid1 ==
-              VV.thread_store (m.threads tid1));
-      assert (thread_store itsl tid2 ==
-              VV.thread_store (m.threads tid2));
-      assert (store_contains (VV.thread_store (m.threads tid1)) k);
-      elim_key_in_unique_store itsl k tid1 tid1
-    )
-
 (* uniqueness: k is not in any store other than stored_tid *)
 let lemma_key_in_unique_store (itsl: eac_log) (k:key) (tid: valid_tid itsl):
   Lemma (requires (is_eac_state_instore itsl k))
@@ -1421,9 +1433,9 @@ let lemma_eac_stored_value (itsl: eac_log) (k: data_key{is_eac_state_instore its
  * for all keys, the add method stored in the store is the same as the add method associated 
  * with eac state
  *)
-let lemma_eac_stored_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k}):
-  Lemma (E.add_method_of (eac_state_of_key itsl k) = stored_add_method itsl k)
-  = admit()
+let lemma_eac_stored_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k})
+  : Lemma (E.add_method_of (eac_state_of_key itsl k) = stored_add_method itsl k)
+  = let Some tid = stored_tid_aux itsl k in ()
 
 
 (* if k is in a verifier store, then its eac_state is instore *)

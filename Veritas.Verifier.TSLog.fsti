@@ -294,14 +294,15 @@ val lemma_eac_state_evicted_store  (itsl: eac_log) (k: key{is_eac_state_evicted 
   (tid:valid_tid itsl):
   Lemma (not (store_contains (thread_store itsl tid) k))
 
-(* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
-val stored_tid (itsl: eac_log) (k:key{is_eac_state_instore itsl k}): 
-  (tid: valid_tid itsl{store_contains (thread_store itsl tid) k})
 
 val lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid itsl):
   Lemma (requires (tid1 <> tid2))
         (ensures (not (store_contains (thread_store itsl tid1) k &&
                        store_contains (thread_store itsl tid2) k)))
+
+(* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
+val stored_tid (itsl: eac_log) (k:key{is_eac_state_instore itsl k}): 
+  (tid: valid_tid itsl{store_contains (thread_store itsl tid) k})
 
 (* uniqueness: k is not in any store other than stored_tid *)
 val lemma_key_in_unique_store (itsl: eac_log) (k:key) (tid: valid_tid itsl):
