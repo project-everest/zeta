@@ -1320,8 +1320,13 @@ let lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid its
 let data_key_not_root (k:data_key) 
   : Lemma (k <> Root)
   = ()
+
+let proper_desc_not_root (k:key) (k1:key{is_proper_desc k k1}) 
+  : Lemma (k <> Root)
+  = ()
+
 #push-options "--ifuel 1,1 --fuel 0,0 --z3rlimit_factor 8"
-#restart-solver
+
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
 let rec stored_tid_aux (itsl: eac_log) 
                        (k:key)
@@ -1335,13 +1340,19 @@ let rec stored_tid_aux (itsl: eac_log)
            | Some tid ->
              let tstore = thread_store itsl tid in            
              store_contains tstore k  /\
-             ((k==Root /\ tid=0) \/ (
+             (if k=Root 
+              then (
+                tid == 0 /\
+                eac_state_of_key itsl k == EACInit
+              )
+              else (
                is_eac_state_instore itsl k /\
                E.add_method_of (eac_state_of_key itsl k) 
                  == V.add_method_of tstore k /\
                (is_data_key k ==>
-                 eac_state_value itsl k == V.stored_value tstore k)))
-             
+                 eac_state_value itsl k == V.stored_value tstore k)
+               )
+              )
          })
         (decreases (I.length itsl))
   = if I.length itsl = 0
@@ -1377,7 +1388,7 @@ let rec stored_tid_aux (itsl: eac_log)
       let tstore' = thread_store itsl' tid in      
       assert (ts == t_verify_step ts' v);
       if EACInStore? (m.eacs k)
-      then ( admit();
+      then (
         if key_of v = k
         then (
           assert (m.eacs k == eac_add ve (m'.eacs k));
@@ -1400,12 +1411,17 @@ let rec stored_tid_aux (itsl: eac_log)
               lemma_key_in_unique_store2 itsl' k tid tid';
               false_elim()
             )
-          | AddM (_, value) k' ->
+          | AddM (k0, value) k' ->
+            assert (k0 == k);
+            proper_desc_not_root k0 k';
+            assert (k <> Root);
             let EACInStore MAdd value' = m.eacs k in
             assert (value' == value);
             let Some r = tstore k in
             Some tid
           | AddB _ _ _ ->
+            lemma_eac_state_of_root_init itsl;
+            assert (k <> Root);          
             Some tid
         )
         else (
@@ -1461,9 +1477,12 @@ let rec stored_tid_aux (itsl: eac_log)
             in
             None
           | Some tid' -> 
-            assume (k <> Root);
-            assert (store_contains (thread_store itsl' tid') k);
-            None
+            if k = Root
+            then Some 0
+            else (
+              assert (store_contains (thread_store itsl' tid') k);
+              None
+            )
         )
       )
     )
