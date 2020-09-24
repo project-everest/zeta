@@ -846,6 +846,7 @@ let run_monitor (itsl:its_log)
     let threads : threads_t itsl = fun t -> verify (thread_log (I.s_seq itsl) t) in
     { eacs; threads }
 
+#push-options "--fuel 1,1"
 let run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
   : Lemma 
     (let m = run_monitor itsl in
@@ -855,7 +856,10 @@ let run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
      m.eacs k == EACInit /\
      I.i_seq itsl == empty /\
      vl == empty /\
-     vl' == empty)
+     vl' == empty /\
+     (forall tid. thread_state itsl tid == init_thread_state tid)
+     )
+     
   = let m = run_monitor itsl in
     let vl = vlog_ext_of_its_log itsl in
     let vl' = partn eac_sm k vl in
@@ -867,7 +871,7 @@ let run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
     lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
     Veritas.Interleave.interleave_empty (IL?.prf itsl)
 
-#push-options "--fuel 1,1"
+
 let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
   : Lemma (let i = I.length itsl - 1 in
            let itsl' = I.prefix itsl i in
@@ -889,7 +893,7 @@ let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
             then vl'_k == vl_k 
             else (vl_k == Seq.snoc vl'_k ve /\
                   m.eacs k == eac_add ve (m'.eacs k))) /\
-           (forall (tid':valid_tid itsl).
+           (forall (tid':valid_tid itsl). {:pattern (thread_log (I.s_seq itsl) tid')}
              tid <> tid' ==>
              thread_log (I.s_seq itsl) tid' ==
              thread_log (I.s_seq (I.prefix itsl i)) tid'))
@@ -1313,27 +1317,43 @@ let lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid its
       elim_key_in_unique_store itsl k tid1 tid1
     )
 
-
-#push-options "--ifuel 1,1 --fuel 1,1 --z3rlimit_factor 4"
+let data_key_not_root (k:data_key) 
+  : Lemma (k <> Root)
+  = ()
+#push-options "--ifuel 1,1 --fuel 0,0 --z3rlimit_factor 8"
+#restart-solver
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
 let rec stored_tid_aux (itsl: eac_log) 
                        (k:key)
   : Tot (tid_opt:option (valid_tid itsl)
-                        { is_eac_state_instore itsl k ==>
-                          Some? tid_opt /\
-                          (let Some tid = tid_opt in
-                           let tstore = thread_store itsl tid in
-                           store_contains tstore k  /\
-                           E.add_method_of (eac_state_of_key itsl k) == V.add_method_of tstore k /\
-                           (is_data_key k ==> eac_state_value itsl k == V.stored_value tstore k))
-                        })
+         {
+           match tid_opt with
+           | None -> 
+             not (is_eac_state_instore itsl k) /\
+             (forall tid.{:pattern (thread_store itsl tid)}  
+               not (store_contains (thread_store itsl tid) k))
+           | Some tid ->
+             let tstore = thread_store itsl tid in            
+             store_contains tstore k  /\
+             ((k==Root /\ tid=0) \/ (
+               is_eac_state_instore itsl k /\
+               E.add_method_of (eac_state_of_key itsl k) 
+                 == V.add_method_of tstore k /\
+               (is_data_key k ==>
+                 eac_state_value itsl k == V.stored_value tstore k)))
+             
+         })
         (decreases (I.length itsl))
   = if I.length itsl = 0
     then (
       run_monitor_empty itsl k;
       if k = Root && thread_count itsl > 0
-      then Some 0 
-      else None
+      then (
+        Some 0 
+      )
+      else ( 
+        None
+      )
     )
     else (
       run_monitor_step itsl k;
@@ -1357,22 +1377,27 @@ let rec stored_tid_aux (itsl: eac_log)
       let tstore' = thread_store itsl' tid in      
       assert (ts == t_verify_step ts' v);
       if EACInStore? (m.eacs k)
-      then (
+      then ( admit();
         if key_of v = k
         then (
           assert (m.eacs k == eac_add ve (m'.eacs k));
           match v with
           | Get _ _
-          | Put _ _ -> 
+          | Put _ _ ->
             assert (E.add_method_of (m.eacs k) ==
                     E.add_method_of (m'.eacs k));
             assert (V.add_method_of tstore k ==
                     V.add_method_of tstore' k);
             let Some tid' = tid_opt' in 
             if tid' = tid 
-            then Some tid
+            then ( Some tid )
             else (
-              lemma_key_in_unique_store2 itsl k tid tid';
+              assert (is_data_key k);
+              data_key_not_root k;
+              assert (k <> Root);
+              assert (store_contains tstore' k);
+              assert (store_contains (thread_store itsl' tid') k);
+              lemma_key_in_unique_store2 itsl' k tid tid';
               false_elim()
             )
           | AddM (_, value) k' ->
@@ -1401,7 +1426,46 @@ let rec stored_tid_aux (itsl: eac_log)
           else Some s_tid
         )
       )
-      else None
+      else (
+        if key_of v = k
+        then (
+          assert (m.eacs k == eac_add ve (m'.eacs k));
+          match v with
+          | Get _ _
+          | Put _ _
+          | AddM _ _
+          | AddB _ _ _ -> None
+          | _ ->
+            FStar.Classical.forall_intro (lemma_eac_state_evicted_store itsl k);
+            None
+        )
+        else (
+          t_verify_step_framing_keys ts' v k;
+          assert (m.eacs k == m'.eacs k);
+          match tid_opt' with
+          | None -> 
+            assert (forall tid.{:pattern thread_store itsl' tid}
+                   not (store_contains (thread_store itsl' tid) k));
+            let aux (tid0:valid_tid itsl) 
+              : Lemma 
+                (ensures (not (store_contains (thread_store itsl tid0) k)))
+                [SMTPat (thread_store itsl tid0)]
+              = if tid0 <> tid
+                then (assert (thread_log (I.s_seq itsl) tid0 ==
+                              thread_log (I.s_seq itsl') tid0);
+                      assert (thread_state itsl tid0 ==
+                              thread_state itsl' tid0);
+                      assert (thread_store itsl' tid0 ==                               
+                              Valid?.st (thread_state itsl' tid0)))
+                else ()
+            in
+            None
+          | Some tid' -> 
+            assume (k <> Root);
+            assert (store_contains (thread_store itsl' tid') k);
+            None
+        )
+      )
     )
 
 #pop-options
@@ -1439,8 +1503,8 @@ let lemma_eac_stored_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k})
 
 
 (* if k is in a verifier store, then its eac_state is instore *)
-let lemma_instore_implies_eac_state_instore (itsl:eac_log) (k:key{k <> Root}) (tid:valid_tid itsl):
-  Lemma (store_contains (thread_store itsl tid) k ==> is_eac_state_instore itsl k)
+let lemma_instore_implies_eac_state_instore (itsl:eac_log) (k:key{k <> Root}) (tid:valid_tid itsl)
+  : Lemma (store_contains (thread_store itsl tid) k ==> is_eac_state_instore itsl k)
   = admit()
          
 (* the root is always in thread 0 *)
