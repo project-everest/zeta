@@ -1719,7 +1719,7 @@ let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl)
     run_monitor_step itsl' Root
 #pop-options    
 
-#push-options "--fuel 0,0 --ifuel 0,0 --print_full_names"
+#push-options "--fuel 0,0 --ifuel 0,0"
 (* since the itsl is sorted by clock, the following lemma holds *)
 let lemma_clock_ordering (itsl: its_log) (i1 i2: I.seq_index itsl):
   Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
