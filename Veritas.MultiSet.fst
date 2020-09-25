@@ -425,12 +425,14 @@ let union_comm #_ #_ s1 s2 =
   Classical.forall_intro (union_mem_aux s2 s1);
   eq_intro_aux (union s1 s2) (union s2 s1)
 
+#push-options "--z3rlimit_factor 2"
 let union_assoc #_ #_ s1 s2 s3 =
   Classical.forall_intro (union_mem_aux s1 s2);
   Classical.forall_intro (union_mem_aux s2 s3);
   Classical.forall_intro (union_mem_aux (union s1 s2) s3);
   Classical.forall_intro (union_mem_aux s1 (union s2 s3));
   eq_intro_aux (union (union s1 s2) s3) (union s1 (union s2 s3))
+#pop-options
 
 let rec add_size #a #f s x =
   match s with
