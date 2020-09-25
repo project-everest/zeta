@@ -360,8 +360,11 @@ val lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl):
 
 (* if an evict is not the last entry of a key, then there is a add subsequent to the 
  * evict *)
-val lemma_evict_has_next_add (itsl: its_log) (i:I.seq_index itsl):
+val lemma_evict_has_next_add (itsl: its_log) 
+                             (i:I.seq_index itsl)
+                             (j:nat { i < j /\ j <= I.length itsl }):
   Lemma (requires (is_evict (I.index itsl i) /\
+                   is_eac (I.prefix itsl j) /\         
                    exists_sat_elems (is_entry_of_key (key_of (I.index itsl i))) (I.i_seq itsl)) /\
                    i < last_idx_of_key itsl (key_of (I.index itsl i)))
         (ensures (has_next_add_of_key itsl i (key_of (I.index itsl i))))

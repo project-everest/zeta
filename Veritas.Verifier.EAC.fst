@@ -811,8 +811,8 @@ let lemma_non_eac_evicted_blum_addb
 
       (* from clock ordering j has to occur before i *)
       lemma_evict_before_add3 itsl i j;
-      //assert (j < i);
-
+      assert (j < i);
+      assert (is_eac (I.prefix itsl i));
       //assert(entry_of_key k (index itsli j));
       assert(index (I.i_seq itsli) j = I.index itsli j);
       lemma_last_index_correct2 (is_entry_of_key k) (I.i_seq itsli) j;
@@ -822,8 +822,7 @@ let lemma_non_eac_evicted_blum_addb
       //assert(VB.blum_evict_elem itsl i' = VB.blum_evict_elem itsli i');
       //assert(j < i');
       //assert(be' = VB.blum_evict_elem itsl i');
-
-      lemma_evict_has_next_add itsli j;
+      lemma_evict_has_next_add itsli j i;
       lemma_blum_evict_add_same itsli j;
 
       let j' = next_add_of_key itsli j k in
@@ -908,4 +907,3 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl   
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl      
     )
-    

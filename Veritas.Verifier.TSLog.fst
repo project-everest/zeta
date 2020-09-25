@@ -1648,15 +1648,95 @@ let lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl)
     I.lemma_i2s_map_prefix itsl (i + 1) i
 #pop-options    
   
+#push-options "--fuel 0,0 --z3rlimit_factor 4"
+        
+
+let evict_is_evicted (itsl:eac_log{I.length itsl > 0})
+  : Lemma (let i = I.length itsl - 1 in
+           let v = I.index itsl i in
+           let m = run_monitor itsl in
+           let eacs = m.eacs (key_of v) in
+           is_evict v ==> EACEvictedBlum? eacs \/ EACEvictedMerkle? eacs)
+  = let i = I.length itsl - 1 in
+    let v = I.index itsl i in
+    run_monitor_step itsl (key_of v)
 
 (* if an evict is not the last entry of a key, then there is a add subsequent to the 
  * evict *)
-let lemma_evict_has_next_add (itsl: its_log) (i:I.seq_index itsl):
-  Lemma (requires (is_evict (I.index itsl i) /\
-                   exists_sat_elems (is_entry_of_key (key_of (I.index itsl i))) (I.i_seq itsl)) /\
-                   i < last_idx_of_key itsl (key_of (I.index itsl i)))
-        (ensures (has_next_add_of_key itsl i (key_of (I.index itsl i))))
-  = admit()        
+let lemma_evict_has_next_add (itsl: its_log) 
+                             (i:I.seq_index itsl)
+                             (j:nat { i < j /\ j <= I.length itsl })
+  : Lemma 
+    (requires 
+      is_evict (I.index itsl i) /\
+      is_eac (I.prefix itsl j) /\         
+      exists_sat_elems (is_entry_of_key (key_of (I.index itsl i))) (I.i_seq itsl) /\
+      i < last_idx_of_key itsl (key_of (I.index itsl i)))
+    (ensures (has_next_add_of_key itsl i (key_of (I.index itsl i))))
+  = let itsl_j = I.prefix itsl j in
+    let itsl_i = I.prefix itsl (i + 1) in
+    I.lemma_prefix_prefix itsl j (i + 1);
+    lemma_eac_implies_prefix_eac itsl_j (i + 1);
+    assert (is_eac itsl_i);
+    let v = I.index itsl i in
+    let is_eac_evicted = function
+      | EACEvictedBlum _ _ _
+      | EACEvictedMerkle _ -> true
+      | _ -> false
+    in
+    let rec aux (k:nat{i < k /\
+                     k <= I.length itsl /\
+                     (forall (k':I.seq_index itsl). i < k' /\ k' < k ==> key_of (I.index itsl k') <> key_of v)})
+      : Lemma 
+        (requires k <= last_idx_of_key itsl (key_of v) /\
+                  (let m' = run_monitor (I.prefix itsl k) in
+                   (forall (tid:valid_tid itsl).{:pattern (m'.threads tid)} not (store_contains (VV.thread_store (m'.threads tid)) (key_of v)))
+                   ))
+        (ensures has_next_add_of_key itsl i (key_of v))
+        (decreases (I.length itsl - k))
+      = if k = I.length itsl 
+        then false_elim()
+        else (
+          let itsl_k = I.prefix itsl k in
+          let itsl_k_1 = I.prefix itsl (k + 1) in          
+          I.lemma_prefix_prefix itsl (k + 1) k;
+          let m' = run_monitor itsl_k in
+          let m = run_monitor itsl_k_1 in
+          run_monitor_step itsl_k_1 (key_of v);
+          assert (I.prefix itsl_k_1 k == itsl_k);
+          assert (I.length itsl_k_1 = k + 1);
+          let tid = thread_id_of itsl_k_1 k in
+          let v' = I.index itsl_k_1 k in
+          assert (m.threads tid ==
+                  t_verify_step (m'.threads tid) v');
+          if key_of v = key_of v' 
+          then (
+            match v' with
+            | AddM _ _ 
+            | AddB _ _ _ ->
+              intro_has_next (is_add_of_key (key_of v)) (I.i_seq itsl) i k
+            | _ ->
+              assert (~(Valid? (m.threads tid)))
+          )
+          else (t_verify_step_framing (thread_state itsl_k tid) v' (key_of v);
+                assert (store_contains (VV.thread_store (m.threads tid)) (key_of v) ==
+                        store_contains (VV.thread_store (m'.threads tid)) (key_of v));
+                assert (not (store_contains (VV.thread_store (m.threads tid)) (key_of v)));
+                assert (forall (tid':valid_tid itsl_k_1). tid' <> tid ==> m.threads tid' == m'.threads tid');
+                aux (k + 1))
+        )
+    in
+    let m = run_monitor itsl_i in
+    I.lemma_prefix_index itsl (i + 1) i;
+    evict_is_evicted itsl_i;
+    assert (is_eac_evicted (m.eacs (key_of v)));
+    assert (is_eac_state_evicted itsl_i (key_of v));
+    let aux2 (tid:valid_tid itsl)
+      : Lemma (not (store_contains (VV.thread_store (m.threads tid)) (key_of v)))
+              [SMTPat (m.threads tid)]
+      = lemma_unique_store_key itsl_i (key_of v) tid
+    in
+    aux (i + 1)
 
 #push-options "--ifuel 1,1 --fuel 1,1"
 let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl)
@@ -1687,6 +1767,3 @@ let lemma_init_state_empty (itsl: its_log {I.length itsl = 0}) (k: key)
     lemma_filter_is_proj (iskey #(key_type eac_sm) (partn_fn eac_sm) k) empty;
     lemma_proj_length (partn eac_sm k empty) empty;
     assert (Seq.equal (partn eac_sm k empty) empty)
-
-
-(* broken ... but lots of useful stuff below *)
