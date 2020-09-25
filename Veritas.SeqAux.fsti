@@ -107,6 +107,12 @@ val lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (True))
         (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true))
 
+
+let filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a)
+  : Lemma (requires filter f s `Seq.equal` empty)
+          (ensures forall (i:seq_index s). not (f (Seq.index s i)))
+  = admit()
+
 (* mapping from filtered subseq to satisfying indexes *)
 val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
   Tot (j:seq_index s{index s j = index (filter f s) i})
