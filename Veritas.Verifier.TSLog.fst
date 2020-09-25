@@ -875,7 +875,8 @@ let rec lemma_eac_state_addm' (itsl: eac_log)
 let lemma_eac_state_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k})
   : Lemma (E.add_method_of (eac_state_of_key itsl k) = 
            V.addm_of_entry (I.index itsl (last_add_idx itsl k)))
-  = let i = last_add_idx itsl k in admit();
+  = let i = last_add_idx itsl k in
+    SA.last_index_opt_elim (is_add_of_key k) (I.i_seq itsl);
     lemma_eac_state_addm' itsl k (last_add_idx itsl k)
 
 (* the evicted value is always of the correct type for the associated key *)

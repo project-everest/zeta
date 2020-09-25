@@ -215,6 +215,12 @@ let exists_sat_elems (#a:eqtype) (f:a -> bool) (s:seq a) =
 let last_index (#a:eqtype) (f:a -> bool) (s:seq a{exists_sat_elems f s}) =
   Some?.v (last_index_opt f s)
 
+let last_index_opt_elim (#a:eqtype) (f:a -> bool) (s:seq a)
+  : Lemma (match last_index_opt f s with
+           | None -> forall (i:seq_index s). not (f (Seq.index s i))
+           | Some i -> f (Seq.index s i) /\ (forall (j:seq_index s). j > i ==> not (f (Seq.index s j))))
+  = admit()
+  
 (* Any index beyond last index does not satisfy f *)
 val lemma_last_index_correct1 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
   Lemma (requires (exists_sat_elems f s /\ i > last_index f s))
