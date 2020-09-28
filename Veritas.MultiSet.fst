@@ -350,6 +350,7 @@ private let seq_remove_count1 (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
       Seq.lemma_append_count (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
     end
 
+#push-options "--z3rlimit_factor 2"
 private let seq_remove_count2 (#a:eqtype)
   (s:Seq.seq a)
   (i:seq_index s)
@@ -368,7 +369,7 @@ private let seq_remove_count2 (#a:eqtype)
       assert (Seq.count y s1 == Seq.count y (Seq.tail s1));
       Seq.lemma_append_count (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
     end
-
+#pop-options
 
 /// This is the bijection for the recursive call
 
