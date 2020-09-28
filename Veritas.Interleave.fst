@@ -630,3 +630,77 @@ let map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:seq_ind
           then aux (IL _ _ prf') i
     in
     aux prf i
+
+#push-options "--query_stats"
+let rec flat_length_zero (#a:_) (s:sseq a) 
+  : Lemma (requires (flat_length s == 0))
+          (ensures  s `Seq.equal` empty_sseq_n a (Seq.length s))
+          (decreases (Seq.length s))
+  = if Seq.length s = 0
+    then ()
+    else (
+      let prefix, last = Seq.un_snoc s in
+      lemma_flat_length_app1 prefix last;
+      flat_length_zero prefix;
+      assert (last `Seq.equal` empty)
+    )
+          
+let interleave_step (#a:eqtype) (il:interleaving a { length il > 0 })
+  = let rec aux (il:interleaving a { length il > 0 })
+      : Lemma 
+        (ensures (
+          let i = length il - 1 in
+          let il' = prefix il i in
+          let tid, _ = i2s_map il i in
+          let tl' = Seq.index (s_seq il') tid in
+          let tl = Seq.index (s_seq il) tid in
+          let v = index il i in
+          tl `Seq.equal` Seq.snoc tl' v /\
+          (forall (tid':SA.seq_index (s_seq il)).
+            tid <> tid' ==>
+            Seq.index (s_seq il) tid' ==
+            Seq.index (s_seq il') tid')))
+        (decreases (IL?.prf il))
+      = let IL is ss prf = il in
+        let i = length il - 1 in
+        let il' = prefix il i in
+        let tid, _ = i2s_map il i in
+        let tl' = Seq.index (s_seq il') tid in
+        let tl = Seq.index (s_seq il) tid in
+        let v = index il i in
+        match prf with
+        | IntEmpty -> false_elim()
+        | IntAdd _ ss' prf ->
+          aux (IL is ss' prf)
+        | IntExtend is' ss' prf' x j -> 
+          assert (tid = j);
+          assert (x == v);
+          assert (tl == Seq.index (sseq_extend ss' x j) j);
+          let n = Seq.length ss in
+          if Seq.length is' = 0
+          then (
+            assert (i = 0);
+            assert (tl' `Seq.equal` empty);
+            assert (flat_length ss' = 0);
+            flat_length_zero ss';
+            assert (ss' `Seq.equal` empty_sseq_n _ n);
+            assert (tl `Seq.equal` Seq.snoc tl' x);
+            let aux (tid':SA.seq_index ss)
+              : Lemma 
+                (requires
+                  tid <> tid')
+                (ensures 
+                  Seq.index (s_seq il) tid' `Seq.equal`
+                  Seq.index (s_seq il') tid')
+                [SMTPat (Seq.index (s_seq il') tid')]
+              = ()
+            in
+            ()
+          )
+          else 
+            aux (IL is' ss' prf')
+      in
+      aux il
+
+
+      

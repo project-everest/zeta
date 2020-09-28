@@ -175,7 +175,7 @@ val map_interleave (#a #b:eqtype) (f:a -> b) (s:seq a) (ss:sseq a) (i:interleave
 val map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:seq_index prf)
   : Lemma (ensures (i2s_map prf i == i2s_map (IL _ _ (map_interleave f _ _ (IL?.prf prf))) i))
 
-let interleave_step (#a:eqtype) (il:interleaving a { length il > 0 })
+val interleave_step (#a:eqtype) (il:interleaving a { length il > 0 })
   : Lemma 
     (let i = length il - 1 in
      let il' = prefix il i in
@@ -188,4 +188,3 @@ let interleave_step (#a:eqtype) (il:interleaving a { length il > 0 })
         tid <> tid' ==>
         Seq.index (s_seq il) tid' ==
         Seq.index (s_seq il') tid'))
-  = admit()
