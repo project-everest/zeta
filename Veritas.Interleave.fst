@@ -631,7 +631,6 @@ let map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:seq_ind
     in
     aux prf i
 
-#push-options "--query_stats"
 let rec flat_length_zero (#a:_) (s:sseq a) 
   : Lemma (requires (flat_length s == 0))
           (ensures  s `Seq.equal` empty_sseq_n a (Seq.length s))
