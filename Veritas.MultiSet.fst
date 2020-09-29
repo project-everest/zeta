@@ -265,15 +265,51 @@ let seq_append_mset #a #f s1 s2 =
   Classical.forall_intro (union_mem_aux ms1 ms2);
   eq_intro_aux ms (union ms1 ms2)
 
-let seq2mset_add_elem #a #f s x =
-  Seq.lemma_append_count s (Seq.create 1 x);
+let rec seq_count_create (#a:eqtype) (n:nat) (x:a)
+  : Lemma (Seq.count x (Seq.create n x) == n /\
+           (forall y. y =!= x ==> Seq.count y (Seq.create n x) == 0))
+  = if n = 0 then ()
+    else begin
+      assert (Seq.equal (Seq.tail (Seq.create n x))
+                        (Seq.create (n-1) x));
 
+      assert (Seq.count x (Seq.create n x) == 1 + Seq.count x (Seq.tail (Seq.create n x)));
+      seq_count_create (n-1) x
+    end
+
+let seq2mset_add_elem #a #f s x =
   add_mem x (seq2mset #a #f s);
   Classical.forall_intro (add_mem_neq x (seq2mset #a #f s));
 
+  assert (forall y. (y == x ==>
+                mem y (add_elem (seq2mset #a #f s) x) == mem y (seq2mset #a #f s) + 1) /\
+               (y =!= x ==>
+                mem y (add_elem (seq2mset #a #f s) x) == mem y (seq2mset #a #f s)));
+
+
   Classical.forall_intro (seq2mset_mem #a #f (append1 s x));
+
+  assert (forall y. mem y (seq2mset #a #f (append1 s x)) ==
+               Seq.count y (append1 s x));
+
+  Seq.lemma_append_count s (Seq.create 1 x);
+
+  assert (forall y. Seq.count y (append1 s x) ==
+               Seq.count y s + Seq.count y (Seq.create 1 x));
+
+  seq_count_create 1 x;
+
+  assert (forall y. (y == x ==>
+                Seq.count y (append1 s x) == Seq.count y s + 1) /\
+               (y =!= x ==>
+                Seq.count y (append1 s x) == Seq.count y s));
+
   Classical.forall_intro (seq2mset_mem #a #f s);
 
+  assert (forall y. Seq.count y s == mem y (seq2mset #a #f s));
+
+  assert (forall y. mem y (add_elem (seq2mset #a #f s) x) ==
+               Seq.count y (append1 s x));
   eq_intro_aux (seq2mset #a #f (append1 s x)) (add_elem (seq2mset #a #f s) x)
 
 let seq_prefix_mset_mem #a #f s s' x =
@@ -350,7 +386,7 @@ private let seq_remove_count1 (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
       Seq.lemma_append_count (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
     end
 
-#push-options "--z3rlimit_factor 2"
+#push-options "--fuel 1 --ifuel 0"
 private let seq_remove_count2 (#a:eqtype)
   (s:Seq.seq a)
   (i:seq_index s)
@@ -426,12 +462,16 @@ let union_comm #_ #_ s1 s2 =
   Classical.forall_intro (union_mem_aux s2 s1);
   eq_intro_aux (union s1 s2) (union s2 s1)
 
-#push-options "--z3rlimit_factor 2"
-let union_assoc #_ #_ s1 s2 s3 =
-  Classical.forall_intro (union_mem_aux s1 s2);
-  Classical.forall_intro (union_mem_aux s2 s3);
-  Classical.forall_intro (union_mem_aux (union s1 s2) s3);
-  Classical.forall_intro (union_mem_aux s1 (union s2 s3));
+#push-options "--fuel 0 --fuel 0"
+let union_assoc #a #_ s1 s2 s3 =
+  let aux (x:a)
+    : Lemma (mem x (union (union s1 s2) s3) == mem x (union s1 (union s2 s3)))
+    = union_mem_aux (union s1 s2) s3 x;
+      union_mem_aux s1 s2 x;
+      union_mem_aux s1 (union s2 s3) x;
+      union_mem_aux s2 s3 x
+  in
+  Classical.forall_intro aux;
   eq_intro_aux (union (union s1 s2) s3) (union s1 (union s2 s3))
 #pop-options
 
