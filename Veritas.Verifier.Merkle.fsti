@@ -49,10 +49,11 @@ val lemma_proving_ancestor_points_to_self (itsl: TL.eac_log) (k:key{k <> Root}):
 (* before the first add the proving ancestor points to none or to a key that is not an ancestor *)
 val lemma_proving_ancestor_initial (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (requires (is_eac_state_init itsl k))
-        (ensures (mv_points_to_none (eac_merkle_value itsl (proving_ancestor itsl k))
-                                    (desc_dir k (proving_ancestor itsl k)) \/
-                  not (is_desc k (mv_pointed_key (eac_merkle_value itsl (proving_ancestor itsl k))
-                                                 (desc_dir k (proving_ancestor itsl k))))))
+        (ensures (let k' = proving_ancestor itsl k in
+                  let v' = eac_merkle_value itsl k' in
+                  let c = desc_dir k k' in
+                  mv_points_to_none v' c \/
+                  not (is_desc k (mv_pointed_key v' c))))
 
 (* if the proving ancestor of k is not Root, then Root points to some proper ancestor of 
  * k along that direction *)

@@ -34,6 +34,24 @@ let eac_ptrfn_aux (itsl: TL.eac_log) (n:bin_tree_node) (c:bin_tree_dir):
 let eac_ptrfn (itsl: TL.eac_log): ptrfn =
   eac_ptrfn_aux itsl
 
+(* eac_ptrfn value is the same as the eac_value *)
+let lemma_eac_ptrfn (itsl: TL.eac_log) (k: merkle_key) (c:bin_tree_dir) :
+  Lemma (requires True)
+        (ensures (let pf = eac_ptrfn itsl in
+                  let mv = eac_merkle_value itsl k in
+                  mv_points_to_none mv c /\ pf k c = None \/                   
+                  mv_points_to_some mv c /\ is_desc (mv_pointed_key mv c) (child c k) /\
+                  pf k c = Some (mv_pointed_key mv c)))
+        [SMTPat (eac_ptrfn itsl k c)] = 
+  let pf = eac_ptrfn itsl in
+  let mv = eac_merkle_value itsl k in
+  if mv_points_to_none mv c then ()
+  else (
+    let kd = mv_pointed_key mv c in
+    lemma_eac_value_empty_or_points_to_desc itsl k c;
+    ()
+  )
+
 let root_reachable (itsl: TL.eac_log) (k:key): bool = 
   let pf = eac_ptrfn itsl in
   BP.root_reachable pf k
@@ -82,6 +100,15 @@ let proving_ancestor (itsl: TL.eac_log) (k:key{k <> Root}):
     prev_in_path pf k Root  
   else first_root_reachable_ancestor itsl k
 
+let lemma_proving_ancestor_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}):
+  Lemma (let k' = proving_ancestor itsl k in
+         root_reachable itsl k') = admit()
+
+let lemma_proving_ancestor_greatest_depth (itsl: TL.eac_log) (k:key{k <> Root}) (k2: key{is_proper_desc k k2}):  
+  Lemma (requires (root_reachable itsl k2))
+        (ensures  (let k' = proving_ancestor itsl k in
+                   depth k2 <= depth k')) = admit()
+
 (* after the first add the proving ancestor always points to self *)
 let lemma_proving_ancestor_points_to_self (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (requires not (is_eac_state_init itsl k))
@@ -90,16 +117,62 @@ let lemma_proving_ancestor_points_to_self (itsl: TL.eac_log) (k:key{k <> Root}):
                                k)) =
   admit()                               
    
-
 (* before the first add the proving ancestor points to none or to a key that is not an ancestor *)
 let lemma_proving_ancestor_initial (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (requires (is_eac_state_init itsl k))
-        (ensures (mv_points_to_none (eac_merkle_value itsl (proving_ancestor itsl k))
-                                    (desc_dir k (proving_ancestor itsl k)) \/
-                  not (is_desc k (mv_pointed_key (eac_merkle_value itsl (proving_ancestor itsl k))
-                                                 (desc_dir k (proving_ancestor itsl k)))))) = 
-  admit()                                                 
+        (ensures (let k' = proving_ancestor itsl k in
+                  let v' = eac_merkle_value itsl k' in
+                  let c = desc_dir k k' in
+                  mv_points_to_none v' c \/
+                  not (is_desc k (mv_pointed_key v' c)))) =
+  let pf = eac_ptrfn itsl in                  
+  let k' = proving_ancestor itsl k in                  
+  let v' = eac_merkle_value itsl k' in
+  let c = desc_dir k k' in
 
+  (* k' is root reachable *)
+  lemma_proving_ancestor_root_reachable itsl k;
+  assert(root_reachable itsl k');  
+
+  (* k is not root reachable since it is in initial state *)
+  lemma_not_init_equiv_root_reachable itsl k;
+  assert(not (root_reachable itsl k ));
+
+  (* points to none - nothing to prove *)
+  if mv_points_to_none v' c then ()
+  else
+    (* k' points to k2 along direction c *)
+    let k2 = mv_pointed_key v' c in
+
+    (* k2 is a proper descendant of k' *)
+    lemma_eac_ptrfn itsl k' c;
+    lemma_parent_ancestor (child c k');
+    //assert(is_desc k2 (child c k'));
+    lemma_proper_desc_transitive1 k2 (child c k') k';
+    //assert(is_proper_desc k2 k');
+    
+    (* since Root -> k' path exists, k' -> k2 edge exists, Root -> k2 path exists *)
+    //assert(points_to pf k2 k');
+    lemma_points_to_reachable pf k2 k';
+    lemma_reachable_transitive pf k2 k' Root;
+    //assert(BP.root_reachable pf k2);
+
+    (* k' points to k2 and k is a descendant of k2 *)
+    if is_desc k k2 then
+
+      (* if k = k2, we have a contradiction since k is root_reachable *)
+      if k = k2 then ()
+
+      (* if k2 <> k, then k2 is a proper ancestor of k, which is a contradiction since k' is the 
+       * first such ancestor going up from k *)
+      else 
+        //assert(is_proper_desc k k2);        
+        lemma_proving_ancestor_greatest_depth itsl k k2
+        //assert(depth k2 <= depth k');
+      
+    (* nothing to prove if k is not a descendant of k2 *)
+    else ()
+  
 (* if the proving ancestor of k is not Root, then Root points to some proper ancestor of 
  * k along that direction *)
 let lemma_non_proving_ancestor_root (itsl: TL.eac_log) (k:key{k <> Root}):
