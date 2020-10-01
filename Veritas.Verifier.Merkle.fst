@@ -196,7 +196,133 @@ let lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
         (ensures (mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
                                      (desc_dir k (proving_ancestor itsl k)) = 
                   is_eac_state_evicted_blum itsl k)) = admit()
-                    
+
+(* if a key is the store of any verifier, then it is root reachable *)
+let lemma_instore_implies_root_reachable (itsl: eac_log) (k:key) (tid:valid_tid itsl):
+  Lemma (requires (store_contains (TL.thread_store itsl tid) k))
+        (ensures (root_reachable itsl k)) = admit()
+
+(* 
+ * Helper lemma for lemma_addm_ancestor_is_proving 
+ *
+ * the last log entry is AddM (k,_) k' such that k is root_reachable and 
+ * eac_value of k' along the direction of k is emtpy. 
+ * We prove that this produces a contradiction.
+ *)
+let lemma_addm_ancestor_is_proving_caseA (itsl: its_log {I.length itsl > 0}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   let k = V.key_of e in
+                   TL.is_eac itsl' /\
+                   Root <> k /\
+                   root_reachable itsl' k /\
+                   AddM? e /\
+                   (let k' = AddM?.k' e in
+                    let v' = eac_merkle_value itsl' k' in
+                     is_proper_desc k k' /\
+                     (let d = desc_dir k k' in
+                       mv_points_to_none v' d))))
+        (ensures False) =
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let k = V.key_of e in
+  let k' = AddM?.k' e in
+  let pk = proving_ancestor itsl' k in
+  let pf = eac_ptrfn itsl' in
+
+  let tid = TL.thread_id_of itsl (n - 1) in
+
+  (* state of verifier thread tid after processing itsl *)
+  let vs = thread_state_post itsl (n - 1) in
+
+  (* state of verifier thread tid before processing e *)
+  let vs' = thread_state_pre itsl (n - 1) in
+
+  (* store of verifier thread tid before processing e *)
+  let st' = thread_store itsl' tid in
+
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  //assert(s == t_verify_step s' e);
+
+  (* k' is in the verifier store since vaddm checks this *)
+  //assert(store_contains st' k');
+
+  let v' = to_merkle_value (V.stored_value st' k') in
+  let d = desc_dir k k' in
+  //let dh' = desc_hash_dir v' d in
+
+  lemma_eac_value_is_stored_value itsl' k' tid;
+  //assert(v' = eac_merkle_value itsl' k');
+  //assert(dh' = Empty);
+
+  lemma_instore_implies_root_reachable itsl' k' tid;
+  //assert(root_reachable itsl' k');
+
+  lemma_reachable_between pf k k'
+
+let lemma_addm_ancestor_is_proving_caseB (itsl: its_log {I.length itsl > 0}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   let k = V.key_of e in
+                   TL.is_eac itsl' /\
+                   Root <> k /\
+                   root_reachable itsl' k /\
+                   AddM? e /\
+                   (let k' = AddM?.k' e in
+                    let v' = eac_merkle_value itsl' k' in
+                     is_proper_desc k k' /\
+                     (let d = desc_dir k k' in
+                       mv_points_to v' d k))))
+        (ensures (let n = I.length itsl in
+                  let e = I.index itsl (n - 1) in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  let k = V.key_of e in
+                  AddM?.k' e = proving_ancestor itsl' k)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let k = V.key_of e in
+  let k' = AddM?.k' e in
+  let pk = proving_ancestor itsl' k in
+  let pf = eac_ptrfn itsl' in
+
+  let tid = TL.thread_id_of itsl (n - 1) in
+
+  (* state of verifier thread tid after processing itsl *)
+  let vs = thread_state_post itsl (n - 1) in
+
+  (* state of verifier thread tid before processing e *)
+  let vs' = thread_state_pre itsl (n - 1) in
+
+  (* store of verifier thread tid before processing e *)
+  let st' = thread_store itsl' tid in
+
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  //assert(s == t_verify_step s' e);
+
+  (* k' is in the verifier store since vaddm checks this *)
+  //assert(store_contains st' k');
+
+  let v' = to_merkle_value (V.stored_value st' k') in
+  let d = desc_dir k k' in
+  let dh' = desc_hash_dir v' d in
+
+  lemma_eac_value_is_stored_value itsl' k' tid;
+  //assert(v' = eac_merkle_value itsl' k');
+  //assert(mv_points_to v' d k);
+
+  lemma_eac_ptrfn itsl' k' d;
+  //assert(points_to pf k k');
+
+  lemma_instore_implies_root_reachable itsl' k' tid;
+  lemma_points_to_is_prev pf k Root k';
+
+  //assert(prev_in_path pf k Root = k');
+  ()
+
 let lemma_addm_ancestor_is_proving (itsl: its_log {I.length itsl > 0}):
   Lemma (requires (TL.is_eac (I.prefix itsl (I.length itsl - 1)) /\
                    AddM? (I.index itsl (I.length itsl - 1))))
