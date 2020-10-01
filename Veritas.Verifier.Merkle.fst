@@ -196,7 +196,7 @@ let lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
         (ensures (mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
                                      (desc_dir k (proving_ancestor itsl k)) = 
                   is_eac_state_evicted_blum itsl k)) = admit()
-
+                    
 let lemma_addm_ancestor_is_proving (itsl: its_log {I.length itsl > 0}):
   Lemma (requires (TL.is_eac (I.prefix itsl (I.length itsl - 1)) /\
                    AddM? (I.index itsl (I.length itsl - 1))))
@@ -233,15 +233,18 @@ let lemma_addm_ancestor_is_proving (itsl: its_log {I.length itsl > 0}):
 
   (* k' is in the verifier store since vaddm checks this *)
   assert(store_contains st' k');
-
   
+  let v' = to_merkle_value (V.stored_value st' k') in
+  let d = desc_dir k k' in
+  let dh' = desc_hash_dir v' d in
+
+  match dh' with
+  | Empty -> admit()
+  | Desc k2 _ _ -> admit()
 
   //lemma_instore_implies_eac_state_instore itsl' k' tid;
 
-  let pk = proving_ancestor itsl' k in
-  
-
-  admit()
+  //let pk = proving_ancestor itsl' k in  
 
 (* if the store contains a k, it contains its proving ancestor *)
 let lemma_store_contains_proving_ancestor (itsl: TL.eac_log) 
