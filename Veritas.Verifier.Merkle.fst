@@ -5,9 +5,34 @@ open Veritas.Interleave
 
 module BP=Veritas.BinTreePtr
 
+(* for a merkle key k, the eac_value along direction c is either empty or points to a descendant *)
+let lemma_eac_value_empty_or_points_to_desc
+  (itsl: TL.eac_log)
+  (k:merkle_key)
+  (c:bin_tree_dir):
+  Lemma (let ev = to_merkle_value (eac_value itsl k) in      // eac_value of k
+         let dh = desc_hash_dir ev c in                      // desc hash along direction c 
+         let kc = child c k in                               // child of k along direction c          
+         dh = Empty \/
+         is_desc (Desc?.k dh) kc) = 
+           
+  admit()                 
+
+let eac_ptrfn_aux (itsl: TL.eac_log) (n:bin_tree_node) (c:bin_tree_dir):
+  option (d:bin_tree_node{is_desc d (child c n)}) = 
+  if depth n >= key_size then None
+  else (
+    let ev = to_merkle_value (eac_value itsl n) in
+    let dh = desc_hash_dir ev c in
+    lemma_eac_value_empty_or_points_to_desc itsl n c;
+    match dh with
+    | Empty -> None
+    | Desc d _ _ -> Some d
+  )
+
 (* eac pointer function *)
 let eac_ptrfn (itsl: TL.eac_log): ptrfn =
-  admit()
+  eac_ptrfn_aux itsl
 
 let root_reachable (itsl: TL.eac_log) (k:key): bool = 
   let pf = eac_ptrfn itsl in
