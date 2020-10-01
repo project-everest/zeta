@@ -173,17 +173,6 @@ let lemma_proving_ancestor_initial (itsl: TL.eac_log) (k:key{k <> Root}):
     (* nothing to prove if k is not a descendant of k2 *)
     else ()
   
-(* if the proving ancestor of k is not Root, then Root points to some proper ancestor of 
- * k along that direction *)
-let lemma_non_proving_ancestor_root (itsl: TL.eac_log) (k:key{k <> Root}):
-  Lemma (requires (Root <> proving_ancestor itsl k))
-        (ensures (is_proper_desc k Root /\
-                  mv_points_to_some (eac_merkle_value itsl Root)
-                                    (desc_dir k Root) /\
-                  is_proper_desc k (mv_pointed_key (eac_merkle_value itsl Root)
-                                                   (desc_dir k Root))))
-  = admit()                                                   
-
 (* version of the previous lemma for non-root keys *)
 let lemma_non_proving_ancestor (itsl: TL.eac_log) (k:key{k <> Root}) (k':key{is_proper_desc k k'}):
   Lemma (requires (k' <> proving_ancestor itsl k) /\ not (is_eac_state_init itsl k))
@@ -207,15 +196,52 @@ let lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
         (ensures (mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
                                      (desc_dir k (proving_ancestor itsl k)) = 
                   is_eac_state_evicted_blum itsl k)) = admit()
-      
+
 let lemma_addm_ancestor_is_proving (itsl: its_log {I.length itsl > 0}):
   Lemma (requires (TL.is_eac (I.prefix itsl (I.length itsl - 1)) /\
                    AddM? (I.index itsl (I.length itsl - 1))))
-        (ensures (Root <> V.key_of (I.index itsl (I.length itsl - 1)) /\        
-                  AddM?.k' (I.index itsl (I.length itsl - 1)) = 
-                  proving_ancestor (I.prefix itsl (I.length itsl - 1))
-                                   (V.key_of (I.index itsl (I.length itsl - 1))))) = 
-   admit()                                   
+        (ensures (let n = I.length itsl in
+                  let e = I.index itsl (n - 1) in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  let k = V.key_of e in
+                  Root <> k /\ AddM?.k' e = proving_ancestor itsl' k)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let k = V.key_of e in                  
+  let k' = AddM?.k' e in
+  
+  let tid = TL.thread_id_of itsl (n - 1) in  
+
+  (* state of verifier thread tid after processing itsl *)
+  let vs = thread_state_post itsl (n - 1) in
+
+  (* state of verifier thread tid before processing e *)
+  let vs' = thread_state_pre itsl (n - 1) in
+
+  (* store of verifier thread tid before processing e *)
+  let st' = thread_store itsl' tid in
+
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  //assert(s == t_verify_step s' e);
+
+  (* k is a proper desc of k' since verifier checks this in vaddm *)
+  assert(is_proper_desc k k');
+
+  (* so k cannot be Root *)
+  assert(k <> Root);
+
+  (* k' is in the verifier store since vaddm checks this *)
+  assert(store_contains st' k');
+
+  
+
+  //lemma_instore_implies_eac_state_instore itsl' k' tid;
+
+  let pk = proving_ancestor itsl' k in
+  
+
+  admit()
 
 (* if the store contains a k, it contains its proving ancestor *)
 let lemma_store_contains_proving_ancestor (itsl: TL.eac_log) 

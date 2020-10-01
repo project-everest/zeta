@@ -55,16 +55,6 @@ val lemma_proving_ancestor_initial (itsl: TL.eac_log) (k:key{k <> Root}):
                   mv_points_to_none v' c \/
                   not (is_desc k (mv_pointed_key v' c))))
 
-(* if the proving ancestor of k is not Root, then Root points to some proper ancestor of 
- * k along that direction *)
-val lemma_non_proving_ancestor_root (itsl: TL.eac_log) (k:key{k <> Root}):
-  Lemma (requires (Root <> proving_ancestor itsl k))
-        (ensures (is_proper_desc k Root /\
-                  mv_points_to_some (eac_merkle_value itsl Root)
-                                    (desc_dir k Root) /\
-                  is_proper_desc k (mv_pointed_key (eac_merkle_value itsl Root)
-                                                   (desc_dir k Root))))
-
 (* version of the previous lemma for non-root keys *)
 val lemma_non_proving_ancestor (itsl: TL.eac_log) (k:key{k <> Root}) (k':key{is_proper_desc k k'}):
   Lemma (requires (k' <> proving_ancestor itsl k) /\ not (is_eac_state_init itsl k))
@@ -90,11 +80,12 @@ val lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
 val lemma_addm_ancestor_is_proving (itsl: its_log {I.length itsl > 0}):
   Lemma (requires (TL.is_eac (I.prefix itsl (I.length itsl - 1)) /\
                    AddM? (I.index itsl (I.length itsl - 1))))
-        (ensures (Root <> V.key_of (I.index itsl (I.length itsl - 1)) /\        
-                  AddM?.k' (I.index itsl (I.length itsl - 1)) = 
-                  proving_ancestor (I.prefix itsl (I.length itsl - 1))
-                                   (V.key_of (I.index itsl (I.length itsl - 1)))))
-
+        (ensures (let n = I.length itsl in
+                  let e = I.index itsl (n - 1) in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  let k = V.key_of e in
+                  Root <> k /\ AddM?.k' e = proving_ancestor itsl' k))
+                                  
 (* if the store contains a k, it contains its proving ancestor *)
 val lemma_store_contains_proving_ancestor (itsl: TL.eac_log) 
   (tid:TL.valid_tid itsl) (k:key{k <> Root}):
