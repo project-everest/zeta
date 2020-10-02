@@ -172,15 +172,6 @@ let lemma_proving_ancestor_initial (itsl: TL.eac_log) (k:key{k <> Root}):
       
     (* nothing to prove if k is not a descendant of k2 *)
     else ()
-  
-(* version of the previous lemma for non-root keys *)
-let lemma_non_proving_ancestor (itsl: TL.eac_log) (k:key{k <> Root}) (k':key{is_proper_desc k k'}):
-  Lemma (requires (k' <> proving_ancestor itsl k) /\ not (is_eac_state_init itsl k))
-        (ensures (mv_points_to_some (eac_merkle_value itsl k')
-                                    (desc_dir k k')) /\
-                 (is_proper_desc k (mv_pointed_key (eac_merkle_value itsl k')
-                                                   (desc_dir k k')))) = 
-  admit()                                                   
 
 (* when evicted as merkle the proving ancestor contains our hash *)
 let lemma_proving_ancestor_has_hash (itsl: TL.eac_log) (k:key{k<> Root}):
