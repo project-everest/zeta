@@ -381,3 +381,7 @@ val lemma_clock_ordering (itsl: its_log) (i1 i2: I.seq_index itsl):
 (* the state of each key for an empty log is init *)
 val lemma_init_state_empty (itsl: its_log {I.length itsl = 0}) (k: key):
   Lemma (eac_state_of_key itsl k = EACInit)
+
+val lemma_eac_value_init (itsl: eac_log) (k:key):
+  Lemma (requires (is_eac_state_init itsl k))
+        (ensures (eac_value itsl k = init_value k))

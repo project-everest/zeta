@@ -64,7 +64,7 @@ val lemma_proving_ancestor_has_hash (itsl: TL.eac_log) (k:key{k<> Root}):
 
 (* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
 val lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
-  Lemma (requires (is_eac_state_evicted itsl k))
+  Lemma (requires (TL.is_eac_state_evicted itsl k))
         (ensures (mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
                                      (desc_dir k (proving_ancestor itsl k)) = 
                   is_eac_state_evicted_blum itsl k))

@@ -1,9 +1,56 @@
 module Veritas.Verifier.Merkle
 
 open Veritas.BinTreePtr
+open Veritas.EAC
 open Veritas.Interleave
 
 module BP=Veritas.BinTreePtr
+
+(* A log entry not referencing key k does not affect the eac_value of k *)
+let lemma_eac_value_unchanged (itsl: TL.eac_log{I.length itsl > 0}) (k:merkle_key):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let ke = V.key_of e in
+                   ke <> k))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in 
+                  eac_value itsl k = eac_value itsl' k)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let e = I.index itsl (n - 1) in
+  let ke = V.key_of e in
+
+  let es' = TL.eac_state_of_key itsl' k in
+  let es = TL.eac_state_of_key itsl k in
+  
+  lemma_fullprefix_equal itsl;
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  lemma_eac_state_same itsl (n - 1) k;
+  assert(es <> EACFail);
+  assert(es = es');
+
+  match es with
+  | EACInit -> 
+    lemma_eac_value_init itsl' k;
+    lemma_eac_value_init itsl k
+    
+  | EACInStore m v -> 
+  
+    (* k is in store of tid after itsl' *)
+    let tidk = stored_tid itsl' k in
+    assert(store_contains (TL.thread_store itsl' tidk) k);
+
+    (* thread id where element e goes *)
+    let tid = thread_id_of itsl (n - 1) in
+
+    if tid = tidk then
+      admit()
+    else
+      admit()
+      
+  | EACEvictedMerkle v -> admit()
+  | EACEvictedBlum v t j -> admit()
 
 (* for a merkle key k, the eac_value along direction c is either empty or points to a descendant *)
 let lemma_eac_value_empty_or_points_to_desc
@@ -15,7 +62,7 @@ let lemma_eac_value_empty_or_points_to_desc
          let kc = child c k in                               // child of k along direction c          
          dh = Empty \/
          is_desc (Desc?.k dh) kc) = 
-           
+             
   admit()                 
 
 let eac_ptrfn_aux (itsl: TL.eac_log) (n:bin_tree_node) (c:bin_tree_dir):
@@ -183,13 +230,13 @@ let lemma_proving_ancestor_has_hash (itsl: TL.eac_log) (k:key{k<> Root}):
 
 (* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
 let lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
-  Lemma (requires (is_eac_state_evicted itsl k))
+  Lemma (requires (TL.is_eac_state_evicted itsl k))
         (ensures (mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
                                      (desc_dir k (proving_ancestor itsl k)) = 
                   is_eac_state_evicted_blum itsl k)) = admit()
 
 (* if a key is the store of any verifier, then it is root reachable *)
-let lemma_instore_implies_root_reachable (itsl: eac_log) (k:key) (tid:valid_tid itsl):
+let lemma_instore_implies_root_reachable (itsl: TL.eac_log) (k:key) (tid:valid_tid itsl):
   Lemma (requires (store_contains (TL.thread_store itsl tid) k))
         (ensures (root_reachable itsl k)) = admit()
 

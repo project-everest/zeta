@@ -1740,3 +1740,7 @@ let lemma_init_state_empty (itsl: its_log {I.length itsl = 0}) (k: key)
     lemma_filter_is_proj (iskey #(key_type eac_sm) (partn_fn eac_sm) k) empty;
     lemma_proj_length (partn eac_sm k empty) empty;
     assert (Seq.equal (partn eac_sm k empty) empty)
+
+let lemma_eac_value_init (itsl: eac_log) (k:key):
+  Lemma (requires (is_eac_state_init itsl k))
+        (ensures (eac_value itsl k = init_value k)) = admit()
