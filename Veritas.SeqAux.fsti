@@ -19,6 +19,9 @@ let telem (#a:Type) (s:seq a{length s > 0}): a =
 let append1 (#a:Type) (s:seq a) (x:a): s':(seq a){length s' = length s + 1} =
   append s (create 1 x)
 
+val prefix_slice (#a:Type) (s:Seq.seq a) (i:nat{i <= Seq.length s})
+  : Lemma (Seq.equal (prefix s i) (Seq.slice s 0 i))
+
 val lemma_prefix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
   Lemma (requires (True))
         (ensures (index (prefix s i) j == index s j))
@@ -65,6 +68,16 @@ val proj (#a:eqtype): seq a -> seq a -> Type0
 val proj_index_map (#a:eqtype) (ss: seq a) (s: seq a) (prf: proj ss s) (i:seq_index ss):
   Tot (j:seq_index s{index s j = index ss i})
 
+let proj_index_map_exists (#a:eqtype) (ss: seq a) (s: seq a{proj ss s}) (i:seq_index ss)
+  : Lemma (exists (j:seq_index s). index s j = index ss i)
+  = let p : squash (proj ss s) = FStar.Squash.get_proof (proj ss s) in
+    let _ : squash (exists (j:seq_index s). index s j = index ss i) = 
+      FStar.Squash.bind_squash p (fun p -> 
+        let k = proj_index_map ss s p i in
+        assert (index s k == index ss i))
+    in
+    ()
+
 (* the mapping we construct above is monotonic *)
 val lemma_proj_monotonic (#a:eqtype) (ss s: seq a) (prf: proj ss s) (i1 i2: seq_index ss):
   Lemma (requires (i1 < i2))
@@ -93,6 +106,12 @@ val lemma_filter_correct1 (#a: eqtype) (f:a -> bool) (s:seq a) (i:seq_index (fil
 val lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (True))
         (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true))
+
+
+let filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a)
+  : Lemma (requires filter f s `Seq.equal` empty)
+          (ensures forall (i:seq_index s). not (f (Seq.index s i)))
+  = admit()
 
 (* mapping from filtered subseq to satisfying indexes *)
 val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
@@ -196,6 +215,12 @@ let exists_sat_elems (#a:eqtype) (f:a -> bool) (s:seq a) =
 let last_index (#a:eqtype) (f:a -> bool) (s:seq a{exists_sat_elems f s}) =
   Some?.v (last_index_opt f s)
 
+let last_index_opt_elim (#a:eqtype) (f:a -> bool) (s:seq a)
+  : Lemma (match last_index_opt f s with
+           | None -> forall (i:seq_index s). not (f (Seq.index s i))
+           | Some i -> f (Seq.index s i) /\ (forall (j:seq_index s). j > i ==> not (f (Seq.index s j))))
+  = admit()
+  
 (* Any index beyond last index does not satisfy f *)
 val lemma_last_index_correct1 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
   Lemma (requires (exists_sat_elems f s /\ i > last_index f s))
@@ -217,6 +242,10 @@ val lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
   Lemma (requires (not (exists_sat_elems f s)))
         (ensures (not (exists_sat_elems f (prefix s i))))
 
+let lemma_exists_sat_elems_exists (#a:eqtype) (f:a -> bool) (s:seq a)
+  : Lemma (exists_sat_elems f s <==> (exists (i:seq_index s). f (Seq.index s i)))
+  = admit()
+  
 val lemma_exists_prefix_implies_exists (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
   Lemma (requires (exists_sat_elems f (prefix s i)))
         (ensures (exists_sat_elems f s))
@@ -358,6 +387,10 @@ val next_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
 (* is there a next element in the sequence that satisfies a filter predicate *)
 let has_next (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s): bool = 
   Some? (next_index_opt f s i)
+
+let intro_has_next (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k /\ f (Seq.index s k)})
+  : Lemma (has_next f s i)
+  = admit()
 
 (* the next index satisfying a filter predicate *)
 let next_index (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{has_next f s i}): 

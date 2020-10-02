@@ -1,264 +1,706 @@
 module Veritas.Verifier.Blum
 
 open Veritas.EAC
+open FStar.Classical
 
+module S = FStar.Seq
+module SA = Veritas.SeqAux
 module E = Veritas.EAC
 module VT = Veritas.Verifier.Thread
 
-(* get the add seq of a log *)
-let rec add_seq (il:VT.verifiable_log): 
-  Tot (seq ms_hashfn_dom)
-  (decreases (VT.length il)) =
-  let (id,l) = il in
-  let n = length l in  
-  if n = 0 then 
-    Seq.empty #ms_hashfn_dom
-  else 
-    let l' = hprefix l in
-    let e = telem l in
-    match e with
-    | AddB r t j -> append1 (add_seq (id, l')) (MHDom r t j)
-    | _ ->  add_seq (id,l')
-
-(* get the add multi-set of a log *)
-let add_set (il:VT.verifiable_log): mset ms_hashfn_dom = 
-  seq2mset (add_seq il)
-
-(* 
- * the hadd hash value maintained by a verifier thread is the multiset hash 
- * of its add_set 
- *)
-let rec lemma_hadd_add_set (il:VT.verifiable_log):
-  Lemma (requires True)
-        (ensures (thread_hadd (t_verify (fst il) (snd il)) = ms_hashfn (add_seq il))) 
-        (decreases (VT.length il)) =
-  let (id,l) = il in
-  let n = length l in
-  let st = t_verify id l in
-  if n = 0 then 
-    lemma_hashfn_empty()  
-  else (
-    let l' = hprefix l in
-    let e = telem l in
-    lemma_hadd_add_set (id, l');
-    match e with
-    | AddB r t j -> 
-           lemma_hashfn_app (add_seq (id, l')) (MHDom r t j)
-    | _ -> ()
-  )
-
-(* concatenation of all local add-seq *)
-let g_add_seq (gl: VG.verifiable_log): seq (ms_hashfn_dom) = 
-  let gl' = verifiable_threads gl in
-  (* sequence of local add_sequences *)
-  let l_adds = map add_seq gl' in
-  reduce (Seq.empty #ms_hashfn_dom) append l_adds
-
-(* the hadd that the verifier computes is the multiset hash of all the adds *)
-let lemma_g_hadd_correct (gl: VG.verifiable_log):
-  Lemma (VG.hadd gl = ms_hashfn (g_add_seq gl)) = admit()
-
-(* sequence of versioned records evicted from a verifier *)
-let rec evict_seq (il:VT.verifiable_log):
-  Tot (seq ms_hashfn_dom)
-  (decreases (VT.length il)) = 
-  let (id,l) = il in
-  let n = length l in  
-  if n = 0 then 
-    Seq.empty #ms_hashfn_dom
-  else 
-    let (_,l') = VT.prefix il (n - 1) in
-    let e = telem l in
-    let vs' = t_verify id l' in
-    let st' = thread_store vs' in
-    match e with
-    | EvictB k t -> 
-      let v = stored_value st' k in 
-      append1 (evict_seq (id, l')) (MHDom (k,v) t id)
-    | EvictBM k k' t -> 
-      let v = stored_value st' k in 
-      append1 (evict_seq (id, l')) (MHDom (k,v) t id)    
-    | _ -> evict_seq (id, l')
-
-(* evict multiset of a verifier *)
-let evict_set (il:VT.verifiable_log): mset ms_hashfn_dom =
-  seq2mset (evict_seq il)
-
-(* a single sequence containing all the blum evicts *)
-let g_evict_seq (gl: VG.verifiable_log): seq ms_hashfn_dom = 
-  let gl' = verifiable_threads gl in
-  (* sequence of local add_sequences *)
-  let l_evicts = map evict_seq gl' in
-  reduce (Seq.empty #ms_hashfn_dom) append l_evicts 
-
-let g_evict_set_is_set (gl: VG.verifiable_log): 
-  Lemma (is_set (g_evict_set gl)) = admit()
-
-let lemma_ghevict_correct (gl: VG.verifiable_log):
-  Lemma (VG.hevict gl = ms_hashfn (g_evict_seq gl)) = admit()
-
-let rec lemma_hevict_evict_set (il:VT.verifiable_log):
-  Lemma (requires True)
-        (ensures (thread_hevict (t_verify (fst il) (snd il)) = ms_hashfn (evict_seq il)))
-        (decreases (VT.length il)) =
-  let (id, l) = il in
-  let n = length l in
-  if n = 0 then lemma_hashfn_empty()
-  else (
-    let l' = hprefix l in
-    let e = telem l in
-    let vs' = t_verify id l' in
-    let st' = thread_store vs' in    
-    lemma_hevict_evict_set (id, l');
-    VT.lemma_thread_id_state (id, l');
-    match e with
-    | EvictB k t -> 
-      let v = stored_value st' k in
-      lemma_hashfn_app (evict_seq (id, l')) (MHDom (k,v) t id)
-    | EvictBM k _ t -> 
-      let v = stored_value st' k in
-      lemma_hashfn_app (evict_seq (id, l')) (MHDom (k,v) t id)
-    | _ -> ()
-  )
-
-let lemma_add_elem_correct (#n:pos) (itsl: its_log n) (i:seq_index itsl{is_blum_add (index itsl i)}):
-  Lemma (requires (is_blum_add (index itsl i)))
-        (ensures (contains (blum_add_elem (index itsl i)) (ts_add_set itsl))) = admit()
-
-
-let ts_add_seq_key (#n:pos) (itsl: its_log n) (k:key): seq ms_hashfn_dom
- = admit()
-
-let lemma_ts_add_set_correct (#n:pos) (itsl: its_log n): 
-  Lemma (ts_add_set itsl == g_add_set (partition_idx_seq itsl)) = admit()
-
-let lemma_ts_add_set_key_extend (#n:pos) (itsl: its_log n {length itsl > 0}):
-  Lemma (requires (is_blum_add (telem itsl)))
-        (ensures (ts_add_set_key itsl (key_of (index itsl (length itsl - 1))) == 
-                  add_elem (ts_add_set_key (prefix itsl (length itsl - 1))
-                                           (key_of (index itsl (length itsl - 1))))
-                           (blum_add_elem (telem itsl)))) = admit()
-
-let lemma_ts_add_set_contains_add_elem (#n:pos) (itsl: its_log n) (i:seq_index itsl):
-  Lemma (requires (is_blum_add (index itsl i)))
-        (ensures (MS.contains (blum_add_elem (index itsl i)) (ts_add_set itsl))) = admit()
-
-let lemma_ts_add_set_key_contains_only (#p:pos) (itsl: its_log p) (k:key) (be: ms_hashfn_dom):
-  Lemma (requires (MS.contains be (ts_add_set_key itsl k)))
-        (ensures (MH.key_of be = k)) = admit()
-
-let some_add_elem_idx (#p:pos) (itsl: its_log p) 
-  (be: ms_hashfn_dom{MS.contains be (ts_add_set itsl)}): 
-  (i:(seq_index itsl){is_blum_add (index itsl i) /\
-                      be = blum_add_elem (index itsl i)}) = admit()
-
-
-let blum_evict_elem (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_evict (index itsl i)}):
-  (e:ms_hashfn_dom{MH.key_of e = TL.key_of (index itsl i)}) =
-  let (e,id) = index itsl i in
-  let tsle = time_seq_ext itsl in
-  assert(project_seq itsl = to_vlog tsle);
-  lemma_project_seq_index itsl i;
-  assert(to_vlog_entry (index tsle i) = e);
-  match e with
-  | EvictB k t -> 
-    let v = value_ext (index tsle i) in
-    MHDom (k,v) t id
-  | EvictBM k _ t -> 
-    let v = value_ext (index tsle i) in
-    MHDom (k,v) t id
-
-let lemma_index_blum_evict_prefix (#p:pos) (itsl: its_log p) (i:nat{i <= length itsl}) (j:nat{j < i}):
-  Lemma (requires (is_blum_evict (index itsl j)))
-        (ensures (blum_evict_elem itsl j = blum_evict_elem (prefix itsl i) j))
-        [SMTPat (blum_evict_elem (prefix itsl i) j)] = admit()
-
-
-let rec ts_evict_seq_aux (#n:pos) (itsl: its_log n): Tot (seq ms_hashfn_dom) 
-  (decreases (length itsl)) =
-  let m = length itsl in 
-  if m = 0 then Seq.empty #ms_hashfn_dom
-  else if is_blum_evict (index itsl (m - 1)) then
-    append1 (ts_evict_seq_aux (prefix itsl (m - 1))) (blum_evict_elem itsl (m - 1))   
+let rec ts_add_seq_aux (itsl: its_log): 
+  Tot (seq ms_hashfn_dom) 
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if n = 0 then S.empty #ms_hashfn_dom
   else
-    ts_evict_seq_aux (prefix itsl (m - 1))
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq_aux itsl' in
+    let e = I.index itsl (n - 1) in
+    if is_blum_add e then 
+      SA.append1 s' (blum_add_elem e)
+    else
+      s'
+  
+let ts_add_seq = ts_add_seq_aux
 
+(* map an index of ts containing a blum add to its position in 
+ * the ts_add_seq *)
+let rec add_seq_map 
+  (itsl: its_log) 
+  (i: I.seq_index itsl{is_blum_add (I.index itsl i)}): 
+  Tot (j:SA.seq_index (ts_add_seq itsl){S.index (ts_add_seq itsl) j = 
+                                        blum_add_elem (I.index itsl i)})
+  (decreases (I.length itsl)) =                                         
+  let n = I.length itsl in
+  let s = ts_add_seq itsl in
+  if n = 0 then 0    
+  else 
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq itsl' in
+    if i = n - 1 then S.length s'
+    else add_seq_map itsl' i
+
+let rec add_seq_map_inv (itsl: its_log) (j: SA.seq_index (ts_add_seq itsl)):
+  Tot (i: I.seq_index itsl {is_blum_add (I.index itsl i) /\ 
+                            add_seq_map itsl i = j})
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let s = ts_add_seq itsl in
+  if n = 0 then 0
+  else (
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq itsl' in
+    let e = I.index itsl (n - 1) in
+    if is_blum_add e then (
+      assert(s == SA.append1 s' (blum_add_elem e));
+      if j = S.length s' then n - 1
+      else add_seq_map_inv itsl' j        
+    )
+    else add_seq_map_inv itsl' j 
+  )
+
+let rec lemma_add_seq_map_inv (itsl: its_log) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
+  Lemma (requires True)
+        (ensures (add_seq_map_inv itsl (add_seq_map itsl i) = i))
+        (decreases (I.length itsl))
+        [SMTPat (add_seq_map itsl i)] = 
+  let n = I.length itsl in
+  let s = ts_add_seq itsl in
+  if n = 0 then ()
+  else 
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq itsl' in
+    if i = n - 1 then ()
+    else 
+      lemma_add_seq_map_inv itsl' i  
+
+let lemma_add_elem_correct (itsl: its_log) (i: I.seq_index itsl):
+  Lemma (requires (is_blum_add (I.index itsl i)))
+        (ensures (ts_add_set itsl `contains` blum_add_elem (I.index itsl i))) = 
+  let sa = ts_add_seq itsl in        
+  let j = add_seq_map itsl i in
+  //assert(S.index sa j = blum_add_elem (I.index itsl i));
+  mset_contains_seq_element #_ #ms_hashfn_dom_cmp sa j
+
+let rec ts_add_seq_key_aux (itsl: its_log) (k:key): 
+  Tot (seq ms_hashfn_dom) 
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if n = 0 then S.empty #ms_hashfn_dom
+  else
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq_key_aux itsl' k in
+    let e = I.index itsl (n - 1) in
+    if is_blum_add e && key_of e = k  then 
+      SA.append1 s' (blum_add_elem e)
+    else
+      s'
+
+let ts_add_seq_key (itsl: its_log) (k:key): seq ms_hashfn_dom =
+  ts_add_seq_key_aux itsl k
+
+(* into mapping from ts add seq to global add seq *)
+let global_to_ts_addset_map_aux (itsl: its_log) (i: SA.seq_index (g_add_seq (g_vlog_of itsl))):
+  Tot (j: SA.seq_index (ts_add_seq itsl) 
+       {
+          S.index (g_add_seq (g_vlog_of itsl)) i = 
+          S.index (ts_add_seq itsl) j
+       }) =          
+  let gl = g_vlog_of itsl in
+  let gs = g_add_seq gl in
+  let ii = VG.add_set_map_inv gl i in
+  let ts = ts_add_seq itsl in
+  let i' = s2i_map itsl ii in
+  let j = add_seq_map itsl i' in
+  j
+
+let lemma_global_to_ts_addset_map_into (itsl: its_log):
+  Lemma (forall (i1: SA.seq_index (g_add_seq (g_vlog_of itsl))).
+         forall (i2: SA.seq_index (g_add_seq (g_vlog_of itsl))).
+         i1 <> i2 ==> global_to_ts_addset_map_aux itsl i1 <> 
+                    global_to_ts_addset_map_aux itsl i2) = 
+  let gl = g_vlog_of itsl in
+  let gs = g_add_seq gl in
+  
+  let aux (i1 i2: SA.seq_index gs):
+    Lemma (requires True)
+          (ensures (i1 <> i2 ==> global_to_ts_addset_map_aux itsl i1 <>
+                               global_to_ts_addset_map_aux itsl i2)) = ()    
+  in  
+  forall_intro_2 aux
+
+let global_to_ts_addset_map (itsl: its_log):
+  into_smap (g_add_seq (g_vlog_of itsl)) 
+       (ts_add_seq itsl) = 
+  lemma_global_to_ts_addset_map_into itsl;
+  global_to_ts_addset_map_aux itsl
+
+let ts_to_global_addset_map_aux (itsl: its_log) (j: SA.seq_index (ts_add_seq itsl)):
+  Tot (i: SA.seq_index (g_add_seq (g_vlog_of itsl))
+       {
+          S.index (g_add_seq (g_vlog_of itsl)) i = 
+          S.index (ts_add_seq itsl) j
+       }) = 
+ let gl = g_vlog_of itsl in
+ let gs = g_add_seq gl in
+ let ts = ts_add_seq itsl in
+ let i' = add_seq_map_inv itsl j in  
+ let ii = i2s_map itsl i' in
+ let i = VG.add_set_map gl ii in
+ i
+
+let lemma_ts_to_global_addset_map_into (itsl: its_log):
+  Lemma (forall (i1: SA.seq_index (ts_add_seq itsl)).
+         forall (i2: SA.seq_index (ts_add_seq itsl)).
+           i1 <> i2 ==> ts_to_global_addset_map_aux itsl i1 <>
+                      ts_to_global_addset_map_aux itsl i2) = 
+  let gl = g_vlog_of itsl in
+  let gs = g_add_seq gl in
+  let ts = ts_add_seq itsl in
+
+  let aux (i1 i2: SA.seq_index ts):
+    Lemma (i1 <> i2 ==> ts_to_global_addset_map_aux itsl i1 <>
+                      ts_to_global_addset_map_aux itsl i2) = ()
+  in
+  forall_intro_2 aux
+
+let ts_to_global_addset_map (itsl: its_log):
+  into_smap (ts_add_seq itsl)
+            (g_add_seq (g_vlog_of itsl)) = 
+  lemma_ts_to_global_addset_map_into itsl;
+  ts_to_global_addset_map_aux itsl
+
+let lemma_ts_add_set_correct (itsl: its_log): 
+  Lemma (ts_add_set itsl == g_add_set (g_vlog_of itsl)) = 
+  let gl = g_vlog_of itsl in
+  let gs = g_add_seq gl in
+  let ts = ts_add_seq itsl in
+  
+  bijection_seq_mset #_ #ms_hashfn_dom_cmp gs ts (global_to_ts_addset_map itsl)
+                             (ts_to_global_addset_map itsl);
+  ()
+
+let lemma_ts_add_set_key_extend (itsl: its_log {I.length itsl > 0}):
+  Lemma (requires (is_blum_add (I.telem itsl)))
+        (ensures (ts_add_set_key itsl (key_of (I.index itsl (I.length itsl - 1))) == 
+                  add_elem (ts_add_set_key (I.prefix itsl (I.length itsl - 1))
+                                           (key_of (I.index itsl (I.length itsl - 1))))
+                           (blum_add_elem (I.telem itsl)))) =
+  let n = I.length itsl in
+  let e = I.telem itsl in
+  let k = key_of e in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = ts_add_seq_key itsl' k in
+  let be = blum_add_elem e in
+  seq2mset_add_elem #_ #ms_hashfn_dom_cmp s' be
+
+let rec lemma_ts_add_set_key_contains_only_aux 
+  (itsl: its_log) 
+  (k: key) 
+  (i:SA.seq_index (ts_add_seq_key itsl k)):
+  Lemma (requires True)
+        (ensures (MH.key_of (S.index (ts_add_seq_key itsl k) i) = k))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = ts_add_seq_key itsl' k in
+  if i = S.length s' then ()
+  else 
+    lemma_ts_add_set_key_contains_only_aux itsl' k i
+
+let some_add_elem_idx (itsl: its_log) 
+  (be: ms_hashfn_dom{ts_add_set itsl `MS.contains` be}): 
+  (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\
+                      be = blum_add_elem (I.index itsl i)}) = 
+  let s = ts_add_seq itsl in  
+  (* index of element be in s *)
+  let j = index_of_mselem #_ #ms_hashfn_dom_cmp s be in
+  add_seq_map_inv itsl j
+
+let lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_dom):
+  Lemma (requires (ts_add_set_key itsl k `MS.contains` be))
+        (ensures (MH.key_of be = k)) = 
+  let s = ts_add_seq_key itsl k in
+  let j = index_of_mselem #_ #ms_hashfn_dom_cmp s be in  
+  assert(S.index s j = be);
+  lemma_ts_add_set_key_contains_only_aux itsl k j
+
+(* get the blum evict element from an index *)
+let blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
+  (e:ms_hashfn_dom{MH.key_of e = key_of (I.index itsl i)}) = 
+  let gl = g_vlog_of itsl in
+  let ii = i2s_map itsl i in
+  let (tid,j) = ii in
+  let tl = VG.thread_log gl tid in
+  lemma_blum_evict_elem_key tl j;  
+  VG.blum_evict_elem gl ii
+
+let lemma_index_blum_evict_prefix (itsl: its_log) (i:nat{i <= I.length itsl}) (j:nat{j < i}):
+  Lemma (requires (is_evict_to_blum (I.index itsl j)))
+        (ensures (blum_evict_elem itsl j = blum_evict_elem (I.prefix itsl i) j)) =
+  let gl = g_vlog_of itsl in
+  let (t,j') = i2s_map itsl j in
+  let tl = thread_log gl t in  
+  assert(blum_evict_elem itsl j = VT.blum_evict_elem tl j');
+  
+  let itsl' = I.prefix itsl i in
+  let gl' = g_vlog_of itsl' in
+  let tl' = thread_log gl' t in
+  lemma_i2s_map_prefix itsl i j;
+  //assert(i2s_map itsl j = i2s_map itsl' j);
+  //assert(blum_evict_elem itsl' j = VT.blum_evict_elem tl' j');
+  lemma_prefix_interleaving itsl i t;
+  //assert(tl' = VT.prefix tl (VT.length tl'));
+  lemma_blum_evict_elem_prefix tl (VT.length tl') j'
+
+let rec ts_evict_seq_aux (itsl: its_log): 
+  Tot (seq ms_hashfn_dom)
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if n = 0 then S.empty #ms_hashfn_dom
+  else
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_evict_seq_aux itsl' in
+    let e = I.index itsl (n - 1) in
+    if is_evict_to_blum e then
+      SA.append1 s' (blum_evict_elem itsl (n - 1))
+    else
+      s'
+
+(* sequence of evicts in time sequence log *)
 let ts_evict_seq = ts_evict_seq_aux
 
-let ts_evict_seq_key (#n:pos) (itsl: its_log n) (k:key): seq ms_hashfn_dom = 
-  admit()
+let rec ts_evict_seq_key_aux (itsl: its_log) (k:key): 
+  Tot (seq ms_hashfn_dom)
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if n = 0 then S.empty #ms_hashfn_dom
+  else
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_evict_seq_key_aux itsl' k in
+    let e = I.index itsl (n - 1) in
+    if is_evict_to_blum e && key_of e = k then
+      SA.append1 s' (blum_evict_elem itsl (n - 1))
+    else
+      s'  
 
-let lemma_ts_evict_set_correct (#n:pos) (itsl: its_log n):
-  Lemma (ts_evict_set itsl == g_evict_set (partition_idx_seq itsl)) = admit()
+(* the evict sequence restricted to key k *)
+let ts_evict_seq_key = ts_evict_seq_key_aux
 
-let lemma_ts_evict_set_key_extend2 (#n:pos) (itsl: its_log n {length itsl > 0}):
-  Lemma (requires (not (is_blum_evict (index itsl (length itsl - 1)))))
-        (ensures (ts_evict_set_key itsl (key_of (index itsl (length itsl - 1))) == 
-                  ts_evict_set_key (prefix itsl (length itsl - 1))
-                                           (key_of (index itsl (length itsl - 1))))) = admit()
+let rec evict_seq_map (itsl: its_log) (i:I.seq_index itsl {is_evict_to_blum (I.index itsl i)}):
+  Tot (j:SA.seq_index (ts_evict_seq itsl){S.index (ts_evict_seq itsl) j = 
+                                          blum_evict_elem itsl i}) 
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = ts_evict_seq itsl' in
+  if i = n - 1 then S.length s'
+  else evict_seq_map itsl' i
 
+let rec evict_seq_inv_map (itsl: its_log) (j:SA.seq_index (ts_evict_seq itsl)):
+  Tot (i:I.seq_index itsl {is_evict_to_blum (I.index itsl i) /\
+                           evict_seq_map itsl i = j}) 
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = ts_evict_seq itsl' in
+  if j = S.length s' then n - 1
+  else
+    evict_seq_inv_map itsl' j
 
-let index_blum_evict (#p:pos) (itsl: its_log p) (e: ms_hashfn_dom {contains e (ts_evict_set itsl)}):
-  (i:seq_index itsl{is_blum_evict (index itsl i) /\ 
-                    blum_evict_elem itsl i = e}) = admit()
-
-let lemma_evict_before_add (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_add (index itsl i)}):
+let rec lemma_evict_seq_inv_map (itsl: its_log) (i:I.seq_index itsl {is_evict_to_blum (I.index itsl i)}):
   Lemma (requires True)
-        (ensures (not (contains (blum_add_elem (index itsl i)) (ts_evict_set itsl)) \/
-                  index_blum_evict itsl (blum_add_elem (index itsl i)) < i)) = admit()
+        (ensures (evict_seq_inv_map itsl (evict_seq_map itsl i) = i))
+        (decreases (I.length itsl))
+        [SMTPat (evict_seq_map itsl i)] = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = ts_evict_seq itsl' in
+  if i = n - 1 then ()
+  else 
+    lemma_evict_seq_inv_map itsl' i
+
+let global_to_ts_evictseq_map_aux (itsl: its_log) (i: SA.seq_index (g_evict_seq (g_vlog_of itsl))):
+  Tot (j: SA.seq_index (ts_evict_seq itsl)
+       {
+         S.index (g_evict_seq (g_vlog_of itsl)) i =
+         S.index (ts_evict_seq itsl) j
+       }) = 
+  let gl = g_vlog_of itsl in
+  let gs = g_evict_seq gl in
+  let ii = VG.evict_seq_map_inv gl i in
+  let ts = ts_add_seq itsl in
+  let i' = s2i_map itsl ii in
+  let j = evict_seq_map itsl i' in
+  j
+
+let lemma_global_to_ts_evictseq_map_into (itsl: its_log):
+  Lemma (forall (i1: SA.seq_index (g_evict_seq (g_vlog_of itsl))).
+         forall (i2: SA.seq_index (g_evict_seq (g_vlog_of itsl))).
+         i1 <> i2 ==> global_to_ts_evictseq_map_aux itsl i1 <>
+                    global_to_ts_evictseq_map_aux itsl i2) = 
+  let gl = g_vlog_of itsl in
+  let gs = g_evict_seq gl in
+  let aux (i1 i2: SA.seq_index gs):
+    Lemma (requires True)
+          (ensures (i1 <> i2 ==> global_to_ts_evictseq_map_aux itsl i1 <>
+                               global_to_ts_evictseq_map_aux itsl i2)) = ()    
+  in  
+  forall_intro_2 aux                   
+
+let global_to_ts_evictseq_map (itsl: its_log):
+  into_smap (g_evict_seq (g_vlog_of itsl))
+            (ts_evict_seq itsl) = 
+  lemma_global_to_ts_evictseq_map_into itsl;
+  global_to_ts_evictseq_map_aux itsl
+
+let ts_to_global_evictseq_map_aux (itsl: its_log) (j:SA.seq_index (ts_evict_seq itsl)):
+  Tot (i: SA.seq_index (g_evict_seq (g_vlog_of itsl))
+       {
+         S.index (g_evict_seq (g_vlog_of itsl)) i =
+         S.index (ts_evict_seq itsl) j
+       }) = 
+  let gl = g_vlog_of itsl in       
+  let gs = g_evict_seq gl in
+  let ts = ts_evict_seq itsl in
+  let i' = evict_seq_inv_map itsl j in
+  let ii = i2s_map itsl i' in
+  let i = VG.evict_seq_map gl ii in
+  i
+
+let lemma_ts_to_global_evictseq_map_into (itsl: its_log):
+  Lemma (forall (i1: SA.seq_index (ts_evict_seq itsl)).
+         forall (i2: SA.seq_index (ts_evict_seq itsl)).
+         i1 <> i2 ==> ts_to_global_evictseq_map_aux itsl i1 <>
+                    ts_to_global_evictseq_map_aux itsl i2) = 
+  let ts = ts_evict_seq itsl in
+
+  let aux (i1 i2: SA.seq_index ts):
+    Lemma (i1 <> i2 ==> ts_to_global_evictseq_map_aux itsl i1 <>
+                      ts_to_global_evictseq_map_aux itsl i2) = ()
+  in                      
+  forall_intro_2 aux
+
+let ts_to_global_evictseq_map (itsl: its_log):
+  into_smap (ts_evict_seq itsl)
+            (g_evict_seq (g_vlog_of itsl)) = 
+  lemma_ts_to_global_evictseq_map_into itsl;
+  ts_to_global_evictseq_map_aux itsl
+
+(* the blum evicts in time sequenced log should be the same as global evict set *)
+let lemma_ts_evict_set_correct (itsl: its_log):
+  Lemma (ts_evict_set itsl == g_evict_set (g_vlog_of itsl)) = 
+  let gl = g_vlog_of itsl in
+  let gs = g_evict_seq gl in
+  let ts = ts_evict_seq itsl in
+  
+  bijection_seq_mset #_ #ms_hashfn_dom_cmp gs ts (global_to_ts_evictseq_map itsl)
+                             (ts_to_global_evictseq_map itsl)
+                             
+(* if the tail element is not an evict, the evict set is the same as the evict 
+ * set of the length - 1 prefix 
+ *)
+let lemma_ts_evict_set_key_extend2 (itsl: its_log {I.length itsl > 0}):
+  Lemma (requires (not (is_evict_to_blum (I.index itsl (I.length itsl - 1)))))
+        (ensures (ts_evict_set_key itsl (key_of (I.index itsl (I.length itsl - 1))) == 
+                  ts_evict_set_key (I.prefix itsl (I.length itsl - 1))
+                                           (key_of (I.index itsl (I.length itsl - 1))))) = ()
+
+(* since evict_set is a pure set (not a multiset) we can identify the unique index 
+ * for each element of the set *)
+let index_blum_evict (itsl: its_log) (e: ms_hashfn_dom {ts_evict_set itsl `contains` e}):
+  (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i) /\ 
+                      blum_evict_elem itsl i = e}) = 
+  let esq = ts_evict_seq itsl in
+  let est = ts_evict_set itsl in
+  let j = index_of_mselem #_ #ms_hashfn_dom_cmp esq e in
+  assert(S.index esq j = e);
+  evict_seq_inv_map itsl j
+
+(* the clock of an evict entry is the timestamp in the corresponding blum element *)
+let lemma_evict_clock (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
+  Lemma (TL.clock itsl i = MH.timestamp_of (blum_evict_elem itsl i)) = 
+  let gl = g_vlog_of itsl in
+  let (tid,j) = i2s_map itsl i in
+  let tl = thread_log gl tid in
+  VT.lemma_evict_clock tl j
+
+(* the clock of a blum add entry is >= timestamp in the corresponding blum element *)
+let lemma_add_clock (itsl: its_log) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
+  Lemma (MH.timestamp_of (blum_add_elem (I.index itsl i)) `ts_lt` TL.clock itsl i) = 
+  let gl = g_vlog_of itsl in
+  let (tid,j) = i2s_map itsl i in
+  let tl = thread_log gl tid in
+  VT.lemma_add_clock tl j
+
+(* if the blum add occurs in the blum evict set, its index is earlier *)
+let lemma_evict_before_add (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
+  Lemma (requires True)
+        (ensures (not (ts_evict_set itsl `contains` blum_add_elem (I.index itsl i)) \/
+                  index_blum_evict itsl (blum_add_elem (I.index itsl i)) < i)) = 
+  let be = blum_add_elem (I.index itsl i) in                  
+  let evt_set = ts_evict_set itsl in
+  let add_set = ts_add_set itsl in
+  lemma_add_clock itsl i;
+  if evt_set `contains` be then (
+    let j = index_blum_evict itsl be in
+    lemma_evict_clock itsl j;
+    lemma_clock_ordering itsl j i
+  )
+  else ()
+
+(* the evict set of a prefix is a prefix of the evict set *)
+let rec lemma_prefix_evict_seq (itsl: its_log) (i:nat{i <= I.length itsl}):
+  Lemma (requires True)
+        (ensures (SA.is_prefix (ts_evict_seq itsl) (ts_evict_seq (I.prefix itsl i))))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if i = n then ()
+  else (
+    let itsl' = I.prefix itsl (n - 1) in    
+    let s' = ts_evict_seq itsl' in
+    let e = I.index itsl (n - 1) in
+  
+    if i = n - 1 then 
+      if is_evict_to_blum e then 
+        lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))
+      else ()  
+    else (    
+      lemma_prefix_evict_seq itsl' i;
+      if is_evict_to_blum e then
+        lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))    
+      else ()
+    )
+ )
+
+let rec lemma_prefix_add_seq (itsl: its_log) (i: nat{ i <= I.length itsl}):
+  Lemma (requires True)
+        (ensures (SA.is_prefix (ts_add_seq itsl) (ts_add_seq (I.prefix itsl i))))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if i = n then () // prefix is the same sequence
+  else (
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = ts_add_seq itsl' in
+    let e = I.index itsl (n - 1) in
+    if i = n - 1 then
+      if is_blum_add e then
+        lemma_prefix1_append s' (blum_add_elem e)
+      else ()
+    else (
+      lemma_prefix_add_seq itsl' i;
+      if is_blum_add e then
+        lemma_prefix1_append s' (blum_add_elem e)
+      else ()
+    )
+  )
+
+#push-options "--fuel 1,1 --ifuel 1,1 --z3rlimit_factor 4"
+let rec lemma_evict_seq_map_prefix (itsl: its_log) (i: nat{i< I.length itsl}) (j:nat):
+  Lemma (requires (j < i /\
+                   is_evict_to_blum (I.index itsl j)))
+        (ensures (evict_seq_map itsl j = evict_seq_map (I.prefix itsl i) j))
+        (decreases (I.length itsl)) = 
+  let n:nat = I.length itsl in
+  let itsl':its_log = I.prefix itsl (n - 1) in
+  let s' = ts_evict_seq itsl' in  
+  let e = I.index itsl (n - 1) in
+  if i = n - 1 then 
+    if is_evict_to_blum e then 
+      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))    
+    else ()  
+  else (
+    lemma_evict_seq_map_prefix itsl' i j;
+
+    if is_evict_to_blum e then  
+      lemma_prefix1_append s' (blum_evict_elem itsl (n - 1))
+    else ()
+  )
+#pop-options
 
 (* a slightly different version of of the previous lemma - the count of an add element 
  * in the evict set is the same in the prefix as the full sequence *)
-let lemma_evict_before_add2 (#p:pos) (itsl: its_log p) (i:seq_index itsl{is_blum_add (index itsl i)}):
+let lemma_evict_before_add2 (itsl: its_log) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
    Lemma (requires True)
-         (ensures (MS.mem (blum_add_elem (index itsl i)) (ts_evict_set itsl) =
-                   MS.mem (blum_add_elem (index itsl i)) (ts_evict_set (prefix itsl i)))) = admit()
+         (ensures (MS.mem (blum_add_elem (I.index itsl i)) (ts_evict_set itsl) =
+                   MS.mem (blum_add_elem (I.index itsl i)) (ts_evict_set (I.prefix itsl i)))) = 
+   let be = blum_add_elem (I.index itsl i) in
+   let evt_seq = ts_evict_seq itsl in
+   let evt_set = ts_evict_set itsl in
+   let itsl' = I.prefix itsl i in   
+   let evt_seq' = ts_evict_seq itsl' in
+   let evt_set' = ts_evict_set itsl' in
 
-let lemma_evict_before_add3 (#p:pos) (itsl: its_log p) (i: seq_index itsl) (j:seq_index itsl):
-  Lemma (requires (is_blum_add (index itsl i) /\
-                   is_blum_evict (index itsl j) /\
-                   blum_add_elem (index itsl i) = blum_evict_elem itsl j))
-        (ensures (j < i)) = admit()
+   lemma_prefix_evict_seq itsl i;
+   //assert(is_prefix evt_seq evt_seq');
 
-let lemma_evict_add_count_same (#p:pos) (itsl: eac_ts_log p) (k:key):
-  Lemma (requires (is_eac_state_instore itsl k))
-        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = admit()
+   seq_prefix_mset_mem #_ #ms_hashfn_dom_cmp evt_seq evt_seq' be;
+   //assert(mem be evt_set' <= mem be evt_set);
+
+   if mem be evt_set' < mem be evt_set then (
+     (* since evt_set is a set ... *)
+     g_evict_set_is_set (g_vlog_of itsl);
+     lemma_ts_evict_set_correct itsl;
+     //assert(is_set evt_set);
+
+     (* the following mem facts must be true *)
+     //assert(mem be evt_set = 1);
+     //assert(mem be evt_set' = 0);
+
+     (* however from previous lemma, it follows that evt_set' should contain be, a contradiction *)
+     lemma_evict_before_add itsl i;
+     let j = index_blum_evict itsl be in
+     //assert(j < i);
+
+     lemma_evict_seq_map_prefix itsl i j;
+     let j' = evict_seq_map itsl' j in
+     //assert(S.index evt_seq' j' = be);
+
+     mset_contains_seq_element #_ #ms_hashfn_dom_cmp evt_seq' j';
+     //assert(contains be evt_set');
+     
+     ()
+   )
+   else ()
+
+let lemma_evict_before_add3 (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index itsl):
+  Lemma (requires (is_blum_add (I.index itsl i) /\
+                   is_evict_to_blum (I.index itsl j) /\
+                   blum_add_elem (I.index itsl i) = blum_evict_elem itsl j))
+        (ensures (j < i)) = 
+  let be = blum_add_elem (I.index itsl i) in        
+  let evt_seq = ts_evict_seq itsl in
+  let evt_set = ts_evict_set itsl in
+  let add_seq = ts_add_seq itsl in
+  let add_set = ts_add_set itsl in
+  
+  let j1 = evict_seq_map itsl j in  
+  //assert(S.index evt_seq j1 = be);
+
+  (* evict set contains be *)
+  mset_contains_seq_element #_ #ms_hashfn_dom_cmp evt_seq j1;
+  assert(evt_set `contains` be);
+
+  
+  let j' = index_blum_evict itsl be in
+  lemma_evict_before_add itsl i;
+  assert(j' < i);
+
+  if j' <> j then (
+    let j2 = evict_seq_map itsl j' in
+    assert(j1 <> j2);
+
+    seq_mset_elem2 #_ #ms_hashfn_dom_cmp evt_seq j1 j2;
+    assert(mem be evt_set >= 2);
+
+    (* this is a contradiction since evt_set is a set *)
+    g_evict_set_is_set (g_vlog_of itsl);
+    lemma_ts_evict_set_correct itsl
+  )
+  else ()
+
+let lemma_evict_add_count_same_aux (itsl: TL.eac_log) (k:key):
+  Lemma (requires (True))
+        (ensures (is_eac_state_evicted_blum itsl k /\ 1 + MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k) \/
+                  not (is_eac_state_evicted_blum itsl k) /\ MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k)))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let s = eac_state_of_key itsl k in
+
+  (* since itsl is eac, the state of k is valid *)
+  lemma_eac_state_of_key_valid itsl k;
+  //assert(s <> EACFail);
+  
+  if n = 0 then ( 
+    lemma_init_state_empty itsl k;
+    //assert(s = EACInit);
+    //assert(S.length (ts_add_seq_key itsl k) = 0);
+    MS.length_size #_ #ms_hashfn_dom_cmp (ts_add_seq_key itsl k);    
+    //assert(MS.size (ts_add_set_key itsl k) = 0);
+    MS.length_size #_ #ms_hashfn_dom_cmp (ts_evict_seq_key itsl k);
+    //assert(MS.size (ts_evict_set_key itsl k) = 0);
+    ()
+  )
+  else (
+    admit()
+  )
+
+
+(* for an eac ts log, if the eac state of a key k is instore, the count of blum evicts 
+ * is the same of blum adds for that key *)
+let lemma_evict_add_count_same (itsl: TL.eac_log) (k:key):
+  Lemma (requires (TL.is_eac_state_instore itsl k))
+        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = 
+  lemma_evict_add_count_same_aux itsl k
 
 (* for an eac ts log, if the eac state of a key k is evicted to merkle, the count of blum evicts 
  * is the same of blum adds for that key *)
-let lemma_evict_add_count_same_evictedm (#p:pos) (itsl: eac_ts_log p) (k:key):
+let lemma_evict_add_count_same_evictedm (itsl: TL.eac_log) (k:key):
   Lemma (requires (is_eac_state_evicted_merkle itsl k))
-        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = admit()
+        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = 
+  lemma_evict_add_count_same_aux itsl k
 
-let lemma_mem_key_add_set_same (#p:pos) (itsl: its_log p) (be: ms_hashfn_dom):
+let lemma_mem_key_add_set_same (itsl: its_log) (be: ms_hashfn_dom):
   Lemma (mem be (ts_add_set itsl) = mem be (ts_add_set_key itsl (MH.key_of be))) = admit()
 
-let lemma_mem_key_evict_set_same (#p:pos) (itsl: its_log p) (be: ms_hashfn_dom):
-  Lemma (mem be (ts_evict_set itsl) = mem be (ts_evict_set_key itsl (MH.key_of be))) = admit()
+let lemma_mem_key_evict_set_same (itsl: its_log) (be: ms_hashfn_dom):
+  Lemma (mem be (ts_evict_set itsl) = mem be (ts_evict_set_key itsl (MH.key_of be))) =admit()
 
-let lemma_mem_monotonic (#p:pos) (be:ms_hashfn_dom) (itsl: its_log p) (i:nat{i <= length itsl}):
-  Lemma (mem be (ts_evict_set itsl) >= mem be (ts_evict_set (prefix itsl i)) /\
-         mem be (ts_add_set itsl) >= mem be (ts_add_set (prefix itsl i))) = admit()
+let lemma_mem_monotonic_add_seq (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length itsl}):
+  Lemma (mem be (ts_add_set itsl) >= mem be (ts_add_set (I.prefix itsl i))) =            
+  let itsl' = I.prefix itsl i in
+  let s' = ts_add_seq itsl' in
+  let s = ts_add_seq itsl in
+  lemma_prefix_add_seq itsl i;
+  //assert(is_prefix s s');
+  seq_prefix_mset_mem #_ #ms_hashfn_dom_cmp s s' be;
+  ()
 
-let lemma_blum_evict_add_same (#p:pos) (itsl: eac_ts_log p) (i:seq_index itsl):
-  Lemma (requires (TL.is_blum_evict (index itsl i) /\
-                   TL.has_next_add_of_key itsl i (TL.key_of (index itsl i))))
-        (ensures (TL.is_blum_add (index itsl (TL.next_add_of_key itsl i (TL.key_of (index itsl i)))) /\
+let lemma_mem_monotonic_evict_seq (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length itsl}):
+  Lemma (mem be (ts_evict_set itsl) >= mem be (ts_evict_set (I.prefix itsl i))) =            
+  let itsl' = I.prefix itsl i in
+  let s' = ts_evict_seq itsl' in
+  let s = ts_evict_seq itsl in
+  lemma_prefix_evict_seq itsl i;
+  //assert(is_prefix s s');
+  seq_prefix_mset_mem #_ #ms_hashfn_dom_cmp s s' be;
+  ()
+
+(* the count of an element can only decrease in a prefix of itsl *)
+let lemma_mem_monotonic (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length itsl}):
+  Lemma (mem be (ts_evict_set itsl) >= mem be (ts_evict_set (I.prefix itsl i)) /\
+         mem be (ts_add_set itsl) >= mem be (ts_add_set (I.prefix itsl i))) = 
+  lemma_mem_monotonic_add_seq be itsl i;
+  lemma_mem_monotonic_evict_seq be itsl i;
+  ()
+
+(* the next add of a blum evict is a blum add of the same "element" *)
+let lemma_blum_evict_add_same (itsl: TL.eac_log) (i:I.seq_index itsl):
+  Lemma (requires (is_evict_to_blum (I.index itsl i) /\
+                   TL.has_next_add_of_key itsl i (key_of (I.index itsl i))))
+        (ensures (is_blum_add (I.index itsl (TL.next_add_of_key itsl i (key_of (I.index itsl i)))) /\
                   blum_evict_elem itsl i =                                   
-                  blum_add_elem (index itsl (TL.next_add_of_key itsl i (TL.key_of (index itsl i)))))) = 
-  admit()                  
+                  blum_add_elem (I.index itsl (TL.next_add_of_key itsl i (key_of (I.index itsl i)))))) = admit()
 
-let lemma_eac_evicted_blum_implies_previous_evict (#p:pos) (itsl: its_log p) (k:key):
+(* when the eac store is evicted, there exists a previous evict *)
+let lemma_eac_evicted_blum_implies_previous_evict (itsl: its_log) (k:key):
   Lemma (requires (is_eac_state_evicted_blum itsl k))
         (ensures (has_some_entry_of_key itsl k /\
-                  is_blum_evict (index itsl (last_idx_of_key itsl k)) /\
+                  is_evict_to_blum (I.index itsl (last_idx_of_key itsl k)) /\
                   blum_evict_elem itsl (last_idx_of_key itsl k) = 
                   to_blum_elem (eac_state_of_key itsl k) k)) = admit()
 
 (* if we provide two indexes having the same add element then the membership of the element in the 
  * add set is at least two *)
-let lemma_add_set_mem (#p:pos) (itsl: its_log p) (i: seq_index itsl) (j:seq_index itsl{j <> i}):
-  Lemma (requires (is_blum_add (index itsl i) /\
-                   is_blum_add (index itsl j) /\
-                   blum_add_elem (index itsl i) = blum_add_elem (index itsl j)))
-        (ensures (MS.mem (blum_add_elem (index itsl i)) (ts_add_set itsl) >= 2)) = admit()
+let lemma_add_set_mem (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index itsl{j <> i}):
+  Lemma (requires (is_blum_add (I.index itsl i) /\
+                   is_blum_add (I.index itsl j) /\
+                   blum_add_elem (I.index itsl i) = blum_add_elem (I.index itsl j)))
+        (ensures (MS.mem (blum_add_elem (I.index itsl i)) (ts_add_set itsl) >= 2)) = 
+  let be = blum_add_elem (I.index itsl i) in
+  let s = ts_add_seq itsl in
+  let i1 = add_seq_map itsl i in
+  let j1 = add_seq_map itsl j in
+  //assert(i1 <> j1);
+  seq_mset_elem2 #_ #ms_hashfn_dom_cmp s i1 j1

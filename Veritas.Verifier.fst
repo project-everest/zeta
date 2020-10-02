@@ -76,15 +76,15 @@ let is_evict_to_blum (e:vlog_entry): bool =
 
 let is_add_of_key (k: key) (e:vlog_entry): bool = 
   match e with
-  | AddM (k,_) _ -> true
-  | AddB (k,_) _ _ -> true
+  | AddM (k',_) _
+  | AddB (k',_) _ _ -> k=k'
   | _ -> false 
 
 let is_evict_of_key (k:key) (e:vlog_entry): bool = 
   match e with
-  | EvictM k _ -> true
-  | EvictB k _ -> true
-  | EvictBM k _ _ -> true
+  | EvictM k' _
+  | EvictB k' _
+  | EvictBM k' _ _ -> k = k'
   | _ -> false
 
 (* verifier log *)
@@ -302,7 +302,7 @@ let vaddb (r:record)
     (* current clock of thread i *)
     let clk = thread_clock vs in
     (* updated clock *)
-    let clk_upd = max clk t in
+    let clk_upd = max clk (next t) in
     (* update verifier state with new clock *)
     let vs_upd2 = update_thread_clock vs_upd clk_upd in
     (* add record to store *)

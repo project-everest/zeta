@@ -1,80 +1,204 @@
 module Veritas.MultiSet
 
-open FStar.Seq
+open Veritas.SeqAux
 
-val mset (a:eqtype): Type0
+/// A multiset module
+///
+/// The type is indexed by a total order on the element type
+///   There are other implementations possible that don't require a total order
+///   For now, this works for our use case
 
-(* membership: how many copies of x are in multiset s *)
-val mem (#a:eqtype) (x:a) (s:mset a): Tot nat
+type total_order (a:eqtype) (f: (a -> a -> Tot bool)) =
+  (forall a1 a2. (f a1 a2 /\ f a2 a1)  ==> a1 == a2) /\  (* anti-symmetry *)
+  (forall a1 a2 a3. f a1 a2 /\ f a2 a3 ==> f a1 a3)  /\  (* transitivity  *)
+  (forall a1 a2. f a1 a2 \/ f a2 a1)                    (* totality      *)
 
-(* does a multiset contain an element x *)
-let contains (#a:eqtype) (x:a) (s:mset a) = 
+type cmp (a:eqtype) = f:(a -> a -> bool){total_order a f}
+
+/// The multiset type
+
+val mset (a:eqtype) (f:cmp a) : Type0
+
+/// Empty multiset
+
+val empty (#a:eqtype) (#f:cmp a) : mset a f
+
+
+/// Create a multiset that contains `m` copies of `x`
+
+val create (#a:eqtype) (#f:cmp a) (x:a) (m:pos) : mset a f
+
+/// Number of copies of `x` that `s` has
+
+val mem (#a:eqtype) (#f:cmp a) (x:a) (s:mset a f) : nat
+
+let contains (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a) : bool =
   mem x s > 0
 
-(* equality of two multisets *)
-val equal (#a:eqtype) (s1 s2:mset a): Tot prop
 
-val lemma_eq_intro (#a:eqtype) (s1 s2:mset a): 
-  Lemma (requires (forall (x:a). (mem x s1 = mem x s2)))
-        (ensures (equal s1 s2))
+/// Adding an element to a multiset
 
-val lemma_eq_refl (#a:eqtype) (s1 s2: mset a):
-  Lemma (requires (s1 == s2))
-        (ensures (equal s1 s2))
+val add_elem (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a) : mset a f
 
-val lemma_eq_elim (#a:eqtype) (s1 s2: mset a):
-  Lemma (requires (equal s1 s2))
-        (ensures (s1 == s2))
 
-val lemma_not_equal (#a:eqtype) (s1 s2: mset a) (x: a):
-  Lemma (requires (mem x s1 <> mem x s2))
-        (ensures (~(s1 == s2)))
+/// Create a multiset from a sequence
 
-(* size of a multi set *)
-val size (#a:eqtype) (s: mset a): nat
+val seq2mset (#a:eqtype) (#f:cmp a) (s:Seq.seq a) : mset a f
 
-(* empty set *)
-val empty (#a:eqtype): Tot (mset a)
 
-(* create a multiset of m copies of x *)
-val create (#a:eqtype) (x:a) (m:nat): Tot (mset a)
+/// Union of two multisets
 
-(* construct a multiset given a sequence *)
-val seq2mset (#a:eqtype) (s: seq a): Tot (mset a)
+val union (#a:eqtype) (#f:cmp a) (s1 s2:mset a f) : mset a f
 
-(* count of an element in seq s is its membership count in its corresponding multiset *)
-val lemma_count_mem (#a:eqtype) (s: seq a) (x: a):
-  Lemma (count x s = mem x (seq2mset s))
 
-(* union of two multisets *)
-val union (#a:eqtype) (s1 s2: mset a): Tot (mset a)
+/// Size of a multiset
 
-(* the membership count of an element in a union of two multisets is 
- * the sum of its membership counts in the two sets *)
-val lemma_union_count (#a:eqtype) (s1 s2: mset a) (x: a):
-  Lemma (mem x (union s1 s2) = (mem x s1) + (mem x s2))
+val size (#a:eqtype) (#f:cmp a) (s:mset a f) : nat
 
-val lemma_union_comm (#a:eqtype) (s1 s2: mset a):
-  Lemma (union s1 s2 == union s2 s1)
 
-val lemma_union_assoc (#a:eqtype) (s1 s2 s3: mset a):
-  Lemma (union (union s1 s2) s3 == union s1 (union s2 s3))
+/// If one multiset has size greater than another,
+///   we can find an element whose cardinality in the first multiset is greater
 
-(* append of two sequences corresponds to the union in multiset domain *)
-val lemma_union_append (#a:eqtype) (s1 s2: seq a):
-  Lemma (seq2mset (append s1 s2) == union (seq2mset s1) (seq2mset s2))
+val diff_elem (#a:eqtype) (#f:cmp a) (s1:mset a f) (s2:mset a f{size s1 > size s2})
+  : (x:a{mem x s1 > mem x s2})
 
-(* a multiset is a pure set if there is at most one copy of each element *)
-let is_set (#a:eqtype) (s: mset a) = forall (x:a). mem x s <= 1
 
-(* if one multiset s1 is larger than the other (s2) we can find an element whose membership in s1 is larger *)
-val diff_elem (#a:eqtype) (s1: mset a) (s2: mset a{size s1 > size s2}): (x:a{mem x s1 > mem x s2})
+/// Index of an element in a sequence, that is contained in its corresponding multiset
 
-(* add an element to a multiset *)
-val add_elem (#a:eqtype) (s: mset a) (x:a): mset a
+val index_of_mselem (#a:eqtype) (#f:cmp a)
+  (s:Seq.seq a)
+  (x:a{seq2mset #a #f s `contains` x})
+  : i:seq_index s{Seq.index s i == x}
 
-(* add increases the size by 1 *)
-val lemma_add_size (#a:eqtype) (s:mset a) (x:a):
-  Lemma (requires True)
-        (ensures (size (add_elem s x) = size s + 1))
-        [SMTPat (add_elem s x)]
+
+/// Properties of multisets
+
+/// Equality between two multisets
+
+val equal (#a:eqtype) (#f:cmp a) (s1 s2:mset a f) : Tot Type0
+
+/// Two multisets are equal if forall `x:a`, they contain equal number of copies for `x`
+
+val eq_intro (#a:eqtype) (#f:cmp a) (s1 s2:mset a f)
+  : Lemma
+      (requires forall (x:a). mem x s1 = mem x s2)
+      (ensures equal s1 s2)
+
+/// Equality is reflexive
+
+val eq_refl (#a:eqtype) (#f:cmp a) (s1 s2:mset a f)
+  : Lemma
+      (requires s1 == s2)
+      (ensures equal s1 s2)
+
+/// Eliminate `equal` into propositional equality
+
+val eq_elim (#a:eqtype) (#f:cmp a) (s1 s2:mset a f)
+  : Lemma
+      (requires equal s1 s2)
+      (ensures s1 == s2)
+
+/// If there is an element for which the number of copies in `s1` are not same as that
+///   in `s2`, then `s1` and `s2` are not equal
+
+val not_eq (#a:eqtype) (#f:cmp a) (s1 s2:mset a f) (x:a)
+  : Lemma
+      (requires mem x s1 =!= mem x s2)
+      (ensures (~ (s1 == s2)))
+
+
+/// Equality of `Seq.count` and `mem` for `seq2mset`
+
+val seq2mset_mem (#a:eqtype) (#f:cmp a) (s:Seq.seq a) (x:a)
+  : Lemma (mem x (seq2mset #_ #f s) == Seq.count x s)
+
+
+
+/// An element of a sequence is contained in the corresponding multiset
+
+val mset_contains_seq_element (#a:eqtype) (#f:cmp a) (s:Seq.seq a) (i:seq_index s)
+  : Lemma (seq2mset #a #f s `contains` Seq.index s i)
+
+
+/// Commutation of `Seq.append` with `union`
+
+val seq_append_mset (#a:eqtype) (#f:cmp a) (s1 s2:Seq.seq a)
+  : Lemma (seq2mset #a #f (Seq.append s1 s2) == union (seq2mset #a #f s1) (seq2mset #a #f s2))
+
+/// Commutation of `seq2mset` with `add_elem`
+
+val seq2mset_add_elem (#a:eqtype) (#f:cmp a) (s:Seq.seq a) (x:a)
+  : Lemma (seq2mset #a #f (append1 s x) == add_elem (seq2mset #a #f s) x)
+
+
+/// Relation between `seq2mset` for a sequence and its prefix
+
+val seq_prefix_mset_mem (#a:eqtype) (#f:cmp a)
+  (s:Seq.seq a)
+  (s':Seq.seq a{is_prefix s s'})
+  (x: a)
+  : Lemma (mem x (seq2mset #a #f s') <= mem x (seq2mset #a #f s))
+
+
+/// If an element occurs at least twice in a sequence,
+///   then its cardinality in the corresponding multiset must be at least 2
+
+val seq_mset_elem2 (#a:eqtype) (#f:cmp a) (s:Seq.seq a) (i1 i2:seq_index s)
+  : Lemma
+      (requires i1 =!= i2 /\ Seq.index s i1 == Seq.index s i2)
+      (ensures mem (Seq.index s i1) (seq2mset #a #f s) >= 2)
+
+/// Reasoning for `seq2mset` for sequences that are in bijection with each other
+
+
+/// A mapping from one sequence to the other
+
+type smap (#a:eqtype) (s1 s2:Seq.seq a) = f:(seq_index s1 -> seq_index s2){
+  forall (i:seq_index s1). Seq.index s1 i == Seq.index s2 (f i)
+}
+
+/// Injectivity property on smaps
+
+let into_smap (#a:eqtype) (s1 s2:Seq.seq a) = f:smap s1 s2{
+  forall (i j: seq_index s1). (i =!= j) ==> f i =!= f j
+}
+
+/// If for two sequences, we can provide into_smaps in both the directions
+///   then their corresponding multisets are equal
+
+val bijection_seq_mset (#a:eqtype) (#f:cmp a)
+  (s1 s2:Seq.seq a)
+  (f12:into_smap s1 s2)
+  (f21: into_smap s2 s1)
+  : Lemma (seq2mset #a #f s1 == seq2mset #a #f s2)
+
+
+/// Membership of an element in the union of two multisets
+
+val union_mem (#a:eqtype) (#f:cmp a) (s1 s2:mset a f) (x:a)
+  : Lemma (mem x (union s1 s2) == mem x s1 + mem x s2)
+
+
+/// Union is commutative and associative
+
+val union_comm (#a:eqtype) (#f:cmp a) (s1 s2:mset a f)
+  : Lemma (union s1 s2 == union s2 s1)
+
+val union_assoc (#a:eqtype) (#f:cmp a) (s1 s2 s3: mset a f)
+  : Lemma (union (union s1 s2) s3 == union s1 (union s2 s3))
+
+
+/// Adding an element increments the size by 1
+
+val add_size (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
+  : Lemma
+      (ensures size (add_elem s x) == size s + 1)
+      [SMTPat (add_elem s x)]
+
+val length_size (#a:eqtype) (#f:cmp a) (s:Seq.seq a)
+  : Lemma (Seq.length s = size (seq2mset #a #f s))
+
+
+/// A multiset is a set when max cardinality of all elements is 1
+
+let is_set (#a:eqtype) (#f:cmp a) (s:mset a f) = forall (x:a). mem x s <= 1

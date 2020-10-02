@@ -6,6 +6,8 @@ open FStar.Squash
 
 let prefix (#a:Type) (s:seq a) (i:nat{i <= length s}) = slice s 0 i
 
+let prefix_slice #_ _ _ = ()
+
 let lemma_prefix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
   Lemma (requires (True))
         (ensures (index (prefix s i) j == index s j)) =

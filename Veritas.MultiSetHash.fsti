@@ -11,7 +11,7 @@ open Veritas.SeqAux
 let ms_hash_size = 256
 
 (* multiset hash value *)
-type ms_hash_value = bv_t ms_hash_size
+let ms_hash_value = bv_t ms_hash_size
 
 (* Hash value of an empty set *)
 val empty_hash_value: ms_hash_value
@@ -19,6 +19,10 @@ val empty_hash_value: ms_hash_value
 (* timestamp for blum *)
 type timestamp = 
   | MkTimestamp: e: nat -> c: nat -> timestamp
+
+let next (t: timestamp): timestamp = 
+  match t with
+  | MkTimestamp e c -> MkTimestamp e (c + 1)
 
 let ts_lt (t1 t2: timestamp) = 
   let e1 = MkTimestamp?.e t1 in
@@ -33,8 +37,15 @@ let ts_geq (t1 t2: timestamp) =
 let ts_leq (t1 t2: timestamp) = 
   t1 = t2 || t1 `ts_lt` t2
 
+let ts_gt (t1 t2: timestamp): bool = 
+  not (t1 `ts_leq` t2)
+
 type ms_hashfn_dom = 
   | MHDom: r:record -> t:timestamp -> i:nat -> ms_hashfn_dom
+
+let ms_hashfn_dom_cmp : cmp ms_hashfn_dom = magic ()
+
+type mset_ms_hashfn_dom = mset ms_hashfn_dom ms_hashfn_dom_cmp
 
 let key_of (e:ms_hashfn_dom): key = 
   match e with
@@ -62,7 +73,8 @@ val ms_hashfn (s: seq ms_hashfn_dom): Tot ms_hash_value
 
 (* two sequences that encode the same multiset produce the same hash *)
 val lemma_mshashfn_correct (s1 s2: seq ms_hashfn_dom):
-  Lemma (requires (seq2mset s1 == seq2mset s2))
+  Lemma (requires (seq2mset #_ #ms_hashfn_dom_cmp s1 ==
+                   seq2mset #_ #ms_hashfn_dom_cmp s2))
         (ensures (ms_hashfn s1 = ms_hashfn s2))
 
 (* the hash of an empty seq (mset) is empty_hash_value *)
@@ -82,4 +94,5 @@ val lemma_hashfn_agg (s1 s2: seq ms_hashfn_dom):
 type ms_hash_collision = 
   | MSCollision: s1: seq ms_hashfn_dom -> 
                  s2: seq ms_hashfn_dom { ms_hashfn s1 = ms_hashfn s2 /\
-                                          ~(seq2mset s1 == seq2mset s2)} -> ms_hash_collision
+                                         ~(seq2mset #_ #ms_hashfn_dom_cmp s1 ==
+                                           seq2mset #_ #ms_hashfn_dom_cmp s2)} -> ms_hash_collision
