@@ -436,6 +436,11 @@ let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl)
     let rhs = t_verify_step (t_verify_aux init vlog_tid) (I.index itsl i) in
     t_verify_aux_snoc init vlog_tid (I.index itsl i)
 
+let lemma_verifier_thread_state_extend2 (itsl: its_log) (i: I.seq_index itsl) (tid: valid_tid itsl):
+  Lemma (requires (tid <> thread_id_of itsl i))
+        (ensures (thread_state (I.prefix itsl (i + 1)) tid == 
+                  thread_state (I.prefix itsl i) tid)) = admit()
+
 #reset-options
 
 let mk_vlog_entry_ext (itsl:its_log) (i:I.seq_index itsl) 

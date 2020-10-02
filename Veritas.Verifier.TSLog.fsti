@@ -135,6 +135,13 @@ val lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl):
   Lemma (thread_state_post itsl i == 
          t_verify_step (thread_state_pre itsl i) (I.index itsl i))
 
+(* If the i'th entry does not go to thread tid, then its state remains unchanged when processing 
+ * the i'th entry *)
+val lemma_verifier_thread_state_extend2 (itsl: its_log) (i: I.seq_index itsl) (tid: valid_tid itsl):
+  Lemma (requires (tid <> thread_id_of itsl i))
+        (ensures (thread_state (I.prefix itsl (i + 1)) tid == 
+                  thread_state (I.prefix itsl i) tid))
+
 (* is this an evict add consistent log *)
 val is_eac (itsl: its_log):bool
 
