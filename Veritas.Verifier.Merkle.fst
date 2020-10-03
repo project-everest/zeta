@@ -5,6 +5,7 @@ open Veritas.EAC
 open Veritas.Interleave
 
 module BP=Veritas.BinTreePtr
+module E=Veritas.EAC
 
 (* does the log entry update which descendant the value of k points to? *)
 let updates_points_to (e: vlog_entry) (k: merkle_key): bool = 
@@ -69,10 +70,69 @@ let lemma_points_to_unchanged_caseA (itsl: TL.eac_log{I.length itsl > 0}) (k:mer
        lemma_eac_value_is_stored_value itsl' k tidk
      )
        
-   | EACEvictedMerkle v -> 
-     admit()
-   | EACEvictedBlum v t j -> admit()  
+   | EACEvictedMerkle _
+   | EACEvictedBlum _ _ _ ->    
+     lemma_eac_value_is_evicted_value itsl k;
+     lemma_eac_value_is_evicted_value itsl' k;     
+     ()
 
+let lemma_points_to_unchanged_evictm (itsl: TL.eac_log {I.length itsl > 0 }) (k: merkle_key) (c: bin_tree_dir):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   V.key_of e = k /\ EvictM? e))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in 
+                  let v = eac_merkle_value itsl k in
+                  let v' = eac_merkle_value itsl' k in
+                  mv_points_to_none v c && mv_points_to_none v' c || 
+                  mv_points_to_some v c && mv_points_to_some v' c && 
+                  mv_pointed_key v c = mv_pointed_key v' c)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let e = I.index itsl (n - 1) in
+  let ee = TL.vlog_entry_ext_at itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let vs = TL.thread_state itsl tid in
+  let vs' = TL.thread_state itsl' tid in
+
+  lemma_fullprefix_equal itsl;
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  assert(vs == t_verify_step vs' e);
+
+  let es' = TL.eac_state_of_key itsl' k in
+  let es = TL.eac_state_of_key itsl k in
+  lemma_eac_state_transition itsl (n - 1);
+  assert(es = eac_add ee es');
+
+  (* thread store before processing e *)
+  let st' = TL.thread_store itsl' tid in
+
+  match e with
+  | EvictM _ k' ->
+    (* verifier checks store contains k when processing e *)
+    assert(store_contains st' k);
+
+    (* verifier does not allow evicting the root *)
+    assert(k <> Root);
+
+    (* es' is EACInStore *)
+    lemma_instore_implies_eac_state_instore itsl' k tid;
+    assert(E.EACInStore? es');
+
+    (* since we go from es' -> es, this implies es is EACEvictedmerkle *)
+    lemma_eac_state_of_key_valid itsl k;
+    assert(E.EACEvictedMerkle? es);
+    //assert(E.EACEvictedMerkle?.v es = value_ext ee);
+
+    (* value recorded in es is V.stored_value st' k *)
+    lemma_ext_evict_val_is_stored_val itsl (n - 1);
+    assert(V.stored_value st' k = value_ext ee);
+
+    lemma_eac_value_is_evicted_value itsl k;
+    //assert(eac_value itsl k = value_ext ee);
+
+    admit()
+                   
 (* A log entry not referencing key k does not affect the eac_value of k *)
 let lemma_points_to_unchanged (itsl: TL.eac_log{I.length itsl > 0}) (k:merkle_key) (c:bin_tree_dir):
   Lemma (requires (let n = I.length itsl in
@@ -92,8 +152,15 @@ let lemma_points_to_unchanged (itsl: TL.eac_log{I.length itsl > 0}) (k:merkle_ke
 
   if ke <> k then
     lemma_points_to_unchanged_caseA itsl k c
-  else  
-    admit()                  
+  else ( 
+    match e with
+    | Get _ _ -> ()                 (* k is a merkle key *)
+    | Put _ _ -> ()                 (* k is a merkle key *)
+    | AddM _ _ -> ()                 (* update_points_to ... => contradiction *)
+    | EvictM _ _ -> lemma_points_to_unchanged_evictm itsl k c
+    | _ ->
+    admit()
+  )
 
 (* for a merkle key k, the eac_value along direction c is either empty or points to a descendant *)
 let rec lemma_eac_value_empty_or_points_to_desc
