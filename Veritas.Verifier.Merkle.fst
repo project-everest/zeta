@@ -240,6 +240,73 @@ let lemma_points_to_unchanged_evictb (itsl: TL.eac_log {I.length itsl > 0 }) (k:
   | EvictB _ _ ->
 
     (* the verifier checks that store contains k before evicting *)
+    // assert(V.store_contains st' k);
+
+    (* the eac_value is stored value *)
+    lemma_eac_value_is_stored_value itsl' k tid;
+    // assert(eac_value itsl' k = V.stored_value st' k);
+
+    (* since k is in st', its EAC state is EACInStore *)
+    lemma_instore_implies_eac_state_instore itsl' k tid;
+    // assert(EACInStore? es');
+    // assert(EACEvictedBlum? es);
+
+    (* the value recorded in extended e (ee) is the stored value *)
+    lemma_ext_evict_val_is_stored_val itsl (n - 1);
+    // assert(value_ext ee = V.stored_value st' k);
+
+    (* the value in the EAC state es is the value from ee *)
+    // assert(EACEvictedBlum?.v es = value_ext ee);
+
+    (* the eac_value of k after processing e is the value in EAC state es *)
+    lemma_eac_value_is_evicted_value itsl k;
+    // assert(eac_value itsl k = EACEvictedBlum?.v es);
+
+    (* the previous equalities imply, the eac_value of k remains unchanged when processing e *)
+    // assert(eac_value itsl k = eac_value itsl' k);
+
+    ()                 
+
+let lemma_points_to_unchanged_evictbm (itsl: TL.eac_log {I.length itsl > 0 }) (k: merkle_key) (c: bin_tree_dir):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   V.key_of e = k /\ EvictBM? e))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in 
+                  let v = eac_merkle_value itsl k in
+                  let v' = eac_merkle_value itsl' k in
+                  mv_points_to_none v c && mv_points_to_none v' c || 
+                  mv_points_to_some v c && mv_points_to_some v' c && 
+                  mv_pointed_key v c = mv_pointed_key v' c)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let e = I.index itsl (n - 1) in
+  let ee = TL.vlog_entry_ext_at itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let vs = TL.thread_state itsl tid in
+  let vs' = TL.thread_state itsl' tid in
+
+  lemma_fullprefix_equal itsl;
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  // assert(vs == t_verify_step vs' e);
+
+  let es' = TL.eac_state_of_key itsl' k in
+  let es = TL.eac_state_of_key itsl k in
+  lemma_eac_state_transition itsl (n - 1);
+  // assert(es = eac_add ee es');
+
+  (* both es and es' are non-fail states *)
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  // assert(es <> EACFail && es' <> EACFail);  
+
+  (* thread store before processing e *)
+  let st' = TL.thread_store itsl' tid in
+
+  match e with
+  | EvictBM _ _ _ ->
+
+    (* the verifier checks that store contains k before evicting *)
     assert(V.store_contains st' k);
 
     (* the eac_value is stored value *)
@@ -253,19 +320,19 @@ let lemma_points_to_unchanged_evictb (itsl: TL.eac_log {I.length itsl > 0 }) (k:
 
     (* the value recorded in extended e (ee) is the stored value *)
     lemma_ext_evict_val_is_stored_val itsl (n - 1);
-    assert(value_ext ee = V.stored_value st' k);
+    // assert(value_ext ee = V.stored_value st' k);
 
     (* the value in the EAC state es is the value from ee *)
-    assert(EACEvictedBlum?.v es = value_ext ee);
+    // assert(EACEvictedBlum?.v es = value_ext ee);
 
     (* the eac_value of k after processing e is the value in EAC state es *)
     lemma_eac_value_is_evicted_value itsl k;
-    assert(eac_value itsl k = EACEvictedBlum?.v es);
+    // assert(eac_value itsl k = EACEvictedBlum?.v es);
 
     (* the previous equalities imply, the eac_value of k remains unchanged when processing e *)
-    assert(eac_value itsl k = eac_value itsl' k);
+    // assert(eac_value itsl k = eac_value itsl' k);
 
-    ()                 
+    ()
 
 (* A log entry not referencing key k does not affect the eac_value of k *)
 let lemma_points_to_unchanged (itsl: TL.eac_log{I.length itsl > 0}) (k:merkle_key) (c:bin_tree_dir):
@@ -294,8 +361,7 @@ let lemma_points_to_unchanged (itsl: TL.eac_log{I.length itsl > 0}) (k:merkle_ke
     | EvictM _ _ -> lemma_points_to_unchanged_evictm itsl k c
     | AddB _ _ _ -> lemma_points_to_unchanged_addb itsl k c
     | EvictB _ _ -> lemma_points_to_unchanged_evictb itsl k c    
-    | _ ->
-    admit()
+    | EvictBM _ _ _ -> lemma_points_to_unchanged_evictbm itsl k c
   )
 
 (* for a merkle key k, the eac_value along direction c is either empty or points to a descendant *)
