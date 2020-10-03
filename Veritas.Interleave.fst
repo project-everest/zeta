@@ -701,5 +701,7 @@ let interleave_step (#a:eqtype) (il:interleaving a { length il > 0 })
       in
       aux il
 
-
-      
+let lemma_fullprefix_equal (#a:eqtype) (il: interleaving a):
+  Lemma (requires True)
+        (ensures (prefix il (length il) == il)) = 
+  admit()

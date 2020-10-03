@@ -262,3 +262,12 @@ val lemma_extendcut_prev2
                   root_reachable (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) /\
                   d = prev_in_path (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) Root)
 
+(* 
+ * The setup is (Root -> a) and (Root -> d) and d is a proper descendant of a, 
+ * then a points to some ancestor of d 
+ *)
+val lemma_reachable_between (pf: ptrfn) (d: bin_tree_node) (a: bin_tree_node):
+  Lemma (requires (root_reachable pf d /\ is_proper_desc d a /\ root_reachable pf a))
+        (ensures (let c = desc_dir d a in
+                  points_to_some pf a c /\ 
+                  is_desc d (pointed_node pf a c))) 

@@ -459,6 +459,9 @@ let lemma_non_eac_instore_evictb
     match ee with
     | EvictBlum (EvictB k t) v' tid' ->
       (* otherwise there won't be an eac failure *)
+      assume(DVal? v && v' <> v || m <> BAdd);
+            
+      (* otherwise there won't be an eac failure *)
       // assert(DVal? v && v' <> v || m <> BAdd);
 
       (* the thread store of tid contains k *)
@@ -488,7 +491,7 @@ let lemma_non_eac_instore_evictb
       lemma_ext_evict_val_is_stored_val itsl i;
       // assert(v' = stored_value itsli k);
 
-      hash_collision_contra()
+      hash_collision_contra()      
   )
 
 

@@ -188,3 +188,7 @@ val interleave_step (#a:eqtype) (il:interleaving a { length il > 0 })
         tid <> tid' ==>
         Seq.index (s_seq il) tid' ==
         Seq.index (s_seq il') tid'))
+
+val lemma_fullprefix_equal (#a:eqtype) (il: interleaving a):
+  Lemma (requires True)
+        (ensures (prefix il (length il) == il))

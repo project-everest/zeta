@@ -56,11 +56,14 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
     | NEvict (Put _ v') -> if (DVal? v) then EACInStore m (DVal v')
                            else EACFail
     | EvictMerkle (EvictM _ _) v' -> if DVal? v && v' <> v then EACFail
-                               else EACEvictedMerkle v
+                                     else if MVal? v && not (MVal? v') then EACFail  
+                                     else EACEvictedMerkle v'
     | EvictBlum (EvictBM k k' t) v' j -> if DVal? v && v' <> v || m <> MAdd then EACFail
-                                  else EACEvictedBlum v t j
+                                         else if MVal? v && not (MVal? v') then EACFail
+                                         else EACEvictedBlum v' t j
     | EvictBlum (EvictB _ t) v' j ->  if DVal? v && v' <> v || m <> BAdd then EACFail
-                                else EACEvictedBlum v t j
+                                      else if MVal? v && not (MVal? v') then EACFail
+                                      else EACEvictedBlum v' t j
     | _ -> EACFail
     )
 
