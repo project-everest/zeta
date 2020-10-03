@@ -364,6 +364,101 @@ let lemma_points_to_unchanged (itsl: TL.eac_log{I.length itsl > 0}) (k:merkle_ke
     | EvictBM _ _ _ -> lemma_points_to_unchanged_evictbm itsl k c
   )
 
+let lemma_eac_value_empty_or_points_to_desc_addmA
+  (itsl: TL.eac_log {I.length itsl > 0})
+  (k:merkle_key)
+  (c:bin_tree_dir):
+  Lemma (requires (let n = I.length itsl in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   let e = I.index itsl (n - 1) in                   
+                   let v' = eac_merkle_value itsl' k in
+                   V.key_of e = k /\ AddM? e /\
+                   (mv_points_to_none v' c \/
+                    mv_points_to_some v' c /\ is_desc (mv_pointed_key v' c) (child c k))))
+         (ensures (let v = eac_merkle_value itsl k in
+                   mv_points_to_none v c \/
+                   mv_points_to_some v c /\ is_desc (mv_pointed_key v c) (child c k))) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let e = I.index itsl (n - 1) in
+  let ee = TL.vlog_entry_ext_at itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let vs = TL.thread_state itsl tid in
+  let vs' = TL.thread_state itsl' tid in
+
+  lemma_fullprefix_equal itsl;
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  // assert(vs == t_verify_step vs' e);
+
+  let es' = TL.eac_state_of_key itsl' k in
+  let es = TL.eac_state_of_key itsl k in
+  lemma_eac_state_transition itsl (n - 1);
+  // assert(es = eac_add ee es');
+
+  (* both es and es' are non-fail states *)
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  // assert(es <> EACFail && es' <> EACFail);  
+
+  (* thread store before processing e *)
+  let st' = TL.thread_store itsl' tid in
+  (* thread store after processing e *)
+  let st = TL.thread_store itsl tid in
+  match e with
+  | AddM (_,v) k' ->
+    (* verifier checks *)
+    // assert(is_proper_desc k k');
+    // assert(V.store_contains st' k');
+    // assert(is_value_of k v);
+
+    let v' = to_merkle_value (V.stored_value st' k') in
+    let c' = desc_dir k k' in
+    let dh' = desc_hash_dir v' c' in
+    match dh' with
+    | Empty -> 
+      // assert(v = init_value k);
+      // assert(V.store_contains st k);      
+      // assert(V.stored_value st k = v);
+      lemma_eac_value_is_stored_value itsl k tid
+      
+    | Desc k2 _ _ ->
+      if k2 = k then (
+        // assert(V.stored_value st k = v);        
+        lemma_eac_value_is_stored_value itsl k tid;
+        // assert(eac_value itsl k = v);
+
+        if init_value k = v then ()       (* value points to none *)
+        else (
+          // assert(EACEvictedMerkle? es');
+          lemma_eac_value_is_evicted_value itsl' k;
+          // assert(eac_value itsl' k = EACEvictedMerkle?.v es');
+          // assert(EACEvictedMerkle?.v es' = v);
+          // assert(eac_value itsl' k = eac_value itsl k);
+
+          ()
+        )
+      )
+      else 
+        //assert(v = init_value k);
+        //assert(is_proper_desc k2 k);
+        lemma_eac_value_is_stored_value itsl k tid
+      
+let lemma_eac_value_empty_or_points_to_desc_addmB
+  (itsl: TL.eac_log {I.length itsl > 0})
+  (k:merkle_key)
+  (c:bin_tree_dir):
+  Lemma (requires (let n = I.length itsl in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   let e = I.index itsl (n - 1) in                   
+                   let v' = eac_merkle_value itsl' k in
+                   AddM? e /\ AddM?.k' e  = k /\
+                   (mv_points_to_none v' c \/
+                    mv_points_to_some v' c /\ is_desc (mv_pointed_key v' c) (child c k))))
+         (ensures (let v = eac_merkle_value itsl k in
+                   mv_points_to_none v c \/
+                   mv_points_to_some v c /\ is_desc (mv_pointed_key v c) (child c k))) = 
+  admit()
+
 (* for a merkle key k, the eac_value along direction c is either empty or points to a descendant *)
 let rec lemma_eac_value_empty_or_points_to_desc
   (itsl: TL.eac_log)
@@ -383,16 +478,24 @@ let rec lemma_eac_value_empty_or_points_to_desc
   else 
     let itsl' = I.prefix itsl (n - 1) in
     let e = I.index itsl (n - 1) in
-    
-    if updates_points_to e k then (      
-      admit()
-    )
-    else (
-      lemma_points_to_unchanged itsl k c;
-      lemma_eac_value_empty_or_points_to_desc itsl' k c
-    )
-  
 
+    lemma_eac_value_empty_or_points_to_desc itsl' k c;
+
+    if updates_points_to e k then (
+      match e with
+      | AddM (k1,_) k2 ->
+        (* otherwise, update_points_to is false *)
+        assert(k1 = k || k2 = k);
+
+
+        if k1 = k then           
+          lemma_eac_value_empty_or_points_to_desc_addmA itsl k c        
+        else
+          lemma_eac_value_empty_or_points_to_desc_addmB itsl k c
+    )
+    else 
+      lemma_points_to_unchanged itsl k c
+      
 let eac_ptrfn_aux (itsl: TL.eac_log) (n:bin_tree_node) (c:bin_tree_dir):
   option (d:bin_tree_node{is_desc d (child c n)}) = 
   if depth n >= key_size then None
