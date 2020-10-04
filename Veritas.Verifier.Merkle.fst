@@ -714,6 +714,94 @@ let lemma_not_init_equiv_root_reachable_extend_ptrfn_unchanged (itsl: TL.eac_log
  (* since e is not AddM, the EAC initness property does not change as well *)
  lemma_ptrfn_unchanged_implies_initness_unchanged itsl k
 
+(* three type of edge additions due to AddM (k,_) k' *)
+type addm_type = 
+  | NoNewEdge         (* common case: no new added; k' points k *)
+  | NewEdge           (* new edge added: k' points to none along k direction *)
+  | CutEdge           (* cut an existing edge: k' points to k2, is_proper_desc k2 k *)
+
+(* type of an addm based on the edge additions it induces *)
+let type_of_addm (itsl: TL.eac_log) 
+                 (i: I.seq_index itsl { AddM? (I.index itsl i)}): addm_type = 
+  let tid = TL.thread_id_of itsl i in                 
+  let e = I.index itsl i in           
+  
+  let lpre = I.prefix itsl i in
+  let vspre = TL.thread_state lpre tid in
+  let stpre = TL.thread_store lpre tid in
+  
+  let lpost = I.prefix itsl (i + 1) in
+  let vspost = TL.thread_state lpost tid in
+  let stpost = TL.thread_store lpost tid in
+
+  lemma_verifier_thread_state_extend itsl i;
+  assert(vspost == t_verify_step vspre e);
+
+  match e with
+  | AddM (k,_) k' ->    
+    let v' = to_merkle_value (V.stored_value stpre k') in
+    let d = desc_dir k k' in
+    let dh' = desc_hash_dir v' d in
+    match dh' with
+    | Empty -> NewEdge
+    | Desc k2 _ _ -> if k2 = k then NoNewEdge
+                     else CutEdge
+
+let lemma_ptrfn_unchanged_addm_caseA (itsl: TL.eac_log {I.length itsl > 0}) (k: merkle_key) (c: bin_tree_dir):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   AddM? e /\ type_of_addm itsl (n - 1) = NoNewEdge  /\
+                   V.key_of e = k))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  eac_ptrfn itsl k c = eac_ptrfn itsl' k c)) = admit()
+
+let lemma_ptrfn_unchanged_addm_caseB (itsl: TL.eac_log {I.length itsl > 0}) (k: merkle_key) (c: bin_tree_dir):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   AddM? e /\ type_of_addm itsl (n - 1) = NoNewEdge  /\
+                   AddM?.k' e = k))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  eac_ptrfn itsl k c = eac_ptrfn itsl' k c)) = admit()
+
+(* the ptr fn remains unchanged if the addm type is "nonewedge" *)
+let lemma_ptrfn_noedge (itsl: TL.eac_log {I.length itsl > 0}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   AddM? e /\ type_of_addm itsl (n - 1) = NoNewEdge))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  feq_ptrfn (eac_ptrfn itsl) (eac_ptrfn itsl'))) = 
+  let n = I.length itsl in
+  let pf = eac_ptrfn itsl in
+  let e = I.index itsl (n - 1) in
+  //let vs = TL.thread_state itsl 
+  
+  let itsl' = I.prefix itsl (n - 1) in
+  let pf' = eac_ptrfn itsl' in
+  
+  let aux (k:merkle_key) (c:bin_tree_dir):
+    Lemma (requires True)
+          (ensures (pf k c = pf' k c))
+          [SMTPat (pf k c)] = 
+    if updates_points_to e k then (             
+      match e with
+      | AddM (k1,_) k2 ->
+        assert(k1 = k || k2 = k);
+
+        if k1 = k then  
+          lemma_ptrfn_unchanged_addm_caseA itsl k c
+        else
+          lemma_ptrfn_unchanged_addm_caseB itsl k c
+    )
+    else (
+      lemma_points_to_unchanged itsl k c;
+      lemma_eac_ptrfn itsl k c
+    )
+  in  
+  ()
+
 (* a key is root reachable iff its eac_state is not EACInit *)
 let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (requires True) 
