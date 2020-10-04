@@ -622,17 +622,31 @@ let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}
   let pf = eac_ptrfn itsl in
   
   if n = 0 then (
+    (* eac state of k is init *)
     lemma_init_state_empty itsl k;
     assert(es = EACInit);
-    
-    
 
+    (* we need to prove not (root_reachable ...) *)    
+    lemma_eac_value_root_init itsl Root;
+    assert(eac_value itsl Root = init_value Root);
+    
+    (* root is a proper ancestor of k *)
+    lemma_root_is_univ_ancestor k;
+    assert(is_proper_desc k Root);
+
+    (* direction of k from Root *)
+    let c = desc_dir k Root in
+
+    (* root points to None *)
+    lemma_eac_ptrfn itsl Root c;
+    assert(None = pf Root c);
+
+    (* since Root points to None in direction c, k is not reachable *)
+    lemma_non_reachable_desc_of_none pf k Root
+  )
+  else (
     admit()
   )
-  else
-
-
-  admit()
 
 let rec first_root_reachable_ancestor (itsl: TL.eac_log) (k:key):
   Tot (k':key{root_reachable itsl k' /\
