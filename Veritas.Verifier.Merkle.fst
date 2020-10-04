@@ -653,26 +653,46 @@ let lemma_ptrfn_unchanged_implies_initness_unchanged (itsl: TL.eac_log {I.length
   
   lemma_eac_state_of_key_valid itsl k;
   lemma_eac_state_of_key_valid itsl' k;
-  assert(es <> EACFail && es' <> EACFail);  
+  // assert(es <> EACFail && es' <> EACFail);  
 
   (* nothing to prove if es and es' are equal *)
   if es = es' then ()
+  
+  (* also nothing to prove if neither es es' are EACInit *)
+  else if es <> EACInit && es' <> EACInit then ()
 
   else if es = EACInit then (
     (* since es is EACInit, there is no entry of key k in itsl *)
     lemma_eac_state_init_no_entry itsl k;
-    assert(not (has_some_entry_of_key itsl k));
+    // assert(not (has_some_entry_of_key itsl k));
 
     (* since es' is not EACInit, there is a previous add of k in itsl', which provides a contradiction *)
     lemma_eac_state_active_implies_prev_add itsl' k;
-    assert(has_some_add_of_key itsl' k);
+    // assert(has_some_add_of_key itsl' k);
 
     (* the index of the last add *)
     let i = last_index (is_add_of_key k) (I.i_seq itsl') in
     lemma_last_index_correct2 (is_entry_of_key k) (I.i_seq itsl) i
   )
-  else 
-    admit()
+  else (
+    assert(es' = EACInit && es <> EACInit);
+    let e = I.index itsl (n - 1) in       
+    let ee = TL.vlog_entry_ext_at itsl (n - 1) in
+    
+    lemma_fullprefix_equal itsl;
+
+    (* if the key of the last entry is k, then we know tha es is obtained from es' by eac_add *)
+    (* this would imply that e is an AddM providing a contradiction (not (may_change_ptrfn)) *)
+    if V.key_of e = k then 
+      
+      lemma_eac_state_transition itsl (n - 1)
+      // assert(es = eac_add ee es');      
+      // assert(AddM? e);
+
+    (* if the key of e is not k, the es = es', which provides a contradiction *)
+    else
+      lemma_eac_state_same itsl (n - 1) k
+  )
 
 let lemma_not_init_equiv_root_reachable_extend_ptrfn_unchanged (itsl: TL.eac_log {I.length itsl > 0}) (k:key {k <> Root}):
   Lemma (requires (let n = I.length itsl in
