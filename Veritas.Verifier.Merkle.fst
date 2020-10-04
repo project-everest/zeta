@@ -612,6 +612,88 @@ let root_reachable (itsl: TL.eac_log) (k:key): bool =
   let pf = eac_ptrfn itsl in
   BP.root_reachable pf k
 
+(* only merkle adds may change the pointer function *)
+let may_change_ptrfn (e: vlog_entry): bool = 
+  match e with
+  | AddM _ _ -> true
+  | _ -> false
+
+let lemma_ptrfn_unchanged_aux (itsl: TL.eac_log {I.length itsl > 0}) (k:merkle_key) (c:bin_tree_dir):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   not (may_change_ptrfn e)))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in        
+                  eac_ptrfn itsl k c = eac_ptrfn itsl' k c)) 
+        [SMTPat (eac_ptrfn itsl k c)] =                  
+  lemma_points_to_unchanged itsl k c;
+  lemma_eac_ptrfn itsl k c
+
+let lemma_ptrfn_unchanged (itsl: TL.eac_log {I.length itsl > 0}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   not (may_change_ptrfn e)))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  feq_ptrfn (eac_ptrfn itsl) (eac_ptrfn itsl'))) =                     
+  ()
+
+let lemma_ptrfn_unchanged_implies_initness_unchanged (itsl: TL.eac_log {I.length itsl > 0}) (k:key {k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   not (may_change_ptrfn e)))
+         (ensures (let n = I.length itsl in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   is_eac_state_init itsl' k = is_eac_state_init itsl k)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in                   
+  let es' = TL.eac_state_of_key itsl' k in
+  let es = TL.eac_state_of_key itsl k in
+  
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  assert(es <> EACFail && es' <> EACFail);  
+
+  (* nothing to prove if es and es' are equal *)
+  if es = es' then ()
+
+  else if es = EACInit then (
+    (* since es is EACInit, there is no entry of key k in itsl *)
+    lemma_eac_state_init_no_entry itsl k;
+    assert(not (has_some_entry_of_key itsl k));
+
+    (* since es' is not EACInit, there is a previous add of k in itsl', which provides a contradiction *)
+    lemma_eac_state_active_implies_prev_add itsl' k;
+    assert(has_some_add_of_key itsl' k);
+
+    (* the index of the last add *)
+    let i = last_index (is_add_of_key k) (I.i_seq itsl') in
+    lemma_last_index_correct2 (is_entry_of_key k) (I.i_seq itsl) i
+  )
+  else 
+    admit()
+
+let lemma_not_init_equiv_root_reachable_extend_ptrfn_unchanged (itsl: TL.eac_log {I.length itsl > 0}) (k:key {k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   not (may_change_ptrfn e) /\
+                   (not (is_eac_state_init itsl' k) <==> root_reachable itsl' k)))                   
+        (ensures (not (is_eac_state_init itsl k) <==> root_reachable itsl k)) =  
+ let n = I.length itsl in
+ let pf = eac_ptrfn itsl in
+ let itsl' = I.prefix itsl (n - 1) in 
+ let pf' = eac_ptrfn itsl' in
+  
+ (* the pointer functions of itsl and itsl' are the same, so root_reachability is unaffected *)        
+ lemma_ptrfn_unchanged itsl;
+ lemma_reachable_feq pf pf' k Root;
+ assert(root_reachable itsl k = root_reachable itsl' k);
+
+ (* since e is not AddM, the EAC initness property does not change as well *)
+ lemma_ptrfn_unchanged_implies_initness_unchanged itsl k
+
 (* a key is root reachable iff its eac_state is not EACInit *)
 let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (requires True) 
@@ -645,7 +727,18 @@ let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}
     lemma_non_reachable_desc_of_none pf k Root
   )
   else (
-    admit()
+    let itsl' = I.prefix itsl (n - 1) in
+    let e = I.index itsl (n - 1) in
+
+    (* induction *)
+    lemma_not_init_equiv_root_reachable itsl' k;
+
+
+    match e with
+    | AddM _ _ -> admit()
+    | _ ->
+      assert(not (may_change_ptrfn e));
+      lemma_not_init_equiv_root_reachable_extend_ptrfn_unchanged itsl k
   )
 
 let rec first_root_reachable_ancestor (itsl: TL.eac_log) (k:key):
