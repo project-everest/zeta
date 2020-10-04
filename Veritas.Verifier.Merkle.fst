@@ -457,7 +457,46 @@ let lemma_eac_value_empty_or_points_to_desc_addmB
          (ensures (let v = eac_merkle_value itsl k in
                    mv_points_to_none v c \/
                    mv_points_to_some v c /\ is_desc (mv_pointed_key v c) (child c k))) = 
-  admit()
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let e = I.index itsl (n - 1) in
+  let ee = TL.vlog_entry_ext_at itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let vs = TL.thread_state itsl tid in
+  let vs' = TL.thread_state itsl' tid in
+
+  lemma_fullprefix_equal itsl;
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  // assert(vs == t_verify_step vs' e);
+
+  let es' = TL.eac_state_of_key itsl' k in
+  let es = TL.eac_state_of_key itsl k in
+  lemma_eac_state_transition itsl (n - 1);
+  // assert(es = eac_add ee es');
+
+  (* both es and es' are non-fail states *)
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  // assert(es <> EACFail && es' <> EACFail);  
+
+  (* thread store before processing e *)
+  // let st' = TL.thread_store itsl' tid in
+  (* thread store after processing e *)
+  // let st = TL.thread_store itsl tid in
+  match e with
+  | AddM (k1,v1) _ ->                     
+    (* verifier checks *)
+    // assert(is_proper_desc k1 k);
+    // assert(V.store_contains st' k);
+    // let v' = to_merkle_value (V.stored_value st' k) in
+    // let c' = desc_dir k1 k in
+    // let dh' = desc_hash_dir v' c' in
+    // let h1 = hashfn v1 in
+  
+    (* store contains k after processing e *)
+    // assert(V.store_contains st k);
+    lemma_eac_value_is_stored_value itsl k tid;
+    lemma_eac_value_is_stored_value itsl' k tid
 
 (* for a merkle key k, the eac_value along direction c is either empty or points to a descendant *)
 let rec lemma_eac_value_empty_or_points_to_desc
