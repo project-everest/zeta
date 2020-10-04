@@ -13,6 +13,38 @@ let updates_points_to (e: vlog_entry) (k: merkle_key): bool =
   | AddM (k1,_) k2 -> k1 = k || k2 = k  
   | _ -> false
 
+let lemma_points_to_unchanged_caseA_root (itsl: TL.eac_log{I.length itsl > 0}) (c:bin_tree_dir):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let ke = V.key_of e in
+                   not (updates_points_to e Root) /\ ke <> Root))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in 
+                  let v = eac_merkle_value itsl Root in
+                  let v' = eac_merkle_value itsl' Root in
+                  mv_points_to_none v c && mv_points_to_none v' c || 
+                  mv_points_to_some v c && mv_points_to_some v' c && 
+                  mv_pointed_key v c = mv_pointed_key v' c)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let e = I.index itsl (n - 1) in
+  let ke = V.key_of e in
+
+  lemma_fullprefix_equal itsl;
+  lemma_root_in_store0 itsl;
+  lemma_root_in_store0 itsl';
+
+  lemma_eac_value_is_stored_value itsl' Root 0;
+  lemma_eac_value_is_stored_value itsl Root 0;
+
+  (* thread id where element e goes *)
+  let tid = thread_id_of itsl (n - 1) in
+
+  if tid = 0 then 
+    lemma_verifier_thread_state_extend itsl (n - 1)  
+  else
+    lemma_verifier_thread_state_extend2 itsl (n - 1) 0
+    
 let lemma_points_to_unchanged_caseA (itsl: TL.eac_log{I.length itsl > 0}) (k:merkle_key) (c:bin_tree_dir):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
@@ -25,6 +57,9 @@ let lemma_points_to_unchanged_caseA (itsl: TL.eac_log{I.length itsl > 0}) (k:mer
                   mv_points_to_none v c && mv_points_to_none v' c || 
                   mv_points_to_some v c && mv_points_to_some v' c && 
                   mv_pointed_key v c = mv_pointed_key v' c)) = 
+   if k = Root then lemma_points_to_unchanged_caseA_root itsl c
+   else
+
    let n = I.length itsl in
    let itsl' = I.prefix itsl (n - 1) in
    let e = I.index itsl (n - 1) in
@@ -512,7 +547,11 @@ let rec lemma_eac_value_empty_or_points_to_desc
 
   if n = 0 then (
     lemma_init_state_empty itsl k;
-    lemma_eac_value_init itsl k
+
+    if k = Root then
+      lemma_eac_value_root_init itsl k
+    else
+      lemma_eac_value_init itsl k
   )
   else 
     let itsl' = I.prefix itsl (n - 1) in
@@ -574,8 +613,25 @@ let root_reachable (itsl: TL.eac_log) (k:key): bool =
   BP.root_reachable pf k
 
 (* a key is root reachable iff its eac_state is not EACInit *)
-let lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}):
-  Lemma (not (is_eac_state_init itsl k) <==> root_reachable itsl k) = 
+let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}):
+  Lemma (requires True) 
+        (ensures (not (is_eac_state_init itsl k) <==> root_reachable itsl k))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let es = TL.eac_state_of_key itsl k in
+  let pf = eac_ptrfn itsl in
+  
+  if n = 0 then (
+    lemma_init_state_empty itsl k;
+    assert(es = EACInit);
+    
+    
+
+    admit()
+  )
+  else
+
+
   admit()
 
 let rec first_root_reachable_ancestor (itsl: TL.eac_log) (k:key):

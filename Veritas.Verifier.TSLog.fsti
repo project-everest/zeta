@@ -389,6 +389,10 @@ val lemma_clock_ordering (itsl: its_log) (i1 i2: I.seq_index itsl):
 val lemma_init_state_empty (itsl: its_log {I.length itsl = 0}) (k: key):
   Lemma (eac_state_of_key itsl k = EACInit)
 
-val lemma_eac_value_init (itsl: eac_log) (k:key):
+val lemma_eac_value_init (itsl: eac_log) (k:key{k <> Root}):
   Lemma (requires (is_eac_state_init itsl k))
         (ensures (eac_value itsl k = init_value k))
+
+(* TODO: oddly enough, this fails if we hardcode k = Root in the statement of the lemma *)
+val lemma_eac_value_root_init (itsl: eac_log {I.length itsl = 0}) (k:key{k = Root}):
+  Lemma (eac_value itsl k = init_value k)
