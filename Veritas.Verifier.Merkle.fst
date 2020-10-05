@@ -1089,18 +1089,93 @@ let lemma_not_init_equiv_root_reachable_extend_addm_key
                    not_init_equiv_root_reachable itsl' (AddM?.k' e)))
         (ensures (not_init_equiv_root_reachable itsl k)) =
   let n = I.length itsl in
-  let itsl' = I.prefix itsl (n - 1) in
   let e = I.index itsl (n - 1) in
+  let k = V.key_of e in
+  let k' = AddM?.k' e in
+  let tid = TL.thread_id_of itsl (n-1) in  
+  let pf = eac_ptrfn itsl in
+
+  let itsl' = I.prefix itsl (n - 1) in
+  let vs = TL.thread_state itsl tid in
+  let vs' = TL.thread_state itsl' tid in
+  let pf' = eac_ptrfn itsl' in
+
   lemma_fullprefix_equal itsl;
   lemma_verifier_thread_state_extend itsl (n-1);
 
-  match e with
-  | AddM (k,_) k' ->
+  let es' = TL.eac_state_of_key itsl' k in
+  let es = TL.eac_state_of_key itsl k in
+  lemma_eac_state_transition itsl (n - 1);
+  
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
 
+  (* thread store before processing e *)
+  let st' = TL.thread_store itsl' tid in
+  assert(V.store_contains st' k');
 
+  let lemma_root_reachable_k' ():
+    Lemma (BP.root_reachable pf' k') = admit()
+  in
+    
+  lemma_root_reachable_k'();
 
-    admit()
+  (* after an AddM, k' always points to k *)
+  lemma_addm_anc_points_to itsl;
+  assert(points_to pf k k');
 
+  (* k is reachable from k' *)
+  lemma_points_to_reachable pf k k';
+  assert(reachable pf k k');
+
+  (* specifies what k points to after the add *)
+  lemma_addm_desc_points_to itsl;
+
+  let c = add_dir itsl (n - 1) in
+
+  let addm_t = type_of_addm itsl (n - 1) in
+  match addm_t with
+  | NoNewEdge -> 
+
+    (* both pf and pf' are equal *)
+    lemma_ptrfn_unchanged_addm_nonewedge itsl;
+    //assert(feq_ptrfn pf pf');
+
+    (* k' is therefore root_reachable in pf *)
+    assert(BP.root_reachable pf k');
+
+    lemma_reachable_transitive pf k k' Root;
+    assert(BP.root_reachable pf k);
+
+    (* eac state of k <> EACInit and k is root reachable, hence proved *)
+    lemma_instore_implies_eac_state_instore itsl k tid
+
+  | NewEdge ->
+    (* pf = extend pf' with (k',k) edge *)
+    lemma_ptrfn_extend_addm_newedge itsl;
+
+    (* extending pf' with (k',k) does not reduce reachability *)
+    lemma_extend_reachable pf' k k' k';
+    assert(BP.root_reachable pf k');
+
+    lemma_reachable_transitive pf k k' Root;
+    assert(BP.root_reachable pf k);
+
+    (* eac state of k <> EACInit and k is root reachable, hence proved *)
+    lemma_instore_implies_eac_state_instore itsl k tid
+
+  | CutEdge ->
+    lemma_ptrfn_extend_addm_cutedge itsl;
+
+    lemma_extendcut_reachable pf' k k' k';
+    assert(BP.root_reachable pf k');
+
+    lemma_reachable_transitive pf k k' Root;
+    assert(BP.root_reachable pf k);
+
+    (* eac state of k <> EACInit and k is root reachable, hence proved *)
+    lemma_instore_implies_eac_state_instore itsl k tid
+    
 (* a key is root reachable iff its eac_state is not EACInit *)
 let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key):
   Lemma (requires True)
