@@ -1000,8 +1000,85 @@ let lemma_ptrfn_extend_addm_newedge (itsl: TL.eac_log {I.length itsl > 0}):
 
     ()
 
+let lemma_ptrfn_extend_addm_cutedge (itsl: TL.eac_log {I.length itsl > 0}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   let pf' = eac_ptrfn itsl' in                   
+                   AddM? e /\
+                   type_of_addm itsl (n - 1) = CutEdge /\
+                   BP.root_reachable pf' (AddM?.k' e)))
+        (ensures (let n = I.length itsl in
+                  let e = I.index itsl (n - 1) in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  let k = V.key_of e in
+                  let k' = AddM?.k' e in
+                  let c = add_dir itsl (n - 1) in
+                  let pf = eac_ptrfn itsl in
+                  let pf' = eac_ptrfn itsl' in
+                  points_to_none pf' k /\
+                  points_to_some pf' k' c /\                  
+                  is_proper_desc (pointed_node pf' k' c) k /\                  
+                  feq_ptrfn pf (extendcut_ptrfn pf' k k'))) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n-1) in  
+  let k = V.key_of e in
+  let k' = AddM?.k' e in
+  let c = add_dir itsl (n - 1) in
+  let pf = eac_ptrfn itsl in
+  let es = TL.eac_state_of_key itsl k in
+  
+  let itsl' = I.prefix itsl (n - 1) in
+  let pf' = eac_ptrfn itsl' in
+  let es' = TL.eac_state_of_key itsl' k in
 
+  lemma_fullprefix_equal itsl;
+  lemma_verifier_thread_state_extend itsl (n-1);
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  lemma_eac_state_transition itsl (n - 1);
+  // assert(es <> EACFail && es' <> EACFail);
 
+  lemma_addm_anc_points_to itsl;
+
+  match e with
+  | AddM (_,v) _ ->
+    // assert(v = init_value k);
+
+    lemma_eac_value_is_stored_value itsl' k' tid;
+    lemma_eac_ptrfn itsl' k' c;
+    // assert(points_to_some pf' k' c);
+
+    lemma_instore_implies_eac_state_instore itsl k tid;
+    // assert(EACInStore? es);
+    // assert(es' = EACInit || EACEvictedMerkle? es');
+
+    (* in pf', k points to none *)
+    let lemma_k_points_to_none():
+      Lemma (points_to_none pf' k) = 
+      if es' = EACInit then
+        lemma_eac_value_init itsl' k
+      else
+        lemma_eac_value_is_evicted_value itsl' k
+    in 
+    lemma_k_points_to_none();
+    lemma_eac_value_is_stored_value itsl k tid;
+
+    let pf'e = extendcut_ptrfn pf' k k' in
+    let aux (k1:bin_tree_node) (c1:bin_tree_dir):
+      Lemma (requires True)
+            (ensures (pf k1 c1 = pf'e k1 c1))
+            [SMTPat (pf k1 c1)] =  
+      if depth k1 >= key_size then ()            
+      else if k1 = k then ()
+      else if k1 = k' then
+        ()
+      else
+        lemma_points_to_unchanged itsl k1 c1
+    in
+                      
+    ()
 
 let lemma_not_init_equiv_root_reachable_extend_addm_key
   (itsl: TL.eac_log {I.length itsl > 0}) (k: key {k <> Root}):
