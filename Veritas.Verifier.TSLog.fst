@@ -436,11 +436,6 @@ let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl)
     let rhs = t_verify_step (t_verify_aux init vlog_tid) (I.index itsl i) in
     t_verify_aux_snoc init vlog_tid (I.index itsl i)
 
-let lemma_verifier_thread_state_extend2 (itsl: its_log) (i: I.seq_index itsl) (tid: valid_tid itsl):
-  Lemma (requires (tid <> thread_id_of itsl i))
-        (ensures (thread_state (I.prefix itsl (i + 1)) tid == 
-                  thread_state (I.prefix itsl i) tid)) = admit()
-
 #reset-options
 
 let mk_vlog_entry_ext (itsl:its_log) (i:I.seq_index itsl) 
@@ -775,6 +770,23 @@ let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
              tid <> tid' ==>
              thread_log (I.s_seq itsl) tid' ==
              thread_log (I.s_seq (I.prefix itsl i)) tid')    
+#pop-options
+
+
+#push-options "--fuel 1,1"
+let lemma_verifier_thread_state_extend2 (itsl: its_log) (i: I.seq_index itsl) (tid: valid_tid itsl)
+  : Lemma (requires (tid <> thread_id_of itsl i))
+          (ensures (thread_state (I.prefix itsl (i + 1)) tid == 
+                    thread_state (I.prefix itsl i) tid)) 
+  = let itsl_i = I.prefix itsl (i + 1) in
+    let itsl_i' = I.prefix itsl_i i in
+    I.lemma_prefix_prefix itsl (i + 1) i;
+    assert (itsl_i' == I.prefix itsl i);
+    I.lemma_i2s_map_prefix itsl (i + 1) i;
+    assert (thread_id_of itsl i == thread_id_of itsl_i i); 
+    run_monitor_step itsl_i Root;
+    assert (thread_log (I.s_seq itsl_i) tid ==
+            thread_log (I.s_seq itsl_i') tid)
 #pop-options
 
 (* when the eac state of a key is "instore" then there is always a previous add *)
@@ -1213,7 +1225,7 @@ let lemma_unique_store_key (itsl: eac_log)
          assert (m.threads tid == t_verify_step (m'.threads tid) v);
          let st' = Valid?.st (m'.threads tid) in
          let st =  Valid?.st (m.threads tid) in
-         let rec aux (tid':valid_tid itsl)
+         let aux (tid':valid_tid itsl)
            : Lemma 
                (requires evicted (m.eacs k))
                (ensures not (store_contains (Valid?.st (m.threads tid')) k))
