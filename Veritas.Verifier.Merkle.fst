@@ -1449,6 +1449,7 @@ let lemma_proving_ancestor_greatest_depth (itsl: TL.eac_log) (k:key{k <> Root}) 
       lemma_desc_depth_monotonic k' k2
   )
   else lemma_first_root_reachable_ancestor_greatest_depth itsl k k2
+  
 
 (* after the first add the proving ancestor always points to self *)
 let lemma_proving_ancestor_points_to_self (itsl: TL.eac_log) (k:key{k <> Root}):
@@ -1456,8 +1457,8 @@ let lemma_proving_ancestor_points_to_self (itsl: TL.eac_log) (k:key{k <> Root}):
         (ensures (mv_points_to (eac_merkle_value itsl (proving_ancestor itsl k))
                                (desc_dir k (proving_ancestor itsl k))
                                k)) =
-  admit()
-
+  lemma_not_init_equiv_root_reachable itsl k
+  
 (* before the first add the proving ancestor points to none or to a key that is not an ancestor *)
 let lemma_proving_ancestor_initial (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (requires (is_eac_state_init itsl k))
