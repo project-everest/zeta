@@ -1096,26 +1096,17 @@ let lemma_not_init_equiv_root_reachable_extend_addm_key
   let pf = eac_ptrfn itsl in
 
   let itsl' = I.prefix itsl (n - 1) in
-  let vs = TL.thread_state itsl tid in
-  let vs' = TL.thread_state itsl' tid in
   let pf' = eac_ptrfn itsl' in
 
   lemma_fullprefix_equal itsl;
   lemma_verifier_thread_state_extend itsl (n-1);
 
-  let es' = TL.eac_state_of_key itsl' k in
-  let es = TL.eac_state_of_key itsl k in
-  lemma_eac_state_transition itsl (n - 1);
-  
-  lemma_eac_state_of_key_valid itsl k;
-  lemma_eac_state_of_key_valid itsl' k;
-
-  (* thread store before processing e *)
-  let st' = TL.thread_store itsl' tid in
-  assert(V.store_contains st' k');
-
   let lemma_root_reachable_k' ():
-    Lemma (BP.root_reachable pf' k') = admit()
+    Lemma (BP.root_reachable pf' k') = 
+    if k' = Root then
+      lemma_reachable_reflexive pf' k'
+    else 
+      lemma_instore_implies_eac_state_instore itsl' k' tid
   in
     
   lemma_root_reachable_k'();
@@ -1175,7 +1166,137 @@ let lemma_not_init_equiv_root_reachable_extend_addm_key
 
     (* eac state of k <> EACInit and k is root reachable, hence proved *)
     lemma_instore_implies_eac_state_instore itsl k tid
+
+let lemma_not_init_equiv_root_reachable_extend_addm_anckey
+  (itsl: TL.eac_log {I.length itsl > 0}) (k: key {k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   let e = I.index itsl (n - 1) in
+                   AddM? e /\ AddM?.k' e = k /\
+                   not_init_equiv_root_reachable itsl' k))
+        (ensures (not_init_equiv_root_reachable itsl k)) = 
+  if k = Root then () 
+  
+  else (
+    let n = I.length itsl in        
+    let e = I.index itsl (n - 1) in    
+    let tid = TL.thread_id_of itsl (n-1) in  
+    let pf = eac_ptrfn itsl in
+    let itsl' = I.prefix itsl (n - 1) in
+    let pf' = eac_ptrfn itsl' in
+
+    lemma_fullprefix_equal itsl;
+    lemma_verifier_thread_state_extend itsl (n-1);
     
+    (* eac state of k is EACInStore in itsl' *)
+    lemma_instore_implies_eac_state_instore itsl' k tid;
+    assert(BP.root_reachable pf' k);
+
+    (* eac state of k is EACInStore in itsl *)
+    lemma_instore_implies_eac_state_instore itsl k tid;
+
+    let c = add_dir itsl (n - 1) in
+    let addm_t = type_of_addm itsl (n - 1) in
+
+    match addm_t with
+    | NoNewEdge -> 
+      (* both pf and pf' are equal *)
+      lemma_ptrfn_unchanged_addm_nonewedge itsl
+
+    | NewEdge ->
+      (* pf = extend pf' with (k',k) edge *)
+      lemma_ptrfn_extend_addm_newedge itsl;
+
+      (* extending pf' with (k',k) does not reduce reachability *)
+      lemma_extend_reachable pf' (V.key_of e) k k
+
+    | CutEdge ->
+      lemma_ptrfn_extend_addm_cutedge itsl;
+
+      lemma_extendcut_reachable pf' (V.key_of e) k k
+  )
+
+let lemma_not_init_equiv_root_reachable_extend_addm_otherkey
+  (itsl: TL.eac_log {I.length itsl > 0}) (ko: key {ko <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   let e = I.index itsl (n - 1) in
+                   AddM? e /\ AddM?.k' e <> ko /\ V.key_of e <> ko /\
+                   not_init_equiv_root_reachable itsl' (AddM?.k' e) /\
+                   not_init_equiv_root_reachable itsl' ko))
+        (ensures (not_init_equiv_root_reachable itsl ko)) = 
+  if ko = Root then () 
+  else (
+    let n = I.length itsl in
+    let e = I.index itsl (n - 1) in
+    let k = V.key_of e in
+    let k' = AddM?.k' e in
+    let tid = TL.thread_id_of itsl (n-1) in  
+    let pf = eac_ptrfn itsl in
+
+    let itsl' = I.prefix itsl (n - 1) in
+    let pf' = eac_ptrfn itsl' in
+
+    lemma_fullprefix_equal itsl;
+    lemma_verifier_thread_state_extend itsl (n-1);
+
+    let es' = TL.eac_state_of_key itsl' ko in
+    let es = TL.eac_state_of_key itsl ko in
+    lemma_eac_state_same itsl (n - 1) ko;
+    lemma_eac_state_of_key_valid itsl ko;
+    assert(es' = es && es <> EACFail);
+
+    let c = add_dir itsl (n - 1) in
+    let addm_t = type_of_addm itsl (n - 1) in
+
+    let lemma_root_reachable_k' ():
+      Lemma (BP.root_reachable pf' k') = 
+      if k' = Root then 
+        lemma_reachable_reflexive pf' k'
+      else 
+        lemma_instore_implies_eac_state_instore itsl' k' tid      
+    in
+      
+    lemma_root_reachable_k'();
+
+    if es' = EACInit then (
+      assert(not (BP.root_reachable pf' ko));
+
+      match addm_t with
+      | NoNewEdge -> 
+        (* both pf and pf' are equal *)
+        lemma_ptrfn_unchanged_addm_nonewedge itsl
+
+      | NewEdge -> 
+        (* pf = extend pf' with (k',k) edge *)
+        lemma_ptrfn_extend_addm_newedge itsl;
+        lemma_extend_not_reachable pf' k k' ko
+
+      | CutEdge ->
+        lemma_ptrfn_extend_addm_cutedge itsl;
+        lemma_extendcut_not_reachable pf' k k' ko
+    )
+    else (
+      assert(BP.root_reachable pf' ko);
+
+      match addm_t with
+      | NoNewEdge -> 
+        (* both pf and pf' are equal *)
+        lemma_ptrfn_unchanged_addm_nonewedge itsl
+
+      | NewEdge -> 
+        (* pf = extend pf' with (k',k) edge *)
+        lemma_ptrfn_extend_addm_newedge itsl;
+        (* extending pf' with (k',k) does not reduce reachability *)
+        lemma_extend_reachable pf' k k' ko
+
+      | CutEdge ->
+        lemma_ptrfn_extend_addm_cutedge itsl;
+        lemma_extendcut_reachable pf' k k' ko
+        
+    )
+  )
+
 (* a key is root reachable iff its eac_state is not EACInit *)
 let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key):
   Lemma (requires True)
@@ -1226,8 +1347,12 @@ let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key):
       lemma_not_init_equiv_root_reachable itsl' k2;
       if k1 = k then
         lemma_not_init_equiv_root_reachable_extend_addm_key itsl k
-      else
-        admit()
+      else if k2 = k then
+        lemma_not_init_equiv_root_reachable_extend_addm_anckey itsl k
+      else (
+        lemma_not_init_equiv_root_reachable itsl' k2;
+        lemma_not_init_equiv_root_reachable_extend_addm_otherkey itsl k
+      )
     | _ ->
       assert(not (may_change_ptrfn e));
       lemma_not_init_equiv_root_reachable_extend_ptrfn_unchanged itsl k
