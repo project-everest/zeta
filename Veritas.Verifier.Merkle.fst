@@ -747,6 +747,44 @@ let type_of_addm (itsl: TL.eac_log)
     | Desc k2 _ _ -> if k2 = k then NoNewEdge
                      else CutEdge
 
+(* direction of the cut_edge from the added key *)
+let cut_edge_dir 
+  (itsl: TL.eac_log) 
+  (i: I.seq_index itsl {AddM? (I.index itsl i) /\ type_of_addm itsl i = CutEdge}): bin_tree_dir = 
+  let tid = TL.thread_id_of itsl i in                 
+  let e = I.index itsl i in             
+  let lpre = I.prefix itsl i in
+
+  let stpre = TL.thread_store lpre tid in  
+  lemma_verifier_thread_state_extend itsl i;
+
+  match e with
+  | AddM (k,_) k' ->    
+    let v' = to_merkle_value (V.stored_value stpre k') in
+    let d = desc_dir k k' in
+    let dh' = desc_hash_dir v' d in
+    match dh' with
+    | Desc k2 _ _ -> 
+      desc_dir k2 k
+
+(* direction of k' -> k in an AddM (k,_) k' *)
+let add_dir
+  (itsl: TL.eac_log)
+  (i: I.seq_index itsl {AddM? (I.index itsl i)}): 
+    (c:bin_tree_dir{ 
+      let e = I.index itsl i in
+      let k = V.key_of e in
+      let k' = AddM?.k' e in
+      is_proper_desc k k' /\ c = desc_dir k k'
+    }) =
+  let tid = TL.thread_id_of itsl i in
+  let e = I.index itsl i in
+  lemma_verifier_thread_state_extend itsl i;
+
+  match e with
+  | AddM (k,_) k' ->
+    desc_dir k k'
+
 (* After an AddM (k,_) k', k' always points to k *)
 let lemma_addm_anc_points_to (itsl: TL.eac_log {I.length itsl > 0}):
   Lemma (requires (let n = I.length itsl in
@@ -757,9 +795,30 @@ let lemma_addm_anc_points_to (itsl: TL.eac_log {I.length itsl > 0}):
                   let k = V.key_of e in
                   let k' = AddM?.k' e in
                   let pf = eac_ptrfn itsl in
-                  is_proper_desc k k' /\ 
-                  BP.points_to pf k k')) = admit()
+                  let itsl' = I.prefix itsl (n - 1) in
+                  let pf' = eac_ptrfn itsl' in
+                  let c = add_dir itsl (n - 1) in
+                  let oc = other_dir c in
+                  pf k' c = Some k /\
+                  pf k' oc = pf' k' oc)) =
+  let n = I.length itsl in
+  let tid = TL.thread_id_of itsl (n-1) in
+  let e = I.index itsl (n-1) in
+  let pf = eac_ptrfn itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let pf' = eac_ptrfn itsl' in
+  let c = add_dir itsl (n - 1) in
+  let k = V.key_of e in
+  let oc = other_dir c in  
+  lemma_fullprefix_equal itsl;
+  lemma_verifier_thread_state_extend itsl (n-1);
 
+  let k' = AddM?.k' e in
+  lemma_eac_value_is_stored_value itsl k' tid;
+  lemma_eac_value_is_stored_value itsl' k' tid;
+  lemma_eac_ptrfn itsl k' c
+
+(* After an AddM (k,_) k', characterizing what k points to *)
 let lemma_addm_desc_points_to (itsl: TL.eac_log {I.length itsl > 0}):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
@@ -773,14 +832,94 @@ let lemma_addm_desc_points_to (itsl: TL.eac_log {I.length itsl > 0}):
                   let pf' = eac_ptrfn itsl' in
                   is_proper_desc k k' /\ 
                   (type_of_addm itsl (n - 1) = NewEdge /\ BP.points_to_none pf k) \/
-                  (type_of_addm itsl (n - 1) = NoNewEdge /\ pf k Left = pf' k Left /\ pf k Right = pf' k Right)))
-                  
-                  = admit()
+                  (type_of_addm itsl (n - 1) = NoNewEdge /\ pf k Left = pf' k Left /\ pf k Right = pf' k Right) \/
+                  (type_of_addm itsl (n - 1) = CutEdge /\ 
+                   points_to_some pf' k' (add_dir itsl (n - 1)) /\
+                   points_to_some pf k (cut_edge_dir itsl (n - 1)) /\
+                   pointed_node pf' k' (add_dir itsl (n - 1)) = 
+                   pointed_node pf k (cut_edge_dir itsl (n - 1))))) =
+  let n = I.length itsl in
+  let tid = TL.thread_id_of itsl (n-1) in
+  let e = I.index itsl (n-1) in
+  let k = V.key_of e in
+  let itsl' = I.prefix itsl (n - 1) in
+  let vs' = TL.thread_state itsl' tid in
+  let st' = TL.thread_store itsl' tid in
+
+  lemma_fullprefix_equal itsl;
+  lemma_verifier_thread_state_extend itsl (n-1);
+
+  let es' = TL.eac_state_of_key itsl' k in
+  let es = TL.eac_state_of_key itsl k in
+  lemma_eac_state_transition itsl (n - 1);
+  lemma_eac_state_of_key_valid itsl' k;
+
+  match e with
+  | AddM (_,v) k' ->
+    lemma_eac_value_is_stored_value itsl k' tid;
+    lemma_eac_value_is_stored_value itsl' k' tid;
+    lemma_eac_value_is_stored_value itsl k tid;
+    lemma_instore_implies_eac_state_instore itsl k tid;
+
+    //assert(es' = EACInit || EACEvictedMerkle? es');
+
+    let v' = to_merkle_value (V.stored_value st' k') in
+    let d = desc_dir k k' in
+    let dh' = desc_hash_dir v' d in
+
+    match dh' with
+    | Empty -> ()
+    | Desc k2 _ _ ->
+      if k2 = k then 
+        if es' = EACInit then 
+          lemma_eac_value_init itsl' k          
+        else     
+          lemma_eac_value_is_evicted_value itsl' k              
+      else ()
   
 let not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key): bool = 
   k = Root ||
   is_eac_state_init itsl k && not (root_reachable itsl k) ||
   not (is_eac_state_init itsl k) && root_reachable itsl k
+
+let lemma_ptrfn_unchanged_addm_nonewedge (itsl: TL.eac_log {I.length itsl > 0}):
+  Lemma (requires (let n = I.length itsl in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   let e = I.index itsl (n - 1) in
+                   AddM? e /\ 
+                   type_of_addm itsl (n - 1) = NoNewEdge))
+         (ensures (let n = I.length itsl in                   
+                   let itsl' = I.prefix itsl (n - 1) in                   
+                   feq_ptrfn (eac_ptrfn itsl) (eac_ptrfn itsl'))) = 
+  let n = I.length itsl in
+  let pf = eac_ptrfn itsl in
+  let tid = TL.thread_id_of itsl (n-1) in  
+  let itsl' = I.prefix itsl (n - 1) in
+  let pf' = eac_ptrfn itsl' in
+  let e = I.index itsl (n - 1) in
+  let k = V.key_of e in
+  let k' = AddM?.k' e in
+  lemma_fullprefix_equal itsl;
+  lemma_verifier_thread_state_extend itsl (n-1);
+  lemma_addm_anc_points_to itsl;
+
+  let c = add_dir itsl (n-1) in
+  let oc = other_dir c in
+  //assert(pf k' c = Some k /\ pf k' oc = pf' k' oc);
+  lemma_eac_value_is_stored_value itsl' k' tid;
+  lemma_eac_ptrfn itsl' k' c;
+  //assert(pf' k' c = pf k' c);
+
+  let aux (k1:merkle_key) (c1:bin_tree_dir):
+    Lemma (requires True)
+          (ensures (pf k1 c1 = pf' k1 c1))
+          [SMTPat (pf k1 c1)] = 
+    if depth k1 >= key_size then ()
+    else if k1 = k then lemma_addm_desc_points_to itsl      
+    else if k1 = k' then ()        
+    else lemma_points_to_unchanged itsl k1 c1         
+  in      
+    ()
 
 let lemma_not_init_equiv_root_reachable_extend_addm_key 
   (itsl: TL.eac_log {I.length itsl > 0}) (k: key {k <> Root}):
@@ -790,7 +929,18 @@ let lemma_not_init_equiv_root_reachable_extend_addm_key
                    AddM? e /\ V.key_of e = k /\
                    not_init_equiv_root_reachable itsl' (AddM?.k' e)))
         (ensures (not_init_equiv_root_reachable itsl k)) = 
-  admit()
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let e = I.index itsl (n - 1) in
+  lemma_fullprefix_equal itsl;
+  lemma_verifier_thread_state_extend itsl (n-1);
+
+  match e with
+  | AddM (k,_) k' ->
+
+         
+
+    admit()
                                      
 (* a key is root reachable iff its eac_state is not EACInit *)
 let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key):
