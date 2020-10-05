@@ -747,71 +747,62 @@ let type_of_addm (itsl: TL.eac_log)
     | Desc k2 _ _ -> if k2 = k then NoNewEdge
                      else CutEdge
 
-let lemma_ptrfn_unchanged_addm_caseA (itsl: TL.eac_log {I.length itsl > 0}) (k: merkle_key) (c: bin_tree_dir):
+(* After an AddM (k,_) k', k' always points to k *)
+let lemma_addm_anc_points_to (itsl: TL.eac_log {I.length itsl > 0}):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
-                   AddM? e /\ type_of_addm itsl (n - 1) = NoNewEdge  /\
-                   V.key_of e = k))
+                   AddM? e))
         (ensures (let n = I.length itsl in
-                  let itsl' = I.prefix itsl (n - 1) in
-                  eac_ptrfn itsl k c = eac_ptrfn itsl' k c)) = admit()
+                  let e = I.index itsl (n - 1) in
+                  let k = V.key_of e in
+                  let k' = AddM?.k' e in
+                  let pf = eac_ptrfn itsl in
+                  is_proper_desc k k' /\ 
+                  BP.points_to pf k k')) = admit()
 
-let lemma_ptrfn_unchanged_addm_caseB (itsl: TL.eac_log {I.length itsl > 0}) (k: merkle_key) (c: bin_tree_dir):
+let lemma_addm_desc_points_to (itsl: TL.eac_log {I.length itsl > 0}):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
-                   AddM? e /\ type_of_addm itsl (n - 1) = NoNewEdge  /\
-                   AddM?.k' e = k))
+                   AddM? e))
         (ensures (let n = I.length itsl in
                   let itsl' = I.prefix itsl (n - 1) in
-                  eac_ptrfn itsl k c = eac_ptrfn itsl' k c)) = admit()
-
-(* the ptr fn remains unchanged if the addm type is "nonewedge" *)
-let lemma_ptrfn_noedge (itsl: TL.eac_log {I.length itsl > 0}):
-  Lemma (requires (let n = I.length itsl in
-                   let e = I.index itsl (n - 1) in
-                   AddM? e /\ type_of_addm itsl (n - 1) = NoNewEdge))
-        (ensures (let n = I.length itsl in
-                  let itsl' = I.prefix itsl (n - 1) in
-                  feq_ptrfn (eac_ptrfn itsl) (eac_ptrfn itsl'))) = 
-  let n = I.length itsl in
-  let pf = eac_ptrfn itsl in
-  let e = I.index itsl (n - 1) in
-  //let vs = TL.thread_state itsl 
+                  let e = I.index itsl (n - 1) in
+                  let k = V.key_of e in
+                  let k' = AddM?.k' e in
+                  let pf = eac_ptrfn itsl in
+                  let pf' = eac_ptrfn itsl' in
+                  is_proper_desc k k' /\ 
+                  (type_of_addm itsl (n - 1) = NewEdge /\ BP.points_to_none pf k) \/
+                  (type_of_addm itsl (n - 1) = NoNewEdge /\ pf k Left = pf' k Left /\ pf k Right = pf' k Right)))
+                  
+                  = admit()
   
-  let itsl' = I.prefix itsl (n - 1) in
-  let pf' = eac_ptrfn itsl' in
-  
-  let aux (k:merkle_key) (c:bin_tree_dir):
-    Lemma (requires True)
-          (ensures (pf k c = pf' k c))
-          [SMTPat (pf k c)] = 
-    if updates_points_to e k then (             
-      match e with
-      | AddM (k1,_) k2 ->
-        assert(k1 = k || k2 = k);
+let not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key): bool = 
+  k = Root ||
+  is_eac_state_init itsl k && not (root_reachable itsl k) ||
+  not (is_eac_state_init itsl k) && root_reachable itsl k
 
-        if k1 = k then  
-          lemma_ptrfn_unchanged_addm_caseA itsl k c
-        else
-          lemma_ptrfn_unchanged_addm_caseB itsl k c
-    )
-    else (
-      lemma_points_to_unchanged itsl k c;
-      lemma_eac_ptrfn itsl k c
-    )
-  in  
-  ()
-
+let lemma_not_init_equiv_root_reachable_extend_addm_key 
+  (itsl: TL.eac_log {I.length itsl > 0}) (k: key {k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   let e = I.index itsl (n - 1) in
+                   AddM? e /\ V.key_of e = k /\
+                   not_init_equiv_root_reachable itsl' (AddM?.k' e)))
+        (ensures (not_init_equiv_root_reachable itsl k)) = 
+  admit()
+                                     
 (* a key is root reachable iff its eac_state is not EACInit *)
-let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}):
+let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key):
   Lemma (requires True) 
-        (ensures (not (is_eac_state_init itsl k) <==> root_reachable itsl k))
+        (ensures (not_init_equiv_root_reachable itsl k))
         (decreases (I.length itsl)) = 
   let n = I.length itsl in
   let es = TL.eac_state_of_key itsl k in
   let pf = eac_ptrfn itsl in
-  
-  if n = 0 then (
+
+  if k = Root then ()
+  else if n = 0 then (
     (* eac state of k is init *)
     lemma_init_state_empty itsl k;
     assert(es = EACInit);
@@ -835,15 +826,24 @@ let rec lemma_not_init_equiv_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}
     lemma_non_reachable_desc_of_none pf k Root
   )
   else (
-    let itsl' = I.prefix itsl (n - 1) in
+    let tid = TL.thread_id_of itsl (n - 1) in  
     let e = I.index itsl (n - 1) in
+    let vs = TL.thread_state itsl tid in    
+    
+    let itsl' = I.prefix itsl (n - 1) in
+    let es' = TL.eac_state_of_key itsl' k in
+    let vs' = TL.thread_state itsl' tid in
 
     (* induction *)
     lemma_not_init_equiv_root_reachable itsl' k;
 
-
     match e with
-    | AddM _ _ -> admit()
+    | AddM (k1,v1) k2 -> 
+      lemma_not_init_equiv_root_reachable itsl' k2;
+      if k1 = k then 
+        lemma_not_init_equiv_root_reachable_extend_addm_key itsl k      
+      else           
+        admit()
     | _ ->
       assert(not (may_change_ptrfn e));
       lemma_not_init_equiv_root_reachable_extend_ptrfn_unchanged itsl k
