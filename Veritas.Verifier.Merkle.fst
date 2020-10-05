@@ -1399,12 +1399,56 @@ let proving_ancestor (itsl: TL.eac_log) (k:key{k <> Root}):
 
 let lemma_proving_ancestor_root_reachable (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (let k' = proving_ancestor itsl k in
-         root_reachable itsl k') = admit()
+         root_reachable itsl k') = ()
+
+let rec lemma_first_root_reachable_ancestor_greatest_depth (itsl: TL.eac_log) (k: key) (k2: key{is_proper_desc k k2}):
+  Lemma (requires (root_reachable itsl k2))
+        (ensures (depth k2 <= depth (first_root_reachable_ancestor itsl k)))
+        (decreases (depth k)) = 
+  let krr = first_root_reachable_ancestor itsl k in
+  lemma_proper_desc_depth_monotonic k k2;
+
+  if root_reachable itsl k then ()    
+  
+  else (
+    let kp = parent k in
+    lemma_parent_ancestor k;
+    // assert(krr == first_root_reachable_ancestor itsl kp);
+
+    lemma_two_ancestors_related k kp k2;
+    if is_desc k2 kp then (      
+      //assert(depth k = depth kp + 1);
+      lemma_desc_depth_monotonic k2 kp;
+      //assert(depth kp = depth k2);
+
+      if k2 = kp then ()
+      else lemma_proper_desc_depth_monotonic k2 kp
+    )
+    else 
+      lemma_first_root_reachable_ancestor_greatest_depth itsl kp k2
+
+  )
 
 let lemma_proving_ancestor_greatest_depth (itsl: TL.eac_log) (k:key{k <> Root}) (k2: key{is_proper_desc k k2}):
   Lemma (requires (root_reachable itsl k2))
         (ensures  (let k' = proving_ancestor itsl k in
-                   depth k2 <= depth k')) = admit()
+                   depth k2 <= depth k')) = 
+  let k' = proving_ancestor itsl k in                   
+  let pf = eac_ptrfn itsl in
+  if root_reachable itsl k then (
+    assert(k' = prev_in_path pf k Root);
+
+    lemma_two_ancestors_related k k' k2;
+    if is_desc k2 k' then (
+
+      if k2 = k' then ()
+      else
+        lemma_desc_of_prev_not_reachable pf k Root k2
+    )
+    else
+      lemma_desc_depth_monotonic k' k2
+  )
+  else lemma_first_root_reachable_ancestor_greatest_depth itsl k k2
 
 (* after the first add the proving ancestor always points to self *)
 let lemma_proving_ancestor_points_to_self (itsl: TL.eac_log) (k:key{k <> Root}):
