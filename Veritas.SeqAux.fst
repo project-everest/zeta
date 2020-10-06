@@ -821,3 +821,17 @@ let intro_has_next (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (k:seq_i
 
 let prev_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
   Tot (option (j:seq_index s{j < i && f (index s j)})) = admit()
+
+let filter_empty (#a:eqtype) (f:a -> bool)
+  : Lemma (filter f Seq.empty `Seq.equal` Seq.empty)
+  = ()
+
+let filter_snoc (#a:eqtype) (f:a -> bool) (s:seq a) (x:a)
+  : Lemma (if f x 
+           then filter f (Seq.snoc s x) `Seq.equal` Seq.snoc (filter f s) x
+           else filter f (Seq.snoc s x) `Seq.equal` filter f s)
+  = assert (Seq.equal (prefix (Seq.snoc s x) (Seq.length s)) s)
+
+let map_upd (#a #b:Type) (f:a -> b) (s:seq a) (i:seq_index s) (x:a)
+  : Lemma (map f (Seq.upd s i x) `Seq.equal` Seq.upd (map f s) i (f x))
+  = ()

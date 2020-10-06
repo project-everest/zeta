@@ -175,6 +175,15 @@ val map_interleave (#a #b:eqtype) (f:a -> b) (s:seq a) (ss:sseq a) (i:interleave
 val map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:seq_index prf)
   : Lemma (ensures (i2s_map prf i == i2s_map (IL _ _ (map_interleave f _ _ (IL?.prf prf))) i))
 
+val filter_map_interleaving (#a #b:eqtype)
+                            (filter: a -> bool)
+                            (f:(refine filter -> b))
+                            (#s:seq a)
+                            (#ss:sseq a)
+                            (i:interleave s ss)
+  : interleave (filter_map filter f s)
+               (map (SA.filter_map filter f) ss)
+
 val interleave_step (#a:eqtype) (il:interleaving a { length il > 0 })
   : Lemma 
     (let i = length il - 1 in

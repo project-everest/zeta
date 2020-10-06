@@ -403,3 +403,34 @@ let has_prev (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s): bool =
 (* the next index satisfying a filter predicate *)
 let prev_index (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{has_prev f s i}): 
   (j:seq_index s{j < i && f (index s j)}) = Some?.v (prev_index_opt f s i)
+
+val filter_empty (#a:eqtype) (f:a -> bool)
+  : Lemma (filter f Seq.empty `Seq.equal` Seq.empty)
+
+val filter_snoc (#a:eqtype) (f:a -> bool) (s:seq a) (x:a)
+  : Lemma (if f x 
+           then filter f (Seq.snoc s x) `Seq.equal` Seq.snoc (filter f s) x
+           else filter f (Seq.snoc s x) `Seq.equal` filter f s)
+
+let filter_map (#a:eqtype) #b 
+               (filter: a -> bool)
+               (f:(refine filter -> b))
+               (s:seq a)
+   : seq b
+   = map f (filter_refine filter s)
+
+let filter_map_snoc (#a:eqtype) (#b:Type)
+                    (filter: a -> bool)
+                    (f:refine filter -> b)
+                    (s:seq a)
+                    (x:a)
+  : Lemma (if filter x
+           then (filter_map filter f (Seq.snoc s x) `Seq.equal`
+                 Seq.snoc (filter_map filter f s) (f x))
+           else (filter_map filter f (Seq.snoc s x) `Seq.equal`
+                 filter_map filter f s))
+  = filter_snoc filter s x
+
+val map_upd (#a #b:Type) (f:a -> b) (s:seq a) (i:seq_index s) (x:a)
+  : Lemma (map f (Seq.upd s i x) `Seq.equal` Seq.upd (map f s) i (f x))
+

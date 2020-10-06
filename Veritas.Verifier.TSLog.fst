@@ -76,7 +76,7 @@ let lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl})
 
 #push-options "--fuel 0,0"
 
-let sseq_same_shape #a #b (s0:sseq a) (s1:sseq b) = 
+let sseq_same_shape #a #b (s0:sseq a) (s1:sseq b) =
   Seq.length s0 = Seq.length s1 /\
   (forall (i:seq_index s0). Seq.length (Seq.index s0 i) = Seq.length (Seq.index s1 i))
 
@@ -88,25 +88,25 @@ let mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
    }
   = Seq.init (Seq.length s) f
 
-let sseq_append #a (ss0:sseq a) (ss1:sseq a{Seq.length ss0 == Seq.length ss1}) 
-  : sseq a 
+let sseq_append #a (ss0:sseq a) (ss1:sseq a{Seq.length ss0 == Seq.length ss1})
+  : sseq a
   = mapi ss0 (fun i -> Seq.append (Seq.index ss0 i) (Seq.index ss1 i))
 
-let ts_sorted_seq (s:seq (vlog_entry & timestamp)) = 
+let ts_sorted_seq (s:seq (vlog_entry & timestamp)) =
   forall (i j:seq_index s).
     i <= j ==>
     snd (Seq.index s i) `ts_leq` snd (Seq.index s j)
 
-let ts_sseq = 
+let ts_sseq =
     s:sseq (vlog_entry & timestamp) {
       forall (i:seq_index s). ts_sorted_seq (Seq.index s i)
     }
 
 let is_min_clock_up_to (s:ts_sseq) (i:nat{ i <= Seq.length s }) (min:sseq_index s)
   =  snd min == 0 /\
-     (forall (j:sseq_index s). 
+     (forall (j:sseq_index s).
        fst j < i ==> snd (indexss s min) `ts_leq` snd (indexss s j))
-    
+
 let min_clock_up_to (s:ts_sseq) (i:nat{ i <= Seq.length s }) =
     min:sseq_index s { is_min_clock_up_to s i min }
 
@@ -127,10 +127,10 @@ let rec pick_min (s:ts_sseq)
         then pick_min s (i + 1) (i,0)
         else (assert (snd (indexss s min) `ts_leq`
                       snd (indexss s (i, 0)));
-              assert (forall (j:sseq_index s). 
+              assert (forall (j:sseq_index s).
                         fst j = i /\
                         snd j >= 0 ==>
-                        snd (indexss s min) `ts_leq` 
+                        snd (indexss s min) `ts_leq`
                         snd (indexss s (i,0)) /\
                         snd (indexss s (i,0)) `ts_leq`
                         snd (indexss s j));
@@ -152,8 +152,8 @@ let rec min_sseq_index(s:ts_sseq)
   = if Seq.length s = 0 then None
     else let prefix, last = Seq.un_snoc s in
          match min_sseq_index prefix with
-         | None -> 
-           if Seq.length last = 0 
+         | None ->
+           if Seq.length last = 0
            then None
            else (
              let min = (Seq.length s - 1, 0) in
@@ -168,8 +168,8 @@ let flat_length_single #a (s:seq a)
   = assert (Seq.equal (create 1 s) (append1 empty s));
     lemma_flat_length_app1 empty s;
     lemma_flat_length_empty #a
-  
-let split_ts_sseq (s:ts_sseq) 
+
+let split_ts_sseq (s:ts_sseq)
   : o:option (i:min_clock s &
               e:(vlog_entry & timestamp){e == indexss s i} &
               s':ts_sseq {
@@ -192,23 +192,23 @@ let split_ts_sseq (s:ts_sseq)
       let s_prefix, s_suffix = Seq.split s (fst j) in
       assert (s_prefix == s'_prefix);
       let x', s'_suffix' = Seq.head s'_suffix, Seq.tail s'_suffix in
-      let x, s_suffix' = Seq.head s_suffix, Seq.tail s_suffix in      
+      let x, s_suffix' = Seq.head s_suffix, Seq.tail s_suffix in
       assert (s'_suffix' == s_suffix');
       assert (Seq.length x' < Seq.length x);
       lemma_flat_length_app s'_prefix s'_suffix;
-      lemma_flat_length_app s_prefix s_suffix;      
+      lemma_flat_length_app s_prefix s_suffix;
       assert (s'_suffix `Seq.equal` Seq.cons x' s'_suffix');
-      assert (s_suffix `Seq.equal` Seq.cons x s_suffix');      
+      assert (s_suffix `Seq.equal` Seq.cons x s_suffix');
       assert (s' `Seq.equal` (Seq.append s'_prefix s'_suffix));
-      assert (s `Seq.equal` (Seq.append s_prefix s_suffix));      
+      assert (s `Seq.equal` (Seq.append s_prefix s_suffix));
       // assert (flat_length s' == flat_length s'_prefix + flat_length s'_suffix);
-      // assert (flat_length s == flat_length s_prefix + flat_length s_suffix);      
+      // assert (flat_length s == flat_length s_prefix + flat_length s_suffix);
       lemma_flat_length_app (create 1 x') s'_suffix';
       // assert (flat_length s'_suffix == flat_length (create 1 x') + flat_length s'_suffix');
-      lemma_flat_length_app (create 1 x) s'_suffix';      
-      // assert (flat_length s_suffix == flat_length (create 1 x) + flat_length s'_suffix');      
+      lemma_flat_length_app (create 1 x) s'_suffix';
+      // assert (flat_length s_suffix == flat_length (create 1 x) + flat_length s'_suffix');
       flat_length_single x;
-      flat_length_single x';      
+      flat_length_single x';
       assert (flat_length s' < flat_length s);
       Some (| j, e, s' |)
 #pop-options
@@ -231,14 +231,14 @@ let coerce_interleave (#a:eqtype) (s:seq a) (s0 s1:sseq a) (i:interleave s s0 { 
   = i
 
 #push-options "--z3rlimit_factor 2"
-let rec interleave_ts_sseq 
+let rec interleave_ts_sseq
          (s0:ts_seq)
-         (ss0:ts_sseq) 
+         (ss0:ts_sseq)
          (ss1:ts_sseq {
            (Seq.length ss0 == Seq.length ss1) /\
            (is_empty_sseq ss1 \/
             (clock_exceeds s0 (get_min_clock ss1) /\
-             (forall (i:seq_index ss0). 
+             (forall (i:seq_index ss0).
                clock_exceeds (Seq.index ss0 i) (get_min_clock ss1))))
           })
          (prefix:interleave s0 ss0)
@@ -249,25 +249,25 @@ let rec interleave_ts_sseq
    = match split_ts_sseq ss1 with
      | None ->
        assert (is_empty_sseq ss1);
-       assert (forall (i:seq_index ss0). 
+       assert (forall (i:seq_index ss0).
                Seq.equal (Seq.index ss0 i)
                          (Seq.append (Seq.index ss0 i) empty));
        assert (Seq.equal ss0 (ss0 `sseq_append` ss1));
        (| s0, prefix |)
-       
+
      | Some (| i, e, ss1' |) ->
        let s0' : ts_seq = append1 s0 e in
-       let prefix' : interleave (append1 s0 e) (sseq_extend ss0 e (fst i)) 
+       let prefix' : interleave (append1 s0 e) (sseq_extend ss0 e (fst i))
          = I.IntExtend s0 ss0 prefix e (fst i)
        in
        let ss0' = sseq_extend ss0 e (fst i) in
        let aux (j:seq_index ss0)
-         : Lemma 
+         : Lemma
            (ensures (Seq.index (sseq_append ss0' ss1') j `Seq.equal` Seq.index (sseq_append ss0 ss1) j))
            [SMTPat (Seq.index (sseq_append ss0' ss1') j)]
          = let v = sseq_append ss0 ss1 in
            let v' = sseq_append ss0' ss1' in
-           if fst i <> j 
+           if fst i <> j
            then ()
            else (
              assert (Seq.index v j == Seq.append (Seq.index ss0 j) (Seq.index ss1 j));
@@ -280,7 +280,7 @@ let rec interleave_ts_sseq
          : Lemma (ensures ts_sorted_seq (Seq.index ss0' j))
                  [SMTPat (Seq.index ss0' j)]
          = if fst i <> j
-           then () 
+           then ()
            else (
              assert (Seq.index ss0' j == Seq.snoc (Seq.index ss0 j) (Seq.head (Seq.index ss1 j)));
              assert (Seq.head (Seq.index ss1 j) == e);
@@ -306,7 +306,7 @@ let rec interleave_ts_sseq
          = assert (clock_exceeds (Seq.index ss0 j) (get_min_clock ss1));
            assert (clock_exceeds (Seq.index ss0 j) (snd e));
            assert (snd e `ts_leq` get_min_clock ss1');
-           if fst i <> j 
+           if fst i <> j
            then (
              assert (Seq.index ss0 j == Seq.index ss0' j)
            )
@@ -326,13 +326,13 @@ let rec interleave_ts_sseq
 let create_tsseq_interleaving (ss:ts_sseq)
   : (s:ts_seq & interleave s ss)
   = let (| s, i |) = interleave_ts_sseq empty (create (Seq.length ss) empty) ss (interleave_empty_n _) in
-    assert (forall (i:seq_index ss). 
-           Seq.index ((create (Seq.length ss) empty) `sseq_append` ss) i 
+    assert (forall (i:seq_index ss).
+           Seq.index ((create (Seq.length ss) empty) `sseq_append` ss) i
            `Seq.equal`
            Seq.index ss i);
     assert (((create (Seq.length ss) empty) `sseq_append` ss) `Seq.equal` ss);
     (| s, coerce_interleave _ _ _ i |)
-    
+
 let with_clock_i (vl:VG.verifiable_log) (i:seq_index vl)
   : s:ts_seq {
       Seq.length s = Seq.length (Seq.index vl i) /\
@@ -341,7 +341,7 @@ let with_clock_i (vl:VG.verifiable_log) (i:seq_index vl)
   = let vl_i = Seq.index vl i in
     let s = mapi vl_i (fun j -> Seq.index vl_i j, VG.clock vl (i, j)) in
     let aux (a b:seq_index s)
-      : Lemma 
+      : Lemma
         (requires a <= b)
         (ensures snd (Seq.index s a) `ts_leq` snd (Seq.index s b))
         [SMTPat (Seq.index s a);
@@ -349,23 +349,23 @@ let with_clock_i (vl:VG.verifiable_log) (i:seq_index vl)
       = VT.lemma_clock_monotonic (VG.thread_log vl i) a b
     in
     s
-  
+
 let ts_seq_of_g_vlog (vl:VG.verifiable_log)
   : s:ts_sseq {
       sseq_same_shape vl s /\
-      (forall (i:sseq_index s). 
+      (forall (i:sseq_index s).
          indexss s i == (indexss vl i, VG.clock vl i))
     }
   = mapi vl (with_clock_i vl)
 
-let map_tsseq (f:(vlog_entry & timestamp) -> 'a) (x:ts_sseq) 
+let map_tsseq (f:(vlog_entry & timestamp) -> 'a) (x:ts_sseq)
   : sseq 'a
   = map (map f) x
 
 let g_vlog_of_ts_sseq (x:ts_sseq)
   : g_vlog
   = map_tsseq fst x
-  
+
 let inverse_g_vlog_ts_seq (vl:VG.verifiable_log)
   : Lemma (g_vlog_of_ts_sseq (ts_seq_of_g_vlog vl) == vl)
   = let ts = ts_seq_of_g_vlog vl in
@@ -377,7 +377,7 @@ let inverse_g_vlog_ts_seq (vl:VG.verifiable_log)
       = ()
     in
     assert (Seq.equal vl' vl)
-  
+
 let create (gl:VG.verifiable_log)
   = let ts = ts_seq_of_g_vlog gl in
     let (| s, tsi |) = create_tsseq_interleaving ts in
@@ -392,29 +392,29 @@ let create (gl:VG.verifiable_log)
       = let i' = i2s_map il i in
         let j' = i2s_map il j in
         map_interleave_i2s fst (IL _ _ tsi) i;
-        map_interleave_i2s fst (IL _ _ tsi) j;        
+        map_interleave_i2s fst (IL _ _ tsi) j;
         assert (VG.clock gl i' == snd (indexss ts i'));
-        assert (VG.clock gl j' == snd (indexss ts j'));        
+        assert (VG.clock gl j' == snd (indexss ts j'));
         lemma_i2s_s2i il i;
-        lemma_i2s_s2i il j;        
-        assert (indexss ts i' == index s (s2i_map il i'));        
-        assert (indexss ts j' == index s (s2i_map il j'));                
+        lemma_i2s_s2i il j;
+        assert (indexss ts i' == index s (s2i_map il i'));
+        assert (indexss ts j' == index s (s2i_map il j'));
         assert (indexss ts i' == index s i);
-        assert (indexss ts j' == index s j);        
+        assert (indexss ts j' == index s j);
         assert (VG.clock gl i' `ts_leq` VG.clock gl j')
     in
     assert (clock_sorted il);
     il
 
 (*thread state after processing ts log - guaranteed to be valid *)
-let thread_state (itsl: its_log) 
-                 (tid: valid_tid itsl) 
+let thread_state (itsl: its_log)
+                 (tid: valid_tid itsl)
   : Tot (vs:vtls{Valid? vs})
   = verify (thread_log (s_seq itsl) tid)
 
 #push-options "--fuel 1,1"
 let t_verify_aux_snoc (vs:vtls) (l:vlog) (e:vlog_entry)
-  : Lemma (ensures 
+  : Lemma (ensures
              t_verify_aux vs (Seq.snoc l e) ==
              t_verify_step (t_verify_aux vs l) e)
           (decreases (Seq.length l))
@@ -422,11 +422,11 @@ let t_verify_aux_snoc (vs:vtls) (l:vlog) (e:vlog_entry)
 #pop-options
 
 let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl)
-  : Lemma (thread_state_post itsl i == 
+  : Lemma (thread_state_post itsl i ==
            t_verify_step (thread_state_pre itsl i) (I.index itsl i))
   = let tid = thread_id_of itsl i in
     let itsl_i = I.prefix itsl i in
-    let vlog_tid = Seq.index (s_seq itsl_i) tid in    
+    let vlog_tid = Seq.index (s_seq itsl_i) tid in
     let itsl_i' = I.prefix itsl (i + 1) in
     let vlog_tid' = Seq.index (s_seq itsl_i') tid in
     I.lemma_prefix_snoc itsl i;
@@ -436,15 +436,10 @@ let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl)
     let rhs = t_verify_step (t_verify_aux init vlog_tid) (I.index itsl i) in
     t_verify_aux_snoc init vlog_tid (I.index itsl i)
 
-let lemma_verifier_thread_state_extend2 (itsl: its_log) (i: I.seq_index itsl) (tid: valid_tid itsl):
-  Lemma (requires (tid <> thread_id_of itsl i))
-        (ensures (thread_state (I.prefix itsl (i + 1)) tid == 
-                  thread_state (I.prefix itsl i) tid)) = admit()
-
 #reset-options
 
-let mk_vlog_entry_ext (itsl:its_log) (i:I.seq_index itsl) 
-  : vlog_entry_ext 
+let mk_vlog_entry_ext (itsl:its_log) (i:I.seq_index itsl)
+  : vlog_entry_ext
   =   let ts = thread_state_pre itsl i in
       let Valid _ st clk _ _ _  = ts in
       let vle = Seq.index (i_seq itsl) i in
@@ -472,11 +467,10 @@ let rec map_mapi_fusion (s:seq 'a) (f:SA.seq_index s -> 'b) (g:'b -> 'c)
 let inverse_to_vlog_vlog_ext_of_vlog_entry (itsl:its_log)
   : Lemma (to_vlog (vlog_ext_of_its_log itsl) `Seq.equal` i_seq itsl)
   = map_mapi_fusion (i_seq itsl) (mk_vlog_entry_ext itsl) to_vlog_entry
-  
+
 (* is this an evict add consistent log *)
 let is_eac (itsl: its_log) : bool =
   Veritas.EAC.is_eac (vlog_ext_of_its_log itsl)
-
 
 #push-options "--query_stats --ifuel 1,1"
 let vlog_ext_of_prefix (itsl:its_log) (i:nat { i <= I.length itsl })
@@ -505,9 +499,9 @@ let eac_boundary (itsl: neac_log)
     assert (Veritas.EAC.is_eac (prefix vl i));
     assert (~ (Veritas.EAC.is_eac (prefix vl (i + 1))));
     vlog_ext_of_prefix itsl i;
-    vlog_ext_of_prefix itsl (i + 1);    
-    i            
-  
+    vlog_ext_of_prefix itsl (i + 1);
+    i
+
 (* if itsl is eac, then any prefix is also eac *)
 let lemma_eac_implies_prefix_eac (itsl: eac_log) (i:nat {i <= I.length itsl})
   : Lemma (ensures (is_eac (I.prefix itsl i)))
@@ -515,7 +509,7 @@ let lemma_eac_implies_prefix_eac (itsl: eac_log) (i:nat {i <= I.length itsl})
     let vlog' = vlog_ext_of_its_log (I.prefix itsl i) in
     vlog_ext_of_prefix itsl i;
     lemma_valid_all_prefix eac_sm vlog (Seq.length vlog')
-  
+
 (* if the ts log is eac, then its state ops are read-write consistent *)
 let lemma_eac_implies_state_ops_rw_consistent (itsl: eac_log)
   : Lemma (rw_consistent (state_ops itsl))
@@ -523,9 +517,9 @@ let lemma_eac_implies_state_ops_rw_consistent (itsl: eac_log)
     lemma_eac_implies_rw_consistent vl;
     inverse_to_vlog_vlog_ext_of_vlog_entry itsl;
     assert (rw_consistent (to_state_op_vlog (to_vlog vl)))
-  
+
 (* the eac state of a key at the end of an its log *)
-let eac_state_of_key (itsl: its_log) (k:key): eac_state 
+let eac_state_of_key (itsl: its_log) (k:key): eac_state
   = seq_machine_run (seq_machine_of eac_sm)
                     (partn eac_sm k (vlog_ext_of_its_log itsl))
 
@@ -534,7 +528,7 @@ let lemma_eac_state_of_key_valid (itsl: eac_log) (k:key)
   = ()
 
 (* the extended vlog entry to use for eac checking *)
-let vlog_entry_ext_at (itsl: its_log) (i:I.seq_index itsl): 
+let vlog_entry_ext_at (itsl: its_log) (i:I.seq_index itsl):
                       (e:vlog_entry_ext{E.to_vlog_entry e = I.index itsl i})
   = Seq.index (vlog_ext_of_its_log itsl) i
 
@@ -548,7 +542,7 @@ let vlog_entry_ext_at_prefix (itsl: its_log) (i:I.seq_index itsl) (j:nat { i < j
 
 (* the eac state transition induced by the i'th entry *)
 let lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl)
-  : Lemma (eac_state_post itsl i = 
+  : Lemma (eac_state_post itsl i =
            eac_add (vlog_entry_ext_at itsl i) (eac_state_pre itsl i))
   = let k = key_at itsl i in
     let itsl_i' = I.prefix itsl (i+1) in
@@ -560,27 +554,27 @@ let lemma_eac_state_transition (itsl: its_log) (i:I.seq_index itsl)
     vlog_ext_of_prefix itsl_i' i;
     assert (vl_i `prefix_of` vl_i');
     assert (Seq.length vl_i == i);
-    assert (Seq.length vl_i' == i + 1);    
+    assert (Seq.length vl_i' == i + 1);
     assert (Seq.index vl_i' i == vlog_entry_ext_at itsl_i' i);
-    assert (Seq.index (i_seq itsl_i') i == 
+    assert (Seq.index (i_seq itsl_i') i ==
             Seq.index (i_seq itsl) i);
-    vlog_entry_ext_at_prefix itsl i (i + 1);            
+    vlog_entry_ext_at_prefix itsl i (i + 1);
     assert (Seq.index vl_i' i == vlog_entry_ext_at itsl i);
     assert (vl_i' `Seq.equal` Seq.snoc vl_i (vlog_entry_ext_at itsl i));
     lemma_filter_extend2 (iskey #(key_type eac_sm) (partn_fn eac_sm) k)
                          vl_i';
-    assert (partn eac_sm k vl_i' == 
+    assert (partn eac_sm k vl_i' ==
             Seq.snoc (partn eac_sm k vl_i)
                      (vlog_entry_ext_at itsl i));
     let lhs = seq_machine_run (seq_machine_of eac_sm)
                               (partn eac_sm k vl_i') in
-    let rhs = eac_add (vlog_entry_ext_at itsl i) 
+    let rhs = eac_add (vlog_entry_ext_at itsl i)
                       (seq_machine_run (seq_machine_of eac_sm)
                                        (partn eac_sm k vl_i)) in
     lemma_reduce_append (init_state (seq_machine_of eac_sm))
                         (trans_fn (seq_machine_of eac_sm))
-                        (partn eac_sm k vl_i)                        
-                        (vlog_entry_ext_at itsl i);                                        
+                        (partn eac_sm k vl_i)
+                        (vlog_entry_ext_at itsl i);
     assert (lhs == rhs)
 
 let vlog_entry_ext_at_prefix_snoc (itsl: its_log) (i:I.seq_index itsl)
@@ -598,7 +592,7 @@ let vlog_entry_ext_at_prefix_snoc (itsl: its_log) (i:I.seq_index itsl)
       assert (vl `prefix_of` vl');
       assert (vl' `Seq.equal` Seq.snoc vl (Seq.index vl' i));
       lemma_i2s_map_prefix itsl (i + 1) i;
-      assert (thread_id_of itsl i == 
+      assert (thread_id_of itsl i ==
               thread_id_of (I.prefix itsl (i + 1)) i);
       assert (mk_vlog_entry_ext itsl i ==
               mk_vlog_entry_ext (I.prefix itsl (i + 1)) i)
@@ -606,18 +600,18 @@ let vlog_entry_ext_at_prefix_snoc (itsl: its_log) (i:I.seq_index itsl)
 (* if the ith entry does not involve key k, the eac state of k is unchanged *)
 let lemma_eac_state_same (itsl: its_log) (i: I.seq_index itsl) (k: key):
   Lemma (requires (key_at itsl i <> k))
-        (ensures (eac_state_of_key (I.prefix itsl i) k == 
+        (ensures (eac_state_of_key (I.prefix itsl i) k ==
                   eac_state_of_key (I.prefix itsl (i + 1)) k))
   = vlog_entry_ext_at_prefix_snoc itsl i;
     let itsl_i = I.prefix itsl i in
     let vl_i = (vlog_ext_of_its_log itsl_i) in
-    let itsl_i' = I.prefix itsl (i + 1) in    
+    let itsl_i' = I.prefix itsl (i + 1) in
     let vl_i' = (vlog_ext_of_its_log itsl_i') in
     let lhs =
       seq_machine_run (seq_machine_of eac_sm)
                       (partn eac_sm k vl_i)
     in
-    let rhs = 
+    let rhs =
       seq_machine_run (seq_machine_of eac_sm)
                       (partn eac_sm k (Seq.snoc vl_i (mk_vlog_entry_ext itsl i)))
     in
@@ -647,7 +641,7 @@ let lemma_eac_boundary_state_transition (itsl: neac_log):
               (ensures (key_at itsl i == k))
               [SMTPat (partn eac_sm k vl_i')]
       = let k' = key_at itsl i in
-        if k' = k 
+        if k' = k
         then ()
         else (
           vlog_entry_ext_at_prefix_snoc itsl i;
@@ -657,32 +651,32 @@ let lemma_eac_boundary_state_transition (itsl: neac_log):
           assert (partn eac_sm k vl_i' == partn eac_sm k vl_i)
         )
     in
-    assert (eac_state_post itsl i == 
+    assert (eac_state_post itsl i ==
             eac_add (vlog_entry_ext_at itsl i) (eac_state_pre itsl i));
     ()
 
 
 let eacs_t (itsl:its_log) = k:key -> e:eac_state { e == eac_state_of_key itsl k /\ (is_eac itsl ==> e <> EACFail) }
 let threads_t (itsl:its_log) = t:valid_tid itsl -> v:vtls { Valid? v /\ v == verify (t, Seq.index (I.s_seq itsl) t) }
-noeq 
+noeq
 type monitored_state (itsl:its_log) = {
   eacs: eacs_t itsl;
   threads: threads_t itsl
 }
 
-let eq_mon itsl (m0 m1: monitored_state itsl) = 
+let eq_mon itsl (m0 m1: monitored_state itsl) =
   FunctionalExtensionality.feq m0.eacs m1.eacs /\
   FunctionalExtensionality.feq m0.threads m1.threads
-  
-let run_monitor (itsl:its_log) 
-  : monitored_state itsl 
+
+let run_monitor (itsl:its_log)
+  : monitored_state itsl
   = let eacs : eacs_t itsl = fun k -> eac_state_of_key itsl k in
     let threads : threads_t itsl = fun t -> verify (thread_log (I.s_seq itsl) t) in
     { eacs; threads }
 
 #push-options "--fuel 1,1"
 let run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
-  : Lemma 
+  : Lemma
     (let m = run_monitor itsl in
      let vl = vlog_ext_of_its_log itsl in
      let vl' = partn eac_sm k vl in
@@ -693,11 +687,11 @@ let run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
      vl' == empty /\
      (forall tid. thread_state itsl tid == init_thread_state tid)
      )
-     
+
   = let m = run_monitor itsl in
     let vl = vlog_ext_of_its_log itsl in
     let vl' = partn eac_sm k vl in
-    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in 
+    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
     assert (vl `Seq.equal` empty);
     lemma_filter_empty filter_fn;
     assert (vl' `Seq.equal` empty);
@@ -723,8 +717,8 @@ let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
            vl `Seq.equal` Seq.snoc vl' ve /\
            tl `Seq.equal` Seq.snoc tl' v /\
            thread_state itsl tid == t_verify_step (thread_state itsl' tid) v /\
-           (if key_of v <> k 
-            then vl'_k == vl_k 
+           (if key_of v <> k
+            then vl'_k == vl_k
             else (vl_k == Seq.snoc vl'_k ve /\
                   m.eacs k == eac_add ve (m'.eacs k))) /\
            (forall (tid':valid_tid itsl). {:pattern (thread_log (I.s_seq itsl) tid')}
@@ -750,16 +744,16 @@ let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
     assert (vl `Seq.equal` Seq.snoc vl' ve);
     assert (tl `Seq.equal` Seq.snoc tl' v);
     assert (SA.prefix tl (Seq.length tl - 1) `Seq.equal` tl');
-    assert (thread_state itsl tid == 
+    assert (thread_state itsl tid ==
             t_verify_aux (init_thread_state tid) tl);
-    assert (thread_state itsl tid == 
+    assert (thread_state itsl tid ==
             t_verify_step (t_verify_aux (init_thread_state tid) tl') v);
-    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in 
+    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
     assert (vl'_k == filter filter_fn vl');
-    assert (vl_k == filter filter_fn vl);    
-    let _ = 
-      if key_of v <> k 
-      then ( 
+    assert (vl_k == filter filter_fn vl);
+    let _ =
+      if key_of v <> k
+      then (
         lemma_filter_extend1 filter_fn vl;
         assert (vl'_k == vl_k)
       )
@@ -774,7 +768,24 @@ let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
     assert (forall (tid':valid_tid itsl).
              tid <> tid' ==>
              thread_log (I.s_seq itsl) tid' ==
-             thread_log (I.s_seq (I.prefix itsl i)) tid')    
+             thread_log (I.s_seq (I.prefix itsl i)) tid')
+#pop-options
+
+
+#push-options "--fuel 1,1"
+let lemma_verifier_thread_state_extend2 (itsl: its_log) (i: I.seq_index itsl) (tid: valid_tid itsl)
+  : Lemma (requires (tid <> thread_id_of itsl i))
+          (ensures (thread_state (I.prefix itsl (i + 1)) tid ==
+                    thread_state (I.prefix itsl i) tid))
+  = let itsl_i = I.prefix itsl (i + 1) in
+    let itsl_i' = I.prefix itsl_i i in
+    I.lemma_prefix_prefix itsl (i + 1) i;
+    assert (itsl_i' == I.prefix itsl i);
+    I.lemma_i2s_map_prefix itsl (i + 1) i;
+    assert (thread_id_of itsl i == thread_id_of itsl_i i);
+    run_monitor_step itsl_i Root;
+    assert (thread_log (I.s_seq itsl_i) tid ==
+            thread_log (I.s_seq itsl_i') tid)
 #pop-options
 
 (* when the eac state of a key is "instore" then there is always a previous add *)
@@ -782,11 +793,11 @@ let lemma_eac_state_active_implies_prev_add (itsl: eac_log) (k:key{is_eac_state_
   : Lemma (ensures (has_some_add_of_key itsl k))
   = let rec aux (itsl:eac_log)
                 (k:key)
-      : Lemma (ensures is_eac_state_active itsl k ==> 
+      : Lemma (ensures is_eac_state_active itsl k ==>
                        (exists (i:I.seq_index itsl). is_add_of_key k (I.index itsl i)))
               (decreases (I.length itsl))
       = if I.length itsl = 0
-        then run_monitor_empty itsl k 
+        then run_monitor_empty itsl k
         else (
           aux (I.prefix itsl (I.length itsl - 1)) k;
           run_monitor_step itsl k
@@ -852,17 +863,17 @@ let lemma_eac_state_init_no_entry (itsl: eac_log) (k:key)
     assert (forall (i:I.seq_index itsl). not (is_entry_of_key k (Seq.index (I.i_seq itsl) i)))
 
 (* add method of an eac state *)
-let rec lemma_eac_state_addm' (itsl: eac_log) 
+let rec lemma_eac_state_addm' (itsl: eac_log)
                               (k:key{is_eac_state_instore itsl k})
                               (i:I.seq_index itsl)
-  : Lemma 
+  : Lemma
     (requires (
       let v = I.index itsl i in
       is_add_of_key k v /\
       (forall (j:I.seq_index itsl). i < j ==> not (is_add_of_key k (I.index itsl j)))))
     (ensures (
       let v = I.index itsl i in
-      E.add_method_of (eac_state_of_key itsl k) = 
+      E.add_method_of (eac_state_of_key itsl k) =
       V.addm_of_entry (I.index itsl i)))
     (decreases (I.length itsl))
   = let l = I.length itsl in
@@ -873,12 +884,12 @@ let rec lemma_eac_state_addm' (itsl: eac_log)
     assert (eac_state_of_key itsl k == m.eacs k);
     let v = I.index itsl (l - 1) in
     let ve = mk_vlog_entry_ext itsl (l - 1) in
-    if i = l - 1 
+    if i = l - 1
     then ()
     else lemma_eac_state_addm' itsl' k i
 
 let lemma_eac_state_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k})
-  : Lemma (E.add_method_of (eac_state_of_key itsl k) = 
+  : Lemma (E.add_method_of (eac_state_of_key itsl k) =
            V.addm_of_entry (I.index itsl (last_add_idx itsl k)))
   = let i = last_add_idx itsl k in
     SA.last_index_opt_elim (is_add_of_key k) (I.i_seq itsl);
@@ -901,7 +912,7 @@ let lemma_eac_value_correct_type (itsl: eac_log) (k:key)
                                  is_value_of k (E.value_of eacs'))})
       : Lemma (ensures is_value_of k (E.value_of eacs))
               (decreases (Seq.length vl' - i))
-      = if i = Seq.length vl' 
+      = if i = Seq.length vl'
         then (
           assert (Seq.equal (SA.prefix vl' i) vl')
         )
@@ -943,9 +954,9 @@ let lemma_eac_state_of_root_init (itsl: eac_log)
 #pop-options
 #push-options "--ifuel 0,0 --fuel 1,1"
 
-(* 
- * when the eac state of a key is Init (no operations on the key yet) no 
- * thread contains the key in its store. Valid only for non-root keys 
+(*
+ * when the eac state of a key is Init (no operations on the key yet) no
+ * thread contains the key in its store. Valid only for non-root keys
  * since we start off with the root in the cache of thread 0
  *)
 let lemma_eac_state_init_store (itsl: eac_log) (k: key) (tid:valid_tid itsl)
@@ -961,7 +972,7 @@ let lemma_eac_state_init_store (itsl: eac_log) (k: key) (tid:valid_tid itsl)
               [SMTPat (Seq.index thread_log_tid i)]
       = assert (Seq.index thread_log_tid i ==
                 Seq.index (I.i_seq itsl) (s2i_map itsl (tid, i)))
-    in 
+    in
     assert (forall (i:SA.seq_index thread_log_tid). not (is_entry_of_key k (Seq.index thread_log_tid i)));
     let thread_state_tid = verify (tid, thread_log_tid) in
     let store_tid = Valid?.st thread_state_tid in
@@ -993,8 +1004,8 @@ let t_verify_step_framing (v:vtls{Valid? v}) (e:vlog_entry) (k:key{key_of e <> k
            store_contains (thread_store v') k == store_contains (thread_store v) k)
   = ()
 
-let ancestor_key_of (e:vlog_entry) 
-  : option key 
+let ancestor_key_of (e:vlog_entry)
+  : option key
   = match e with
     | AddM _ k
     | EvictM _ k
@@ -1024,7 +1035,7 @@ let key_in_unique_store (itsl: eac_log) (k:key) =
     not (store_contains (VV.thread_store (m.threads tid')) k)
 
 let elim_key_in_unique_store (itsl:eac_log) (k:key) (tid tid':valid_tid itsl)
-  : Lemma 
+  : Lemma
     (requires key_in_unique_store itsl k /\
               tid <> tid' /\
               store_contains (VV.thread_store ((run_monitor itsl).threads tid)) k)
@@ -1033,7 +1044,7 @@ let elim_key_in_unique_store (itsl:eac_log) (k:key) (tid tid':valid_tid itsl)
 
 let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
                                    (k: key)
-  : Lemma 
+  : Lemma
     (requires (
       let i = I.length itsl - 1 in
       let itsl' = I.prefix itsl i in
@@ -1052,7 +1063,7 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
     let m = run_monitor itsl in
     let v = I.index itsl i in
     let ve = mk_vlog_entry_ext itsl i in
-    assert (v == to_vlog_entry ve); 
+    assert (v == to_vlog_entry ve);
     let vl' = vlog_ext_of_its_log itsl' in
     let vl'_k = partn eac_sm k vl' in
     let vl = vlog_ext_of_its_log itsl in
@@ -1068,14 +1079,14 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
     let st' = VV.thread_store (m'.threads tid) in
     let st =  VV.thread_store (m.threads tid) in
     let tid_unchanged (tid':valid_tid itsl)
-      : Lemma 
+      : Lemma
         (requires tid' <> tid)
         (ensures m.threads tid' == m'.threads tid')
       = ()
     in
     let aux (tid0 tid1:valid_tid itsl)
-      : Lemma 
-        (requires 
+      : Lemma
+        (requires
           tid0 <> tid1 /\
           store_contains (VV.thread_store (m.threads tid0)) k)
         (ensures
@@ -1086,7 +1097,7 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
         then (
           tid_unchanged tid0;
           assert (store_contains (VV.thread_store (m'.threads tid0)) k);
-          assert (not (store_contains (VV.thread_store (m'.threads tid1)) k));          
+          assert (not (store_contains (VV.thread_store (m'.threads tid1)) k));
           if tid1 <> tid
           then tid_unchanged tid1
           else (
@@ -1106,14 +1117,14 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
               | NEvict (Put _ _) ->
                 //requires k to be in the store of tid1
                 false_elim ()
-              | NEvict (AddM r k') -> 
+              | NEvict (AddM r k') ->
                 assert (m.threads tid1 == t_verify_step (m'.threads tid1) (AddM r k'));
                 assert (m'.eacs k == EACInit \/
                         EACEvictedMerkle? (m'.eacs k));
                 if EACEvictedMerkle? (m'.eacs k)
                 then false_elim() //it can't be in tid0
                 else lemma_eac_state_init_store (I.prefix itsl i) k tid0
-              | NEvict (AddB _ _ _) -> 
+              | NEvict (AddB _ _ _) ->
                 false_elim()
             )
           )
@@ -1126,7 +1137,7 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
               assert (m.eacs k == m'.eacs k);
               t_verify_step_framing (m'.threads tid0) v k
           )
-          else (             
+          else (
             assert (vl_k == Seq.snoc vl'_k ve);
             assert (m.eacs k == eac_add ve (m'.eacs k));
             match ve with
@@ -1135,7 +1146,7 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
               //removes k, contradicts that k is m
               false_elim ()
             | NEvict (Get _ _)
-            | NEvict (Put _ _) -> 
+            | NEvict (Put _ _) ->
               //doesn't change k
               ()
             | NEvict (AddM r k') ->
@@ -1149,14 +1160,14 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
         )
     in
     ()
-                  
 
-           
+
+
 
 #push-options "--ifuel 1,1 --fuel 1,1 --z3rlimit_factor 6"
 (* when the eac state of a key is evicted then no thread contains the key in its store *)
-let lemma_unique_store_key (itsl: eac_log) 
-                           (k: key) 
+let lemma_unique_store_key (itsl: eac_log)
+                           (k: key)
                            (tid:valid_tid itsl)
  : Lemma (key_in_unique_store itsl k /\
          (is_eac_state_evicted itsl k ==>
@@ -1164,11 +1175,11 @@ let lemma_unique_store_key (itsl: eac_log)
  = lemma_eac_state_of_root_init itsl;
    assert (is_eac_state_evicted itsl k ==> k <> Root);
    let evicted eacs = (EACEvictedBlum? eacs || EACEvictedMerkle? eacs) in
-   let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in 
+   let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
    let rec aux (itsl:eac_log)
                (m:monitored_state itsl)
-     : Lemma (ensures 
-                (forall (tid:valid_tid itsl). 
+     : Lemma (ensures
+                (forall (tid:valid_tid itsl).
                    evicted (m.eacs k) ==>
                    not (store_contains (Valid?.st (m.threads tid)) k)) /\
                 key_in_unique_store itsl k)
@@ -1192,7 +1203,7 @@ let lemma_unique_store_key (itsl: eac_log)
          let i = I.length itsl - 1 in
          let itsl' = I.prefix itsl i in
          let m' = run_monitor itsl' in
-         aux itsl' m'; 
+         aux itsl' m';
          assert (forall (tid:valid_tid itsl).
                    evicted (m'.eacs k) ==>
                    not (store_contains (Valid?.st (m'.threads tid)) k));
@@ -1213,23 +1224,23 @@ let lemma_unique_store_key (itsl: eac_log)
          assert (m.threads tid == t_verify_step (m'.threads tid) v);
          let st' = Valid?.st (m'.threads tid) in
          let st =  Valid?.st (m.threads tid) in
-         let rec aux (tid':valid_tid itsl)
-           : Lemma 
+         let aux (tid':valid_tid itsl)
+           : Lemma
                (requires evicted (m.eacs k))
                (ensures not (store_contains (Valid?.st (m.threads tid')) k))
                [SMTPat (m.threads tid')]
            = if tid' = tid
              then (
-               if key_of v <> k 
+               if key_of v <> k
                then (
                  assert (vl'_k == vl_k);
-                 assert (m.eacs k == m'.eacs k);               
+                 assert (m.eacs k == m'.eacs k);
                  t_verify_step_framing (m'.threads tid') v k;
                  assert (evicted (m'.eacs k));
                  assert (not (store_contains (Valid?.st (m'.threads tid')) k));
                  assert (store_contains st k == store_contains st' k);
                  assert (not (store_contains st' k))
-               ) 
+               )
                else (
                  assert (vl_k == Seq.snoc vl'_k ve);
                  assert (m.eacs k == eac_add ve (m'.eacs k));
@@ -1265,15 +1276,15 @@ let lemma_unique_store_key (itsl: eac_log)
              )
          in
          lemma_key_in_unique_store_step itsl k;
-         assert (key_in_unique_store itsl k);           
+         assert (key_in_unique_store itsl k);
          ()
        )
    in
    let m = run_monitor itsl in
    aux itsl m
-#pop-options 
+#pop-options
 
-let lemma_eac_state_evicted_store itsl k tid = 
+let lemma_eac_state_evicted_store itsl k tid =
     lemma_unique_store_key itsl k tid
 
 
@@ -1295,38 +1306,38 @@ let lemma_key_in_unique_store2 (itsl: eac_log) (k:key) (tid1 tid2: valid_tid its
       elim_key_in_unique_store itsl k tid1 tid1
     )
 
-let data_key_not_root (k:data_key) 
+let data_key_not_root (k:data_key)
   : Lemma (k <> Root)
   = ()
 
-let proper_desc_not_root (k:key) (k1:key{is_proper_desc k k1}) 
+let proper_desc_not_root (k:key) (k1:key{is_proper_desc k k1})
   : Lemma (k <> Root)
   = ()
 
 #push-options "--ifuel 1,1 --fuel 0,0 --z3rlimit_factor 8"
 
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
-let rec stored_tid_aux (itsl: eac_log) 
+let rec stored_tid_aux (itsl: eac_log)
                        (k:key)
   : Tot (tid_opt:option (valid_tid itsl)
          {
            match tid_opt with
-           | None -> 
+           | None ->
              (k <> Root \/ thread_count itsl = 0) /\
              not (is_eac_state_instore itsl k) /\
-             (forall tid.{:pattern (thread_store itsl tid)}  
+             (forall tid.{:pattern (thread_store itsl tid)}
                not (store_contains (thread_store itsl tid) k))
            | Some tid ->
-             let tstore = thread_store itsl tid in            
+             let tstore = thread_store itsl tid in
              store_contains tstore k  /\
-             (if k=Root 
+             (if k=Root
               then (
                 tid == 0 /\
                 eac_state_of_key itsl k == EACInit
               )
               else (
                is_eac_state_instore itsl k /\
-               E.add_method_of (eac_state_of_key itsl k) 
+               E.add_method_of (eac_state_of_key itsl k)
                  == V.add_method_of tstore k /\
                (is_data_key k ==>
                  eac_state_value itsl k == V.stored_value tstore k)
@@ -1339,9 +1350,9 @@ let rec stored_tid_aux (itsl: eac_log)
       run_monitor_empty itsl k;
       if k = Root && thread_count itsl > 0
       then (
-        Some 0 
+        Some 0
       )
-      else ( 
+      else (
         None
       )
     )
@@ -1364,7 +1375,7 @@ let rec stored_tid_aux (itsl: eac_log)
       let ts = thread_state itsl tid in
       let tstore = thread_store itsl tid in
       let ts' = thread_state itsl' tid in
-      let tstore' = thread_store itsl' tid in      
+      let tstore' = thread_store itsl' tid in
       assert (ts == t_verify_step ts' v);
       if EACInStore? (m.eacs k)
       then (
@@ -1378,8 +1389,8 @@ let rec stored_tid_aux (itsl: eac_log)
                     E.add_method_of (m'.eacs k));
             assert (V.add_method_of tstore k ==
                     V.add_method_of tstore' k);
-            let Some tid' = tid_opt' in 
-            if tid' = tid 
+            let Some tid' = tid_opt' in
+            if tid' = tid
             then ( Some tid )
             else (
               assert (is_data_key k);
@@ -1400,7 +1411,7 @@ let rec stored_tid_aux (itsl: eac_log)
             Some tid
           | AddB _ _ _ ->
             lemma_eac_state_of_root_init itsl;
-            assert (k <> Root);          
+            assert (k <> Root);
             Some tid
         )
         else (
@@ -1410,12 +1421,12 @@ let rec stored_tid_aux (itsl: eac_log)
           if tid = s_tid
           then (
             match v with
-            | Get _ _ -> 
+            | Get _ _ ->
               Some tid
-            | Put _ _  -> 
+            | Put _ _  ->
               Some tid
             | _ ->
-              t_verify_step_framing_keys ts' v k;            
+              t_verify_step_framing_keys ts' v k;
               Some tid
           )
           else Some s_tid
@@ -1438,11 +1449,11 @@ let rec stored_tid_aux (itsl: eac_log)
           t_verify_step_framing_keys ts' v k;
           assert (m.eacs k == m'.eacs k);
           match tid_opt' with
-          | None -> 
+          | None ->
             assert (forall tid.{:pattern thread_store itsl' tid}
                    not (store_contains (thread_store itsl' tid) k));
-            let aux (tid0:valid_tid itsl) 
-              : Lemma 
+            let aux (tid0:valid_tid itsl)
+              : Lemma
                 (ensures (not (store_contains (thread_store itsl tid0) k)))
                 [SMTPat (thread_store itsl tid0)]
               = if tid0 <> tid
@@ -1450,12 +1461,12 @@ let rec stored_tid_aux (itsl: eac_log)
                               thread_log (I.s_seq itsl') tid0);
                       assert (thread_state itsl tid0 ==
                               thread_state itsl' tid0);
-                      assert (thread_store itsl' tid0 ==                               
+                      assert (thread_store itsl' tid0 ==
                               Valid?.st (thread_state itsl' tid0)))
                 else ()
             in
             None
-          | Some tid' -> 
+          | Some tid' ->
             if k = Root
             then Some 0
             else (
@@ -1468,7 +1479,7 @@ let rec stored_tid_aux (itsl: eac_log)
 
 #pop-options
 
-let stored_tid (itsl: eac_log) 
+let stored_tid (itsl: eac_log)
                (k:key{is_eac_state_instore itsl k})
   : Tot (tid: valid_tid itsl{store_contains (thread_store itsl tid) k})
   = let Some tid = stored_tid_aux itsl k in
@@ -1491,8 +1502,8 @@ let lemma_eac_stored_value (itsl: eac_log) (k: data_key{is_eac_state_instore its
   : Lemma (eac_state_value itsl k = stored_value itsl k)
   = let Some tid = stored_tid_aux itsl k in ()
 
-(* 
- * for all keys, the add method stored in the store is the same as the add method associated 
+(*
+ * for all keys, the add method stored in the store is the same as the add method associated
  * with eac state
  *)
 let lemma_eac_stored_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k})
@@ -1503,10 +1514,10 @@ let lemma_eac_stored_addm (itsl: eac_log) (k:key{is_eac_state_instore itsl k})
 let lemma_instore_implies_eac_state_instore (itsl:eac_log) (k:key{k <> Root}) (tid:valid_tid itsl)
   : Lemma (store_contains (thread_store itsl tid) k ==> is_eac_state_instore itsl k)
   = let _ = stored_tid_aux itsl k in ()
-         
+
 (* the root is always in thread 0 *)
 let lemma_root_in_store0 (itsl: eac_log{thread_count itsl > 0})
-  : Lemma (store_contains (thread_store itsl 0) Root) 
+  : Lemma (store_contains (thread_store itsl 0) Root)
   = let _ = stored_tid_aux itsl Root in ()
 
 let lemma_root_not_in_store (itsl: eac_log) (tid:valid_tid itsl{tid > 0})
@@ -1521,7 +1532,7 @@ let eac_value_aux (itsl: eac_log) (k:key)
   = let m = run_monitor itsl in
     match m.eacs k with
     | EACFail -> false_elim()
-    | EACInit -> 
+    | EACInit ->
       if k = Root && thread_count itsl > 0
       then (
         let _ = stored_tid_aux itsl k in
@@ -1536,7 +1547,7 @@ let eac_value_aux (itsl: eac_log) (k:key)
 let lemma_eac_value_aux_typing (itsl:eac_log) (k:key)
   : Lemma (is_value_of k (eac_value_aux itsl k))
   = let rec aux (itsl:eac_log)
-      : Lemma (ensures 
+      : Lemma (ensures
                  is_value_of k (eac_value_aux itsl k) /\
                  (is_eac_state_instore itsl k ==> is_value_of k (eac_state_value itsl k)))
               (decreases (I.length itsl))
@@ -1554,28 +1565,28 @@ let lemma_eac_value_aux_typing (itsl:eac_log) (k:key)
           | EACEvictedBlum _ _ _
           | EACEvictedMerkle _ -> ()
           | EACInStore _ _ -> ()
-          | EACInit -> 
+          | EACInit ->
             assert (thread_count itsl > 0)
         )
     in
     aux itsl
 #pop-options
 
-let eac_value itsl k 
+let eac_value itsl k
   = lemma_eac_value_aux_typing itsl k;
     eac_value_aux itsl k
-  
+
 (* eac_value is consistent with stored value *)
-let lemma_eac_value_is_stored_value (itsl: eac_log) (k:key) (tid: valid_tid itsl):  
+let lemma_eac_value_is_stored_value (itsl: eac_log) (k:key) (tid: valid_tid itsl):
   Lemma (requires (store_contains (thread_store itsl tid) k))
         (ensures (eac_value itsl k = V.stored_value (thread_store itsl tid) k))
   = let Some tid' = stored_tid_aux itsl k in
-    if tid = tid' 
+    if tid = tid'
     then (
-      if k <> Root 
+      if k <> Root
       then ()
       else ()
-    ) 
+    )
     else (
       lemma_key_in_unique_store2 itsl k tid tid'
     )
@@ -1583,25 +1594,25 @@ let lemma_eac_value_is_stored_value (itsl: eac_log) (k:key) (tid: valid_tid itsl
 let lemma_eac_value_is_evicted_value (itsl: eac_log) (k:key)
   : Lemma (requires (is_eac_state_evicted itsl k))
           (ensures (eac_state_evicted_value itsl k = eac_value itsl k))
-  = ()        
+  = ()
 #restart-solver
 #push-options "--z3rlimit_factor 4"
 let lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl)
   : Lemma (requires (is_evict (I.index itsl i)))
           (ensures (store_contains (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) /\
                     is_evict_ext (vlog_entry_ext_at itsl i) /\
-                    V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) = 
+                    V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) =
                     value_ext (vlog_entry_ext_at itsl i)))
   = let rec aux (itsl:its_log{I.length itsl > 0})
       : Lemma (ensures (
-                let i = I.length itsl - 1 in 
+                let i = I.length itsl - 1 in
                 is_evict (I.index itsl i) ==>
                 store_contains (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) /\
                 is_evict_ext (vlog_entry_ext_at itsl i) /\
-                V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) == 
+                V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) ==
                 value_ext (vlog_entry_ext_at itsl i)))
        = let i = I.length itsl - 1 in
-         let itsl' = I.prefix itsl i in       
+         let itsl' = I.prefix itsl i in
          let m' = run_monitor itsl' in
          let m = run_monitor itsl in
          let v = I.index itsl i in
@@ -1624,10 +1635,10 @@ let lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl)
     aux itsl';
     I.lemma_prefix_prefix itsl (i + 1) i;
     I.lemma_i2s_map_prefix itsl (i + 1) i
-#pop-options    
-  
+#pop-options
+
 #push-options "--fuel 0,0 --z3rlimit_factor 4"
-        
+
 
 let evict_is_evicted (itsl:eac_log{I.length itsl > 0})
   : Lemma (let i = I.length itsl - 1 in
@@ -1639,15 +1650,15 @@ let evict_is_evicted (itsl:eac_log{I.length itsl > 0})
     let v = I.index itsl i in
     run_monitor_step itsl (key_of v)
 
-(* if an evict is not the last entry of a key, then there is a add subsequent to the 
+(* if an evict is not the last entry of a key, then there is a add subsequent to the
  * evict *)
-let lemma_evict_has_next_add (itsl: its_log) 
+let lemma_evict_has_next_add (itsl: its_log)
                              (i:I.seq_index itsl)
                              (j:nat { i < j /\ j <= I.length itsl })
-  : Lemma 
-    (requires 
+  : Lemma
+    (requires
       is_evict (I.index itsl i) /\
-      is_eac (I.prefix itsl j) /\         
+      is_eac (I.prefix itsl j) /\
       exists_sat_elems (is_entry_of_key (key_of (I.index itsl i))) (I.i_seq itsl) /\
       i < last_idx_of_key itsl (key_of (I.index itsl i)))
     (ensures (has_next_add_of_key itsl i (key_of (I.index itsl i))))
@@ -1665,18 +1676,18 @@ let lemma_evict_has_next_add (itsl: its_log)
     let rec aux (k:nat{i < k /\
                      k <= I.length itsl /\
                      (forall (k':I.seq_index itsl). i < k' /\ k' < k ==> key_of (I.index itsl k') <> key_of v)})
-      : Lemma 
+      : Lemma
         (requires k <= last_idx_of_key itsl (key_of v) /\
                   (let m' = run_monitor (I.prefix itsl k) in
                    (forall (tid:valid_tid itsl).{:pattern (m'.threads tid)} not (store_contains (VV.thread_store (m'.threads tid)) (key_of v)))
                    ))
         (ensures has_next_add_of_key itsl i (key_of v))
         (decreases (I.length itsl - k))
-      = if k = I.length itsl 
+      = if k = I.length itsl
         then false_elim()
         else (
           let itsl_k = I.prefix itsl k in
-          let itsl_k_1 = I.prefix itsl (k + 1) in          
+          let itsl_k_1 = I.prefix itsl (k + 1) in
           I.lemma_prefix_prefix itsl (k + 1) k;
           let m' = run_monitor itsl_k in
           let m = run_monitor itsl_k_1 in
@@ -1687,10 +1698,10 @@ let lemma_evict_has_next_add (itsl: its_log)
           let v' = I.index itsl_k_1 k in
           assert (m.threads tid ==
                   t_verify_step (m'.threads tid) v');
-          if key_of v = key_of v' 
+          if key_of v = key_of v'
           then (
             match v' with
-            | AddM _ _ 
+            | AddM _ _
             | AddB _ _ _ ->
               intro_has_next (is_add_of_key (key_of v)) (I.i_seq itsl) i k
             | _ ->
@@ -1722,7 +1733,7 @@ let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl)
           (ensures (V.key_of (I.index itsl i) <> Root))
   = let itsl' = I.prefix itsl (i + 1) in
     run_monitor_step itsl' Root
-#pop-options    
+#pop-options
 
 #push-options "--fuel 0,0 --ifuel 0,0"
 (* since the itsl is sorted by clock, the following lemma holds *)
@@ -1739,16 +1750,31 @@ let lemma_init_state_empty (itsl: its_log {I.length itsl = 0}) (k: key)
   : Lemma (eac_state_of_key itsl k = EACInit)
   = assert (Seq.equal (vlog_ext_of_its_log itsl) empty);
     SA.lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
-    assert (eac_state_of_key itsl k == 
+    assert (eac_state_of_key itsl k ==
             seq_machine_run (seq_machine_of eac_sm)
                             (partn eac_sm k empty));
     lemma_filter_is_proj (iskey #(key_type eac_sm) (partn_fn eac_sm) k) empty;
     lemma_proj_length (partn eac_sm k empty) empty;
     assert (Seq.equal (partn eac_sm k empty) empty)
 
-let lemma_eac_value_init (itsl: eac_log) (k:key{k <> Root}):
-  Lemma (requires (is_eac_state_init itsl k))
-        (ensures (eac_value itsl k = init_value k)) = admit()
+let lemma_eac_value_init (itsl: eac_log) (k:key{k <> Root})
+  : Lemma (requires (is_eac_state_init itsl k))
+          (ensures (eac_value itsl k = init_value k))
+  = let rec aux (itsl:eac_log)
+      : Lemma
+        (ensures
+          is_eac_state_init itsl k ==>
+          eac_value itsl k = init_value k)
+        (decreases (I.length itsl))
+      = if I.length itsl = 0
+        then run_monitor_empty itsl k
+        else (
+          run_monitor_step itsl k;
+          aux (I.prefix itsl (I.length itsl - 1))
+        )
+    in
+    aux itsl
 
-let lemma_eac_value_root_init (itsl: eac_log {I.length itsl = 0}) (k:key{k = Root}):
-  Lemma (eac_value itsl k = init_value k)  = admit()
+let lemma_eac_value_root_init (itsl: eac_log {I.length itsl = 0}) (k:key{k = Root})
+  : Lemma (eac_value itsl k = init_value k)
+  = run_monitor_empty itsl k
