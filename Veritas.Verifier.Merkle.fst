@@ -1984,6 +1984,36 @@ let lemma_eac_value_unchanged_addm_nonedge (itsl: TL.eac_log {I.length itsl > 0}
   else 
     lemma_eac_value_unchanged_addm_unrelated_keys itsl ki
 
+let lemma_eac_value_unchanged_addm_anc_other_dir (itsl: TL.eac_log {I.length itsl > 0}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   AddM? e))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  let e = I.index itsl (n - 1) in
+                  let k = V.key_of e in
+                  let k' = AddM?.k' e in
+                  is_proper_desc k k' /\
+                  (let c = desc_dir k k' in
+                   let oc = other_dir c in
+                   let mv = eac_merkle_value itsl k' in
+                   let mv' = eac_merkle_value itsl' k' in
+                   desc_hash_dir mv oc = desc_hash_dir mv' oc))) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let k = V.key_of e in
+  let k' = AddM?.k' e in
+
+  lemma_fullprefix_equal itsl;  
+  lemma_verifier_thread_state_extend itsl (n - 1);
+
+  // assert(V.store_contains (TL.thread_store itsl' tid) k');
+  // assert(V.store_contains (TL.thread_store itsl tid) k');
+  lemma_eac_value_is_stored_value itsl k' tid;
+  lemma_eac_value_is_stored_value itsl' k' tid                   
+
 let lemma_eac_value_unchanged_evictb (itsl: TL.eac_log {I.length itsl > 0}) (ki:key):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
@@ -2316,16 +2346,67 @@ let lemma_proving_ancestor_has_hash_extend_addm_nonewedge (itsl: TL.eac_log {I.l
       )
   )
 
-let lemma_proving_ancestor_has_hash_extend_addm_newedge (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
+let lemma_proving_ancestor_has_hash_extend_addm_newedge (itsl: TL.eac_log {I.length itsl > 0}) (ki: key{ki <> Root}):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
                    let itsl' = I.prefix itsl (n - 1) in
-                   proving_ancestor_has_hash itsl' k /\
+                   proving_ancestor_has_hash itsl' ki /\
                    AddM? e /\ 
                    type_of_addm itsl (n - 1) = NewEdge))
-        (ensures (proving_ancestor_has_hash itsl k)) = 
-  admit()        
+        (ensures (proving_ancestor_has_hash itsl ki)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let pf = eac_ptrfn itsl in
+  let pf' = eac_ptrfn itsl' in
 
+  lemma_fullprefix_equal itsl;
+  lemma_eac_state_of_key_valid itsl ki;
+  lemma_eac_state_of_key_valid itsl' ki;
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  lemma_eac_state_transition itsl (n - 1);
+  
+  if not (TL.is_eac_state_evicted itsl ki) then ()
+  else (    
+    match e with
+    | AddM (k,_) k' ->
+      (* since the state of ki is evicted after AddM, k <> ki *)
+      if k = ki then ()
+
+      (* same argument holds for k' <> ki *)
+      else if k' = ki then 
+        lemma_instore_implies_eac_state_instore itsl ki tid
+        
+      else (
+        lemma_eac_state_same itsl (n - 1) ki;
+        lemma_eac_value_unchanged_addm_unrelated_keys itsl ki;
+
+        lemma_not_init_equiv_root_reachable itsl' ki;
+        lemma_not_init_equiv_root_reachable itsl ki;
+        assert(BP.root_reachable pf' ki);
+
+        let pk = proving_ancestor itsl' ki in
+        // assert(pk = prev_in_path pf' ki Root);
+
+        (* the following lemmas help prove that proving ancestor of ki does not change *)
+        lemma_verifier_thread_state_extend itsl (n - 1);
+        lemma_instore_implies_root_reachable itsl' k' tid;
+    
+        (* pf = pf + (k,k') *)
+        lemma_ptrfn_extend_addm_newedge itsl;
+        lemma_extend_prev pf' k k' ki;
+        // assert(prev_in_path pf' ki Root = prev_in_path (extend_ptrfn pf' k k') ki Root);
+        lemma_prev_in_path_feq pf (extend_ptrfn pf' k k') ki Root;
+        // assert(pk = proving_ancestor itsl ki);
+
+        assert(pk <> k);
+        if pk = k' then 
+          lemma_eac_value_unchanged_addm_anc_other_dir itsl        
+        else 
+          lemma_eac_value_unchanged_addm_unrelated_keys itsl pk        
+      )
+  )
 
 let lemma_proving_ancestor_has_hash_extend_addm_cutedge (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
   Lemma (requires (let n = I.length itsl in
