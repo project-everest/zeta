@@ -842,7 +842,7 @@ let lemma_eac_state_init_no_entry (itsl: eac_log) (k:key)
     lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
     aux 0 EACInit;
     assert (Seq.equal vl' Seq.empty);
-    filter_all_not filter_fn vl;
+    lemma_filter_all_not filter_fn vl;
     assert (forall (i:SA.seq_index vl). not (filter_fn (Seq.index vl i)));
     let aux (i:I.seq_index itsl)
       : Lemma (ensures (not (is_entry_of_key k (Seq.index (I.i_seq itsl) i))))

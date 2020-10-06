@@ -173,7 +173,7 @@ let rec lemma_filter_correct1_aux (#a: eqtype) (f:a -> bool) (s:seq a) (i:seq_in
         lemma_filter_correct1_aux f s' i
     else
       lemma_filter_correct1_aux f s' i
-
+      
 let lemma_filter_correct1 (#a: eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
   Lemma (requires (True))
         (ensures (f (index (filter f s) i) = true)) = lemma_filter_correct1_aux f s i
@@ -181,6 +181,23 @@ let lemma_filter_correct1 (#a: eqtype) (f:a -> bool) (s:seq a) (i:seq_index (fil
 let lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (True))
         (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true)) = ()
+
+let rec lemma_filter_all_not_aux (#a: eqtype) (f:a -> bool) (s:seq a):
+  Lemma (requires (filter f s `Seq.equal` empty))
+        (ensures (forall (i:seq_index s). not (f (index s i))))
+        (decreases (length s)) =
+  let n = length s in
+  if n = 0 then ()
+  else let e = index s (n - 1) in
+       let s' = prefix s (n - 1) in
+       if (f e) then () else 
+       assert (equal (append1 s' e) s);
+       lemma_filter_all_not_aux f s'
+
+let lemma_filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a)
+  : Lemma (requires filter f s `Seq.equal` empty)
+          (ensures forall (i:seq_index s). not (f (Seq.index s i)))
+  = lemma_filter_all_not_aux f s
 
 let filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
   Tot (j:seq_index s{index s j = index (filter f s) i}) =
@@ -423,6 +440,18 @@ let lemma_last_index_correct2 (#a:eqtype) (f:a -> bool)  (s:seq a) (i:seq_index 
     lemma_filter_index_inv_map_monotonic f s j i
   else ()
 
+let last_index_opt_elim (#a:eqtype) (f:a → bool) (s:seq a)
+  : Lemma (match last_index_opt f s with
+           | None → ∀ (i:seq_index s). not (f (Seq.index s i))
+           | Some i → f (Seq.index s i) ∧ (∀ (j:seq_index s). j > i ⟹ not (f (Seq.index s j)))) =
+  match last_index_opt f s with
+  | None → lemma_filter_all_not f s
+  | Some i → assert (f (index s i)); 
+             let aux (j:seq_index s{j > i}): 
+               Lemma (not (f (index s j))) = 
+               lemma_last_index_correct1 f s j in   
+             FStar.Classical.forall_intro aux
+
 let lemma_last_index_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
   Lemma (requires (exists_sat_elems f s /\ i > last_index f s))
         (ensures (exists_sat_elems f (prefix s i) /\
@@ -453,6 +482,12 @@ let lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
     lemma_last_index_correct2 f s li'
   )
   else ()
+
+let lemma_exists_sat_elems_exists (#a:eqtype) (f:a → bool) (s:seq a)
+  : Lemma (exists_sat_elems f s <==> (∃ (i:seq_index s). f (Seq.index s i)))
+  = if length (filter f s) = 0 
+    then lemma_filter_all_not f s 
+    else ()
 
 let lemma_exists_prefix_implies_exists (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
   Lemma (requires (exists_sat_elems f (prefix s i)))
@@ -777,9 +812,12 @@ let lemma_reduce_append2 (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a
   Lemma (reduce b0 f s = f (index s (length s - 1)) (reduce b0 f (prefix s (length s - 1)))) = ()
 
 (* The index of the next entry that satisfies a filter predicate *)
-let next_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
+let next_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
   Tot (option (j:seq_index s{j > i && f (index s j)})) = admit()
+
+let intro_has_next (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k ∧ f (Seq.index s k)})
+  : Lemma (has_next f s i)
+  = admit()
 
 let prev_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
   Tot (option (j:seq_index s{j < i && f (index s j)})) = admit()
-

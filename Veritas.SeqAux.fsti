@@ -108,10 +108,9 @@ val lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
         (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true))
 
 
-let filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a)
-  : Lemma (requires filter f s `Seq.equal` empty)
-          (ensures forall (i:seq_index s). not (f (Seq.index s i)))
-  = admit()
+val lemma_filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a):
+  Lemma (requires filter f s `Seq.equal` empty)
+        (ensures forall (i:seq_index s). not (f (Seq.index s i)))
 
 (* mapping from filtered subseq to satisfying indexes *)
 val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
@@ -214,12 +213,6 @@ let exists_sat_elems (#a:eqtype) (f:a -> bool) (s:seq a) =
 (* The index of the last entry when we know there exists such entry *)
 let last_index (#a:eqtype) (f:a -> bool) (s:seq a{exists_sat_elems f s}) =
   Some?.v (last_index_opt f s)
-
-let last_index_opt_elim (#a:eqtype) (f:a -> bool) (s:seq a)
-  : Lemma (match last_index_opt f s with
-           | None -> forall (i:seq_index s). not (f (Seq.index s i))
-           | Some i -> f (Seq.index s i) /\ (forall (j:seq_index s). j > i ==> not (f (Seq.index s j))))
-  = admit()
   
 (* Any index beyond last index does not satisfy f *)
 val lemma_last_index_correct1 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
@@ -230,6 +223,11 @@ val lemma_last_index_correct1 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s
 val lemma_last_index_correct2 (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
   Lemma (requires (f (index s i)))
         (ensures (exists_sat_elems f s /\ last_index f s >= i))
+
+val last_index_opt_elim (#a:eqtype) (f:a → bool) (s:seq a)
+  : Lemma (match last_index_opt f s with
+           | None → ∀ (i:seq_index s). not (f (Seq.index s i))
+           | Some i → f (Seq.index s i) ∧ (∀ (j:seq_index s). j > i ⟹ not (f (Seq.index s j))))
 
 (* Taking the prefix of a sequence upto last_index does not alter last_index *)
 val lemma_last_index_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
@@ -242,9 +240,8 @@ val lemma_not_exists_prefix (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= leng
   Lemma (requires (not (exists_sat_elems f s)))
         (ensures (not (exists_sat_elems f (prefix s i))))
 
-let lemma_exists_sat_elems_exists (#a:eqtype) (f:a -> bool) (s:seq a)
+val lemma_exists_sat_elems_exists (#a:eqtype) (f:a -> bool) (s:seq a)
   : Lemma (exists_sat_elems f s <==> (exists (i:seq_index s). f (Seq.index s i)))
-  = admit()
   
 val lemma_exists_prefix_implies_exists (#a:eqtype) (f:a -> bool) (s:seq a) (i:nat{i <= length s}):
   Lemma (requires (exists_sat_elems f (prefix s i)))
@@ -388,9 +385,8 @@ val next_index_opt (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s):
 let has_next (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s): bool = 
   Some? (next_index_opt f s i)
 
-let intro_has_next (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k /\ f (Seq.index s k)})
+val intro_has_next (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k /\ f (Seq.index s k)})
   : Lemma (has_next f s i)
-  = admit()
 
 (* the next index satisfying a filter predicate *)
 let next_index (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{has_next f s i}): 
