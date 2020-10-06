@@ -1567,7 +1567,7 @@ let lemma_eac_value_root_unchanged (itsl: TL.eac_log {I.length itsl > 0}):
   else 
     lemma_verifier_thread_state_extend2 itsl (n - 1) 0
   
-let lemma_eac_value_unchanged (itsl: TL.eac_log {I.length itsl > 0}) (k: key):
+let lemma_eac_value_unchanged_memop (itsl: TL.eac_log {I.length itsl > 0}) (k: key):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
                    is_memory_op e /\
@@ -1613,6 +1613,160 @@ let lemma_eac_value_unchanged (itsl: TL.eac_log {I.length itsl > 0}) (k: key):
    lemma_eac_value_is_evicted_value itsl k;
    lemma_eac_value_is_evicted_value itsl' k   
 
+(* when a key is evicted its eac_value is unchanged *)
+let lemma_eac_value_unchanged_evictm_key (itsl: TL.eac_log {I.length itsl > 0}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   EvictM? e))
+        (ensures (let n = I.length itsl in
+                  let e = I.index itsl (n - 1) in
+                  let k = EvictM?.k e in
+                  let k' = EvictM?.k' e in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  eac_value itsl k = eac_value itsl' k)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let k = EvictM?.k e in
+  let k' = EvictM?.k' e in
+  let itsl' = I.prefix itsl (n - 1) in                    
+  let tid = TL.thread_id_of itsl (n - 1) in
+
+  lemma_fullprefix_equal itsl;  
+  let es = TL.eac_state_of_key itsl k in
+  let es' = TL.eac_state_of_key itsl' k in
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+
+  lemma_eac_state_transition itsl (n - 1);
+  assert(EACInStore? es' && EACEvictedMerkle? es);
+
+  lemma_verifier_thread_state_extend itsl (n -1);
+  lemma_eac_value_is_stored_value itsl' k tid;
+  lemma_eac_value_is_evicted_value itsl k;
+  lemma_ext_evict_val_is_stored_val itsl (n - 1)
+
+(* if a key is in two stores on two consecutive positions then the two stores should be the 
+ * store of the same thread - there is not enough time to evict and add to another thread *)
+ (* TODO: push it to TSLog ... *)
+let lemma_two_succ_instores_same_thread (itsl: TL.eac_log {I.length itsl > 0}) (k:key):
+  Lemma (requires (let n = I.length itsl in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   TL.is_eac_state_instore itsl k /\
+                   TL.is_eac_state_instore itsl' k))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  TL.stored_tid itsl k = TL.stored_tid itsl' k)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+
+  let itsl' = I.prefix itsl (n - 1) in                   
+  let tid2 = TL.stored_tid itsl k in
+  let tid1 = TL.stored_tid itsl' k in
+  let tid = TL.thread_id_of itsl (n - 1) in
+
+  let vs1 = TL.thread_state itsl tid1 in
+  let vs1' = TL.thread_state itsl tid1 in
+
+  lemma_fullprefix_equal itsl;
+  lemma_eac_state_transition itsl (n - 1);
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  
+  if tid1 = tid2 then ()
+  else (
+    lemma_key_in_unique_store2 itsl k tid1 tid2;
+
+    if tid <> tid1 then lemma_verifier_thread_state_extend2 itsl (n - 1) tid1
+    else lemma_verifier_thread_state_extend itsl (n - 1)          
+  )
+
+(* the only eac_value that changes is for the key k' in EvictM k k' *)
+let lemma_eac_value_unchanged_evictm (itsl: TL.eac_log {I.length itsl > 0}) (ki:key):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   EvictM? e /\ ki <> EvictM?.k' e))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  eac_value itsl ki = eac_value itsl' ki)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let k = EvictM?.k e in
+  let k' = EvictM?.k' e in
+
+  lemma_fullprefix_equal itsl;  
+  if k = ki then lemma_eac_value_unchanged_evictm_key itsl
+  else if ki = Root then (
+    lemma_root_in_store0 itsl;
+    lemma_eac_value_is_stored_value itsl Root 0;
+    lemma_root_in_store0 itsl';
+    lemma_eac_value_is_stored_value itsl' Root 0;
+
+    if tid = 0 then 
+      lemma_verifier_thread_state_extend itsl (n - 1)
+    else 
+      lemma_verifier_thread_state_extend2 itsl (n - 1) 0
+  )
+  else (
+    let es = TL.eac_state_of_key itsl ki in
+    let es' = TL.eac_state_of_key itsl' ki in
+    lemma_eac_state_same itsl (n - 1) ki;
+    assert(es = es');
+    lemma_eac_state_of_key_valid itsl ki;
+
+    match es with
+    | EACInit -> lemma_eac_value_init itsl ki; lemma_eac_value_init itsl' ki
+    | EACInStore _ _ -> 
+      let tidk = TL.stored_tid itsl ki in
+      //let tidk' = TL.stored_tid itsl' ki in
+      lemma_two_succ_instores_same_thread itsl ki;
+      //assert(tidk = TL.stored_tid itsl' ki);
+
+      lemma_eac_value_is_stored_value itsl ki tidk;
+      lemma_eac_value_is_stored_value itsl' ki tidk;
+
+      if tid = tidk then lemma_verifier_thread_state_extend itsl (n - 1)
+      else 
+        lemma_verifier_thread_state_extend2 itsl (n - 1) tidk
+
+    | _ ->
+      lemma_eac_value_is_evicted_value itsl ki;
+      lemma_eac_value_is_evicted_value itsl' ki
+  )
+
+(* the only eac_value that changes is for the key k' in EvictM k k'; even here the part of the 
+ * value pointing to the other direction is unchanged *)
+let lemma_eac_value_unchanged_evictm_anc_other_dir (itsl: TL.eac_log {I.length itsl > 0}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   EvictM? e))
+        (ensures (let n = I.length itsl in
+                  let itsl' = I.prefix itsl (n - 1) in
+                  let e = I.index itsl (n - 1) in
+                  let k = EvictM?.k e in
+                  let k' = EvictM?.k' e in
+                  is_proper_desc k k' /\
+                  (let c = desc_dir k k' in
+                   let oc = other_dir c in
+                   let mv = eac_merkle_value itsl k' in
+                   let mv' = eac_merkle_value itsl' k' in
+                   desc_hash_dir mv oc = desc_hash_dir mv' oc))) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let k = EvictM?.k e in
+  let k' = EvictM?.k' e in
+
+  lemma_fullprefix_equal itsl;  
+  lemma_verifier_thread_state_extend itsl (n - 1);
+
+  // assert(V.store_contains (TL.thread_store itsl' tid) k');
+  // assert(V.store_contains (TL.thread_store itsl tid) k');
+  lemma_eac_value_is_stored_value itsl k' tid;
+  lemma_eac_value_is_stored_value itsl' k' tid
+
 let lemma_proving_ancestor_has_hash_extend_memop (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
@@ -1632,7 +1786,7 @@ let lemma_proving_ancestor_has_hash_extend_memop (itsl: TL.eac_log {I.length its
     lemma_eac_state_transition itsl (n - 1);
     lemma_eac_state_of_key_valid itsl' k;    
     
-    lemma_eac_value_unchanged itsl k;
+    lemma_eac_value_unchanged_memop itsl k;
     // assert(eac_value itsl k = eac_value itsl' k);
     
     lemma_ptrfn_unchanged itsl;
@@ -1644,7 +1798,7 @@ let lemma_proving_ancestor_has_hash_extend_memop (itsl: TL.eac_log {I.length its
     // assert(pk = proving_ancestor itsl' k);
 
     
-    lemma_eac_value_unchanged itsl pk;
+    lemma_eac_value_unchanged_memop itsl pk;
     // assert(eac_value itsl pk = eac_value itsl' pk);
 
     lemma_eac_state_same itsl (n - 1) k
@@ -1704,6 +1858,7 @@ let lemma_proving_ancestor_has_hash_extend_evictm (itsl: TL.eac_log {I.length it
   let e = I.index itsl (n - 1) in
   let tid = TL.thread_id_of itsl (n - 1) in
   let vs = TL.thread_state itsl tid in
+  let pf = eac_ptrfn itsl in
   let itsl' = I.prefix itsl (n - 1) in
   let es' = TL.eac_state_of_key itsl' k in
   let vs' = TL.thread_state itsl' tid in
@@ -1747,21 +1902,41 @@ let lemma_proving_ancestor_has_hash_extend_evictm (itsl: TL.eac_log {I.length it
         lemma_eac_state_same itsl (n - 1) k;
         lemma_eac_value_is_evicted_value itsl k;
         lemma_eac_value_is_evicted_value itsl' k;
-        assert(eac_value itsl k = eac_value itsl' k);
+        // assert(eac_value itsl k = eac_value itsl' k);
 
         lemma_ptrfn_unchanged itsl;
         let pk = proving_ancestor itsl k in
-        lemma_feq_proving_ancestor (eac_ptrfn itsl) (eac_ptrfn itsl') k;
+        lemma_feq_proving_ancestor pf (eac_ptrfn itsl') k;
 
-        admit()
+        (* pk is root reachable *)
+        // assert(BP.root_reachable pf pk);
+        lemma_eac_state_of_key_valid itsl pk;
+        lemma_not_init_equiv_root_reachable itsl pk;
+        // assert(pk = Root || TL.is_eac_state_active itsl pk);
+
+        if pk = k2 then (
+          lemma_evict_ancestor_is_proving itsl;
+          lemma_feq_proving_ancestor pf (eac_ptrfn itsl') k1;
+          // assert(pk = proving_ancestor itsl k1);
+          lemma_proving_ancestor_points_to_self itsl k;
+
+          lemma_eac_state_transition itsl (n - 1);
+          lemma_eac_state_of_key_valid itsl k1;
+          lemma_eac_state_of_key_valid itsl' k1;
+          // assert(TL.is_eac_state_evicted itsl k1);
+          lemma_proving_ancestor_points_to_self itsl k1;
+
+          // assert(desc_dir k pk = other_dir (desc_dir k1 pk));
+          lemma_eac_value_unchanged_evictm_anc_other_dir itsl
+        )
+        else
+          lemma_eac_value_unchanged_evictm itsl pk
       )
   )
 
-
 (* when evicted as merkle the proving ancestor contains our hash *)
 let rec lemma_proving_ancestor_has_hash_aux (itsl: TL.eac_log) (k:key{k<> Root}):
-  Lemma (requires True)
-        (ensures (proving_ancestor_has_hash itsl k))
+  Lemma (ensures (proving_ancestor_has_hash itsl k))
         (decreases (I.length itsl)) =
   let n = I.length itsl in
   if n = 0 then
