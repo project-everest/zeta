@@ -811,7 +811,7 @@ let lemma_reduce_append2 (#a:Type) (#b:eqtype) (b0:b) (f: a -> b -> b) (s: seq a
   Lemma (reduce b0 f s = f (index s (length s - 1)) (reduce b0 f (prefix s (length s - 1)))) = ()
 
 (* The index of the next entry that satisfies a filter predicate *)
-#push-options "--z3rlimit_factor 2"
+open FStar.Calc
 let next_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
   Tot (option (j:seq_index s{j > i && f (index s j)})) = 
   let n = length s in
@@ -820,7 +820,14 @@ let next_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
   let fs' = filter f s' in
   if length fs' = 0 then None
   else (
-    lemma_suffix_index s (n - (i + 1)) (first_index f s');
+    //See https://github.com/FStarLang/FStar/wiki/Calculational-proofs
+    calc (==) {
+      (index s' (first_index f s'));
+      (==) {  lemma_suffix_index s (n - (i + 1)) (first_index f s') }
+      (index s (n - (n - (i + 1)) + first_index f s'));
+      (==) { }
+      (index s (i + 1 + first_index f s'));
+    };
     Some (i + 1 + first_index f s')
   )
 // KH : The proof above seems slower than it should be (hence the z3rlimit_factor).
@@ -832,16 +839,13 @@ let next_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
 
 // KH: This is just the contrapositive of lemma_filter_all_not. How can I use 
 //     lemma_filter_all_not to prove this?
-let rec lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
+let lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (exists (i:seq_index s). f (index s i)))
         (ensures (length (filter f s) > 0))
         (decreases (length s)) =
   let n = length s in
-  if not (n = 0)
-  then let e = index s (n - 1) in
-       let s' = prefix s (n - 1) in
-       if not (f e)
-       then (assert (equal (append1 s' e) s); lemma_filter_exists f s')
+  if length (filter f s) = 0
+  then lemma_filter_all_not f s
 
 let intro_has_next (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k ∧ f (Seq.index s k)})
   : Lemma (has_next f s i)
