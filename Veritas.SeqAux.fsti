@@ -434,3 +434,9 @@ let filter_map_snoc (#a:eqtype) (#b:Type)
 val map_upd (#a #b:Type) (f:a -> b) (s:seq a) (i:seq_index s) (x:a)
   : Lemma (map f (Seq.upd s i x) `Seq.equal` Seq.upd (map f s) i (f x))
 
+let mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
+  : t:seq b{
+    Seq.length s == Seq.length t /\
+    (forall (i:seq_index s). Seq.index t i == f i)
+   }
+  = Seq.init (Seq.length s) f

@@ -80,17 +80,9 @@ let sseq_same_shape #a #b (s0:sseq a) (s1:sseq b) =
   Seq.length s0 = Seq.length s1 /\
   (forall (i:seq_index s0). Seq.length (Seq.index s0 i) = Seq.length (Seq.index s1 i))
 
-
-let mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
-  : t:seq b{
-    Seq.length s == Seq.length t /\
-    (forall (i:seq_index s). Seq.index t i == f i)
-   }
-  = Seq.init (Seq.length s) f
-
 let sseq_append #a (ss0:sseq a) (ss1:sseq a{Seq.length ss0 == Seq.length ss1})
   : sseq a
-  = mapi ss0 (fun i -> Seq.append (Seq.index ss0 i) (Seq.index ss1 i))
+  = SA.mapi ss0 (fun i -> Seq.append (Seq.index ss0 i) (Seq.index ss1 i))
 
 let ts_sorted_seq (s:seq (vlog_entry & timestamp)) =
   forall (i j:seq_index s).
@@ -438,26 +430,6 @@ let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl)
 
 #reset-options
 
-let mk_vlog_entry_ext (itsl:its_log) (i:I.seq_index itsl)
-  : vlog_entry_ext
-  =   let ts = thread_state_pre itsl i in
-      let Valid _ st clk _ _ _  = ts in
-      let vle = Seq.index (i_seq itsl) i in
-      lemma_verifier_thread_state_extend itsl i;
-      match vle with
-      | EvictM k k' ->
-        let Some (VStore v _) = st k in
-        EvictMerkle vle v
-      | EvictB k ts ->
-        let Some (VStore v _) = st k in
-        EvictBlum vle v (thread_id_of itsl i)
-      | EvictBM k k' ts ->
-        let Some (VStore v _) = st k in
-        EvictBlum vle v (thread_id_of itsl i)
-      | v -> NEvict v
-let vlog_ext_of_its_log (itsl:its_log)
-  : seq vlog_entry_ext
-  = mapi (i_seq itsl) (mk_vlog_entry_ext itsl)
 let rec map_mapi_fusion (s:seq 'a) (f:SA.seq_index s -> 'b) (g:'b -> 'c)
   : Lemma (ensures map g (mapi s f) == mapi s (fun i -> g (f i)))
           (decreases (Seq.length s))
@@ -472,7 +444,7 @@ let inverse_to_vlog_vlog_ext_of_vlog_entry (itsl:its_log)
 let is_eac (itsl: its_log) : bool =
   Veritas.EAC.is_eac (vlog_ext_of_its_log itsl)
 
-#push-options "--query_stats --ifuel 1,1"
+#push-options "--ifuel 1,1"
 let vlog_ext_of_prefix (itsl:its_log) (i:nat { i <= I.length itsl })
   : Lemma (vlog_ext_of_its_log (I.prefix itsl i) `prefix_of`
            vlog_ext_of_its_log itsl)
@@ -522,6 +494,118 @@ let lemma_eac_implies_state_ops_rw_consistent (itsl: eac_log)
 let eac_state_of_key (itsl: its_log) (k:key): eac_state
   = seq_machine_run (seq_machine_of eac_sm)
                     (partn eac_sm k (vlog_ext_of_its_log itsl))
+
+let run_monitor (itsl:its_log)
+  : monitored_state itsl
+  = let eacs : eacs_t itsl = fun k -> eac_state_of_key itsl k in
+    let threads : threads_t itsl = fun t -> verify (thread_log (I.s_seq itsl) t) in
+    { eacs; threads }
+
+#push-options "--fuel 1,1"
+let run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
+  : Lemma
+    (let m = run_monitor itsl in
+     let vl = vlog_ext_of_its_log itsl in
+     let vl' = partn eac_sm k vl in
+     I.s_seq itsl == Seq.create (Seq.length (I.s_seq itsl)) empty /\
+     m.eacs k == EACInit /\
+     I.i_seq itsl == empty /\
+     vl == empty /\
+     vl' == empty /\
+     (forall tid. thread_state itsl tid == init_thread_state tid)
+     )
+
+  = let m = run_monitor itsl in
+    let vl = vlog_ext_of_its_log itsl in
+    let vl' = partn eac_sm k vl in
+    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
+    assert (vl `Seq.equal` empty);
+    lemma_filter_empty filter_fn;
+    assert (vl' `Seq.equal` empty);
+    assert (Seq.equal (I.i_seq itsl) empty);
+    lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
+    Veritas.Interleave.interleave_empty (IL?.prf itsl)
+
+let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
+  : Lemma (let i = I.length itsl - 1 in
+           let itsl' = I.prefix itsl i in
+           let m' = run_monitor itsl' in
+           let m = run_monitor itsl in
+           let v = I.index itsl i in
+           let ve = mk_vlog_entry_ext itsl i in
+           let vl' = vlog_ext_of_its_log itsl' in
+           let vl'_k = partn eac_sm k vl' in
+           let vl = vlog_ext_of_its_log itsl in
+           let vl_k = partn eac_sm k vl in
+           let tid = thread_id_of itsl i in
+           let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
+           let _, tl = thread_log (I.s_seq itsl) tid in
+           vl `Seq.equal` Seq.snoc vl' ve /\
+           tl `Seq.equal` Seq.snoc tl' v /\
+           thread_state itsl tid == t_verify_step (thread_state itsl' tid) v /\
+           (if key_of v <> k
+            then (vl'_k == vl_k /\ m.eacs k == m'.eacs k)
+            else (vl_k == Seq.snoc vl'_k ve /\
+                  m.eacs k == eac_add ve (m'.eacs k))) /\
+           (forall (tid':valid_tid itsl). {:pattern (thread_log (I.s_seq itsl) tid')}
+             tid <> tid' ==>
+             thread_log (I.s_seq itsl) tid' ==
+             thread_log (I.s_seq (I.prefix itsl i)) tid'))
+  = let i = I.length itsl - 1 in
+    let itsl' = I.prefix itsl i in
+    let m' = run_monitor itsl' in
+    let m = run_monitor itsl in
+    let v = I.index itsl i in
+    let ve = mk_vlog_entry_ext itsl i in
+    let vl' = vlog_ext_of_its_log itsl' in
+    let vl'_k = partn eac_sm k vl' in
+    let vl = vlog_ext_of_its_log itsl in
+    let vl_k = partn eac_sm k vl in
+    let tid = thread_id_of itsl i in
+    let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
+    let _, tl = thread_log (I.s_seq itsl) tid in
+    vlog_ext_of_prefix itsl i;
+    I.interleave_step itsl;
+    assert (vl' `prefix_of` vl);
+    assert (vl `Seq.equal` Seq.snoc vl' ve);
+    assert (tl `Seq.equal` Seq.snoc tl' v);
+    assert (SA.prefix tl (Seq.length tl - 1) `Seq.equal` tl');
+    assert (thread_state itsl tid ==
+            t_verify_aux (init_thread_state tid) tl);
+    assert (thread_state itsl tid ==
+            t_verify_step (t_verify_aux (init_thread_state tid) tl') v);
+    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
+    assert (vl'_k == filter filter_fn vl');
+    assert (vl_k == filter filter_fn vl);
+    let _ =
+      if key_of v <> k
+      then (
+        lemma_filter_extend1 filter_fn vl;
+        assert (vl'_k == vl_k);
+        calc (==) {
+         m.eacs k;
+         (==) {}
+         seq_machine_run (seq_machine_of eac_sm) vl_k;
+         (==) { assert (vl'_k == vl_k) }
+         seq_machine_run (seq_machine_of eac_sm) vl'_k;
+         (==) { }
+         m'.eacs k;
+        };
+        assert (m.eacs k == m'.eacs k)
+      )
+      else (
+        lemma_filter_extend2 filter_fn vl;
+        assert (vl_k == Seq.snoc vl'_k ve);
+        assert (m.eacs k == seq_machine_run (seq_machine_of eac_sm) vl_k);
+        lemma_reduce_append EACInit (trans_fn (seq_machine_of eac_sm)) vl'_k ve;
+        assert (m.eacs k == eac_add ve (m'.eacs k))
+      )
+    in
+    assert (forall (tid':valid_tid itsl).
+             tid <> tid' ==>
+             thread_log (I.s_seq itsl) tid' ==
+             thread_log (I.s_seq (I.prefix itsl i)) tid')
+#pop-options
 
 let lemma_eac_state_of_key_valid (itsl: eac_log) (k:key)
   : Lemma (EACFail <> eac_state_of_key itsl k)
@@ -656,122 +740,6 @@ let lemma_eac_boundary_state_transition (itsl: neac_log):
     ()
 
 
-let eacs_t (itsl:its_log) = k:key -> e:eac_state { e == eac_state_of_key itsl k /\ (is_eac itsl ==> e <> EACFail) }
-let threads_t (itsl:its_log) = t:valid_tid itsl -> v:vtls { Valid? v /\ v == verify (t, Seq.index (I.s_seq itsl) t) }
-noeq
-type monitored_state (itsl:its_log) = {
-  eacs: eacs_t itsl;
-  threads: threads_t itsl
-}
-
-let eq_mon itsl (m0 m1: monitored_state itsl) =
-  FunctionalExtensionality.feq m0.eacs m1.eacs /\
-  FunctionalExtensionality.feq m0.threads m1.threads
-
-let run_monitor (itsl:its_log)
-  : monitored_state itsl
-  = let eacs : eacs_t itsl = fun k -> eac_state_of_key itsl k in
-    let threads : threads_t itsl = fun t -> verify (thread_log (I.s_seq itsl) t) in
-    { eacs; threads }
-
-#push-options "--fuel 1,1"
-let run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
-  : Lemma
-    (let m = run_monitor itsl in
-     let vl = vlog_ext_of_its_log itsl in
-     let vl' = partn eac_sm k vl in
-     I.s_seq itsl == Seq.create (Seq.length (I.s_seq itsl)) empty /\
-     m.eacs k == EACInit /\
-     I.i_seq itsl == empty /\
-     vl == empty /\
-     vl' == empty /\
-     (forall tid. thread_state itsl tid == init_thread_state tid)
-     )
-
-  = let m = run_monitor itsl in
-    let vl = vlog_ext_of_its_log itsl in
-    let vl' = partn eac_sm k vl in
-    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
-    assert (vl `Seq.equal` empty);
-    lemma_filter_empty filter_fn;
-    assert (vl' `Seq.equal` empty);
-    assert (Seq.equal (I.i_seq itsl) empty);
-    lemma_reduce_empty EACInit (trans_fn (seq_machine_of eac_sm));
-    Veritas.Interleave.interleave_empty (IL?.prf itsl)
-
-
-let run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
-  : Lemma (let i = I.length itsl - 1 in
-           let itsl' = I.prefix itsl i in
-           let m' = run_monitor itsl' in
-           let m = run_monitor itsl in
-           let v = I.index itsl i in
-           let ve = mk_vlog_entry_ext itsl i in
-           let vl' = vlog_ext_of_its_log itsl' in
-           let vl'_k = partn eac_sm k vl' in
-           let vl = vlog_ext_of_its_log itsl in
-           let vl_k = partn eac_sm k vl in
-           let tid = thread_id_of itsl i in
-           let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
-           let _, tl = thread_log (I.s_seq itsl) tid in
-           vl `Seq.equal` Seq.snoc vl' ve /\
-           tl `Seq.equal` Seq.snoc tl' v /\
-           thread_state itsl tid == t_verify_step (thread_state itsl' tid) v /\
-           (if key_of v <> k
-            then vl'_k == vl_k
-            else (vl_k == Seq.snoc vl'_k ve /\
-                  m.eacs k == eac_add ve (m'.eacs k))) /\
-           (forall (tid':valid_tid itsl). {:pattern (thread_log (I.s_seq itsl) tid')}
-             tid <> tid' ==>
-             thread_log (I.s_seq itsl) tid' ==
-             thread_log (I.s_seq (I.prefix itsl i)) tid'))
-  = let i = I.length itsl - 1 in
-    let itsl' = I.prefix itsl i in
-    let m' = run_monitor itsl' in
-    let m = run_monitor itsl in
-    let v = I.index itsl i in
-    let ve = mk_vlog_entry_ext itsl i in
-    let vl' = vlog_ext_of_its_log itsl' in
-    let vl'_k = partn eac_sm k vl' in
-    let vl = vlog_ext_of_its_log itsl in
-    let vl_k = partn eac_sm k vl in
-    let tid = thread_id_of itsl i in
-    let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
-    let _, tl = thread_log (I.s_seq itsl) tid in
-    vlog_ext_of_prefix itsl i;
-    I.interleave_step itsl;
-    assert (vl' `prefix_of` vl);
-    assert (vl `Seq.equal` Seq.snoc vl' ve);
-    assert (tl `Seq.equal` Seq.snoc tl' v);
-    assert (SA.prefix tl (Seq.length tl - 1) `Seq.equal` tl');
-    assert (thread_state itsl tid ==
-            t_verify_aux (init_thread_state tid) tl);
-    assert (thread_state itsl tid ==
-            t_verify_step (t_verify_aux (init_thread_state tid) tl') v);
-    let filter_fn = iskey #(key_type eac_sm) (partn_fn eac_sm) k in
-    assert (vl'_k == filter filter_fn vl');
-    assert (vl_k == filter filter_fn vl);
-    let _ =
-      if key_of v <> k
-      then (
-        lemma_filter_extend1 filter_fn vl;
-        assert (vl'_k == vl_k)
-      )
-      else (
-        lemma_filter_extend2 filter_fn vl;
-        assert (vl_k == Seq.snoc vl'_k ve);
-        assert (m.eacs k == seq_machine_run (seq_machine_of eac_sm) vl_k);
-        lemma_reduce_append EACInit (trans_fn (seq_machine_of eac_sm)) vl'_k ve;
-        assert (m.eacs k == eac_add ve (m'.eacs k))
-      )
-    in
-    assert (forall (tid':valid_tid itsl).
-             tid <> tid' ==>
-             thread_log (I.s_seq itsl) tid' ==
-             thread_log (I.s_seq (I.prefix itsl i)) tid')
-#pop-options
-
-
 #push-options "--fuel 1,1"
 let lemma_verifier_thread_state_extend2 (itsl: its_log) (i: I.seq_index itsl) (tid: valid_tid itsl)
   : Lemma (requires (tid <> thread_id_of itsl i))
@@ -806,8 +774,7 @@ let lemma_eac_state_active_implies_prev_add (itsl: eac_log) (k:key{is_eac_state_
     aux itsl k;
     lemma_exists_sat_elems_exists (is_add_of_key k) (I.i_seq itsl)
 
-#push-options "--query_stats --fuel 0,0 --ifuel 1,1"
-
+#push-options "--fuel 0,0 --ifuel 1,1"
 (* the converse of the previous, eac state init implies no previous add *)
 let lemma_eac_state_init_no_entry (itsl: eac_log) (k:key)
   : Lemma (requires (is_eac_state_init itsl k))

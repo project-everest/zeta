@@ -600,46 +600,108 @@ let lemma_evict_before_add3 (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index
   )
   else ()
 
-let lemma_evict_add_count_same_aux (itsl: TL.eac_log) (k:key):
-  Lemma (requires (True))
-        (ensures (is_eac_state_evicted_blum itsl k /\ 1 + MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k) \/
-                  not (is_eac_state_evicted_blum itsl k) /\ MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k)))
-        (decreases (I.length itsl)) = 
-  let n = I.length itsl in
-  let s = eac_state_of_key itsl k in
+let ts_add_seq_empty (itsl:TL.its_log{I.length itsl = 0}) (k:key)
+  : Lemma (ts_add_seq_key itsl k == Seq.empty)
+  = ()
 
-  (* since itsl is eac, the state of k is valid *)
-  lemma_eac_state_of_key_valid itsl k;
-  //assert(s <> EACFail);
+let ts_evict_seq_empty (itsl:TL.its_log{I.length itsl = 0}) (k:key)
+  : Lemma (ts_evict_seq_key itsl k == Seq.empty)
+  = ()
+
+let ts_add_seq_key_snoc (itsl:TL.its_log{I.length itsl > 0}) (k:key)
+  : Lemma 
+    (ensures (
+      let i = I.length itsl - 1 in
+      let itsl' = I.prefix itsl i in
+      let v = I.index itsl i in
+      if not (is_blum_add v)
+      ||  (key_of v <> k)
+      then ts_add_seq_key itsl k `Seq.equal` ts_add_seq_key itsl' k
+      else (ts_add_seq_key itsl k `Seq.equal` Seq.snoc (ts_add_seq_key itsl' k) (blum_add_elem v) /\
+            MS.size (ts_add_set_key itsl k) = MS.size (ts_add_set_key itsl' k) + 1)))
+  = let i = I.length itsl - 1 in
+    let itsl' = I.prefix itsl i in
+    let v = I.index itsl i in
+    if is_blum_add v && key_of v = k
+    then (
+      MS.seq_append_mset #_ #ms_hashfn_dom_cmp
+                         (ts_add_seq_key itsl' k)
+                         (Seq.create 1 (blum_add_elem v));
+      MS.seq2mset_add_elem #_ #ms_hashfn_dom_cmp
+                           (ts_add_seq_key itsl' k)
+                           (blum_add_elem v);
+      assert (ts_add_set_key itsl k ==
+              MS.add_elem (ts_add_set_key itsl' k)
+                          (blum_add_elem v))
+    )
   
-  if n = 0 then ( 
-    lemma_init_state_empty itsl k;
-    //assert(s = EACInit);
-    //assert(S.length (ts_add_seq_key itsl k) = 0);
-    MS.length_size #_ #ms_hashfn_dom_cmp (ts_add_seq_key itsl k);    
-    //assert(MS.size (ts_add_set_key itsl k) = 0);
-    MS.length_size #_ #ms_hashfn_dom_cmp (ts_evict_seq_key itsl k);
-    //assert(MS.size (ts_evict_set_key itsl k) = 0);
-    ()
-  )
-  else (
-    admit()
-  )
-
-
+let ts_evict_seq_key_snoc (itsl:TL.its_log{I.length itsl > 0}) (k:key)
+  : Lemma (let i = I.length itsl - 1 in
+           let itsl' = I.prefix itsl i in
+           let v = I.index itsl i in
+           if not (is_evict_to_blum v)
+           ||  (key_of v <> k)
+           then ts_evict_seq_key itsl k `Seq.equal` ts_evict_seq_key itsl' k
+           else (ts_evict_seq_key itsl k `Seq.equal` Seq.snoc (ts_evict_seq_key itsl' k) (blum_evict_elem itsl i) /\
+                 MS.size (ts_evict_set_key itsl k) = MS.size (ts_evict_set_key itsl' k) + 1))
+  = let i = I.length itsl - 1 in
+    let itsl' = I.prefix itsl i in
+    let v = I.index itsl i in
+    if is_evict_to_blum v && key_of v = k
+    then (
+      MS.seq_append_mset #_ #ms_hashfn_dom_cmp
+                         (ts_evict_seq_key itsl' k)
+                         (Seq.create 1 (blum_evict_elem itsl i));
+      MS.seq2mset_add_elem #_ #ms_hashfn_dom_cmp
+                           (ts_evict_seq_key itsl' k)
+                           (blum_evict_elem itsl i);
+      assert (ts_evict_set_key itsl k ==
+              MS.add_elem (ts_evict_set_key itsl' k)
+                          (blum_evict_elem itsl i))
+    )
+    
+open Veritas.SeqMachine
 (* for an eac ts log, if the eac state of a key k is instore, the count of blum evicts 
  * is the same of blum adds for that key *)
-let lemma_evict_add_count_same (itsl: TL.eac_log) (k:key):
-  Lemma (requires (TL.is_eac_state_instore itsl k))
-        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = 
-  lemma_evict_add_count_same_aux itsl k
+#push-options "--query_stats --fuel 0,0 --ifuel 1,1"
+                                                
+let rec lemma_evict_add_count_rel (itsl:TL.eac_log) (k:key)
+  : Lemma 
+    (ensures (
+          match eac_state_of_key itsl k with
+          | EACFail -> False
+          | EACInit
+          | EACInStore _ _
+          | EACEvictedMerkle _ ->
+            MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k)
+          | EACEvictedBlum _ _ _ ->
+            MS.size (ts_add_set_key itsl k) + 1 = MS.size (ts_evict_set_key itsl k)))
+    (decreases (I.length itsl))
+  = if I.length itsl = 0
+    then (
+      TL.run_monitor_empty itsl k;
+      ts_add_seq_empty itsl k;
+      ts_evict_seq_empty itsl k        
+    )
+    else (
+      let i = I.length itsl - 1 in
+      TL.run_monitor_step itsl k;
+      lemma_evict_add_count_rel (I.prefix itsl i) k;
+      ts_add_seq_key_snoc itsl k;
+      ts_evict_seq_key_snoc itsl k 
+    )
+
+let lemma_evict_add_count_same (itsl: TL.eac_log) (k:key)
+  : Lemma (requires (TL.is_eac_state_instore itsl k))
+          (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k)))
+  = lemma_evict_add_count_rel itsl k
 
 (* for an eac ts log, if the eac state of a key k is evicted to merkle, the count of blum evicts 
  * is the same of blum adds for that key *)
-let lemma_evict_add_count_same_evictedm (itsl: TL.eac_log) (k:key):
-  Lemma (requires (is_eac_state_evicted_merkle itsl k))
-        (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) = 
-  lemma_evict_add_count_same_aux itsl k
+let lemma_evict_add_count_same_evictedm (itsl: TL.eac_log) (k:key)
+  : Lemma (requires (is_eac_state_evicted_merkle itsl k))
+          (ensures (MS.size (ts_add_set_key itsl k) = MS.size (ts_evict_set_key itsl k))) 
+  = lemma_evict_add_count_rel itsl k
 
 let lemma_mem_key_add_set_same (itsl: its_log) (be: ms_hashfn_dom):
   Lemma (mem be (ts_add_set itsl) = mem be (ts_add_set_key itsl (MH.key_of be))) = admit()

@@ -15,7 +15,7 @@ open Veritas.Verifier.Thread
 
 open Veritas.SeqAux
 open FStar.Seq
-
+module SA = Veritas.SeqAux
 module E=Veritas.EAC
 module I = Veritas.Interleave
 module V=Veritas.Verifier
@@ -136,6 +136,28 @@ val lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl):
          t_verify_step (thread_state_pre itsl i) (I.index itsl i))
 
 
+let mk_vlog_entry_ext (itsl:its_log) (i:I.seq_index itsl)
+  : vlog_entry_ext
+  =   let ts = thread_state_pre itsl i in
+      let Valid _ st clk _ _ _  = ts in
+      let vle = Seq.index (i_seq itsl) i in
+      lemma_verifier_thread_state_extend itsl i;
+      match vle with
+      | EvictM k k' ->
+        let Some (VStore v _) = st k in
+        EvictMerkle vle v
+      | EvictB k ts ->
+        let Some (VStore v _) = st k in
+        EvictBlum vle v (thread_id_of itsl i)
+      | EvictBM k k' ts ->
+        let Some (VStore v _) = st k in
+        EvictBlum vle v (thread_id_of itsl i)
+      | v -> NEvict v
+
+let vlog_ext_of_its_log (itsl:its_log)
+  : seq vlog_entry_ext
+  = SA.mapi (i_seq itsl) (mk_vlog_entry_ext itsl)
+
 (* is this an evict add consistent log *)
 val is_eac (itsl: its_log):bool
 
@@ -161,6 +183,58 @@ val lemma_eac_implies_state_ops_rw_consistent (itsl: eac_log):
   
 (* the eac state of a key at the end of an its log *)
 val eac_state_of_key (itsl: its_log) (k:key): eac_state 
+
+let eacs_t (itsl:its_log) = k:key -> e:eac_state { e == eac_state_of_key itsl k /\ (is_eac itsl ==> e <> EACFail) }
+let threads_t (itsl:its_log) = t:valid_tid itsl -> v:vtls { Valid? v /\ v == verify (t, Seq.index (I.s_seq itsl) t) }
+
+noeq
+type monitored_state (itsl:its_log) = {
+  eacs: eacs_t itsl;
+  threads: threads_t itsl
+}
+
+val run_monitor (itsl:its_log)
+  : monitored_state itsl
+
+val run_monitor_empty (itsl:its_log{I.length itsl = 0}) (k:key)
+  : Lemma
+    (let m = run_monitor itsl in
+     let vl = vlog_ext_of_its_log itsl in
+     let vl' = partn eac_sm k vl in
+     I.s_seq itsl == Seq.create (Seq.length (I.s_seq itsl)) empty /\
+     m.eacs k == EACInit /\
+     I.i_seq itsl == empty /\
+     vl == empty /\
+     vl' == empty /\
+     (forall tid. thread_state itsl tid == init_thread_state tid)
+     )
+
+val run_monitor_step (itsl:its_log{I.length itsl > 0}) (k:key)
+  : Lemma (let i = I.length itsl - 1 in
+           let itsl' = I.prefix itsl i in
+           let m' = run_monitor itsl' in
+           let m = run_monitor itsl in
+           let v = I.index itsl i in
+           let ve = mk_vlog_entry_ext itsl i in
+           let vl' = vlog_ext_of_its_log itsl' in
+           let vl'_k = partn eac_sm k vl' in
+           let vl = vlog_ext_of_its_log itsl in
+           let vl_k = partn eac_sm k vl in
+           let tid = thread_id_of itsl i in
+           let _, tl' = thread_log (I.s_seq (I.prefix itsl i)) tid in
+           let _, tl = thread_log (I.s_seq itsl) tid in
+           vl `Seq.equal` Seq.snoc vl' ve /\
+           tl `Seq.equal` Seq.snoc tl' v /\
+           thread_state itsl tid == t_verify_step (thread_state itsl' tid) v /\
+           (if key_of v <> k
+            then (vl'_k == vl_k /\
+                  m.eacs k == m'.eacs k)
+            else (vl_k == Seq.snoc vl'_k ve /\
+                  m.eacs k == eac_add ve (m'.eacs k))) /\
+           (forall (tid':valid_tid itsl). {:pattern (thread_log (I.s_seq itsl) tid')}
+             tid <> tid' ==>
+             thread_log (I.s_seq itsl) tid' ==
+             thread_log (I.s_seq (I.prefix itsl i)) tid'))
 
 (* by definition, ts log is eac_valid only if the state of each key is not EACFail *)
 val lemma_eac_state_of_key_valid (itsl: eac_log) (k:key):
