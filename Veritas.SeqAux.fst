@@ -841,9 +841,7 @@ let next_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
 //     lemma_filter_all_not to prove this?
 let lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (exists (i:seq_index s). f (index s i)))
-        (ensures (length (filter f s) > 0))
-        (decreases (length s)) =
-  let n = length s in
+        (ensures (length (filter f s) > 0)) =
   if length (filter f s) = 0
   then lemma_filter_all_not f s
 
