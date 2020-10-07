@@ -363,6 +363,7 @@ private let seq_remove (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
   : Seq.seq a
   = Seq.append (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
 
+#push-options "--z3rlimit_factor 4"
 private let seq_remove_count1 (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
   : Lemma
       (Seq.count (Seq.index s i) s == Seq.count (Seq.index s i) (seq_remove s i) + 1)
@@ -385,6 +386,7 @@ private let seq_remove_count1 (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
               Seq.count x (Seq.slice s 0 i) + Seq.count x (Seq.slice s (i + 1) (Seq.length s)) + 1);
       Seq.lemma_append_count (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
     end
+#pop-options
 
 #push-options "--fuel 1 --ifuel 0"
 private let seq_remove_count2 (#a:eqtype)

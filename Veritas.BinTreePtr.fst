@@ -695,3 +695,51 @@ let lemma_parent_child (n:bin_tree_node{n <> Root}):
   let c = desc_dir n p in
   lemma_desc_reflexive n
 
+
+(* 
+ * The setup is (Root -> a) and (Root -> d) and d is a proper descendant of a, 
+ * then a points to some ancestor of d 
+ *)
+let rec lemma_reachable_between_aux (pf: ptrfn) (d: bin_tree_node) (a: bin_tree_node):
+  Lemma (requires (root_reachable pf d /\ is_proper_desc d a /\ root_reachable pf a))
+        (ensures (let c = desc_dir d a in
+                  points_to_some pf a c /\ 
+                  is_desc d (pointed_node pf a c))) 
+        (decreases (depth d)) = 
+  let c = desc_dir d a in
+
+  (* pd is the prev node in the path Root -> d *)
+  lemma_proper_desc_depth_monotonic d a;
+  let pd = prev_in_path pf d Root in
+
+  (* two ancestors of d - pd and a - are ancestor-descendants of one another *)
+  lemma_two_ancestors_related d pd a;
+
+  if a = pd then 
+    //assert(points_to_some pf a c);
+    //assert(pointed_node pf a c = d);
+    lemma_desc_reflexive d
+  
+  else if is_desc pd a then (
+    (* depth of pd > depth a *)
+    lemma_proper_desc_depth_monotonic pd a;
+
+    (* pd and (child c a) are ancestor-descendants *)
+    lemma_two_ancestors_related d pd (child c a);
+    //assert(is_anc_desc_sym pd (child c a));
+
+    (* if pd is a descendant of (child c a) then, apply induction *)
+    if is_desc pd (child c a) then (
+      lemma_proper_desc_depth_monotonic d pd;
+      lemma_reachable_between_aux pf pd a;
+      lemma_desc_transitive d pd (pointed_node pf a c)
+    )
+    else (
+      lemma_desc_reflexive pd;
+      lemma_proper_desc_depth_monotonic (child c a) pd
+    )
+  )
+  else 
+    lemma_points_to_not_reachable_between pf d Root pd a
+
+let lemma_reachable_between = lemma_reachable_between_aux

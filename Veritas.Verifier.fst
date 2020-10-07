@@ -272,7 +272,7 @@ let vevictm (k:key)
     match dh' with
     | Empty -> Failed
     | Desc k2 h2 b2 -> if k2 = k then
-                         let v'_upd = update_merkle_value v' d k h b2 in
+                         let v'_upd = update_merkle_value v' d k h false in
                          let st_upd = evict_from_store (update_store st k' (MVal v'_upd)) k in
                          update_thread_store vs st_upd
                        else Failed

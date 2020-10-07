@@ -359,6 +359,8 @@ let lemma_non_eac_instore_addm
   let k = V.key_of e in
   let tid = thread_id_of itsl i in
   let ee = TL.vlog_entry_ext_at itsl i in
+  let es' = eac_boundary_state_pre itsl in
+  let addm = EACInStore?.m es' in
 
   (* instore state implies that k is in some (unique) thread store *)
   let tid_stored = stored_tid itsli k in
@@ -371,25 +373,41 @@ let lemma_non_eac_instore_addm
     match e with
     | AddM _ k' ->
 
-    (* k' is the proving ancestor of k *)
-    lemma_addm_ancestor_is_proving itsli';
-    //assert(k' = proving_ancestor itsli k);
+      (* k' is the proving ancestor of k *)
+      lemma_addm_ancestor_is_proving itsli';
 
-    (* thread store of tid contains k' *)
-    //assert(store_contains (TL.thread_store itsli tid) k');
+      (* eac_state = EACInStore BAdd _, implying k was added using blum *)
+      if addm = BAdd then (
 
-    (* k is present in the store of tid_stored, by definition *)
-    //assert(store_contains (TL.thread_store itsli tid_stored) k);
+        (* this implies that the "blum bit" is set to false in k' *)
+        lemma_proving_ancestor_blum_bit itsli k;
 
-    (* this implies k' is in the store of ltid *)
-    lemma_store_contains_proving_ancestor itsli tid_stored k;    
-    //assert(store_contains (TL.thread_store itsli tid_stored) k');
+        (* this leads to a verification failure *)
+        // assert(V.store_contains (TL.thread_store itsli tid) k');
+        lemma_eac_value_is_stored_value itsli k' tid;
 
-    (* but k' cannot be in two stores *)
-    lemma_key_in_unique_store2 itsli k' tid tid_stored;
+        hash_collision_contra()
+      )
+      else (
+        assert(addm = MAdd);
+        //assert(k' = proving_ancestor itsli k);
 
-    hash_collision_contra()
-  )
+        (* thread store of tid contains k' *)
+        //assert(store_contains (TL.thread_store itsli tid) k');
+
+        (* k is present in the store of tid_stored, by definition *)
+        //assert(store_contains (TL.thread_store itsli tid_stored) k);
+
+        (* this implies k' is in the store of ltid *)
+        lemma_store_contains_proving_ancestor itsli tid_stored k;    
+        //assert(store_contains (TL.thread_store itsli tid_stored) k');
+
+        (* but k' cannot be in two stores *)
+        lemma_key_in_unique_store2 itsli k' tid tid_stored;
+
+        hash_collision_contra()
+      )
+    )
 
 let lemma_non_eac_instore_evictm
   (itsl: neac_log {
@@ -459,6 +477,9 @@ let lemma_non_eac_instore_evictb
     match ee with
     | EvictBlum (EvictB k t) v' tid' ->
       (* otherwise there won't be an eac failure *)
+      assume(DVal? v && v' <> v || m <> BAdd);
+            
+      (* otherwise there won't be an eac failure *)
       // assert(DVal? v && v' <> v || m <> BAdd);
 
       (* the thread store of tid contains k *)
@@ -488,7 +509,7 @@ let lemma_non_eac_instore_evictb
       lemma_ext_evict_val_is_stored_val itsl i;
       // assert(v' = stored_value itsli k);
 
-      hash_collision_contra()
+      hash_collision_contra()      
   )
 
 

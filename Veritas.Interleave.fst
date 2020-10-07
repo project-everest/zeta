@@ -631,6 +631,58 @@ let map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:seq_ind
     in
     aux prf i
 
+#push-options "--query_stats --fuel 1,1 --ifuel 1,1"
+    
+let rec filter_map_interleaving' (#a #b:eqtype)
+                            (filter: a -> bool)
+                            (f:(refine filter -> b))
+                            (#s:seq a)
+                            (#ss:sseq a)
+                            (i:interleave s ss)
+  : Tot (interleave (filter_map filter f s)
+                    (map (filter_map filter f) ss))
+        (decreases i)
+  = match i with 
+    | IntEmpty -> 
+      filter_empty filter;
+      assert (filter_refine filter Seq.empty `Seq.equal` Seq.empty);
+      interleave_coerce IntEmpty
+    | IntAdd is' ss' prf' ->
+      let prf' = filter_map_interleaving' filter f prf' in
+      filter_empty filter;
+      assert (filter_map filter f (empty #a) `Seq.equal` empty #b);
+      assert (map (filter_map filter f) (append1 ss' (empty #a)) `Seq.equal`
+              append1 (map (filter_map filter f) ss') (empty #b));
+      interleave_coerce (IntAdd _ _ prf')
+    | IntExtend is' ss' prf' x j ->
+      let prf' = filter_map_interleaving' filter f prf' in
+      let sj = Seq.snoc (Seq.index ss' j) x in
+      filter_map_snoc filter f is' x;
+      filter_map_snoc filter f (Seq.index ss' j) x;
+      map_upd (filter_map filter f) ss' j sj;
+      assert (map (filter_map filter f) (sseq_extend ss' x j) ==
+              Seq.upd (map (filter_map filter f) ss')
+                      j 
+                      (filter_map filter f sj));
+      if filter x
+      then (
+        assert (filter_map filter f (append1 is' x) ==
+                append1 (filter_map filter f is') (f x));
+        assert (filter_map filter f sj ==
+                Seq.snoc (filter_map filter f (Seq.index ss' j)) (f x));
+        assert (map (filter_map filter f) (sseq_extend ss' x j) ==
+                sseq_extend (map (filter_map filter f) ss') (f x) j);
+        interleave_coerce (IntExtend _ _ prf' (f x) j)
+      ) else (
+        assert (filter_map filter f (append1 is' x) ==
+                filter_map filter f is');
+        assert (filter_map filter f sj ==
+                filter_map filter f (Seq.index ss' j));
+        interleave_coerce prf'
+      )
+
+let filter_map_interleaving = filter_map_interleaving'
+  
 let rec flat_length_zero (#a:_) (s:sseq a) 
   : Lemma (requires (flat_length s == 0))
           (ensures  s `Seq.equal` empty_sseq_n a (Seq.length s))
@@ -701,5 +753,18 @@ let interleave_step (#a:eqtype) (il:interleaving a { length il > 0 })
       in
       aux il
 
-
-      
+let lemma_fullprefix_equal (#a:eqtype) (il: interleaving a)
+  : Lemma (requires True)
+          (ensures (prefix il (length il) == il)) 
+  = let rec aux (il:interleaving a)
+      : Lemma (ensures (prefix il (length il) == il))
+              (decreases (IL?.prf il))
+      = let IL is ss prf = il in
+        match prf with
+        | IntEmpty -> ()
+        | IntAdd _ ss' prf -> 
+          aux (IL is ss' prf)
+        | IntExtend is' ss' prf' x j -> 
+          aux (IL is' ss' prf')
+    in
+    aux il

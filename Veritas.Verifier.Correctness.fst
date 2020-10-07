@@ -32,11 +32,6 @@ module TL = Veritas.Verifier.TSLog
 let to_state_op_gvlog (gl: g_vlog) =
   map to_state_op_vlog gl
 
-assume
-val map_interleaving (#a #b:eqtype) (f:a -> b) (#s:seq a) (#ss:sseq a)
-                     (i:interleave s ss)
-  : interleave (map f s) (map (map f) ss)
-
 let lemma_vlog_interleave_implies_state_ops_interleave (l: vlog) (gl: g_vlog{interleave #vlog_entry l gl})
   : Lemma (interleave #state_op (to_state_op_vlog l) (to_state_op_gvlog gl)) 
   = FStar.Squash.bind_squash
@@ -44,8 +39,8 @@ let lemma_vlog_interleave_implies_state_ops_interleave (l: vlog) (gl: g_vlog{int
       #(interleave (to_state_op_vlog l) (to_state_op_gvlog gl))
       ()
       (fun i -> 
-        let i' = Veritas.Interleave.filter_interleaving is_state_op i in
-        admit())
+        let i' = Veritas.Interleave.filter_map_interleaving is_state_op to_state_op i in
+        FStar.Squash.return_squash i')
 
 let lemma_time_seq_rw_consistent  
   (itsl: TL.hash_verifiable_log {~ (rw_consistent (state_ops itsl))})
