@@ -156,20 +156,12 @@ let rec lemma_hadd_correct_aux (tl: verifiable_log):
 
 let lemma_hadd_correct = lemma_hadd_correct_aux
 
-let blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom =
-  let tli = prefix tl i in
-  let tli' = prefix tl (i + 1) in
-  let e = index tl i in
-  match e with
-  | EvictB k t -> 
-    let st = store_at tl i in
-    let v = stored_value st k in
-    MHDom (k,v) t (thread_id_of tl) 
-  | EvictBM k k' t -> 
-    let st = store_at tl i in
-    let v = stored_value st k in
-    MHDom (k,v) t (thread_id_of tl)   
+let blum_evict_elem = blum_evict_elem_def
 
+let reveal_blum_evict_elem () 
+  : Lemma (blum_evict_elem == blum_evict_elem_def)
+  = norm_spec [delta_only [`%blum_evict_elem]] blum_evict_elem
+  
 let rec blum_evict_seq_aux (tl: verifiable_log): 
   Tot (S.seq ms_hashfn_dom)
   (decreases (length tl)) = 
