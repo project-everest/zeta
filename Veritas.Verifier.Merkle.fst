@@ -3524,9 +3524,11 @@ let lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
   lemma_proving_ancestor_blum_bit_aux itsl k
 
 (* if the store contains a k, it contains its proving ancestor *)
-let lemma_store_contains_proving_ancestor (itsl: TL.eac_log)
+let lemma_store_contains_proving_ancestor (itsl: TL.eac_log) 
   (tid:TL.valid_tid itsl) (k:key{k <> Root}):
-  Lemma (store_contains (TL.thread_store itsl tid) k ==>
-         store_contains (TL.thread_store itsl tid)
-                        (proving_ancestor itsl k)) = admit()
-
+  Lemma (requires (let es = TL.eac_state_of_key itsl k in
+                   EACInStore? es /\
+                   EACInStore?.m es = MAdd))                    
+        (ensures (store_contains (TL.thread_store itsl tid) k ==>
+                                 store_contains (TL.thread_store itsl tid)
+                                 (proving_ancestor itsl k))) = admit()
