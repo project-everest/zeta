@@ -1,11 +1,9 @@
 module Veritas.Verifier.Merkle
 
 open Veritas.BinTreePtr
-open Veritas.EAC
 open Veritas.Interleave
 
 module BP=Veritas.BinTreePtr
-module E=Veritas.EAC
 
 (* does the log entry update which descendant the value of k points to? *)
 let updates_points_to (e: vlog_entry) (k: merkle_key): bool =
@@ -3012,17 +3010,6 @@ let lemma_addm_ancestor_is_proving (itsl: its_log {I.length itsl > 0}):
       else lemma_addm_ancestor_is_proving_caseF itsl
   )
 
-let is_in_blum (es: eac_state): bool = 
-  EACEvictedBlum? es || 
-  (EACInStore? es && EACInStore?.m es = BAdd)
-
-let proving_ancestor_has_blum_bit (itsl: TL.eac_log) (k:key {k <> Root}): bool = 
-  let es = eac_state_of_key itsl k in
-  not (is_eac_state_active es) || 
-  mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
-                                     (desc_dir k (proving_ancestor itsl k)) =
-                      is_in_blum es
-
 let lemma_proving_ancestor_has_blum_bit_extend_memop (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
@@ -3041,7 +3028,7 @@ let lemma_proving_ancestor_has_blum_bit_extend_memop (itsl: TL.eac_log {I.length
   lemma_eac_state_of_key_valid itsl k;
   lemma_eac_state_of_key_valid itsl' k;
 
-  if not (is_eac_state_active es) then ()
+  if not (E.is_eac_state_active es) then ()
   else if k = V.key_of e then (
     lemma_eac_state_transition itsl (n - 1);
     // assert(EACInStore? es);
@@ -3084,7 +3071,7 @@ let lemma_proving_ancestor_has_blum_bit_extend_evictm (itsl: TL.eac_log {I.lengt
   let vs' = TL.thread_state itsl' tid in
   let st' = TL.thread_store itsl' tid in  
 
-  if not (is_eac_state_active es) then ()
+  if not (E.is_eac_state_active es) then ()
   else (
     match e with
     | EvictM k1 k2 
@@ -3168,7 +3155,7 @@ let lemma_proving_ancestor_has_blum_bit_extend_evictb (itsl: TL.eac_log {I.lengt
   
 
 
-  if not (is_eac_state_active es) then ()
+  if not (E.is_eac_state_active es) then ()
   else (
     match e with
     | EvictB k1 _ ->
@@ -3216,7 +3203,7 @@ let lemma_proving_ancestor_has_blum_bit_extend_addb (itsl: TL.eac_log {I.length 
   lemma_eac_state_of_key_valid itsl k;
   lemma_eac_state_of_key_valid itsl' k;
 
-  if not (is_eac_state_active es) then ()
+  if not (E.is_eac_state_active es) then ()
   else (
     match e with
     | AddB (k1,_) _ _ ->
@@ -3277,7 +3264,7 @@ let lemma_proving_ancestor_has_blum_bit_extend_addm_nonewedge (itsl: TL.eac_log 
   lemma_eac_state_transition itsl (n - 1);
   lemma_ptrfn_unchanged_addm_nonewedge itsl;
 
-  if not (is_eac_state_active es) then ()
+  if not (E.is_eac_state_active es) then ()
   else (
     match e with
     | AddM (k,_) k' ->
@@ -3329,7 +3316,7 @@ let lemma_proving_ancestor_has_blum_bit_extend_addm_newedge (itsl: TL.eac_log {I
   lemma_verifier_thread_state_extend itsl (n - 1);
   lemma_eac_state_transition itsl (n - 1);
 
-  if not (is_eac_state_active es) then ()
+  if not (E.is_eac_state_active es) then ()
   else (
     match e with
     | AddM (k,_) k' ->
@@ -3410,7 +3397,7 @@ let lemma_proving_ancestor_has_blum_bit_extend_addm_cutedge (itsl: TL.eac_log {I
   lemma_verifier_thread_state_extend itsl (n - 1);
   lemma_eac_state_transition itsl (n - 1);
           
-  if not (is_eac_state_active es) then ()
+  if not (E.is_eac_state_active es) then ()
   else (
     match e with
     | AddM (k,_) k' ->
@@ -3533,10 +3520,7 @@ let rec lemma_proving_ancestor_blum_bit_aux (itsl: TL.eac_log) (k:key{k <> Root}
 
 (* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
 let lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
-  Lemma (requires (TL.is_eac_state_evicted itsl k))
-        (ensures (mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
-                                     (desc_dir k (proving_ancestor itsl k)) =
-                  is_eac_state_evicted_blum itsl k)) = 
+  Lemma (ensures (proving_ancestor_has_blum_bit itsl k)) = 
   lemma_proving_ancestor_blum_bit_aux itsl k
 
 (* if the store contains a k, it contains its proving ancestor *)
