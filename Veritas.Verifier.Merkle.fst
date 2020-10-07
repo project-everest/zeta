@@ -3275,7 +3275,7 @@ let lemma_proving_ancestor_has_blum_bit_extend_addm_nonewedge (itsl: TL.eac_log 
   lemma_eac_state_of_key_valid itsl' ki;
   lemma_verifier_thread_state_extend itsl (n - 1);
   lemma_eac_state_transition itsl (n - 1);
-
+  lemma_ptrfn_unchanged_addm_nonewedge itsl;
 
   if not (is_eac_state_active es) then ()
   else (
@@ -3283,15 +3283,231 @@ let lemma_proving_ancestor_has_blum_bit_extend_addm_nonewedge (itsl: TL.eac_log 
     | AddM (k,_) k' ->
 
     if k = ki then (
-      assert(is_in_blum es = is_in_blum es');
-      lemma_ptrfn_unchanged_addm_nonewedge itsl;
-      
-      admit()
-    )
-    else
+      //assert(is_in_blum es = is_in_blum es');
 
-    admit()
+      lemma_addm_ancestor_is_proving itsl;
+      // assert(k' = proving_ancestor itsl' k);
+
+      //assert(is_in_blum es = is_in_blum es');
+      
+      lemma_feq_proving_ancestor pf pf' k;
+      // assert(k' = proving_ancestor itsl' k);
+
+      lemma_eac_value_unchanged_addm_nonedge itsl k';
+      lemma_eac_value_is_stored_value itsl' k' tid
+    )
+    else (
+      lemma_eac_state_same itsl (n - 1) ki;
+      let pk = proving_ancestor itsl' ki in
+      lemma_feq_proving_ancestor pf pf' ki;
+      lemma_eac_value_unchanged_addm_nonedge itsl pk    
+    )
   )
+
+let lemma_proving_ancestor_has_blum_bit_extend_addm_newedge (itsl: TL.eac_log {I.length itsl > 0}) (ki: key{ki <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_has_blum_bit itsl' ki /\
+                   AddM? e /\ 
+                   type_of_addm itsl (n - 1) = NewEdge))
+        (ensures (proving_ancestor_has_blum_bit itsl ki)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let pf = eac_ptrfn itsl in
+  let pf' = eac_ptrfn itsl' in
+  let es = TL.eac_state_of_key itsl ki in
+  let es' = TL.eac_state_of_key itsl' ki in
+
+  lemma_eac_state_of_key_valid itsl ki;
+  lemma_eac_state_of_key_valid itsl' ki;
+  lemma_fullprefix_equal itsl;
+  lemma_eac_state_of_key_valid itsl ki;
+  lemma_eac_state_of_key_valid itsl' ki;
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  lemma_eac_state_transition itsl (n - 1);
+
+  if not (is_eac_state_active es) then ()
+  else (
+    match e with
+    | AddM (k,_) k' ->
+
+      lemma_instore_implies_root_reachable itsl k' tid;
+      lemma_instore_implies_root_reachable itsl' k' tid;
+      assert(BP.root_reachable pf k');
+      assert(BP.root_reachable pf' k');
+      lemma_ptrfn_extend_addm_newedge itsl;
+
+      if ki = k then (
+        lemma_addm_anc_points_to itsl;
+        assert(points_to pf ki k');
+
+        lemma_instore_implies_root_reachable itsl k' tid;
+        assert(BP.root_reachable pf k');
+
+        lemma_points_to_reachable pf ki k';
+        lemma_reachable_transitive pf ki k' Root;
+        
+        lemma_points_to_is_prev pf ki Root k';
+        assert(k' = proving_ancestor itsl ki);
+
+        lemma_eac_value_is_stored_value itsl k' tid
+      )
+      else if ki = k' then (
+        lemma_eac_state_same itsl (n - 1) ki;         
+        let pk = proving_ancestor itsl' ki in
+
+        lemma_extend_prev pf' k k' ki;
+        // assert(prev_in_path pf' ki Root = prev_in_path (extend_ptrfn pf' k k') ki Root);
+        lemma_prev_in_path_feq pf (extend_ptrfn pf' k k') ki Root;
+
+        lemma_eac_value_unchanged_addm_unrelated_keys itsl pk        
+      )
+      else (
+        lemma_eac_state_same itsl (n - 1) ki;
+        lemma_not_init_equiv_root_reachable itsl ki;
+        lemma_not_init_equiv_root_reachable itsl' ki;
+
+        let pk = proving_ancestor itsl' ki in
+
+        lemma_extend_prev pf' k k' ki;
+        // assert(prev_in_path pf' ki Root = prev_in_path (extend_ptrfn pf' k k') ki Root);
+        lemma_prev_in_path_feq pf (extend_ptrfn pf' k k') ki Root;
+        assert(pk = proving_ancestor itsl ki);
+
+        assert(pk <> k);
+        if pk = k' then 
+          lemma_eac_value_unchanged_addm_anc_other_dir itsl        
+        else 
+          lemma_eac_value_unchanged_addm_unrelated_keys itsl pk
+      )
+  )
+
+let lemma_proving_ancestor_has_blum_bit_extend_addm_cutedge (itsl: TL.eac_log {I.length itsl > 0}) (ki: key{ki <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_has_blum_bit itsl' ki /\
+                   AddM? e /\ 
+                   type_of_addm itsl (n - 1) = CutEdge))
+        (ensures (proving_ancestor_has_blum_bit itsl ki)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let pf = eac_ptrfn itsl in
+  let pf' = eac_ptrfn itsl' in
+  let es = TL.eac_state_of_key itsl ki in
+  let es' = TL.eac_state_of_key itsl' ki in
+
+  lemma_eac_state_of_key_valid itsl ki;
+  lemma_eac_state_of_key_valid itsl' ki;
+  lemma_fullprefix_equal itsl;
+  lemma_eac_state_of_key_valid itsl ki;
+  lemma_eac_state_of_key_valid itsl' ki;
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  lemma_eac_state_transition itsl (n - 1);
+          
+  if not (is_eac_state_active es) then ()
+  else (
+    match e with
+    | AddM (k,_) k' ->
+      lemma_instore_implies_root_reachable itsl k' tid;
+      lemma_instore_implies_root_reachable itsl' k' tid;
+      assert(BP.root_reachable pf k');
+      assert(BP.root_reachable pf' k');
+      lemma_ptrfn_extend_addm_cutedge itsl;
+
+      if ki = k then (
+        lemma_addm_anc_points_to itsl;
+        assert(points_to pf ki k');
+
+        lemma_instore_implies_root_reachable itsl k' tid;
+        assert(BP.root_reachable pf k');
+
+        lemma_points_to_reachable pf ki k';
+        lemma_reachable_transitive pf ki k' Root;
+        
+        lemma_points_to_is_prev pf ki Root k';
+        assert(k' = proving_ancestor itsl ki);
+
+        lemma_eac_value_is_stored_value itsl k' tid
+      )
+      else if ki = k' then (
+        lemma_eac_state_same itsl (n - 1) ki;         
+        let pk = proving_ancestor itsl' ki in
+        lemma_extendcut_prev pf' k k' ki;
+        // assert(prev_in_path pf' ki Root = prev_in_path (extend_ptrfn pf' k k') ki Root);
+        lemma_prev_in_path_feq pf (extendcut_ptrfn pf' k k') ki Root;
+
+        lemma_eac_value_unchanged_addm_unrelated_keys itsl pk
+      )
+      else (   
+        lemma_eac_state_same itsl (n - 1) ki;
+        lemma_addm_desc_points_to itsl;
+
+        let c = add_dir itsl (n - 1) in
+        
+        (* k' pointed to kd along c before k was added *)
+        let kd = pointed_node pf' k' c in
+
+        if ki = kd then (
+          // assert(points_to pf' ki k');
+          lemma_points_to_reachable pf' ki k';
+          lemma_reachable_transitive pf' ki k' Root;
+          lemma_points_to_is_prev pf' ki Root k';
+          // assert(k' = proving_ancestor itsl' ki);
+
+          
+          // assert(points_to pf k k');
+          lemma_points_to_reachable pf k k';
+          lemma_reachable_transitive pf k k' Root;
+
+          // assert(points_to pf ki k);
+          lemma_points_to_reachable pf ki k;
+          lemma_reachable_transitive pf ki k Root;
+
+          lemma_points_to_is_prev pf ki Root k;
+          // assert(k = proving_ancestor itsl ki);
+
+          lemma_eac_value_is_stored_value itsl k tid;
+          lemma_eac_value_is_stored_value itsl' k' tid
+        )
+        else (
+          lemma_not_init_equiv_root_reachable itsl' ki;
+          lemma_not_init_equiv_root_reachable itsl ki;
+          // assert(BP.root_reachable pf' ki && BP.root_reachable pf ki);
+
+          let pk = proving_ancestor itsl' ki in
+          lemma_ptrfn_extend_addm_cutedge itsl;
+          lemma_extendcut_prev pf' k k' ki;
+          lemma_prev_in_path_feq pf (extendcut_ptrfn pf' k k') ki Root;
+          // assert(pk = proving_ancestor itsl ki);
+
+          // assert(pk <> k);
+          if pk = k' then
+            lemma_eac_value_unchanged_addm_anc_other_dir itsl
+          else
+            lemma_eac_value_unchanged_addm_unrelated_keys itsl pk          
+        )
+      )
+  )
+
+let lemma_proving_ancestor_has_blum_bit_extend_addm (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_has_blum_bit itsl' k /\
+                   AddM? e))
+        (ensures (proving_ancestor_has_blum_bit itsl k)) = 
+  let n = I.length itsl in        
+  let addmt = type_of_addm itsl (n - 1) in
+  match addmt with
+  | NoNewEdge -> lemma_proving_ancestor_has_blum_bit_extend_addm_nonewedge itsl k
+  | NewEdge -> lemma_proving_ancestor_has_blum_bit_extend_addm_newedge itsl k
+  | CutEdge -> lemma_proving_ancestor_has_blum_bit_extend_addm_cutedge itsl k
 
 (* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
 let rec lemma_proving_ancestor_blum_bit_aux (itsl: TL.eac_log) (k:key{k <> Root}):
@@ -3312,8 +3528,7 @@ let rec lemma_proving_ancestor_blum_bit_aux (itsl: TL.eac_log) (k:key{k <> Root}
     | EvictM _ _ -> lemma_proving_ancestor_has_blum_bit_extend_evictm itsl k
     | EvictB _ _ -> lemma_proving_ancestor_has_blum_bit_extend_evictb itsl k    
     | AddB _ _ _ -> lemma_proving_ancestor_has_blum_bit_extend_addb itsl k
-    | _ -> 
-    admit()
+    | AddM _ _ -> lemma_proving_ancestor_has_blum_bit_extend_addm itsl k
   )
 
 (* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
