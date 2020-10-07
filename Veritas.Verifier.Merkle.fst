@@ -2547,12 +2547,77 @@ let lemma_proving_ancestor_has_hash (itsl: TL.eac_log) (k:key{k<> Root}):
                                   (desc_dir k (proving_ancestor itsl k)) =
                   hashfn (eac_value itsl k))) = lemma_proving_ancestor_has_hash_aux itsl k
 
+let proving_ancestor_has_blum_bit (itsl: TL.eac_log) (k:key {k <> Root}): bool = 
+  not (TL.is_eac_state_evicted itsl k) || 
+  mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
+                                     (desc_dir k (proving_ancestor itsl k)) =
+                  is_eac_state_evicted_blum itsl k
+
+
+let lemma_proving_ancestor_has_blum_bit_extend_memop (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_has_blum_bit itsl' k /\
+                   (Get? e \/ Put? e)))
+        (ensures (proving_ancestor_has_blum_bit itsl k)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  
+  let itsl' = I.prefix itsl (n - 1) in
+  let es' = TL.eac_state_of_key itsl' k in
+
+  if not (TL.is_eac_state_evicted itsl k) then ()
+  else (
+    lemma_fullprefix_equal itsl;
+    lemma_eac_state_transition itsl (n - 1);
+    lemma_eac_state_of_key_valid itsl' k;    
+    
+    lemma_eac_value_unchanged_memop itsl k;
+    // assert(eac_value itsl k = eac_value itsl' k);
+    
+    lemma_ptrfn_unchanged itsl;
+    // assert(feq_ptrfn (eac_ptrfn itsl) (eac_ptrfn itsl'));
+
+    (* proving ancestor is unchanged when processing e *)
+    let pk = proving_ancestor itsl k in
+    lemma_feq_proving_ancestor (eac_ptrfn itsl) (eac_ptrfn itsl') k;    
+    // assert(pk = proving_ancestor itsl' k);
+
+    
+    lemma_eac_value_unchanged_memop itsl pk;
+    // assert(eac_value itsl pk = eac_value itsl' pk);
+
+    lemma_eac_state_same itsl (n - 1) k
+  )
+
+(* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
+let rec lemma_proving_ancestor_blum_bit_aux (itsl: TL.eac_log) (k:key{k <> Root}):
+  Lemma (ensures (proving_ancestor_has_blum_bit itsl k))
+        (decreases (I.length itsl)) = 
+  
+  let n = I.length itsl in
+  if n = 0 then
+    lemma_init_state_empty itsl k
+  else (
+    let e = I.index itsl (n - 1) in
+    let itsl' = I.prefix itsl (n - 1) in
+    lemma_proving_ancestor_blum_bit_aux itsl' k;
+    match e with
+    | Get _ _ 
+    | Put _ _ -> lemma_proving_ancestor_has_blum_bit_extend_memop itsl k
+    | _ -> 
+
+    admit()
+  )
+
 (* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
 let lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (requires (TL.is_eac_state_evicted itsl k))
         (ensures (mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
                                      (desc_dir k (proving_ancestor itsl k)) =
-                  is_eac_state_evicted_blum itsl k)) = admit()
+                  is_eac_state_evicted_blum itsl k)) = 
+  lemma_proving_ancestor_blum_bit_aux itsl k
 
 (*
  * Helper lemma for lemma_addm_ancestor_is_proving
