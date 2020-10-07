@@ -33,8 +33,6 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.Verifier.EAC.fst \
                Veritas.Verifier.Correctness.fst
 
-USE_EXTRACTED_INTERFACES=--use_extracted_interfaces true
-
 # Uncomment the definition of PROFILE below, if you want some basic
 # profiling of F* runs on Veritas files It will report the time spent
 # on typechecking your file And the time spent in SMT, which is
