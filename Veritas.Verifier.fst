@@ -256,6 +256,20 @@ let vaddm (r:record)
                          let st_upd2 = add_to_store st_upd k (MVal mv_upd) MAdd in
                          update_thread_store vs st_upd2
 
+(* key k is in store and was added using Merkle *)
+let is_instore_madd (st: vstore) (k: key): bool = 
+  store_contains st k && 
+  add_method_of st k = MAdd
+
+let has_instore_merkle_desc (st: vstore) (k:key{store_contains st k}): bool = 
+  if is_data_key k then false
+  else 
+    let v = to_merkle_value (stored_value st k) in
+    let ld = desc_hash_dir v Left in
+    let rd = desc_hash_dir v Right in
+    Desc? ld && is_instore_madd st (Desc?.k ld) || 
+    Desc? rd && is_instore_madd st (Desc?.k rd)
+
 let vevictm (k:key)
             (k':merkle_key)
             (vs: vtls {Valid? vs}): vtls = 
@@ -263,6 +277,7 @@ let vevictm (k:key)
   (* check store contains a and a' *)
   if not (store_contains st k && store_contains st k') then Failed
   else if not (is_proper_desc k k') then Failed
+  else if has_instore_merkle_desc st k then Failed
   else
     let v' = to_merkle_value (stored_value st k') in
     let v = stored_value st k in
@@ -318,6 +333,7 @@ let vevictb (k:key) (t:timestamp)
   else if not (ts_lt clk t) then Failed
   else if not (store_contains st k) then Failed  
   else if add_method_of st k <> BAdd then Failed
+  else if has_instore_merkle_desc st k then Failed  
   else 
     (* current h_evict *)
     let h = thread_hevict vs in
@@ -335,6 +351,7 @@ let vevictbm (k:key) (k':merkle_key) (t:timestamp)
   else if not (is_proper_desc k k') then Failed
   else if not (store_contains st k) then Failed    
   else if add_method_of st k <> MAdd then Failed  
+  else if has_instore_merkle_desc st k then Failed  
   else
     let v' = to_merkle_value (stored_value st k') in
     let d = desc_dir k k' in

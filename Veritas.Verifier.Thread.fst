@@ -13,6 +13,7 @@ let rec lemma_verifiable_implies_prefix_verifiable_aux
 
 let lemma_verifiable_implies_prefix_verifiable = lemma_verifiable_implies_prefix_verifiable_aux
 
+#push-options "--z3rlimit_factor 4"
 (* the clock of a verifier is monotonic *)
 let rec lemma_clock_monotonic_aux (tl:verifiable_log) (i:idx tl):
   Lemma (requires(True))
@@ -25,6 +26,7 @@ let rec lemma_clock_monotonic_aux (tl:verifiable_log) (i:idx tl):
   else
     let tl' = prefix tl (n - 1) in
     lemma_clock_monotonic_aux tl' i
+#pop-options
 
 let lemma_clock_monotonic (tl: verifiable_log) (i:idx tl) (j:idx tl{j >= i}):
   Lemma (clock tl i `ts_leq` clock tl j) =
