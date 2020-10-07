@@ -1,10 +1,12 @@
 module Veritas.State
 
-open FStar.Seq
 open Veritas.Interleave
 open Veritas.Key
 open Veritas.Record
 open Veritas.SeqAux
+
+open FStar.Seq
+
 
 type state_op = 
   | Get: k:data_key -> v:data_value -> state_op

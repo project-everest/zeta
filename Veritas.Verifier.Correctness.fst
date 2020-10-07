@@ -1,173 +1,101 @@
 module Veritas.Verifier.Correctness
 
 open FStar.Seq
+open Veritas.EAC
 open Veritas.Hash
 open Veritas.Interleave
 open Veritas.Key
 open Veritas.MultiSetHash
 open Veritas.Record
 open Veritas.SeqAux
+open Veritas.SeqMachine
+open Veritas.StateSeqMachine
 open Veritas.State
 open Veritas.Verifier
+open Veritas.Verifier.EAC
+open Veritas.Verifier.Global
+open Veritas.Verifier.Thread
+open Veritas.Verifier.TSLog
+
+module S = FStar.Seq
+module E = Veritas.EAC
+module V = Veritas.Verifier
+module VT = Veritas.Verifier.Thread
+module VG = Veritas.Verifier.Global
+module TL = Veritas.Verifier.TSLog
 
 //Allow the solver to unroll recursive functions at most once (fuel)
 //Allow the solver to invert inductive definitions at most once (ifuel)
 #push-options "--max_fuel 1 --max_ifuel 1 --initial_fuel 1 --initial_ifuel 1"
 
-(* 
- * an indexed vlog attaches an nat index to a vlog 
- * indicating the id of the verifier thread processing
- * the log 
- *)
-type tid_vlog = nat * vlog
-
-(* thread id of the indexed vlog *)
-let tid (il: tid_vlog) = fst il
-
-(* vlog of an indexed vlog *)
-let vlog_of (il: tid_vlog) = snd il
-
-(* length of the vlog portion *)
-let tv_length (tl: tid_vlog) = 
-  length (vlog_of tl)
-
-(* element at the i'th position of the vlog *)
-let tv_index (tl: tid_vlog) (i:nat{i < tv_length tl}) = 
-  index (vlog_of tl) i
-
-(* append an element at the end of the vlog *)
-let tv_append1 (tl: tid_vlog) (e: vlog_entry): Tot tid_vlog = 
-  (tid tl), (append1 (vlog_of tl) e)
-
-(* prefix of a tid_vlog: apply prefix on the 
- * vlog component *)
-let tv_prefix (tl: tid_vlog) (i:nat{i <= tv_length tl}): Tot tid_vlog = 
-  (tid tl), (prefix (vlog_of tl) i)
-
-(* does the log leave the verifier thread in a valid state *)
-let t_verifiable (il: tid_vlog) = 
-  Valid? (t_verify (tid il) (vlog_of il))
-
-(* refinement types of valid verifier logs *)
-type t_verifiable_log = il: tid_vlog {t_verifiable il}
-
-(* Full collection of verifier logs one per thread *)
-type g_vlog = seq vlog
-
-(* a slightly different view of verifier log obtained by 
- * attaching a tid (index) to each thread verifier log *)
-let g_tid_vlog (gl: g_vlog) = attach_index gl
-
-(* globally verifiable logs: every thread-level log is verifiable *)
-type g_verifiable (gl:g_vlog) = all t_verifiable (g_tid_vlog gl)
-
-(* Refinement type of logs that are verifiable *)
-type g_verifiable_log = l:g_vlog{g_verifiable l}
-
-(* view gl as a sequence of t_verifiable_logs *)
-let g_verifiable_refine (gl: g_verifiable_log): Tot (seq t_verifiable_log)
-  = seq_refine t_verifiable (g_tid_vlog gl)
-
-(* aggregate hadd over all verifier threads *)
-let g_hadd (gl: g_verifiable_log) = 
-  let th = fun (tl:t_verifiable_log) -> (thread_hadd (t_verify (fst tl) (snd tl))) in
-  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (th tl) h) in     
-  reduce empty_hash_value f (g_verifiable_refine gl)
-
-(* aggregate hadd over all verifier threads *)
-let g_hevict (gl: g_verifiable_log) = 
-  let th = fun (tl:t_verifiable_log) -> (thread_hevict (t_verify (fst tl) (snd tl))) in
-  let f = fun (tl:t_verifiable_log) (h:ms_hash_value) -> (ms_hashfn_agg (th tl) h) in     
-  reduce empty_hash_value f (g_verifiable_refine gl)  
-
-(* 
- * a global log is hash verifiable if add and 
- * evict hashes agree
- *)
-let g_hash_verifiable (lg: g_verifiable_log) = 
-  g_hadd lg = g_hevict lg
-
-(* refinement type of hash verifiable log *)
-let g_hash_verifiable_log = 
-  lg:g_verifiable_log {g_hash_verifiable lg}
-
-let rec lemma_verifiable_implies_prefix_verifiable
-  (tl:t_verifiable_log) (i:nat{i <= tv_length tl}):
-  Lemma (requires (True))
-        (ensures (t_verifiable (tv_prefix tl i)))
-        (decreases (tv_length tl)) 
-        [SMTPat (tv_prefix tl i)]
-        =    
-  let n = tv_length tl in
-  if n = 0 then ()
-  else if i = n then ()
-  else
-    lemma_verifiable_implies_prefix_verifiable (tv_prefix tl (n - 1)) i
-
-(* the clock of a verifier thread after processing a verifiable log *)
-let clock_after (tl:t_verifiable_log) = 
-  let vs = t_verify (tid tl) (vlog_of tl) in
-  Valid?.clk vs
-
-(* the clock of a verifier is monotonic *)
-let rec lemma_clock_monotonic (tl:t_verifiable_log) (i:nat{i <= tv_length tl}):
-  Lemma (requires(True))
-        (ensures (clock_after (tv_prefix tl i) `ts_leq` clock_after tl)) 
-  (decreases (tv_length tl))        
-        = 
-  let n = tv_length tl in
-  if n = 0 then ()
-  else if i = n then ()
-  else
-    let tl' = tv_prefix tl (n - 1) in
-    lemma_clock_monotonic tl' i
-
-(* We assign a time to every entry thread log *)
-let t_entry_time (tl: t_verifiable_log) (i:nat{i < tv_length tl}) =   
-  let tl' = tv_prefix tl (i+1) in  
-  clock_after tl'
-
-(* the clock of entry j <= clock of entry i if j occurs before i *)
-let lemma_time_monotonic_in_thread (tl: t_verifiable_log) (i:nat{i < tv_length tl}) (j:nat{j <= i}):
-  Lemma (requires (True))
-        (ensures (t_entry_time tl j `ts_leq` t_entry_time tl i)) = 
-  let tli = tv_prefix tl (i + 1) in
-  lemma_clock_monotonic tli (j + 1)
-
-(* Time of an entry in global verifiable log *)
-let g_entry_time (gl: g_verifiable_log) (i: sseq_index gl) = admit()
-
-(* define time sequence obtained by ordering all log entries across all threads 
- * by their assigned time as defined above *)
-let time_seq_ctor (gl: g_verifiable_log): 
-  Tot (interleave_ctor gl) =
-  admit()
-
-let time_seq (gl: g_verifiable_log) = interleaved_seq gl (time_seq_ctor gl)
-
-(* map every entry of the time sequence to its source entry in the thread logs *)
-let time_seq_source (gl: g_verifiable_log) (i: seq_index (time_seq gl)) =
-  interleave_map (time_seq gl) gl (interleaving_prf gl (time_seq_ctor gl)) i
-
-(* if i <= j are two indexes in the time_seq, then the time of entry i <= time of entry j*)
-let lemma_time_seq_correct (gl: g_verifiable_log) 
-                           (i: seq_index (time_seq gl))
-                           (j: seq_index (time_seq gl){j >= i}):
-  Lemma (g_entry_time gl (time_seq_source gl i) <= g_entry_time gl (time_seq_source gl j)) = admit()
-
-
-
-(*
 (* state ops of all vlogs of all verifier threads *)
-let to_state_op_gvlog (gl: g_vlog) = 
+let to_state_op_gvlog (gl: g_vlog) =
   map to_state_op_vlog gl
 
-(* generalized single- and multi-set hash collision *)
-type hash_collision_gen = 
-  | SingleHashCollision: hc: hash_collision -> hash_collision_gen 
-  | MultiHashCollision: hc: ms_hash_collision -> hash_collision_gen
+let lemma_vlog_interleave_implies_state_ops_interleave (l: vlog) (gl: g_vlog{interleave #vlog_entry l gl})
+  : Lemma (interleave #state_op (to_state_op_vlog l) (to_state_op_gvlog gl)) 
+  = FStar.Squash.bind_squash
+      #(interleave l gl)
+      #(interleave (to_state_op_vlog l) (to_state_op_gvlog gl))
+      ()
+      (fun i -> 
+        let i' = Veritas.Interleave.filter_map_interleaving is_state_op to_state_op i in
+        FStar.Squash.return_squash i')
+
+let lemma_time_seq_rw_consistent  
+  (itsl: TL.hash_verifiable_log {~ (rw_consistent (state_ops itsl))})
+  : hash_collision_gen = 
+  let tsl = i_seq itsl in  
+  let ts_ops = to_state_op_vlog tsl in
+  
+  //assert(~ (rw_consistent ts_ops));
+
+  if TL.is_eac itsl then (
+    // ts log is eac implies state ops in that sequence are rw-consistent
+    TL.lemma_eac_implies_state_ops_rw_consistent itsl;
+
+    // ... which is a contradiction
+    //assert(rw_consistent ts_ops);
+
+    (* any return value *)
+    SingleHashCollision (Collision (DVal Null) (DVal Null))
+  )
+  else
+    lemma_non_eac_time_seq_implies_hash_collision itsl
 
 (* final verifier correctness theorem *)
-let lemma_verifier_correct (lg: g_hash_verifiable_log { ~ (seq_consistent (to_state_op_gvlog lg))}):
-  Tot hash_collision_gen = admit()
-  *)
+let lemma_verifier_correct (gl: VG.hash_verifiable_log { ~ (seq_consistent (to_state_op_gvlog gl))}):
+  hash_collision_gen =    
+  (* sequences of per-thread put/get operations *)
+  let g_ops = to_state_op_gvlog gl in
+
+  (* sequence ordered by time of each log entry *)
+  let itsl = TL.create gl in  
+  lemma_interleaving_correct itsl;
+  assert(interleave (i_seq itsl) gl);
+
+  (* sequence of state ops induced by tmsl *)
+  let ts_ops = state_ops itsl in
+
+  lemma_vlog_interleave_implies_state_ops_interleave (i_seq itsl) gl;
+  assert(interleave ts_ops g_ops);
+
+  (* if tm_ops is read-write consistent then we have a contradiction *)
+  let is_rw_consistent = valid_all_comp ssm ts_ops in
+  lemma_state_sm_equiv_rw_consistent ts_ops;
+  
+  if is_rw_consistent then (
+    assert(valid_all ssm ts_ops);
+    assert(rw_consistent ts_ops);
+
+    (* a contradiction *)
+    assert(seq_consistent g_ops);
+
+    (* any return value *)
+    SingleHashCollision (Collision (DVal Null) (DVal Null))
+  )
+  else  
+    //assert(~ (rw_consistent ts_ops));
+    lemma_time_seq_rw_consistent itsl
+  
+
