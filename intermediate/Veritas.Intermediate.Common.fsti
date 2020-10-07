@@ -6,48 +6,16 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 module U128 = FStar.UInt128
+open Veritas.Record
+type slot_id = nat
 
-type slot_id = n:uint_16{U16.v n < UInt.max_int U16.n}
-
-type u256 = uint_64 & uint_64 & uint_64 & uint_64
-
-type key = u256 & uint_8  //size of a merkle key, excluding leading zeroes
-
+let key = Veritas.Key.key
 
 val most_significant_bit (k:key) : bool
 
-let is_data_key (k:key) : bool = most_significant_bit k
+let value = Veritas.Record.value
 
-val data_t : eqtype //Pick a concrete data value?
-
-let data_value = option data_t
-
-(* size of a hash value *)
-let hash_size : nat = 256
-
-(* hash value *)
-type hash_value = uint_64 & uint_64 & uint_64 & uint_64
-
-(* information about a desc stored in a merkle node *)
-type descendent_hash =
-  | Empty: descendent_hash
-  | Desc: k:key ->
-          h:hash_value ->
-          evicted_to_blum:bool ->
-          descendent_hash
-
-type value =
-  | MVal : l:descendent_hash -> r:descendent_hash -> value
-  | DVal : data_value -> value
-
-
-let is_value_of (k:key) (v:value)
-  : bool
-  = if is_data_key k then DVal? v else MVal? v
-
-type add_method =
-  | MAdd: add_method  (* AddM *)
-  | BAdd: add_method  (* AddB *)
+let add_method = Veritas.Verifier.add_method
 
 type record = {
   record_key:key;
@@ -66,18 +34,9 @@ let mk_record k v a : record = {
   record_r_child_in_store = false;
 }
 
-let thread_id_t = uint_16
+let thread_id_t = nat
 
-let timestamp = uint_64
-
-val timestamp_lt (t1 t2: timestamp) : bool
-
-let max (t1 t2: timestamp) =
-  if t1 `timestamp_lt` t2 then t2 else t1
-
-let epoch_of_timestamp (t:timestamp)
-  : uint_64
-  = admit()
+let timestamp = Veritas.MultiSetHash.timestamp
 
 noeq
 type vlog_entry =

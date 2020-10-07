@@ -2,25 +2,26 @@ module Veritas.Intermediate.Store
 open FStar.Integers
 open Veritas.Intermediate.Common
 module U16 = FStar.UInt16
+module SA = Veritas.SeqAux
 
-let vstore = Seq.lseq (option record) (UInt.max_int U16.n)
+let vstore = Seq.seq (option record)
 
 let get_record (st:vstore) (s:slot_id)
   : option record
-  = Seq.index st (U16.v s)
+  = if s >= Seq.length st then None else Seq.index st s
 
-let has_record (st:vstore) (s:slot_id)
+let store_contains (st:vstore) (s:slot_id)
   : bool
   = Some? (get_record st s)
 
-let update_record (st:vstore) (s:slot_id) (r:record)
+let update_record (st:vstore) (s:SA.seq_index st) (r:record)
   : vstore
-  = Seq.upd st (U16.v s) (Some r)
+  = Seq.upd st s (Some r)
 
-let add_record (st:vstore) (s:slot_id) (k:key) (v:value{is_value_of k v}) (a:add_method)
+let add_record (st:vstore) (s:SA.seq_index st) (k:key) (v:value{Veritas.Record.is_value_of k v}) (a:add_method)
   : vstore
   = update_record st s (mk_record k v a)
 
-let evict_record (st:vstore) (s:slot_id) (k:key)  //AR: Do we need k here?
+let evict_record (st:vstore) (s:SA.seq_index st)
   : vstore
-  = Seq.upd st (U16.v s) None
+  = Seq.upd st s None
