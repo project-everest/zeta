@@ -2,6 +2,7 @@ module Veritas.Verifier.Merkle
 
 open FStar.Seq
 open Veritas.BinTree
+open Veritas.EAC
 open Veritas.Hash
 open Veritas.Key
 open Veritas.Record
@@ -9,6 +10,7 @@ open Veritas.SeqAux
 open Veritas.Verifier
 open Veritas.Verifier.TSLog
 
+module E=Veritas.EAC
 module I = Veritas.Interleave
 module V = Veritas.Verifier
 module TL = Veritas.Verifier.TSLog
@@ -61,13 +63,6 @@ val lemma_proving_ancestor_has_hash (itsl: TL.eac_log) (k:key{k<> Root}):
         (ensures (mv_pointed_hash (eac_merkle_value itsl (proving_ancestor itsl k))
                                   (desc_dir k (proving_ancestor itsl k)) = 
                   hashfn (eac_value itsl k)))
-
-(* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
-val lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
-  Lemma (requires (TL.is_eac_state_evicted itsl k))
-        (ensures (mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
-                                     (desc_dir k (proving_ancestor itsl k)) = 
-                  is_eac_state_evicted_blum itsl k))
       
 val lemma_addm_ancestor_is_proving (itsl: its_log {I.length itsl > 0}):
   Lemma (requires (TL.is_eac (I.prefix itsl (I.length itsl - 1)) /\
@@ -77,12 +72,30 @@ val lemma_addm_ancestor_is_proving (itsl: its_log {I.length itsl > 0}):
                   let itsl' = I.prefix itsl (n - 1) in
                   let k = V.key_of e in
                   Root <> k /\ AddM?.k' e = proving_ancestor itsl' k))
-                                  
+
+let is_in_blum (es: E.eac_state): bool = 
+  EACEvictedBlum? es || 
+  (EACInStore? es && EACInStore?.m es = BAdd)
+
+let proving_ancestor_has_blum_bit (itsl: TL.eac_log) (k:key {k <> Root}): bool = 
+  let es = TL.eac_state_of_key itsl k in
+  not (E.is_eac_state_active es) || 
+  mv_evicted_to_blum (eac_merkle_value itsl (proving_ancestor itsl k))
+                                     (desc_dir k (proving_ancestor itsl k)) =
+                      is_in_blum es
+
+(* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
+val lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
+  Lemma (ensures (proving_ancestor_has_blum_bit itsl k))
+
 (* if the store contains a k, it contains its proving ancestor *)
 val lemma_store_contains_proving_ancestor (itsl: TL.eac_log) 
   (tid:TL.valid_tid itsl) (k:key{k <> Root}):
-  Lemma (store_contains (TL.thread_store itsl tid) k ==>
-         store_contains (TL.thread_store itsl tid)
-                        (proving_ancestor itsl k))
+  Lemma (requires (let es = TL.eac_state_of_key itsl k in
+                   EACInStore? es /\
+                   EACInStore?.m es = MAdd))                    
+        (ensures (store_contains (TL.thread_store itsl tid) k ==>
+                                 store_contains (TL.thread_store itsl tid)
+                                 (proving_ancestor itsl k)))
 
 

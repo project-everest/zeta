@@ -831,49 +831,11 @@ let next_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
     Some (i + 1 + first_index f s')
   )
 
-let no_matches_in_range (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (j:nat{j<=Seq.length s})
-   =  forall (k:seq_index s).{:pattern (index s k)} i < k && k < j ==> not (f (index s k))
-
-
-// KH: This is just the contrapositive of lemma_filter_all_not. How can I use 
-//     lemma_filter_all_not to prove this?
 let lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (exists (i:seq_index s). f (index s i)))
         (ensures (length (filter f s) > 0)) =
   if length (filter f s) = 0
   then lemma_filter_all_not f s
-
-#push-options "--fuel 0,0 --ifuel 1,1"
-let next_index_opt_least (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s)
-  : Lemma 
-    (requires (Some? (next_index_opt f s i)))
-    (ensures (
-      let Some j = next_index_opt f s i in
-      no_matches_in_range f s i j))
-  = let Some j = next_index_opt f s i in
-    let n = length s in
-    (* get the subseq after index i *)
-    let s' = suffix s (n - (i + 1)) in
-    let fs' = filter f s' in
-    let fi = first_index f s' in
-    assert (fi + i + 1 == j);
-    let rec aux (k:seq_index s{i < k && k <= j})
-      : Lemma 
-        (requires 
-          no_matches_in_range f s i k)
-        (ensures
-          no_matches_in_range f s i j)        
-        (decreases (j - k))
-      = if k = j then ()
-        else (
-          if not (f (index s k))
-          then aux (k + 1)
-          else (
-            lemma_first_index_correct2 f s' (k - (i + 1))
-          )
-        )
-    in
-    aux (i + 1)
 
 let intro_has_next (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k ∧ f (Seq.index s k)})
   : Lemma (has_next f s i /\
@@ -882,8 +844,7 @@ let intro_has_next (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (k:seq_i
     let s' = suffix s (n - (i + 1)) in
     assert (f (index s' (k - (i + 1)))); 
     lemma_filter_exists f s';
-    next_index_opt_least f s i
-#pop-options
+    lemma_first_index_correct2 f s' (k - (i + 1))
 
 let prev_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
   Tot (option (j:seq_index s{j < i && f (index s j)})) =

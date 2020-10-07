@@ -737,15 +737,48 @@ let lemma_mem_monotonic (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length 
   lemma_mem_monotonic_evict_seq be itsl i;
   ()
 
-let blum_evict_elem_val (itsl:TL.eac_log) (i:I.seq_index itsl) (k:key)
+let blum_evict_elem_val (itsl:TL.eac_log) (i:I.seq_index itsl)
   : Lemma 
     (requires (
-      is_evict_to_blum (I.index itsl i) /\
+      let vi = I.index itsl i in
+      let k = key_of vi in
+      is_evict_to_blum vi /\
       EACEvictedBlum? (eac_state_of_key (I.prefix itsl (i + 1)) k)))
     (ensures (
+      let vi = I.index itsl i in
+      let k = key_of vi in
       let EACEvictedBlum v ts tid = eac_state_of_key (I.prefix itsl (i + 1)) k in
       blum_evict_elem itsl i == MHDom (k, v) ts tid))
-  = admit()
+  = VT.reveal_blum_evict_elem ();
+    let gl = g_vlog_of itsl in
+    let ii = i2s_map itsl i in
+    let (tid,j) = ii in
+    let tl = VG.thread_log gl tid in
+    assert (blum_evict_elem itsl i == VT.blum_evict_elem_def tl j);
+    let itsl_i = I.prefix itsl (i + 1) in  
+    let n = I.length itsl_i in
+    let itsl_i' = I.prefix itsl_i (n - 1) in
+    let vi = I.index itsl_i i in
+    let vi_e = mk_vlog_entry_ext itsl_i i in
+    let k = key_of vi in
+    let m' = run_monitor itsl_i' in
+    let m = run_monitor itsl_i in    
+    run_monitor_step itsl_i k;
+    assert (m.eacs k == eac_add vi_e (m'.eacs k));
+    assert (index tl j == vi);
+    let EACEvictedBlum vv ts tid' = m.eacs k in
+    assume (tid == tid');    
+    match vi with
+    | EvictB k' ts' ->
+      assert (k' = k);
+      assert (VT.verifiable tl); 
+      let tstore = (store_at tl j) in
+      assume (Veritas.Verifier.store_contains tstore k);
+      assume (vv == Veritas.Verifier.stored_value tstore k);
+      assert (VT.blum_evict_elem_def tl j == 
+              MHDom (k', vv) ts' tid')
+    | EvictBM _ _ _ -> admit()
+
     
 (* the next add of a blum evict is a blum add of the same "element" *)
 #push-options "--z3rlimit_factor 4 --ifuel 1,1"
@@ -758,8 +791,7 @@ let lemma_blum_evict_add_same (itsl: TL.eac_log) (i:I.seq_index itsl)
       let j = TL.next_add_of_key itsl i (key_of (I.index itsl i)) in
       is_blum_add (I.index itsl j) /\
       blum_evict_elem itsl i = blum_add_elem (I.index itsl j)))
-  = TL.lemma_ext_evict_val_is_stored_val itsl i;
-    let j = TL.next_add_of_key itsl i (key_of (I.index itsl i)) in
+  = let j = TL.next_add_of_key itsl i (key_of (I.index itsl i)) in
     let itsl_i = I.prefix itsl (i + 1) in  
     let n = I.length itsl_i in
     let itsl_i' = I.prefix itsl_i (n - 1) in
@@ -798,7 +830,7 @@ let lemma_blum_evict_add_same (itsl: TL.eac_log) (i:I.seq_index itsl)
            // assert (is_blum_add vj);
            // assert (vj == AddB (k, value) ts tid);
            // assert (blum_add_elem vj == MHDom (k,value) ts tid);
-           blum_evict_elem_val itsl i k;
+           blum_evict_elem_val itsl i;
            assert (blum_evict_elem itsl i == MHDom (k,value) ts tid)
          )
          else (
