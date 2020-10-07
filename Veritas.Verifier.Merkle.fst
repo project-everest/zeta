@@ -2733,6 +2733,101 @@ let lemma_proving_ancestor_has_blum_bit_extend_evictb (itsl: TL.eac_log {I.lengt
       )
   )
 
+let lemma_proving_ancestor_has_blum_bit_extend_addb (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_has_blum_bit itsl' k /\
+                   AddB? e))
+        (ensures (proving_ancestor_has_blum_bit itsl k)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let pf = eac_ptrfn itsl in
+  let es = TL.eac_state_of_key itsl k in
+  let es' = TL.eac_state_of_key itsl' k in
+
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+
+  if not (is_eac_state_active es) then ()
+  else (
+    match e with
+    | AddB (k1,_) _ _ ->
+
+      lemma_fullprefix_equal itsl;
+      lemma_verifier_thread_state_extend itsl (n - 1);
+      lemma_eac_state_transition itsl (n - 1);
+
+      if k = k1 then (
+        assert(EACInStore? es && EACInStore?.m es = BAdd);
+        assert(EACEvictedBlum? es');
+        assert(is_in_blum es = is_in_blum es');
+
+        let pk = proving_ancestor itsl k in
+        lemma_ptrfn_unchanged itsl;
+        lemma_feq_proving_ancestor (eac_ptrfn itsl) (eac_ptrfn itsl') k;
+        assert(pk = proving_ancestor itsl' k);
+
+        lemma_eac_value_unchanged_addb itsl pk
+      )
+      else (
+        lemma_eac_state_same itsl (n - 1) k;
+        assert(is_in_blum es = is_in_blum es');
+
+        let pk = proving_ancestor itsl k in
+        lemma_ptrfn_unchanged itsl;
+        lemma_feq_proving_ancestor (eac_ptrfn itsl) (eac_ptrfn itsl') k;
+        assert(pk = proving_ancestor itsl' k);
+
+        lemma_eac_value_unchanged_addb itsl pk       
+      )
+  )
+
+let lemma_proving_ancestor_has_blum_bit_extend_addm_nonewedge (itsl: TL.eac_log {I.length itsl > 0}) (ki: key{ki <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_has_blum_bit itsl' ki /\
+                   AddM? e /\ 
+                   type_of_addm itsl (n - 1) = NoNewEdge))
+        (ensures (proving_ancestor_has_blum_bit itsl ki)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in
+  let itsl' = I.prefix itsl (n - 1) in
+  let tid = TL.thread_id_of itsl (n - 1) in
+  let pf = eac_ptrfn itsl in
+  let pf' = eac_ptrfn itsl' in
+  let es = TL.eac_state_of_key itsl ki in
+  let es' = TL.eac_state_of_key itsl' ki in
+
+  lemma_eac_state_of_key_valid itsl ki;
+  lemma_eac_state_of_key_valid itsl' ki;
+
+  lemma_fullprefix_equal itsl;
+  lemma_eac_state_of_key_valid itsl ki;
+  lemma_eac_state_of_key_valid itsl' ki;
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  lemma_eac_state_transition itsl (n - 1);
+
+
+  if not (is_eac_state_active es) then ()
+  else (
+    match e with
+    | AddM (k,_) k' ->
+
+    if k = ki then (
+      assert(is_in_blum es = is_in_blum es');
+      lemma_ptrfn_unchanged_addm_nonewedge itsl;
+      
+      admit()
+    )
+    else
+
+    admit()
+  )
+
 (* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
 let rec lemma_proving_ancestor_blum_bit_aux (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (ensures (proving_ancestor_has_blum_bit itsl k))
@@ -2750,7 +2845,8 @@ let rec lemma_proving_ancestor_blum_bit_aux (itsl: TL.eac_log) (k:key{k <> Root}
     | Put _ _ -> lemma_proving_ancestor_has_blum_bit_extend_memop itsl k
     | EvictBM _ _ _ 
     | EvictM _ _ -> lemma_proving_ancestor_has_blum_bit_extend_evictm itsl k
-    | EvictB _ _ -> lemma_proving_ancestor_has_blum_bit_extend_evictb itsl k
+    | EvictB _ _ -> lemma_proving_ancestor_has_blum_bit_extend_evictb itsl k    
+    | AddB _ _ _ -> lemma_proving_ancestor_has_blum_bit_extend_addb itsl k
     | _ -> 
     admit()
   )
