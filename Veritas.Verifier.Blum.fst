@@ -663,7 +663,7 @@ let ts_evict_seq_key_snoc (itsl:TL.its_log{I.length itsl > 0}) (k:key)
 open Veritas.SeqMachine
 (* for an eac ts log, if the eac state of a key k is instore, the count of blum evicts 
  * is the same of blum adds for that key *)
-#push-options "--query_stats --fuel 0,0 --ifuel 1,1"
+#push-options "--fuel 0,0 --ifuel 1,1"
                                                 
 let rec lemma_evict_add_count_rel (itsl:TL.eac_log) (k:key)
   : Lemma 
@@ -737,13 +737,86 @@ let lemma_mem_monotonic (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length 
   lemma_mem_monotonic_evict_seq be itsl i;
   ()
 
+let blum_evict_elem_val (itsl:TL.eac_log) (i:I.seq_index itsl) (k:key)
+  : Lemma 
+    (requires (
+      is_evict_to_blum (I.index itsl i) /\
+      EACEvictedBlum? (eac_state_of_key (I.prefix itsl (i + 1)) k)))
+    (ensures (
+      let EACEvictedBlum v ts tid = eac_state_of_key (I.prefix itsl (i + 1)) k in
+      blum_evict_elem itsl i == MHDom (k, v) ts tid))
+  = admit()
+    
 (* the next add of a blum evict is a blum add of the same "element" *)
-let lemma_blum_evict_add_same (itsl: TL.eac_log) (i:I.seq_index itsl):
-  Lemma (requires (is_evict_to_blum (I.index itsl i) /\
-                   TL.has_next_add_of_key itsl i (key_of (I.index itsl i))))
-        (ensures (is_blum_add (I.index itsl (TL.next_add_of_key itsl i (key_of (I.index itsl i)))) /\
-                  blum_evict_elem itsl i =                                   
-                  blum_add_elem (I.index itsl (TL.next_add_of_key itsl i (key_of (I.index itsl i)))))) = admit()
+#push-options "--z3rlimit_factor 4 --ifuel 1,1"
+let lemma_blum_evict_add_same (itsl: TL.eac_log) (i:I.seq_index itsl)
+  : Lemma
+    (requires 
+      is_evict_to_blum (I.index itsl i) /\
+      TL.has_next_add_of_key itsl i (key_of (I.index itsl i)))
+    (ensures (
+      let j = TL.next_add_of_key itsl i (key_of (I.index itsl i)) in
+      is_blum_add (I.index itsl j) /\
+      blum_evict_elem itsl i = blum_add_elem (I.index itsl j)))
+  = TL.lemma_ext_evict_val_is_stored_val itsl i;
+    let j = TL.next_add_of_key itsl i (key_of (I.index itsl i)) in
+    let itsl_i = I.prefix itsl (i + 1) in  
+    let n = I.length itsl_i in
+    let itsl_i' = I.prefix itsl_i (n - 1) in
+    let vi = I.index itsl_i i in
+    let vj = I.index itsl j in
+    let vi_e = mk_vlog_entry_ext itsl_i i in
+    let k = key_of vi in
+    let m' = run_monitor itsl_i' in
+    let m = run_monitor itsl_i in    
+    run_monitor_step itsl_i k;
+    assert (m.eacs k == eac_add vi_e (m'.eacs k));
+    let j = TL.next_add_of_key itsl i (key_of vi) in
+    let EACEvictedBlum value ts tid = m.eacs k in
+    let rec aux (ctr:I.seq_index itsl { i < ctr /\ ctr <= j })
+      : Lemma 
+        (requires (
+          let m' = run_monitor (I.prefix itsl ctr) in
+          m'.eacs k == m.eacs k))
+        (ensures (
+          is_blum_add vj /\
+          (blum_evict_elem itsl i = blum_add_elem vj)))
+        (decreases (j - ctr))
+      =  let itsl_next = I.prefix itsl (ctr + 1) in
+         let itsl' = I.prefix itsl_next ctr in
+         let m' = run_monitor itsl' in
+         let mnext = run_monitor itsl_next in
+         I.lemma_prefix_prefix itsl (ctr + 1) ctr;
+         I.lemma_prefix_index itsl (ctr + 1) ctr;
+         run_monitor_step itsl_next k;
+         let v_next = I.index itsl_next ctr in
+         let v_next_e = mk_vlog_entry_ext itsl_next ctr in
+         if ctr = j 
+         then (
+           // assert (v_next == vj);
+           // assert (mnext.eacs k == eac_add v_next_e (EACEvictedBlum value ts tid));
+           // assert (is_blum_add vj);
+           // assert (vj == AddB (k, value) ts tid);
+           // assert (blum_add_elem vj == MHDom (k,value) ts tid);
+           blum_evict_elem_val itsl i k;
+           assert (blum_evict_elem itsl i == MHDom (k,value) ts tid)
+         )
+         else (
+          if key_of v_next <> k
+          then ( 
+            assert (mnext.eacs k == m.eacs k);
+            aux (ctr + 1)
+          )
+          else (
+            assert (mnext.eacs k == eac_add v_next_e (m'.eacs k));
+            assert (AddB? v_next);
+            SA.intro_has_next (is_add_of_key k) (I.i_seq itsl) i ctr;
+            assert (TL.next_add_of_key itsl i k <= ctr)
+          )
+        )
+    in
+    aux (i + 1)
+#pop-options
 
 (* when the eac store is evicted, there exists a previous evict *)
 let lemma_eac_evicted_blum_implies_previous_evict (itsl: its_log) (k:key):

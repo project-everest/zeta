@@ -386,7 +386,8 @@ let has_next (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s): bool =
   Some? (next_index_opt f s i)
 
 val intro_has_next (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k /\ f (Seq.index s k)})
-  : Lemma (has_next f s i)
+  : Lemma (has_next f s i /\
+           Some?.v (next_index_opt f s i) <= k)
 
 (* the next index satisfying a filter predicate *)
 let next_index (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{has_next f s i}): 

@@ -846,11 +846,13 @@ let lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
   then lemma_filter_all_not f s
 
 let intro_has_next (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k ∧ f (Seq.index s k)})
-  : Lemma (has_next f s i)
+  : Lemma (has_next f s i /\
+           Some?.v (next_index_opt f s i) <= k)
   = let n = length s in
     let s' = suffix s (n - (i + 1)) in
     assert (f (index s' (k - (i + 1)))); 
-    lemma_filter_exists f s'
+    lemma_filter_exists f s';
+    assume (Some?.v (next_index_opt f s i) <= k)
 
 let prev_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
   Tot (option (j:seq_index s{j < i && f (index s j)})) =
