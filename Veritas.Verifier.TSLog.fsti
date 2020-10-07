@@ -114,6 +114,10 @@ let last_add_tid (itsl: its_log) (k: key{has_some_add_of_key itsl k}): valid_tid
 (*thread state after processing ts log - guaranteed to be valid *)
 val thread_state (itsl: its_log) (tid: valid_tid itsl): (vs:vtls{Valid? vs})
 
+val reveal_thread_state (itsl:its_log) (tid: valid_tid itsl)
+  : Lemma (thread_state itsl tid == 
+           verify (VG.thread_log (s_seq itsl) tid))
+
 (* thread store after processing ts log *)
 let thread_store (itsl: its_log) (tid: valid_tid itsl): vstore =
   Valid?.st (thread_state itsl tid)

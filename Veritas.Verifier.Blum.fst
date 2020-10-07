@@ -737,6 +737,8 @@ let lemma_mem_monotonic (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length 
   lemma_mem_monotonic_evict_seq be itsl i;
   ()
 
+module VG = Veritas.Verifier.Global
+module I = Veritas.Interleave
 let blum_evict_elem_val (itsl:TL.eac_log) (i:I.seq_index itsl)
   : Lemma 
     (requires (
@@ -753,11 +755,11 @@ let blum_evict_elem_val (itsl:TL.eac_log) (i:I.seq_index itsl)
     let gl = g_vlog_of itsl in
     let ii = i2s_map itsl i in
     let (tid,j) = ii in
+    assert (thread_id_of itsl i == tid);
     let tl = VG.thread_log gl tid in
     assert (blum_evict_elem itsl i == VT.blum_evict_elem_def tl j);
     let itsl_i = I.prefix itsl (i + 1) in  
-    let n = I.length itsl_i in
-    let itsl_i' = I.prefix itsl_i (n - 1) in
+    let itsl_i' = I.prefix itsl_i i in
     let vi = I.index itsl_i i in
     let vi_e = mk_vlog_entry_ext itsl_i i in
     let k = key_of vi in
@@ -767,18 +769,22 @@ let blum_evict_elem_val (itsl:TL.eac_log) (i:I.seq_index itsl)
     assert (m.eacs k == eac_add vi_e (m'.eacs k));
     assert (index tl j == vi);
     let EACEvictedBlum vv ts tid' = m.eacs k in
-    assume (tid == tid');    
-    match vi with
-    | EvictB k' ts' ->
-      assert (k' = k);
-      assert (VT.verifiable tl); 
-      let tstore = (store_at tl j) in
-      assume (Veritas.Verifier.store_contains tstore k);
-      assume (vv == Veritas.Verifier.stored_value tstore k);
-      assert (VT.blum_evict_elem_def tl j == 
-              MHDom (k', vv) ts' tid')
-    | EvictBM _ _ _ -> admit()
-
+    let tstate_i' = thread_state itsl_i' tid in
+    let tstate_i =  thread_state itsl_i tid in
+    Veritas.Interleave.lemma_i2s_map_prefix itsl (i + 1) i;
+    assert (thread_id_of itsl_i i == tid);
+    assert (tstate_i == t_verify_step tstate_i' vi);
+    let tstore_i' = Valid?.st tstate_i' in
+    assert (Veritas.Verifier.store_contains tstore_i' k); 
+    let tstore = store_at tl j in
+    assert (itsl_i' == I.prefix itsl i);
+    I.interleave_sseq_index itsl i;
+    assert (Seq.index (s_seq itsl_i') tid `Seq.equal`
+            SA.prefix (Seq.index (s_seq itsl) tid) j);
+    assert (VG.thread_log (s_seq itsl_i') tid ==
+            VT.prefix (VG.thread_log (s_seq itsl) tid) j);
+    TL.reveal_thread_state itsl_i' tid;
+    assert (tstore == Valid?.st tstate_i')
     
 (* the next add of a blum evict is a blum add of the same "element" *)
 #push-options "--z3rlimit_factor 4 --ifuel 1,1"
