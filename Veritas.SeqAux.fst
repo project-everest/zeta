@@ -830,15 +830,7 @@ let next_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
     };
     Some (i + 1 + first_index f s')
   )
-// KH : The proof above seems slower than it should be (hence the z3rlimit_factor).
-//      What other info do I need to give to z3 to make it faster?
-// The reasoning in the else case is the following:
-//   f (index s' (first_index f s'))                       by the defn of first_index
-//   = f (index s (n - (n - (i + 1)) + first_index f s'))  by lemma_suffix_index
-//   = f (index s (i + 1 + first_index f s'))              by simplification
 
-// KH: This is just the contrapositive of lemma_filter_all_not. How can I use 
-//     lemma_filter_all_not to prove this?
 let lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (exists (i:seq_index s). f (index s i)))
         (ensures (length (filter f s) > 0)) =
@@ -852,7 +844,7 @@ let intro_has_next (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (k:seq_i
     let s' = suffix s (n - (i + 1)) in
     assert (f (index s' (k - (i + 1)))); 
     lemma_filter_exists f s';
-    assume (Some?.v (next_index_opt f s i) <= k)
+    lemma_first_index_correct2 f s' (k - (i + 1))
 
 let prev_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
   Tot (option (j:seq_index s{j < i && f (index s j)})) =
