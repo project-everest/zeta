@@ -814,6 +814,7 @@ let lemma_non_eac_evicted_blum_addb
     let be = blum_add_elem (I.index itsl i) in
 
     (* the previous operation of k is a blum evict *)
+    assert (is_eac itsli);
     lemma_eac_evicted_blum_implies_previous_evict itsli k;
     let i' = last_idx_of_key itsli k in
     //assert(is_blum_evict (index itsli i'));

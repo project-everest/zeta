@@ -156,7 +156,7 @@ let to_blum_elem (s: eac_state{EACEvictedBlum? s}) (k:key): ms_hashfn_dom =
   | EACEvictedBlum v t j -> MHDom (k,v) t j
 
 (* when the eac store is evicted, there exists a previous evict *)
-val lemma_eac_evicted_blum_implies_previous_evict (itsl: its_log) (k:key):
+val lemma_eac_evicted_blum_implies_previous_evict (itsl: TL.eac_log) (k:key):
   Lemma (requires (is_eac_state_evicted_blum itsl k))
         (ensures (has_some_entry_of_key itsl k /\
                   is_evict_to_blum (I.index itsl (last_idx_of_key itsl k)) /\
