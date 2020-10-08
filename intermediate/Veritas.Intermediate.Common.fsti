@@ -14,6 +14,7 @@ let key = Veritas.Key.key
 val most_significant_bit (k:key) : bool
 
 let value = Veritas.Record.value
+let data_value = Veritas.Record.data_value
 
 let add_method = Veritas.Verifier.add_method
 
@@ -36,7 +37,7 @@ let mk_record k v a : record = {
 
 let thread_id_t = nat
 
-let timestamp = Veritas.MultiSetHash.timestamp
+let timestamp = Veritas.MultiSetHashDomain.timestamp
 
 noeq
 type vlog_entry =
