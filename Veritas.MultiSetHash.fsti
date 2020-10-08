@@ -6,83 +6,45 @@ open Veritas.Key
 open Veritas.MultiSet
 open Veritas.Record
 open Veritas.SeqAux
+include Veritas.MultiSetHashDomain
 
-(* size of a multiset hash value *)
-let ms_hash_size = 256
-
-(* multiset hash value *)
-let ms_hash_value = bv_t ms_hash_size
-
-(* Hash value of an empty set *)
-val empty_hash_value: ms_hash_value
-
-(* timestamp for blum *)
-type timestamp = 
-  | MkTimestamp: e: nat -> c: nat -> timestamp
-
-let next (t: timestamp): timestamp = 
-  match t with
-  | MkTimestamp e c -> MkTimestamp e (c + 1)
-
-let ts_lt (t1 t2: timestamp) = 
-  let e1 = MkTimestamp?.e t1 in
-  let c1 = MkTimestamp?.c t1 in
-  let e2 = MkTimestamp?.e t2 in
-  let c2 = MkTimestamp?.c t2 in
-  e1 < e2 || e1 = e2 && c1 < c2
-
-let ts_geq (t1 t2: timestamp) = 
-  not (ts_lt t1 t2)
-
-let ts_leq (t1 t2: timestamp) = 
-  t1 = t2 || t1 `ts_lt` t2
-
-let ts_gt (t1 t2: timestamp): bool = 
-  not (t1 `ts_leq` t2)
-
-type ms_hashfn_dom = 
-  | MHDom: r:record -> t:timestamp -> i:nat -> ms_hashfn_dom
-
-let ms_hashfn_dom_cmp : cmp ms_hashfn_dom = magic ()
-
-type mset_ms_hashfn_dom = mset ms_hashfn_dom ms_hashfn_dom_cmp
-
-let key_of (e:ms_hashfn_dom): key = 
-  match e with
-  | MHDom (k,_) _ _ -> k
-
-let thread_id_of (e:ms_hashfn_dom): nat = 
-  match e with
-  | MHDom _ _ tid -> tid
-
-let is_of_thread_id (tid:nat) (e:ms_hashfn_dom): bool =
-  thread_id_of e = tid
-
-let timestamp_of (e:ms_hashfn_dom): timestamp = 
-  match e with
-  | MHDom _ t _ -> t
-
-(* 
- * incremental multiset hash function - update the 
+(*
+ * incremental multiset hash function - update the
  * hash given a new element
  *)
 val ms_hashfn_upd (e: ms_hashfn_dom) (h: ms_hash_value): Tot ms_hash_value
 
 (* multiset hash function for a sequence *)
-val ms_hashfn (s: seq ms_hashfn_dom): Tot ms_hash_value 
+let rec ms_hashfn_aux (s: seq ms_hashfn_dom)
+  : Tot ms_hash_value
+    (decreases (length s))
+  = let n = length s in
+    (* empty sequence *)
+    if n = 0 then empty_hash_value
+    else
+      let s' = prefix s (n - 1) in
+      let e' = index s (n - 1) in
+      let h' = ms_hashfn_aux s' in
+      ms_hashfn_upd e' h'
 
+[@@"opaque_to_smt"]
+let ms_hashfn = ms_hashfn_aux
+
+let lemma_hashfn_empty (_:unit)
+  : Lemma (ms_hashfn (Seq.empty #ms_hashfn_dom) = empty_hash_value)
+  = reveal_opaque (`%ms_hashfn) ms_hashfn
+
+let lemma_hashfn_app (s: seq ms_hashfn_dom) (e: ms_hashfn_dom)
+  : Lemma (ms_hashfn (append1 s e) = ms_hashfn_upd e (ms_hashfn s))
+  = reveal_opaque (`%ms_hashfn) ms_hashfn;
+    assert (prefix (append1 s e) (Seq.length s) `Seq.equal` s)
+
+(*** ASSUMPTIONS ABOUT MULTISET HASHES ***)
 (* two sequences that encode the same multiset produce the same hash *)
 val lemma_mshashfn_correct (s1 s2: seq ms_hashfn_dom):
   Lemma (requires (seq2mset #_ #ms_hashfn_dom_cmp s1 ==
                    seq2mset #_ #ms_hashfn_dom_cmp s2))
         (ensures (ms_hashfn s1 = ms_hashfn s2))
-
-(* the hash of an empty seq (mset) is empty_hash_value *)
-val lemma_hashfn_empty (_:unit):
-  Lemma (ms_hashfn (Seq.empty #ms_hashfn_dom) = empty_hash_value)
-
-val lemma_hashfn_app (s: seq ms_hashfn_dom) (e: ms_hashfn_dom):
-  Lemma (ms_hashfn (append1 s e) = ms_hashfn_upd e (ms_hashfn s))
 
 (* aggregation of multiset hashes *)
 val ms_hashfn_agg (h1: ms_hash_value) (h2: ms_hash_value) : Tot ms_hash_value
@@ -91,8 +53,10 @@ val lemma_hashfn_agg (s1 s2: seq ms_hashfn_dom):
   Lemma (ms_hashfn (append s1 s2) = ms_hashfn_agg (ms_hashfn s1) (ms_hashfn s2))
 
 (* multiset hash collision *)
-type ms_hash_collision = 
-  | MSCollision: s1: seq ms_hashfn_dom -> 
-                 s2: seq ms_hashfn_dom { ms_hashfn s1 = ms_hashfn s2 /\
-                                         ~(seq2mset #_ #ms_hashfn_dom_cmp s1 ==
-                                           seq2mset #_ #ms_hashfn_dom_cmp s2)} -> ms_hash_collision
+type ms_hash_collision =
+  | MSCollision: s1: seq ms_hashfn_dom ->
+                 s2: seq ms_hashfn_dom {
+                   ms_hashfn s1 = ms_hashfn s2 /\
+                   ~(seq2mset #_ #ms_hashfn_dom_cmp s1 ==
+                     seq2mset #_ #ms_hashfn_dom_cmp s2)} ->
+                 ms_hash_collision

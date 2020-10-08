@@ -201,3 +201,10 @@ val interleave_step (#a:eqtype) (il:interleaving a { length il > 0 })
 val lemma_fullprefix_equal (#a:eqtype) (il: interleaving a):
   Lemma (requires True)
         (ensures (prefix il (length il) == il))
+
+val interleave_sseq_index (#a:eqtype) (il:interleaving a) (i:seq_index il)
+  : Lemma (
+    let il_i = prefix il i in
+    let tid, j = i2s_map il i in
+    Seq.index (s_seq il_i) tid `Seq.equal`
+    SA.prefix (Seq.index (s_seq il) tid) j)

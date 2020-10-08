@@ -504,6 +504,14 @@ let lemma_last_index_last_elem_nsat (#a:eqtype) (f:a -> bool) (s:seq a{length s 
     ()
   else ()
 
+let lemma_last_index_opt_last_elem_nsat (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
+  Lemma (requires (not (f (index s (length s - 1)))))
+        (ensures (match last_index_opt f s, last_index_opt f (prefix s (length s - 1)) with
+                  | None, None -> True
+                  | Some v0, Some v1 -> v0 == v1
+                  | _ -> False))
+  = lemma_last_index_last_elem_nsat f s
+
 let lemma_last_index_last_elem_sat (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (f (index s (length s - 1))))
         (ensures (exists_sat_elems f s /\ last_index f s = length s - 1)) =

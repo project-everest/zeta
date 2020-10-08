@@ -404,6 +404,11 @@ let thread_state (itsl: its_log)
   : Tot (vs:vtls{Valid? vs})
   = verify (thread_log (s_seq itsl) tid)
 
+let reveal_thread_state (itsl:its_log) (tid: valid_tid itsl)
+  : Lemma (thread_state itsl tid ==
+           verify (VG.thread_log (s_seq itsl) tid))
+  = ()
+
 #push-options "--fuel 1,1"
 let t_verify_aux_snoc (vs:vtls) (l:vlog) (e:vlog_entry)
   : Lemma (ensures

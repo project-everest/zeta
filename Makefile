@@ -20,7 +20,7 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.State.fsti \
                Veritas.StateSeqMachine.fsti Veritas.StateSeqMachine.fst \
                Veritas.MultiSet.fsti Veritas.MultiSet.fst \
-               Veritas.MultiSetHash.fsti Veritas.MultiSetHash.fst \
+               Veritas.MultiSetHash.fsti \
                Veritas.Hash.fsti \
                Veritas.Interleave.fsti Veritas.Interleave.fst \
                Veritas.Verifier.fst \

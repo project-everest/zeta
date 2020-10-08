@@ -631,8 +631,8 @@ let map_interleave_i2s (#a #b:eqtype) (f:a -> b) (prf:interleaving a) (i:seq_ind
     in
     aux prf i
 
-#push-options "--query_stats --fuel 1,1 --ifuel 1,1"
-    
+#push-options "--fuel 1,1 --ifuel 1,1"
+
 let rec filter_map_interleaving' (#a #b:eqtype)
                             (filter: a -> bool)
                             (f:(refine filter -> b))
@@ -768,3 +768,36 @@ let lemma_fullprefix_equal (#a:eqtype) (il: interleaving a)
           aux (IL is' ss' prf')
     in
     aux il
+
+let rec i2s_prefix_length (#a:eqtype) (il:interleaving a) (i:seq_index il)
+  : Lemma 
+    (ensures (
+      let il_i = prefix il i in
+      let tid, j = i2s_map il i in
+      Seq.length (Seq.index (s_seq il_i) tid) == j))
+    (decreases (IL?.prf il))
+  = let IL is ss prf = il in
+    match prf with
+    | IntEmpty -> false_elim()
+    | IntAdd _ ss' prf' -> i2s_prefix_length (IL _ ss' prf') i
+    | IntExtend is' ss' prf' x j ->
+      if i = Seq.length is'
+      then (
+        lemma_fullprefix_equal il;
+        assert (prefix (IL _ _ prf') i  == IL _ _ prf')
+      )
+      else (
+        i2s_prefix_length (IL _ _ prf') i
+      )
+
+let interleave_sseq_index (#a:eqtype) (il:interleaving a) (i:seq_index il)
+  : Lemma (
+    let il_i = prefix il i in
+    let tid, j = i2s_map il i in
+    Seq.index (s_seq il_i) tid `Seq.equal`
+    SA.prefix (Seq.index (s_seq il) tid) j)
+  = let il_i = prefix il i in
+    let tid, j = i2s_map il i in
+    let il_i_tid = Seq.index (s_seq il_i) tid in
+    i2s_prefix_length il i
+
