@@ -3523,6 +3523,228 @@ let lemma_proving_ancestor_blum_bit (itsl: TL.eac_log) (k:key{k <> Root}):
   Lemma (ensures (proving_ancestor_has_blum_bit itsl k)) = 
   lemma_proving_ancestor_blum_bit_aux itsl k
 
+let proving_ancestor_of_merkle_instore (itsl: TL.eac_log) (k:key{k <> Root}): bool = 
+  let es = TL.eac_state_of_key itsl k in
+  not (E.is_eac_state_instore es) ||
+  EACInStore?.m es <> MAdd ||
+  (let tid = stored_tid itsl k in
+   let pk = proving_ancestor itsl k in
+   V.store_contains (TL.thread_store itsl tid) pk)
+
+let lemma_stored_implies_tid (itsl: TL.eac_log) (k:key{k<>Root}) (tid: valid_tid itsl): 
+  Lemma (requires (V.store_contains (TL.thread_store itsl tid) k))
+        (ensures (is_eac_state_instore itsl k /\
+                  tid = stored_tid itsl k)) = 
+  lemma_instore_implies_eac_state_instore itsl k tid;
+  let tid' = stored_tid itsl k in
+  if tid' = tid then ()
+  else
+    lemma_key_in_unique_store2 itsl k tid tid'
+
+let lemma_store_contains_proving_ancestor_extend_memop (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_of_merkle_instore itsl' k /\
+                   is_memory_op e))
+        (ensures (proving_ancestor_of_merkle_instore itsl k)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in  
+  let tid = TL.thread_id_of itsl (n - 1) in  
+  let itsl' = I.prefix itsl (n - 1) in
+  let es = TL.eac_state_of_key itsl k in
+  let es' = TL.eac_state_of_key itsl' k in
+
+  lemma_fullprefix_equal itsl;
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  lemma_eac_state_transition itsl (n - 1);
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  
+  lemma_ptrfn_unchanged itsl;
+  let pk = proving_ancestor itsl k in
+  lemma_feq_proving_ancestor (eac_ptrfn itsl) (eac_ptrfn itsl') k;
+  // assert(pk = proving_ancestor itsl' k);
+
+  if not (E.is_eac_state_instore es) || EACInStore?.m es <> MAdd then ()  
+  else if k = V.key_of e then (
+    lemma_stored_implies_tid itsl' k tid;
+    lemma_stored_implies_tid itsl k tid
+  )
+  else (
+    lemma_eac_state_same itsl (n - 1) k;
+    
+    let tidk = stored_tid itsl' k in
+    // assert(V.store_contains (TL.thread_store itsl' tidk) pk);
+
+    if tidk = tid then (
+      lemma_stored_implies_tid itsl' k tid;
+      lemma_stored_implies_tid itsl k tid      
+    )
+    else (
+      lemma_verifier_thread_state_extend2 itsl (n - 1) tidk;
+      lemma_stored_implies_tid itsl k tidk
+    )
+  )
+
+let lemma_store_contains_proving_ancestor_extend_evictm (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_of_merkle_instore itsl' k /\
+                   (EvictM? e \/ EvictBM? e)))
+        (ensures (proving_ancestor_of_merkle_instore itsl k)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in  
+  let tid = TL.thread_id_of itsl (n - 1) in  
+  let pf = eac_ptrfn itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let pf' = eac_ptrfn itsl' in
+  let es = TL.eac_state_of_key itsl k in
+  let es' = TL.eac_state_of_key itsl' k in
+
+  lemma_fullprefix_equal itsl;
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  lemma_eac_state_transition itsl (n - 1);
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  
+  lemma_ptrfn_unchanged itsl;
+  let pk = proving_ancestor itsl k in
+  lemma_feq_proving_ancestor (eac_ptrfn itsl) (eac_ptrfn itsl') k;
+  assert(pk = proving_ancestor itsl' k);
+
+  if not (E.is_eac_state_instore es) || EACInStore?.m es <> MAdd then ()  
+  else (
+    match e with
+    | EvictM k1 k2 
+    | EvictBM k1 k2 _ ->
+
+      (* EvictM k _ implies es is EACEvictedMerkle, a contradiction *)
+      if k1 = k then ()
+      else if pk = k1 then (        
+        lemma_eac_state_same itsl (n - 1) k;
+        let tidk = stored_tid itsl' k in
+        // assert(V.store_contains (TL.thread_store itsl' tidk) pk);        
+        // assert(V.store_contains (TL.thread_store itsl' tid) pk);
+
+        if tid <> tidk then 
+          lemma_key_in_unique_store2 itsl' pk tid tidk
+        else (
+          // assert(V.store_contains (TL.thread_store itsl' tid) k);
+          // assert(points_to pf' k pk);
+          lemma_eac_value_is_stored_value itsl' pk tid;
+          lemma_eac_stored_addm itsl' k
+        )
+      )
+      else ( 
+        lemma_eac_state_same itsl (n - 1) k;
+        let tidk = stored_tid itsl' k in
+        assert(V.store_contains (TL.thread_store itsl' tidk) pk);
+
+        if tid = tidk then (
+          assert(V.store_contains (TL.thread_store itsl tidk) pk);
+          assert(V.store_contains (TL.thread_store itsl tidk) k);
+          lemma_stored_implies_tid itsl k tidk;
+          ()
+        )
+        else (
+          lemma_verifier_thread_state_extend2 itsl (n - 1) tidk;
+          // assert(V.store_contains (TL.thread_store itsl tidk) pk);
+          // assert(V.store_contains (TL.thread_store itsl tidk) k);
+          lemma_stored_implies_tid itsl k tidk
+        )
+      )
+  )
+
+let lemma_store_contains_proving_ancestor_extend_evictb (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_of_merkle_instore itsl' k /\
+                   EvictB? e))
+        (ensures (proving_ancestor_of_merkle_instore itsl k)) = 
+  let n = I.length itsl in
+  let e = I.index itsl (n - 1) in  
+  let tid = TL.thread_id_of itsl (n - 1) in  
+  let pf = eac_ptrfn itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let pf' = eac_ptrfn itsl' in
+  let es = TL.eac_state_of_key itsl k in
+  let es' = TL.eac_state_of_key itsl' k in
+
+  lemma_fullprefix_equal itsl;
+  lemma_eac_state_of_key_valid itsl k;
+  lemma_eac_state_of_key_valid itsl' k;
+  lemma_eac_state_transition itsl (n - 1);
+  lemma_verifier_thread_state_extend itsl (n - 1);
+  
+  lemma_ptrfn_unchanged itsl;
+  let pk = proving_ancestor itsl k in
+  lemma_feq_proving_ancestor (eac_ptrfn itsl) (eac_ptrfn itsl') k;
+  assert(pk = proving_ancestor itsl' k);
+
+  if not (E.is_eac_state_instore es) || EACInStore?.m es <> MAdd then ()  
+  else(
+    match e with
+    | EvictB k1 _ ->
+
+      if k1 = k then ()
+      else if pk = k1 then (
+        lemma_eac_state_same itsl (n - 1) k;
+        let tidk = stored_tid itsl' k in
+        assert(V.store_contains (TL.thread_store itsl' tidk) pk);        
+        assert(V.store_contains (TL.thread_store itsl' tid) pk);
+        if tid <> tidk then 
+          lemma_key_in_unique_store2 itsl' pk tid tidk
+        else (
+          lemma_eac_value_is_stored_value itsl' pk tid;
+          lemma_eac_stored_addm itsl' k
+        )
+      )
+      else  (
+        lemma_eac_state_same itsl (n - 1) k;
+        let tidk = stored_tid itsl' k in
+        assert(V.store_contains (TL.thread_store itsl' tidk) pk);
+
+        if tid = tidk then (
+          assert(V.store_contains (TL.thread_store itsl tidk) pk);
+          assert(V.store_contains (TL.thread_store itsl tidk) k);
+          lemma_stored_implies_tid itsl k tidk;
+          ()
+        )
+        else (
+          lemma_verifier_thread_state_extend2 itsl (n - 1) tidk;
+          // assert(V.store_contains (TL.thread_store itsl tidk) pk);
+          // assert(V.store_contains (TL.thread_store itsl tidk) k);
+          lemma_stored_implies_tid itsl k tidk
+        )
+      )
+   )
+
+let rec lemma_store_contains_proving_ancestor_aux (itsl: TL.eac_log) (k:key{k<> Root}):
+  Lemma (ensures (proving_ancestor_of_merkle_instore itsl k))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if n = 0 then 
+    lemma_init_state_empty itsl k
+  else (
+    let e = I.index itsl (n - 1) in
+    let itsl' = I.prefix itsl (n - 1) in
+
+    (* induction *)
+    lemma_store_contains_proving_ancestor_aux itsl' k;
+
+    match e with
+    | Get _ _ -> lemma_store_contains_proving_ancestor_extend_memop itsl k
+    | Put _ _ -> lemma_store_contains_proving_ancestor_extend_memop itsl k
+    | EvictM _ _ -> lemma_store_contains_proving_ancestor_extend_evictm itsl k
+    | EvictBM _ _ _ -> lemma_store_contains_proving_ancestor_extend_evictm itsl k
+    | EvictB _ _ -> lemma_store_contains_proving_ancestor_extend_evictb itsl k
+    | _ ->    
+    admit()
+  )
+        
 (* if the store contains a k, it contains its proving ancestor *)
 let lemma_store_contains_proving_ancestor (itsl: TL.eac_log) 
   (tid:TL.valid_tid itsl) (k:key{k <> Root}):
@@ -3531,4 +3753,11 @@ let lemma_store_contains_proving_ancestor (itsl: TL.eac_log)
                    EACInStore?.m es = MAdd))                    
         (ensures (store_contains (TL.thread_store itsl tid) k ==>
                                  store_contains (TL.thread_store itsl tid)
-                                 (proving_ancestor itsl k))) = admit()
+                                 (proving_ancestor itsl k))) = 
+  let tidk = stored_tid itsl k in                                 
+  if not (store_contains (TL.thread_store itsl tid) k) then ()
+  else if tidk <> tid then
+    lemma_key_in_unique_store2 itsl k tid tidk  
+  else 
+    lemma_store_contains_proving_ancestor_aux itsl k
+  
