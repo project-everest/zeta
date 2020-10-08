@@ -3944,10 +3944,80 @@ let lemma_store_contains_proving_ancestor_addm_cutedge (itsl: TL.eac_log {I.leng
         // assert(k' = proving_ancestor itsl ki);
         ()
       )
-      else
-        admit()
+      else (
+        lemma_eac_state_same itsl (n - 1) ki;   
+        lemma_addm_desc_points_to itsl;
+
+        let c = add_dir itsl (n - 1) in
+        
+        (* k' pointed to kd along c before k was added *)
+        let kd = pointed_node pf' k' c in
+        let tidk = stored_tid itsl' ki in
+
+        if ki = kd then (
+          // assert(points_to pf' ki k');
+          lemma_points_to_reachable pf' ki k';
+          lemma_reachable_transitive pf' ki k' Root;
+          lemma_points_to_is_prev pf' ki Root k';
+          assert(k' = proving_ancestor itsl' ki);
+
+          
+          // assert(points_to pf k k');
+          lemma_points_to_reachable pf k k';
+          lemma_reachable_transitive pf k k' Root;
+
+          // assert(points_to pf ki k);
+          lemma_points_to_reachable pf ki k;
+          lemma_reachable_transitive pf ki k Root;
+
+          lemma_points_to_is_prev pf ki Root k;
+          assert(k = proving_ancestor itsl ki);
+
+          if tidk <> tid then 
+            //assert(V.store_contains (TL.thread_store itsl' tidk) k');
+            //assert(V.store_contains (TL.thread_store itsl' tid) k');
+            lemma_key_in_unique_store2 itsl' k' tid tidk
+          
+          else 
+            lemma_stored_implies_tid itsl ki tid
+          
+        )
+        else (      
+          lemma_not_init_equiv_root_reachable itsl' ki;
+          lemma_not_init_equiv_root_reachable itsl ki;
+          // assert(BP.root_reachable pf' ki && BP.root_reachable pf ki);
+
+          let pk = proving_ancestor itsl' ki in
+          lemma_ptrfn_extend_addm_cutedge itsl;
+          lemma_extendcut_prev pf' k k' ki;
+          lemma_prev_in_path_feq pf (extendcut_ptrfn pf' k k') ki Root;
+          // assert(pk = proving_ancestor itsl ki);
+
+          //assert(V.store_contains (TL.thread_store itsl' tidk) pk);
+
+          if tid = tidk then 
+            lemma_stored_implies_tid itsl ki tidk
+          else (
+            lemma_verifier_thread_state_extend2 itsl (n - 1) tidk;
+            lemma_stored_implies_tid itsl ki tidk
+          )          
+        )
+      )
   )
 
+let lemma_store_contains_proving_ancestor_addm (itsl: TL.eac_log {I.length itsl > 0}) (k: key{k <> Root}):
+  Lemma (requires (let n = I.length itsl in
+                   let e = I.index itsl (n - 1) in
+                   let itsl' = I.prefix itsl (n - 1) in
+                   proving_ancestor_of_merkle_instore itsl' k /\
+                   AddM? e))
+        (ensures (proving_ancestor_of_merkle_instore itsl k)) = 
+  let n = I.length itsl in        
+  let addmt = type_of_addm itsl (n - 1) in
+  match addmt with
+  | NoNewEdge -> lemma_store_contains_proving_ancestor_addm_nonewedge itsl k
+  | NewEdge -> lemma_store_contains_proving_ancestor_addm_newedge itsl k
+  | CutEdge -> lemma_store_contains_proving_ancestor_addm_cutedge itsl k
 
 let rec lemma_store_contains_proving_ancestor_aux (itsl: TL.eac_log) (k:key{k<> Root}):
   Lemma (ensures (proving_ancestor_of_merkle_instore itsl k))
@@ -3969,8 +4039,7 @@ let rec lemma_store_contains_proving_ancestor_aux (itsl: TL.eac_log) (k:key{k<> 
     | EvictBM _ _ _ -> lemma_store_contains_proving_ancestor_extend_evictm itsl k
     | EvictB _ _ -> lemma_store_contains_proving_ancestor_extend_evictb itsl k
     | AddB _ _ _ -> lemma_store_contains_proving_ancestor_extend_addb itsl k
-    | _ ->    
-      admit()
+    | AddM _ _ -> lemma_store_contains_proving_ancestor_addm itsl k
   )
         
 (* if the store contains a k, it contains its proving ancestor *)
