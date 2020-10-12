@@ -107,10 +107,13 @@ val lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires (True))
         (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true))
 
-
 val lemma_filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a):
   Lemma (requires filter f s `Seq.equal` empty)
         (ensures forall (i:seq_index s). not (f (Seq.index s i)))
+
+val lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
+  Lemma (requires (exists (i:seq_index s). f (index s i)))
+        (ensures (length (filter f s) > 0))
 
 (* mapping from filtered subseq to satisfying indexes *)
 val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):

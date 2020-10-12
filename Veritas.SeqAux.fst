@@ -199,6 +199,12 @@ let lemma_filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a)
           (ensures forall (i:seq_index s). not (f (Seq.index s i)))
   = lemma_filter_all_not_aux f s
 
+let lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
+  Lemma (requires (exists (i:seq_index s). f (index s i)))
+        (ensures (length (filter f s) > 0)) =
+  if length (filter f s) = 0
+  then lemma_filter_all_not f s
+
 let filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
   Tot (j:seq_index s{index s j = index (filter f s) i}) =
   proj_index_map (filter f s) s (filter_is_proj_prf f s) i
@@ -838,12 +844,6 @@ let next_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
     };
     Some (i + 1 + first_index f s')
   )
-
-let lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
-  Lemma (requires (exists (i:seq_index s). f (index s i)))
-        (ensures (length (filter f s) > 0)) =
-  if length (filter f s) = 0
-  then lemma_filter_all_not f s
 
 let intro_has_next (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k ∧ f (Seq.index s k)})
   : Lemma (has_next f s i /\
