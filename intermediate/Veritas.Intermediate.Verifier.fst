@@ -9,14 +9,13 @@ module MH = Veritas.MultiSetHash
 module MHD = Veritas.MultiSetHashDomain
 module BT = Veritas.BinTree
 module V = Veritas.Verifier
+module SA = Veritas.SeqAux
 
 (* id     : thread id
    st     : thread local store
    clock  : current timestamp
    hadd   : add set hash
-   hevict : evict set hash
-   valid  : has the a Blum add violated the key store invariant? 
-            >> will trigger transition to Failed later *)
+   hevict : evict set hash *)
 noeq
 type vtls =
   | Failed : vtls
@@ -26,7 +25,6 @@ type vtls =
     clock : timestamp ->
     hadd : MH.ms_hash_value ->
     hevict : MH.ms_hash_value ->
-    valid : bool ->
     vtls
 
 let thread_id_of (vs:vtls {Valid? vs}): thread_id = 
@@ -35,16 +33,19 @@ let thread_id_of (vs:vtls {Valid? vs}): thread_id =
 let thread_store (vs: vtls {Valid? vs}): vstore =
   Valid?.st vs
 
+let thread_store_is_map (vs: vtls {Valid? vs}): bool =
+  let st = thread_store vs in st.is_map
+
 let update_thread_store (vs:vtls {Valid? vs}) (st:vstore) : vtls =
   match vs with
-  | Valid id _ clock hadd hevict valid -> Valid id st clock hadd hevict valid
+  | Valid id _ clock hadd hevict -> Valid id st clock hadd hevict
 
 let thread_clock (vs:vtls {Valid? vs}) = 
   Valid?.clock vs
 
 let update_thread_clock (vs:vtls {Valid? vs}) (clock:timestamp): vtls = 
   match vs with
-  | Valid id st _ hadd hevict valid -> Valid id st clock hadd hevict valid
+  | Valid id st _ hadd hevict -> Valid id st clock hadd hevict
 
 let thread_hadd (vs:vtls {Valid? vs}) = 
   Valid?.hadd vs
@@ -54,18 +55,11 @@ let thread_hevict (vs:vtls {Valid? vs}) =
 
 let update_thread_hadd (vs:vtls {Valid? vs}) (hadd: MH.ms_hash_value): vtls = 
   match vs with
-  | Valid id st clock _ hevict valid -> Valid id st clock hadd hevict valid
+  | Valid id st clock _ hevict -> Valid id st clock hadd hevict
 
 let update_thread_hevict (vs:vtls {Valid? vs}) (hevict:MH.ms_hash_value): vtls = 
   match vs with
-  | Valid id st clock hadd _ valid -> Valid id st clock hadd hevict valid
-
-let thread_valid (vs: vtls {Valid? vs}) =
-  Valid?.valid vs
-
-let update_thread_valid (vs:vtls {Valid? vs}) (valid:bool): vtls = 
-  match vs with
-  | Valid id st clock hadd hevict _ -> Valid id st clock hadd hevict valid
+  | Valid id st clock hadd _ -> Valid id st clock hadd hevict
 
 let vget (s:slot_id) (v:data_value) (vs: vtls {Valid? vs}): vtls =
   let st = thread_store vs in
@@ -87,7 +81,7 @@ let vput (s:slot_id) (v:data_value) (vs: vtls {Valid? vs}): vtls =
 
 let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
   let st = thread_store vs in
-  if not (s < Seq.length st) then Failed
+  if not (s < Seq.length st.data) then Failed
   (* check store contains slot s' *)
   else if not (contains_record st s') then Failed
   else
@@ -187,7 +181,7 @@ let vevictm (s s':slot_id) (vs: vtls {Valid? vs}): vtls =
 
 let vaddb (s:slot_id) (r:record) (t:timestamp) (j:thread_id) (vs:vtls {Valid? vs}): vtls = 
   let st = thread_store vs in 
-  if not (s < Seq.length st) then Failed
+  if not (s < Seq.length st.data) then Failed
   (* epoch of timestamp of last evict *)
   else 
     let e = MHD.MkTimestamp?.e t in
@@ -198,20 +192,20 @@ let vaddb (s:slot_id) (r:record) (t:timestamp) (j:thread_id) (vs:vtls {Valid? vs
     (* check store contains slot s *)
     else if contains_record st s then Failed
     else 
-      (* check k is not in the store; update the valid flag accordingly *)
-      let valid = not (contains_key st k) in
-      let vs_upd = update_thread_valid vs (thread_valid vs && valid) in
       (* update add hash *)
       let h = thread_hadd vs in
       let h_upd = MH.ms_hashfn_upd (MHD.MHDom (k,v) t j) h in
-      let vs_upd2 = update_thread_hadd vs_upd h_upd in
+      let vs_upd = update_thread_hadd vs h_upd in
       (* update clock *)
       let clk = thread_clock vs in
       let clk_upd = V.max clk (MHD.next t) in
-      let vs_upd3 = update_thread_clock vs_upd2 clk_upd in
+      let vs_upd2 = update_thread_clock vs_upd clk_upd in
+      (* check k is not in the store; update the valid flag accordingly *)
+      let valid = not (contains_key st k) in
+      let st_upd = update_is_map st (st.is_map && valid) in
       (* add record to store *)
-      let st_upd = add_record st s k v V.BAdd in
-      update_thread_store vs_upd3 st_upd
+      let st_upd2 = add_record st_upd s k v V.BAdd in
+      update_thread_store vs_upd2 st_upd2
 
 let vevictb (s:slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls = 
   let clock = thread_clock vs in
@@ -273,43 +267,53 @@ let vevictbm (s s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls =
                             let st_upd = update_record_value st s' (R.MVal v'_upd) in
                             vevictb s t (update_thread_store vs st_upd)
 
+(* thread-level verification step
+   (following the defn in Veritas.Verifier) *)
+let t_verify_step (vs:vtls)
+                  (e:vlog_entry): vtls =                           
+  match vs with
+  | Failed -> Failed (* could check the is_map flag here *)
+  | _ ->
+    match e with
+    | Get s v -> vget s v vs
+    | Put s v -> vput s v vs
+    | AddM s r s'  -> vaddm s r s' vs
+    | EvictM s s' -> vevictm s s' vs
+    | AddB s r t j -> vaddb s r t j vs
+    | EvictB s t -> vevictb s t vs
+    | EvictBM s s' t -> vevictbm s s' t vs
 
+let vlog = Seq.seq vlog_entry
 
+(* verify a log from a specified initial state *)
+let rec t_verify_aux (vs:vtls) (l:vlog): Tot vtls
+  (decreases (Seq.length l)) =
+  let n = Seq.length l in
+  if n = 0 then vs
+  else
+    let l' = SA.prefix l (n - 1) in
+    let vs' = t_verify_aux vs l' in
+    let e' = Seq.index l (n - 1) in
+    t_verify_step vs' e'
 
-(* Per invariant.md, we will want to prove something like the following for
-   each operation OP above.
+// TODO: what should the initial size be? a parameter? some contant?
+let empty_store:vstore = { data=Seq.create 10 None; is_map=true }
 
-High:   hst ----------OP----------> hst'
-         ^                           ^
-         .                           .
-         .                           .
-        inv                         inv
-         .                           .
-         .                           .
-         v                           v
-Low:    lst ----------OP----------> lst'
+(* initialize verifier state *)
+let init_thread_state (id:thread_id): vtls = 
+  let vs = Valid id empty_store (MHD.MkTimestamp 0 0) MHD.empty_hash_value MHD.empty_hash_value in  
+  if id = 0 then
+    let st0 = thread_store vs in
+    // TODO: where should we stick the root?
+    let st0_upd = add_record st0 0 BT.Root (R.init_value BT.Root) V.MAdd in
+    update_thread_store vs st0_upd    
+  else vs
 
-  Where hst is the high-level state (Veritas.Verifier.vtls) and lst is the
-  low-level state (Veritas.Intermediate.Verifier.vtls).
+let t_verify (id:thread_id) (l:vlog): vtls = 
+  t_verify_aux (init_thread_state id) l 
 
-  We should be able to do this by showing that, during proper execution, 
-  Veritas.Intermediate.Store behaves just like a key-value store.
-
-
-let store_is_map store =
-    //1. keys are unique
-    (forall s0 s1 in store. store[s0].record_key <> store[s1].record_key) /\
-    //2. in store bits unset means that descendent is not in store
-    (forall s in store, (d:direction).
-         let r = store[s] in
-         let dh = descendent d r in
-         not (r.in_store d) ==>
-         (forall s' in store. store[s'].record_key <> dh.key)) /\
-    //3. descendent edges are to the nearest descendent
-    (forall s in store, (d:direction).
-        let r = store [s] in
-        let dh = descendent d r in
-        (forall s' in store.
-            not (dh.key < store[s'].record_key < r.record_key))
-
-*)
+let verifiable (id:thread_id) (l: vlog): bool =
+  let vs = t_verify id l in
+  if Valid? vs 
+  then let st = Valid?.st vs in st.is_map
+  else false

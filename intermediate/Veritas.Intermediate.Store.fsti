@@ -5,13 +5,17 @@ module SA = Veritas.SeqAux
 module R = Veritas.Record
 module BT = Veritas.BinTree
 
-let vstore = Seq.seq (option record)
-let st_index st = SA.seq_index st
+type vstore = {
+  data:Seq.seq (option record);
+  is_map:bool;
+}
+
+let st_index (st:vstore) = SA.seq_index st.data
 
 (* get record by slot_id *)
 let get_record (st:vstore) (s:slot_id)
   : option record
-  = if s >= Seq.length st then None else Seq.index st s
+  = if s >= Seq.length st.data then None else Seq.index st.data s
 
 let contains_record (st:vstore) (s:slot_id)
   : bool
@@ -34,7 +38,7 @@ let lookup_key (st:vstore) (k:key)
   : option record
   = let f ro = if None? ro then false
                else let Some r = ro in Record?.k r = k in
-    let s = SA.filter f st in
+    let s = SA.filter f st.data in
     if Seq.length s = 0 then None
     else Seq.index s 0 
 
@@ -47,16 +51,16 @@ let lemma_lookup_key (st:vstore) (k:key)
           (ensures (Record?.k (Some?.v (lookup_key st k)) = k))
   = let f ro = if None? ro then false
                else let Some r = ro in Record?.k r = k in
-    SA.lemma_filter_correct1 f st 0
+    SA.lemma_filter_correct1 f st.data 0
 
 let lemma_contains_key (st:vstore) (s:slot_id{contains_record st s}) (k:key)
   : Lemma (requires (get_key_at st s = k))
           (ensures (contains_key st k))
   = let f ro = if None? ro then false
                else let Some r = ro in Record?.k r = k in
-    let sq = SA.filter f st in
-    SA.lemma_filter_exists f st;
-    SA.lemma_filter_correct1 f st 0
+    let sq = SA.filter f st.data in
+    SA.lemma_filter_exists f st.data;
+    SA.lemma_filter_correct1 f st.data 0
 
 let value_of (st:vstore) (k:key{contains_key st k})
   : R.value_type_of k
@@ -69,7 +73,7 @@ let add_method_of (st:vstore) (k:key{contains_key st k})
 
 let update_record (st:vstore) (s:st_index st) (r:record)
   : vstore
-  = Seq.upd st s (Some r)
+  = { st with data = Seq.upd st.data s (Some r) }
 
 let update_record_value 
   (st:vstore) 
@@ -85,4 +89,8 @@ let add_record (st:vstore) (s:st_index st) (k:key) (v:value{R.is_value_of k v}) 
 
 let evict_record (st:vstore) (s:st_index st)
   : vstore
-  = Seq.upd st s None
+  = { st with data = Seq.upd st.data s None }
+
+let update_is_map (st:vstore) (b:bool) 
+  : vstore 
+  = { st with is_map = b }
