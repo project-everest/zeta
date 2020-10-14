@@ -312,8 +312,11 @@ let init_thread_state (id:thread_id): vtls =
 let t_verify (id:thread_id) (l:vlog): vtls = 
   t_verify_aux (init_thread_state id) l 
 
-let verifiable (id:thread_id) (l: vlog): bool =
+let verify (id:thread_id) (l:vlog): vtls =
   let vs = t_verify id l in
-  if Valid? vs 
-  then let st = Valid?.st vs in st.is_map
-  else false
+  if Valid? vs
+  then if thread_store_is_map vs then vs else Failed
+  else Failed
+
+let verifiable (id:thread_id) (l: vlog): bool =
+  Valid? (verify id l)

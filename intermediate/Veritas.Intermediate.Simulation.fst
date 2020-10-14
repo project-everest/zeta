@@ -47,7 +47,7 @@ let slot_key_rel (vs:IV.vtls) (s:IC.slot_id) (k:Veritas.Key.key) : Type =
     (let st = IV.Valid?.st vs in
      IS.contains_record st s && IS.get_key_at st s = k))
 
-(* example simulation statement for vput *)
+(* Simulation statement for vput *)
 let lemma_vput_simulates_spec 
       (vs:IV.vtls) 
       (vs':Spec.vtls) 
@@ -59,13 +59,24 @@ let lemma_vput_simulates_spec
           (ensures (vtls_rel (IV.vput s v vs) (Spec.vput k v vs'))) 
   = admit()
 
-// some function that maps a log with keys to a log with slot id's
-// (not sure how that works...)
-let convert_log (l:Spec.vlog) : IV.vlog = admit()
+(* Relation between logs *)
+let log_rel (l:IV.vlog) (l':Spec.vlog) : Type = 
+  admit()
 
-(* End goal: For any log the intermediate implementation will verify 
+let lemma_t_verify_simulates_spec (id:IC.thread_id) (l:IV.vlog) (l':Spec.vlog)
+  : Lemma (requires (log_rel l l'))
+          (ensures (vtls_rel (IV.t_verify id l) (Spec.t_verify id l')))
+  = admit()
+
+(* End goal: For any log, the intermediate implementation will verify 
    iff the the spec implementation does. *)
 module VT = Veritas.Verifier.Thread
-let lemma_verifiable_simulates_spec (tl:VT.thread_id_vlog) 
-  : Lemma (IV.verifiable (VT.thread_id_of tl) (convert_log (VT.vlog_of tl)) = VT.verifiable tl)
-  = admit()
+let lemma_verifiable_simulates_spec (id:IC.thread_id) (l:IV.vlog) (l':Spec.vlog)
+  : Lemma (requires (log_rel l l'))
+          (ensures (let tl : VT.thread_id_vlog = (id,l') in
+                    IV.verifiable id l = VT.verifiable tl))
+  = lemma_t_verify_simulates_spec id l l';
+    let vs = IV.t_verify id l in
+    if IV.Valid? vs
+    then if not (IV.thread_store_is_map vs) 
+    then admit()
