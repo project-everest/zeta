@@ -1,9 +1,17 @@
 module Veritas.Intermediate.Store
-open Veritas.Intermediate.Common
 
-module SA = Veritas.SeqAux
 module R = Veritas.Record
-module BT = Veritas.BinTree
+module SA = Veritas.SeqAux
+module V = Veritas.Verifier
+
+let key = Veritas.Key.key
+let value = Veritas.Record.value
+let add_method = Veritas.Verifier.add_method
+
+type slot_id = nat
+
+type record = 
+  | Record: k:key -> v:R.value_type_of k -> am:add_method -> record
 
 type vstore = {
   data:Seq.seq (option record);
@@ -94,3 +102,28 @@ let evict_record (st:vstore) (s:st_index st)
 let update_is_map (st:vstore) (b:bool) 
   : vstore 
   = { st with is_map = b }
+
+(* slot_id s is consistent with key k *)
+let slot_key_equiv (st:vstore) (s:slot_id) (k:key) : bool =
+  not st.is_map || // trivially true
+  (contains_record st s && get_key_at st s = k) 
+
+(* convert a slot-indexed store to a key-indexed store *)
+let rec as_map_aux (l:Seq.seq (option record)) : Tot V.vstore
+  (decreases (Seq.length l)) =
+  let n = Seq.length l in
+  if n = 0 then fun _ -> None
+  else 
+    let l' = SA.prefix l (n - 1) in
+    let f' = as_map_aux l' in
+    match Seq.index l (n - 1) with
+    | None -> f'
+    | Some (Record k v a) -> 
+      fun (k':key) -> if k = k' then Some (V.VStore v a) else f' k' 
+
+let as_map (st:vstore{st.is_map}) : V.vstore =
+  as_map_aux st.data
+
+//let lemma_as_map_key_slot_equiv (st:vstore{st.is_map})
+//  : Lemma (forall (k:key). ?? )
+// key_slot_equiv st s k -> value at st s = value at (as_map st) k
