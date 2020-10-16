@@ -42,7 +42,7 @@ In English: if a global log is verifiable then if a (i.e. the events are sequent
 The property we want for **Low** is similar, but uses a different notion of consistency since elements are accessed via slot id rather than key. If a (global) log is verifiable, then any "Get s" reads the most recent value written to `key_of`(s), where `key_of` can be determined by looking at the log (--> likely related to `skc`).
 
 The property above for **Spec** implies the property we want for **Low** *provided* that we can prove the following: If **Low** says `log` is verifiable
-* then **InterS** says `log` is verifiable where
+* then **InterS** says `log` is verifiable
 * then **InterSK** says `log2` is verifiable where `log2=add_consistent_keys(log)`
 * then **InterSKC** says `log2` is verifiable
 * then **Spec** says the `log3` is verifiable where `log3=drop_slots(log2)`
@@ -51,6 +51,6 @@ Note that may be possible to prove equality rather than implication for some (al
 
 ## Directory Contents
 
-* Veritas.Intermediate.Store.fst(i) - Functions for manipulating a sequence of (key, value, <other fields>) records. I'm hoping this definition of a store can be reused in multiple levels of the proof.  
+* Veritas.Intermediate.Store.fst(i) - Functions for manipulating a sequence of (key, value, ...) records. I'm hoping this definition of a store can be reused in multiple levels of the proof.  
 * Veritas.Intermediate.Logs.fst(i) - A definition of logs with keys and slots (vlogKS) and a definition with only slots (vlogS); utilities for converting between the two.
 * Veritas.Intermediate.VerifySKC.fst(i) - Description of **InterSKC** verification and proof that this simulates **Spec** verification.
