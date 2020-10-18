@@ -51,6 +51,6 @@ Note that may be possible to prove equality rather than implication for some (al
 
 ## Directory Contents
 
-* Veritas.Intermediate.Store.fst(i) - Functions for manipulating a sequence of (key, value, <other fields>) records. I'm hoping this definition of a store can be reused in multiple levels of the proof.  
 * Veritas.Intermediate.Logs.fst(i) - A definition of logs with keys and slots (vlogKS) and a definition with only slots (vlogS); utilities for converting between the two.
+* Veritas.Intermediate.StoreSKC.fst(i) - Functions for manipulating a sequence of (key, value, add_method) triples. Used in VerifySKC.
 * Veritas.Intermediate.VerifySKC.fst(i) - Description of **InterSKC** verification and proof that this simulates **Spec** verification.
