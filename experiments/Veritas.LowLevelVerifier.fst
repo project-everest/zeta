@@ -105,16 +105,6 @@ val compute_hash (d:value)
     (requires fun _ -> True)
     (ensures fun h0 _ h1 -> B.modifies B.loc_none h0 h1)
 
-val serialize_length: value -> l:UInt32.t { UInt32.v l > 0 }
-let serialize_length v = value_size32 v
-
-val serialize_value: v:value -> dst: B.lbuffer UInt8.t (UInt32.v (serialize_length v)) ->
-  Stack unit
-    (requires fun h -> B.live h dst)
-    (ensures fun h0 _ h1 -> B.(modifies (loc_buffer dst) h0 h1))
-let serialize_value v dst =
-  let _ = value_lserializer v dst 0ul in ()
-
 let compute_hash d =
   Veritas.Reveal.reveal_u8 ();
   assert_norm (8 <= Spec.Hash.Definitions.max_input_length Spec.Hash.Definitions.SHA2_256);
@@ -431,18 +421,10 @@ val extract_log_entry (l:log)
             B.modifies (loc_log l) h0 h1) (* /\
             log at position h0.pos contains a vali repr of v *)
 
-module LP = LowParse.Low.Base
-
 let extract_log_entry l =
-  let sl = LP.make_slice l.buf l.len in
-  let pos = B.index l.pos 0ul in
-  let pos' = vlog_entry_validator sl (FStar.Int.Cast.uint32_to_uint64 pos) in
-  if LowParse.Low.Base.is_error pos'
-  then raise "extract_log_entry: no valid log entry"
-  else begin
-    B.upd l.pos 0ul (LP.uint64_to_uint32 pos');
-    vlog_entry_reader sl pos
-  end
+  match extract_log_entry_from l.len l.buf l.pos with
+  | Some log -> log
+  | None -> raise "extract_log_entry: no valid log entry"
 
 let has_more (l:log)
   : Stack bool

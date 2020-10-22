@@ -1,10 +1,6 @@
 # JP: this Makefile does not honor OTHERFLAGS, so you can't opt out of
 # verification like every other everest project
 
-ifeq (,$(QD_HOME))
-  $(error Please define QD_HOME)
-endif
-
 ifeq (,$(KREMLIN_HOME))
   $(error Please define KREMLIN_HOME)
 endif
@@ -16,7 +12,6 @@ KRML_OPTS = \
   -fnoanonymous-unions -fparentheses -fno-shadow -fcurly-braces \
   -library EverCrypt,EverCrypt.*,Hacl.* \
   -bundle 'EverCrypt,EverCrypt.\*[rename=EverCrypt]' \
-  -bundle 'LowParse.\*,LowParseWrappers[rename=LowParse]' \
   -bundle 'FStar.\*,LowStar.\*,C,C.\*[rename=Veritas_Kremlib]' \
   -bundle 'Spec.\*' \
   -bundle 'Test.\*' \
@@ -31,11 +26,6 @@ clean:
 	rm -rf formats obj
 
 include Makefile.include
-
-formats/Makefile: Makefile.formats Veritas.Formats.rfc
-	mkdir -p formats
-	$(QD_HOME)/qd -odir formats Veritas.Formats.rfc -prefix Veritas.Formats.
-	cp $< $@
 
 # JP: this does not take into account changes in other directories (e.g. update
 # to LowParse); consider using the technique described at
