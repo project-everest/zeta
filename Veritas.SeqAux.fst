@@ -47,6 +47,13 @@ let lemma_prefix_append (#a:Type) (s1 s2: seq a):
 let lemma_prefix0_empty (#a:Type) (s: seq a):
   Lemma (prefix s 0 == empty #a) = ()
 
+let lemma_prefix_create (#a:Type) (n:nat) (v:a) (i:nat{i <= n}) 
+  : Lemma (prefix (create n v) i == create i v)
+  = let l1 = prefix (create n v) i in
+    let l2 = create i v in
+    let aux (k:nat{k < i}) : Lemma (index l1 k == index l2 k) = () in
+    forall_intro aux; lemma_eq_intro l1 l2
+
 let suffix (#a:Type) (s:seq a) (i:nat{i <= length s}) =
   slice s (length s - i) (length s)
 

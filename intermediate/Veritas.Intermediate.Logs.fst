@@ -55,7 +55,7 @@ let drop_slots_aux (e:logSK_entry) :logK_entry =
 let drop_slots (l:logSK) : logK 
   = map drop_slots_aux l
 
-// likely similar to EAC: check that for every "OP s k ...", k is the last key added at slot s, and has not been evicted 
+// possibly similar to EAC: check that for every "OP s k ...", k is the last key added at slot s, and has not been evicted 
 let skc (l:logSK) : Type = admit()
 
 // add keys in a way that satisfies skc

@@ -10,12 +10,26 @@ let slot_id = nat
 let add_method = Veritas.Verifier.add_method
 
 type vstore_entry = 
-  | VStore: k:key -> v:value_type_of k -> am:add_method -> vstore_entry
+  | VStoreE: k:key -> v:value_type_of k -> am:add_method -> vstore_entry
 
-type vstore = {
-  data:Seq.seq (option vstore_entry);
-  is_map:bool;
-}
+type vstore_data = Seq.seq (option vstore_entry) 
+
+(* No duplicate keys in the store *)
+let is_map_f (s:vstore_data) =
+  forall (i:seq_index s{Some? (Seq.index s i)}) 
+    (i':seq_index s{Some? (Seq.index s i') /\ i <> i'}). 
+        {:pattern (Seq.index s i); (Seq.index s i')}
+    (VStoreE?.k (Some?.v (Seq.index s i)) <> VStoreE?.k (Some?.v (Seq.index s i')))
+
+let elim_is_map_f (s:vstore_data) 
+                  (i:seq_index s{Some? (Seq.index s i)})
+                  (i':seq_index s{Some? (Seq.index s i') ∧ i ≠ i'})
+  : Lemma (requires is_map_f s)
+          (ensures VStoreE?.k (Some?.v (Seq.index s i)) ≠ VStoreE?.k (Some?.v (Seq.index s i')))
+  = ()
+
+type vstore = 
+  | VStore: data:vstore_data -> is_map:bool{is_map ==> is_map_f data} -> vstore
 
 let st_index (st:vstore) = seq_index st.data
 
@@ -61,6 +75,14 @@ val update_store_preserves_length
            Seq.length st.data = Seq.length st'.data)
           [SMTPat (update_store st s v)]  
 
+val lemma_update_store_preserves_is_map
+      (st:vstore) 
+      (s:slot_id{store_contains st s}) 
+      (v:value_type_of (stored_key st s)) 
+  : Lemma (let st' = update_store st s v in 
+           st.is_map = st'.is_map)
+          [SMTPat (update_store st s v)]
+
 val add_to_store 
       (st:vstore) 
       (s:st_index st) 
@@ -71,6 +93,28 @@ val add_to_store
                      stored_key st' s = k /\
                      stored_value st' s = v /\
                      add_method_of st' s = am})
+
+val lemma_add_to_store_is_map1
+      (st:vstore) 
+      (s:st_index st) 
+      (k:key) 
+      (v:value_type_of k) 
+      (am:add_method)
+  : Lemma (requires (not (store_contains_key st k)))
+          (ensures (let st' = add_to_store st s k v am in 
+                    st.is_map = st'.is_map))
+          [SMTPat (add_to_store st s k v am)]
+
+val lemma_add_to_store_is_map2
+      (st:vstore) 
+      (s:st_index st) 
+      (k:key) 
+      (v:value_type_of k) 
+      (am:add_method)
+  : Lemma (requires (store_contains_key st k))
+          (ensures (let st' = add_to_store st s k v am in 
+                    st'.is_map = false))
+          [SMTPat (add_to_store st s k v am)]
 
 val evict_from_store (st:vstore) (s:st_index st)
   : Tot (st':vstore {not (store_contains st' s)})
@@ -83,7 +127,27 @@ let slot_key_equiv (st:vstore) (s:slot_id) (k:key) : bool =
 (* convert a slot-indexed store to a key-indexed store *)
 val as_map (st:vstore{st.is_map}) : Spec.vstore
 
+let lemma_is_map_empty (n:nat) 
+  : Lemma (is_map_f (Seq.create n (None #vstore_entry)))
+          [SMTPat (Seq.create n (None #vstore_entry))]
+  = ()
+
+val lemma_as_map_empty (n:nat) 
+  : Lemma (ensures (let st = VStore (Seq.create n None) true in
+                     forall (k:key). as_map st k = None))
+          (decreases n)
+
 val lemma_as_map_slot_key_equiv (st:vstore{st.is_map}) (s:slot_id) (k:key)
   : Lemma (requires (slot_key_equiv st s k)) 
           (ensures (Spec.store_contains (as_map st) k /\
                     stored_value st s = Spec.stored_value (as_map st) k))
+          [SMTPat (slot_key_equiv st s k)]
+
+val lemma_as_map_contains_key (st:vstore{st.is_map}) (k:key)
+  : Lemma (store_contains_key st k = Spec.store_contains (as_map st) k)
+          [SMTPat (store_contains_key st k)]
+
+val lemma_as_map_stored_value (st:vstore{st.is_map}) (k:key)
+  : Lemma (requires (store_contains_key st k))
+          (ensures (stored_value_by_key st k = Spec.stored_value (as_map st) k))
+          [SMTPat (stored_value_by_key st k)]

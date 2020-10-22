@@ -44,6 +44,9 @@ let thread_store (vs: vtls {Valid? vs}): vstore =
 let thread_store_is_map (vs: vtls {Valid? vs}): bool =
   let st = thread_store vs in st.is_map
 
+let thread_store_size (vs: vtls {Valid? vs}): nat =
+  let st = thread_store vs in Seq.length st.data
+
 let update_thread_store (vs:vtls {Valid? vs}) (st:vstore) : vtls =
   match vs with
   | Valid id _ clock hadd hevict -> Valid id st clock hadd hevict
@@ -137,7 +140,7 @@ val lemma_vaddm_simulates_spec
       (s s':slot_id)
       (r:record)
       (k':merkle_key)  
-  : Lemma (requires (vtls_rel vs vs') /\ slot_key_rel vs s' k')
+  : Lemma (requires (s < thread_store_size vs /\ vtls_rel vs vs' /\ slot_key_rel vs s' k'))
           (ensures (vtls_rel (vaddm s r s' vs) (Spec.vaddm r k' vs'))) 
 
 val lemma_vaddm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id) (r:record)
@@ -164,7 +167,9 @@ val lemma_vaddb_simulates_spec
       (r:record)
       (t:timestamp)
       (j:thread_id)
-  : Lemma (requires (vtls_rel vs vs'))
+  : Lemma (requires (s < thread_store_size vs /\ 
+                     not (store_contains (thread_store vs) s) /\ 
+                     vtls_rel vs vs'))
           (ensures (vtls_rel (vaddb s r t j vs) (Spec.vaddb r t j vs')))
 
 val lemma_vaddb_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (r:record) (t:timestamp) (j:thread_id)
@@ -232,7 +237,8 @@ let t_verify (id:thread_id) (l:logSK): vtls =
 let verify (id:thread_id) (l:logSK): vtls =
   let vs = t_verify id l in
   if Valid? vs
-  then if thread_store_is_map vs then vs else Failed
+  then if thread_store_is_map vs // alternatively, we could check when we check the global hashes
+       then vs else Failed
   else Failed
 
 let verifiable (id:thread_id) (l: logSK): bool =
@@ -245,20 +251,29 @@ val init_thread_state_valid (id:thread_id)
 val lemma_init_thread_state_rel (id:thread_id) :
   Lemma (vtls_rel (init_thread_state id) (Spec.init_thread_state id))
 
-(* Relation between logs -- haven't really worked this out yet *)
+// Relation between logs (not currently used)
 let log_rel  (l:logSK) (l':logK) : Type 
   = skc l /\ drop_slots l = l'
 
 // whatever the defn of log_rel, it should satisfy lemma_log_rel
 let log_entry_rel (vs:vtls{Valid? vs}) (e:logSK_entry) (e':logK_entry) : Type
   = match e, e' with
-    | Get_SK s _ v, Spec.Get k v' -> slot_key_rel vs s k /\ v = v'
-    | Put_SK s _ v, Spec.Put k v' -> slot_key_rel vs s k /\ v = v'
-    | AddM_SK s r s' _, Spec.AddM r' k' -> r = r' /\ slot_key_rel vs s' k'
-    | EvictM_SK s _ s' _, Spec.EvictM k k' -> slot_key_rel vs s k /\ slot_key_rel vs s' k'
-    | AddB_SK s r t j, Spec.AddB r' t' j' -> r = r' /\ t = t' /\ j = j' 
-    | EvictB_SK s _ t, Spec.EvictB k t' -> slot_key_rel vs s k /\ t = t'
-    | EvictBM_SK s _ s' _ t, Spec.EvictBM k k' t' -> slot_key_rel vs s k /\ slot_key_rel vs s' k' /\ t = t'
+    | Get_SK s _ v, Spec.Get k v' -> 
+        slot_key_rel vs s k /\ v = v'
+    | Put_SK s _ v, Spec.Put k v' -> 
+        slot_key_rel vs s k /\ v = v'
+    | AddM_SK s r s' _, Spec.AddM r' k' -> 
+        s < thread_store_size vs /\ not (store_contains (thread_store vs) s) /\
+        r = r' /\ slot_key_rel vs s' k'
+    | EvictM_SK s _ s' _, Spec.EvictM k k' -> 
+        slot_key_rel vs s k /\ slot_key_rel vs s' k'
+    | AddB_SK s r t j, Spec.AddB r' t' j' -> 
+        s < thread_store_size vs /\ not (store_contains (thread_store vs) s) /\
+        r = r' /\ t = t' /\ j = j' 
+    | EvictB_SK s _ t, Spec.EvictB k t' -> 
+        slot_key_rel vs s k /\ t = t'
+    | EvictBM_SK s _ s' _ t, Spec.EvictBM k k' t' -> 
+        slot_key_rel vs s k /\ slot_key_rel vs s' k' /\ t = t'
     | _, _ -> False
 
 let log_rel_with_vtls (vs:vtls{Valid? vs}) (l:logSK) (l':logK) : Type 
@@ -279,13 +294,8 @@ val lemma_t_verify_simulates_spec (id:thread_id) (l:logSK) (l':logK)
 
 (* For any log, the intermediate implementation will verify 
    iff the the spec implementation does. *)
-
 let lemma_verifiable_simulates_spec (id:thread_id) (l:logSK) (l':logK)
   : Lemma (requires (log_rel l l'))
           (ensures (let tl : SpecT.thread_id_vlog = (id,l') in
                     verifiable id l = SpecT.verifiable tl))
-  = lemma_t_verify_simulates_spec id l l';
-    let vs = t_verify id l in
-    if Valid? vs
-    then if not (thread_store_is_map vs) 
-    then admit()
+  = lemma_t_verify_simulates_spec id l l'

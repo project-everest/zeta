@@ -48,6 +48,9 @@ let lemma_prefix1_append (#a:Type) (s: seq a) (x:a):
 val lemma_prefix0_empty (#a:Type) (s: seq a):
   Lemma (prefix s 0 == empty #a)
 
+val lemma_prefix_create (#a:Type) (n:nat) (v:a) (i:nat{i <= n}) 
+  : Lemma (prefix (create n v) i == create i v)
+
 (* is ps a prefix of s *)
 let is_prefix (#a:eqtype) (s:seq a) (ps: seq a): Tot bool =
   length ps <= length s &&
