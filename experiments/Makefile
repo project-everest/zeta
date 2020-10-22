@@ -23,7 +23,7 @@ KRML_OPTS = \
   -bundle 'Meta.\*' \
   -bundle 'Lib.*[rename=Hacl_Lib]' \
   -bundle 'Vale.*,Hacl.*[rename=ShouldBeUnused1]' \
-  -bundle Veritas.Formats+Veritas.HashSet+Veritas.LowLevelVerifier+Veritas.Reveal+Veritas.VCache=[rename=Veritas] \
+  -bundle Veritas.HashSet+Veritas.LowLevelVerifier+Veritas.Reveal+Veritas.VCache=Veritas.Formats,Veritas.Formats.*[rename=Veritas] \
   $(KOPTS)
 
 all: verify dist/Makefile.basic
@@ -38,6 +38,9 @@ formats/Makefile: Makefile.formats Veritas.Formats.rfc
 	$(QD_HOME)/qd -odir formats Veritas.Formats.rfc -prefix Veritas.Formats.
 	cp $< $@
 
+# JP: this does not take into account changes in other directories (e.g. update
+# to LowParse); consider using the technique described at
+# https://fstarlang.github.io/lowstar/html/Setup.html#build
 obj/.depend: $(VERITAS_SOURCES) formats/Makefile
 	+$(MAKE) -f Makefile.depend
 

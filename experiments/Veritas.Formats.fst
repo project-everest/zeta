@@ -21,13 +21,11 @@ include Veritas.Formats.Vlog_entry_evictb
 include Veritas.Formats.Vlog_entry_evictbm
 include Veritas.Formats.Vlog_entry
 
-inline_for_extraction
 let bool_of_vbool (x: vbool) : Tot bool =
   match x with
   | Vfalse -> false
   | Vtrue -> true
 
-inline_for_extraction
 let vbool_of_bool (x: bool) : Tot vbool =
   if x then Vtrue else Vfalse
 
