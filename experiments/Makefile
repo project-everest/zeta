@@ -21,9 +21,8 @@ KRML_OPTS = \
   -bundle 'Spec.\*' \
   -bundle 'Test.\*' \
   -bundle 'Meta.\*' \
-  -bundle 'Lib.*[rename=Hacl_Lib]' \
-  -bundle 'Vale.*,Hacl.*[rename=ShouldBeUnused1]' \
-  -bundle Veritas.HashSet+Veritas.LowLevelVerifier+Veritas.Reveal+Veritas.VCache=Veritas.Formats,Veritas.Formats.*[rename=Veritas] \
+  -bundle 'EverCrypt,EverCrypt.*,Vale.*,Hacl.*,Lib.*[rename=Veritas_Hacl]' \
+  -bundle Veritas.HashSet+Veritas.LowLevelVerifier+Veritas.Reveal+Veritas.VCache=Veritas.*,Veritas.Formats,Veritas.Formats.*[rename=Veritas] \
   $(KOPTS)
 
 all: verify dist/Makefile.basic
