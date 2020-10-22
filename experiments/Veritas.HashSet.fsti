@@ -36,9 +36,12 @@ let blake2_key_length = 64
 
 // NOTE: we do not have an agile spec for the keyed hash functionality :(, so
 // we're making Blake2-dependent assumptions without corresponding agile predicates
+noextract inline_for_extraction
 let hashable_bytes = b:bytes { S.length b <= blake2_max_input_length }
 
+noextract inline_for_extraction
 let t = Lib.ByteSequence.lbytes Spec.Blake2.(max_output Blake2B)
+noextract inline_for_extraction
 let t_key = Lib.ByteSequence.lbytes blake2_key_length
 
 // ---
@@ -52,6 +55,7 @@ let state = B.pointer state_s
 
 val seen: h:HS.mem -> s:state -> GTot (list hashable_bytes)
 
+noextract inline_for_extraction
 let zero: t =
   S.create 64 (Lib.IntTypes.u8 0)
 
@@ -76,6 +80,7 @@ let rec gfold_right #a #b (f: b -> a -> GTot b) (xs: list a) (acc: b): Ghost b
   | x :: xs -> f (gfold_right f xs acc) x
 
 /// JP: is this defined somewhere?
+noextract inline_for_extraction
 let xor_bytes (s1: bytes) (s2: bytes { S.length s1 == S.length s2 }): s3:bytes { S.length s3 == S.length s1 } =
   S.init (S.length s1) (fun i -> S.index s1 i `Lib.IntTypes.logxor` S.index s2 i)
 
@@ -85,6 +90,7 @@ let xor_bytes_commutative (s1: bytes) (s2: bytes { S.length s1 == S.length s2 })
 =
   admit ()
 
+noextract inline_for_extraction
 let fold_and_hash (k: t_key) (acc: t) (b: hashable_bytes) =
   xor_bytes (Spec.Blake2.blake2b b 64 k 64) acc
 

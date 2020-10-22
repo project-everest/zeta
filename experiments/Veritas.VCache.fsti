@@ -21,6 +21,7 @@ type u32 = U32.t
 type u64 = U64.t
 
 (* size of a hash value *)
+// FIXME: this is not Low*; consider using inline_for_extraction noextract
 let hash_size : nat = 256
 
 val most_significant_bit (k:key) : bool

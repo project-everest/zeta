@@ -16,6 +16,7 @@ module B = LowStar.Buffer
 
 module C = FStar.Int.Cast
 
+// FIXME: not Low*
 let most_significant_bit k = magic ()
 
 type vstore = B.lbuffer (option record) (UInt.max_int U16.n + 1)
@@ -32,6 +33,9 @@ let frame_invariant _ _ _ _ = ()
 let invariant_loc_in_footprint _ _ = ()
 
 let vcache_create () =
+  // FIXME: gcmalloc requires the use of a garbage-collector, use malloc instead
+  // along with a vcache_free?
+  // FIXME: U32.uint_to_t is not normalizing
   B.gcmalloc #(option record) HS.root None (U32.uint_to_t (UInt.max_int U16.n + 1))
 
 let vcache_get_record st s = B.index st (C.uint16_to_uint32 (s))
