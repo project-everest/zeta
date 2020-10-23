@@ -64,9 +64,9 @@ let frame _ _ _ _ =
 #push-options "--ifuel 1 --fuel 1 --z3rlimit 50"
 let create_in r k' =
   let h0 = ST.get () in
-  let b = B.malloc r (Lib.IntTypes.u8 0) 64ul in
+  let b = B.malloc r 0uy 64ul in
   let p = B.malloc r (G.hide ([] #hashable_bytes)) 1ul in
-  let k = B.malloc r (Lib.IntTypes.u8 0) 64ul in
+  let k = B.malloc r 0uy 64ul in
   B.blit k' 0ul k 0ul 64ul;
   let h1 = ST.get () in
   B.modifies_only_not_unused_in B.loc_none h0 h1;
@@ -92,10 +92,10 @@ let add s b l =
   let { acc; seen; key } = !* s in
   let h1 = ST.get () in
   assert (invariant h1 s);
-  let tmp = B.alloca (Lib.IntTypes.u8 0) 64ul in
-  assert_norm (64 + Spec.Blake2.(size_block Blake2B) < pow2 32);
+  let tmp = B.alloca 0uy 64ul in
+  assert_norm (64 + Hacl.Blake2b_32.size_block < pow2 32);
   assert_norm (64 < pow2 32);
-  assert_norm (64 <= Spec.Blake2.(max_key Blake2B));
+  assert_norm (64 <= Hacl.Blake2b_32.max_key);
   assert (B.length tmp == 64);
   Hacl.Blake2b_32.blake2b 64ul tmp l b 64ul key;
   xor_inplace acc tmp;

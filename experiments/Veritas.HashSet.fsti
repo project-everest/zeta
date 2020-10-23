@@ -17,7 +17,7 @@ inline_for_extraction noextract
 val flush_interleaving: unit
 
 noextract inline_for_extraction
-let u8 = Lib.IntTypes.uint8
+let u8 = FStar.UInt8.t
 
 noextract inline_for_extraction
 let bytes = S.seq u8
@@ -40,9 +40,12 @@ noextract inline_for_extraction
 let hashable_bytes = b:bytes { S.length b <= blake2_max_input_length }
 
 noextract inline_for_extraction
-let t = Lib.ByteSequence.lbytes Spec.Blake2.(max_output Blake2B)
+let lbytes = Hacl.Blake2b_32.lbytes
+
 noextract inline_for_extraction
-let t_key = Lib.ByteSequence.lbytes blake2_key_length
+let t = lbytes Hacl.Blake2b_32.max_output
+noextract inline_for_extraction
+let t_key = lbytes blake2_key_length
 
 // ---
 
@@ -57,7 +60,7 @@ val seen: h:HS.mem -> s:state -> GTot (list hashable_bytes)
 
 noextract inline_for_extraction
 let zero: t =
-  S.create 64 (Lib.IntTypes.u8 0)
+  S.create 64 0uy
 
 val v: h:HS.mem -> s:state -> GTot t
 
@@ -82,7 +85,7 @@ let rec gfold_right #a #b (f: b -> a -> GTot b) (xs: list a) (acc: b): Ghost b
 /// JP: is this defined somewhere?
 noextract inline_for_extraction
 let xor_bytes (s1: bytes) (s2: bytes { S.length s1 == S.length s2 }): s3:bytes { S.length s3 == S.length s1 } =
-  S.init (S.length s1) (fun i -> S.index s1 i `Lib.IntTypes.logxor` S.index s2 i)
+  S.init (S.length s1) (fun i -> S.index s1 i `FStar.UInt8.logxor` S.index s2 i)
 
 let xor_bytes_commutative (s1: bytes) (s2: bytes { S.length s1 == S.length s2 }): Lemma
   (ensures xor_bytes s1 s2 == xor_bytes s2 s1)
@@ -92,7 +95,7 @@ let xor_bytes_commutative (s1: bytes) (s2: bytes { S.length s1 == S.length s2 })
 
 noextract inline_for_extraction
 let fold_and_hash (k: t_key) (acc: t) (b: hashable_bytes) =
-  xor_bytes (Spec.Blake2.blake2b b 64 k 64) acc
+  xor_bytes (Hacl.Blake2b_32.spec b 64 k 64) acc
 
 // ---
 

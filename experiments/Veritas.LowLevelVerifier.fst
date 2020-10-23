@@ -106,8 +106,7 @@ val compute_hash (d:value)
     (ensures fun h0 _ h1 -> B.modifies B.loc_none h0 h1)
 
 let compute_hash d =
-  Veritas.Reveal.reveal_u8 ();
-  assert_norm (8 <= Spec.Hash.Definitions.max_input_length Spec.Hash.Definitions.SHA2_256);
+  assert_norm (8 <= Hacl.Hash.SHA2.max_input_length);
   assert_norm (pow2 32 < pow2 61);
   push_frame ();
   let l = serialize_length d in
@@ -422,6 +421,7 @@ val extract_log_entry (l:log)
             log at position h0.pos contains a vali repr of v *)
 
 let extract_log_entry l =
+  admit ();
   match extract_log_entry_from l.len l.buf l.pos with
   | Some log -> log
   | None -> raise "extract_log_entry: no valid log entry"

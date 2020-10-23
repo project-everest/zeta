@@ -10,18 +10,14 @@ KRML = $(KREMLIN_HOME)/krml
 KRML_OPTS = \
   -skip-compilation \
   -fnoanonymous-unions -fparentheses -fno-shadow -fcurly-braces \
-  -library EverCrypt,EverCrypt.*,Hacl.*,Veritas.Formats,Veritas.Formats.* \
-  -bundle 'EverCrypt,EverCrypt.\*[rename=EverCrypt]' \
+  -library Veritas.Formats,Veritas.Formats.* \
   -bundle 'FStar.\*,LowStar.\*,C,C.\*[rename=Veritas_Kremlib]' \
-  -bundle 'Spec.\*' \
-  -bundle 'Test.\*' \
-  -bundle 'Meta.\*' \
-  -bundle 'EverCrypt,EverCrypt.*,Vale.*,Hacl.*,Lib.*[rename=Veritas_Hacl]' \
+  -bundle 'Hacl.*[rename=Veritas_Hacl]' \
   -bundle Veritas.Formats,Veritas.Formats.*[rename=Veritas_Formats] \
-  -bundle Veritas.HashSet+Veritas.LowLevelVerifier+Veritas.Reveal+Veritas.VCache=Veritas.*[rename=Veritas] \
+  -bundle Veritas.HashSet+Veritas.LowLevelVerifier+Veritas.VCache=Veritas.*[rename=Veritas] \
   $(KOPTS)
 
-all: verify dist/Makefile.basic
+all: test-all
 
 clean:
 	rm -rf formats obj
@@ -31,8 +27,10 @@ include Makefile.include
 # JP: this does not take into account changes in other directories (e.g. update
 # to LowParse); consider using the technique described at
 # https://fstarlang.github.io/lowstar/html/Setup.html#build
+ifneq (,$(filter-out %-in,$(MAKECMDGOALS)))
 obj/.depend: $(VERITAS_SOURCES) formats/Makefile
 	+$(MAKE) -f Makefile.depend
+endif
 
 -include obj/.depend
 
@@ -66,6 +64,39 @@ obj/%.krml:
 dist/Makefile.basic: $(ALL_KRML_FILES)
 	mkdir -p $(dir $@)
 	$(KRML) $(KRML_OPTS) $^ \
-	  -o libveritas.so -tmpdir $(dir $@)
+	  -o libveritascore.a -tmpdir $(dir $@)
+
+dist/libveritascore.a: dist/Makefile.basic
+	$(MAKE) -C dist -f Makefile.basic
+
+# Compiling formats
+
+.PHONY: formats/dist/veritasformats.a
+
+formats/dist/veritasformats.a:
+	+$(MAKE) -C $(dir $@) -f Makefile.basic
+
+# Compiling HACL*
+
+HACL_DIST=./hacl-star/dist/gcc-compatible
+
+hacl-star:
+	@echo "Please run git submodule --init"
+	false
+
+.PHONY: $(HACL_DIST)/libevercrypt.a
+
+$(HACL_DIST)/Makefile.config: hacl-star
+	cd $(HACL_DIST) && ./configure --disable-ocaml
+
+$(HACL_DIST)/libevercrypt.a: $(HACL_DIST)/Makefile.config
+	+$(MAKE) -C $(dir $@)
+
+# SKETCH!
+#
+test-all: test/mytest.c dist/libveritascore.a formats/dist/veritasformats.a $(HACL_DIST)/libevercrypt.a
+	$(CC) $^
+
+# Boilerplate
 
 .PHONY: all %.fsti-in %.fst-in verify clean

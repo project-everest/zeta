@@ -1,0 +1,3 @@
+[submodule "experiments/hacl-star"]
+	path = experiments/hacl-star
+	url = https://github.com/project-everest/hacl-star
