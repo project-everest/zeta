@@ -140,7 +140,10 @@ val lemma_vaddm_simulates_spec
       (s s':slot_id)
       (r:record)
       (k':merkle_key)  
-  : Lemma (requires (s < thread_store_size vs /\ vtls_rel vs vs' /\ slot_key_rel vs s' k'))
+  : Lemma (requires (s < thread_store_size vs /\ 
+                     not (store_contains (thread_store vs) s) /\ 
+                     vtls_rel vs vs' /\ 
+                     slot_key_rel vs s' k'))
           (ensures (vtls_rel (vaddm s r s' vs) (Spec.vaddm r k' vs'))) 
 
 val lemma_vaddm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id) (r:record)

@@ -20,6 +20,7 @@ let stored_value (st:vstore) (s:slot_id{store_contains st s}) : value
 
 let stored_value_matches_stored_key (st:vstore) (s:slot_id{store_contains st s}) 
   : Lemma (is_value_of (stored_key st s) (stored_value st s))
+          [SMTPat (stored_value st s)]
   = ()
 
 let add_method_of (st:vstore) (s:slot_id{store_contains st s}) : add_method
@@ -183,6 +184,21 @@ let evict_from_store (st:vstore) (s:st_index st)
   : Tot (st':vstore {not (store_contains st' s)})
   = VStore (Seq.upd st.data s None) st.is_map
 
+let lemma_evict_from_store_preserves_is_map (st:vstore) (s:st_index st)
+  : Lemma (let st' = evict_from_store st s in
+           st.is_map = st'.is_map)
+  = ()
+
+let lemma_slot_key_equiv_update_store 
+      (st:vstore) 
+      (s:slot_id) 
+      (s':slot_id{store_contains st s'}) 
+      (k:key) 
+      (v:value_type_of (stored_key st s'))
+  : Lemma (requires (slot_key_equiv st s k /\ s <> s'))
+          (ensures (slot_key_equiv (update_store st s' v) s k))
+  = ()
+
 let rec as_map_aux (l:vstore_data) 
   : Tot Spec.vstore (decreases (Seq.length l)) =
   let n = Seq.length l in
@@ -224,7 +240,8 @@ let rec lemma_as_map_slot_key_equiv_aux
                      Seq.index l s = Some (VStoreE k v am) /\
                      is_map_f l)) 
           (ensures (Spec.store_contains (as_map_aux l) k /\
-                    Spec.stored_value (as_map_aux l) k = v))
+                    Spec.stored_value (as_map_aux l) k = v /\
+                    Spec.add_method_of (as_map_aux l) k = am))
           (decreases (Seq.length l))
   = let n = Seq.length l in
     if n <> 0 
@@ -239,7 +256,8 @@ let rec lemma_as_map_slot_key_equiv_aux
 let lemma_as_map_slot_key_equiv (st:vstore{st.is_map}) (s:slot_id) (k:key)
   : Lemma (requires (slot_key_equiv st s k)) 
           (ensures (Spec.store_contains (as_map st) k /\
-                    stored_value st s = Spec.stored_value (as_map st) k)) 
+                    stored_value st s = Spec.stored_value (as_map st) k /\
+                    add_method_of st s = Spec.add_method_of (as_map st) k)) 
   = let Some (VStoreE k v a) = get_slot st s in 
     lemma_as_map_slot_key_equiv_aux st.data s k v a
 
@@ -274,11 +292,6 @@ let lemma_as_map_contains_key (st:vstore{st.is_map}) (k:key)
       lemma_as_map_aux_does_not_contain_key st.data k
     )
 
-let lemma_slot_key_equiv_value (st:vstore{st.is_map}) (s:slot_id) (k:key)
-  : Lemma (requires (slot_key_equiv st s k))
-          (ensures (stored_value_by_key st k = stored_value st s))
-  = lemma_get_slot_lookup_key st s k
-
 let lemma_as_map_stored_value (st:vstore{st.is_map}) (k:key)
   : Lemma (requires (store_contains_key st k))
           (ensures (stored_value_by_key st k = Spec.stored_value (as_map st) k))
@@ -286,6 +299,15 @@ let lemma_as_map_stored_value (st:vstore{st.is_map}) (k:key)
     Classical.exists_elim 
       (stored_value_by_key st k = Spec.stored_value (as_map st) k) 
       (Squash.get_proof (exists s. slot_key_equiv st s k)) 
-      (fun s -> lemma_slot_key_equiv_value st s k; 
+      (fun s -> lemma_get_slot_lookup_key st s k; 
              lemma_as_map_slot_key_equiv st s k)
    
+let lemma_as_map_add_method_of (st:vstore{st.is_map}) (k:key)
+  : Lemma (requires (store_contains_key st k))
+          (ensures (add_method_of_by_key st k = Spec.add_method_of (as_map st) k))
+  = lemma_store_contains_key_inv st k;
+    Classical.exists_elim 
+      (add_method_of_by_key st k = Spec.add_method_of (as_map st) k) 
+      (Squash.get_proof (exists s. slot_key_equiv st s k)) 
+      (fun s -> lemma_get_slot_lookup_key st s k; 
+             lemma_as_map_slot_key_equiv st s k)

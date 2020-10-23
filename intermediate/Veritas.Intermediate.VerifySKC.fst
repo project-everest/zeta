@@ -196,18 +196,24 @@ let vevictbm (s:slot_id) (s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls 
             let st_upd = update_store st s' (MVal v'_upd) in
             vevictb s t (update_thread_store vs st_upd)
 
-let lemma_store_rel_update_store (st:vstore) (st':Spec.vstore) (s:slot_id) (k:data_key) (v:data_value)
+let lemma_store_rel_update_store (st:vstore) (st':Spec.vstore) (s:slot_id) (k:key) (v:value_type_of k)
   : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
           (ensures (Spec.store_contains st' k /\
-                    store_rel (update_store st s (DVal v)) (Spec.update_store st' k (DVal v))))
-          [SMTPat (store_rel st st'); SMTPat (update_store st s (DVal v)); SMTPat (Spec.update_store st' k (DVal v))]
+                    store_rel (update_store st s v) (Spec.update_store st' k v)))
+          [SMTPat (store_rel st st'); SMTPat (update_store st s v); SMTPat (Spec.update_store st' k v)]
   = lemma_as_map_slot_key_equiv st s k;
     admit()
 
-let lemma_add_to_store (st:vstore) (st':Spec.vstore) (s:st_index st) (k:key) (v:value_type_of k) (am:add_method)
+let lemma_store_rel_add_to_store (st:vstore) (st':Spec.vstore) (s:st_index st) (k:key) (v:value_type_of k) (am:add_method)
   : Lemma (requires (store_rel st st' /\ not (Spec.store_contains st' k)))
           (ensures (store_rel (add_to_store st s k v am) (Spec.add_to_store st' k v am)))
           [SMTPat (store_rel st st'); SMTPat (add_to_store st s k v am); SMTPat (Spec.add_to_store st' k v am)]
+  = admit()
+
+let lemma_store_rel_evict_from_store (st:vstore) (st':Spec.vstore) (s:st_index st) (k:key)
+  : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
+          (ensures (store_rel (evict_from_store st s) (Spec.evict_from_store st' k)))
+          [SMTPat (store_rel st st'); SMTPat (evict_from_store st s); SMTPat (Spec.evict_from_store st' k)]
   = admit()
 
 let lemma_vget_simulates_spec 
@@ -240,24 +246,23 @@ let lemma_vput_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (v:data_value)
           (ensures (has_failed (vput s v vs)))
   = ()
 
-let lemma_vaddm_simulates_spec 
+let lemma_vaddm_simulates_spec
       (vs:vtls{Valid? vs}) 
       (vs':Spec.vtls{Spec.Valid? vs'}) 
       (s s':slot_id)
       (r:record)
       (k':merkle_key)  
-   : Lemma (requires (s < thread_store_size vs /\ vtls_rel vs vs' /\ slot_key_rel vs s' k'))
+   : Lemma (requires (s < thread_store_size vs /\
+                      not (store_contains (thread_store vs) s) /\
+                      vtls_rel vs vs' /\ 
+                      slot_key_rel vs s' k'))
           (ensures (vtls_rel (vaddm s r s' vs) (Spec.vaddm r k' vs'))) 
-  = let st = thread_store vs in
-    let st' = Spec.thread_store vs' in
-    let (k,v) = r in
-    // ...
-    admit()
+  = ()
 
 let lemma_vaddm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id) (r:record)
   : Lemma (requires (not (thread_store_is_map vs)))
           (ensures (has_failed (vaddm s r s' vs)))
-  = admit()
+  = ()
 
 let lemma_vevictm_simulates_spec 
       (vs:vtls{Valid? vs}) 
@@ -267,12 +272,15 @@ let lemma_vevictm_simulates_spec
       (k':merkle_key)  
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k /\ slot_key_rel vs s' k'))
           (ensures (vtls_rel (vevictm s s' vs) (Spec.vevictm k k' vs'))) 
-  = admit()
+  = () 
 
 let lemma_vevictm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id)
   : Lemma (requires (not (thread_store_is_map vs)))
           (ensures (has_failed (vevictm s s' vs)))
-  = admit()
+  = let st = thread_store vs in
+    if store_contains st s'
+    then // TODO: get this lemma to trigger automatically 
+      stored_value_matches_stored_key st s'
 
 let lemma_vaddb_simulates_spec 
       (vs:vtls{Valid? vs}) 
@@ -300,12 +308,12 @@ let lemma_vevictb_simulates_spec
       (t:timestamp)
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
           (ensures (vtls_rel (vevictb s t vs) (Spec.vevictb k t vs'))) 
-  = admit()
+  = ()
 
 let lemma_vevictb_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (t:timestamp)
   : Lemma (requires (not (thread_store_is_map vs)))
           (ensures (has_failed (vevictb s t vs)))
-  = admit()
+  =  ()
 
 let lemma_vevictbm_simulates_spec 
       (vs:vtls{Valid? vs}) 
@@ -353,7 +361,7 @@ let lemma_init_thread_state_rel (id:thread_id)
     then 
       let st = thread_store vs in
       let st' = Spec.thread_store vs' in
-      lemma_add_to_store st st' 0 Root (init_value Root) Spec.MAdd
+      lemma_store_rel_add_to_store st st' 0 Root (init_value Root) Spec.MAdd
 
 let lemma_t_verify_step_simulates_spec (vs:vtls) (vs':Spec.vtls) (e:logSK_entry) (e':logK_entry)
   : Lemma (requires (vtls_rel vs vs' /\ (has_failed vs \/ log_entry_rel vs e e')))

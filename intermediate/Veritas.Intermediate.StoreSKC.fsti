@@ -119,10 +119,25 @@ val lemma_add_to_store_is_map2
 val evict_from_store (st:vstore) (s:st_index st)
   : Tot (st':vstore {not (store_contains st' s)})
 
+val lemma_evict_from_store_preserves_is_map (st:vstore) (s:st_index st)
+  : Lemma (let st' = evict_from_store st s in
+           st.is_map = st'.is_map)
+          [SMTPat (evict_from_store st s)]
+
 (* slot_id s is equivalent to key k *)
 let slot_key_equiv (st:vstore) (s:slot_id) (k:key) : bool =
   not st.is_map || // trivially true
   (store_contains st s && stored_key st s = k) 
+
+val lemma_slot_key_equiv_update_store 
+      (st:vstore) 
+      (s:slot_id) 
+      (s':slot_id{store_contains st s'}) 
+      (k:key) 
+      (v:value_type_of (stored_key st s'))
+  : Lemma (requires (slot_key_equiv st s k /\ s <> s'))
+          (ensures (slot_key_equiv (update_store st s' v) s k))
+          [SMTPat (slot_key_equiv (update_store st s' v) s k)]
 
 (* convert a slot-indexed store to a key-indexed store *)
 val as_map (st:vstore{st.is_map}) : Spec.vstore
@@ -140,7 +155,8 @@ val lemma_as_map_empty (n:nat)
 val lemma_as_map_slot_key_equiv (st:vstore{st.is_map}) (s:slot_id) (k:key)
   : Lemma (requires (slot_key_equiv st s k)) 
           (ensures (Spec.store_contains (as_map st) k /\
-                    stored_value st s = Spec.stored_value (as_map st) k))
+                    stored_value st s = Spec.stored_value (as_map st) k /\
+                    add_method_of st s = Spec.add_method_of (as_map st) k))
           [SMTPat (slot_key_equiv st s k)]
 
 val lemma_as_map_contains_key (st:vstore{st.is_map}) (k:key)
@@ -151,3 +167,8 @@ val lemma_as_map_stored_value (st:vstore{st.is_map}) (k:key)
   : Lemma (requires (store_contains_key st k))
           (ensures (stored_value_by_key st k = Spec.stored_value (as_map st) k))
           [SMTPat (stored_value_by_key st k)]
+
+val lemma_as_map_add_method_of (st:vstore{st.is_map}) (k:key)
+  : Lemma (requires (store_contains_key st k))
+          (ensures (add_method_of_by_key st k = Spec.add_method_of (as_map st) k))
+          [SMTPat (add_method_of_by_key st k)]
