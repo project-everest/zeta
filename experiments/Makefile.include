@@ -2,6 +2,6 @@ FSTAR_INCLUDES=$(ALL_HACL_DIRS) $(KREMLIN_HOME)/kremlib $(KREMLIN_HOME)/kremlib/
 
 FSTAR_OPTIONS=$(addprefix --include ,$(FSTAR_INCLUDES)) --already_cached '*,-Veritas,-LowStar.Exception,-PRFSetHash,-Hacl' --cache_dir obj --odir obj --cmi
 
-FSTAR_EXE=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS)
+FSTAR_EXE=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(OTHERFLAGS)
 
 VERITAS_SOURCES=$(filter-out ThreadState.fsti Veritas.LogStream.fsti LayeredEffect.fst,$(wildcard *.fst) $(wildcard *.fsti))

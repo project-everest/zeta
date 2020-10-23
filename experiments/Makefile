@@ -1,5 +1,6 @@
-# JP: this Makefile does not honor OTHERFLAGS, so you can't opt out of
-# verification like every other everest project
+ifeq (,$(FSTAR_HOME))
+  $(error Please define FSTAR_HOME)
+endif
 
 ifeq (,$(KREMLIN_HOME))
   $(error Please define KREMLIN_HOME)
@@ -24,33 +25,21 @@ clean:
 
 include Makefile.include
 
-# JP: this does not take into account changes in other directories (e.g. update
-# to LowParse); consider using the technique described at
-# https://fstarlang.github.io/lowstar/html/Setup.html#build
-ifneq (,$(filter-out %-in,$(MAKECMDGOALS)))
-obj/.depend: $(VERITAS_SOURCES) formats/Makefile
+# From https://fstarlang.github.io/lowstar/html/Setup.html#build
+ifndef MAKE_RESTARTS
+obj/.depend: .FORCE
 	+$(MAKE) -f Makefile.depend
+.PHONY: .FORCE
+.FORCE:
 endif
 
--include obj/.depend
+include obj/.depend
 
-verify:
-	@# JP: because of the current architecture using a recursive make, this
-	@# will produce every checked file twice: once for the verify target in
-	@# the sub-make, and one for the parent make (via krml files) which is
-	@# unaware that the sub-make is producing the required checked files too
-	test -f obj/.depend
-	+$(MAKE) $(ALL_CHECKED_FILES)
+verify: $(ALL_CHECKED_FILES)
 
 %.checked:
-	@# JP: I think we've had races on CI in the past where two processes
-	@# concurrently try to create the same directory
-	mkdir -p obj
-	@# JP: this is missing the "touch $@" which results in spurious rebuilds, e.g. 
-	@#      Prerequisite `obj/Veritas.Formats.Vlog_entry.fsti.checked' is newer than target `obj/Veritas.Formats.fst.checked'.
-	@#      Must remake target `obj/Veritas.Formats.fst.checked'.
-	@# Use make --debug to debug those.
-	$(FSTAR_EXE) --cache_checked_modules $< --admit_smt_queries true
+	$(FSTAR_EXE) --cache_checked_modules $<
+	touch $@
 
 %.fsti-in %.fst-in:
 	@echo $(FSTAR_OPTIONS)
