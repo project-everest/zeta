@@ -73,8 +73,8 @@ $(FORMATS_HOME)/dist/Makefile.basic: $(filter-out %prims.krml,$(ALL_KRML_FILES))
 	  -warn-error @4@5@18 \
 	  -fparentheses \
 	  -bundle 'Veritas.Formats=Veritas.Formats.*,LowParse.*,LowStar.*,FStar.*,Prims' \
-	  -o veritasformats.a
-	sed -i 's!^USER_CFLAGS=$$!USER_CFLAGS = -Wno-type-limits!' $(dir $@)/Makefile.include
+	  -o veritasformats.a \
+	  -ccopt -Wno-type-limits
 
 # Compiling the generated C code
 # ------------------------------

@@ -10,14 +10,15 @@ KRML = $(KREMLIN_HOME)/krml
 KRML_OPTS = \
   -skip-compilation \
   -fnoanonymous-unions -fparentheses -fno-shadow -fcurly-braces \
-  -library EverCrypt,EverCrypt.*,Hacl.* \
+  -library EverCrypt,EverCrypt.*,Hacl.*,Veritas.Formats,Veritas.Formats.* \
   -bundle 'EverCrypt,EverCrypt.\*[rename=EverCrypt]' \
   -bundle 'FStar.\*,LowStar.\*,C,C.\*[rename=Veritas_Kremlib]' \
   -bundle 'Spec.\*' \
   -bundle 'Test.\*' \
   -bundle 'Meta.\*' \
   -bundle 'EverCrypt,EverCrypt.*,Vale.*,Hacl.*,Lib.*[rename=Veritas_Hacl]' \
-  -bundle Veritas.HashSet+Veritas.LowLevelVerifier+Veritas.Reveal+Veritas.VCache=Veritas.*,Veritas.Formats,Veritas.Formats.*[rename=Veritas] \
+  -bundle Veritas.Formats,Veritas.Formats.*[rename=Veritas_Formats] \
+  -bundle Veritas.HashSet+Veritas.LowLevelVerifier+Veritas.Reveal+Veritas.VCache=Veritas.*[rename=Veritas] \
   $(KOPTS)
 
 all: verify dist/Makefile.basic
