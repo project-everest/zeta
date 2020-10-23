@@ -1,10 +1,18 @@
-module Veritas.Formats.Parsers
+module Veritas.Formats
 include Veritas.Formats.Types
 
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32
 module HST = FStar.HyperStack.ST
 module B = LowStar.Buffer
+
+let bool_of_vbool (x: vbool) : Tot bool =
+  match x with
+  | Vfalse -> false
+  | Vtrue -> true
+
+let vbool_of_bool (x: bool) : Tot vbool =
+  if x then Vtrue else Vfalse
 
 val serialize_length : value -> (l: U32.t { U32.v l > 0 })
 
