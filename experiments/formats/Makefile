@@ -1,8 +1,14 @@
-# This Makefile does not build anything.
-# Its goal is only to facilitate editing with emacs fstar-mode
-# in this directory
-
+# By default, build the snapshot from dist/
+# This rule does not depend on EverParse
 all:
+	+$(MAKE) -C dist -f Makefile.basic veritasformats.a
+
+# Regenerate the parsers into dist/ and rebuild everything
+# This rule DOES depend on EverParse
+regen:
+	+$(MAKE) -C everparse
+
+# emacs fstar-mode stubs for this directory
 
 FSTAR_INCLUDES=$(KREMLIN_HOME)/kremlib $(KREMLIN_HOME)/kremlib/obj
 
@@ -13,4 +19,4 @@ FSTAR_EXE=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS)
 %.fsti-in %.fst-in:
 	@echo $(FSTAR_OPTIONS)
 
-.PHONY: all %.fsti-in %.fst-in
+.PHONY: all regen %.fsti-in %.fst-in
