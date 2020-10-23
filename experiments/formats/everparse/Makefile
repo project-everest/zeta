@@ -66,13 +66,13 @@ obj:
 
 KRML=$(KREMLIN_HOME)/krml
 
-$(FORMATS_HOME)/dist/Makefile.basic: $(filter-out %prims.krml,$(ALL_KRML_FILES))
+$(FORMATS_HOME)/dist/Makefile.basic: $(filter-out %prims.krml Veritas_Formats.krml,$(ALL_KRML_FILES))
 	mkdir -p $(dir $@)
 	$(KRML) -tmpdir $(dir $@) -skip-compilation \
 	  $(filter %.krml,$^) \
 	  -warn-error @4@5@18 \
 	  -fparentheses \
-	  -bundle 'Veritas.Formats=Veritas.Formats.*,LowParse.*,LowStar.*,FStar.*,Prims' \
+	  -bundle 'Veritas.Formats.Parsers=Veritas.Formats,Veritas.Formats.*,LowParse.*,LowStar.*,FStar.*,Prims' \
 	  -o veritasformats.a
 	sed -i 's!^USER_CFLAGS=$$!USER_CFLAGS = -Wno-type-limits!' $(dir $@)/Makefile.include
 

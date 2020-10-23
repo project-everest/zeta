@@ -1,4 +1,4 @@
-module Veritas.Formats
+module Veritas.Formats.Parsers
 module LP = LowParse.Low.Base
 
 let serialize_length x =
