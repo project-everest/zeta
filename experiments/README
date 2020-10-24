@@ -1,5 +1,6 @@
 TODO: complete this README
 
+
 Contents:
 
 * formats/ : the data type definitions for verifier log entries and
@@ -8,9 +9,26 @@ Contents:
 * ...
 
 
+Dependencies:
+
+The only needed dependencies are F* and Kremlin. Point the FSTAR_HOME
+(resp. KREMLIN_HOME) to the root directory of the F* (resp. Kremlin)
+source tree.
+
+* HACL* is attached as a submodule (in hacl-star/) used only to
+  recompile EverCrypt from a C snapshot there, but not for
+  verification or compilation of Veritas.
+
+* EverParse is not needed. formats/dist/ contains a C snapshot of the
+  formally verified parsers and serializers, that can be compiled
+  without EverParse. EverParse is needed only to regenerate that
+  snapshot, and is not needed in the verification or compilation of
+  the rest of Veritas.
+
+
 Usage:
 
-`make` will automatically build two static libraries:
+`make` will automatically build three static libraries:
 
 * formats/dist/veritasformats.a: the formally verified parsers and
   serializers for verifier log entries
@@ -18,6 +36,10 @@ Usage:
 * dist/libveritascore.a: the rest of the formally verified
   implementation of Veritas.
 
+* hacl-star/dist/gcc-compatible/libevercrypt.a: the EverCrypt formally
+  verified cryptographic library. This library is compiled from a C
+  snapshot already existing in hacl-star/dist/, so no reverification
+  is performed here.
+
 To build a Veritas application (e.g. test/), just link it with those
-two static libraries AND EverCrypt
-(hacl/dist/gcc-compatible/libevercrypt.a)
+three static libraries.
