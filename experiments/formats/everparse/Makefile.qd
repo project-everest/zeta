@@ -8,5 +8,5 @@ makefileobj: $(QD_TARGET_DIR)/Makefile
 
 $(QD_TARGET_DIR)/Makefile: Makefile.obj Veritas.Formats.rfc
 	mkdir -p $(QD_TARGET_DIR)
-	$(QD_HOME)/qd -odir $(QD_TARGET_DIR) Veritas.Formats.rfc -types_from Veritas.Formats.Types -prefix Veritas.Formats.EverParse.
+	$(QD) -odir $(QD_TARGET_DIR) Veritas.Formats.rfc -types_from Veritas.Formats.Types -prefix Veritas.Formats.EverParse.
 	cp $< $@

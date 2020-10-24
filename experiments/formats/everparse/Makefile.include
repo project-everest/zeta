@@ -18,6 +18,18 @@ ifeq (,$(QD_HOME))
   $(error Please define QD_HOME)
 endif
 
+QD := $(QD_HOME)/qd
+dummy := $(shell test -e $(QD))
+ifneq ($(.SHELLSTATUS),0)
+  QD := $(QD_HOME)/bin/qd
+endif
+
+KRML := $(KREMLIN_HOME)/krml
+dummy := $(shell test -e $(KRML))
+ifneq ($(.SHELLSTATUS),0)
+  KRML := $(QD_HOME)/bin/krml
+endif
+
 SOURCE_DIRS = \
   $(FORMATS_HOME) \
   $(FORMATS_HOME)/everparse \
@@ -25,7 +37,6 @@ SOURCE_DIRS = \
 
 INCLUDE_DIRS = \
   $(SOURCE_DIRS) \
-  $(FSTAR_HOME)/ulib/.cache \
   $(KREMLIN_HOME)/kremlib \
   $(KREMLIN_HOME)/kremlib/obj \
   $(QD_HOME)/src/lowparse

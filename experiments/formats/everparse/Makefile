@@ -64,8 +64,6 @@ obj:
 # F* --> C
 # --------
 
-KRML=$(KREMLIN_HOME)/krml
-
 $(FORMATS_HOME)/dist/Makefile.basic: $(filter-out %prims.krml,$(ALL_KRML_FILES))
 	mkdir -p $(dir $@)
 	$(KRML) -tmpdir $(dir $@) -skip-compilation \

@@ -4,9 +4,10 @@ all:
 	+$(MAKE) -C dist -f Makefile.basic veritasformats.a
 
 # Regenerate the parsers into dist/ and rebuild everything
-# This rule DOES depend on EverParse
+# This rule DOES depend on EverParse, but
+# we run a script to automatically download the EverParse release
 regen:
-	+$(MAKE) -C everparse
+	+everparse/make_from_everparse_release.sh
 
 # emacs fstar-mode stubs for this directory
 
