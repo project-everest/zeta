@@ -1,0 +1,23 @@
+TODO: complete this README
+
+Contents:
+
+* formats/ : the data type definitions for verifier log entries and
+  their parsers and serializers.
+
+* ...
+
+
+Usage:
+
+`make` will automatically build two static libraries:
+
+* formats/dist/veritasformats.a: the formally verified parsers and
+  serializers for verifier log entries
+
+* dist/libveritascore.a: the rest of the formally verified
+  implementation of Veritas.
+
+To build a Veritas application (e.g. test/), just link it with those
+two static libraries AND EverCrypt
+(hacl/dist/gcc-compatible/libevercrypt.a)
