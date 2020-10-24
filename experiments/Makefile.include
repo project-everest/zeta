@@ -4,4 +4,4 @@ FSTAR_OPTIONS=$(addprefix --include ,$(FSTAR_INCLUDES)) --already_cached '*,-Ver
 
 FSTAR_EXE=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(OTHERFLAGS)
 
-VERITAS_SOURCES=$(filter-out ThreadState.fsti Veritas.LogStream.fsti LayeredEffect.fst,$(wildcard *.fst) $(wildcard *.fsti))
+VERITAS_SOURCES=$(filter-out ThreadState.fsti Veritas.LogStream.fsti Veritas.VerifierTraits.fsti Veritas.VCache.Agile.fsti LayeredEffect.fst,$(wildcard *.fst) $(wildcard *.fsti))
