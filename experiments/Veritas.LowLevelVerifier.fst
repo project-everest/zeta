@@ -27,7 +27,7 @@ let vstore = Veritas.VCache.vstore
 assume
 val prf_set_hash : Type0
 assume
-val prf_set_hash_loc (v:prf_set_hash) : B.loc
+val prf_set_hash_loc (v:prf_set_hash) : GTot B.loc
 assume
 val prf_set_hash_inv (v:prf_set_hash) (h:HS.mem) : Type
 assume
