@@ -23,16 +23,6 @@ typedef struct slice_s
 }
 slice;
 
-#define Vnone 0
-#define Vsome 1
-
-typedef uint8_t voption;
-
-#define Mval 0
-#define Dval 1
-
-typedef uint8_t value_kind;
-
 static uint32_t u256_size32(Veritas_Formats_Types_u256 input)
 {
   uint32_t v1 = (uint32_t)8U;
@@ -485,15 +475,19 @@ descendent_hash_desc_lserializer(
   return len10 + len20;
 }
 
-static bool __eq__Veritas_Formats_Types_voption(voption y, voption x)
+static bool
+__eq__Veritas_Formats_Types_voption(
+  Veritas_Formats_Types_voption y,
+  Veritas_Formats_Types_voption x
+)
 {
   switch (x)
   {
-    case Vnone:
+    case Veritas_Formats_Types_Vnone:
       {
         switch (y)
         {
-          case Vnone:
+          case Veritas_Formats_Types_Vnone:
             {
               return true;
             }
@@ -504,11 +498,11 @@ static bool __eq__Veritas_Formats_Types_voption(voption y, voption x)
         }
         break;
       }
-    case Vsome:
+    case Veritas_Formats_Types_Vsome:
       {
         switch (y)
         {
-          case Vsome:
+          case Veritas_Formats_Types_Vsome:
             {
               return true;
             }
@@ -528,16 +522,18 @@ static bool __eq__Veritas_Formats_Types_voption(voption y, voption x)
 
 static uint32_t descendent_hash_size32(Veritas_Formats_Types_descendent_hash x)
 {
-  voption tg;
+  Veritas_Formats_Types_voption tg;
   if (x.tag == Veritas_Formats_Types_Dh_vnone)
-    tg = Vnone;
+    tg = Veritas_Formats_Types_Vnone;
   else if (x.tag == Veritas_Formats_Types_Dh_vsome)
-    tg = Vsome;
+    tg = Veritas_Formats_Types_Vsome;
   else
-    tg = KRML_EABORT(voption, "unreachable (pattern matches are exhaustive in F*)");
+    tg =
+      KRML_EABORT(Veritas_Formats_Types_voption,
+        "unreachable (pattern matches are exhaustive in F*)");
   uint32_t s1 = (uint32_t)1U;
   uint32_t s2;
-  if (__eq__Veritas_Formats_Types_voption(Vnone, tg))
+  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
     s2 = (uint32_t)0U;
   else
   {
@@ -592,15 +588,15 @@ static uint32_t descendent_hash_jumper(slice input, uint32_t pos)
 static Veritas_Formats_Types_descendent_hash descendent_hash_reader(slice input, uint32_t pos)
 {
   uint8_t res = input.base[pos];
-  voption k;
+  Veritas_Formats_Types_voption k;
   if (res == (uint8_t)0U)
-    k = Vnone;
+    k = Veritas_Formats_Types_Vnone;
   else if (res == (uint8_t)1U)
-    k = Vsome;
+    k = Veritas_Formats_Types_Vsome;
   else
-    k = Vnone;
+    k = Veritas_Formats_Types_Vnone;
   uint32_t pos_ = pos + (uint32_t)1U;
-  if (__eq__Veritas_Formats_Types_voption(Vnone, k))
+  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, k))
     return ((Veritas_Formats_Types_descendent_hash){ .tag = Veritas_Formats_Types_Dh_vnone });
   else
   {
@@ -613,15 +609,17 @@ static Veritas_Formats_Types_descendent_hash descendent_hash_reader(slice input,
 static uint32_t
 descendent_hash_lserializer(Veritas_Formats_Types_descendent_hash x, uint8_t *b, uint32_t pos)
 {
-  voption tg;
+  Veritas_Formats_Types_voption tg;
   if (x.tag == Veritas_Formats_Types_Dh_vnone)
-    tg = Vnone;
+    tg = Veritas_Formats_Types_Vnone;
   else if (x.tag == Veritas_Formats_Types_Dh_vsome)
-    tg = Vsome;
+    tg = Veritas_Formats_Types_Vsome;
   else
-    tg = KRML_EABORT(voption, "unreachable (pattern matches are exhaustive in F*)");
+    tg =
+      KRML_EABORT(Veritas_Formats_Types_voption,
+        "unreachable (pattern matches are exhaustive in F*)");
   uint8_t ite0;
-  if (__eq__Veritas_Formats_Types_voption(Vnone, tg))
+  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
     ite0 = (uint8_t)0U;
   else
     ite0 = (uint8_t)1U;
@@ -634,7 +632,7 @@ descendent_hash_lserializer(Veritas_Formats_Types_descendent_hash x, uint8_t *b,
   uint32_t len1 = res1;
   uint32_t pos1 = pos + len1;
   uint32_t res;
-  if (__eq__Veritas_Formats_Types_voption(Vnone, tg))
+  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
     res = (uint32_t)0U;
   else
   {
@@ -709,16 +707,18 @@ static uint16_t thread_id_reader(slice sl, uint32_t pos)
 
 static uint32_t data_value_size32(Veritas_Formats_Types_data_value x)
 {
-  voption tg;
+  Veritas_Formats_Types_voption tg;
   if (x.tag == Veritas_Formats_Types_Dv_vnone)
-    tg = Vnone;
+    tg = Veritas_Formats_Types_Vnone;
   else if (x.tag == Veritas_Formats_Types_Dv_vsome)
-    tg = Vsome;
+    tg = Veritas_Formats_Types_Vsome;
   else
-    tg = KRML_EABORT(voption, "unreachable (pattern matches are exhaustive in F*)");
+    tg =
+      KRML_EABORT(Veritas_Formats_Types_voption,
+        "unreachable (pattern matches are exhaustive in F*)");
   uint32_t s1 = (uint32_t)1U;
   uint32_t s2;
-  if (__eq__Veritas_Formats_Types_voption(Vnone, tg))
+  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
     s2 = (uint32_t)0U;
   else
   {
@@ -773,15 +773,15 @@ static uint32_t data_value_jumper(slice input, uint32_t pos)
 static Veritas_Formats_Types_data_value data_value_reader(slice input, uint32_t pos)
 {
   uint8_t res = input.base[pos];
-  voption k;
+  Veritas_Formats_Types_voption k;
   if (res == (uint8_t)0U)
-    k = Vnone;
+    k = Veritas_Formats_Types_Vnone;
   else if (res == (uint8_t)1U)
-    k = Vsome;
+    k = Veritas_Formats_Types_Vsome;
   else
-    k = Vnone;
+    k = Veritas_Formats_Types_Vnone;
   uint32_t pos_ = pos + (uint32_t)1U;
-  if (__eq__Veritas_Formats_Types_voption(Vnone, k))
+  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, k))
     return ((Veritas_Formats_Types_data_value){ .tag = Veritas_Formats_Types_Dv_vnone });
   else
   {
@@ -794,15 +794,17 @@ static Veritas_Formats_Types_data_value data_value_reader(slice input, uint32_t 
 static uint32_t
 data_value_lserializer(Veritas_Formats_Types_data_value x, uint8_t *b, uint32_t pos)
 {
-  voption tg;
+  Veritas_Formats_Types_voption tg;
   if (x.tag == Veritas_Formats_Types_Dv_vnone)
-    tg = Vnone;
+    tg = Veritas_Formats_Types_Vnone;
   else if (x.tag == Veritas_Formats_Types_Dv_vsome)
-    tg = Vsome;
+    tg = Veritas_Formats_Types_Vsome;
   else
-    tg = KRML_EABORT(voption, "unreachable (pattern matches are exhaustive in F*)");
+    tg =
+      KRML_EABORT(Veritas_Formats_Types_voption,
+        "unreachable (pattern matches are exhaustive in F*)");
   uint8_t ite0;
-  if (__eq__Veritas_Formats_Types_voption(Vnone, tg))
+  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
     ite0 = (uint8_t)0U;
   else
     ite0 = (uint8_t)1U;
@@ -815,7 +817,7 @@ data_value_lserializer(Veritas_Formats_Types_data_value x, uint8_t *b, uint32_t 
   uint32_t len1 = res1;
   uint32_t pos1 = pos + len1;
   uint32_t res;
-  if (__eq__Veritas_Formats_Types_voption(Vnone, tg))
+  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
     res = (uint32_t)0U;
   else
   {
@@ -885,15 +887,19 @@ mval_value_lserializer(Veritas_Formats_Types_mval_value x, uint8_t *input, uint3
   return len1 + len2;
 }
 
-static bool __eq__Veritas_Formats_Types_value_kind(value_kind y, value_kind x)
+static bool
+__eq__Veritas_Formats_Types_value_kind(
+  Veritas_Formats_Types_value_kind y,
+  Veritas_Formats_Types_value_kind x
+)
 {
   switch (x)
   {
-    case Mval:
+    case Veritas_Formats_Types_Mval:
       {
         switch (y)
         {
-          case Mval:
+          case Veritas_Formats_Types_Mval:
             {
               return true;
             }
@@ -904,11 +910,11 @@ static bool __eq__Veritas_Formats_Types_value_kind(value_kind y, value_kind x)
         }
         break;
       }
-    case Dval:
+    case Veritas_Formats_Types_Dval:
       {
         switch (y)
         {
-          case Dval:
+          case Veritas_Formats_Types_Dval:
             {
               return true;
             }
@@ -928,16 +934,18 @@ static bool __eq__Veritas_Formats_Types_value_kind(value_kind y, value_kind x)
 
 static uint32_t value_size32(Veritas_Formats_Types_value x)
 {
-  value_kind tg;
+  Veritas_Formats_Types_value_kind tg;
   if (x.tag == Veritas_Formats_Types_V_mval)
-    tg = Mval;
+    tg = Veritas_Formats_Types_Mval;
   else if (x.tag == Veritas_Formats_Types_V_dval)
-    tg = Dval;
+    tg = Veritas_Formats_Types_Dval;
   else
-    tg = KRML_EABORT(value_kind, "unreachable (pattern matches are exhaustive in F*)");
+    tg =
+      KRML_EABORT(Veritas_Formats_Types_value_kind,
+        "unreachable (pattern matches are exhaustive in F*)");
   uint32_t s1 = (uint32_t)1U;
   uint32_t s2;
-  if (__eq__Veritas_Formats_Types_value_kind(Mval, tg))
+  if (__eq__Veritas_Formats_Types_value_kind(Veritas_Formats_Types_Mval, tg))
   {
     Veritas_Formats_Types_mval_value ite;
     if (x.tag == Veritas_Formats_Types_V_mval)
@@ -998,15 +1006,15 @@ static uint32_t value_jumper(slice input, uint32_t pos)
 static Veritas_Formats_Types_value value_reader(slice input, uint32_t pos)
 {
   uint8_t res = input.base[pos];
-  value_kind k;
+  Veritas_Formats_Types_value_kind k;
   if (res == (uint8_t)0U)
-    k = Mval;
+    k = Veritas_Formats_Types_Mval;
   else if (res == (uint8_t)1U)
-    k = Dval;
+    k = Veritas_Formats_Types_Dval;
   else
-    k = Mval;
+    k = Veritas_Formats_Types_Mval;
   uint32_t pos_ = pos + (uint32_t)1U;
-  if (__eq__Veritas_Formats_Types_value_kind(Mval, k))
+  if (__eq__Veritas_Formats_Types_value_kind(Veritas_Formats_Types_Mval, k))
   {
     Veritas_Formats_Types_mval_value res = mval_value_reader(input, pos_);
     return
@@ -1022,15 +1030,17 @@ static Veritas_Formats_Types_value value_reader(slice input, uint32_t pos)
 
 static uint32_t value_lserializer(Veritas_Formats_Types_value x, uint8_t *b, uint32_t pos)
 {
-  value_kind tg;
+  Veritas_Formats_Types_value_kind tg;
   if (x.tag == Veritas_Formats_Types_V_mval)
-    tg = Mval;
+    tg = Veritas_Formats_Types_Mval;
   else if (x.tag == Veritas_Formats_Types_V_dval)
-    tg = Dval;
+    tg = Veritas_Formats_Types_Dval;
   else
-    tg = KRML_EABORT(value_kind, "unreachable (pattern matches are exhaustive in F*)");
+    tg =
+      KRML_EABORT(Veritas_Formats_Types_value_kind,
+        "unreachable (pattern matches are exhaustive in F*)");
   uint8_t ite0;
-  if (__eq__Veritas_Formats_Types_value_kind(Mval, tg))
+  if (__eq__Veritas_Formats_Types_value_kind(Veritas_Formats_Types_Mval, tg))
     ite0 = (uint8_t)0U;
   else
     ite0 = (uint8_t)1U;
@@ -1043,7 +1053,7 @@ static uint32_t value_lserializer(Veritas_Formats_Types_value x, uint8_t *b, uin
   uint32_t len1 = res1;
   uint32_t pos1 = pos + len1;
   uint32_t res;
-  if (__eq__Veritas_Formats_Types_value_kind(Mval, tg))
+  if (__eq__Veritas_Formats_Types_value_kind(Veritas_Formats_Types_Mval, tg))
   {
     Veritas_Formats_Types_mval_value ite;
     if (x.tag == Veritas_Formats_Types_V_mval)
@@ -1679,6 +1689,740 @@ Veritas_Formats_extract_log_entry_from(uint32_t len, uint8_t *buf, uint32_t *bpo
           .v = vlog_entry_reader(sl, pos)
         }
       );
+  }
+}
+
+uint64_t Veritas_Formats_Types___proj__Mku256__item__v3(Veritas_Formats_Types_u256 projectee)
+{
+  return projectee.v3;
+}
+
+uint64_t Veritas_Formats_Types___proj__Mku256__item__v2(Veritas_Formats_Types_u256 projectee)
+{
+  return projectee.v2;
+}
+
+uint64_t Veritas_Formats_Types___proj__Mku256__item__v1(Veritas_Formats_Types_u256 projectee)
+{
+  return projectee.v1;
+}
+
+uint64_t Veritas_Formats_Types___proj__Mku256__item__v0(Veritas_Formats_Types_u256 projectee)
+{
+  return projectee.v0;
+}
+
+Veritas_Formats_Types_u256
+Veritas_Formats_Types___proj__Mkkey__item__k(Veritas_Formats_Types_key projectee)
+{
+  return projectee.k;
+}
+
+uint8_t
+Veritas_Formats_Types___proj__Mkkey__item__significant_digits(
+  Veritas_Formats_Types_key projectee
+)
+{
+  return projectee.significant_digits;
+}
+
+bool Veritas_Formats_Types_uu___is_Vnone(Veritas_Formats_Types_voption projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_Vnone:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Vsome(Veritas_Formats_Types_voption projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_Vsome:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Dv_vnone(Veritas_Formats_Types_data_value projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Dv_vnone)
+    return true;
+  else
+    return false;
+}
+
+bool Veritas_Formats_Types_uu___is_Dv_vsome(Veritas_Formats_Types_data_value projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Dv_vsome)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_u256
+Veritas_Formats_Types___proj__Dv_vsome__item___0(Veritas_Formats_Types_data_value projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Dv_vsome)
+    return projectee._0;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Vfalse(Veritas_Formats_Types_vbool projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_Vfalse:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Vtrue(Veritas_Formats_Types_vbool projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_Vtrue:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+Veritas_Formats_Types_key
+Veritas_Formats_Types___proj__Mkdescendent_hash_desc__item__dhd_key(
+  Veritas_Formats_Types_descendent_hash_desc projectee
+)
+{
+  return projectee.dhd_key;
+}
+
+Veritas_Formats_Types_u256
+Veritas_Formats_Types___proj__Mkdescendent_hash_desc__item__dhd_h(
+  Veritas_Formats_Types_descendent_hash_desc projectee
+)
+{
+  return projectee.dhd_h;
+}
+
+Veritas_Formats_Types_vbool
+Veritas_Formats_Types___proj__Mkdescendent_hash_desc__item__evicted_to_blum(
+  Veritas_Formats_Types_descendent_hash_desc projectee
+)
+{
+  return projectee.evicted_to_blum;
+}
+
+bool Veritas_Formats_Types_uu___is_Dh_vnone(Veritas_Formats_Types_descendent_hash projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Dh_vnone)
+    return true;
+  else
+    return false;
+}
+
+bool Veritas_Formats_Types_uu___is_Dh_vsome(Veritas_Formats_Types_descendent_hash projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Dh_vsome)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_descendent_hash_desc
+Veritas_Formats_Types___proj__Dh_vsome__item___0(
+  Veritas_Formats_Types_descendent_hash projectee
+)
+{
+  if (projectee.tag == Veritas_Formats_Types_Dh_vsome)
+    return projectee._0;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Mval(Veritas_Formats_Types_value_kind projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_Mval:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Dval(Veritas_Formats_Types_value_kind projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_Dval:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+Veritas_Formats_Types_descendent_hash
+Veritas_Formats_Types___proj__Mkmval_value__item__l(Veritas_Formats_Types_mval_value projectee)
+{
+  return projectee.l;
+}
+
+Veritas_Formats_Types_descendent_hash
+Veritas_Formats_Types___proj__Mkmval_value__item__r(Veritas_Formats_Types_mval_value projectee)
+{
+  return projectee.r;
+}
+
+bool Veritas_Formats_Types_uu___is_V_mval(Veritas_Formats_Types_value projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_V_mval)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_mval_value
+Veritas_Formats_Types___proj__V_mval__item___0(Veritas_Formats_Types_value projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_V_mval)
+    return projectee.case_V_mval;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_V_dval(Veritas_Formats_Types_value projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_V_dval)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_data_value
+Veritas_Formats_Types___proj__V_dval__item___0(Veritas_Formats_Types_value projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_V_dval)
+    return projectee.case_V_dval;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_MAdd(Veritas_Formats_Types_add_method projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_MAdd:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_BAdd(Veritas_Formats_Types_add_method projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_BAdd:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+Veritas_Formats_Types_key
+Veritas_Formats_Types___proj__Mkrecord__item__record_key(
+  Veritas_Formats_Types_record projectee
+)
+{
+  return projectee.record_key;
+}
+
+Veritas_Formats_Types_value
+Veritas_Formats_Types___proj__Mkrecord__item__record_value(
+  Veritas_Formats_Types_record projectee
+)
+{
+  return projectee.record_value;
+}
+
+Veritas_Formats_Types_add_method
+Veritas_Formats_Types___proj__Mkrecord__item__record_add_method(
+  Veritas_Formats_Types_record projectee
+)
+{
+  return projectee.record_add_method;
+}
+
+Veritas_Formats_Types_vbool
+Veritas_Formats_Types___proj__Mkrecord__item__record_l_child_in_store(
+  Veritas_Formats_Types_record projectee
+)
+{
+  return projectee.record_l_child_in_store;
+}
+
+Veritas_Formats_Types_vbool
+Veritas_Formats_Types___proj__Mkrecord__item__record_r_child_in_store(
+  Veritas_Formats_Types_record projectee
+)
+{
+  return projectee.record_r_child_in_store;
+}
+
+bool Veritas_Formats_Types_uu___is_Get(Veritas_Formats_Types_vlog_entry_kind projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_Get:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Put(Veritas_Formats_Types_vlog_entry_kind projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_Put:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_AddM(Veritas_Formats_Types_vlog_entry_kind projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_AddM:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_EvictM(Veritas_Formats_Types_vlog_entry_kind projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_EvictM:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_AddB(Veritas_Formats_Types_vlog_entry_kind projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_AddB:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_EvictB(Veritas_Formats_Types_vlog_entry_kind projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_EvictB:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_EvictBM(Veritas_Formats_Types_vlog_entry_kind projectee)
+{
+  switch (projectee)
+  {
+    case Veritas_Formats_Types_EvictBM:
+      {
+        return true;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_get_put__item__vegp_s(
+  Veritas_Formats_Types_vlog_entry_get_put projectee
+)
+{
+  return projectee.vegp_s;
+}
+
+Veritas_Formats_Types_data_value
+Veritas_Formats_Types___proj__Mkvlog_entry_get_put__item__vegp_v(
+  Veritas_Formats_Types_vlog_entry_get_put projectee
+)
+{
+  return projectee.vegp_v;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addm__item__veam_s(
+  Veritas_Formats_Types_vlog_entry_addm projectee
+)
+{
+  return projectee.veam_s;
+}
+
+Veritas_Formats_Types_record
+Veritas_Formats_Types___proj__Mkvlog_entry_addm__item__veam_r(
+  Veritas_Formats_Types_vlog_entry_addm projectee
+)
+{
+  return projectee.veam_r;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addm__item__veam_s2(
+  Veritas_Formats_Types_vlog_entry_addm projectee
+)
+{
+  return projectee.veam_s2;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictm__item__veem_s(
+  Veritas_Formats_Types_vlog_entry_evictm projectee
+)
+{
+  return projectee.veem_s;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictm__item__veem_s2(
+  Veritas_Formats_Types_vlog_entry_evictm projectee
+)
+{
+  return projectee.veem_s2;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addb__item__veab_s(
+  Veritas_Formats_Types_vlog_entry_addb projectee
+)
+{
+  return projectee.veab_s;
+}
+
+Veritas_Formats_Types_record
+Veritas_Formats_Types___proj__Mkvlog_entry_addb__item__veab_r(
+  Veritas_Formats_Types_vlog_entry_addb projectee
+)
+{
+  return projectee.veab_r;
+}
+
+uint64_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addb__item__veab_t(
+  Veritas_Formats_Types_vlog_entry_addb projectee
+)
+{
+  return projectee.veab_t;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addb__item__veab_j(
+  Veritas_Formats_Types_vlog_entry_addb projectee
+)
+{
+  return projectee.veab_j;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictb__item__veeb_s(
+  Veritas_Formats_Types_vlog_entry_evictb projectee
+)
+{
+  return projectee.veeb_s;
+}
+
+uint64_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictb__item__veeb_t(
+  Veritas_Formats_Types_vlog_entry_evictb projectee
+)
+{
+  return projectee.veeb_t;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictbm__item__veebm_s(
+  Veritas_Formats_Types_vlog_entry_evictbm projectee
+)
+{
+  return projectee.veebm_s;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictbm__item__veebm_s2(
+  Veritas_Formats_Types_vlog_entry_evictbm projectee
+)
+{
+  return projectee.veebm_s2;
+}
+
+uint64_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictbm__item__veebm_t(
+  Veritas_Formats_Types_vlog_entry_evictbm projectee
+)
+{
+  return projectee.veebm_t;
+}
+
+bool Veritas_Formats_Types_uu___is_Ve_Get(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_Get)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_vlog_entry_get_put
+Veritas_Formats_Types___proj__Ve_Get__item___0(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_Get)
+    return projectee.case_Ve_Get;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Ve_Put(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_Put)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_vlog_entry_get_put
+Veritas_Formats_Types___proj__Ve_Put__item___0(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_Put)
+    return projectee.case_Ve_Put;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Ve_AddM(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_AddM)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_vlog_entry_addm
+Veritas_Formats_Types___proj__Ve_AddM__item___0(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_AddM)
+    return projectee.case_Ve_AddM;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Ve_EvictM(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_EvictM)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_vlog_entry_evictm
+Veritas_Formats_Types___proj__Ve_EvictM__item___0(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_EvictM)
+    return projectee.case_Ve_EvictM;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Ve_AddB(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_AddB)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_vlog_entry_addb
+Veritas_Formats_Types___proj__Ve_AddB__item___0(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_AddB)
+    return projectee.case_Ve_AddB;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Ve_EvictB(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_EvictB)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_vlog_entry_evictb
+Veritas_Formats_Types___proj__Ve_EvictB__item___0(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_EvictB)
+    return projectee.case_Ve_EvictB;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+bool Veritas_Formats_Types_uu___is_Ve_EvictBM(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_EvictBM)
+    return true;
+  else
+    return false;
+}
+
+Veritas_Formats_Types_vlog_entry_evictbm
+Veritas_Formats_Types___proj__Ve_EvictBM__item___0(Veritas_Formats_Types_vlog_entry projectee)
+{
+  if (projectee.tag == Veritas_Formats_Types_Ve_EvictBM)
+    return projectee.case_Ve_EvictBM;
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
   }
 }
 

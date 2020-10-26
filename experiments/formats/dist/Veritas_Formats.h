@@ -20,29 +20,24 @@ typedef struct Veritas_Formats_Types_u256_s
 }
 Veritas_Formats_Types_u256;
 
+typedef struct Veritas_Formats_Types_vlog_entry_evictb_s
+{
+  uint16_t veeb_s;
+  uint64_t veeb_t;
+}
+Veritas_Formats_Types_vlog_entry_evictb;
+
+#define Veritas_Formats_Types_Vfalse 0
+#define Veritas_Formats_Types_Vtrue 1
+
+typedef uint8_t Veritas_Formats_Types_vbool;
+
 typedef struct Veritas_Formats_Types_key_s
 {
   Veritas_Formats_Types_u256 k;
   uint8_t significant_digits;
 }
 Veritas_Formats_Types_key;
-
-#define Veritas_Formats_Types_Dv_vnone 0
-#define Veritas_Formats_Types_Dv_vsome 1
-
-typedef uint8_t Veritas_Formats_Types_data_value_tags;
-
-typedef struct Veritas_Formats_Types_data_value_s
-{
-  Veritas_Formats_Types_data_value_tags tag;
-  Veritas_Formats_Types_u256 _0;
-}
-Veritas_Formats_Types_data_value;
-
-#define Veritas_Formats_Types_Vfalse 0
-#define Veritas_Formats_Types_Vtrue 1
-
-typedef uint8_t Veritas_Formats_Types_vbool;
 
 typedef struct Veritas_Formats_Types_descendent_hash_desc_s
 {
@@ -63,6 +58,28 @@ typedef struct Veritas_Formats_Types_descendent_hash_s
   Veritas_Formats_Types_descendent_hash_desc _0;
 }
 Veritas_Formats_Types_descendent_hash;
+
+#define Veritas_Formats_Types_Vnone 0
+#define Veritas_Formats_Types_Vsome 1
+
+typedef uint8_t Veritas_Formats_Types_voption;
+
+#define Veritas_Formats_Types_MAdd 0
+#define Veritas_Formats_Types_BAdd 1
+
+typedef uint8_t Veritas_Formats_Types_add_method;
+
+#define Veritas_Formats_Types_Dv_vnone 0
+#define Veritas_Formats_Types_Dv_vsome 1
+
+typedef uint8_t Veritas_Formats_Types_data_value_tags;
+
+typedef struct Veritas_Formats_Types_data_value_s
+{
+  Veritas_Formats_Types_data_value_tags tag;
+  Veritas_Formats_Types_u256 _0;
+}
+Veritas_Formats_Types_data_value;
 
 typedef struct Veritas_Formats_Types_mval_value_s
 {
@@ -87,10 +104,10 @@ typedef struct Veritas_Formats_Types_value_s
 }
 Veritas_Formats_Types_value;
 
-#define Veritas_Formats_Types_MAdd 0
-#define Veritas_Formats_Types_BAdd 1
+#define Veritas_Formats_Types_Mval 0
+#define Veritas_Formats_Types_Dval 1
 
-typedef uint8_t Veritas_Formats_Types_add_method;
+typedef uint8_t Veritas_Formats_Types_value_kind;
 
 typedef struct Veritas_Formats_Types_record_s
 {
@@ -102,38 +119,6 @@ typedef struct Veritas_Formats_Types_record_s
 }
 Veritas_Formats_Types_record;
 
-#define Veritas_Formats_Types_Get 0
-#define Veritas_Formats_Types_Put 1
-#define Veritas_Formats_Types_AddM 2
-#define Veritas_Formats_Types_EvictM 3
-#define Veritas_Formats_Types_AddB 4
-#define Veritas_Formats_Types_EvictB 5
-#define Veritas_Formats_Types_EvictBM 6
-
-typedef uint8_t Veritas_Formats_Types_vlog_entry_kind;
-
-typedef struct Veritas_Formats_Types_vlog_entry_get_put_s
-{
-  uint16_t vegp_s;
-  Veritas_Formats_Types_data_value vegp_v;
-}
-Veritas_Formats_Types_vlog_entry_get_put;
-
-typedef struct Veritas_Formats_Types_vlog_entry_addm_s
-{
-  uint16_t veam_s;
-  Veritas_Formats_Types_record veam_r;
-  uint16_t veam_s2;
-}
-Veritas_Formats_Types_vlog_entry_addm;
-
-typedef struct Veritas_Formats_Types_vlog_entry_evictm_s
-{
-  uint16_t veem_s;
-  uint16_t veem_s2;
-}
-Veritas_Formats_Types_vlog_entry_evictm;
-
 typedef struct Veritas_Formats_Types_vlog_entry_addb_s
 {
   uint16_t veab_s;
@@ -143,13 +128,6 @@ typedef struct Veritas_Formats_Types_vlog_entry_addb_s
 }
 Veritas_Formats_Types_vlog_entry_addb;
 
-typedef struct Veritas_Formats_Types_vlog_entry_evictb_s
-{
-  uint16_t veeb_s;
-  uint64_t veeb_t;
-}
-Veritas_Formats_Types_vlog_entry_evictb;
-
 typedef struct Veritas_Formats_Types_vlog_entry_evictbm_s
 {
   uint16_t veebm_s;
@@ -157,6 +135,28 @@ typedef struct Veritas_Formats_Types_vlog_entry_evictbm_s
   uint64_t veebm_t;
 }
 Veritas_Formats_Types_vlog_entry_evictbm;
+
+typedef struct Veritas_Formats_Types_vlog_entry_evictm_s
+{
+  uint16_t veem_s;
+  uint16_t veem_s2;
+}
+Veritas_Formats_Types_vlog_entry_evictm;
+
+typedef struct Veritas_Formats_Types_vlog_entry_addm_s
+{
+  uint16_t veam_s;
+  Veritas_Formats_Types_record veam_r;
+  uint16_t veam_s2;
+}
+Veritas_Formats_Types_vlog_entry_addm;
+
+typedef struct Veritas_Formats_Types_vlog_entry_get_put_s
+{
+  uint16_t vegp_s;
+  Veritas_Formats_Types_data_value vegp_v;
+}
+Veritas_Formats_Types_vlog_entry_get_put;
 
 #define Veritas_Formats_Types_Ve_Get 0
 #define Veritas_Formats_Types_Ve_Put 1
@@ -183,6 +183,16 @@ typedef struct Veritas_Formats_Types_vlog_entry_s
   ;
 }
 Veritas_Formats_Types_vlog_entry;
+
+#define Veritas_Formats_Types_Get 0
+#define Veritas_Formats_Types_Put 1
+#define Veritas_Formats_Types_AddM 2
+#define Veritas_Formats_Types_EvictM 3
+#define Veritas_Formats_Types_AddB 4
+#define Veritas_Formats_Types_EvictB 5
+#define Veritas_Formats_Types_EvictBM 6
+
+typedef uint8_t Veritas_Formats_Types_vlog_entry_kind;
 
 bool
 __eq__Veritas_Formats_Types_vlog_entry_kind(
@@ -212,6 +222,249 @@ FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry;
 
 FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry
 Veritas_Formats_extract_log_entry_from(uint32_t len, uint8_t *buf, uint32_t *bpos);
+
+typedef uint16_t Veritas_Formats_Types_slot_id;
+
+uint64_t Veritas_Formats_Types___proj__Mku256__item__v3(Veritas_Formats_Types_u256 projectee);
+
+uint64_t Veritas_Formats_Types___proj__Mku256__item__v2(Veritas_Formats_Types_u256 projectee);
+
+uint64_t Veritas_Formats_Types___proj__Mku256__item__v1(Veritas_Formats_Types_u256 projectee);
+
+uint64_t Veritas_Formats_Types___proj__Mku256__item__v0(Veritas_Formats_Types_u256 projectee);
+
+Veritas_Formats_Types_u256
+Veritas_Formats_Types___proj__Mkkey__item__k(Veritas_Formats_Types_key projectee);
+
+uint8_t
+Veritas_Formats_Types___proj__Mkkey__item__significant_digits(
+  Veritas_Formats_Types_key projectee
+);
+
+typedef Veritas_Formats_Types_u256 Veritas_Formats_Types_data_t;
+
+bool Veritas_Formats_Types_uu___is_Vnone(Veritas_Formats_Types_voption projectee);
+
+bool Veritas_Formats_Types_uu___is_Vsome(Veritas_Formats_Types_voption projectee);
+
+bool Veritas_Formats_Types_uu___is_Dv_vnone(Veritas_Formats_Types_data_value projectee);
+
+bool Veritas_Formats_Types_uu___is_Dv_vsome(Veritas_Formats_Types_data_value projectee);
+
+Veritas_Formats_Types_u256
+Veritas_Formats_Types___proj__Dv_vsome__item___0(Veritas_Formats_Types_data_value projectee);
+
+typedef Veritas_Formats_Types_u256 Veritas_Formats_Types_hash_value;
+
+bool Veritas_Formats_Types_uu___is_Vfalse(Veritas_Formats_Types_vbool projectee);
+
+bool Veritas_Formats_Types_uu___is_Vtrue(Veritas_Formats_Types_vbool projectee);
+
+Veritas_Formats_Types_key
+Veritas_Formats_Types___proj__Mkdescendent_hash_desc__item__dhd_key(
+  Veritas_Formats_Types_descendent_hash_desc projectee
+);
+
+Veritas_Formats_Types_u256
+Veritas_Formats_Types___proj__Mkdescendent_hash_desc__item__dhd_h(
+  Veritas_Formats_Types_descendent_hash_desc projectee
+);
+
+Veritas_Formats_Types_vbool
+Veritas_Formats_Types___proj__Mkdescendent_hash_desc__item__evicted_to_blum(
+  Veritas_Formats_Types_descendent_hash_desc projectee
+);
+
+bool Veritas_Formats_Types_uu___is_Dh_vnone(Veritas_Formats_Types_descendent_hash projectee);
+
+bool Veritas_Formats_Types_uu___is_Dh_vsome(Veritas_Formats_Types_descendent_hash projectee);
+
+Veritas_Formats_Types_descendent_hash_desc
+Veritas_Formats_Types___proj__Dh_vsome__item___0(
+  Veritas_Formats_Types_descendent_hash projectee
+);
+
+bool Veritas_Formats_Types_uu___is_Mval(Veritas_Formats_Types_value_kind projectee);
+
+bool Veritas_Formats_Types_uu___is_Dval(Veritas_Formats_Types_value_kind projectee);
+
+Veritas_Formats_Types_descendent_hash
+Veritas_Formats_Types___proj__Mkmval_value__item__l(Veritas_Formats_Types_mval_value projectee);
+
+Veritas_Formats_Types_descendent_hash
+Veritas_Formats_Types___proj__Mkmval_value__item__r(Veritas_Formats_Types_mval_value projectee);
+
+bool Veritas_Formats_Types_uu___is_V_mval(Veritas_Formats_Types_value projectee);
+
+Veritas_Formats_Types_mval_value
+Veritas_Formats_Types___proj__V_mval__item___0(Veritas_Formats_Types_value projectee);
+
+bool Veritas_Formats_Types_uu___is_V_dval(Veritas_Formats_Types_value projectee);
+
+Veritas_Formats_Types_data_value
+Veritas_Formats_Types___proj__V_dval__item___0(Veritas_Formats_Types_value projectee);
+
+bool Veritas_Formats_Types_uu___is_MAdd(Veritas_Formats_Types_add_method projectee);
+
+bool Veritas_Formats_Types_uu___is_BAdd(Veritas_Formats_Types_add_method projectee);
+
+Veritas_Formats_Types_key
+Veritas_Formats_Types___proj__Mkrecord__item__record_key(
+  Veritas_Formats_Types_record projectee
+);
+
+Veritas_Formats_Types_value
+Veritas_Formats_Types___proj__Mkrecord__item__record_value(
+  Veritas_Formats_Types_record projectee
+);
+
+Veritas_Formats_Types_add_method
+Veritas_Formats_Types___proj__Mkrecord__item__record_add_method(
+  Veritas_Formats_Types_record projectee
+);
+
+Veritas_Formats_Types_vbool
+Veritas_Formats_Types___proj__Mkrecord__item__record_l_child_in_store(
+  Veritas_Formats_Types_record projectee
+);
+
+Veritas_Formats_Types_vbool
+Veritas_Formats_Types___proj__Mkrecord__item__record_r_child_in_store(
+  Veritas_Formats_Types_record projectee
+);
+
+bool Veritas_Formats_Types_uu___is_Get(Veritas_Formats_Types_vlog_entry_kind projectee);
+
+bool Veritas_Formats_Types_uu___is_Put(Veritas_Formats_Types_vlog_entry_kind projectee);
+
+bool Veritas_Formats_Types_uu___is_AddM(Veritas_Formats_Types_vlog_entry_kind projectee);
+
+bool Veritas_Formats_Types_uu___is_EvictM(Veritas_Formats_Types_vlog_entry_kind projectee);
+
+bool Veritas_Formats_Types_uu___is_AddB(Veritas_Formats_Types_vlog_entry_kind projectee);
+
+bool Veritas_Formats_Types_uu___is_EvictB(Veritas_Formats_Types_vlog_entry_kind projectee);
+
+bool Veritas_Formats_Types_uu___is_EvictBM(Veritas_Formats_Types_vlog_entry_kind projectee);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_get_put__item__vegp_s(
+  Veritas_Formats_Types_vlog_entry_get_put projectee
+);
+
+Veritas_Formats_Types_data_value
+Veritas_Formats_Types___proj__Mkvlog_entry_get_put__item__vegp_v(
+  Veritas_Formats_Types_vlog_entry_get_put projectee
+);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addm__item__veam_s(
+  Veritas_Formats_Types_vlog_entry_addm projectee
+);
+
+Veritas_Formats_Types_record
+Veritas_Formats_Types___proj__Mkvlog_entry_addm__item__veam_r(
+  Veritas_Formats_Types_vlog_entry_addm projectee
+);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addm__item__veam_s2(
+  Veritas_Formats_Types_vlog_entry_addm projectee
+);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictm__item__veem_s(
+  Veritas_Formats_Types_vlog_entry_evictm projectee
+);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictm__item__veem_s2(
+  Veritas_Formats_Types_vlog_entry_evictm projectee
+);
+
+typedef uint64_t Veritas_Formats_Types_timestamp;
+
+typedef uint16_t Veritas_Formats_Types_thread_id;
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addb__item__veab_s(
+  Veritas_Formats_Types_vlog_entry_addb projectee
+);
+
+Veritas_Formats_Types_record
+Veritas_Formats_Types___proj__Mkvlog_entry_addb__item__veab_r(
+  Veritas_Formats_Types_vlog_entry_addb projectee
+);
+
+uint64_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addb__item__veab_t(
+  Veritas_Formats_Types_vlog_entry_addb projectee
+);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_addb__item__veab_j(
+  Veritas_Formats_Types_vlog_entry_addb projectee
+);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictb__item__veeb_s(
+  Veritas_Formats_Types_vlog_entry_evictb projectee
+);
+
+uint64_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictb__item__veeb_t(
+  Veritas_Formats_Types_vlog_entry_evictb projectee
+);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictbm__item__veebm_s(
+  Veritas_Formats_Types_vlog_entry_evictbm projectee
+);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictbm__item__veebm_s2(
+  Veritas_Formats_Types_vlog_entry_evictbm projectee
+);
+
+uint64_t
+Veritas_Formats_Types___proj__Mkvlog_entry_evictbm__item__veebm_t(
+  Veritas_Formats_Types_vlog_entry_evictbm projectee
+);
+
+bool Veritas_Formats_Types_uu___is_Ve_Get(Veritas_Formats_Types_vlog_entry projectee);
+
+Veritas_Formats_Types_vlog_entry_get_put
+Veritas_Formats_Types___proj__Ve_Get__item___0(Veritas_Formats_Types_vlog_entry projectee);
+
+bool Veritas_Formats_Types_uu___is_Ve_Put(Veritas_Formats_Types_vlog_entry projectee);
+
+Veritas_Formats_Types_vlog_entry_get_put
+Veritas_Formats_Types___proj__Ve_Put__item___0(Veritas_Formats_Types_vlog_entry projectee);
+
+bool Veritas_Formats_Types_uu___is_Ve_AddM(Veritas_Formats_Types_vlog_entry projectee);
+
+Veritas_Formats_Types_vlog_entry_addm
+Veritas_Formats_Types___proj__Ve_AddM__item___0(Veritas_Formats_Types_vlog_entry projectee);
+
+bool Veritas_Formats_Types_uu___is_Ve_EvictM(Veritas_Formats_Types_vlog_entry projectee);
+
+Veritas_Formats_Types_vlog_entry_evictm
+Veritas_Formats_Types___proj__Ve_EvictM__item___0(Veritas_Formats_Types_vlog_entry projectee);
+
+bool Veritas_Formats_Types_uu___is_Ve_AddB(Veritas_Formats_Types_vlog_entry projectee);
+
+Veritas_Formats_Types_vlog_entry_addb
+Veritas_Formats_Types___proj__Ve_AddB__item___0(Veritas_Formats_Types_vlog_entry projectee);
+
+bool Veritas_Formats_Types_uu___is_Ve_EvictB(Veritas_Formats_Types_vlog_entry projectee);
+
+Veritas_Formats_Types_vlog_entry_evictb
+Veritas_Formats_Types___proj__Ve_EvictB__item___0(Veritas_Formats_Types_vlog_entry projectee);
+
+bool Veritas_Formats_Types_uu___is_Ve_EvictBM(Veritas_Formats_Types_vlog_entry projectee);
+
+Veritas_Formats_Types_vlog_entry_evictbm
+Veritas_Formats_Types___proj__Ve_EvictBM__item___0(Veritas_Formats_Types_vlog_entry projectee);
 
 
 #define __Veritas_Formats_H_DEFINED
