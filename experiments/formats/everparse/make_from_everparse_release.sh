@@ -17,6 +17,9 @@ if [[ -z "$QD_HOME" ]] ; then
         everparse_tgz=$everparse_basename.tar.gz
         wget https://github.com/project-everest/everparse/releases/download/$EVERPARSE_VERSION/$everparse_tgz
         tar xzf $everparse_tgz
+        # Reuse extracted *.krml from the binary package
+        mkdir -p obj
+        cp -p everparse/src/3d/prelude/*.krml obj/
     fi
     export QD_HOME=$PWD/everparse
     # Override F* and KReMLin with the ones from the binary package
