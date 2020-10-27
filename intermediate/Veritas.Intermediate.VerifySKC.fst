@@ -196,26 +196,6 @@ let vevictbm (s:slot_id) (s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls 
             let st_upd = update_store st s' (MVal v'_upd) in
             vevictb s t (update_thread_store vs st_upd)
 
-let lemma_store_rel_update_store (st:vstore) (st':Spec.vstore) (s:slot_id) (k:key) (v:value_type_of k)
-  : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
-          (ensures (Spec.store_contains st' k /\
-                    store_rel (update_store st s v) (Spec.update_store st' k v)))
-          [SMTPat (store_rel st st'); SMTPat (update_store st s v); SMTPat (Spec.update_store st' k v)]
-  = lemma_as_map_slot_key_equiv st s k;
-    admit()
-
-let lemma_store_rel_add_to_store (st:vstore) (st':Spec.vstore) (s:st_index st) (k:key) (v:value_type_of k) (am:add_method)
-  : Lemma (requires (store_rel st st' /\ not (Spec.store_contains st' k)))
-          (ensures (store_rel (add_to_store st s k v am) (Spec.add_to_store st' k v am)))
-          [SMTPat (store_rel st st'); SMTPat (add_to_store st s k v am); SMTPat (Spec.add_to_store st' k v am)]
-  = admit()
-
-let lemma_store_rel_evict_from_store (st:vstore) (st':Spec.vstore) (s:st_index st) (k:key)
-  : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
-          (ensures (store_rel (evict_from_store st s) (Spec.evict_from_store st' k)))
-          [SMTPat (store_rel st st'); SMTPat (evict_from_store st s); SMTPat (Spec.evict_from_store st' k)]
-  = admit()
-
 let lemma_vget_simulates_spec 
       (vs:vtls{Valid? vs})
       (vs':Spec.vtls{Spec.Valid? vs'})
@@ -324,20 +304,22 @@ let lemma_vevictbm_simulates_spec
       (t:timestamp)
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k /\ slot_key_rel vs s' k'))
           (ensures (vtls_rel (vevictbm s s' t vs) (Spec.vevictbm k k' t vs'))) 
-  = admit()
-
+  = ()
+  
 let lemma_vevictbm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id) (t:timestamp)
   : Lemma (requires (not (thread_store_is_map vs)))
           (ensures (has_failed (vevictbm s s' t vs)))
-  = admit()
+  = let st = thread_store vs in
+    if store_contains st s'
+    then // TODO: get this lemma to trigger automatically 
+      stored_value_matches_stored_key st s'
 
 // TODO: what should the initial size be?
 let store_size = 65536 // 2 ^ 16
-let empty_store:vstore = VStore (Seq.create store_size None) true
 
 (* Initialize verifier state *)
 let init_thread_state (id:thread_id): vtls = 
-  let vs = Valid id empty_store (MkTimestamp 0 0) empty_hash_value empty_hash_value in  
+  let vs = Valid id (empty_store store_size) (MkTimestamp 0 0) empty_hash_value empty_hash_value in  
   if id = 0 then
     let st0 = thread_store vs in
     let st0_upd = add_to_store st0 0 Root (init_value Root) Spec.MAdd in
@@ -349,12 +331,12 @@ let init_thread_state_valid (id:thread_id)
   = ()
 
 let lemma_empty_store_rel () 
-  : Lemma (store_rel empty_store Spec.empty_store)
+  : Lemma (store_rel (empty_store store_size) Spec.empty_store)
   = lemma_as_map_empty store_size
 
 let lemma_init_thread_state_rel (id:thread_id)
   : Lemma (vtls_rel (init_thread_state id) (Spec.init_thread_state id))
-  = let vs = Valid id empty_store (MkTimestamp 0 0) empty_hash_value empty_hash_value in 
+  = let vs = Valid id (empty_store store_size) (MkTimestamp 0 0) empty_hash_value empty_hash_value in 
     let vs' = Spec.Valid id Spec.empty_store (MkTimestamp 0 0) Root empty_hash_value empty_hash_value in
     lemma_empty_store_rel ();
     if id = 0 

@@ -3,8 +3,6 @@ module Veritas.Intermediate.VerifySKC
 open Veritas.Intermediate.Logs
 open Veritas.Intermediate.StoreSKC
 
-module FE = FStar.FunctionalExtensionality
-
 (* These are all independent of the 'verify' function; they should be safe to open *)
 open Veritas.BinTree
 open Veritas.Hash
@@ -85,10 +83,6 @@ val vaddb (s:slot_id) (r:record) (t:timestamp) (j:thread_id) (vs:vtls {Valid? vs
 val vevictb (s:slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls
 
 val vevictbm (s:slot_id) (s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls
-
-(* Relation between stores *)
-let store_rel (st:vstore) (st':Spec.vstore) : Type = 
-  st.is_map /\ FE.feq st' (as_map st)
 
 (* Relation between thread-local states *)
 let has_failed (vs:vtls) = Failed? vs || not (thread_store_is_map vs)
@@ -187,6 +181,8 @@ val lemma_vevictb_simulates_spec
       (t:timestamp)
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
           (ensures (vtls_rel (vevictb s t vs) (Spec.vevictb k t vs'))) 
+          [SMTPat (vevictb s t vs); SMTPat (Spec.vevictb k t vs')]
+          // note: SMTPat needed for lemma_vevictbm_simulates_spec
 
 val lemma_vevictb_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (t:timestamp)
   : Lemma (requires (not (thread_store_is_map vs)))
