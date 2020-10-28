@@ -139,7 +139,7 @@ let update_store (st:vstore)
 
 (* add a new record to the store *)
 let add_to_store (st:vstore)
-                 (k:key{not (store_contains st k)})
+                 (k:key) //{not (store_contains st k)})
                  (v:value_type_of k)
                  (am:add_method):
   (st':vstore{store_contains st' k /\ stored_value st' k = v}) =

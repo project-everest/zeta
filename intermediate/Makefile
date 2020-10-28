@@ -1,2 +1,4 @@
-%.fsti-in %.fst-in:
-	@echo $(addprefix --include ,.. ../low-level)
+INCLUDE_PATHS=..
+include ../Makefile.common
+
+all: verify

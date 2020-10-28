@@ -205,14 +205,14 @@ let lemma_slot_key_equiv_update_store
 let rec as_map_aux (l:vstore_data) 
   : Tot Spec.vstore (decreases (Seq.length l)) =
   let n = Seq.length l in
-  if n = 0 then fun _ -> None
+  if n = 0 then Spec.empty_store
   else 
     let l' = prefix l (n - 1) in
     let f' = as_map_aux l' in
     match Seq.index l (n - 1) with
     | None -> f'
     | Some (VStoreE k v a) -> 
-      fun (k':key) -> if k = k' then Some (Spec.VStore v a) else f' k' 
+      Spec.add_to_store f' k v a
 
 let as_map (st:vstore{st.is_map}) : Spec.vstore =
   as_map_aux st.data
@@ -322,11 +322,14 @@ let compatible_entry_prefix (st:vstore) (s:st_index st) (e:vstore_entry) (i:st_i
       lemma_filter_all_not_inv (has_key e.k) (prefix st.data i)
     )
 
-// TODO: sometimes this proof succeeds and sometimes Z3 times out
-let rec lemma_as_map_update (st:vstore{st.is_map}) (s:st_index st) (e:vstore_entry{compatible_entry st s e})
+#push-options "--fuel 1,1 --ifuel 2,2"
+let rec lemma_as_map_update (st:vstore{st.is_map}) 
+                            (s:st_index st)
+                            (e:vstore_entry{compatible_entry st s e})
   : Lemma (ensures (let m = as_map st in
                     let m' = as_map (update_slot st s e) in
-                    m' e.k = Some (Spec.VStore e.v e.am) /\ (forall k. k <> e.k ==> m' k = m k))) 
+                    m' e.k = Some (Spec.VStore e.v e.am) /\
+                    (forall k. k <> e.k ==> m' k = m k))) 
           (decreases (Seq.length st.data))
   = let n = Seq.length st.data in
     if n <> 0 
@@ -344,6 +347,7 @@ let rec lemma_as_map_update (st:vstore{st.is_map}) (s:st_index st) (e:vstore_ent
       else ( // s = n - 1
         assert (Seq.equal l lupd)
       )
+#pop-options
 
 let lemma_store_rel_update_store (st:vstore) (st':Spec.vstore) (s:slot_id) (k:key) (v:value_type_of k)
   : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
