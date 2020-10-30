@@ -5,7 +5,8 @@ This directory DOES depend on EverParse, but DOES NOT depend on, and
 IS NOT used by, the rest of Veritas.
 
 Its sole purpose is to regenerate the C parser and serializer
-implementations in ../dist
+implementations in ../dist, and the data type definitions in
+../Veritas.Formats.Types.fst
 
 It is NOT necessary to do that, unless the contents below changes.
 

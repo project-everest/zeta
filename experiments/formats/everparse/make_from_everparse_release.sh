@@ -3,7 +3,7 @@
 set -e
 set -x
 
-EVERPARSE_VERSION=v2020.10.23
+EVERPARSE_VERSION=v2020.10.30
 
 # Set the current directory to this script's
 unset CDPATH
