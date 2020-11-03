@@ -42,8 +42,10 @@ let hashable_bytes = b:bytes { S.length b <= blake2_max_input_length }
 noextract inline_for_extraction
 let lbytes = Hacl.Blake2b_32.lbytes
 
+// NOTE: picking 32 bytes here, which gives a 256-bit hash. We could also do 64
+// bytes, the maximum allowed by Blake2.
 noextract inline_for_extraction
-let t = lbytes Hacl.Blake2b_32.max_output
+let t = lbytes 32
 noextract inline_for_extraction
 let t_key = lbytes blake2_key_length
 
@@ -60,7 +62,7 @@ val seen: h:HS.mem -> s:state -> GTot (list hashable_bytes)
 
 noextract inline_for_extraction
 let zero: t =
-  S.create 64 0uy
+  S.create 32 0uy
 
 val v: h:HS.mem -> s:state -> GTot t
 
@@ -95,7 +97,7 @@ let xor_bytes_commutative (s1: bytes) (s2: bytes { S.length s1 == S.length s2 })
 
 noextract inline_for_extraction
 let fold_and_hash (k: t_key) (acc: t) (b: hashable_bytes) =
-  xor_bytes (Hacl.Blake2b_32.spec b 64 k 64) acc
+  xor_bytes (Hacl.Blake2b_32.spec b 64 k 32) acc
 
 // ---
 
@@ -181,6 +183,26 @@ val add: s:state -> b:B.buffer u8 -> l:U32.t -> Stack unit
     // FYI, no need to talk about a preserved footprint since I used footprint_s
     // which is not heap-dependent
     seen h1 s == B.as_seq h0 b :: seen h0 s))
+
+inline_for_extraction noextract
+let u256 = Veritas.Formats.Types.u256
+
+inline_for_extraction noextract
+let u256_of_blake2_hash (hash: lbytes 32): u256 =
+  let hash12, hash34 = S.split hash 16 in
+  let hash1, hash2 = S.split hash12 8 in
+  let hash3, hash4 = S.split hash34 8 in {
+    Veritas.Formats.Types.v0 = FStar.Endianness.uint64_of_le hash1;
+    Veritas.Formats.Types.v1 = FStar.Endianness.uint64_of_le hash2;
+    Veritas.Formats.Types.v2 = FStar.Endianness.uint64_of_le hash3;
+    Veritas.Formats.Types.v3 = FStar.Endianness.uint64_of_le hash4
+  }
+
+val get: s:state -> Stack u256
+  (requires fun h0 -> invariant h0 s)
+  (ensures fun h0 r h1 ->
+    B.(modifies loc_none h0 h1) /\
+    r == u256_of_blake2_hash (v h0 s))
 
 val free: s:state -> ST unit
   (requires (fun h0 ->

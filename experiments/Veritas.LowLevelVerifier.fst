@@ -24,35 +24,45 @@ let epoch_of_timestamp (t:timestamp)
 
 let vstore = Veritas.VCache.vstore
 
-assume
-val prf_set_hash : Type0
-assume
-val prf_set_hash_loc (v:prf_set_hash) : GTot B.loc
-assume
-val prf_set_hash_inv (v:prf_set_hash) (h:HS.mem) : Type
-assume
-val prf_set_hash_inv_framing (v:prf_set_hash) (h0 h1:HS.mem) (l:B.loc)
+
+inline_for_extraction noextract
+let prf_set_hash : Type0 = Veritas.HashSet.state
+
+let prf_set_hash_loc (h: HS.mem) (v:prf_set_hash) : GTot B.loc =
+  Veritas.HashSet.footprint h v
+
+let prf_set_hash_inv (v:prf_set_hash) (h:HS.mem): Type =
+  Veritas.HashSet.invariant h v
+
+// JP: this is not the standard style, i.e. no requires/ensures -- rather, an
+// implication. Why?
+let prf_set_hash_inv_framing (v:prf_set_hash) (h0 h1:HS.mem) (l:B.loc)
   : Lemma (ensures
              prf_set_hash_inv v h0 /\
              B.modifies l h0 h1 /\
-             B.loc_disjoint l (prf_set_hash_loc v) ==>
+             B.loc_disjoint l (prf_set_hash_loc h0 v) ==>
              prf_set_hash_inv v h1)
           [SMTPat (prf_set_hash_inv v h1);
            SMTPat (B.modifies l h0 h1)]
+=
+  ()
 
+// JP: need to serialize (r, t, j) into an array. How?
 assume
 val multiset_hash_upd (r:record) (t:timestamp) (j:thread_id) (v:prf_set_hash)
   : Stack unit
     (requires fun h -> prf_set_hash_inv v h)
     (ensures fun h0 _ h1 ->
       prf_set_hash_inv v h1 /\
-      B.modifies (prf_set_hash_loc v) h0 h1)
+      B.modifies (prf_set_hash_loc h0 v) h0 h1 /\
+      prf_set_hash_loc h0 v == prf_set_hash_loc h1 v)
 
-assume
-val get_current_value   (v:prf_set_hash)
+let get_current_value   (v:prf_set_hash)
   : Stack u256
     (requires fun h -> prf_set_hash_inv v h)
-    (ensures fun h0 _ h1 -> h0 == h1)
+    (ensures fun h0 _ h1 -> B.(modifies loc_none h0 h1))
+=
+  Veritas.HashSet.get v
 
 noeq
 type thread_state_t = {
@@ -71,19 +81,19 @@ let thread_state_inv (t:thread_state_t) (h:HS.mem)
     B.live h t.clock /\
     B.loc_disjoint (VStore.footprint t.st)
                    (B.loc_union (B.loc_buffer t.clock)
-                     (B.loc_union (prf_set_hash_loc t.hadd)
-                                  (prf_set_hash_loc t.hevict))) /\
+                     (B.loc_union (prf_set_hash_loc h t.hadd)
+                                  (prf_set_hash_loc h t.hevict))) /\
     B.loc_disjoint (B.loc_buffer t.clock)
-                   (B.loc_union (prf_set_hash_loc t.hadd)
-                                (prf_set_hash_loc t.hevict)) /\
-    B.loc_disjoint (prf_set_hash_loc t.hadd)
-                   (prf_set_hash_loc t.hevict)
+                   (B.loc_union (prf_set_hash_loc h t.hadd)
+                                (prf_set_hash_loc h t.hevict)) /\
+    B.loc_disjoint (prf_set_hash_loc h t.hadd)
+                   (prf_set_hash_loc h t.hevict)
     (* /\ ... *)
-let loc_thread_state (t:thread_state_t) =
+let loc_thread_state (t:thread_state_t) (h:HS.mem)=
     B.loc_union (VStore.footprint t.st)
                    (B.loc_union (B.loc_buffer t.clock)
-                     (B.loc_union (prf_set_hash_loc t.hadd)
-                                  (prf_set_hash_loc t.hevict)))
+                     (B.loc_union (prf_set_hash_loc h t.hadd)
+                                  (prf_set_hash_loc h t.hevict)))
 
 ////////////////////////////////////////////////////////////////////////////////
 type desc_type =
