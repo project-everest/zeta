@@ -22,30 +22,19 @@ let epoch_of_timestamp (t:timestamp)
   : uint_64
   = admit()
 
+unfold
 let vstore = Veritas.VCache.vstore
-
 
 inline_for_extraction noextract
 let prf_set_hash : Type0 = Veritas.HashSet.state
 
+unfold
 let prf_set_hash_loc (h: HS.mem) (v:prf_set_hash) : GTot B.loc =
   Veritas.HashSet.footprint h v
 
+unfold
 let prf_set_hash_inv (v:prf_set_hash) (h:HS.mem): Type =
   Veritas.HashSet.invariant h v
-
-// JP: this is not the standard style, i.e. no requires/ensures -- rather, an
-// implication. Why?
-let prf_set_hash_inv_framing (v:prf_set_hash) (h0 h1:HS.mem) (l:B.loc)
-  : Lemma (ensures
-             prf_set_hash_inv v h0 /\
-             B.modifies l h0 h1 /\
-             B.loc_disjoint l (prf_set_hash_loc h0 v) ==>
-             prf_set_hash_inv v h1)
-          [SMTPat (prf_set_hash_inv v h1);
-           SMTPat (B.modifies l h0 h1)]
-=
-  ()
 
 // JP: need to serialize (r, t, j) into an array. How?
 assume
