@@ -22,7 +22,7 @@ open LowStar.BufferOps
 // Relying on a somewhat recent kremlin optimization that removes pointers to unit
 noeq
 type state_s = {
-  acc: acc:B.buffer u8 { B.length acc == 64 };
+  acc: acc:B.buffer u8 { B.length acc == 32 };
   seen: B.pointer (G.erased (list hashable_bytes));
   key: key:B.buffer u8 { B.length key == 64 };
   g_key: G.erased t_key;
@@ -64,7 +64,7 @@ let frame _ _ _ _ =
 #push-options "--ifuel 1 --fuel 1 --z3rlimit 50"
 let create_in r k' =
   let h0 = ST.get () in
-  let b = B.malloc r 0uy 64ul in
+  let b = B.malloc r 0uy 32ul in
   let p = B.malloc r (G.hide ([] #hashable_bytes)) 1ul in
   let k = B.malloc r 0uy 64ul in
   B.blit k' 0ul k 0ul 64ul;
@@ -92,18 +92,27 @@ let add s b l =
   let { acc; seen; key } = !* s in
   let h1 = ST.get () in
   assert (invariant h1 s);
-  let tmp = B.alloca 0uy 64ul in
+  let tmp = B.alloca 0uy 32ul in
   assert_norm (64 + Hacl.Blake2b_32.size_block < pow2 32);
   assert_norm (64 < pow2 32);
   assert_norm (64 <= Hacl.Blake2b_32.max_key);
-  assert (B.length tmp == 64);
-  Hacl.Blake2b_32.blake2b 64ul tmp l b 64ul key;
+  Hacl.Blake2b_32.blake2b 32ul tmp l b 64ul key;
   xor_inplace acc tmp;
   seen *= G.hide (B.as_seq h1 b :: B.deref h1 seen);
   pop_frame ()
 #pop-options
 
-//let get s l =
+let get s =
+  let s = !*s in
+  let hash0 = B.sub s.acc 0ul 8ul in
+  let hash1 = B.sub s.acc 8ul 8ul in
+  let hash2 = B.sub s.acc 16ul 8ul in
+  let hash3 = B.sub s.acc 24ul 8ul in
+  let v0 = LowStar.Endianness.load64_le hash0 in
+  let v1 = LowStar.Endianness.load64_le hash1 in
+  let v2 = LowStar.Endianness.load64_le hash2 in
+  let v3 = LowStar.Endianness.load64_le hash3 in
+  { Veritas.Formats.Types.v0; Veritas.Formats.Types.v1; Veritas.Formats.Types.v2; Veritas.Formats.Types.v3 }
 
 let free s =
   let { seen; acc; key } = !* s in

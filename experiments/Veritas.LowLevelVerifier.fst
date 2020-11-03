@@ -454,7 +454,7 @@ let v_context_inv (vs:v_context) (h:HS.mem) =
   log_inv vs.log_stream h /\
   B.loc_disjoint
     (loc_log vs.log_stream)
-    (loc_thread_state vs.thread_state)
+    (loc_thread_state vs.thread_state h)
 
 let t_verify_step (vs:v_context)
   : StackExn unit
@@ -462,7 +462,7 @@ let t_verify_step (vs:v_context)
       v_context_inv vs h)
     (ensures fun h0 _ h1 ->
       v_context_inv vs h1)
-  = let entry = extract_log_entry vs.log_stream in
+  = admit (); let entry = extract_log_entry vs.log_stream in
     match entry with
     | Ve_Get ({ vegp_s = s; vegp_v = v; }) ->
       vget s v vs.thread_state

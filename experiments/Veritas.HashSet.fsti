@@ -201,7 +201,7 @@ let u256_of_blake2_hash (hash: lbytes 32): u256 =
 val get: s:state -> Stack u256
   (requires fun h0 -> invariant h0 s)
   (ensures fun h0 r h1 ->
-    B.(modifies loc_none h0 h1) /\
+    h0 == h1 /\
     r == u256_of_blake2_hash (v h0 s))
 
 val free: s:state -> ST unit
