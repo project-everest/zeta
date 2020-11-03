@@ -95,6 +95,12 @@ type timestamp = U64.t
 
 type thread_id = U16.t
 
+type stamped_record = {
+  sr_record : record;
+  sr_timestamp : timestamp;
+  sr_thread_id : thread_id;
+}
+
 type vlog_entry_addb = {
   veab_s : slot_id;
   veab_r : record;

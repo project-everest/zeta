@@ -17,3 +17,6 @@ let extract_log_entry_from len buf bpos =
     B.upd bpos 0ul (LP.uint64_to_uint32 pos');
     Some (Veritas.Formats.EverParse.Vlog_entry.vlog_entry_reader sl pos)
   end
+
+let serialize_stamped_record dst r =
+  Veritas.Formats.EverParse.Stamped_record.stamped_record_lserializer r dst 0ul

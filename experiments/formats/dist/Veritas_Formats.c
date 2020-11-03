@@ -172,6 +172,12 @@ static uint64_t timestamp_reader(slice sl, uint32_t pos)
   return load64_be(x0 + pos);
 }
 
+static uint32_t timestamp_lserializer(uint64_t v, uint8_t *b, uint32_t pos)
+{
+  store64_be(b + pos, v);
+  return (uint32_t)8U;
+}
+
 static uint64_t vlog_entry_evictb_validator(slice sl, uint64_t pos)
 {
   if ((uint64_t)sl.len - pos < (uint64_t)10U)
@@ -691,6 +697,74 @@ static Veritas_Formats_Types_add_method add_method_reader(slice input, uint32_t 
     return Veritas_Formats_Types_MAdd;
 }
 
+static bool
+__eq__Veritas_Formats_Types_add_method(
+  Veritas_Formats_Types_add_method y,
+  Veritas_Formats_Types_add_method x
+)
+{
+  switch (x)
+  {
+    case Veritas_Formats_Types_MAdd:
+      {
+        switch (y)
+        {
+          case Veritas_Formats_Types_MAdd:
+            {
+              return true;
+            }
+          default:
+            {
+              return false;
+            }
+        }
+        break;
+      }
+    case Veritas_Formats_Types_BAdd:
+      {
+        switch (y)
+        {
+          case Veritas_Formats_Types_BAdd:
+            {
+              return true;
+            }
+          default:
+            {
+              return false;
+            }
+        }
+        break;
+      }
+    default:
+      {
+        return false;
+      }
+  }
+}
+
+static uint32_t
+add_method_writer(Veritas_Formats_Types_add_method x, slice input, uint32_t pos)
+{
+  uint8_t ite;
+  if (__eq__Veritas_Formats_Types_add_method(Veritas_Formats_Types_MAdd, x))
+    ite = (uint8_t)0U;
+  else
+    ite = (uint8_t)1U;
+  input.base[pos] = ite;
+  uint32_t len = (uint32_t)1U;
+  uint32_t res = pos + len;
+  uint32_t pos_ = res;
+  uint32_t pos_0 = pos_;
+  return pos_0;
+}
+
+static uint32_t
+add_method_lserializer(Veritas_Formats_Types_add_method x, uint8_t *b, uint32_t pos)
+{
+  uint32_t pos_ = add_method_writer(x, ((slice){ .base = b, .len = pos + (uint32_t)1U }), pos);
+  return pos_ - pos;
+}
+
 static uint64_t thread_id_validator(slice sl, uint64_t pos)
 {
   if ((uint64_t)sl.len - pos < (uint64_t)2U)
@@ -703,6 +777,12 @@ static uint16_t thread_id_reader(slice sl, uint32_t pos)
 {
   uint8_t *x0 = sl.base;
   return load16_be(x0 + pos);
+}
+
+static uint32_t thread_id_lserializer(uint16_t v, uint8_t *b, uint32_t pos)
+{
+  store16_be(b + pos, v);
+  return (uint32_t)2U;
 }
 
 static uint32_t data_value_size32(Veritas_Formats_Types_data_value x)
@@ -1173,6 +1253,32 @@ static Veritas_Formats_Types_record record_reader(slice input, uint32_t pos)
     );
 }
 
+static uint32_t
+record_lserializer(Veritas_Formats_Types_record x, uint8_t *input, uint32_t pos)
+{
+  uint32_t res0 = key_lserializer(x.record_key, input, pos);
+  uint32_t len1 = res0;
+  uint32_t pos10 = pos + len1;
+  uint32_t res1 = value_lserializer(x.record_value, input, pos10);
+  uint32_t len2 = res1;
+  uint32_t res2 = len1 + len2;
+  uint32_t len10 = res2;
+  uint32_t pos12 = pos + len10;
+  uint32_t res = add_method_lserializer(x.record_add_method, input, pos12);
+  uint32_t len11 = res;
+  uint32_t pos11 = pos12 + len11;
+  uint32_t res3 = vbool_lserializer(x.record_l_child_in_store, input, pos11);
+  uint32_t len20 = res3;
+  uint32_t res4 = len11 + len20;
+  uint32_t len21 = res4;
+  uint32_t res5 = len10 + len21;
+  uint32_t len12 = res5;
+  uint32_t pos1 = pos + len12;
+  uint32_t res6 = vbool_lserializer(x.record_r_child_in_store, input, pos1);
+  uint32_t len22 = res6;
+  return len12 + len22;
+}
+
 static uint64_t vlog_entry_addb_validator(slice input, uint64_t pos)
 {
   uint64_t pos10 = slot_id_validator(input, pos);
@@ -1239,6 +1345,26 @@ static Veritas_Formats_Types_vlog_entry_addb vlog_entry_addb_reader(slice input,
         .veab_j = veab_j
       }
     );
+}
+
+static uint32_t
+stamped_record_lserializer(
+  Veritas_Formats_Types_stamped_record x,
+  uint8_t *input,
+  uint32_t pos
+)
+{
+  uint32_t res = record_lserializer(x.sr_record, input, pos);
+  uint32_t len1 = res;
+  uint32_t pos10 = pos + len1;
+  uint32_t res0 = timestamp_lserializer(x.sr_timestamp, input, pos10);
+  uint32_t len2 = res0;
+  uint32_t res1 = len1 + len2;
+  uint32_t len10 = res1;
+  uint32_t pos1 = pos + len10;
+  uint32_t res2 = thread_id_lserializer(x.sr_thread_id, input, pos1);
+  uint32_t len20 = res2;
+  return len10 + len20;
 }
 
 static uint64_t vlog_entry_evictbm_validator(slice sl, uint64_t pos)
@@ -1690,6 +1816,12 @@ Veritas_Formats_extract_log_entry_from(uint32_t len, uint8_t *buf, uint32_t *bpo
         }
       );
   }
+}
+
+uint32_t
+Veritas_Formats_serialize_stamped_record(uint8_t *dst, Veritas_Formats_Types_stamped_record r)
+{
+  return stamped_record_lserializer(r, (uint8_t *)dst, (uint32_t)0U);
 }
 
 uint64_t Veritas_Formats_Types___proj__Mku256__item__v3(Veritas_Formats_Types_u256 projectee)
@@ -2191,6 +2323,30 @@ Veritas_Formats_Types___proj__Mkvlog_entry_evictm__item__veem_s2(
 )
 {
   return projectee.veem_s2;
+}
+
+Veritas_Formats_Types_record
+Veritas_Formats_Types___proj__Mkstamped_record__item__sr_record(
+  Veritas_Formats_Types_stamped_record projectee
+)
+{
+  return projectee.sr_record;
+}
+
+uint64_t
+Veritas_Formats_Types___proj__Mkstamped_record__item__sr_timestamp(
+  Veritas_Formats_Types_stamped_record projectee
+)
+{
+  return projectee.sr_timestamp;
+}
+
+uint16_t
+Veritas_Formats_Types___proj__Mkstamped_record__item__sr_thread_id(
+  Veritas_Formats_Types_stamped_record projectee
+)
+{
+  return projectee.sr_thread_id;
 }
 
 uint16_t

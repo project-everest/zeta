@@ -128,6 +128,14 @@ typedef struct Veritas_Formats_Types_vlog_entry_addb_s
 }
 Veritas_Formats_Types_vlog_entry_addb;
 
+typedef struct Veritas_Formats_Types_stamped_record_s
+{
+  Veritas_Formats_Types_record sr_record;
+  uint64_t sr_timestamp;
+  uint16_t sr_thread_id;
+}
+Veritas_Formats_Types_stamped_record;
+
 typedef struct Veritas_Formats_Types_vlog_entry_evictbm_s
 {
   uint16_t veebm_s;
@@ -222,6 +230,9 @@ FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry;
 
 FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry
 Veritas_Formats_extract_log_entry_from(uint32_t len, uint8_t *buf, uint32_t *bpos);
+
+uint32_t
+Veritas_Formats_serialize_stamped_record(uint8_t *dst, Veritas_Formats_Types_stamped_record r);
 
 typedef uint16_t Veritas_Formats_Types_slot_id;
 
@@ -385,6 +396,21 @@ Veritas_Formats_Types___proj__Mkvlog_entry_evictm__item__veem_s2(
 typedef uint64_t Veritas_Formats_Types_timestamp;
 
 typedef uint16_t Veritas_Formats_Types_thread_id;
+
+Veritas_Formats_Types_record
+Veritas_Formats_Types___proj__Mkstamped_record__item__sr_record(
+  Veritas_Formats_Types_stamped_record projectee
+);
+
+uint64_t
+Veritas_Formats_Types___proj__Mkstamped_record__item__sr_timestamp(
+  Veritas_Formats_Types_stamped_record projectee
+);
+
+uint16_t
+Veritas_Formats_Types___proj__Mkstamped_record__item__sr_thread_id(
+  Veritas_Formats_Types_stamped_record projectee
+);
 
 uint16_t
 Veritas_Formats_Types___proj__Mkvlog_entry_addb__item__veab_s(

@@ -115,6 +115,12 @@ uint64 timestamp;
 uint16 thread_id;
 
 struct {
+  record sr_record;
+  timestamp sr_timestamp;
+  thread_id sr_thread_id;
+} stamped_record;
+
+struct {
   slot_id veab_s;
   record veab_r;
   timestamp veab_t;

@@ -30,3 +30,13 @@ val extract_log_entry_from (len: U32.t) (buf: B.lbuffer U8.t (U32.v len)) (pos: 
             B.live h1 buf /\ B.live h1 pos /\ B.disjoint buf pos /\
             B.modifies (B.loc_buffer buf `B.loc_union` B.loc_buffer pos) h0 h1) (* /\
             log at position h0.pos contains a vali repr of v *)
+
+val serialize_stamped_record
+  (dst: B.buffer U8.t)
+  (r: stamped_record)
+: HST.Stack U32.t
+  (requires (fun h -> B.live h dst /\ 181 <= B.length dst))
+  (ensures (fun h0 len h1 ->
+    U32.v len <= B.length dst /\
+    B.modifies (B.loc_buffer (B.gsub dst 0ul len)) h0 h1
+  ))

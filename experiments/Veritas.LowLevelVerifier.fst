@@ -4,6 +4,7 @@ open FStar.HyperStack.ST
 
 module B = LowStar.Buffer
 module HS = FStar.HyperStack
+module HST = FStar.HyperStack.ST
 
 open LowStar.Exception
 module VStore = Veritas.VCache
@@ -36,8 +37,6 @@ unfold
 let prf_set_hash_inv (v:prf_set_hash) (h:HS.mem): Type =
   Veritas.HashSet.invariant h v
 
-// JP: need to serialize (r, t, j) into an array. How?
-assume
 val multiset_hash_upd (r:record) (t:timestamp) (j:thread_id) (v:prf_set_hash)
   : Stack unit
     (requires fun h -> prf_set_hash_inv v h)
@@ -45,6 +44,14 @@ val multiset_hash_upd (r:record) (t:timestamp) (j:thread_id) (v:prf_set_hash)
       prf_set_hash_inv v h1 /\
       B.modifies (prf_set_hash_loc h0 v) h0 h1 /\
       prf_set_hash_loc h0 v == prf_set_hash_loc h1 v)
+
+let multiset_hash_upd r t j v =
+  HST.push_frame ();
+  let dst = B.alloca 0uy 256ul in
+  let len = Veritas.Formats.(serialize_stamped_record dst ({ sr_record = r; sr_timestamp = t; sr_thread_id = j; })) in
+  let src = B.sub dst 0ul len in
+  Veritas.HashSet.add v src len;
+  HST.pop_frame ()
 
 let get_current_value   (v:prf_set_hash)
   : Stack u256
