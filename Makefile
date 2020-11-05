@@ -6,29 +6,37 @@ EXTRA=
 # List the files that should NOT be verified at all
 FLAKY=
 
+SRC_DIR = high
+
+FST_FILES := $(wildcard $(SRC_DIR)/*.fst)
+FSTI_FILES := $(wildcard $(SRC_DIR)/*.fsti)
+FSTAR_FILES := $(FST_FILES) $(FSTI_FILES)
+
+INCLUDE_PATHS += high
+
 # List the files that should be verified by verify-core and verify-all
 # Those files are the roots from where all dependencies are computed
-FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
-               Veritas.BinTreePtr.fsti Veritas.BinTreePtr.fst \
-               Veritas.Key.fsti Veritas.Record.fsti \
-               Veritas.SeqAux.fsti Veritas.SeqAux.fst \
-               Veritas.SeqMachine.fsti Veritas.SeqMachine.fst \
-               Veritas.State.fsti \
-               Veritas.StateSeqMachine.fsti Veritas.StateSeqMachine.fst \
-               Veritas.MultiSet.fsti Veritas.MultiSet.fst \
-               Veritas.MultiSetHashDomain.fsti Veritas.MultiSetHashDomain.fst \
-               Veritas.MultiSetHash.fsti \
-               Veritas.Hash.fsti \
-               Veritas.Interleave.fsti Veritas.Interleave.fst \
-               Veritas.Verifier.fst \
-	       Veritas.Verifier.Thread.fsti Veritas.Verifier.Thread.fst \
-               Veritas.Verifier.Global.fsti Veritas.Verifier.Global.fst \
-               Veritas.EAC.fsti Veritas.EAC.fst \
-               Veritas.Verifier.TSLog.fsti Veritas.Verifier.TSLog.fst \
-	       Veritas.Verifier.Blum.fsti Veritas.Verifier.Blum.fst \
-               Veritas.Verifier.Merkle.fsti Veritas.Verifier.Merkle.fst \
-               Veritas.Verifier.EAC.fst \
-               Veritas.Verifier.Correctness.fst
+# FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
+#                Veritas.BinTreePtr.fsti Veritas.BinTreePtr.fst \
+#                Veritas.Key.fsti Veritas.Record.fsti \
+#                Veritas.SeqAux.fsti Veritas.SeqAux.fst \
+#                Veritas.SeqMachine.fsti Veritas.SeqMachine.fst \
+#                Veritas.State.fsti \
+#                Veritas.StateSeqMachine.fsti Veritas.StateSeqMachine.fst \
+#                Veritas.MultiSet.fsti Veritas.MultiSet.fst \
+#                Veritas.MultiSetHashDomain.fsti Veritas.MultiSetHashDomain.fst \
+#                Veritas.MultiSetHash.fsti \
+#                Veritas.Hash.fsti \
+#                Veritas.Interleave.fsti Veritas.Interleave.fst \
+#                Veritas.Verifier.fst \
+# 	       Veritas.Verifier.Thread.fsti Veritas.Verifier.Thread.fst \
+#                Veritas.Verifier.Global.fsti Veritas.Verifier.Global.fst \
+#                Veritas.EAC.fsti Veritas.EAC.fst \
+#                Veritas.Verifier.TSLog.fsti Veritas.Verifier.TSLog.fst \
+# 	       Veritas.Verifier.Blum.fsti Veritas.Verifier.Blum.fst \
+#                Veritas.Verifier.Merkle.fsti Veritas.Verifier.Merkle.fst \
+#                Veritas.Verifier.EAC.fst \
+#                Veritas.Verifier.Correctness.fst
 
 # Uncomment the definition of PROFILE below, if you want some basic
 # profiling of F* runs on Veritas files It will report the time spent
@@ -57,18 +65,18 @@ MY_FSTAR=$(FSTAR) --cache_checked_modules --odir $(OUTPUT_DIRECTORY)
 
 # a.fst.checked is the binary, checked version of a.fst
 %.fst.checked: %.fst
-	$(MY_FSTAR) $*.fst
+	$(MY_FSTAR) $(addprefix --include , $(INCLUDE_PATHS)) $*.fst
 	touch $@
 
 # a.fsti.checked is the binary, checked version of a.fsti
 %.fsti.checked: %.fsti
-	$(MY_FSTAR) $*.fsti
+	$(MY_FSTAR) $(addprefix --include , $(INCLUDE_PATHS)) $*.fsti
 	touch $@
 
 all: verify
 
 clean:
-	rm -rf *.checked .depend
+	rm -rf $(addsuffix .checked , $(FSTAR_FILES)) .depend
 
 .depend: $(FSTAR_FILES)
 	$(MY_FSTAR) --dep full $(addprefix --include , $(INCLUDE_PATHS)) --extract 'Veritas -Veritas.SparseMerkleVerifier.Correctness' $^ > .depend
