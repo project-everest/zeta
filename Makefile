@@ -9,12 +9,14 @@ FLAKY=
 # List the files that should be verified by verify-core and verify-all
 # Those files are the roots from where all dependencies are computed
 FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
+               Veritas.BinTreePtr.fsti Veritas.BinTreePtr.fst \
                Veritas.Key.fsti Veritas.Record.fsti \
                Veritas.SeqAux.fsti Veritas.SeqAux.fst \
                Veritas.SeqMachine.fsti Veritas.SeqMachine.fst \
                Veritas.State.fsti \
                Veritas.StateSeqMachine.fsti Veritas.StateSeqMachine.fst \
                Veritas.MultiSet.fsti Veritas.MultiSet.fst \
+               Veritas.MultiSetHashDomain.fsti Veritas.MultiSetHashDomain.fst \
                Veritas.MultiSetHash.fsti \
                Veritas.Hash.fsti \
                Veritas.Interleave.fsti Veritas.Interleave.fst \
@@ -27,8 +29,6 @@ FSTAR_FILES := Veritas.BinTree.fsti Veritas.BinTree.fst \
                Veritas.Verifier.Merkle.fsti Veritas.Verifier.Merkle.fst \
                Veritas.Verifier.EAC.fst \
                Veritas.Verifier.Correctness.fst
-
-
 
 # Uncomment the definition of PROFILE below, if you want some basic
 # profiling of F* runs on Veritas files It will report the time spent
