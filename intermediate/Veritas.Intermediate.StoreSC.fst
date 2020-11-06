@@ -1,4 +1,4 @@
-module Veritas.Intermediate.StoreSKC
+module Veritas.Intermediate.StoreSC
 
 let get_slot (st:vstore) (s:slot_id)
   : option vstore_entry

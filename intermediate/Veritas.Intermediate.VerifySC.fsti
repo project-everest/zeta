@@ -1,7 +1,7 @@
-module Veritas.Intermediate.VerifySKC
+module Veritas.Intermediate.VerifySC
 
 open Veritas.Intermediate.Logs
-open Veritas.Intermediate.StoreSKC
+open Veritas.Intermediate.StoreSC
 
 (* These are all independent of the 'verify' function; they should be safe to open *)
 open Veritas.BinTree
@@ -70,9 +70,9 @@ let update_thread_hevict (vs:vtls {Valid? vs}) (hevict:ms_hash_value): vtls =
   match vs with
   | Valid id st clock hadd _ -> Valid id st clock hadd hevict
 
-val vget (s:slot_id) (v:data_value) (vs: vtls {Valid? vs}) : vtls 
+val vget (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls 
 
-val vput (s:slot_id) (v:data_value) (vs: vtls {Valid? vs}) : vtls
+val vput (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls
 
 val vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls 
 
@@ -109,11 +109,11 @@ val lemma_vget_simulates_spec
       (k:data_key)
       (v:data_value)
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
-          (ensures (vtls_rel (vget s v vs) (Spec.vget k v vs')))
+          (ensures (vtls_rel (vget s k v vs) (Spec.vget k v vs')))
 
-val lemma_vget_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (v:data_value)
+val lemma_vget_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (k:key) (v:data_value)
   : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vget s v vs)))
+          (ensures (has_failed (vget s k v vs)))
 
 val lemma_vput_simulates_spec 
       (vs:vtls{Valid? vs}) 
@@ -122,11 +122,11 @@ val lemma_vput_simulates_spec
       (k:data_key) 
       (v:data_value) 
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
-          (ensures (vtls_rel (vput s v vs) (Spec.vput k v vs'))) 
+          (ensures (vtls_rel (vput s k v vs) (Spec.vput k v vs'))) 
 
-val lemma_vput_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (v:data_value)
+val lemma_vput_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (k:key) (v:data_value)
   : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vput s v vs)))
+          (ensures (has_failed (vput s k v vs)))
 
 val lemma_vaddm_simulates_spec 
       (vs:vtls{Valid? vs}) 
@@ -202,46 +202,53 @@ val lemma_vevictbm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id) (t:timestamp)
   : Lemma (requires (not (thread_store_is_map vs)))
           (ensures (has_failed (vevictbm s s' t vs)))
 
-(* Note that the key values aren't used in the v* functions -
-   they are just useful (maybe?) for proof *)
-let t_verify_step (vs:vtls) (e:logSK_entry): vtls =
+let t_verify_step (vs:vtls) (e:logS_entry): vtls =
   match vs with
   | Failed -> Failed
   | _ ->
     match e with
-    | Get_SK s _ v -> vget s v vs
-    | Put_SK s _ v -> vput s v vs
-    | AddM_SK s r s' _  -> vaddm s r s' vs
-    | EvictM_SK s _ s' _ -> vevictm s s' vs
-    | AddB_SK s r t j -> vaddb s r t j vs
-    | EvictB_SK s _ t -> vevictb s t vs
-    | EvictBM_SK s _ s' _ t -> vevictbm s s' t vs
+    | Get_S s k v -> vget s k v vs
+    | Put_S s k v -> vput s k v vs
+    | AddM_S s r s' -> vaddm s r s' vs
+    | EvictM_S s s' -> vevictm s s' vs
+    | AddB_S s r t j -> vaddb s r t j vs
+    | EvictB_S s t -> vevictb s t vs
+    | EvictBM_S s s' t -> vevictbm s s' t vs
 
-(* Verify a log from a specified initial state *)
-let rec t_verify_aux (vs:vtls) (l:logSK): Tot vtls
+val logS_to_logK_entry (vs:vtls{Valid? vs}) (e:logS_entry) : option logK_entry
+
+let add_to_log (l:option logK) (vs:vtls) (e:logS_entry) : option logK =
+  if Some? l && Valid? vs && Some? (logS_to_logK_entry vs e)
+  then Some (append1 (Some?.v l) (Some?.v (logS_to_logK_entry vs e)))
+  else None
+
+(* Verify a log from a specified initial state; also returns the
+   corresponding log with keys *)
+let rec t_verify_aux (vs:vtls) (l:logS): Tot (vtls * option logK)
   (decreases (Seq.length l)) =
   let n = Seq.length l in
-  if n = 0 then vs
+  if n = 0 then (vs, Some Seq.empty)
   else
-    let l' = prefix l (n - 1) in
-    let vs' = t_verify_aux vs l' in
-    let e' = Seq.index l (n - 1) in
-    t_verify_step vs' e'
+    let lp = prefix l (n - 1) in
+    let (vsp,lk) = t_verify_aux vs lp in
+    let e = Seq.index l (n - 1) in
+    let vs' = t_verify_step vsp e in
+    let lk' = add_to_log lk vsp e in
+    (vs', lk')
+
+val lemma_t_verify_aux_valid_implies_log_exists (vs:vtls) (l:logS)
+  : Lemma (requires (Valid? (fst (t_verify_aux vs l))))
+          (ensures (Some? (snd (t_verify_aux vs l))))
+          (decreases (Seq.length l))
+          [SMTPat (Some? (snd (t_verify_aux vs l)))]
 
 (* Main verify function *)
 val init_thread_state (id:thread_id): vtls
-let t_verify (id:thread_id) (l:logSK): vtls = 
-  t_verify_aux (init_thread_state id) l 
+let t_verify (id:thread_id) (l:logS): vtls = 
+  fst (t_verify_aux (init_thread_state id) l) 
 
-let verify (id:thread_id) (l:logSK): vtls =
-  let vs = t_verify id l in
-  if Valid? vs
-  then if thread_store_is_map vs // alternatively, we could check when we check the global hashes
-       then vs else Failed
-  else Failed
-
-let verifiable (id:thread_id) (l: logSK): bool =
-  Valid? (verify id l)
+let logS_to_logK (id:thread_id) (l:logS{Valid? (t_verify id l)}) : logK =
+  Some?.v (snd (t_verify_aux (init_thread_state id) l))
 
 val init_thread_state_valid (id:thread_id)
   : Lemma (Valid? (init_thread_state id))
@@ -250,51 +257,10 @@ val init_thread_state_valid (id:thread_id)
 val lemma_init_thread_state_rel (id:thread_id) :
   Lemma (vtls_rel (init_thread_state id) (Spec.init_thread_state id))
 
-// Relation between logs (not currently used)
-let log_rel  (l:logSK) (l':logK) : Type 
-  = skc l /\ drop_slots l = l'
+val lemma_t_verify_simulates_spec (id:thread_id) (l:logS) 
+  : Lemma (requires (Valid? (t_verify id l)))
+          (ensures (vtls_rel (t_verify id l) (Spec.t_verify id (logS_to_logK id l))))
 
-// whatever the defn of log_rel, it should satisfy lemma_log_rel
-let log_entry_rel (vs:vtls{Valid? vs}) (e:logSK_entry) (e':logK_entry) : Type
-  = match e, e' with
-    | Get_SK s _ v, Spec.Get k v' -> 
-        slot_key_rel vs s k /\ v = v'
-    | Put_SK s _ v, Spec.Put k v' -> 
-        slot_key_rel vs s k /\ v = v'
-    | AddM_SK s r s' _, Spec.AddM r' k' -> 
-        s < thread_store_size vs /\ not (store_contains (thread_store vs) s) /\
-        r = r' /\ slot_key_rel vs s' k'
-    | EvictM_SK s _ s' _, Spec.EvictM k k' -> 
-        slot_key_rel vs s k /\ slot_key_rel vs s' k'
-    | AddB_SK s r t j, Spec.AddB r' t' j' -> 
-        s < thread_store_size vs /\ not (store_contains (thread_store vs) s) /\
-        r = r' /\ t = t' /\ j = j' 
-    | EvictB_SK s _ t, Spec.EvictB k t' -> 
-        slot_key_rel vs s k /\ t = t'
-    | EvictBM_SK s _ s' _ t, Spec.EvictBM k k' t' -> 
-        slot_key_rel vs s k /\ slot_key_rel vs s' k' /\ t = t'
-    | _, _ -> False
-
-let log_rel_with_vtls (vs:vtls{Valid? vs}) (l:logSK) (l':logK) : Type 
-  = Seq.length l = Seq.length l' /\
-    (forall (i:seq_index l). 
-       let vs2 = t_verify_aux vs (prefix l i) in
-       Valid? vs2 ==>
-       log_entry_rel vs2 (Seq.index l i) (Seq.index l' i))
-
-let lemma_log_rel (l:logSK) (l':logK) 
-  : Lemma (requires (log_rel l l'))
-          (ensures (forall (id:thread_id). log_rel_with_vtls (init_thread_state id) l l')) 
-  = admit()
-
-val lemma_t_verify_simulates_spec (id:thread_id) (l:logSK) (l':logK)
-  : Lemma (requires (log_rel l l'))
-          (ensures (vtls_rel (t_verify id l) (Spec.t_verify id l')))
-
-(* For any log, the intermediate implementation will verify 
-   iff the the spec implementation does. *)
-let lemma_verifiable_simulates_spec (id:thread_id) (l:logSK) (l':logK)
-  : Lemma (requires (log_rel l l'))
-          (ensures (let tl : SpecT.thread_id_vlog = (id,l') in
-                    verifiable id l = SpecT.verifiable tl))
-  = lemma_t_verify_simulates_spec id l l'
+val lemma_logS_to_logK_to_state_op (id:thread_id) (l:logS{Valid? (t_verify id l)})
+  : Lemma (ensures (Seq.equal (to_state_op_logS l) 
+                              (Veritas.EAC.to_state_op_vlog (logS_to_logK id l))))

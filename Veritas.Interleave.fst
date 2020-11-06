@@ -644,12 +644,12 @@ let rec filter_map_interleaving' (#a #b:eqtype)
         (decreases i)
   = match i with 
     | IntEmpty -> 
-      filter_empty filter;
+      lemma_filter_empty filter;
       assert (filter_refine filter Seq.empty `Seq.equal` Seq.empty);
       interleave_coerce IntEmpty
     | IntAdd is' ss' prf' ->
       let prf' = filter_map_interleaving' filter f prf' in
-      filter_empty filter;
+      lemma_filter_empty filter;
       assert (filter_map filter f (empty #a) `Seq.equal` empty #b);
       assert (map (filter_map filter f) (append1 ss' (empty #a)) `Seq.equal`
               append1 (map (filter_map filter f) ss') (empty #b));

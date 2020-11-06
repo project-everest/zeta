@@ -906,10 +906,6 @@ let prev_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
   if length fs' = 0 then None
   else Some (last_index f s')
 
-let filter_empty (#a:eqtype) (f:a -> bool)
-  : Lemma (filter f Seq.empty `Seq.equal` Seq.empty)
-  = ()
-
 let filter_snoc (#a:eqtype) (f:a -> bool) (s:seq a) (x:a)
   : Lemma (if f x 
            then filter f (Seq.snoc s x) `Seq.equal` Seq.snoc (filter f s) x

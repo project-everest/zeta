@@ -1,22 +1,26 @@
-module Veritas.Intermediate.VerifySKC
+module Veritas.Intermediate.VerifySC
 
-let vget (s:slot_id) (v:data_value) (vs: vtls {Valid? vs}) : vtls =
+let vget (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls =
   let st = thread_store vs in
   (* check store contains slot s *)
   if not (store_contains st s) then Failed
   (* check stored key and value *)
-  else let v' = stored_value st s in
-       if not (DVal? v') then Failed
+  else let k' = stored_key st s in
+       let v' = stored_value st s in
+       if k <> k' then Failed
+       else if not (DVal? v') then Failed
        else if to_data_value v' <> v then Failed
        else vs
 
-let vput (s:slot_id) (v:data_value) (vs: vtls {Valid? vs}) : vtls =
+let vput (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls =
   let st = thread_store vs in
   (* check store contains slot s *)
   if not (store_contains st s) then Failed
   (* check stored key is k *)
-  else if not (is_data_key (stored_key st s)) then Failed
-  else update_thread_store vs (update_store st s (DVal v))
+  else let k' = stored_key st s in
+       if k <> k' then Failed
+       else if not (is_data_key (stored_key st s)) then Failed
+       else update_thread_store vs (update_store st s (DVal v))
 
 let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
   if not (s < thread_store_size vs) then Failed
@@ -203,12 +207,12 @@ let lemma_vget_simulates_spec
       (k:data_key)
       (v:data_value)
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
-          (ensures (vtls_rel (vget s v vs) (Spec.vget k v vs')))
+          (ensures (vtls_rel (vget s k v vs) (Spec.vget k v vs')))
   = ()
   
-let lemma_vget_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (v:data_value)
+let lemma_vget_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (k:key) (v:data_value)
   : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vget s v vs)))
+          (ensures (has_failed (vget s k v vs)))
   = ()
 
 let lemma_vput_simulates_spec 
@@ -218,12 +222,12 @@ let lemma_vput_simulates_spec
       (k:data_key) 
       (v:data_value) 
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
-          (ensures (vtls_rel (vput s v vs) (Spec.vput k v vs'))) 
+          (ensures (vtls_rel (vput s k v vs) (Spec.vput k v vs'))) 
   = ()
 
-let lemma_vput_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (v:data_value)
+let lemma_vput_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (k:key) (v:data_value)
   : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vput s v vs)))
+          (ensures (has_failed (vput s k v vs)))
   = ()
 
 let lemma_vaddm_simulates_spec
@@ -314,6 +318,46 @@ let lemma_vevictbm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id) (t:timestamp)
     then // TODO: get this lemma to trigger automatically 
       stored_value_matches_stored_key st s'
 
+(* This is basically a "light" versions of the vfun functions to reconstruct the log. 
+   We could have the vfun functions return logK entries instead, but this seems cleaner. *)
+let logS_to_logK_entry (vs:vtls{Valid? vs}) (e:logS_entry) : option logK_entry =
+  let st = thread_store vs in
+  match e with
+  | Get_S s k v -> 
+      if store_contains st s && k = stored_key st s
+      then Some (Spec.Get k v) else None
+  | Put_S s k v -> 
+      if store_contains st s && k = stored_key st s
+      then Some (Spec.Put k v) else None
+  | AddM_S _ r s' -> 
+      if store_contains st s' && is_merkle_key (stored_key st s') 
+      then Some (Spec.AddM r (stored_key st s')) else None
+  | EvictM_S s s' -> 
+      if store_contains st s && store_contains st s' && is_merkle_key (stored_key st s') 
+      then Some (Spec.EvictM (stored_key st s) (stored_key st s')) else None
+  | AddB_S _ r t j -> 
+      Some (Spec.AddB r t j)
+  | EvictB_S s t -> 
+      if store_contains st s
+      then Some (Spec.EvictB (stored_key st s) t) else None
+  | EvictBM_S s s' t ->
+      if store_contains st s && store_contains st s' && is_merkle_key (stored_key st s') 
+      then Some (Spec.EvictBM (stored_key st s) (stored_key st s') t) else None
+
+let lemma_t_verify_step_valid_implies_log_exists (vs:vtls) (e:logS_entry)
+  : Lemma (requires (Valid? (t_verify_step vs e)))
+          (ensures (Some? (logS_to_logK_entry vs e)))
+          [SMTPat (Some? (logS_to_logK_entry vs e))]
+  = ()
+
+let rec lemma_t_verify_aux_valid_implies_log_exists (vs:vtls) (l:logS)
+  : Lemma (requires (Valid? (fst (t_verify_aux vs l))))
+          (ensures (Some? (snd (t_verify_aux vs l))))
+          (decreases (Seq.length l))
+  = let n = Seq.length l in
+    if n <> 0 
+    then lemma_t_verify_aux_valid_implies_log_exists vs (prefix l (n - 1))
+
 // TODO: what should the initial size be?
 let store_size = 65536 // 2 ^ 16
 
@@ -345,83 +389,116 @@ let lemma_init_thread_state_rel (id:thread_id)
       let st' = Spec.thread_store vs' in
       lemma_store_rel_add_to_store st st' 0 Root (init_value Root) Spec.MAdd
 
-let lemma_t_verify_step_simulates_spec (vs:vtls) (vs':Spec.vtls) (e:logSK_entry) (e':logK_entry)
-  : Lemma (requires (vtls_rel vs vs' /\ (has_failed vs \/ log_entry_rel vs e e')))
-          (ensures (vtls_rel (t_verify_step vs e) (Spec.t_verify_step vs' e')))
+let lemma_t_verify_step_simulates_spec1 (vs:vtls) (vs':Spec.vtls) (e:logS_entry)
+  : Lemma (requires (vtls_rel vs vs' /\ 
+                     not (has_failed vs) /\ 
+                     Valid? (t_verify_step vs e)))
+          (ensures (vtls_rel (t_verify_step vs e) 
+                             (Spec.t_verify_step vs' (Some?.v (logS_to_logK_entry vs e)))))
+  = let st = thread_store vs in
+    match e with
+    | Get_S s k v -> lemma_vget_simulates_spec vs vs' s k v
+    | Put_S s k v -> lemma_vput_simulates_spec vs vs' s k v
+    | AddM_S s r s' -> lemma_vaddm_simulates_spec vs vs' s s' r (stored_key st s')
+    | EvictM_S s s' -> lemma_vevictm_simulates_spec vs vs' s s' (stored_key st s) (stored_key st s')
+    | AddB_S s r t j -> lemma_vaddb_simulates_spec vs vs' s r t j
+    | EvictB_S s t -> lemma_vevictb_simulates_spec vs vs' s (stored_key st s) t
+    | EvictBM_S s s' t -> lemma_vevictbm_simulates_spec vs vs' s s' (stored_key st s) (stored_key st s') t
+
+let lemma_t_verify_step_simulates_spec2 (vs:vtls) (vs':Spec.vtls) (e:logS_entry)
+  : Lemma (requires (vtls_rel vs vs' /\ has_failed vs))
+          (ensures (forall (e':logK_entry). vtls_rel (t_verify_step vs e) (Spec.t_verify_step vs' e')))
   = if Valid? vs
-    then if thread_store_is_map vs
     then
-      match e, e' with
-      | Get_SK s _ v, Spec.Get k v' -> 
-          lemma_vget_simulates_spec vs vs' s k v
-      | Put_SK s _ v, Spec.Put k v' ->  
-          lemma_vput_simulates_spec vs vs' s k v
-      | AddM_SK s r s' _, Spec.AddM r' k' ->  
-          lemma_vaddm_simulates_spec vs vs' s s' r k'
-      | EvictM_SK s _ s' _, Spec.EvictM k k' ->  
-          lemma_vevictm_simulates_spec vs vs' s s' k k'
-      | AddB_SK s r t j, Spec.AddB r' t' j' ->  
-          lemma_vaddb_simulates_spec vs vs' s r t j
-      | EvictB_SK s _ t, Spec.EvictB k t' ->  
-          lemma_vevictb_simulates_spec vs vs' s k t
-      | EvictBM_SK s _ s' _ t, Spec.EvictBM k k' t' ->  
-          lemma_vevictbm_simulates_spec vs vs' s s' k k' t
-    else
       match e with
-      | Get_SK s _ v -> lemma_vget_has_failed vs s v
-      | Put_SK s _ v -> lemma_vput_has_failed vs s v
-      | AddM_SK s r s' _ -> lemma_vaddm_has_failed vs s s' r
-      | EvictM_SK s _ s' _ -> lemma_vevictm_has_failed vs s s'
-      | AddB_SK s r t j -> lemma_vaddb_has_failed vs s r t j
-      | EvictB_SK s _ t -> lemma_vevictb_has_failed vs s t
-      | EvictBM_SK s _ s' _ t -> lemma_vevictbm_has_failed vs s s' t
+      | Get_S s k v -> lemma_vget_has_failed vs s k v
+      | Put_S s k v -> lemma_vput_has_failed vs s k v
+      | AddM_S s r s' -> lemma_vaddm_has_failed vs s s' r
+      | EvictM_S s s' -> lemma_vevictm_has_failed vs s s'
+      | AddB_S s r t j -> lemma_vaddb_has_failed vs s r t j
+      | EvictB_S s t -> lemma_vevictb_has_failed vs s t
+      | EvictBM_S s s' t -> lemma_vevictbm_has_failed vs s s' t
 
-let rec lemma_t_verify_aux_Failed (l:logSK)
-  : Lemma (ensures (t_verify_aux Failed l == Failed))
+let get_log (vs:vtls) (l:logS{Valid? (fst (t_verify_aux vs l))}) : logK
+  = Some?.v (snd (t_verify_aux vs l))
+
+let rec lemma_get_log_length (vs:vtls) (l:logS)
+  : Lemma (requires (Valid? (fst (t_verify_aux vs l))))
+          (ensures (Seq.length l = Seq.length (get_log vs l)))
           (decreases (Seq.length l))
+          [SMTPat (Seq.length (get_log vs l))]
   = let n = Seq.length l in
     if n <> 0
-    then 
-      let l' = prefix l (n - 1) in
-      lemma_t_verify_aux_Failed l'
+    then
+      let lp = prefix l (n - 1) in
+      lemma_get_log_length vs lp
 
-let rec lemma_t_verify_aux_Spec_Failed (l:logK)
-  : Lemma (ensures (Spec.t_verify_aux Spec.Failed l == Spec.Failed))
-          (decreases (Seq.length l))
-  = let n = Seq.length l in
-    if n <> 0
-    then 
-      let l' = prefix l (n - 1) in
-      lemma_t_verify_aux_Spec_Failed l'
+let lemma_get_log_prefix_commute (vs:vtls) (l:logS)
+  : Lemma (requires (Valid? (fst (t_verify_aux vs l)) /\ Seq.length l > 0))
+          (ensures (let n = Seq.length l in
+                    Seq.equal (get_log vs (prefix l (n - 1))) (prefix (get_log vs l) (n - 1))))
+  = ()
 
-let rec lemma_t_verify_aux_simulates_spec (vs:vtls) (vs':Spec.vtls) (l:logSK) (l':logK)
-  : Lemma (requires (vtls_rel vs vs' /\ Seq.length l = Seq.length l' /\ (Valid? vs ==> log_rel_with_vtls vs l l')))
-          (ensures (vtls_rel (t_verify_aux vs l) (Spec.t_verify_aux vs' l')))
+let rec lemma_t_verify_aux_simulates_spec (vs:vtls) (vs':Spec.vtls) (l:logS)
+  : Lemma (requires (vtls_rel vs vs' /\ Valid? (fst (t_verify_aux vs l))))
+          (ensures (let res = t_verify_aux vs l in
+                    vtls_rel (fst res) (Spec.t_verify_aux vs' (Some?.v (snd res)))))
           (decreases (Seq.length l))
   = let n = Seq.length l in
     if n <> 0
     then
-      (* intermediate repr. *)
-      let l2 = prefix l (n - 1) in
-      let vs2 = t_verify_aux vs l2 in
+      let lp = prefix l (n - 1) in
       let e = Seq.index l (n - 1) in
-      (* spec repr. *)
-      let l2' = prefix l' (n - 1) in
-      let vs2' = Spec.t_verify_aux vs' l2' in
-      let e' = Seq.index l' (n - 1) in
-      if Valid? vs 
+      let (vsp,lp') = t_verify_aux vs lp in
+      if Valid? vsp
       then (
-        lemma_t_verify_aux_simulates_spec vs vs' l2 l2';
-        lemma_t_verify_step_simulates_spec vs2 vs2' e e' 
-      )
-      else (
-        lemma_t_verify_aux_Failed l2;
-        lemma_t_verify_aux_Spec_Failed l2'
+        lemma_t_verify_aux_simulates_spec vs vs' lp; // I.H.
+        let vsp' = Spec.t_verify_aux vs' (Some?.v lp') in
+        lemma_get_log_prefix_commute vs l;
+        if thread_store_is_map vsp
+        then lemma_t_verify_step_simulates_spec1 vsp vsp' e
+        else lemma_t_verify_step_simulates_spec2 vsp vsp' e
       )
 
-let lemma_t_verify_simulates_spec (id:thread_id) (l:logSK) (l':logK)
-  : Lemma (requires (log_rel l l'))
-          (ensures (vtls_rel (t_verify id l) (Spec.t_verify id l')))
+let lemma_t_verify_simulates_spec (id:thread_id) (l:logS) 
+  : Lemma (requires (Valid? (t_verify id l)))
+          (ensures (vtls_rel (t_verify id l) (Spec.t_verify id (logS_to_logK id l))))
   = lemma_init_thread_state_rel id;
-    lemma_log_rel l l';
-    lemma_t_verify_aux_simulates_spec (init_thread_state id) (Spec.init_thread_state id) l l'
+    lemma_t_verify_aux_simulates_spec (init_thread_state id) (Spec.init_thread_state id) l
+
+let rec lemma_get_log_to_state_op (vs:vtls) (l:logS{Valid? (fst (t_verify_aux vs l))})
+  : Lemma (ensures (Seq.equal (to_state_op_logS l) 
+                              (Veritas.EAC.to_state_op_vlog (get_log vs l))))
+          (decreases (Seq.length l))
+  = let n = Seq.length l in
+    if n = 0
+    then (
+      Seq.lemma_empty l;
+      lemma_filter_empty is_state_op;
+      lemma_filter_empty Veritas.EAC.is_state_op
+    )
+    else (
+      let lp = prefix l (n - 1) in
+      let e = Seq.index l (n - 1) in
+      let (vsp,lp') = t_verify_aux vs lp in
+      if Valid? vsp
+      then (
+        lemma_get_log_to_state_op vs lp; // I.H.
+        lemma_get_log_prefix_commute vs l;        
+        if is_state_op e
+        then (
+          lemma_filter_extend2 is_state_op l;
+          lemma_filter_extend2 Veritas.EAC.is_state_op (get_log vs l);
+          assert(Seq.equal (to_state_op_logS l) (append1 (to_state_op_logS lp) (to_state_op e)))
+        )
+        else (
+          lemma_filter_extend1 is_state_op l;
+          lemma_filter_extend1 Veritas.EAC.is_state_op (get_log vs l)
+        )
+      )
+    )
+
+let lemma_logS_to_logK_to_state_op (id:thread_id) (l:logS{Valid? (t_verify id l)})
+  : Lemma (ensures (Seq.equal (to_state_op_logS l) 
+                              (Veritas.EAC.to_state_op_vlog (logS_to_logK id l))))
+  = lemma_get_log_to_state_op (init_thread_state id) l

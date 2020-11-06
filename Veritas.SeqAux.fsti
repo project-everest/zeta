@@ -426,9 +426,6 @@ let has_prev (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s): bool =
 let prev_index (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{has_prev f s i}): 
   (j:seq_index s{j < i && f (index s j)}) = Some?.v (prev_index_opt f s i)
 
-val filter_empty (#a:eqtype) (f:a -> bool)
-  : Lemma (filter f Seq.empty `Seq.equal` Seq.empty)
-
 val filter_snoc (#a:eqtype) (f:a -> bool) (s:seq a) (x:a)
   : Lemma (if f x 
            then filter f (Seq.snoc s x) `Seq.equal` Seq.snoc (filter f s) x

@@ -1,4 +1,4 @@
-module Veritas.Intermediate.StoreSKC
+module Veritas.Intermediate.StoreSC
 
 open Veritas.Key
 open Veritas.Record
