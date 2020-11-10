@@ -139,7 +139,7 @@ let update_store (st:vstore)
 
 (* add a new record to the store *)
 let add_to_store (st:vstore)
-                 (k:key{not (store_contains st k)})
+                 (k:key) //{not (store_contains st k)})
                  (v:value_type_of k)
                  (am:add_method):
   (st':vstore{store_contains st' k /\ stored_value st' k = v}) =
@@ -244,7 +244,7 @@ let vaddm (r:record)
     | Desc k2 h2 b2 -> if k2 = k then
                          if h2 = h && b2 = false then
                            update_thread_store vs (add_to_store st k v MAdd)
-                         else Failed
+                          else Failed
                        else if v <> init_value k then Failed
                        else if not (is_proper_desc k2 k) then Failed
                        else

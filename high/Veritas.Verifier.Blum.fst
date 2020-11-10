@@ -830,7 +830,7 @@ let blum_evict_elem_val (itsl:TL.eac_log) (i:I.seq_index itsl)
     assert (tstore == Valid?.st tstate_i')
     
 (* the next add of a blum evict is a blum add of the same "element" *)
-#push-options "--z3rlimit_factor 4 --ifuel 1,1"
+#push-options "--z3rlimit_factor 8 --ifuel 1,1"
 let lemma_blum_evict_add_same (itsl: TL.eac_log) (i:I.seq_index itsl)
   : Lemma
     (requires 

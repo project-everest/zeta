@@ -47,6 +47,13 @@ let lemma_prefix_append (#a:Type) (s1 s2: seq a):
 let lemma_prefix0_empty (#a:Type) (s: seq a):
   Lemma (prefix s 0 == empty #a) = ()
 
+let lemma_prefix_create (#a:Type) (n:nat) (v:a) (i:nat{i <= n}) 
+  : Lemma (prefix (create n v) i == create i v)
+  = let l1 = prefix (create n v) i in
+    let l2 = create i v in
+    let aux (k:nat{k < i}) : Lemma (index l1 k == index l2 k) = () in
+    forall_intro aux; lemma_eq_intro l1 l2
+
 let suffix (#a:Type) (s:seq a) (i:nat{i <= length s}) =
   slice s (length s - i) (length s)
 
@@ -190,14 +197,58 @@ let rec lemma_filter_all_not_aux (#a: eqtype) (f:a -> bool) (s:seq a):
   if n = 0 then ()
   else let e = index s (n - 1) in
        let s' = prefix s (n - 1) in
-       if (f e) then () else 
-       assert (equal (append1 s' e) s);
-       lemma_filter_all_not_aux f s'
+       if not (f e) 
+       then (
+         assert (equal (append1 s' e) s);
+         lemma_filter_all_not_aux f s'
+       )
 
 let lemma_filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a)
-  : Lemma (requires filter f s `Seq.equal` empty)
-          (ensures forall (i:seq_index s). not (f (Seq.index s i)))
+  : Lemma (requires filter f s `equal` empty)
+          (ensures forall (i:seq_index s). not (f (index s i)))
   = lemma_filter_all_not_aux f s
+
+let rec lemma_filter_all_not_inv_aux (#a: eqtype) (f:a -> bool) (s:seq a):
+  Lemma (requires (forall (i:seq_index s). not (f (index s i))))
+        (ensures (filter f s `Seq.equal` empty))
+        (decreases (length s)) =
+  let n = length s in
+  if n = 0 then ()
+  else let e = index s (n - 1) in
+       let s' = prefix s (n - 1) in
+       if not (f e) 
+       then lemma_filter_all_not_inv_aux f s'
+
+let lemma_filter_all_not_inv (#a:eqtype) (f:a->bool) (s:seq a)
+  : Lemma (requires (forall (i:seq_index s). not (f (index s i))))
+          (ensures (equal (filter f s) empty))
+  = lemma_filter_all_not_inv_aux f s
+
+let lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
+  Lemma (requires (exists (i:seq_index s). f (index s i)))
+        (ensures (length (filter f s) > 0)) =
+  if length (filter f s) = 0
+  then lemma_filter_all_not f s
+
+let rec lemma_filter_unique_aux (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s)
+  : Lemma (requires (f (index s i) /\ (forall j. j <> i ==> not (f (index s j)))))
+          (ensures (filter f s = create 1 (index s i)))
+          (decreases (length s)) =
+  let n = length s in
+  if n = 0 then ()
+  else let e = index s (n - 1) in
+       let s' = prefix s (n - 1) in
+       if i < n - 1 
+       then lemma_filter_unique_aux f s' i
+       else (
+         lemma_filter_all_not_inv f s';
+         assert (equal (append1 empty e) (create 1 (index s i)))
+       )
+
+let lemma_filter_unique (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s)
+  : Lemma (requires (f (index s i) /\ (forall j. j <> i ==> not (f (index s j)))))
+          (ensures (filter f s = create 1 (index s i)))
+  = lemma_filter_unique_aux f s i
 
 let filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
   Tot (j:seq_index s{index s j = index (filter f s) i}) =
@@ -839,12 +890,6 @@ let next_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
     Some (i + 1 + first_index f s')
   )
 
-let lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
-  Lemma (requires (exists (i:seq_index s). f (index s i)))
-        (ensures (length (filter f s) > 0)) =
-  if length (filter f s) = 0
-  then lemma_filter_all_not f s
-
 let intro_has_next (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s) (k:seq_index s{i < k ∧ f (Seq.index s k)})
   : Lemma (has_next f s i /\
            Some?.v (next_index_opt f s i) <= k)
@@ -860,10 +905,6 @@ let prev_index_opt (#a:eqtype) (f:a → bool) (s:seq a) (i:seq_index s):
   let fs' = filter f s' in
   if length fs' = 0 then None
   else Some (last_index f s')
-
-let filter_empty (#a:eqtype) (f:a -> bool)
-  : Lemma (filter f Seq.empty `Seq.equal` Seq.empty)
-  = ()
 
 let filter_snoc (#a:eqtype) (f:a -> bool) (s:seq a) (x:a)
   : Lemma (if f x 

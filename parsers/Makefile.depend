@@ -1,0 +1,8 @@
+include Makefile.common
+include .qd_files
+
+all:
+	cat .qd_files > .depend
+	$(FSTAR) --dep full --extract 'C.Loops LowParse -LowParse.TacLib -LowParse.Spec.Tac -LowParse.SLow.Tac -LowParse.Low Veritas VeritasFormats' $(QD_FILES) >> .depend
+
+.PHONY: all
