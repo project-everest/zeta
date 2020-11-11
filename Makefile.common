@@ -35,7 +35,7 @@ SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
             --smtencoding.l_arith_repr native \
             --smtencoding.nl_arith_repr wrapped
 OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
-ALREADY_CACHED=--already_cached 'Prims FStar LowStar'
+ALREADY_CACHED=--already_cached '+Prims+FStar+LowStar'
 
 # A place to put all the emitted .ml files
 OUTPUT_DIRECTORY ?= $(VERITAS_HOME)/_output
@@ -66,5 +66,5 @@ $(CACHE_DIRECTORY)/%.checked:
 
 verify: $(addprefix $(CACHE_DIRECTORY)/,$(addsuffix .checked, $(notdir $(FSTAR_FILES))))
 
-%.fst-in %.fsti.-in:
+%.fst-in %.fsti-in:
 	@echo $(FSTAR_OPTIONS)
