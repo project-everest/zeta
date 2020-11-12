@@ -6,16 +6,22 @@ open Steel.FractionalPermission
 open FStar.Ghost
 module U32 = FStar.UInt32
 open Steel.Array
+open Veritas.Steel.Types
 
-val key : Type0
-val value: Type0
-val add_method : Type0
+// val key : Type0
+// val value: Type0
+// val add_method : Type0
 val is_value_of (k:key) (v:value)
   : bool
-val record : Type0
-val mk_record (k:key) (v:value{is_value_of k v}) (a:add_method) : record
-val most_significant_bit (k:key) : bool
-let is_data_key (k:key) : bool = most_significant_bit k
+val is_data_key (k:key) : bool
+let mk_record (k:key) (v:value{is_value_of k v}) (a:add_method) : record
+  = {
+      record_key = k;
+      record_value = v;
+      record_add_method = a;
+      record_l_child_in_store = Vfalse;
+      record_r_child_in_store = Vfalse 
+    }
 
 val vstore : Type0
 let contents = Steel.Array.contents (option record)
@@ -47,7 +53,6 @@ let vcache_update_record (#c:contents) (st:vstore) (s:slot_id c) (r:record)
       (fun _ -> is_vstore st (Seq.upd c (U32.v s) (Some r)))
   = vcache_set st s (Some r)
 
-
 let vcache_add_record
       (#c:contents)
       (vst:vstore)
@@ -59,7 +64,6 @@ let vcache_add_record
       (is_vstore vst c)
       (fun _ -> is_vstore vst (Seq.upd c (U32.v s) (Some (mk_record k v a))))
   = vcache_update_record vst s (mk_record k v a)
-
 
 let vcache_evict_record
       (#c:contents)

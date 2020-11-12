@@ -5,29 +5,13 @@ open Steel.FractionalPermission
 open FStar.Ghost
 module U32 = FStar.UInt32
 open Steel.Array
+open Veritas.Steel.Types
 
-let key = nat
-let value = nat
-type add_method =
-  | AddMerkle | AddBlum
-let is_value_of (k:key) (v:value) = true
-type record = {
-  record_key : key;
-  record_value : (v:value {is_value_of record_key v});
-  record_add_method : add_method;
-  record_l_child_in_store : bool;
-  record_r_child_in_store : bool
-}
-let mk_record k v a = {
-  record_key = k;
-  record_value = v;
-  record_add_method = a;
-  record_l_child_in_store = false;
-  record_r_child_in_store = false;
-}
-let most_significant_bit (k:key) : bool = false
+let is_value_of (k:key) (v:value) = admit()
+let is_data_key (k:key) : bool = admit()
 
 let vstore  = Steel.Array.array (option record)
+
 let is_vstore (st:vstore) (c:contents) : slprop u#1 =
   Steel.Array.is_array st (full_perm (Seq.length c)) c
 

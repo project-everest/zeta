@@ -35,7 +35,7 @@ SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
             --smtencoding.l_arith_repr native \
             --smtencoding.nl_arith_repr wrapped
 OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
-ALREADY_CACHED=--already_cached '+Prims+FStar+LowStar'
+ALREADY_CACHED=--already_cached 'Prims FStar LowStar'
 
 # A place to put all the emitted .ml files
 OUTPUT_DIRECTORY ?= $(VERITAS_HOME)/_output
@@ -45,12 +45,11 @@ INCLUDE_PATHS+=$(OUTPUT_DIRECTORY) $(LOWPARSE_HOME) $(KREMLIN_HOME)/kremlib $(SR
 
 FSTAR_OPTIONS=--odir $(OUTPUT_DIRECTORY) \
 		 $(OTHERFLAGS) \
-		 $(ALREADY_CACHED) \
 		 --cache_dir $(CACHE_DIRECTORY) \
 	         $(addprefix --include , $(INCLUDE_PATHS)) \
 		 --cache_checked_modules
 
-FSTAR=fstar.exe $(FSTAR_OPTIONS)
+FSTAR=fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 
 .depend: $(FSTAR_FILES)
 	mkdir -p $(CACHE_DIRECTORY)
