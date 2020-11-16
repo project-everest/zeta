@@ -61,3 +61,5 @@ Note that may be possible to prove equality rather than implication for some of 
 * Veritas.Intermediate.Logs.fst - A definition of logs with slots (logS) and wrappers around high- and low-level logs (logK and logL) 
 * Veritas.Intermediate.StoreSC.fst(i) - Functions for manipulating a sequence of (key, value, add_method) triples. Used in VerifySC.
 * Veritas.Intermediate.VerifySC.fst(i) - Description of **InterSC** verification and proof that this simulates **Spec** verification.
+* Veritas.Intermediate.StoreS.fst(i) - Functions for manipulating a sequence of (key, value, add_method, l_child_in_store, r_child_in_store) records. Used in VerifyS.
+* Veritas.Intermediate.VerifyS.fst(i) - Description of **InterS** verification and proof that this simulates **InterSC** verification.

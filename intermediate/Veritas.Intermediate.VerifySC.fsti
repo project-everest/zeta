@@ -70,19 +70,261 @@ let update_thread_hevict (vs:vtls {Valid? vs}) (hevict:ms_hash_value): vtls =
   match vs with
   | Valid id st clock hadd _ -> Valid id st clock hadd hevict
 
-val vget (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls 
+let vget (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls =
+  let st = thread_store vs in
+  (* check store contains slot s *)
+  if not (store_contains st s) then Failed
+  (* check stored key and value *)
+  else let k' = stored_key st s in
+       let v' = stored_value st s in
+       if k <> k' then Failed
+       else if not (DVal? v') then Failed
+       else if to_data_value v' <> v then Failed
+       else vs
 
-val vput (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls
+let vput (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls =
+  let st = thread_store vs in
+  (* check store contains slot s *)
+  if not (store_contains st s) then Failed
+  (* check stored key is k *)
+  else let k' = stored_key st s in
+       if k <> k' then Failed
+       else if not (is_data_key (stored_key st s)) then Failed
+       else update_thread_store vs (update_store st s (DVal v))
 
-val vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls 
+let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
+  if not (s < thread_store_size vs) then Failed
+  else 
+    let st = thread_store vs in
+    let (k,v) = r in
+    (* check store contains slot s' *)
+    if not (store_contains st s') then Failed
+    else
+      let k' = stored_key st s' in
+      let v' = stored_value st s' in
+      let a' = add_method_of st s' in
+      (* check k is a proper desc of k' *)
+      if not (is_proper_desc k k') then Failed
+      (* check store does not contain slot s *)
+      else if store_contains st s then Failed
+      (* check store does not contain key k
+         >> in lower levels we will check this via 'in_store' fields *)
+      else if store_contains_key st k then Failed
+      (* check type of v is consistent with k *)
+      else if not (is_value_of k v) then Failed
+      (* check v' is a merkle value *)
+      else if DVal? v' then Failed 
+      else
+        let v' = to_merkle_value v' in
+        let d = desc_dir k k' in
+        let dh' = desc_hash_dir v' d in 
+        let h = hashfn v in
+        match dh' with
+        | Empty -> (* k' has no child in direction d *)
+            (* first add must be init value *)
+            if v <> init_value k then Failed
+            else
+              let v'_upd = Spec.update_merkle_value v' d k h false in
+              let st_upd = update_store st s' (MVal v'_upd) in
+              let st_upd2 = add_to_store st_upd s k v Spec.MAdd in
+              update_thread_store vs st_upd2
+        | Desc k2 h2 b2 -> 
+            if k2 = k 
+            then (* k is a child of k' *)
+              (* check hashes match and k was not evicted to blum *)
+              if not (h2 = h && b2 = false) then Failed
+              else update_thread_store vs (add_to_store st s k v Spec.MAdd)
+            else (* otherwise, k is not a child of k' *)
+            (* first add must be init value *)
+            if v <> init_value k then Failed
+            (* check k2 is a proper desc of k *)
+            else if not (is_proper_desc k2 k) then Failed
+            else
+              let d2 = desc_dir k2 k in
+              let mv = to_merkle_value v in
+              let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
+              let v'_upd = Spec.update_merkle_value v' d k h false in
+              let st_upd = update_store st s' (MVal v'_upd) in
+              let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
+              update_thread_store vs st_upd2
 
-val vevictm (s:slot_id) (s':slot_id) (vs: vtls {Valid? vs}): vtls
+let vaddm2 (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
+  if not (s < thread_store_size vs) then Failed
+  else 
+    let st = thread_store vs in
+    let (k,v) = r in
+    (* check store contains slot s' *)
+    if not (store_contains st s') then Failed
+    else
+      let k' = stored_key st s' in
+      let v' = stored_value st s' in
+      let a' = add_method_of st s' in
+      (* check k is a proper desc of k' *)
+      if not (is_proper_desc k k') then Failed
+      (* check store does not contain slot s *)
+      else if store_contains st s then Failed
+      (* check store does not contain key k
+         >> in lower levels we will check this via 'in_store' fields *)
+      else if store_contains_key st k && add_method_of_by_key st k = Spec.MAdd then Failed
+      (* check type of v is consistent with k *)
+      else if not (is_value_of k v) then Failed
+      (* check v' is a merkle value *)
+      else if DVal? v' then Failed 
+      else
+        let v' = to_merkle_value v' in
+        let d = desc_dir k k' in
+        let dh' = desc_hash_dir v' d in 
+        let h = hashfn v in
+        match dh' with
+        | Empty -> (* k' has no child in direction d *)
+            (* first add must be init value *)
+            if v <> init_value k then Failed
+            else
+              let v'_upd = Spec.update_merkle_value v' d k h false in
+              let st_upd = update_store st s' (MVal v'_upd) in
+              let st_upd2 = add_to_store st_upd s k v Spec.MAdd in
+              update_thread_store vs st_upd2
+        | Desc k2 h2 b2 -> 
+            if k2 = k 
+            then (* k is a child of k' *)
+              (* check hashes match and k was not evicted to blum *)
+              if not (h2 = h && b2 = false) then Failed
+              else update_thread_store vs (add_to_store st s k v Spec.MAdd)
+            else (* otherwise, k is not a child of k' *)
+            (* first add must be init value *)
+            if v <> init_value k then Failed
+            (* check k2 is a proper desc of k *)
+            else if not (is_proper_desc k2 k) then Failed
+            else
+              let d2 = desc_dir k2 k in
+              let mv = to_merkle_value v in
+              let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
+              let v'_upd = Spec.update_merkle_value v' d k h false in
+              let st_upd = update_store st s' (MVal v'_upd) in
+              let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
+              update_thread_store vs st_upd2
 
-val vaddb (s:slot_id) (r:record) (t:timestamp) (j:thread_id) (vs:vtls {Valid? vs}): vtls
+(* key k is in store and was added using Merkle *)
+let is_instore_madd (st: vstore) (k: key): bool = 
+  store_contains_key st k && 
+  add_method_of_by_key st k = Spec.MAdd
 
-val vevictb (s:slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls
+let has_instore_merkle_desc (st:vstore) (k:key{store_contains_key st k}): bool = 
+  if is_data_key k then false
+  else 
+    let v = to_merkle_value (stored_value_by_key st k) in
+    let ld = desc_hash_dir v Left in
+    let rd = desc_hash_dir v Right in
+    Desc? ld && is_instore_madd st (Desc?.k ld) || 
+    Desc? rd && is_instore_madd st (Desc?.k rd)
 
-val vevictbm (s:slot_id) (s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls
+let vevictm (s:slot_id) (s':slot_id) (vs: vtls {Valid? vs}): vtls = 
+  let st = thread_store vs in
+  (* check store contains s and s' *)
+  if not (store_contains st s && store_contains st s') then Failed
+  else 
+    let k = stored_key st s in
+    let v = stored_value st s in
+    let k' = stored_key st s' in
+    let v' = stored_value st s' in
+    (* check k is a proper descendent of k' *)
+    if not (is_proper_desc k k') then Failed
+    (* check k does not have a child in the store *)
+    else if has_instore_merkle_desc st k then Failed
+    else
+      let d = desc_dir k k' in
+      // TODO: remove the assert with a better SMTPat for stored_value_matches_stored_key
+      let _ = assert (is_value_of k' v') in 
+      let v' = to_merkle_value v' in
+      let dh' = desc_hash_dir v' d in
+      let h = hashfn v in
+      match dh' with
+      | Empty -> Failed
+      | Desc k2 h2 b2 -> 
+          if k2 <> k then Failed
+          else
+            let v'_upd = Spec.update_merkle_value v' d k h false in
+            let st_upd = update_store st s' (MVal v'_upd) in
+            let st_upd2 = evict_from_store st_upd s in
+            update_thread_store vs st_upd2
+
+let vaddb (s:slot_id) (r:record) (t:timestamp) (j:thread_id) (vs:vtls {Valid? vs}): vtls = 
+  if not (s < thread_store_size vs) then Failed
+  else
+    let st = thread_store vs in 
+    let (k,v) = r in
+    (* check value type consistent with key k *)
+    if not (is_value_of k v) then Failed
+    (* check store contains slot s *)
+    else if store_contains st s then Failed
+    else 
+      (* update add hash *)
+      let h = thread_hadd vs in
+      let h_upd = ms_hashfn_upd (MHDom (k,v) t j) h in
+      let vs_upd = update_thread_hadd vs h_upd in
+      (* update clock *)
+      let clk = thread_clock vs in
+      let clk_upd = Spec.max clk (next t) in
+      let vs_upd2 = update_thread_clock vs_upd clk_upd in
+      (* add record to store *)
+      let st_upd = add_to_store st s k v Spec.BAdd in
+      update_thread_store vs_upd2 st_upd
+
+let vevictb (s:slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls = 
+  let clock = thread_clock vs in
+  let st = thread_store vs in
+  (* check store contains slot s *)
+  if not (store_contains st s) then Failed
+  else
+    let k = stored_key st s in
+    let v = stored_value st s in
+    (* check key at s is not root *)
+    if k = Root then Failed
+    (* check time of evict < current time *)
+    else if not (ts_lt clock t) then Failed
+    (* check s was added through blum *)  
+    else if add_method_of st s <> Spec.BAdd then Failed
+    (* check k has no children n the store *)
+    else if has_instore_merkle_desc st k then Failed  
+    else 
+      (* update evict hash *)
+      let h = thread_hevict vs in
+      let h_upd = ms_hashfn_upd (MHDom (k,v) t (thread_id_of vs)) h in
+      let vs_upd = update_thread_hevict vs h_upd in
+      (* update clock *)
+      let vs_upd2 = update_thread_clock vs_upd t in    
+      (* evict record *)
+      let st_upd = evict_from_store st s in
+      update_thread_store vs_upd2 st_upd
+
+let vevictbm (s:slot_id) (s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls = 
+  let st = thread_store vs in
+  (* check store contains s and s' *)
+  if not (store_contains st s && store_contains st s') then Failed
+  else
+    let k = stored_key st s in
+    let k' = stored_key st s' in
+    let v' = stored_value st s' in
+    (* check k is a proper desc of k' *)
+    if not (is_proper_desc k k') then Failed
+    (* check s was added through merkle *)
+    else if add_method_of st s <> Spec.MAdd then Failed  
+    (* check k has no children in the store *)
+    else if has_instore_merkle_desc st k then Failed  
+    else
+      // TODO: remove the assert with a better SMTPat for stored_value_matches_stored_key
+      let _ = assert (is_value_of k' v') in 
+      let v' = to_merkle_value v' in
+      let d = desc_dir k k' in
+      let dh' = desc_hash_dir v' d in
+      match dh' with
+      | Empty -> Failed
+      | Desc k2 h2 b2 -> 
+          if k2 <> k || b2 then Failed
+          else
+            let v'_upd = Spec.update_merkle_value v' d k h2 true in
+            let st_upd = update_store st s' (MVal v'_upd) in
+            vevictb s t (update_thread_store vs st_upd)
 
 (* Relation between thread-local states *)
 let has_failed (vs:vtls) = Failed? vs || not (thread_store_is_map vs)
