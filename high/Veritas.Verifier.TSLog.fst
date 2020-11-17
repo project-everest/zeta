@@ -222,7 +222,7 @@ let coerce_interleave (#a:eqtype) (s:seq a) (s0 s1:sseq a) (i:interleave s s0 { 
   : interleave s s1
   = i
 
-#push-options "--z3rlimit_factor 2"
+#push-options "--z3rlimit_factor 4"
 let rec interleave_ts_sseq
          (s0:ts_seq)
          (ss0:ts_sseq)

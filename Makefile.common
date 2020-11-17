@@ -1,5 +1,6 @@
 .PHONY: verify clean
 
+VERITAS_HOME ?= .
 FSTAR_HOME ?= everest/FStar
 QD_HOME ?= everest/quackyducky
 LOWPARSE_HOME ?= $(QD_HOME)/src/lowparse
@@ -11,9 +12,12 @@ EXTRA=
 # List the files that should NOT be verified at all
 FLAKY=
 
+# List additional directories for the include path
+SRC_DIRS ?=
+
 # List the files that should be verified by verify-core and verify-all
 # Those files are the roots from where all dependencies are computed
-FSTAR_FILES := $(wildcard *fst) $(wildcard *fsti)
+FSTAR_FILES ?=
 
 # Uncomment the definition of PROFILE below, if you want some basic
 # profiling of F* runs on Veritas files It will report the time spent
@@ -33,32 +37,33 @@ SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
 OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
 ALREADY_CACHED=--already_cached 'Prims FStar LowStar'
 
-FSTAR=fstar.exe $(OTHERFLAGS) $(ALREADY_CACHED) --cache_dir cache
-
 # A place to put all the emitted .ml files
-OUTPUT_DIRECTORY ?= _output
+OUTPUT_DIRECTORY ?= $(VERITAS_HOME)/_output
+CACHE_DIRECTORY = $(OUTPUT_DIRECTORY)/cache
 
-INCLUDE_PATHS+=$(OUTPUT_DIRECTORY) $(LOWPARSE_HOME) $(KREMLIN_HOME)/kremlib
+INCLUDE_PATHS+=$(OUTPUT_DIRECTORY) $(LOWPARSE_HOME) $(KREMLIN_HOME)/kremlib $(SRC_DIRS)
 
 FSTAR_OPTIONS=--odir $(OUTPUT_DIRECTORY) \
-              --cache_dir $(OUTPUT_DIRECTORY) \
-              $(addprefix --include , $(INCLUDE_PATHS))
+		 $(OTHERFLAGS) \
+		 --cache_dir $(CACHE_DIRECTORY) \
+	         $(addprefix --include , $(INCLUDE_PATHS)) \
+		 --cache_checked_modules
 
-MY_FSTAR=$(FSTAR) --cache_checked_modules $(FSTAR_OPTIONS)
+FSTAR=fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 
 .depend: $(FSTAR_FILES)
-	$(MY_FSTAR) --dep full --extract 'Veritas -Veritas.SparseMerkleVerifier.Correctness' $^ > .depend
+	mkdir -p $(CACHE_DIRECTORY)
+	$(FSTAR) --dep full --extract 'Veritas' $(notdir $^) > .depend
 
 depend: .depend
 
 include .depend
 
-
 # a.fst(i).checked is the binary, checked version of a.fst(i)
-$(OUTPUT_DIRECTORY)/%.checked:
-	$(MY_FSTAR) $<
+$(CACHE_DIRECTORY)/%.checked:
+	$(FSTAR) $<
 
-verify: $(addprefix $(OUTPUT_DIRECTORY)/,$(addsuffix .checked, $(FSTAR_FILES)))
+verify: $(addprefix $(CACHE_DIRECTORY)/,$(addsuffix .checked, $(notdir $(FSTAR_FILES))))
 
-%.fst-in %.fsti.-in:
+%.fst-in %.fsti-in:
 	@echo $(FSTAR_OPTIONS)
