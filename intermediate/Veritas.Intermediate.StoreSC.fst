@@ -1,49 +1,5 @@
 module Veritas.Intermediate.StoreSC
 
-let get_slot (st:vstore) (s:slot_id)
-  : option vstore_entry
-  = if s >= Seq.length st.data then None 
-    else Seq.index st.data s
-
-let store_contains (st:vstore) (s:slot_id) : bool
-  = Some? (get_slot st s)
-
-let store_contains_st_index (st:vstore) (s:slot_id{store_contains st s})
-  : Lemma (s < Seq.length st.data)
-  = ()
-
-let lemma_store_contains_empty (n:nat) (s:slot_id)
-  : Lemma (not (store_contains (empty_store n) s))
-  = ()
-
-let stored_key (st:vstore) (s:slot_id{store_contains st s}) : key
-  = VStoreE?.k (Some?.v (get_slot st s))
-
-let stored_value (st:vstore) (s:slot_id{store_contains st s}) : value
-  = VStoreE?.v (Some?.v (get_slot st s))
-
-let stored_value_matches_stored_key (st:vstore) (s:slot_id{store_contains st s}) 
-  : Lemma (is_value_of (stored_key st s) (stored_value st s))
-          [SMTPat (stored_value st s)]
-  = ()
-
-let add_method_of (st:vstore) (s:slot_id{store_contains st s}) : add_method
-  = VStoreE?.am (Some?.v (get_slot st s))
-
-let has_key (k:key) (e:option vstore_entry) : bool
-  = match e with
-    | Some (VStoreE k' _ _) -> k = k'
-    | None -> false
-
-let lookup_key (st:vstore) (k:key) 
-  : option vstore_entry
-  = let s' = filter (has_key k) st.data in
-    if Seq.length s' = 0 then None
-    else Seq.index s' 0 
-
-let store_contains_key (st:vstore) (k:key) : bool
-  = Some? (lookup_key st k)
-
 let lemma_lookup_key_returns_k (st:vstore) (k:key) 
   : Lemma (requires (store_contains_key st k))
           (ensures (VStoreE?.k (Some?.v (lookup_key st k)) = k))
@@ -67,7 +23,6 @@ let lemma_has_key (st:vstore) (s:slot_id) (k:key)
           (ensures (store_contains st s /\ stored_key st s = k))
   = ()
 
-(* Opposite direction of previous lemma *)
 let lemma_store_contains_key_inv (st:vstore) (k:key)
   : Lemma (requires (store_contains_key st k))
           (ensures (exists s. stored_key st s = k))
@@ -91,13 +46,6 @@ let stored_value_by_key (st:vstore) (k:key{store_contains_key st k})
 let add_method_of_by_key (st:vstore) (k:key{store_contains_key st k})
   : add_method
   = VStoreE?.am (Some?.v (lookup_key st k))
-
-(* Two cases where it's safe to add an entry (e) to the store (st) at slot s: 
-   * e.k is not in st and s is empty
-   * e.k is already at s *)
-let compatible_entry (st:vstore) (s:st_index st) (e:vstore_entry) : Type
-  = (not (store_contains st s) /\ not (store_contains_key st e.k)) \/ 
-    (store_contains st s /\ stored_key st s = e.k) 
 
 let lemma_not_contains_key (st:vstore) (k:key) (s:slot_id{store_contains st s})
   : Lemma (requires (not (store_contains_key st k)))
@@ -123,74 +71,25 @@ let lemma_add_entry_case_2 (st:vstore) (s:st_index st) (e:vstore_entry)
           (ensures (is_map_f (Seq.upd st.data s (Some e))))
   = () 
 
-let update_slot (st:vstore) (s:st_index st) (e:vstore_entry{compatible_entry st s e})
-  : vstore
-  = if st.is_map 
-    then if not (store_contains_key st e.k) 
-         then lemma_add_entry_case_1 st s e 
-         else if store_contains st s && stored_key st s = e.k
-              then lemma_add_entry_case_2 st s e;
-    VStore (Seq.upd st.data s (Some e)) st.is_map
-
-let update_store 
-  (st:vstore)
-  (s:slot_id{store_contains st s}) 
-  (v:value_type_of (stored_key st s))
-  : Tot (st':vstore {store_contains st' s /\
-                     stored_value st' s = v})
-  = let Some (VStoreE k _ am) = get_slot st s in
-    update_slot st s (VStoreE k v am) 
-  
-let update_store_preserves_length st s v 
-  : Lemma (let st' = update_store st s v in
-           Seq.length st.data = Seq.length st'.data)
-  = ()
-
-let lemma_update_store_preserves_is_map st s v
-  : Lemma (let st' = update_store st s v in 
-           st.is_map = st'.is_map)
-  = ()
-
-let lemma_update_store_preserves_slots st s v
-  : Lemma (let st' = update_store st s v in
-           forall s. store_contains st s = store_contains st' s)
-  = ()
-
-let add_to_store 
+let lemma_update_store_preserves_keys
       (st:vstore) 
-      (s:st_index st{not (store_contains st s)}) 
-      (k:key) 
-      (v:value_type_of k) 
-      (am:add_method)
-  : Tot (st':vstore {store_contains st' s /\
-                     stored_key st' s = k /\
-                     stored_value st' s = v /\
-                     add_method_of st' s = am})
-  = let e = VStoreE k v am in
-    if not (store_contains_key st k)
-    then update_slot st s e
-    else VStore (Seq.upd st.data s (Some e)) false
-
-let lemma_add_to_store_is_map1 (st:vstore) s k v am
-  : Lemma (requires (not (store_contains st s) /\ not (store_contains_key st k)))
-          (ensures (let st' = add_to_store st s k v am in 
-                    st.is_map = st'.is_map))
-  = ()
-
-let lemma_add_to_store_is_map2 (st:vstore) s k v am
-  : Lemma (requires (not (store_contains st s) /\ store_contains_key st k))
-          (ensures (let st' = add_to_store st s k v am in 
-                    st'.is_map = false))
-  = ()
-
-let evict_from_store (st:vstore) (s:st_index st)
-  : Tot (st':vstore {not (store_contains st' s)})
-  = VStore (Seq.upd st.data s None) st.is_map
-
-let lemma_evict_from_store_preserves_is_map (st:vstore) (s:st_index st)
-  : Lemma (let st' = evict_from_store st s in
-           st.is_map = st'.is_map)
-  = ()
+      (s:slot_id{store_contains st s}) 
+      (v:value_type_of (stored_key st s))
+      (k:key)
+  : Lemma (store_contains_key st k = store_contains_key (update_store st s v) k)
+  = let st' = update_store st s v in
+    let s = filter (has_key k) st.data in
+    if Seq.length s = 0 
+    then (
+      lemma_filter_all_not (has_key k) st.data;
+      lemma_filter_all_not_inv (has_key k) st'.data
+    )
+    else (
+      lemma_filter_correct1 (has_key k) st.data 0;
+      assert (has_key k (Seq.index st'.data (filter_index_map (has_key k) st.data 0)));
+      lemma_filter_exists (has_key k) st'.data;
+      lemma_filter_correct1 (has_key k) st'.data 0
+    )
 
 let lemma_slot_key_equiv_update_store 
       (st:vstore) 

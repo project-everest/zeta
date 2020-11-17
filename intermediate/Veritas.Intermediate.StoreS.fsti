@@ -25,31 +25,71 @@ let empty_store (n:nat) :vstore = Seq.create n None
 
 let st_index (st:vstore) = seq_index st
 
-val store_contains (st:vstore) (s:slot_id) : bool
+let get_slot (st:vstore) (s:slot_id)
+  : option vstore_entry
+  = if s >= Seq.length st then None 
+    else Seq.index st s
 
-val stored_key (st:vstore) (s:slot_id{store_contains st s}) : key
+let store_contains (st:vstore) (s:slot_id) : bool
+  = Some? (get_slot st s)
 
-val stored_value (st:vstore) (s:slot_id{store_contains st s}) : value
+let stored_key (st:vstore) (s:slot_id{store_contains st s}) : key
+  = VStoreE?.k (Some?.v (get_slot st s))
 
-val add_method_of (st:vstore) (s:slot_id{store_contains st s}) : add_method
+let stored_value (st:vstore) (s:slot_id{store_contains st s}) : value
+  = VStoreE?.v (Some?.v (get_slot st s))
 
-val l_child_in_store (st:vstore) (s:slot_id{store_contains st s}) : bool
+let add_method_of (st:vstore) (s:slot_id{store_contains st s}) : add_method
+  = VStoreE?.am (Some?.v (get_slot st s))
 
-val r_child_in_store (st:vstore) (s:slot_id{store_contains st s}) : bool
+let l_child_in_store (st:vstore) (s:slot_id{store_contains st s}) : bool
+  = VStoreE?.l_child_in_store (Some?.v (get_slot st s))
 
-val store_contains_key (st:vstore) (k:key) : bool
+let r_child_in_store (st:vstore) (s:slot_id{store_contains st s}) : bool
+  = VStoreE?.r_child_in_store (Some?.v (get_slot st s))
 
-val stored_value_by_key (st:vstore) (k:key{store_contains_key st k}) : value_type_of k
+let has_key (k:key) (e:option vstore_entry) : bool
+  = match e with
+    | Some (VStoreE k' _ _ _ _) -> k = k'
+    | None -> false
 
-val add_method_of_by_key (st:vstore) (k:key{store_contains_key st k}) : add_method
+let lookup_key (st:vstore) (k:key) 
+  : option vstore_entry
+  = let s' = filter (has_key k) st in
+    if Seq.length s' = 0 then None
+    else Seq.index s' 0 
 
-val update_value 
-      (st:vstore) 
-      (s:slot_id{store_contains st s}) 
-      (v:value_type_of (stored_key st s))
-  : Tot (st':vstore {store_contains st' s /\ stored_value st' s = v})
+let store_contains_key (st:vstore) (k:key) : bool
+  = Some? (lookup_key st k)
 
-val update_in_store 
+let lemma_lookup_key_returns_k (st:vstore) (k:key) 
+  : Lemma (requires (store_contains_key st k))
+          (ensures (VStoreE?.k (Some?.v (lookup_key st k)) = k))
+  = lemma_filter_correct1 (has_key k) st 0
+
+let stored_value_by_key (st:vstore) (k:key{store_contains_key st k})
+  : value_type_of k
+  = lemma_lookup_key_returns_k st k;
+    VStoreE?.v (Some?.v (lookup_key st k))
+
+let add_method_of_by_key (st:vstore) (k:key{store_contains_key st k})
+  : add_method
+  = VStoreE?.am (Some?.v (lookup_key st k))
+
+let update_slot (st:vstore) (s:st_index st) (e:vstore_entry)
+  : vstore
+  = Seq.upd st s (Some e)
+
+let update_value
+  (st:vstore)
+  (s:slot_id{store_contains st s}) 
+  (v:value_type_of (stored_key st s))
+  : Tot (st':vstore {store_contains st' s /\
+                     stored_value st' s = v})
+  = let Some (VStoreE k _ am l r) = get_slot st s in
+    update_slot st s (VStoreE k v am l r) 
+
+let update_in_store 
   (st:vstore)
   (s:slot_id{store_contains st s}) 
   (d:bin_tree_dir)
@@ -58,10 +98,14 @@ val update_in_store
                      (match d with
                       | Left -> l_child_in_store st' s = b
                       | Right -> r_child_in_store st' s = b)})
+  = let Some (VStoreE k v am l r) = get_slot st s in
+    match d with
+    | Left -> update_slot st s (VStoreE k v am b r) 
+    | Right -> update_slot st s (VStoreE k v am l b)
 
-val add_to_store 
+let add_to_store 
       (st:vstore) 
-      (s:st_index st{not (store_contains st s)})
+      (s:st_index st{not (store_contains st s)}) 
       (k:key) 
       (v:value_type_of k)
       (am:add_method)
@@ -69,11 +113,13 @@ val add_to_store
                      stored_key st' s = k /\
                      stored_value st' s = v /\
                      add_method_of st' s = am})
+  = update_slot st s (VStoreE k v am false false)
 
-val evict_from_store 
+let evict_from_store
       (st:vstore) 
       (s:slot_id{store_contains st s})
   : Tot (st':vstore {not (store_contains st' s)})
+  = Seq.upd st s None
 
 (* How to check that a key is not in the store with add_method=MAdd:
    1. If a child_in_store flag is unset then the corresponding descendent is not in the store.
@@ -137,12 +183,12 @@ let blum_store_inv (st:vstore) =
 let store_contains_st_index (st:vstore) (s:slot_id{store_contains st s})
   : Lemma (s < Seq.length st)
           [SMTPat (store_contains st s)] 
-  = admit()
+  = ()
 
 let stored_value_matches_stored_key (st:vstore) (s:slot_id{store_contains st s}) 
   : Lemma (is_value_of (stored_key st s) (stored_value st s))
     [SMTPat (is_value_of (stored_key st s) (stored_value st s))]
-  = admit()
+  = ()
 
 let update_value_preserves_length 
       (st:vstore) 
@@ -151,7 +197,7 @@ let update_value_preserves_length
   : Lemma (let st' = update_value st s v in
            Seq.length st = Seq.length st')
           [SMTPat (update_value st s v)]  
-  = admit()
+  = ()
 
 let lemma_update_value_preserves_slots
       (st:vstore) 
@@ -160,7 +206,7 @@ let lemma_update_value_preserves_slots
       (s':st_index st)
   : Lemma (store_contains st s' = store_contains (update_value st s v) s')
           [SMTPat (store_contains (update_value st s v) s')]
-  = admit()
+  = ()
 
 let lemma_update_value_preserves_keys 
   (st:vstore)
@@ -169,7 +215,7 @@ let lemma_update_value_preserves_keys
   (s':slot_id{store_contains st s'})
   : Lemma (ensures stored_key st s' = stored_key (update_value st s v) s')
           [SMTPat (stored_key (update_value st s v) s')]
-  = admit()
+  = ()
 
 let lemma_update_in_store_preserves_slots
   (st:vstore)
@@ -179,7 +225,7 @@ let lemma_update_in_store_preserves_slots
   (s':slot_id)
   : Lemma (ensures store_contains st s' = store_contains (update_in_store st s d b) s')
           [SMTPat (store_contains (update_in_store st s d b) s')]
-  = admit()
+  = ()
 
 let lemma_add_to_store_preserves_slots 
       (st:vstore) 
@@ -190,7 +236,7 @@ let lemma_add_to_store_preserves_slots
       (s':slot_id{s <> s'})
   : Lemma (ensures store_contains st s' = store_contains (add_to_store st s k v am) s')
           [SMTPat (store_contains (add_to_store st s k v am) s')]
-  = admit()
+  = ()
 
 (* Relation between SC and S stores *)
 let convert_entry (eo:option vstore_entry) : option SC.vstore_entry =
@@ -207,7 +253,7 @@ let lemma_equal_contents_store_contains
   : Lemma (requires equal_contents st st')
           (ensures store_contains st s = SC.store_contains st' s)
           [SMTPat (store_contains st s); SMTPat (SC.store_contains st' s)]
-  = admit()
+  = ()
 
 let lemma_equal_contents_store_contains_key
       (st:vstore)
@@ -216,7 +262,18 @@ let lemma_equal_contents_store_contains_key
   : Lemma (requires equal_contents st st')
           (ensures store_contains_key st k = SC.store_contains_key st' k)
           [SMTPat (store_contains_key st k); SMTPat (SC.store_contains_key st' k)]
-  = admit()
+  = let s = filter (has_key k) st in
+    if Seq.length s = 0 
+    then (
+      lemma_filter_all_not (has_key k) st;
+      lemma_filter_all_not_inv (SC.has_key k) st'.SC.data
+    )
+    else (
+      lemma_filter_correct1 (has_key k) st 0;
+      assert (SC.has_key k (Seq.index st'.SC.data (filter_index_map (has_key k) st 0)));
+      lemma_filter_exists (SC.has_key k) st'.SC.data;
+      lemma_filter_correct1 (SC.has_key k) st'.SC.data 0
+    )
 
 let lemma_equal_contents_stored_key
       (st:vstore)
@@ -225,7 +282,7 @@ let lemma_equal_contents_stored_key
   : Lemma (requires equal_contents st st')
           (ensures stored_key st s = SC.stored_key st' s)
           [SMTPat (stored_key st s); SMTPat (SC.stored_key st' s)]
-  = admit()
+  = ()
 
 let lemma_equal_contents_stored_value
       (st:vstore)
@@ -234,7 +291,7 @@ let lemma_equal_contents_stored_value
   : Lemma (requires equal_contents st st')
           (ensures stored_value st s = SC.stored_value st' s)
           [SMTPat (stored_value st s); SMTPat (SC.stored_value st' s)]
-  = admit()
+  = ()
 
 let lemma_equal_contents_add_method_of
       (st:vstore)
@@ -243,7 +300,7 @@ let lemma_equal_contents_add_method_of
   : Lemma (requires equal_contents st st')
           (ensures add_method_of st s = SC.add_method_of st' s)
           [SMTPat (add_method_of st s); SMTPat (SC.add_method_of st' s)]
-  = admit()
+  = ()
 
 let lemma_equal_contents_update_value
   (st:vstore)
@@ -253,7 +310,7 @@ let lemma_equal_contents_update_value
   : Lemma (requires equal_contents st st')
           (ensures equal_contents (update_value st s v) (SC.update_store st' s v))
           [SMTPat (equal_contents (update_value st s v) (SC.update_store st' s v))]
-  = admit()
+  = ()
 
 let lemma_equal_contents_update_in_store
   (st:vstore)
@@ -264,7 +321,7 @@ let lemma_equal_contents_update_in_store
   : Lemma (requires equal_contents st st')
           (ensures equal_contents (update_in_store st s d b) st')
           [SMTPat (equal_contents (update_in_store st s d b) st')]
-  = admit()
+  = ()
 
 let lemma_equal_contents_add_to_store 
       (st:vstore) 
@@ -276,7 +333,7 @@ let lemma_equal_contents_add_to_store
   : Lemma (requires equal_contents st st')
           (ensures equal_contents (add_to_store st s k v am) (SC.add_to_store st' s k v am))
           [SMTPat (equal_contents (add_to_store st s k v am) (SC.add_to_store st' s k v am))]
-  = admit()
+  = ()
 
 let lemma_equal_contents_evict_from_store
       (st:vstore) 
@@ -285,4 +342,4 @@ let lemma_equal_contents_evict_from_store
   : Lemma (requires equal_contents st st')
           (ensures equal_contents (evict_from_store st s) (SC.evict_from_store st' s))
           [SMTPat (equal_contents (evict_from_store st s) (SC.evict_from_store st' s))]
-  = admit()
+  = ()
