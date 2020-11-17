@@ -275,6 +275,15 @@ let lemma_equal_contents_store_contains_key
       lemma_filter_correct1 (SC.has_key k) st'.SC.data 0
     )
 
+let lemma_equal_contents_add_method_of_by_key
+      (st:vstore)
+      (st':SC.vstore)
+      (k:key{store_contains_key st k})
+  : Lemma (requires equal_contents st st')
+          (ensures add_method_of_by_key st k = SC.add_method_of_by_key st' k)
+          [SMTPat (add_method_of_by_key st k); SMTPat (SC.add_method_of_by_key st' k)]
+  = admit()
+
 let lemma_equal_contents_stored_key
       (st:vstore)
       (st':SC.vstore)

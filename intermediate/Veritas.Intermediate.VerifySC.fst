@@ -30,6 +30,8 @@ let lemma_vput_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (k:key) (v:data_value
           (ensures (has_failed (vput s k v vs)))
   = ()
 
+// TODO: flaky; can we pick better SMTPats?
+#push-options "--z3rlimit_factor 2"
 let lemma_vaddm_simulates_spec
       (vs:vtls{Valid? vs}) 
       (vs':Spec.vtls{Spec.Valid? vs'}) 
@@ -42,68 +44,7 @@ let lemma_vaddm_simulates_spec
                       slot_key_rel vs s' k'))
            (ensures (vtls_rel (vaddm s r s' vs) (Spec.vaddm r k' vs'))) 
   = ()
-    
-
-(*
-let lemma_vaddm2_simulates_spec
-      (vs:vtls{Valid? vs}) 
-      (vs':Spec.vtls{Spec.Valid? vs'}) 
-      (s s':slot_id)
-      (r:record)
-      (k':merkle_key)  
-   : Lemma (requires (s < thread_store_size vs /\
-                      not (store_contains (thread_store vs) s) /\
-                      vtls_rel vs vs' /\ 
-                      slot_key_rel vs s' k'))
-          (ensures (vtls_rel (vaddm2 s r s' vs) (Spec.vaddm r k' vs'))) 
-  = if s < thread_store_size vs
-    then 
-    let st = thread_store vs in
-    let (k,v) = r in
-    if store_contains st s'
-    then 
-      let k' = stored_key st s' in
-      let v' = stored_value st s' in
-      let a' = add_method_of st s' in
-      if is_proper_desc k k' && not (store_contains st s)
-then if not (store_contains_key st k && add_method_of_by_key st k = Spec.MAdd)
-then if is_value_of k v && not (DVal? v')
-then
-        let v' = to_merkle_value v' in
-        let d = desc_dir k k' in
-        let dh' = desc_hash_dir v' d in 
-        let h = hashfn v in
-        match dh' with
-        | Empty -> 
-            if v = init_value k
-            then
-              let v'_upd = Spec.update_merkle_value v' d k h false in
-              let st_upd = update_store st s' (MVal v'_upd) in
-              let st_upd2 = add_to_store st_upd s k v Spec.MAdd in
-              let st' = Spec.thread_store vs' in
-              let st_upd' = Spec.update_store st' k' (MVal v'_upd) in
-              let st_upd2' = Spec.add_to_store st_upd' k v Spec.MAdd in
-              
-              assert (store_rel st_upd st_upd');
-              assert (store_rel st_upd2 st_upd2');
-              admit() //update_thread_store vs st_upd2
-        | Desc k2 h2 b2 -> admit()
-            //if k2 = k 
-            //then (* k is a child of k' *)
-              //if not (h2 = h && b2 = false) then Failed
-              //else update_thread_store vs (add_to_store st s k v Spec.MAdd)
-            //else (* otherwise, k is not a child of k' *)
-            //if v <> init_value k then Failed
-            //else if not (is_proper_desc k2 k) then Failed
-            //else
-             // let d2 = desc_dir k2 k in
-              //let mv = to_merkle_value v in
-              //let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
-              //let v'_upd = Spec.update_merkle_value v' d k h false in
-              //let st_upd = update_store st s' (MVal v'_upd) in
-              //let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
-              //update_thread_store vs st_upd2
-*)
+#pop-options
 
 let lemma_vaddm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id) (r:record)
   : Lemma (requires (not (thread_store_is_map vs)))

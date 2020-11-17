@@ -102,68 +102,11 @@ let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
     else
       let k' = stored_key st s' in
       let v' = stored_value st s' in
-      let a' = add_method_of st s' in
       (* check k is a proper desc of k' *)
       if not (is_proper_desc k k') then Failed
       (* check store does not contain slot s *)
       else if store_contains st s then Failed
-      (* check store does not contain key k
-         >> in lower levels we will check this via 'in_store' fields *)
-      else if store_contains_key st k then Failed
-      (* check type of v is consistent with k *)
-      else if not (is_value_of k v) then Failed
-      (* check v' is a merkle value *)
-      else if DVal? v' then Failed 
-      else
-        let v' = to_merkle_value v' in
-        let d = desc_dir k k' in
-        let dh' = desc_hash_dir v' d in 
-        let h = hashfn v in
-        match dh' with
-        | Empty -> (* k' has no child in direction d *)
-            (* first add must be init value *)
-            if v <> init_value k then Failed
-            else
-              let v'_upd = Spec.update_merkle_value v' d k h false in
-              let st_upd = update_store st s' (MVal v'_upd) in
-              let st_upd2 = add_to_store st_upd s k v Spec.MAdd in
-              update_thread_store vs st_upd2
-        | Desc k2 h2 b2 -> 
-            if k2 = k 
-            then (* k is a child of k' *)
-              (* check hashes match and k was not evicted to blum *)
-              if not (h2 = h && b2 = false) then Failed
-              else update_thread_store vs (add_to_store st s k v Spec.MAdd)
-            else (* otherwise, k is not a child of k' *)
-            (* first add must be init value *)
-            if v <> init_value k then Failed
-            (* check k2 is a proper desc of k *)
-            else if not (is_proper_desc k2 k) then Failed
-            else
-              let d2 = desc_dir k2 k in
-              let mv = to_merkle_value v in
-              let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
-              let v'_upd = Spec.update_merkle_value v' d k h false in
-              let st_upd = update_store st s' (MVal v'_upd) in
-              let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
-              update_thread_store vs st_upd2
-
-let vaddm2 (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
-  if not (s < thread_store_size vs) then Failed
-  else 
-    let st = thread_store vs in
-    let (k,v) = r in
-    (* check store contains slot s' *)
-    if not (store_contains st s') then Failed
-    else
-      let k' = stored_key st s' in
-      let v' = stored_value st s' in
-      let a' = add_method_of st s' in
-      (* check k is a proper desc of k' *)
-      if not (is_proper_desc k k') then Failed
-      (* check store does not contain slot s *)
-      else if store_contains st s then Failed
-      (* check store does not contain key k
+      (* check store does not contain key k via MAdd
          >> in lower levels we will check this via 'in_store' fields *)
       else if store_contains_key st k && add_method_of_by_key st k = Spec.MAdd then Failed
       (* check type of v is consistent with k *)

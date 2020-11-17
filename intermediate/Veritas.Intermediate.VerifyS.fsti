@@ -322,6 +322,7 @@ let lemma_vput_simulates_SC
           (ensures (vtls_rel (vput s k v vs) (SC.vput s k v vs'))) 
   = ()
 
+#push-options "--z3rlimit_factor 2"
 let lemma_vaddm_simulates_SC 
       (vs:vtls{Valid? vs}) 
       (vs':SC.vtls{SC.Valid? vs'}) 
@@ -346,7 +347,10 @@ let lemma_vaddm_simulates_SC
           let st' = SC.thread_store vs' in
           match dh' with
           | Empty -> 
-              // CASE 1 - by points_to_nearest_desc_in_store, either k is not in the store or the evict/add sets have diverged
+              // CASE 1 - by points_to_nearest_desc_in_store, either k is not in the store or 
+              //          the final hash check is guaranteed to fail
+              assert (points_to_nearest_desc_in_store st s' Spec.MAdd);
+              // ==> not (store_contains_key_with_am st k Spec.MAdd)
               if v = init_value k 
               then (
                 let v'_upd = Spec.update_merkle_value v' d k h false in
@@ -354,31 +358,44 @@ let lemma_vaddm_simulates_SC
                 let st_upd2 = add_to_store st_upd s k v Spec.MAdd in
                 let st_upd3 = update_in_store st_upd2 s' d true in
                 assume (merkle_store_inv st_upd3);
-                if (hashes_diverged (thread_hadd vs) (thread_hevict vs))
+                if (not (hashes_diverged (thread_hadd vs) (thread_hevict vs)))
                 then (
-                  let Valid _ st _ _ _ = update_thread_store vs st_upd3 in
-                  assume (SC.Valid? (SC.vaddm s r s' vs'));
-                  assume (not (SC.thread_store_is_map (SC.vaddm s r s' vs'))) 
-                  )
-                else (
                   assert (points_to_nearest_desc_in_store st s' Spec.BAdd);
-                  assert (not (store_contains_key_with_am st k Spec.BAdd));
-                  assert (not (store_contains_key_with_am st k Spec.MAdd));
-                  assert (not (store_contains_key st k));
-                  lemma_equal_contents_store_contains_key st st' k;
-                  //assert (not (SCstore.store_contains_key st' k));
-                  let Valid id st clk ha he = update_thread_store vs st_upd3 in
-                  let SC.Valid id' st' clk' ha' he' = SC.vaddm s r s' vs' in
-                  assume (blum_store_inv st); // easy since we are not adding anything via BAdd
-                  admit()
+                  // ==> not (store_contains_key_with_am st k Spec.BAdd)
+                  assume (blum_store_inv st_upd3) // easy(?) since we're not adding anything via BAdd
                 )
               )
           | Desc k2 h2 b2 -> 
               if k2 = k 
-              // CASE 2 - by in_store_flag_implies... and evicted_to_blum_flag_implies..., either k is not in the store or the evict/add sets have diverged
-              then admit()
+              // CASE 2 - by in_store_flag_implies.. and evicted_to_blum_flag_implies.., either 
+              //          k is not in the store or the final hash check is guaranteed to fail
+              then (
+                assert (in_store_flag_unset_implies_desc_not_in_store st s');              
+                if h2 = h && b2 = false
+                then admit() // TODO...
+              )
               // CASE 3 - similar to CASE 1
-              else admit()
+              else (
+                assert (points_to_nearest_desc_in_store st s' Spec.MAdd);              
+                if v = init_value k && is_proper_desc k2 k 
+                then
+                  let d2 = desc_dir k2 k in
+                  let mv = to_merkle_value v in
+                  let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
+                  let v'_upd = Spec.update_merkle_value v' d k h false in
+                  let st_upd = update_value st s' (MVal v'_upd) in
+                  let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
+                  let st_upd3 = update_in_store st_upd2 s' d true in
+                  let st_upd4 = update_in_store st_upd3 s d2 true in
+                  assume (merkle_store_inv st_upd4);                  
+                  assert (SC.Valid? (SC.vaddm s r s' vs'));
+                  if (not (hashes_diverged (thread_hadd vs) (thread_hevict vs)))
+                  then (
+                    assert (points_to_nearest_desc_in_store st s' Spec.BAdd);
+                    assume (blum_store_inv st_upd4)
+                  )
+              )
+#pop-options
 
 let lemma_evict_from_store_preserves_merkle_inv (st:vstore) (s:slot_id{store_contains st s})
   : Lemma (requires merkle_store_inv st)
