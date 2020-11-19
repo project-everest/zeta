@@ -14,7 +14,9 @@ open Veritas.SeqAux
 
 (* It's better not to open these modules to avoid naming conflicts *)
 module Spec = Veritas.Verifier
-module SpecT = Veritas.Verifier.Thread
+module SpecVT = Veritas.Verifier.Thread
+module SpecVG = Veritas.Verifier.Global
+module SpecVC = Veritas.Verifier.Correctness
 
 (* Thread-local state
    id     : thread id
@@ -427,8 +429,18 @@ val lemma_t_verify_aux_valid_implies_log_exists (vs:vtls) (l:logS)
           (decreases (Seq.length l))
           [SMTPat (Some? (snd (t_verify_aux vs l)))]
 
-(* Main verify function *)
-val init_thread_state (id:thread_id): vtls
+(* Initialize verifier state *)
+// TODO: what should the initial size be?
+let store_size = 65536 // 2 ^ 16
+let init_thread_state (id:thread_id): vtls = 
+  let vs = Valid id (empty_store store_size) (MkTimestamp 0 0) empty_hash_value empty_hash_value in  
+  if id = 0 then
+    let st0 = thread_store vs in
+    let st0_upd = add_to_store st0 0 Root (init_value Root) Spec.MAdd in
+    update_thread_store vs st0_upd    
+  else vs
+
+(* Main thread-level verify function *)
 let t_verify (id:thread_id) (l:logS): vtls = 
   fst (t_verify_aux (init_thread_state id) l) 
 
@@ -449,3 +461,61 @@ val lemma_t_verify_simulates_spec (id:thread_id) (l:logS)
 val lemma_logS_to_logK_to_state_op (id:thread_id) (l:logS{Valid? (t_verify id l)})
   : Lemma (ensures (Seq.equal (to_state_op_logS l) 
                               (Veritas.EAC.to_state_op_vlog (logS_to_logK id l))))
+           [SMTPat (Veritas.EAC.to_state_op_vlog (logS_to_logK id l))]
+
+(* Global verification following the definitions in Veritas.Verifier.Thread and 
+   Veritas.Verifier.Global *) 
+
+let verify (tl:thread_id_logS): vtls =
+  t_verify (fst tl) (snd tl)
+  
+let verifiable (gl: g_logS) = 
+  forall (tid:seq_index gl). Valid? (verify (thread_log gl tid))
+
+let verifiable_log = gl:g_logS{verifiable gl}
+
+val hadd (gl: verifiable_log): ms_hash_value
+
+val hevict (gl: verifiable_log): ms_hash_value
+
+val forall_is_map (gl:verifiable_log) : bool
+
+let hash_verifiable (gl: verifiable_log): bool = 
+  hadd gl = hevict gl && forall_is_map gl
+
+let hash_verifiable_log = gl:verifiable_log{hash_verifiable gl}
+
+val glogS_to_logK (gl:verifiable_log{forall_is_map gl}) : gl':SpecVG.verifiable_log{Seq.length gl = Seq.length gl'}
+
+val lemma_glogS_to_logK (gl:verifiable_log{forall_is_map gl}) (id:seq_index gl)
+  : Lemma (ensures Seq.index (glogS_to_logK gl) id = logS_to_logK id (Seq.index gl id))
+          [SMTPat (Seq.index (glogS_to_logK gl) id)]
+
+val hadd_values_equal (gl:verifiable_log{forall_is_map gl}) 
+  : Lemma (hadd gl = SpecVG.hadd (glogS_to_logK gl))
+
+val hevict_values_equal (gl:verifiable_log{forall_is_map gl}) 
+  : Lemma (hevict gl = SpecVG.hevict (glogS_to_logK gl))
+
+let lemma_hash_verifiable_simulates_spec (gl:hash_verifiable_log)
+  : Lemma (SpecVG.hash_verifiable (glogS_to_logK gl))
+  = hadd_values_equal gl;
+    hevict_values_equal gl
+
+(* Final correctness theorem, following the definition in Veritas.Verifier.Correctness *)
+
+let lemma_to_state_op_glogS (gl: verifiable_log{forall_is_map gl})
+  : Lemma (ensures (Seq.equal (to_state_op_glogS gl) 
+                              (SpecVC.to_state_op_gvlog (glogS_to_logK gl))))
+  = let aux (i:seq_index gl) 
+      : Lemma (Seq.index (to_state_op_glogS gl) i = 
+              Seq.index (SpecVC.to_state_op_gvlog (glogS_to_logK gl)) i)
+      = () in
+    Classical.forall_intro aux
+
+let lemma_verifier_correct (gl: hash_verifiable_log { ~ (Veritas.State.seq_consistent (to_state_op_glogS gl))})
+  : Veritas.Verifier.EAC.hash_collision_gen
+  = let gl' = glogS_to_logK gl in
+    lemma_hash_verifiable_simulates_spec gl;
+    lemma_to_state_op_glogS gl;
+    SpecVC.lemma_verifier_correct gl'

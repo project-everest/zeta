@@ -125,60 +125,39 @@ let evict_from_store
    1. If a child_in_store flag is unset then the corresponding descendent is not in the store.
    2. k' point to the nearest descendent in the store.
       (a) If k' points to k2 then no key between k' and k2 is in the store.
-      (b) If k' points to Empty then no descendent of k' in that direction is in the store.
-      
-   How to check that a key is not in the store with add_method=BAdd PROVIDED that the add/evict 
-   set hashes have not diverged:
-   1, If the evicted_to_blum flag is unset then the corresponding descendent is not in the store. 
-   2. Same as above. *)
-let store_contains_key_with_am (st:vstore) (k:key) (am:add_method) : bool
-  = store_contains_key st k && add_method_of_by_key st k = am
+      (b) If k' points to Empty then no descendent of k' in that direction is in the store. *)
+let store_contains_key_with_MAdd (st:vstore) (k:key) : bool
+  = store_contains_key st k && add_method_of_by_key st k = Spec.MAdd
 
-let in_store_flag_unset_implies_desc_not_in_store
+let child_in_store (st:vstore) (s:slot_id{store_contains st s}) (d:bin_tree_dir)
+  = match d with
+    | Left -> l_child_in_store st s
+    | Right -> r_child_in_store st s
+
+let in_store_flag_unset_equals_desc_not_in_store
       (st:vstore)
       (s:slot_id{store_contains st s /\ MVal? (stored_value st s)})
   = let v = to_merkle_value (stored_value st s) in    
-    let ld = desc_hash_dir v Left in
-    let rd = desc_hash_dir v Right in
-    (Desc? ld /\ not (l_child_in_store st s) ==>
-       not (store_contains_key_with_am st (Desc?.k ld) Spec.MAdd)) /\
-    (Desc? rd /\ not (r_child_in_store st s) ==> 
-       not (store_contains_key_with_am st (Desc?.k rd) Spec.MAdd))
-
-let evicted_to_blum_flag_unset_implies_desc_not_in_store
-      (st:vstore)
-      (s:slot_id{store_contains st s /\ MVal? (stored_value st s)})
-  = let v = to_merkle_value (stored_value st s) in    
-    let ld = desc_hash_dir v Left in
-    let rd = desc_hash_dir v Right in
-    (Desc? ld /\ not (Desc?.b ld) ==>
-       not (store_contains_key_with_am st (Desc?.k ld) Spec.BAdd)) /\
-    (Desc? rd /\ not (Desc?.b rd) ==> 
-       not (store_contains_key_with_am st (Desc?.k rd) Spec.BAdd))
+    forall (d:bin_tree_dir).
+    let dh = desc_hash_dir v d in
+    (Desc? dh ==>
+     (child_in_store st s d = store_contains_key_with_MAdd st (Desc?.k dh)))
 
 let points_to_nearest_desc_in_store 
       (st:vstore)
       (s:slot_id{store_contains st s /\ MVal? (stored_value st s)})
-      (am:add_method)
   = let k' = stored_key st s in
     let v' = to_merkle_value (stored_value st s) in
     forall (k:key{is_proper_desc k k'}).
     let dh = desc_hash_dir v' (desc_dir k k') in
-    if Empty? dh then not (store_contains_key_with_am st k am)
-    else if is_proper_desc (Desc?.k dh) k then not (store_contains_key_with_am st k am) 
+    if Empty? dh then not (store_contains_key_with_MAdd st k)
+    else if is_proper_desc (Desc?.k dh) k then not (store_contains_key_with_MAdd st k) 
     else True
 
-// always true by the structure of vaddm
 let merkle_store_inv (st:vstore) = 
   forall (s:slot_id{store_contains st s /\ MVal? (stored_value st s)}).
-    in_store_flag_unset_implies_desc_not_in_store st s /\ 
-    points_to_nearest_desc_in_store st s Spec.MAdd
-
-// only true when the add/evict set hashes have not diverged
-let blum_store_inv (st:vstore) = 
-  forall (s:slot_id{store_contains st s /\ MVal? (stored_value st s)}).
-    evicted_to_blum_flag_unset_implies_desc_not_in_store st s /\ 
-    points_to_nearest_desc_in_store st s Spec.BAdd
+    in_store_flag_unset_equals_desc_not_in_store st s /\ 
+    points_to_nearest_desc_in_store st s
 
 let store_contains_st_index (st:vstore) (s:slot_id{store_contains st s})
   : Lemma (s < Seq.length st)

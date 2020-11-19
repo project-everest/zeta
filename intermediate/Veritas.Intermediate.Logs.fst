@@ -1,3 +1,4 @@
+
 module Veritas.Intermediate.Logs
 
 open Veritas.Key
@@ -41,3 +42,13 @@ let to_state_op (e:logS_entry {is_state_op e}): Veritas.State.state_op =
 
 let to_state_op_logS (l: logS) =
   map to_state_op (filter_refine is_state_op l)
+
+let thread_id_logS = thread_id & logS
+
+let g_logS = Seq.seq logS
+
+let thread_log (gl: g_logS) (tid: seq_index gl): thread_id_logS = 
+   (tid, Seq.index gl tid)
+
+let to_state_op_glogS (gl: g_logS) =
+  map to_state_op_logS gl

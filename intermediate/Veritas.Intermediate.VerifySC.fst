@@ -161,18 +161,6 @@ let rec lemma_t_verify_aux_valid_implies_log_exists (vs:vtls) (l:logS)
     if n <> 0 
     then lemma_t_verify_aux_valid_implies_log_exists vs (prefix l (n - 1))
 
-// TODO: what should the initial size be?
-let store_size = 65536 // 2 ^ 16
-
-(* Initialize verifier state *)
-let init_thread_state (id:thread_id): vtls = 
-  let vs = Valid id (empty_store store_size) (MkTimestamp 0 0) empty_hash_value empty_hash_value in  
-  if id = 0 then
-    let st0 = thread_store vs in
-    let st0_upd = add_to_store st0 0 Root (init_value Root) Spec.MAdd in
-    update_thread_store vs st0_upd    
-  else vs
-
 let init_thread_state_valid (id:thread_id)
   : Lemma (Valid? (init_thread_state id))
   = ()
@@ -305,3 +293,107 @@ let lemma_logS_to_logK_to_state_op (id:thread_id) (l:logS{Valid? (t_verify id l)
   : Lemma (ensures (Seq.equal (to_state_op_logS l) 
                               (Veritas.EAC.to_state_op_vlog (logS_to_logK id l))))
   = lemma_get_log_to_state_op (init_thread_state id) l
+
+(* Aggregate add and evict hashes over all verifier threads; follows the definition in 
+   Veritas.Verifier.Global *)
+
+let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl)
+  : Lemma (ensures verifiable (prefix gl i))
+          [SMTPat (verifiable (prefix gl i))]
+  = let glp = prefix gl i in
+    let aux (tid:seq_index glp)
+      : Lemma (ensures (Valid? (verify (thread_log glp tid))))
+      = assert(thread_log glp tid = thread_log gl tid) in
+    Classical.forall_intro aux
+
+let rec hadd_aux (gl: verifiable_log)
+  : Tot (ms_hash_value)
+    (decreases (Seq.length gl)) 
+  = let p = Seq.length gl in
+    if p = 0 then empty_hash_value
+    else
+      let gl' = prefix gl (p - 1) in
+      let h1 = hadd_aux gl' in
+      let h2 = thread_hadd (verify (thread_log gl (p - 1))) in
+      ms_hashfn_agg h1 h2
+
+let hadd (gl: verifiable_log): ms_hash_value = hadd_aux gl
+
+let rec hevict_aux (gl: verifiable_log)
+  : Tot (ms_hash_value)
+    (decreases (Seq.length gl))
+  = let p = Seq.length gl in
+    if p = 0 then empty_hash_value
+    else
+      let gl' = prefix gl (p - 1) in
+      let h1 = hevict_aux gl' in
+      let h2 = thread_hevict (verify (thread_log gl (p - 1))) in
+      ms_hashfn_agg h1 h2
+
+let hevict (gl: verifiable_log): ms_hash_value = hevict_aux gl
+
+let rec forall_is_map_aux (gl: verifiable_log) 
+  : Tot bool (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n = 0 then true
+    else
+      let glp = prefix gl (n - 1) in
+      thread_store_is_map (verify (thread_log gl (n - 1))) && forall_is_map_aux glp
+
+let forall_is_map (gl:verifiable_log) : bool = forall_is_map_aux gl
+
+let rec lemma_forall_is_map (gl:verifiable_log) (i:seq_index gl)
+  : Lemma (requires (forall_is_map gl))
+          (ensures (thread_store_is_map (verify (thread_log gl i))))
+          (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n <> 0
+    then
+      let glp = prefix gl (n - 1) in
+      if i < n - 1 then lemma_forall_is_map glp i
+
+let lemma_verifiable_append1  (gl:SpecVG.verifiable_log) (l:logK{SpecVT.verifiable (Seq.length gl, l)})
+  : Lemma (SpecVG.verifiable (append1 gl l))
+  = let gl' = append1 gl l in
+    assert (Seq.length gl' = Seq.length gl + 1);
+    let aux (i:seq_index gl') : Lemma (SpecVT.verifiable (SpecVG.thread_log gl' i))
+      = if i < Seq.length gl 
+        then assert (SpecVT.verifiable (SpecVG.thread_log gl i)) in
+    Classical.forall_intro aux
+
+let rec glogS_to_logK_aux (gl: verifiable_log{forall_is_map gl}) 
+  : Tot (gl':SpecVG.verifiable_log{Seq.length gl = Seq.length gl'})
+    (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n = 0 then Seq.empty
+    else (
+      let glp = prefix gl (n - 1) in
+      let e = Seq.index gl (n - 1) in
+      lemma_t_verify_simulates_spec (n - 1) e;
+      lemma_verifiable_append1 (glogS_to_logK_aux glp) (logS_to_logK (n - 1) e);
+      append1 (glogS_to_logK_aux glp) (logS_to_logK (n - 1) e)
+    )
+
+let glogS_to_logK (gl:verifiable_log{forall_is_map gl}) : gl':SpecVG.verifiable_log{Seq.length gl = Seq.length gl'}
+  = glogS_to_logK_aux gl
+
+let rec lemma_glogS_to_logK_aux (gl:verifiable_log{forall_is_map gl}) (id:seq_index gl)
+  : Lemma (ensures Seq.index (glogS_to_logK gl) id = logS_to_logK id (Seq.index gl id))
+          (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n <> 0
+    then if id < n - 1
+    then let glp = prefix gl (n - 1) in
+         lemma_glogS_to_logK_aux glp id
+
+let lemma_glogS_to_logK (gl:verifiable_log{forall_is_map gl}) (id:seq_index gl)
+  : Lemma (ensures Seq.index (glogS_to_logK gl) id = logS_to_logK id (Seq.index gl id))
+  = lemma_glogS_to_logK_aux gl id
+
+let hadd_values_equal (gl:verifiable_log{forall_is_map gl}) 
+  : Lemma (hadd gl = SpecVG.hadd (glogS_to_logK gl))
+  = admit()
+
+let hevict_values_equal (gl:verifiable_log{forall_is_map gl}) 
+  : Lemma (hevict gl = SpecVG.hevict (glogS_to_logK gl))
+  = admit()
