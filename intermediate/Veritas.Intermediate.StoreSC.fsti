@@ -98,10 +98,12 @@ let compatible_entry (st:vstore) (s:st_index st) (e:vstore_entry) : Type
   = (not (store_contains st s) /\ not (store_contains_key st e.k)) \/ 
     (store_contains st s /\ stored_key st s = e.k) 
 
+(* if the store is a map and it does not contain a e.k, then updating the store by adding e to an empty slot is a map *)
 val lemma_add_entry_case_1 (st:vstore) (s:st_index st) (e:vstore_entry)
   : Lemma (requires (st.is_map /\ not (store_contains st s) /\ not (store_contains_key st e.k)))
           (ensures (is_map_f (Seq.upd st.data s (Some e))))
 
+(* if the store is a map and it contains e.k at slot s, then the store is a map after updating slot s with e *)
 val lemma_add_entry_case_2 (st:vstore) (s:st_index st) (e:vstore_entry)
   : Lemma (requires (st.is_map /\ store_contains st s /\ stored_key st s = e.k))
           (ensures (is_map_f (Seq.upd st.data s (Some e))))
@@ -115,6 +117,7 @@ let update_slot (st:vstore) (s:st_index st) (e:vstore_entry{compatible_entry st 
               then lemma_add_entry_case_2 st s e;
     VStore (Seq.upd st.data s (Some e)) st.is_map
 
+(* replace an occupied slot with a new value *)
 let update_store 
   (st:vstore)
   (s:slot_id{store_contains st s}) 
@@ -151,6 +154,8 @@ let lemma_update_store_preserves_slots
           [SMTPat (store_contains (update_store st s v) s')]
   = ()
 
+(* if a key is present in a store iff it is present after updating 
+ * the store with a new value for some key at some slot *)
 val lemma_update_store_preserves_keys
       (st:vstore) 
       (s:slot_id{store_contains st s}) 
@@ -159,6 +164,9 @@ val lemma_update_store_preserves_keys
   : Lemma (store_contains_key st k = store_contains_key (update_store st s v) k)
           [SMTPat (store_contains_key (update_store st s v) k)]
 
+(* add a new entry (k,v,am) to the store at en empty slot s 
+ * if the store does not contain k, then preserve is_map; 
+ * otherwise set is_map to false *)
 let add_to_store 
       (st:vstore) 
       (s:st_index st{not (store_contains st s)}) 
@@ -186,6 +194,7 @@ let lemma_add_to_store_is_map1
           [SMTPat (VStore?.is_map (add_to_store st s k v am))]
   = ()
 
+(* is_map is false when adding a duplicate key *)
 let lemma_add_to_store_is_map2
       (st:vstore) 
       (s:st_index st) 
@@ -198,6 +207,7 @@ let lemma_add_to_store_is_map2
           [SMTPat (VStore?.is_map (add_to_store st s k v am))]
   = ()
 
+(* remove an entry from a slot; reset slot to unused *)
 let evict_from_store (st:vstore) (s:st_index st)
   : Tot (st':vstore {not (store_contains st' s)})
   = VStore (Seq.upd st.data s None) st.is_map
@@ -212,6 +222,7 @@ let slot_key_equiv (st:vstore) (s:slot_id) (k:key) : bool =
   not st.is_map || // trivially true
   (store_contains st s && stored_key st s = k) 
 
+(* if s contains k, it continues to contain k after an unrelated update *)
 val lemma_slot_key_equiv_update_store 
       (st:vstore) 
       (s:slot_id) 
