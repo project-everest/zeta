@@ -16,40 +16,6 @@ let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl):
   in
   ()
 
-let rec hadd_aux (gl: verifiable_log): 
-  Tot (ms_hash_value)
-  (decreases (length gl)) = 
-  let p = length gl in
-  if p = 0 then empty_hash_value
-  else  (
-    let gl' = prefix gl (p - 1) in
-    lemma_prefix_verifiable gl (p - 1);
-    let h1 = hadd_aux gl' in
-    let h2 = VT.hadd (thread_log gl (p - 1)) in
-    ms_hashfn_agg h1 h2
-  )
-
-(* aggregate hadd over all verifier threads *)
-let hadd (gl: verifiable_log): ms_hash_value =
-  hadd_aux gl
-
-let rec hevict_aux (gl: verifiable_log): 
-  Tot (ms_hash_value)
-  (decreases (length gl)) = 
-  let p = length gl in
-  if p = 0 then empty_hash_value
-  else  (
-    let gl' = prefix gl (p - 1) in
-    lemma_prefix_verifiable gl (p - 1);
-    let h1 = hevict_aux gl' in
-    let h2 = thread_hevict (VT.verify (thread_log gl (p - 1))) in
-    ms_hashfn_agg h1 h2
-  )
-
-(* aggregate hadd over all verifier threads *)
-let hevict (gl: verifiable_log): ms_hash_value =
-  hevict_aux gl
-
 (* global add sequence *)
 let rec g_add_seq_aux (gl: verifiable_log): 
   Tot (seq (ms_hashfn_dom))

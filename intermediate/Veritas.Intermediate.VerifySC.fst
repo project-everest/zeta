@@ -342,16 +342,6 @@ let rec forall_is_map_aux (gl: verifiable_log)
 
 let forall_is_map (gl:verifiable_log) : bool = forall_is_map_aux gl
 
-let rec lemma_forall_is_map (gl:verifiable_log) (i:seq_index gl)
-  : Lemma (requires (forall_is_map gl))
-          (ensures (thread_store_is_map (verify (thread_log gl i))))
-          (decreases (Seq.length gl))
-  = let n = Seq.length gl in
-    if n <> 0
-    then
-      let glp = prefix gl (n - 1) in
-      if i < n - 1 then lemma_forall_is_map glp i
-
 let lemma_verifiable_append1  (gl:SpecVG.verifiable_log) (l:logK{SpecVT.verifiable (Seq.length gl, l)})
   : Lemma (SpecVG.verifiable (append1 gl l))
   = let gl' = append1 gl l in
@@ -390,10 +380,83 @@ let lemma_glogS_to_logK (gl:verifiable_log{forall_is_map gl}) (id:seq_index gl)
   : Lemma (ensures Seq.index (glogS_to_logK gl) id = logS_to_logK id (Seq.index gl id))
   = lemma_glogS_to_logK_aux gl id
 
+let rec lemma_forall_is_map (gl:verifiable_log)
+  : Lemma (requires forall_is_map gl)
+          (ensures (forall (i:seq_index gl). thread_store_is_map (verify (thread_log gl i))))
+          (decreases (Seq.length gl))
+          [SMTPat (forall_is_map gl)]
+  = let n = Seq.length gl in
+    if n <> 0
+    then (
+      let glp = prefix gl (n - 1) in
+      lemma_forall_is_map glp;
+      let aux (i:seq_index gl) : Lemma (thread_store_is_map (verify (thread_log gl i)))
+        = if i < n - 1 then assert(thread_log glp i = thread_log gl i) in
+      Classical.forall_intro aux
+    )
+
+let rec lemma_forall_is_map_inv (gl:verifiable_log)
+  : Lemma (requires (forall (i:seq_index gl). thread_store_is_map (verify (thread_log gl i))))
+          (ensures forall_is_map gl)
+          (decreases (Seq.length gl))
+          [SMTPat (forall_is_map gl)]
+  = let n = Seq.length gl in
+    if n <> 0
+    then (
+      let glp = prefix gl (n - 1) in
+      let aux1 (i:seq_index glp) : Lemma (Valid? (verify (thread_log glp i)))
+        = assert(thread_log glp i = thread_log gl i) in
+      Classical.forall_intro aux1;
+      let aux2 (i:seq_index glp) : Lemma (thread_store_is_map (verify (thread_log glp i)))
+        = assert(thread_log glp i = thread_log gl i) in
+      Classical.forall_intro aux2;
+      lemma_forall_is_map_inv glp
+    )
+
+let lemma_prefix_verifiable_and_forall_is_map (gl: verifiable_log{forall_is_map gl}) (i:seq_index gl)
+  : Lemma (ensures verifiable (prefix gl i) /\ forall_is_map (prefix gl i))
+          [SMTPat (verifiable (prefix gl i))]
+  = let glp = prefix gl i in
+    let aux1 (tid:seq_index glp)
+      : Lemma (Valid? (verify (thread_log glp tid)))
+      = assert(thread_log glp tid = thread_log gl tid) in
+    Classical.forall_intro aux1;
+    let aux2 (tid:seq_index glp)
+      : Lemma (thread_store_is_map (verify (thread_log glp tid)))
+      = assert(thread_log glp tid = thread_log gl tid) in
+    Classical.forall_intro aux2
+
+let lemma_prefix_glogS_to_logK_comm (gl:verifiable_log{forall_is_map gl}) (i:seq_index gl)
+  : Lemma (ensures Seq.equal (prefix (glogS_to_logK gl) i) (glogS_to_logK (prefix gl i)))
+          [SMTPat (prefix (glogS_to_logK gl) i)]
+  = ()
+
+let rec hadd_values_equal_aux (gl:verifiable_log{forall_is_map gl}) 
+  : Lemma (ensures hadd gl = SpecVG.hadd (glogS_to_logK gl))
+          (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n <> 0
+    then ( 
+      let glp = prefix gl (n - 1) in
+      hadd_values_equal_aux glp;
+      lemma_t_verify_simulates_spec (n - 1) (Seq.index gl (n - 1))
+    )
+
 let hadd_values_equal (gl:verifiable_log{forall_is_map gl}) 
   : Lemma (hadd gl = SpecVG.hadd (glogS_to_logK gl))
-  = admit()
+  = hadd_values_equal_aux gl
+
+let rec hevict_values_equal_aux (gl:verifiable_log{forall_is_map gl}) 
+  : Lemma (ensures hevict gl = SpecVG.hevict (glogS_to_logK gl))
+          (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n <> 0
+    then ( 
+      let glp = prefix gl (n - 1) in
+      hevict_values_equal_aux glp;
+      lemma_t_verify_simulates_spec (n - 1) (Seq.index gl (n - 1))
+    )
 
 let hevict_values_equal (gl:verifiable_log{forall_is_map gl}) 
   : Lemma (hevict gl = SpecVG.hevict (glogS_to_logK gl))
-  = admit()
+  = hevict_values_equal_aux gl
