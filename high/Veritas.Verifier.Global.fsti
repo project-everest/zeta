@@ -27,11 +27,41 @@ let verifiable (gl: g_vlog) =
 (* Refinement type of logs that are verifiable *)
 let verifiable_log = gl:g_vlog{verifiable gl}
 
+val lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl):
+  Lemma (ensures (verifiable (prefix gl i)))
+        [SMTPat (prefix gl i)]
+
+let rec hadd_aux (gl: verifiable_log): 
+  Tot (ms_hash_value)
+  (decreases (length gl)) = 
+  let p = length gl in
+  if p = 0 then empty_hash_value
+  else  (
+    let gl' = prefix gl (p - 1) in
+    let h1 = hadd_aux gl' in
+    let h2 = VT.hadd (thread_log gl (p - 1)) in
+    ms_hashfn_agg h1 h2
+  )
+
 (* add-set hash over all verifier threads *)
-val hadd (gl: verifiable_log): ms_hash_value
+let hadd (gl: verifiable_log): ms_hash_value =
+  hadd_aux gl
+
+let rec hevict_aux (gl: verifiable_log): 
+  Tot (ms_hash_value)
+  (decreases (length gl)) = 
+  let p = length gl in
+  if p = 0 then empty_hash_value
+  else  (
+    let gl' = prefix gl (p - 1) in
+    let h1 = hevict_aux gl' in
+    let h2 = thread_hevict (VT.verify (thread_log gl (p - 1))) in
+    ms_hashfn_agg h1 h2
+  )
 
 (* hash of evict set over all verifier threads *)
-val hevict (gl: verifiable_log): ms_hash_value
+let hevict (gl: verifiable_log): ms_hash_value =
+  hevict_aux gl
 
 (* a verifiable log is hash verifiable if add and evict set hashes are equal *)
 let hash_verifiable (gl: verifiable_log): bool = 
