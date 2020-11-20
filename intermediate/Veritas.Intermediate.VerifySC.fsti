@@ -283,112 +283,6 @@ let vtls_rel (vs:vtls) (vs':Spec.vtls) : Type =
         id = id' /\ clk = clk' /\ ha = ha' /\ he = he'   
     | _, _ -> False
 
-(* Relation between a slot and key *)
-let slot_key_rel (vs: vtls {Valid? vs}) (s:slot_id) (k:key) =
-  let st = thread_store vs in slot_key_equiv st s k
-
-(* Simulation lemmas for v* functions *)
-
-val lemma_vget_simulates_spec 
-      (vs:vtls{Valid? vs})
-      (vs':Spec.vtls{Spec.Valid? vs'})
-      (s:slot_id)
-      (k:data_key)
-      (v:data_value)
-  : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
-          (ensures (vtls_rel (vget s k v vs) (Spec.vget k v vs')))
-
-val lemma_vget_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (k:key) (v:data_value)
-  : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vget s k v vs)))
-
-val lemma_vput_simulates_spec 
-      (vs:vtls{Valid? vs}) 
-      (vs':Spec.vtls{Spec.Valid? vs'}) 
-      (s:slot_id) 
-      (k:data_key) 
-      (v:data_value) 
-  : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
-          (ensures (vtls_rel (vput s k v vs) (Spec.vput k v vs'))) 
-
-val lemma_vput_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (k:key) (v:data_value)
-  : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vput s k v vs)))
-
-val lemma_vaddm_simulates_spec 
-      (vs:vtls{Valid? vs}) 
-      (vs':Spec.vtls{Spec.Valid? vs'}) 
-      (s s':slot_id)
-      (r:record)
-      (k':merkle_key)  
-  : Lemma (requires (s < thread_store_size vs /\ 
-                     not (store_contains (thread_store vs) s) /\ 
-                     vtls_rel vs vs' /\ 
-                     slot_key_rel vs s' k'))
-          (ensures (vtls_rel (vaddm s r s' vs) (Spec.vaddm r k' vs'))) 
-
-val lemma_vaddm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id) (r:record)
-  : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vaddm s r s' vs)))
-
-val lemma_vevictm_simulates_spec 
-      (vs:vtls{Valid? vs}) 
-      (vs':Spec.vtls{Spec.Valid? vs'}) 
-      (s s':slot_id)
-      (k:key)
-      (k':merkle_key)  
-  : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k /\ slot_key_rel vs s' k'))
-          (ensures (vtls_rel (vevictm s s' vs) (Spec.vevictm k k' vs'))) 
-
-val lemma_vevictm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id)
-  : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vevictm s s' vs)))
-
-val lemma_vaddb_simulates_spec 
-      (vs:vtls{Valid? vs}) 
-      (vs':Spec.vtls{Spec.Valid? vs'}) 
-      (s:slot_id)
-      (r:record)
-      (t:timestamp)
-      (j:thread_id)
-  : Lemma (requires (s < thread_store_size vs /\ 
-                     not (store_contains (thread_store vs) s) /\ 
-                     vtls_rel vs vs'))
-          (ensures (vtls_rel (vaddb s r t j vs) (Spec.vaddb r t j vs')))
-
-val lemma_vaddb_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (r:record) (t:timestamp) (j:thread_id)
-  : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vaddb s r t j vs)))
-
-val lemma_vevictb_simulates_spec 
-      (vs:vtls{Valid? vs}) 
-      (vs':Spec.vtls{Spec.Valid? vs'}) 
-      (s:slot_id)
-      (k:key)
-      (t:timestamp)
-  : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
-          (ensures (vtls_rel (vevictb s t vs) (Spec.vevictb k t vs'))) 
-          [SMTPat (vevictb s t vs); SMTPat (Spec.vevictb k t vs')]
-          // note: SMTPat needed for lemma_vevictbm_simulates_spec
-
-val lemma_vevictb_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (t:timestamp)
-  : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vevictb s t vs)))
-
-val lemma_vevictbm_simulates_spec 
-      (vs:vtls{Valid? vs}) 
-      (vs':Spec.vtls{Spec.Valid? vs'}) 
-      (s s':slot_id)
-      (k:key)
-      (k':merkle_key)
-      (t:timestamp)
-  : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k /\ slot_key_rel vs s' k'))
-          (ensures (vtls_rel (vevictbm s s' t vs) (Spec.vevictbm k k' t vs'))) 
-
-val lemma_vevictbm_has_failed (vs:vtls{Valid? vs}) (s s':slot_id) (t:timestamp)
-  : Lemma (requires (not (thread_store_is_map vs)))
-          (ensures (has_failed (vevictbm s s' t vs)))
-
 let t_verify_step (vs:vtls) (e:logS_entry): vtls =
   match vs with
   | Failed -> Failed
@@ -447,9 +341,10 @@ let t_verify (id:thread_id) (l:logS): vtls =
 let logS_to_logK (id:thread_id) (l:logS{Valid? (t_verify id l)}) : logK =
   Some?.v (snd (t_verify_aux (init_thread_state id) l))
 
-val init_thread_state_valid (id:thread_id)
+let init_thread_state_valid (id:thread_id)
   : Lemma (Valid? (init_thread_state id))
           [SMTPat (init_thread_state id)]
+  = ()
 
 val lemma_init_thread_state_rel (id:thread_id) :
   Lemma (vtls_rel (init_thread_state id) (Spec.init_thread_state id))
@@ -474,9 +369,35 @@ let verifiable (gl: g_logS) =
 
 let verifiable_log = gl:g_logS{verifiable gl}
 
-val hadd (gl: verifiable_log): ms_hash_value
+val lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl)
+  : Lemma (ensures verifiable (prefix gl i))
+          [SMTPat (verifiable (prefix gl i))]
 
-val hevict (gl: verifiable_log): ms_hash_value
+let rec hadd_aux (gl: verifiable_log)
+  : Tot (ms_hash_value)
+    (decreases (Seq.length gl)) 
+  = let p = Seq.length gl in
+    if p = 0 then empty_hash_value
+    else
+      let gl' = prefix gl (p - 1) in
+      let h1 = hadd_aux gl' in
+      let h2 = thread_hadd (verify (thread_log gl (p - 1))) in
+      ms_hashfn_agg h1 h2
+
+let hadd (gl: verifiable_log): ms_hash_value = hadd_aux gl
+
+let rec hevict_aux (gl: verifiable_log)
+  : Tot (ms_hash_value)
+    (decreases (Seq.length gl))
+  = let p = Seq.length gl in
+    if p = 0 then empty_hash_value
+    else
+      let gl' = prefix gl (p - 1) in
+      let h1 = hevict_aux gl' in
+      let h2 = thread_hevict (verify (thread_log gl (p - 1))) in
+      ms_hashfn_agg h1 h2
+
+let hevict (gl: verifiable_log): ms_hash_value = hevict_aux gl
 
 val forall_is_map (gl:verifiable_log) : bool
 

@@ -1,5 +1,11 @@
 module Veritas.Intermediate.VerifySC
 
+(* Relation between a slot and key *)
+let slot_key_rel (vs: vtls {Valid? vs}) (s:slot_id) (k:key) =
+  let st = thread_store vs in slot_key_equiv st s k
+
+(* Simulation lemmas for v* functions *)
+
 let lemma_vget_simulates_spec 
       (vs:vtls{Valid? vs})
       (vs':Spec.vtls{Spec.Valid? vs'})
@@ -95,6 +101,9 @@ let lemma_vevictb_simulates_spec
       (t:timestamp)
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k))
           (ensures (vtls_rel (vevictb s t vs) (Spec.vevictb k t vs'))) 
+          [SMTPat (vevictb s t vs); SMTPat (Spec.vevictb k t vs')]
+          // note: SMTPat needed for lemma_vevictbm_simulates_spec
+
   = ()
 
 let lemma_vevictb_has_failed (vs:vtls{Valid? vs}) (s:slot_id) (t:timestamp)
@@ -160,10 +169,6 @@ let rec lemma_t_verify_aux_valid_implies_log_exists (vs:vtls) (l:logS)
   = let n = Seq.length l in
     if n <> 0 
     then lemma_t_verify_aux_valid_implies_log_exists vs (prefix l (n - 1))
-
-let init_thread_state_valid (id:thread_id)
-  : Lemma (Valid? (init_thread_state id))
-  = ()
 
 let lemma_empty_store_rel () 
   : Lemma (store_rel (empty_store store_size) Spec.empty_store)
@@ -299,38 +304,11 @@ let lemma_logS_to_logK_to_state_op (id:thread_id) (l:logS{Valid? (t_verify id l)
 
 let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl)
   : Lemma (ensures verifiable (prefix gl i))
-          [SMTPat (verifiable (prefix gl i))]
   = let glp = prefix gl i in
     let aux (tid:seq_index glp)
       : Lemma (ensures (Valid? (verify (thread_log glp tid))))
       = assert(thread_log glp tid = thread_log gl tid) in
     Classical.forall_intro aux
-
-let rec hadd_aux (gl: verifiable_log)
-  : Tot (ms_hash_value)
-    (decreases (Seq.length gl)) 
-  = let p = Seq.length gl in
-    if p = 0 then empty_hash_value
-    else
-      let gl' = prefix gl (p - 1) in
-      let h1 = hadd_aux gl' in
-      let h2 = thread_hadd (verify (thread_log gl (p - 1))) in
-      ms_hashfn_agg h1 h2
-
-let hadd (gl: verifiable_log): ms_hash_value = hadd_aux gl
-
-let rec hevict_aux (gl: verifiable_log)
-  : Tot (ms_hash_value)
-    (decreases (Seq.length gl))
-  = let p = Seq.length gl in
-    if p = 0 then empty_hash_value
-    else
-      let gl' = prefix gl (p - 1) in
-      let h1 = hevict_aux gl' in
-      let h2 = thread_hevict (verify (thread_log gl (p - 1))) in
-      ms_hashfn_agg h1 h2
-
-let hevict (gl: verifiable_log): ms_hash_value = hevict_aux gl
 
 let rec forall_is_map_aux (gl: verifiable_log) 
   : Tot bool (decreases (Seq.length gl))
