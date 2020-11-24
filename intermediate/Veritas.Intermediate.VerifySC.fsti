@@ -110,6 +110,7 @@ let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
       else if store_contains st s then Failed
       (* check store does not contain key k via MAdd
          >> in lower levels we will check this via 'in_store' fields *)
+      (* Arvind: why only check for Merkle Add? *)
       else if store_contains_key st k && add_method_of_by_key st k = Spec.MAdd then Failed
       (* check type of v is consistent with k *)
       else if not (is_value_of k v) then Failed
@@ -296,6 +297,7 @@ let t_verify_step (vs:vtls) (e:logS_entry): vtls =
     | EvictB_S s t -> vevictb s t vs
     | EvictBM_S s s' t -> vevictbm s s' t vs
 
+(* Arvind: a tad confused here; are we trying to add e when the verifier state is vtls? *)
 val logS_to_logK_entry (vs:vtls{Valid? vs}) (e:logS_entry) : option logK_entry
 
 let add_to_log (l:option logK) (vs:vtls) (e:logS_entry) : option logK =
