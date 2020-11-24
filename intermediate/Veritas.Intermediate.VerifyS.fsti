@@ -199,7 +199,8 @@ let vevictm (s:slot_id) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
           else
             let st_upd = update_hash_and_blum_bit st s' d h false in
             let st_upd2 = evict_from_store st_upd s in
-            update_thread_store vs st_upd2
+            let st_upd3 = update_in_store st_upd2 s' d false in
+            update_thread_store vs st_upd3
 
 let vaddb (s:slot_id) (r:record) (t:timestamp) (j:thread_id) (vs:vtls {Valid? vs}): vtls = 
   if not (s < thread_store_size vs) then Failed

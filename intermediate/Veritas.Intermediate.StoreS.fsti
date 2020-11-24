@@ -124,8 +124,8 @@ let evict_from_store
 (* How to check that a key is not in the store with add_method=MAdd:
    1. If a child_in_store flag is unset then the corresponding descendent is not in the store.
    2. k' point to the nearest descendent in the store.
-      (a) If k' points to k2 then no key between k' and k2 is in the store.
-      (b) If k' points to Empty then no descendent of k' in that direction is in the store. *)
+      (a) If k' points to Empty then no descendent of k' in that direction is in the store.
+      (b) If k' points to k2 then no key between k' and k2 is in the store. *)
 let store_contains_key_with_MAdd (st:vstore) (k:key) : bool
   = store_contains_key st k && add_method_of_by_key st k = Spec.MAdd
 
@@ -140,19 +140,21 @@ let in_store_flag_unset_equals_desc_not_in_store
   = let v = to_merkle_value (stored_value st s) in    
     forall (d:bin_tree_dir).
     let dh = desc_hash_dir v d in
-    (Desc? dh ==>
-     (child_in_store st s d = store_contains_key_with_MAdd st (Desc?.k dh)))
+    (Desc? dh ==> (child_in_store st s d = store_contains_key_with_MAdd st (Desc?.k dh)))
 
 let points_to_nearest_desc_in_store 
       (st:vstore)
       (s:slot_id{store_contains st s /\ MVal? (stored_value st s)})
   = let k' = stored_key st s in
     let v' = to_merkle_value (stored_value st s) in
-    forall (k:key{is_proper_desc k k'}).
-    let dh = desc_hash_dir v' (desc_dir k k') in
-    if Empty? dh then not (store_contains_key_with_MAdd st k)
-    else if is_proper_desc (Desc?.k dh) k then not (store_contains_key_with_MAdd st k) 
-    else True
+    forall (d:bin_tree_dir). 
+    let dh = desc_hash_dir v' d in
+    match dh with
+    | Empty -> 
+        forall (k:key{is_proper_desc k k' /\ desc_dir k k' = d}). not (store_contains_key_with_MAdd st k)
+    | Desc k2 _ _ -> 
+        is_proper_desc k2 k' /\ desc_dir k2 k' = d /\
+        (forall (k:key{is_proper_desc k k' /\ is_proper_desc k2 k}). not (store_contains_key_with_MAdd st k))
 
 let merkle_store_inv (st:vstore) = 
   forall (s:slot_id{store_contains st s /\ MVal? (stored_value st s)}).
