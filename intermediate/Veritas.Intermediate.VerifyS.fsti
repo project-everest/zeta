@@ -325,9 +325,7 @@ let vtls_rel (vs:vtls) (vs':SC.vtls) : Type =
    (let (Valid id st clk ha he) = vs in
     let (SC.Valid id' st' clk' ha' he') = vs' in
     // all fields are equal
-    equal_contents st st' /\ id = id' /\ clk = clk' /\ ha = ha' /\ he = he' /\
-    // the invariant over MAdd keys holds
-    merkle_store_inv st))
+    equal_contents st st' /\ id = id' /\ clk = clk' /\ ha = ha' /\ he = he'))
 
 let init_thread_state_valid (id:thread_id)
   : Lemma (Valid? (init_thread_state id))
@@ -343,17 +341,20 @@ val lemma_t_verify_simulates_SC (id:thread_id) (l:logS)
 (* Global verification *)
 let verify (tl:thread_id_logS): vtls =
   t_verify (fst tl) (snd tl)
-  
-let verifiable (gl: g_logS) = 
+
+let tl_verifiable (tl: thread_id_logS) = 
+  Valid? (verify tl)
+
+let gl_verifiable (gl: g_logS) = 
   forall (tid:seq_index gl). Valid? (verify (thread_log gl tid))
 
-let verifiable_log = gl:g_logS{verifiable gl}
+let tl_verifiable_log = gl:g_logS{tl_verifiable gl}
 
-val lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl)
-  : Lemma (ensures verifiable (prefix gl i))
-          [SMTPat (verifiable (prefix gl i))]
+val lemma_prefix_tl_verifiable (gl: tl_verifiable_log) (i:seq_index gl)
+  : Lemma (ensures tl_verifiable (prefix gl i))
+          [SMTPat (tl_verifiable (prefix gl i))]
 
-let rec hadd_aux (gl: verifiable_log)
+let rec hadd_aux (gl: tl_verifiable_log)
   : Tot (ms_hash_value)
     (decreases (Seq.length gl)) 
   = let p = Seq.length gl in
@@ -364,9 +365,9 @@ let rec hadd_aux (gl: verifiable_log)
       let h2 = thread_hadd (verify (thread_log gl (p - 1))) in
       ms_hashfn_agg h1 h2
 
-let hadd (gl: verifiable_log): ms_hash_value = hadd_aux gl
+let hadd (gl: tl_verifiable_log): ms_hash_value = hadd_aux gl
 
-let rec hevict_aux (gl: verifiable_log)
+let rec hevict_aux (gl: tl_verifiable_log)
   : Tot (ms_hash_value)
     (decreases (Seq.length gl))
   = let p = Seq.length gl in
@@ -377,7 +378,7 @@ let rec hevict_aux (gl: verifiable_log)
       let h2 = thread_hevict (verify (thread_log gl (p - 1))) in
       ms_hashfn_agg h1 h2
 
-let hevict (gl: verifiable_log): ms_hash_value = hevict_aux gl
+let hevict (gl: tl_verifiable_log): ms_hash_value = hevict_aux gl
 
 let hash_verifiable (gl: verifiable_log): bool
   = hadd gl = hevict gl
@@ -395,22 +396,21 @@ val hadd_values_equal (gl:verifiable_log) : Lemma (hadd gl = SC.hadd gl)
 
 val hevict_values_equal (gl:verifiable_log) : Lemma (hevict gl = SC.hevict gl)
 
-(* We show in VerifySC.fst that forall_is_map gl <==> forall i. thread_store_is_map (verify (thread_log gl i)).
-   So the easiest way to prove this lemma is probably by showing that if there is any case where is_map becomes false
-   (only possible in SCstore.add_to_store), then the final hash check must fail. *)
-let lemma_hash_verifiable_log_implies_forall_is_map (gl:hash_verifiable_log)
-  : Lemma (SC.forall_is_map gl)
-  = admit()
-
 let lemma_hash_verifiable_simulates_SC (gl:hash_verifiable_log)
   : Lemma (SC.hash_verifiable gl)
   = hadd_values_equal gl;
-    hevict_values_equal gl;
-    lemma_hash_verifiable_log_implies_forall_is_map gl 
+    hevict_values_equal gl
 
 (* Correctness *)
 
 let lemma_verifier_correct (gl: hash_verifiable_log { ~ (Veritas.State.seq_consistent (to_state_op_glogS gl))})
   : Veritas.Verifier.EAC.hash_collision_gen
-  = lemma_hash_verifiable_simulates_SC gl;
-    SC.lemma_verifier_correct gl
+  = let itsl = il_create gl in
+    // destruct on (is_eac itsl)
+    // in the true case
+    //   we should be able to prove that the S/SC vfun functions always produce related results;
+    //   so we can reuse SC.lemma_verifier_correct
+    // in the false case
+    //   we should be able to generate a hash collision; 
+    //   can we reuse Veritas.Verifier.EAC.lemma_non_eac_time_seq_implies_hash_collision?
+    admit()
