@@ -55,5 +55,5 @@ The structure of the proof might be something like the following:
 * Otherwise, `ilogS_to_logK itsl` is not EAC. In this case, we can't prove that the corresponding spec-level log is hash-verifiable, so we can't directly use `lemma_non_eac_time_seq_implies_hash_collision` from Veritas.Verifier.EAC. However, we can reuse the proofs of cases that do not require the input log to be hash-verifiable -- which is every case except the addb cases. I still need to think about what the addb cases will look like.
 
 Thoughts on proving that `ilogS_to_logK itsl` is EAC ==> all `is_map` flags are true.
-* The only way `is_map` can become false is during vaddb or vaddm, when the input key is already in the store. Is EAC has not been violated up to this point, then it is certainly violated at this add (?)
+* The only way `is_map` can become false is during vaddb or vaddm, when the input key is already in the store. If EAC has not been violated up to this point, then it is certainly violated at this add (?)
 * TODO
