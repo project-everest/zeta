@@ -344,34 +344,48 @@ static uint32_t vbool_lserializer(Veritas_Formats_Types_vbool x, uint8_t *b, uin
   return pos_ - pos;
 }
 
-extern uint32_t
-Veritas_Formats_EverParse_Significant_digits_t_significant_digits_t_size32(uint16_t uu___);
+static uint32_t significant_digits_t_size32(uint16_t x)
+{
+  return (uint32_t)2U;
+}
 
-extern uint64_t
-Veritas_Formats_EverParse_Significant_digits_t_significant_digits_t_validator(
-  slice uu___,
-  uint64_t x0
-);
+static uint64_t significant_digits_t_validator(slice input, uint64_t pos)
+{
+  uint64_t res;
+  if ((uint64_t)input.len - pos < (uint64_t)2U)
+    res = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
+  else
+    res = pos + (uint64_t)2U;
+  if (is_error(res))
+    return res;
+  else
+  {
+    uint8_t *x0 = input.base;
+    uint16_t va = load16_be(x0 + (uint32_t)pos);
+    if (!(va <= (uint16_t)256U))
+      return VALIDATOR_ERROR_GENERIC;
+    else
+      return res;
+  }
+}
 
-extern uint16_t
-Veritas_Formats_EverParse_Significant_digits_t_significant_digits_t_reader(
-  slice uu___,
-  uint32_t x0
-);
+static uint16_t significant_digits_t_reader(slice input, uint32_t pos)
+{
+  uint8_t *x0 = input.base;
+  uint16_t res = load16_be(x0 + pos);
+  return res;
+}
 
-extern uint32_t
-Veritas_Formats_EverParse_Significant_digits_t_significant_digits_t_lserializer(
-  uint16_t uu___,
-  uint8_t *x0,
-  uint32_t x1
-);
+static uint32_t significant_digits_t_lserializer(uint16_t x, uint8_t *input, uint32_t pos)
+{
+  store16_be(input + pos, x);
+  return (uint32_t)2U;
+}
 
 static uint32_t key_size32(Veritas_Formats_Types_key input)
 {
   uint32_t v1 = u256_size32(input.k);
-  uint32_t
-  v2 =
-    Veritas_Formats_EverParse_Significant_digits_t_significant_digits_t_size32(input.significant_digits);
+  uint32_t v2 = significant_digits_t_size32(input.significant_digits);
   if ((uint32_t)4294967295U - v2 < v1)
     return (uint32_t)4294967295U;
   else
@@ -384,9 +398,7 @@ static uint64_t key_validator(slice input, uint64_t pos)
   if (is_error(pos1))
     return pos1;
   else
-    return
-      Veritas_Formats_EverParse_Significant_digits_t_significant_digits_t_validator(input,
-        pos1);
+    return significant_digits_t_validator(input, pos1);
 }
 
 static uint32_t key_jumper(uint32_t pos)
@@ -405,8 +417,7 @@ static Veritas_Formats_Types_key key_reader(slice input, uint32_t pos)
 {
   Veritas_Formats_Types_u256 x1 = u256_reader(input, pos);
   uint32_t pos2 = u256_jumper(pos);
-  uint16_t
-  x2 = Veritas_Formats_EverParse_Significant_digits_t_significant_digits_t_reader(input, pos2);
+  uint16_t x2 = significant_digits_t_reader(input, pos2);
   key_ res = { .fst = x1, .snd = x2 };
   Veritas_Formats_Types_u256 k = res.fst;
   uint16_t significant_digits = res.snd;
@@ -418,11 +429,7 @@ static uint32_t key_lserializer(Veritas_Formats_Types_key x, uint8_t *input, uin
   uint32_t res = u256_lserializer(x.k, input, pos);
   uint32_t len1 = res;
   uint32_t pos1 = pos + len1;
-  uint32_t
-  res0 =
-    Veritas_Formats_EverParse_Significant_digits_t_significant_digits_t_lserializer(x.significant_digits,
-      input,
-      pos1);
+  uint32_t res0 = significant_digits_t_lserializer(x.significant_digits, input, pos1);
   uint32_t len2 = res0;
   return len1 + len2;
 }
