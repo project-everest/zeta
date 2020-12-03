@@ -1,4 +1,5 @@
 module Veritas.Formats
+include Veritas.Formats.Aux
 include Veritas.Formats.Types
 
 module U8 = FStar.UInt8

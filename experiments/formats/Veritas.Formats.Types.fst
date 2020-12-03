@@ -15,7 +15,7 @@ type u256 = {
 
 type key = {
   k : u256;
-  significant_digits : significant_digits: U16.t { U16.v significant_digits <= 256 };
+  significant_digits : Veritas.Formats.Aux.significant_digits_t;
 }
 
 type data_t = u256
