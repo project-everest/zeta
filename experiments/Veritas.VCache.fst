@@ -16,8 +16,7 @@ module B = LowStar.Buffer
 
 module C = FStar.Int.Cast
 
-// FIXME: not Low*
-let most_significant_bit k = magic ()
+let is_data_key k = k.significant_digits = 256us
 
 type vstore = B.lbuffer (option record) (UInt.max_int U16.n + 1)
 

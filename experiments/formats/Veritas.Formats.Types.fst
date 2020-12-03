@@ -15,7 +15,7 @@ type u256 = {
 
 type key = {
   k : u256;
-  significant_digits : U8.t;
+  significant_digits : significant_digits: U16.t { U16.v significant_digits <= 256 };
 }
 
 type data_t = u256

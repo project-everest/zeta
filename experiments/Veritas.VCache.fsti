@@ -24,9 +24,7 @@ type u64 = U64.t
 // FIXME: this is not Low*; consider using inline_for_extraction noextract
 let hash_size : nat = 256
 
-val most_significant_bit (k:key) : bool
-
-let is_data_key (k:key) : bool = most_significant_bit k
+val is_data_key (k:key) : bool
 
 let is_value_of (k:key) (v:value)
   : bool

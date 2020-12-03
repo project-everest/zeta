@@ -84,7 +84,7 @@ $(HACL_DIST)/libevercrypt.a: $(HACL_DIST)/Makefile.config
 # SKETCH!
 #
 test-all: test/mytest.c dist/libveritascore.a formats/dist/veritasformats.a $(HACL_DIST)/libevercrypt.a
-	$(CC) $^
+	$(CC) $^ -o mytest && ./mytest
 
 # Boilerplate
 
