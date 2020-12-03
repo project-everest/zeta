@@ -16,11 +16,9 @@ module B = LowStar.Buffer
 
 module C = FStar.Int.Cast
 
-type data_t = magic ()
+let is_data_key k = k.significant_digits = 256us
 
-let most_significant_bit k = magic ()
-
-type vstore = B.lbuffer (option record) (UInt.max_int U16.n)
+type vstore = B.lbuffer (option record) (UInt.max_int U16.n + 1)
 
 let invariant st h =
   B.live h st
@@ -34,12 +32,15 @@ let frame_invariant _ _ _ _ = ()
 let invariant_loc_in_footprint _ _ = ()
 
 let vcache_create () =
-  B.gcmalloc #(option record) HS.root None (U32.uint_to_t (UInt.max_int U16.n))
+  // FIXME: gcmalloc requires the use of a garbage-collector, use malloc instead
+  // along with a vcache_free?
+  // FIXME: U32.uint_to_t is not normalizing
+  B.gcmalloc #(option record) HS.root None (U32.uint_to_t (UInt.max_int U16.n + 1))
 
-let vcache_get_record st s = B.index st (C.uint16_to_uint32 s)
+let vcache_get_record st s = B.index st (C.uint16_to_uint32 (s))
 
-let vcache_update_record st s r = B.upd st (C.uint16_to_uint32 s) (Some r)
+let vcache_update_record st s r = B.upd st (C.uint16_to_uint32 (s)) (Some r)
 
 let vcache_add_record st s k v a = vcache_update_record st s (mk_record k v a)
 
-let vcache_evict_record st s _k = B.upd st (C.uint16_to_uint32 s) None
+let vcache_evict_record st s _k = B.upd st (C.uint16_to_uint32 (s)) None
