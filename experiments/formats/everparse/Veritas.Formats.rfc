@@ -7,9 +7,12 @@ struct {
   uint64 v0;
 } u256;
 
+abstract /*@has_lserializer*/
+significant_digits_t = "Veritas.Formats.Aux.significant_digits_t" < 2..2 >
+
 struct {
   u256 k;
-  uint8 significant_digits;
+  significant_digits_t significant_digits;
 } key;
 
 u256 data_t;

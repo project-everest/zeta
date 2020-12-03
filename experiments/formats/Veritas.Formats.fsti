@@ -36,7 +36,7 @@ val serialize_stamped_record
   (dst: B.buffer U8.t)
   (r: stamped_record)
 : HST.Stack U32.t
-  (requires (fun h -> B.live h dst /\ 181 <= B.length dst))
+  (requires (fun h -> B.live h dst /\ 184 <= B.length dst))
   (ensures (fun h0 len h1 ->
     U32.v len <= B.length dst /\
     B.modifies (B.loc_buffer (B.gsub dst 0ul len)) h0 h1

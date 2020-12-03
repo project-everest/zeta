@@ -35,7 +35,7 @@ typedef uint8_t Veritas_Formats_Types_vbool;
 typedef struct Veritas_Formats_Types_key_s
 {
   Veritas_Formats_Types_u256 k;
-  uint8_t significant_digits;
+  uint16_t significant_digits;
 }
 Veritas_Formats_Types_key;
 
@@ -244,10 +244,12 @@ uint64_t Veritas_Formats_Types___proj__Mku256__item__v1(Veritas_Formats_Types_u2
 
 uint64_t Veritas_Formats_Types___proj__Mku256__item__v0(Veritas_Formats_Types_u256 projectee);
 
+typedef uint16_t Veritas_Formats_Types_significant_digits_t;
+
 Veritas_Formats_Types_u256
 Veritas_Formats_Types___proj__Mkkey__item__k(Veritas_Formats_Types_key projectee);
 
-uint8_t
+uint16_t
 Veritas_Formats_Types___proj__Mkkey__item__significant_digits(
   Veritas_Formats_Types_key projectee
 );

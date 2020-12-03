@@ -71,7 +71,7 @@ $(FORMATS_HOME)/dist/Makefile.basic: $(filter-out %prims.krml,$(ALL_KRML_FILES))
 	  -warn-error @4@5@18 \
 	  -fparentheses \
 	  -header header.txt \
-	  -bundle 'Veritas.Formats+Veritas.Formats.Types=Veritas.Formats.EverParse.*,LowParse.*,LowStar.*,FStar.*,Prims[rename=Veritas_Formats]' \
+	  -bundle 'Veritas.Formats+Veritas.Formats.Types=Veritas.Formats.*,Veritas.Formats.EverParse.*,LowParse.*,LowStar.*,FStar.*,Prims[rename=Veritas_Formats]' \
 	  -o veritasformats.a \
 	  -ccopt -Wno-type-limits
 

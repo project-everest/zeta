@@ -13,9 +13,10 @@ type u256 = {
   v0 : U64.t;
 }
 
+type significant_digits_t = Veritas.Formats.Aux.significant_digits_t
 type key = {
   k : u256;
-  significant_digits : Veritas.Formats.Aux.significant_digits_t;
+  significant_digits : significant_digits_t;
 }
 
 type data_t = u256
