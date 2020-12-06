@@ -1,0 +1,19 @@
+# This Dockerfile must be run from the parent directory
+
+FROM ubuntu:20.04
+RUN apt-get --yes update
+RUN apt-get --yes --no-install-recommends install wget ca-certificates make gcc libc6-dev
+
+# Create a new user and give them sudo rights
+RUN useradd -d /home/test test
+RUN echo 'test ALL=NOPASSWD: ALL' >> /etc/sudoers
+RUN mkdir /home/test
+RUN chown test:test /home/test
+USER test
+ENV HOME /home/test
+WORKDIR $HOME
+SHELL ["/bin/bash", "--login", "-c"]
+
+ADD --chown=test . .
+ENV CI_THREADS 8
+RUN .ci/ci-with-everparse-release.sh
