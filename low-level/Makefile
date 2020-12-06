@@ -6,7 +6,11 @@ ifeq (,$(KREMLIN_HOME))
   $(error Please define KREMLIN_HOME)
 endif
 
-KRML = $(KREMLIN_HOME)/krml
+KRML := $(KREMLIN_HOME)/krml
+dummy := $(shell test -e $(KRML))
+ifneq ($(.SHELLSTATUS),0)
+  KRML := $(QD_HOME)/bin/krml
+endif
 
 KRML_OPTS = \
   -skip-compilation \

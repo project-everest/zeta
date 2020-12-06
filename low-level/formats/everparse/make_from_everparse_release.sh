@@ -13,10 +13,7 @@ if [[ -z "$QD_HOME" ]] ; then
     # QD_HOME does not point to EverParse.
     if ! [[ -d everparse ]] ; then
         # EverParse is not here. Pull the binary package.
-        everparse_basename=everparse_"$EVERPARSE_VERSION"_Linux_x86_64
-        everparse_tgz=$everparse_basename.tar.gz
-        wget https://github.com/project-everest/everparse/releases/download/$EVERPARSE_VERSION/$everparse_tgz
-        tar xzf $everparse_tgz
+        ./fetch_everparse.sh
         # Reuse extracted *.krml from the binary package
         mkdir -p obj
         cp -p everparse/src/3d/prelude/*.krml obj/
