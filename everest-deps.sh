@@ -40,7 +40,6 @@ do_clone () {
         git clone git@github.com:project-everest/everest.git
     fi
 
-    (cd everest; git checkout veritas)
 }
 
 do_build () {
@@ -50,14 +49,18 @@ do_build () {
 
     ./everest pull
 
-    ./everest $EVEREST_OPTS FStar make kremlin make quackyducky make MLCrypto make hacl-star make
+    ./everest $EVEREST_OPTS FStar make kremlin make
+    OTHERFLAGS=
+    if echo "$EVEREST_OPTS" | grep -- --admit ; then
+        OTHERFLAGS="$OTHERFLAGS --admit_smt_queries true"
+    fi
+    threads=1
+    if echo "$EVEREST_OPTS" | grep -- -j ; then
+        threads=$(echo "$EVEREST_OPTS" | grep -o -- '-j *[0-9]*' | sed 's!-j *!!')
+    fi
+    export OTHERFLAGS
+    make -C quackyducky -j $threads lowparse quackyducky
 
-    (cd hacl-star;
-     make -C dist/gcc-compatible/ install-hacl-star-raw;
-     (cd bindings/ocaml &&
-          dune build &&
-          dune install &&
-          dune runtest))
 }
 
 do_check () {
@@ -65,7 +68,7 @@ do_check () {
 
     cd everest
 
-    ./everest check
+    ./everest $EVEREST_OPTS check
 }
 
 is_windows () {
@@ -77,19 +80,15 @@ do_setenv() {
         export EVEREST_HOME=`cygpath -m $PWD/everest`
         export FSTAR_HOME=`cygpath -m $EVEREST_HOME/FStar`
         export KREMLIN_HOME=`cygpath -m $EVEREST_HOME/kremlin`
-        export VALE_HOME=`cygpath -m $EVEREST_HOME/vale`
         export QD_HOME=`cygpath -m $EVEREST_HOME/quackyducky`
         export EVERPARSE_HOME=`cygpath -m $EVEREST_HOME/quackyducky`
-        export MLCRYPTO_HOME=`cygpath -m $EVEREST_HOME/MLCrypto`
         export PATH=`cygpath -u $EVEREST_HOME/z3/bin`:`cygpath -u $FSTAR_HOME/bin`:`cygpath -u $QD_HOME`:$PATH
     else
         export EVEREST_HOME=$PWD/everest
         export FSTAR_HOME=$EVEREST_HOME/FStar
         export KREMLIN_HOME=$EVEREST_HOME/kremlin
-        export VALE_HOME=$EVEREST_HOME/vale
         export QD_HOME=$EVEREST_HOME/quackyducky
         export EVERPARSE_HOME=$EVEREST_HOME/quackyducky
-        export MLCRYPTO_HOME=$EVEREST_HOME/MLCrypto
         export PATH=$EVEREST_HOME/z3/bin:$FSTAR_HOME/bin:$QD_HOME:$PATH
     fi
 }
