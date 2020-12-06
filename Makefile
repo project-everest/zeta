@@ -14,7 +14,10 @@ low-level-ci: low-level/formats
 	+$(MAKE) -C low-level
 
 low-level/formats:
+	cp $@/Veritas.Formats.Types.fst types.old
 	+$(MAKE) -C $@ regen
+	diff types.old $@/Veritas.Formats.Types.fst
+	rm -f types.old
 
 intermediate.verify:
 
