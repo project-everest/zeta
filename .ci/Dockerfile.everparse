@@ -14,6 +14,12 @@ ENV HOME /home/test
 WORKDIR $HOME
 SHELL ["/bin/bash", "--login", "-c"]
 
+RUN mkdir .ci
+WORKDIR .ci
+ADD --chown=test low-level/formats/everparse/fetch_everparse.sh .
+RUN ./fetch_everparse.sh
+WORKDIR ..
+
 ADD --chown=test . .
 ENV CI_THREADS 8
 RUN .ci/ci-with-everparse-release.sh
