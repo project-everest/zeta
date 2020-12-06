@@ -1,0 +1,25 @@
+# This Dockerfile must be run from the parent directory
+
+FROM ubuntu:20.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get --yes update
+RUN apt-get --yes --no-install-recommends install wget ca-certificates make gcc libc6-dev git opam m4 sudo tzdata
+
+# Create a new user and give them sudo rights
+RUN useradd -d /home/test test
+RUN echo 'test ALL=NOPASSWD: ALL' >> /etc/sudoers
+RUN mkdir /home/test
+RUN chown test:test /home/test
+USER test
+ENV HOME /home/test
+WORKDIR $HOME
+SHELL ["/bin/bash", "--login", "-c"]
+
+# Install OCaml
+ENV OPAMYES 1
+RUN opam init --disable-sandboxing --compiler=4.09.1
+RUN opam env --set-switch | tee --append .profile .bashrc .bash_profile
+
+ADD --chown=test . .
+ENV CI_THREADS 8
+RUN .ci/ci-with-everest.sh

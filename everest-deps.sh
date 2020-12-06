@@ -37,7 +37,8 @@ HELP
 do_clone () {
 
     if [ ! -d everest ]; then
-        git clone git@github.com:project-everest/everest.git
+        git clone git@github.com:project-everest/everest.git ||
+        git clone https://github.com/project-everest/everest.git
     fi
 
 }
@@ -47,7 +48,7 @@ do_build () {
 
     cd everest
 
-    ./everest pull
+    ./everest $EVEREST_OPTS pull
 
     ./everest $EVEREST_OPTS FStar make kremlin make
     OTHERFLAGS=
@@ -68,7 +69,7 @@ do_check () {
 
     cd everest
 
-    ./everest $EVEREST_OPTS check
+    ./everest $EVEREST_OPTS opam z3
 }
 
 is_windows () {
