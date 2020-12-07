@@ -84,6 +84,7 @@ do_setenv() {
         export QD_HOME=`cygpath -m $EVEREST_HOME/quackyducky`
         export EVERPARSE_HOME=`cygpath -m $EVEREST_HOME/quackyducky`
         export PATH=`cygpath -u $EVEREST_HOME/z3/bin`:`cygpath -u $FSTAR_HOME/bin`:`cygpath -u $QD_HOME`:$PATH
+        export HACL_HOME=`cygpath -m $EVEREST_HOME/hacl-star`
     else
         export EVEREST_HOME=$PWD/everest
         export FSTAR_HOME=$EVEREST_HOME/FStar
@@ -91,6 +92,7 @@ do_setenv() {
         export QD_HOME=$EVEREST_HOME/quackyducky
         export EVERPARSE_HOME=$EVEREST_HOME/quackyducky
         export PATH=$EVEREST_HOME/z3/bin:$FSTAR_HOME/bin:$QD_HOME:$PATH
+        export HACL_HOME=$EVEREST_HOME/hacl-star
     fi
 }
 
