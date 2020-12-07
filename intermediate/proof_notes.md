@@ -50,10 +50,67 @@ let lemma_verifier_correct (gl: hash_verifiable_log { ~ (seq_consistent (to_stat
 ```
 Above, the only hard part is proving an intermediate-level version of `lemma_time_seq_rw_consistent itsl`. This lemma says that given a hash-verifiable interleaved log `itsl` such that `state_ops itsl` is not read-write consistent, we can produce a hash collision. 
 
-The structure of the proof might be something like the following:
-* If `ilogS_to_logK itsl` is EAC, then we should be able to prove that after verifying `itsl` all `is_map` flags are true (may be tricky?). And from this, we should be able to prove that Inter.verify simulates Spec.verify, implying that `ilogS_to_logK itsl` is hash-verifiable. But now we have a contradiction because `Spec.lemma_eac_implies_state_ops_rw_consistent` says that `state_ops (ilogS_to_logK itsl) = state_ops itsl` is read-write consistent.
-* Otherwise, `ilogS_to_logK itsl` is not EAC. In this case, we can't prove that the corresponding spec-level log is hash-verifiable, so we can't directly use `lemma_non_eac_time_seq_implies_hash_collision` from Veritas.Verifier.EAC. However, we can reuse the proofs of cases that do not require the input log to be hash-verifiable -- which is every case except the addb cases. I still need to think about what the addb cases will look like.
+We will prove this by induction on the global, interleaved log. Assuming a hash collision has not occurred, we will need to maintain several invariants.
+* The spec-level log corresponding to the interleaved intermediate log is evict-add consistent.
+* Every verifier thread has its `is_map` flag set to true.
+* Every verifier's store satisifes the following property.
+  ```
+  let exists_unique (#t:eqtype) (f: t → prop) = ∃ (x:t). f x ∧ (∀ (y:t{x ≠ y}). ¬ (f y))
+  let merkle_inv (st:vstore)
+    = ∀ (k:key{k ≠ Root}).
+      store_contains_key_with_MAdd st k ⟺
+      (exists (s:instore_merkle_slot st).
+           let k' = stored_key st s in
+           let v' = to_merkle_value (stored_value st s) in
+           is_proper_desc k k' ∧
+           Veritas.Verifier.Merkle.mv_points_to v' (desc_dir k k') k ∧
+           in_store_bit st s (desc_dir k k') = true))
+  ```
+  ... or possibly directly say that s needs to contain the proving ancestor of k
+* The intermediate-level state of every verifier is related to the corresponding spec-level state.
 
-Thoughts on proving that `ilogS_to_logK itsl` is EAC ==> all `is_map` flags are true.
-* The only way `is_map` can become false is during vaddb or vaddm, when the input key is already in the store. If EAC has not been violated up to this point, then it is certainly violated at this add (?)
-* TODO
+A sketch of the inductive step:
+```
+let inductive_step (itsl:il_hash_verifiable_log) (i:I.seq_index itsl)
+  : Lemma (requires (let itsl_i = I.prefix itsl i in
+                     let itsl_k_i = ilogS_to_logK itsl_i in
+                     is_eac itsl_k_i ∧
+                     forall_is_map itsl_i ∧
+                     forall_merkle_inv itsl_i ∧
+                     forall_vtls_rel itsl_i itsl_k_i))
+          (ensures (let itsl_i1 = I.prefix itsl (i + 1) in
+                    let itsl_k_i1 = ilogS_to_logK itsl_i1 in
+                    hash_collision_gen ∨
+                    (is_eac itsl_k_i1 ∧
+                     forall_is_map itsl_i1 ∧
+                     forall_merkle_inv itsl_i1 ∧
+                     forall_vtls_rel itsl_i1 itsl_k_i1)))
+
+  = let itsl_i1 = I.prefix itsl (i + 1) in
+    let itsl_k_i1 = ilogS_to_logK itsl_i1 in
+  
+    let e = I.index itsl (i + 1)
+    match e with
+    | Get_S s k v -> 
+        if is_eac itsl_k_i1
+        then // easy
+        else // re-use lemmas in Veritas.Verifier.EAC
+    | Put_S s k v -> 
+        if is_eac itsl_k_i1
+        then // easy
+        else // re-use lemmas in Veritas.Verifier.EAC   
+    | AddM_S s (k,v) s' ->
+        if is_eac itsl_k_i1
+        then // s' stores the proving ancestor of k and s' either points to k or k is not in the store
+             // - should be able to prove that is_map cannot become false (due to checks on in_store and evicted_to_blum bits)
+        else // re-use lemmas in Veritas.Verifier.EAC
+    | EvictM_S s s' ->
+        if is_eac itsl_k_i1
+        then // s' stores the proving ancestor of the key at s (k) and s' points to k
+        else // re-use lemmas in Veritas.Verifier.EAC
+    | AddB_S s (k,v) t j ->
+        // hard case
+    ...
+```
+
+Using this inductive step, we should be able to prove that either `itsl:il_hash_verifiable_log` can be converted into an evict-add consistent hash-verifiable spec log or there will be a hash collision, allowing us to prove the final property. 
