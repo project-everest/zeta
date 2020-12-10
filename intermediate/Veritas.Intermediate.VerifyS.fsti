@@ -150,14 +150,11 @@ let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
               let mv = to_merkle_value v in
               let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
               let v'_upd = Spec.update_merkle_value v' d k h false in
-              let od = other_dir d in
-              let od_bit = in_store_bit st s' od in // original in_store bit in the other direction
               let st_upd = update_value st s' (MVal v'_upd) in
               let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
               let st_upd3 = update_in_store st_upd2 s' d true in
-              let st_upd4 = update_in_store st_upd3 s' od od_bit in
-              let st_upd5 = update_in_store st_upd4 s d2 true in
-              update_thread_store vs st_upd5
+              let st_upd4 = update_in_store st_upd3 s d2 true in
+              update_thread_store vs st_upd4
 
 let has_instore_merkle_desc (st:vstore) (s:slot_id{store_contains st s}): bool = 
   let k = stored_key st s in

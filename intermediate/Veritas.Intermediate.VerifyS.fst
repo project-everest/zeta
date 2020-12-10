@@ -15,7 +15,7 @@ let points_to (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) (k:key) : 
 
 let in_store_bit_equals_store_contains 
       (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) (k:key{points_to st s d k})
-  = in_store_bit st s d = store_contains_key_with_MAdd st k ///\
+  = in_store_bit st s d = store_contains_key_with_MAdd st k
     
 let store_inv (st:vstore) = 
   st.is_map /\
@@ -146,14 +146,11 @@ let lemma_vaddm_preserves_inv_if_k_is_new
           let mv = to_merkle_value v in
           let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
           let v'_upd = Spec.update_merkle_value v' d k h false in
-          let od = other_dir d in
-          let od_bit = in_store_bit st s' od in
           let st_upd = update_value st s' (MVal v'_upd) in
           let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
           let st_upd3 = update_in_store st_upd2 s' d true in
-          let st_upd4 = update_in_store st_upd3 s' od od_bit in
-          let st_upd5 = update_in_store st_upd4 s d2 true in
-          assume (store_inv st_upd5)
+          let st_upd4 = update_in_store st_upd3 s d2 true in
+          assume (store_inv st_upd4)
 
 let lemma_has_instore_merkle_desc (st:vstore) (st':Spec.vstore) (s:slot_id) (k:key)
   : Lemma (requires (store_inv st /\ store_rel st st' /\ slot_key_equiv st s k))
@@ -187,7 +184,7 @@ let lemma_vevictm_simulates_spec
           (ensures (vtls_rel (vevictm s s' vs) (Spec.vevictm k k' vs'))) 
   = lemma_has_instore_merkle_desc (thread_store vs) (Spec.thread_store vs') s k
 
-(* updating a merkle value preserves the invariant so log as you leave the pointed-to key the same *)
+(* updating a merkle value preserves the invariant if you leave the pointed-to key the same *)
 let lemma_update_merkle_value_preserves_inv
       (st:vstore)
       (s:instore_merkle_slot st)
@@ -200,7 +197,25 @@ let lemma_update_merkle_value_preserves_inv
           (ensures (let v = to_merkle_value (stored_value st s) in
                     let v_upd = Spec.update_merkle_value v d k h b in
                     store_inv (update_value st s (MVal v_upd))))
-  = admit()
+  = let v = to_merkle_value (stored_value st s) in
+    let v_upd = Spec.update_merkle_value v d k h b in
+    let st_upd = update_value st s (MVal v_upd) in
+    let aux (s0:instore_merkle_slot st_upd) (d:bin_tree_dir) (k:key{points_to st_upd s0 d k})
+      : Lemma (in_store_bit_equals_store_contains st_upd s0 d k)
+      = assert (in_store_bit_equals_store_contains st s0 d k) in
+    Classical.forall_intro_3 aux
+
+(* variant of points_to that requires no other slot points to k;
+   we will show that a slot satisifes this property using eac. 
+   I think it's too strong to maintain the invariant that multiple slots don't point to the same key
+   
+   spec fails immediately when adding a duplicate key
+   spec will fail later if multiple entries point to the same key
+   *)
+let points_to_unique (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) (k:key)
+  = points_to st s d k /\ 
+    ~ (points_to st s (other_dir d) k) /\
+    (forall (s':instore_merkle_slot st{s <> s'}) (d':bin_tree_dir). ~ (points_to st s' d' k))
 
 (* evicting a merkle slot requires updating the in_store bit *)
 let lemma_evict_from_store_update_in_store_preserves_inv
@@ -209,11 +224,33 @@ let lemma_evict_from_store_update_in_store_preserves_inv
       (s:slot_id{store_contains st s /\ s <> s'})
       (d:bin_tree_dir)
   : Lemma (requires (store_inv st /\
-                     // + some other conditions related to eac
-                     points_to st s' d (stored_key st s)))
+                     points_to_unique st s' d (stored_key st s)))
           (ensures (let st_upd = evict_from_store st s in
                     store_inv (update_in_store st_upd s' d false)))
-  = admit()
+  = let st_upd = evict_from_store st s in
+    let st_upd2 = update_in_store st_upd s' d false in
+    let aux (s0:instore_merkle_slot st_upd2) (d0:bin_tree_dir) (k:key{points_to st_upd s0 d0 k})
+      : Lemma (in_store_bit_equals_store_contains st_upd2 s0 d0 k)
+      = assert (s0 <> s); // not possible for s0 = s because s is not in the store
+        if s0 = s' && d0 = d
+        then (
+          assert (not (in_store_bit st_upd2 s0 d0));
+          assert (not (store_contains_key_with_MAdd st_upd2 k))
+        ) else if s0 = s' 
+        then (
+          assert (in_store_bit st s0 d0 = in_store_bit st_upd s0 d0);
+          assert (in_store_bit st_upd s0 d0 = in_store_bit st_upd2 s0 d0);
+          //assert (store_contains_key_with_MAdd st k = store_contains_key_with_MAdd st_upd k);
+          assert (store_contains_key_with_MAdd st_upd k = store_contains_key_with_MAdd st_upd2 k);
+          admit()
+        ) else (
+          assert (in_store_bit st s0 d = in_store_bit st_upd s0 d);
+          assert (in_store_bit st_upd s0 d = in_store_bit st_upd2 s0 d);
+          //assert (store_contains_key_with_MAdd st k = store_contains_key_with_MAdd st_upd k);
+          assert (store_contains_key_with_MAdd st_upd k = store_contains_key_with_MAdd st_upd2 k);
+          admit()
+        ) in
+    Classical.forall_intro_3 aux
 
 let lemma_vevictm_preserves_inv 
       (vs:vtls{Valid? vs}) 
@@ -235,6 +272,7 @@ let lemma_vevictm_preserves_inv
         let v'_upd = Spec.update_merkle_value v' d k h false in
         let st_upd = update_value st s' (MVal v'_upd) in
         lemma_update_merkle_value_preserves_inv st s' k d h false;
+        assume (points_to_unique st_upd s' d k);
         lemma_evict_from_store_update_in_store_preserves_inv st_upd s' s d
 
 let lemma_vaddb_simulates_spec_if_k_is_new 
@@ -640,7 +678,7 @@ let thread_state (itsl:its_log)
 
 let il_thread_id_of (itsl: its_log) (i: I.seq_index itsl): valid_tid itsl =
   fst (I.i2s_map itsl i)
-
+(*
 let thread_state_pre (itsl: its_log) (i: I.seq_index itsl): (vs:vtls{Valid? vs}) = 
   let tid = il_thread_id_of itsl i in
   thread_state (I.prefix itsl i) tid
@@ -653,7 +691,7 @@ let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl):
   Lemma (thread_state_post itsl i == 
          t_verify_step (thread_state_pre itsl i) (I.index itsl i))
   = admit()
-
+*)
 let forall_store_inv (itsl:its_log)
   = forall (tid:valid_tid itsl). store_inv (thread_store (thread_state itsl tid))
   
@@ -669,44 +707,68 @@ let ilogS_to_logK (il:its_log{forall_store_inv il}) : SpecVTS.its_log
 // WANT: I.index (ilogS_to_logK itsl) i == 
 //       logS_to_logK_entry (thread_state_pre itsl i) (I.index itsl i) 
 
-// It should also be the case that if itsl_k is an its_log, then extending
-// it with an element e that verifies at the intermediate level & does not
-// add a duplicate key produces an its_log (itsl_k ++ e)
-
 let lemma_ilogS_to_logK_length (itsl:its_log{forall_store_inv itsl})
   : Lemma (ensures I.length itsl = I.length (ilogS_to_logK itsl))
           [SMTPat (I.length (ilogS_to_logK itsl))]
   = admit()
 
+let lemma_ilogS_to_logK_thread_count (itsl:its_log{forall_store_inv itsl})
+  : Lemma (ensures thread_count itsl = SpecVTS.thread_count (ilogS_to_logK itsl))
+          [SMTPat (SpecVTS.thread_count (ilogS_to_logK itsl))]
+  = admit()
+
+// Also want a function that can take an il:its_log{forall_store_inv il} and an
+// entry e such that adding e produces a state where is_map=true, but may or may
+// not satisfy store_inv, and produces a SpecVTS.its_log
+// --> still need to figure out exactly how this relates to ilogS_to_logK
+let extend_spec_log 
+      (il:its_log{forall_store_inv il}) 
+      (tid:valid_tid il)
+      (e:logS_entry{let vs = t_verify_step (thread_state il tid) e in
+                    Valid? vs /\ thread_store_is_map vs})
+  : SpecVTS.its_log
+  = admit()
+
 let lemma_forall_store_inv_specialize (itsl:its_log) (i:I.seq_index itsl)
   : Lemma (requires (forall_store_inv (I.prefix itsl i)))
-          (ensures (store_inv (thread_store (thread_state_pre itsl i))))
+          (ensures (let tid = il_thread_id_of itsl i in
+                    store_inv (thread_store (thread_state (I.prefix itsl i) tid))))
   = ()
 
 let lemma_forall_store_inv_extend (itsl:its_log) (i:I.seq_index itsl)
-  : Lemma (requires (forall_store_inv (I.prefix itsl i) /\ 
-                     store_inv (thread_store (thread_state_post itsl i))))
+  : Lemma (requires (let tid = il_thread_id_of itsl i in
+                     forall_store_inv (I.prefix itsl i) /\ 
+                     store_inv (thread_store (thread_state (I.prefix itsl (i + 1)) tid))))
           (ensures (forall_store_inv (I.prefix itsl (i + 1))))
   = admit()
 
-let lemma_forall_store_inv_prefix (itsl:its_log{forall_store_inv itsl}) (i:I.seq_index itsl)
-  : Lemma (ensures (forall_store_inv (I.prefix itsl i)))
-          [SMTPat (forall_store_inv (I.prefix itsl i))]
+//let lemma_forall_store_inv_prefix (itsl:its_log{forall_store_inv itsl}) (i:I.seq_index itsl)
+//  : Lemma (ensures (forall_store_inv (I.prefix itsl i)))
+//          [SMTPat (forall_store_inv (I.prefix itsl i))]
+//  = admit()
+
+let lemma_forall_vtls_rel_specialize (itsl:its_log) (i:I.seq_index itsl)
+  : Lemma (requires (forall_store_inv (I.prefix itsl i) /\ 
+                     forall_vtls_rel (I.prefix itsl i) (ilogS_to_logK (I.prefix itsl i))))
+          (ensures (let tid = il_thread_id_of itsl i in
+                    vtls_rel (thread_state (I.prefix itsl i) tid)
+                             (SpecVTS.thread_state (ilogS_to_logK (I.prefix itsl i)) tid)))
   = admit()
 
-let lemma_forall_vtls_rel_specialize (itsl:its_log{forall_store_inv itsl}) (i:I.seq_index itsl)
-  : Lemma (requires (forall_vtls_rel (I.prefix itsl i) (ilogS_to_logK (I.prefix itsl i))))
-          (ensures (vtls_rel (thread_state_pre itsl i)
-                             (SpecVTS.thread_state_pre (ilogS_to_logK itsl) i)))
+let lemma_forall_vtls_rel_extend (itsl:its_log) (i:I.seq_index itsl)
+  : Lemma (requires (let tid = il_thread_id_of itsl i in
+                     forall_store_inv (I.prefix itsl i) /\
+                     forall_vtls_rel (I.prefix itsl i) (ilogS_to_logK (I.prefix itsl i)) /\
+                     (let e = I.index itsl i in
+                      let vs = t_verify_step (thread_state (I.prefix itsl i) tid) e in
+                       Valid? vs /\ thread_store_is_map vs /\
+                       vtls_rel vs (SpecVTS.thread_state (extend_spec_log (I.prefix itsl i) tid e) tid))))
+          (ensures (let tid = il_thread_id_of itsl i in
+                    let e = I.index itsl i in
+                    forall_vtls_rel (I.prefix itsl (i + 1)) (extend_spec_log (I.prefix itsl i) tid e)))
   = admit()
 
-let lemma_forall_vtls_rel_extend (itsl:its_log{forall_store_inv itsl}) (i:I.seq_index itsl)
-  : Lemma (requires (forall_vtls_rel (I.prefix itsl i) (ilogS_to_logK (I.prefix itsl i)) /\
-                     vtls_rel (thread_state_post itsl i) (SpecVTS.thread_state_post (ilogS_to_logK itsl) i)))
-          (ensures (forall_vtls_rel (I.prefix itsl (i + 1)) (ilogS_to_logK (I.prefix itsl (i + 1)))))
-  = admit()
-
-let inductive_step (itsl:il_hash_verifiable_log) (i:I.seq_index itsl{i + 1 < I.length itsl})
+let inductive_step (itsl:il_hash_verifiable_log) (i:I.seq_index itsl)
   : Lemma (requires (let itsl_i = I.prefix itsl i in
                      forall_store_inv itsl_i /\
                      (let itsl_k_i = ilogS_to_logK itsl_i in 
@@ -719,7 +781,8 @@ let inductive_step (itsl:il_hash_verifiable_log) (i:I.seq_index itsl{i + 1 < I.l
                       SpecVTS.is_eac itsl_k_i1 /\
                       forall_vtls_rel itsl_i1 itsl_k_i1)))) 
 
-  = let itsl_i = I.prefix itsl i in
+  = let tid = il_thread_id_of itsl i in
+    let itsl_i = I.prefix itsl i in
     let itsl_k_i = ilogS_to_logK itsl_i in
     let itsl_i1 = I.prefix itsl (i + 1) in
     
@@ -727,12 +790,15 @@ let inductive_step (itsl:il_hash_verifiable_log) (i:I.seq_index itsl{i + 1 < I.l
     assert (forall_store_inv itsl_i);
     assert (forall_vtls_rel itsl_i itsl_k_i);
 
-    let vs = thread_state_pre itsl i in
+    let vs = thread_state itsl_i tid in
+    let vs' = SpecVTS.thread_state itsl_k_i tid in 
 
     lemma_forall_store_inv_specialize itsl i;
     assert (store_inv (thread_store vs));
+    lemma_forall_vtls_rel_specialize itsl i;
+    assert (vtls_rel vs vs');
 
-    let e = I.index itsl (i + 1) in
+    let e = I.index itsl i in
 
     match e with
     (* Structure of each case:
@@ -766,9 +832,21 @@ let inductive_step (itsl:il_hash_verifiable_log) (i:I.seq_index itsl{i + 1 < I.l
        and lemmas in Veritas.Verifier.EAC that show that non-eac logs produce a hash
        collision.
     *) 
+    | Get_S s k v ->
+        lemma_vget_simulates_spec vs vs' s k v;
+        let itsl_k_i1 = extend_spec_log itsl_i tid e in
+        if SpecVTS.is_eac itsl_k_i1
+        then (
+          lemma_vget_preserves_inv vs s k v;
+          //itsl_k_i1 == ilogS_to_logK itsl_i1
+          admit()
+        ) 
+        else (
+          assume (Spec.Get? (SpecVTS.eac_boundary_entry itsl_k_i1));
+          Veritas.Verifier.EAC.lemma_non_eac_get_implies_hash_collision itsl_k_i1
+        )
     | _ -> admit()
     (*
-    | Get_S s k v -> 
     | Put_S s k v -> 
     | AddM_S s (k,v) s' -> 
     | EvictM_S s s' -> 
@@ -792,7 +870,7 @@ let rec lemma_il_hash_verifiable_implies_eac_and_vtls_rel_aux
     else (
       // either the recursive call returns a hash collision, or we can apply
       // inductive_step to prove the property;
-      // see link below for an example using squashes proofs:
+      // see link below for an example using squashed proofs:
       // https://github.com/FStarLang/FStar/blob/master/examples/misc/WorkingWithSquashedProofs.fst
       admit()
     )

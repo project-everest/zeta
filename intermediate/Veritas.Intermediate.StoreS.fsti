@@ -142,10 +142,8 @@ let update_value
   (v:value_type_of (stored_key st s))
   : Tot (st':vstore {store_contains st' s /\
                      stored_value st' s = v})
-  = let Some (VStoreE k _ am _ _) = get_slot st s in
-    update_slot st s (VStoreE k v am false false)
-    // store_inv (below) is easier to prove if we always update the l and r bits to be false;
-    // we will instead use in_store_bit and update_in_store to manipulate the l and r bits
+  = let Some (VStoreE k _ am l r) = get_slot st s in
+    update_slot st s (VStoreE k v am l r)
 
 let update_value_preserves_length 
       (st:vstore) 
@@ -385,6 +383,16 @@ let lemma_update_in_store_preserves_in_store_bit
           [SMTPat (in_store_bit (update_in_store st s d b) s0 d0)]
   = ()
 
+let lemma_update_in_store_updates_in_store_bit
+      (st:vstore)
+      (s:slot_id{store_contains st s})
+      (d:bin_tree_dir)
+      (b:bool)
+  : Lemma (ensures in_store_bit (update_in_store st s d b) s d = b)
+          [SMTPat (in_store_bit (update_in_store st s d b) s d)]
+  = ()
+
+
 let lemma_update_in_store_BAdd_preserves_key_with_MAdd
   (st:vstore)
   (s:st_index st{store_contains st s}) 
@@ -394,15 +402,15 @@ let lemma_update_in_store_BAdd_preserves_key_with_MAdd
   : Lemma (ensures store_contains_key_with_MAdd st k = 
                      store_contains_key_with_MAdd (update_in_store st s d b) k)
           [SMTPat (store_contains_key_with_MAdd (update_in_store st s d b) k)]
-  = admit()    
+  = admit()
 
-let lemma_add_to_store_implies_store_contains_key_with_MAdd
-  (st:vstore)
+let lemma_evict_from_store_evicts_key
+  (st:vstore{st.is_map})
   (s:st_index st{store_contains st s}) 
   (d:bin_tree_dir)
   (b:bool)
   (k:key)
-  : Lemma (ensures store_contains_key_with_MAdd st k = 
-                     store_contains_key_with_MAdd (update_in_store st s d b) k)
-          [SMTPat (store_contains_key_with_MAdd (update_in_store st s d b) k)]
+  : Lemma (ensures not (store_contains_key (evict_from_store st s) (stored_key st s)))
+          [SMTPat (store_contains_key (evict_from_store st s) (stored_key st s))]
   = admit()    
+
