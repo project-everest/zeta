@@ -940,3 +940,56 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl   
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl      
     )
+
+(* Less general form of the statement above that doesn't require itsl to be hash_verifiable; 
+   used in Veritas.Intermediate *)
+
+let lemma_non_eac_get_implies_hash_collision
+  (itsl: neac_log {Get? (eac_boundary_entry itsl)}) : hash_collision_gen =
+
+  let i = TL.eac_boundary itsl in
+  let st:eac_state = TL.eac_boundary_state_pre itsl in
+  let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in
+  
+  match st with
+  | EACInit -> (
+      match ee with
+      | NEvict (Get _ _) -> lemma_non_eac_init_requires_key_in_store itsl
+    )
+  | EACInStore _ _ -> (
+      match ee with
+      | NEvict (Get _ _) -> lemma_non_eac_instore_get itsl
+    )
+  | EACEvictedMerkle _ -> (
+      match ee with
+      | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
+    )
+  | EACEvictedBlum v t tid -> (
+      match ee with
+      | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
+    )
+
+let lemma_non_eac_put_implies_hash_collision
+  (itsl: neac_log {Put? (eac_boundary_entry itsl)}) : hash_collision_gen =
+  
+  let i = TL.eac_boundary itsl in
+  let st:eac_state = TL.eac_boundary_state_pre itsl in
+  let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in
+
+  match st with
+  | EACInit -> (
+      match ee with
+      | NEvict (Put _ _) -> lemma_non_eac_init_requires_key_in_store itsl
+    )
+  | EACInStore m v -> (
+      match ee with
+      | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl    
+    )
+  | EACEvictedMerkle v -> (
+      match ee with
+      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl        
+    )
+  | EACEvictedBlum v t tid -> (
+      match ee with
+      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl          
+    )

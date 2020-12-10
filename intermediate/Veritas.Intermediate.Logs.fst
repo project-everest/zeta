@@ -5,6 +5,7 @@ open Veritas.Key
 open Veritas.MultiSetHashDomain
 open Veritas.Record
 open Veritas.SeqAux
+open Veritas.State
 
 module Spec = Veritas.Verifier
 
@@ -35,10 +36,10 @@ let is_state_op (e: logS_entry): bool =
   | Get_S _ _ _ | Put_S _ _ _ -> true
   | _ -> false
 
-let to_state_op (e:logS_entry {is_state_op e}): Veritas.State.state_op =
+let to_state_op (e:logS_entry {is_state_op e}): state_op =
   match e with
-  | Get_S _ k v -> Veritas.State.Get k v
-  | Put_S _ k v -> Veritas.State.Put k v
+  | Get_S _ k v -> Get k v
+  | Put_S _ k v -> Put k v
 
 let to_state_op_logS (l: logS) =
   map to_state_op (filter_refine is_state_op l)
@@ -66,10 +67,10 @@ let tl_prefix (tl: thread_id_logS) (i:nat{i <= tl_length tl}): thread_id_logS =
 
 let g_logS = Seq.seq logS
 
-let thread_log (gl: g_logS) (tid: seq_index gl): thread_id_logS = 
+let thread_log (gl:g_logS) (tid:seq_index gl): thread_id_logS = 
    (tid, Seq.index gl tid)
 
-let to_state_op_glogS (gl: g_logS) =
+let to_state_op_glogS (gl:g_logS) =
   map to_state_op_logS gl
 
 (* Reproducing definitions from Veritas.Verifier.TSLog *)
@@ -80,4 +81,17 @@ let thread_count (il:il_logS) = Seq.length (s_seq il)
 
 let valid_tid (il:il_logS) = tid:nat{tid < thread_count il}
 
-let g_logS_of (il: il_logS): g_logS = s_seq il
+let g_logS_of (il:il_logS): g_logS = s_seq il
+
+let state_ops (itsl:il_logS): Seq.seq (state_op) =
+  to_state_op_logS (i_seq itsl)
+
+let lemma_logS_interleave_implies_state_ops_interleave (l: logS) (gl: g_logS{interleave #logS_entry l gl})
+  : Lemma (interleave #state_op (to_state_op_logS l) (to_state_op_glogS gl)) 
+  = FStar.Squash.bind_squash
+      #(interleave l gl)
+      #(interleave (to_state_op_logS l) (to_state_op_glogS gl))
+      ()
+      (fun i -> 
+        let i' = filter_map_interleaving is_state_op to_state_op i in
+        FStar.Squash.return_squash i')

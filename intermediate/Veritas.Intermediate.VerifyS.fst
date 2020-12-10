@@ -1,373 +1,807 @@
 module Veritas.Intermediate.VerifyS
 
-let lemma_vget_simulates_SC 
+(* Relation between a slot and key *)
+
+let slot_key_rel (vs: vtls {Valid? vs}) (s:slot_id) (k:key) =
+  let st = thread_store vs in slot_key_equiv st s k
+
+(* Store invariants *)
+// TODO: move to StoreS
+
+let points_to (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) (k:key) : bool
+  = let v = to_merkle_value (stored_value st s) in
+    let dh = desc_hash_dir v d in
+    Desc? dh && Desc?.k dh = k
+
+let in_store_bit_equals_store_contains 
+      (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) (k:key{points_to st s d k})
+  = in_store_bit st s d = store_contains_key_with_MAdd st k ///\
+    
+let store_inv (st:vstore) = 
+  st.is_map /\
+  (forall (s:instore_merkle_slot st) (d:bin_tree_dir) (k:key{points_to st s d k}).
+   in_store_bit_equals_store_contains st s d k)
+
+(* Simulation lemmas for v* functions *)
+
+let lemma_vget_simulates_spec 
       (vs:vtls{Valid? vs})
-      (vs':SC.vtls{SC.Valid? vs'})
+      (vs':Spec.vtls{Spec.Valid? vs'})
       (s:slot_id)
       (k:data_key)
       (v:data_value)
-  : Lemma (requires (vtls_rel vs vs'))
-          (ensures (vtls_rel (vget s k v vs) (SC.vget s k v vs')))
+  : Lemma (requires (vtls_rel vs vs' /\ 
+                     slot_key_rel vs s k))
+          (ensures (vtls_rel (vget s k v vs) (Spec.vget k v vs')))
   = ()
 
-let lemma_update_value_preserves_key_with_MAdd
-  (st:vstore)
-  (s:slot_id{store_contains st s}) 
-  (v:value_type_of (stored_key st s))
-  (k:key)
-  : Lemma (ensures store_contains_key_with_MAdd st k = store_contains_key_with_MAdd (update_value st s v) k)
-          [SMTPat (store_contains_key_with_MAdd (update_value st s v) k)]
-  = admit()
+let lemma_vget_preserves_inv
+      (vs:vtls{Valid? vs})
+      (s:slot_id)
+      (k:data_key)
+      (v:data_value)
+  : Lemma (requires (Valid? (vget s k v vs) /\
+                     store_inv (thread_store vs)))
+          (ensures (store_inv (thread_store (vget s k v vs))))
+  = ()
 
-let lemma_update_value_DVal_preserves_merkle_inv (st:vstore) (s:slot_id{store_contains st s /\ is_data_key (stored_key st s)}) (v:data_value)
-  : Lemma (requires merkle_store_inv st)
-          (ensures merkle_store_inv (update_value st s (DVal v)))
-          [SMTPat (merkle_store_inv (update_value st s (DVal v)))]
-  = let st' = update_value st s (DVal v) in
-    let aux1 (s':slot_id{store_contains st' s' /\ MVal? (stored_value st' s')})
-      : Lemma (in_store_flag_unset_equals_desc_not_in_store st' s')
-      = assert (in_store_flag_unset_equals_desc_not_in_store st s') in
-    let aux2 (s':slot_id{store_contains st' s' /\ MVal? (stored_value st' s')})
-      : Lemma (points_to_nearest_desc_in_store st' s')
-      = assert (points_to_nearest_desc_in_store st s') in
-    Classical.forall_intro aux1;
-    Classical.forall_intro aux2
-
-let lemma_vput_simulates_SC
+let lemma_vput_simulates_spec 
       (vs:vtls{Valid? vs}) 
-      (vs':SC.vtls{SC.Valid? vs'}) 
+      (vs':Spec.vtls{Spec.Valid? vs'}) 
       (s:slot_id) 
       (k:data_key) 
       (v:data_value) 
-  : Lemma (requires (vtls_rel vs vs'))
-          (ensures (vtls_rel (vput s k v vs) (SC.vput s k v vs'))) 
+  : Lemma (requires (vtls_rel vs vs' /\
+                     slot_key_rel vs s k))
+          (ensures (vtls_rel (vput s k v vs) (Spec.vput k v vs'))) 
   = ()
 
-
-
-
-
-let lemma_add_to_store_preserves_key_with_MAdd (st:vstore) (s:st_index st{not (store_contains st s)}) (k:key) (v:value_type_of k) (k0:key)
-  : Lemma (requires k <> k0)
-          (ensures store_contains_key_with_MAdd st k0 = store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)
-          [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)]
-  = admit()
-
-let lemma_add_to_store_adds_key_with_MAdd (st:vstore) (s:st_index st{not (store_contains st s)}) (k:key) (v:value_type_of k)
-  : Lemma (ensures store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k)
-          [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k)]
-  = admit()
-
-let lemma_update_in_store_preserves_key_with_MAdd (st:vstore) (s:slot_id{store_contains st s}) (d:bin_tree_dir) (b:bool) (k:key)
-  : Lemma (ensures store_contains_key_with_MAdd st k = store_contains_key_with_MAdd (update_in_store st s d b) k)
-          [SMTPat (store_contains_key_with_MAdd (update_in_store st s d b) k)]
-  = admit()
-
-
-
-
-let lemma_addm_case1 (st:vstore) (s:st_index st) (s':slot_id{store_contains st s'}) (k:key)
-  : Lemma (requires (let k' = stored_key st s' in
-                     let v' = stored_value st s' in
-                     not (store_contains st s) /\
-                     MVal? v' /\ 
-                     is_proper_desc k k' /\
-                     Empty? (desc_hash_dir (to_merkle_value v') (desc_dir k k')) /\
-                     merkle_store_inv st))
-          (ensures (let v' = to_merkle_value (stored_value st s') in
-                    let d = desc_dir k (stored_key st s') in
-                    let h = hashfn (init_value k) in
-                    let v'_upd = Spec.update_merkle_value v' d k h false in
-                    let st_upd = update_value st s' (MVal v'_upd) in
-                    let st_upd2 = add_to_store st_upd s k (init_value k) Spec.MAdd in
-                    let st_upd3 = update_in_store st_upd2 s' d true in
-                    merkle_store_inv st_upd3))
-  = let k' = stored_key st s' in
-    let v' = to_merkle_value (stored_value st s') in
-    let d = desc_dir k (stored_key st s') in
-    let h = hashfn (init_value k) in
-    let v'_upd = Spec.update_merkle_value v' d k h false in
-    let st_upd = update_value st s' (MVal v'_upd) in
-    let st_upd2 = add_to_store st_upd s k (init_value k) Spec.MAdd in
-    let st_upd3 = update_in_store st_upd2 s' d true in
-    let aux1 (s0:slot_id{store_contains st_upd3 s0 /\ MVal? (stored_value st_upd3 s0)})
-      : Lemma (in_store_flag_unset_equals_desc_not_in_store st_upd3 s0)
-      = if s0 <> s
-        then (
-          assert (in_store_flag_unset_equals_desc_not_in_store st s0);
-          if s0 <> s'
-          then (
-            assert (points_to_nearest_desc_in_store st s0);
-            // points_to_nearest_desc_in_store implies the assumptions below, right?
-            let v0 = to_merkle_value (stored_value st s0) in
-            let dhl = desc_hash_dir v0 Left in
-            if Desc? dhl then assume (Desc?.k dhl <> k);
-            let dhr = desc_hash_dir v0 Right in
-            if Desc? dhr then assume (Desc?.k dhr <> k)
-          )
-        ) in
-    let aux2 (s0:slot_id{store_contains st_upd3 s0 /\ MVal? (stored_value st_upd3 s0)})
-      : Lemma (points_to_nearest_desc_in_store st_upd3 s0)
-      = if s0 = s 
-        then (
-          assert (points_to_nearest_desc_in_store st s');
-          let aux2_inner (k0:key{is_proper_desc k0 k})
-            : Lemma (not (store_contains_key_with_MAdd st_upd3 k0))
-            = lemma_proper_desc_transitive1 k0 k k';
-              lemma_two_related_desc_same_dir k0 k k' in
-          Classical.forall_intro aux2_inner
-        )
-        else (
-          assert (points_to_nearest_desc_in_store st s0);
-          if s0 = s'
-          then admit()
-          else admit()
-        ) in 
-    Classical.forall_intro aux1;
-    Classical.forall_intro aux2
-
-
-// The hard part here is showing that each case preserves merkle_store_inv
-#push-options "--z3rlimit_factor 2"
-let lemma_vaddm_simulates_SC 
-      (vs:vtls{Valid? vs}) 
-      (vs':SC.vtls{SC.Valid? vs'}) 
-      (s s':slot_id)
-      (r:record)  
-  : Lemma (requires (vtls_rel vs vs'))
-          (ensures (vtls_rel (vaddm s r s' vs) (SC.vaddm s r s' vs'))) 
-  = if s < thread_store_size vs
-    then 
-      let st = thread_store vs in
-      let (k,v) = r in
-      if store_contains st s'
-      then
-        let k' = stored_key st s' in
-        let v' = stored_value st s' in
-        if is_proper_desc k k' && not (store_contains st s) && is_value_of k v && not (DVal? v')
-        then
-          let v' = to_merkle_value v' in
-          let d = desc_dir k k' in
-          let dh' = desc_hash_dir v' d in 
-          let h = hashfn v in
-          let st' = SC.thread_store vs' in
-          match dh' with
-          | Empty -> 
-              // CASE 1 - k' has no descendent hash in direction d
-              assert (points_to_nearest_desc_in_store st s');
-              assert (not (store_contains_key_with_MAdd st k));
-              lemma_addm_case1 st s s' k
-          | Desc k2 h2 b2 -> 
-              if k2 = k 
-              // CASE 2 - k' has a descendent hash for k, and its in_store flag is not set           
-              then (
-                assert (in_store_flag_unset_equals_desc_not_in_store st s');              
-                if h2 = h && b2 = false
-                then 
-                if not (child_in_store st s' d)
-                then (
-                  assert (not (store_contains_key_with_MAdd st k));
-                  let st_upd = add_to_store st s k v Spec.MAdd in
-                  let st_upd2 = update_in_store st_upd s' d true in
-                  assume (merkle_store_inv st_upd2)
-                )
-              )
-              // CASE 3 - k' has a descendent hash for k2, and k is between k' and k2
-              else (
-                assert (points_to_nearest_desc_in_store st s');              
-                if v = init_value k && is_proper_desc k2 k 
-                then (
-                  assert (not (store_contains_key_with_MAdd st k));
-                  let d2 = desc_dir k2 k in
-                  let mv = to_merkle_value v in
-                  let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
-                  let v'_upd = Spec.update_merkle_value v' d k h false in
-                  let st_upd = update_value st s' (MVal v'_upd) in
-                  let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
-                  let st_upd3 = update_in_store st_upd2 s' d true in
-                  let st_upd4 = update_in_store st_upd3 s d2 true in
-                  assume (merkle_store_inv st_upd4)
-                )
-              )
-#pop-options
-
-
-
-let lemma_evict_from_store_preserves_key_with_MAdd (st:vstore) (s:slot_id{store_contains st s}) (k:key)
-  : Lemma (requires stored_key st s <> k)
-          (ensures store_contains_key_with_MAdd st k = store_contains_key_with_MAdd (evict_from_store st s) k)
-          [SMTPat (store_contains_key_with_MAdd (evict_from_store st s) k)]
-  = admit()
-
-let lemma_evictm_case1
-  (st:vstore)
-  (s:slot_id{store_contains st s}) 
-  (s':slot_id{store_contains st s'})
-  : Lemma (requires merkle_store_inv st /\ is_proper_desc (stored_key st s) (stored_key st s'))
-          (ensures (let d = desc_dir (stored_key st s) (stored_key st s') in
-                    let st_upd = evict_from_store st s in
-                    let st_upd2 = update_in_store st_upd s' d false in
-                    merkle_store_inv st_upd2))
-  = let d = desc_dir (stored_key st s) (stored_key st s') in
-    let st_upd = evict_from_store st s in
-    let st_upd2 = update_in_store st_upd s' d false in
-    let aux1 (s0:slot_id{store_contains st_upd2 s0 /\ MVal? (stored_value st_upd2 s0)})
-      : Lemma (in_store_flag_unset_equals_desc_not_in_store st_upd2 s0)
-      = assert (in_store_flag_unset_equals_desc_not_in_store st s0);
-        let v0 = to_merkle_value (stored_value st s0) in
-        let dhl = desc_hash_dir v0 Left in
-        let dhr = desc_hash_dir v0 Right in
-        if s0 <> s' 
-        then (
-          assert (stored_value st s0 = stored_value st_upd s0);
-          assert (stored_value st_upd s0 = stored_value st_upd2 s0);
-          assert (stored_key st s0 = stored_key st_upd2 s0);
-          if Desc? dhl
-          then (
-            assert (child_in_store st s0 Left = child_in_store st_upd2 s0 Left);
-            assume (Desc?.k dhl <> stored_key st s);
-            assert (store_contains_key_with_MAdd st (Desc?.k dhl) = store_contains_key_with_MAdd st_upd (Desc?.k dhl))
-          )
-        );
-        //else (
-        //  if Desc? dhl
-        //  then assert (child_in_store
-        //  admit()
-        //) 
-        admit() in
-    let aux2 (s0:slot_id{store_contains st_upd2 s0 /\ MVal? (stored_value st_upd2 s0)})
-      : Lemma (points_to_nearest_desc_in_store st_upd2 s0)
-      = admit() in //assert (points_to_nearest_desc_in_store st s') in
-    Classical.forall_intro aux1;
-    Classical.forall_intro aux2
-
-
-
-
-
-let lemma_has_in_store_merkle_desc (st:vstore) (st':SCstore.vstore) (s:slot_id{store_contains st s})
-  : Lemma (requires equal_contents st st' /\ merkle_store_inv st)
-          (ensures has_instore_merkle_desc st s = SC.has_instore_merkle_desc st' (SCstore.stored_key st' s))
-          [SMTPat (has_instore_merkle_desc st s); SMTPat (SC.has_instore_merkle_desc st' (SCstore.stored_key st' s))]
-  = admit()
-
-let lemma_update_hash_and_blum_bit_preserves_inv 
+let lemma_update_value_DVal_preserves_inv 
       (st:vstore) 
-      (s:slot_id{store_contains st s /\ MVal? (stored_value st s)}) 
-      (d:bin_tree_dir{Desc? (desc_hash_dir (to_merkle_value (stored_value st s)) d)}) 
-      (h:hash_value)
-      (b:bool)
-  : Lemma (requires merkle_store_inv st)
-          (ensures merkle_store_inv (update_hash_and_blum_bit st s d h b)) 
-          [SMTPat (merkle_store_inv (update_hash_and_blum_bit st s d h b))]
-  = let mv = to_merkle_value (stored_value st s) in
-    let Desc k _ _ = desc_hash_dir mv d in
-    let mv' = Spec.update_merkle_value mv d k h b in
-    let st' = update_value st s (MVal mv') in
-    let aux1 (s':slot_id{store_contains st' s' /\ MVal? (stored_value st' s')})
-      : Lemma (in_store_flag_unset_equals_desc_not_in_store st' s')
-      = assert (in_store_flag_unset_equals_desc_not_in_store st s') in
-    let aux2 (s':slot_id{store_contains st' s' /\ MVal? (stored_value st' s')})
-      : Lemma (points_to_nearest_desc_in_store st' s')
-      = assert (points_to_nearest_desc_in_store st s') in
-    Classical.forall_intro aux1;
-    Classical.forall_intro aux2
+      (s:slot_id{store_contains st s /\ is_data_key (stored_key st s)}) 
+      (v:data_value)
+  : Lemma (requires store_inv st)
+          (ensures store_inv (update_value st s (DVal v)))
+          [SMTPat (store_inv (update_value st s (DVal v)))]
+  = let st_upd = update_value st s (DVal v) in
+    let aux (s0:instore_merkle_slot st_upd) (d:bin_tree_dir) (k:key{points_to st_upd s0 d k})
+      : Lemma (in_store_bit_equals_store_contains st_upd s0 d k)
+      = assert (in_store_bit_equals_store_contains st s0 d k) in
+    Classical.forall_intro_3 aux
 
-let lemma_vevictm_simulates_SC 
+let lemma_vput_preserves_inv
       (vs:vtls{Valid? vs}) 
-      (vs':SC.vtls{SC.Valid? vs'}) 
-      (s s':slot_id)  
-  : Lemma (requires (vtls_rel vs vs'))
-          (ensures (vtls_rel (vevictm s s' vs) (SC.vevictm s s' vs'))) 
+      (s:slot_id) 
+      (k:data_key) 
+      (v:data_value) 
+  : Lemma (requires (Valid? (vput s k v vs) /\
+                     store_inv (thread_store vs)))
+          (ensures (store_inv (thread_store (vput s k v vs)))) 
+  = assert(slot_key_rel vs s k)
+
+let lemma_vaddm_simulates_spec_if_k_is_new
+      (vs:vtls{Valid? vs}) 
+      (vs':Spec.vtls{Spec.Valid? vs'}) 
+      (s s':slot_id)
+      (r:record)
+      (k':merkle_key)  
+   : Lemma (requires (s < thread_store_size vs /\
+                      not (store_contains (thread_store vs) s) /\
+                      not (store_contains_key (thread_store vs) (fst r)) /\ // key is new
+                      vtls_rel vs vs' /\ 
+                      slot_key_rel vs s' k' /\
+                      store_inv (thread_store vs)))
+           (ensures (vtls_rel (vaddm s r s' vs) (Spec.vaddm r k' vs'))) 
   = let st = thread_store vs in
-    if store_contains st s && store_contains st s'
-    then 
-      let k = stored_key st s in
-      let v = stored_value st s in
+    let (k,v) = r in
+    if store_contains st s'
+    then
       let k' = stored_key st s' in
       let v' = stored_value st s' in
-      if is_proper_desc k k' && not (has_instore_merkle_desc st s)
-      then
-        let d = desc_dir k k' in
-        let _ = assert (is_value_of k' v') in 
+      if is_proper_desc k k' && is_value_of k v && MVal? v' 
+      then 
         let v' = to_merkle_value v' in
-        let dh' = desc_hash_dir v' d in
+        let d = desc_dir k k' in
+        let dh' = desc_hash_dir v' d in 
         let h = hashfn v in
         match dh' with
         | Empty -> ()
-        | Desc k2 h2 b2 -> 
-          if k2 = k 
-          then
-            let st_upd = update_hash_and_blum_bit st s' d h false in
-            let st_upd2 = evict_from_store st_upd s in
-            let st_upd3 = update_in_store st_upd2 s' d false in
-            assert (merkle_store_inv st_upd);
-            lemma_evictm st_upd s s'
+        | Desc k2 h2 b2 ->  
+            if k2 = k 
+            then assert (in_store_bit_equals_store_contains st s' d k)
 
-
-let lemma_add_to_store_BAdd_preserves_key_with_MAdd (st:vstore) (s:st_index st{not (store_contains st s)}) (k:key) (v:value_type_of k) (k0:key)
-  : Lemma (ensures store_contains_key_with_MAdd st k0 = store_contains_key_with_MAdd (add_to_store st s k v Spec.BAdd) k0)
-          [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.BAdd) k0)]
-  = admit()
-
-
-let lemma_add_to_store_BAdd_preserves_inv (st:vstore) (s:st_index st{not (store_contains st s)}) (k:key) (v:value_type_of k)
-  : Lemma (requires merkle_store_inv st)
-          (ensures merkle_store_inv (add_to_store st s k v Spec.BAdd))
-          [SMTPat (merkle_store_inv (add_to_store st s k v Spec.BAdd))]
-  = admit()
-
-let lemma_vaddb_simulates_SC 
+let lemma_vaddm_preserves_inv_if_k_is_new
       (vs:vtls{Valid? vs}) 
-      (vs':SC.vtls{SC.Valid? vs'}) 
+      (s s':slot_id)
+      (r:record)
+   : Lemma (requires (Valid? (vaddm s r s' vs) /\
+                      not (store_contains_key (thread_store vs) (fst r)) /\ // key is new
+                      // + some other conditions related to eac
+                      store_inv (thread_store vs)))
+           (ensures (store_inv (thread_store (vaddm s r s' vs)))) 
+  = let st = thread_store vs in
+    let (k,v) = r in
+    let k' = stored_key st s' in
+    let v' = stored_value st s' in
+    let v' = to_merkle_value v' in
+    let d = desc_dir k k' in
+    let dh' = desc_hash_dir v' d in 
+    let h = hashfn v in
+    match dh' with
+    | Empty ->
+        let v'_upd = Spec.update_merkle_value v' d k h false in
+        let st_upd = update_value st s' (MVal v'_upd) in
+        let st_upd2 = add_to_store st_upd s k v Spec.MAdd in
+        let st_upd3 = update_in_store st_upd2 s' d true in
+        assume (store_inv st_upd3)
+    | Desc k2 h2 b2 ->
+        if k2 = k 
+        then (
+          let st_upd = add_to_store st s k v Spec.MAdd in
+          let st_upd2 = update_in_store st_upd s' d true in
+          assume (store_inv st_upd2)      
+        )
+        else 
+          let d2 = desc_dir k2 k in
+          let mv = to_merkle_value v in
+          let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
+          let v'_upd = Spec.update_merkle_value v' d k h false in
+          let od = other_dir d in
+          let od_bit = in_store_bit st s' od in
+          let st_upd = update_value st s' (MVal v'_upd) in
+          let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
+          let st_upd3 = update_in_store st_upd2 s' d true in
+          let st_upd4 = update_in_store st_upd3 s' od od_bit in
+          let st_upd5 = update_in_store st_upd4 s d2 true in
+          assume (store_inv st_upd5)
+
+let lemma_has_instore_merkle_desc (st:vstore) (st':Spec.vstore) (s:slot_id) (k:key)
+  : Lemma (requires (store_inv st /\ store_rel st st' /\ slot_key_equiv st s k))
+          (ensures (has_instore_merkle_desc st s = Spec.has_instore_merkle_desc st' k))
+  = if not (is_data_key k)
+    then 
+      let v = to_merkle_value (stored_value st s) in
+      let ld = desc_hash_dir v Left in
+      let rd = desc_hash_dir v Right in
+      if Desc? ld 
+      then (
+        assert (in_store_bit_equals_store_contains st s Left (Desc?.k ld));
+        assert (in_store_bit st s Left = Spec.is_instore_madd st' (Desc?.k ld))
+      );
+      if Desc? rd
+      then (
+        assert (in_store_bit_equals_store_contains st s Right (Desc?.k rd));
+        assert (in_store_bit st s Right = Spec.is_instore_madd st' (Desc?.k rd))
+      ) 
+
+let lemma_vevictm_simulates_spec 
+      (vs:vtls{Valid? vs}) 
+      (vs':Spec.vtls{Spec.Valid? vs'}) 
+      (s s':slot_id)
+      (k:key)
+      (k':merkle_key)  
+  : Lemma (requires (vtls_rel vs vs' /\ 
+                     slot_key_rel vs s k /\ 
+                     slot_key_rel vs s' k' /\
+                     store_inv (thread_store vs)))
+          (ensures (vtls_rel (vevictm s s' vs) (Spec.vevictm k k' vs'))) 
+  = lemma_has_instore_merkle_desc (thread_store vs) (Spec.thread_store vs') s k
+
+(* updating a merkle value preserves the invariant so log as you leave the pointed-to key the same *)
+let lemma_update_merkle_value_preserves_inv
+      (st:vstore)
+      (s:instore_merkle_slot st)
+      (k:key)
+      (d:bin_tree_dir)
+      (h:ms_hash_value)
+      (b:bool)
+  : Lemma (requires (store_inv st /\
+                     points_to st s d k))
+          (ensures (let v = to_merkle_value (stored_value st s) in
+                    let v_upd = Spec.update_merkle_value v d k h b in
+                    store_inv (update_value st s (MVal v_upd))))
+  = admit()
+
+(* evicting a merkle slot requires updating the in_store bit *)
+let lemma_evict_from_store_update_in_store_preserves_inv
+      (st:vstore)
+      (s':instore_merkle_slot st)
+      (s:slot_id{store_contains st s /\ s <> s'})
+      (d:bin_tree_dir)
+  : Lemma (requires (store_inv st /\
+                     // + some other conditions related to eac
+                     points_to st s' d (stored_key st s)))
+          (ensures (let st_upd = evict_from_store st s in
+                    store_inv (update_in_store st_upd s' d false)))
+  = admit()
+
+let lemma_vevictm_preserves_inv 
+      (vs:vtls{Valid? vs}) 
+      (s s':slot_id)
+  : Lemma (requires (store_inv (thread_store vs) /\
+                     Valid? (vevictm s s' vs)))
+                     (ensures (store_inv (thread_store (vevictm s s' vs)))) 
+  = let st = thread_store vs in
+    let k = stored_key st s in
+    let v = stored_value st s in
+    let k' = stored_key st s' in
+    let v' = stored_value st s' in
+    let d = desc_dir k k' in
+    let v' = to_merkle_value v' in
+    let dh' = desc_hash_dir v' d in
+    let h = hashfn v in
+    match dh' with
+    | Desc k2 h2 b2 ->
+        let v'_upd = Spec.update_merkle_value v' d k h false in
+        let st_upd = update_value st s' (MVal v'_upd) in
+        lemma_update_merkle_value_preserves_inv st s' k d h false;
+        lemma_evict_from_store_update_in_store_preserves_inv st_upd s' s d
+
+let lemma_vaddb_simulates_spec_if_k_is_new 
+      (vs:vtls{Valid? vs}) 
+      (vs':Spec.vtls{Spec.Valid? vs'}) 
       (s:slot_id)
       (r:record)
       (t:timestamp)
       (j:thread_id)
-  : Lemma (requires (vtls_rel vs vs'))
-          (ensures (vtls_rel (vaddb s r t j vs) (SC.vaddb s r t j vs')))
+  : Lemma (requires (s < thread_store_size vs /\ 
+                     not (store_contains (thread_store vs) s) /\ 
+                     not (store_contains_key (thread_store vs) (fst r)) /\ // key is new
+                     vtls_rel vs vs'))
+          (ensures (vtls_rel (vaddb s r t j vs) (Spec.vaddb r t j vs')))
   = ()
 
+let lemma_add_to_store_BAdd_preserves_inv
+      (st:vstore)
+      (s:st_index st{not (store_contains st s)})
+      (k:key)
+      (v:value_type_of k)
+  : Lemma (requires (store_inv st))
+          (ensures (store_inv (add_to_store st s k v Spec.BAdd)))
+  = admit()
+  
+let lemma_vaddb_preserves_inv_if_k_is_new 
+      (vs:vtls{Valid? vs}) 
+      (s:slot_id)
+      (r:record)
+      (t:timestamp)
+      (j:thread_id)
+  : Lemma (requires (store_inv (thread_store vs) /\
+                     not (store_contains_key (thread_store vs) (fst r)) /\ // key is new
+                     Valid? (vaddb s r t j vs)))
+          (ensures (store_inv (thread_store (vaddb s r t j vs))))
+  = lemma_add_to_store_BAdd_preserves_inv (thread_store vs) s (fst r) (snd r)
 
-let lemma_evict_from_store_preserves_inv (st:vstore) (s:slot_id{store_contains st s})
-  : Lemma (requires merkle_store_inv st /\ add_method_of st s = Spec.BAdd)
-          (ensures merkle_store_inv (evict_from_store st s))
-          [SMTPat (merkle_store_inv (evict_from_store st s))]
+let lemma_vevictb_simulates_spec 
+      (vs:vtls{Valid? vs}) 
+      (vs':Spec.vtls{Spec.Valid? vs'}) 
+      (s:slot_id)
+      (k:key)
+      (t:timestamp)
+  : Lemma (requires (store_inv (thread_store vs) /\ 
+                     vtls_rel vs vs' /\ 
+                     slot_key_rel vs s k))
+          (ensures (vtls_rel (vevictb s t vs) (Spec.vevictb k t vs'))) 
+  = lemma_has_instore_merkle_desc (thread_store vs) (Spec.thread_store vs') s k
+
+(* evicting a blum slot preserves the invariant *)
+let lemma_evict_from_store_BAdd_preserves_inv
+      (st:vstore)
+      (s:slot_id{store_contains st s})
+  : Lemma (requires (store_inv st /\ add_method_of st s = Spec.BAdd))
+          (ensures (store_inv (evict_from_store st s)))
   = admit()
 
-let lemma_vevictb_simulates_SC 
+let lemma_vevictb_preserves_inv 
       (vs:vtls{Valid? vs}) 
-      (vs':SC.vtls{SC.Valid? vs'}) 
       (s:slot_id)
       (t:timestamp)
-  : Lemma (requires (vtls_rel vs vs'))
-          (ensures (vtls_rel (vevictb s t vs) (SC.vevictb s t vs'))) 
-          [SMTPat (vtls_rel (vevictb s t vs) (SC.vevictb s t vs'))]
-  = ()
+  : Lemma (requires (store_inv (thread_store vs) /\
+                     Valid? (vevictb s t vs)))
+          (ensures (store_inv (thread_store (vevictb s t vs))))
+  = lemma_evict_from_store_BAdd_preserves_inv (thread_store vs) s
 
-let lemma_vevictbm_simulates_SC 
+let lemma_vevictbm_simulates_spec 
       (vs:vtls{Valid? vs}) 
-      (vs':SC.vtls{SC.Valid? vs'}) 
+      (vs':Spec.vtls{Spec.Valid? vs'}) 
+      (s s':slot_id)
+      (k:key)
+      (k':merkle_key)
+      (t:timestamp)
+  : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k /\ slot_key_rel vs s' k'))
+          (ensures (vtls_rel (vevictbm s s' t vs) (Spec.vevictbm k k' t vs'))) 
+  = admit()
+
+let lemma_vevictbm_preserves_inv 
+      (vs:vtls{Valid? vs}) 
       (s s':slot_id)
       (t:timestamp)
-  : Lemma (requires (vtls_rel vs vs'))
-          (ensures (vtls_rel (vevictbm s s' t vs) (SC.vevictbm s s' t vs'))) 
+  : Lemma (requires (store_inv (thread_store vs) /\ Valid? (vevictbm s s' t vs)))
+          (ensures (store_inv (thread_store (vevictbm s s' t vs))))
+  = admit()
+
+(* This is basically a "light" version of the vfun functions to reconstruct the log. 
+   We could have the vfun functions return logK entries instead, but this seems cleaner. *)
+let logS_to_logK_entry (vs:vtls{Valid? vs}) (e:logS_entry) : option logK_entry =
+  let st = thread_store vs in
+  match e with
+  | Get_S s k v -> 
+      if store_contains st s && k = stored_key st s
+      then Some (Spec.Get k v) else None
+  | Put_S s k v -> 
+      if store_contains st s && k = stored_key st s
+      then Some (Spec.Put k v) else None
+  | AddM_S _ r s' -> 
+      if store_contains st s' && is_merkle_key (stored_key st s') 
+      then Some (Spec.AddM r (stored_key st s')) else None
+  | EvictM_S s s' -> 
+      if store_contains st s && store_contains st s' && is_merkle_key (stored_key st s') 
+      then Some (Spec.EvictM (stored_key st s) (stored_key st s')) else None
+  | AddB_S _ r t j -> 
+      Some (Spec.AddB r t j)
+  | EvictB_S s t -> 
+      if store_contains st s
+      then Some (Spec.EvictB (stored_key st s) t) else None
+  | EvictBM_S s s' t ->
+      if store_contains st s && store_contains st s' && is_merkle_key (stored_key st s') 
+      then Some (Spec.EvictBM (stored_key st s) (stored_key st s') t) else None
+
+let lemma_t_verify_step_valid_implies_log_exists (vs:vtls) (e:logS_entry)
+  : Lemma (requires (Valid? (t_verify_step vs e)))
+          (ensures (Some? (logS_to_logK_entry vs e)))
+          [SMTPat (Some? (logS_to_logK_entry vs e))]
   = ()
 
+let rec lemma_t_verify_aux_valid_implies_log_exists (vs:vtls) (l:logS)
+  : Lemma (requires (Valid? (fst (t_verify_aux vs l))))
+          (ensures (Some? (snd (t_verify_aux vs l))))
+          (decreases (Seq.length l))
+  = let n = Seq.length l in
+    if n <> 0 
+    then lemma_t_verify_aux_valid_implies_log_exists vs (prefix l (n - 1))
+
+let lemma_empty_store_rel () 
+  : Lemma (store_rel (empty_store store_size) Spec.empty_store)
+  = lemma_as_map_empty store_size
+
 let lemma_init_thread_state_rel (id:thread_id)
-  : Lemma (vtls_rel (init_thread_state id) (SC.init_thread_state id))
+  : Lemma (vtls_rel (init_thread_state id) (Spec.init_thread_state id))
+  = let vs = Valid id (empty_store store_size) (MkTimestamp 0 0) empty_hash_value empty_hash_value in 
+    let vs' = Spec.Valid id Spec.empty_store (MkTimestamp 0 0) Root empty_hash_value empty_hash_value in
+    lemma_empty_store_rel ();
+    if id = 0 
+    then 
+      let st = thread_store vs in
+      let st' = Spec.thread_store vs' in
+      lemma_store_rel_add_to_store st st' 0 Root (init_value Root) Spec.MAdd
+
+let get_log (vs:vtls) (l:logS{Valid? (fst (t_verify_aux vs l))}) : logK
+  = Some?.v (snd (t_verify_aux vs l))
+
+let rec lemma_get_log_length (vs:vtls) (l:logS)
+  : Lemma (requires (Valid? (fst (t_verify_aux vs l))))
+          (ensures (Seq.length l = Seq.length (get_log vs l)))
+          (decreases (Seq.length l))
+          [SMTPat (Seq.length (get_log vs l))]
+  = let n = Seq.length l in
+    if n <> 0
+    then
+      let lp = prefix l (n - 1) in
+      lemma_get_log_length vs lp
+
+let lemma_get_log_prefix_commute (vs:vtls) (l:logS)
+  : Lemma (requires (Valid? (fst (t_verify_aux vs l)) /\ Seq.length l > 0))
+          (ensures (let n = Seq.length l in
+                    Seq.equal (get_log vs (prefix l (n - 1))) (prefix (get_log vs l) (n - 1))))
+  = ()
+
+(*
+let rec lemma_t_verify_aux_simulates_spec (vs:vtls) (vs':Spec.vtls) (l:logS)
+  : Lemma (requires (vtls_rel vs vs' /\ Valid? (fst (t_verify_aux vs l))))
+          (ensures (let res = t_verify_aux vs l in
+                    vtls_rel (fst res) (Spec.t_verify_aux vs' (Some?.v (snd res)))))
+          (decreases (Seq.length l))
+  = let n = Seq.length l in
+    if n <> 0
+    then
+      let lp = prefix l (n - 1) in
+      let e = Seq.index l (n - 1) in
+      let (vsp,lp') = t_verify_aux vs lp in
+      if Valid? vsp
+      then (
+        lemma_t_verify_aux_simulates_spec vs vs' lp; // I.H.
+        let vsp' = Spec.t_verify_aux vs' (Some?.v lp') in
+        lemma_get_log_prefix_commute vs l;
+        if thread_store_is_map vsp
+        then lemma_t_verify_step_simulates_spec1 vsp vsp' e
+        else lemma_t_verify_step_simulates_spec2 vsp vsp' e
+      )
+*)
+let lemma_t_verify_simulates_spec (id:thread_id) (l:logS) 
+  : Lemma (requires (Valid? (t_verify id l)))
+          (ensures (vtls_rel (t_verify id l) (Spec.t_verify id (logS_to_logK id l))))
+  = admit()
+    //lemma_init_thread_state_rel id;
+    //lemma_t_verify_aux_simulates_spec (init_thread_state id) (Spec.init_thread_state id) l
+
+let rec lemma_get_log_to_state_op (vs:vtls) (l:logS{Valid? (fst (t_verify_aux vs l))})
+  : Lemma (ensures (Seq.equal (to_state_op_logS l) 
+                              (Veritas.EAC.to_state_op_vlog (get_log vs l))))
+          (decreases (Seq.length l))
+  = let n = Seq.length l in
+    if n = 0
+    then (
+      Seq.lemma_empty l;
+      lemma_filter_empty is_state_op;
+      lemma_filter_empty Veritas.EAC.is_state_op
+    )
+    else (
+      let lp = prefix l (n - 1) in
+      let e = Seq.index l (n - 1) in
+      let (vsp,lp') = t_verify_aux vs lp in
+      if Valid? vsp
+      then (
+        lemma_get_log_to_state_op vs lp; // I.H.
+        lemma_get_log_prefix_commute vs l;        
+        if is_state_op e
+        then (
+          lemma_filter_extend2 is_state_op l;
+          lemma_filter_extend2 Veritas.EAC.is_state_op (get_log vs l);
+          assert(Seq.equal (to_state_op_logS l) (append1 (to_state_op_logS lp) (to_state_op e)))
+        )
+        else (
+          lemma_filter_extend1 is_state_op l;
+          lemma_filter_extend1 Veritas.EAC.is_state_op (get_log vs l)
+        )
+      )
+    )
+
+let lemma_logS_to_logK_to_state_op (id:thread_id) (l:logS{Valid? (t_verify id l)})
+  : Lemma (ensures (Seq.equal (to_state_op_logS l) 
+                              (Veritas.EAC.to_state_op_vlog (logS_to_logK id l))))
+  = lemma_get_log_to_state_op (init_thread_state id) l
+
+let lemma_tl_verifiable_implies_prefix_verifiable
+  (tl:tl_verifiable_log) (i:nat{i <= tl_length tl}):
+  Lemma (ensures (tl_verifiable (tl_prefix tl i)))
   = admit()
 
-let lemma_t_verify_simulates_SC (id:thread_id) (l:logS) 
-  : Lemma (vtls_rel (t_verify id l) (SC.t_verify id l))
+let lemma_gl_verifiable_implies_prefix_verifiable
+  (gl:gl_verifiable_log) (i:nat{i <= Seq.length gl}):
+  Lemma (ensures (gl_verifiable (prefix gl i)))
+  = let glp = prefix gl i in
+    let aux (tid:seq_index glp)
+      : Lemma (ensures (Valid? (verify (thread_log glp tid))))
+      = assert(thread_log glp tid = thread_log gl tid) in
+    Classical.forall_intro aux
+
+let rec forall_is_mapb_aux (gl: gl_verifiable_log) 
+  : Tot bool (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n = 0 then true
+    else
+      let glp = prefix gl (n - 1) in
+      thread_store_is_map (verify (thread_log gl (n - 1))) && forall_is_mapb_aux glp
+
+let forall_is_mapb (gl:gl_verifiable_log) : bool = forall_is_mapb_aux gl
+
+let lemma_forall_is_mapb (gl:gl_verifiable_log)
+  : Lemma (ensures (forall_is_map gl <==> forall_is_mapb gl))
   = admit()
 
-let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl)
-  : Lemma (ensures verifiable (prefix gl i))
+let lemma_verifiable_append1  (gl:SpecVG.verifiable_log) (l:logK{SpecVT.verifiable (Seq.length gl, l)})
+  : Lemma (SpecVG.verifiable (append1 gl l))
+  = let gl' = append1 gl l in
+    assert (Seq.length gl' = Seq.length gl + 1);
+    let aux (i:seq_index gl') : Lemma (SpecVT.verifiable (SpecVG.thread_log gl' i))
+      = if i < Seq.length gl 
+        then assert (SpecVT.verifiable (SpecVG.thread_log gl i)) in
+    Classical.forall_intro aux
+
+let rec glogS_to_logK_aux (gl:gl_verifiable_log{forall_is_map gl}) 
+  : Tot (gl':SpecVG.verifiable_log{Seq.length gl = Seq.length gl'})
+    (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n = 0 then Seq.empty
+    else (
+      let glp = prefix gl (n - 1) in
+      let e = Seq.index gl (n - 1) in
+      admit()
+      //lemma_t_verify_simulates_spec (n - 1) e;
+      //lemma_verifiable_append1 (glogS_to_logK_aux glp) (logS_to_logK (n - 1) e);
+      //append1 (glogS_to_logK_aux glp) (logS_to_logK (n - 1) e)
+    )
+
+let glogS_to_logK (gl:gl_verifiable_log{forall_is_map gl}) 
+  : gl':SpecVG.verifiable_log{Seq.length gl = Seq.length gl'}
+  = glogS_to_logK_aux gl
+
+let rec lemma_glogS_to_logK_aux (gl:gl_verifiable_log{forall_is_map gl}) (id:seq_index gl)
+  : Lemma (ensures Seq.index (glogS_to_logK gl) id = logS_to_logK id (Seq.index gl id))
+          (decreases (Seq.length gl))
+  = admit()
+    //let n = Seq.length gl in
+    //if n <> 0
+    //then if id < n - 1
+    //then let glp = prefix gl (n - 1) in
+    //     lemma_glogS_to_logK_aux glp id
+
+let lemma_glogS_to_logK (gl:gl_verifiable_log{forall_is_map gl}) (id:seq_index gl)
+  : Lemma (ensures Seq.index (glogS_to_logK gl) id = logS_to_logK id (Seq.index gl id))
+  = lemma_glogS_to_logK_aux gl id
+
+let rec lemma_forall_is_map (gl:gl_verifiable_log)
+  : Lemma (requires forall_is_map gl)
+          (ensures (forall (i:seq_index gl). thread_store_is_map (verify (thread_log gl i))))
+          (decreases (Seq.length gl))
+          [SMTPat (forall_is_map gl)]
+  = let n = Seq.length gl in
+    if n <> 0
+    then (
+      let glp = prefix gl (n - 1) in
+      admit()
+      //lemma_forall_is_map glp;
+      //let aux (i:seq_index gl) : Lemma (thread_store_is_map (verify (thread_log gl i)))
+      //  = if i < n - 1 then assert(thread_log glp i = thread_log gl i) in
+      //Classical.forall_intro aux
+    )
+
+let rec lemma_forall_is_map_inv (gl:gl_verifiable_log)
+  : Lemma (requires (forall (i:seq_index gl). thread_store_is_map (verify (thread_log gl i))))
+          (ensures forall_is_map gl)
+          (decreases (Seq.length gl))
+          [SMTPat (forall_is_map gl)]
+  = let n = Seq.length gl in
+    if n <> 0
+    then (
+      let glp = prefix gl (n - 1) in
+      let aux1 (i:seq_index glp) : Lemma (Valid? (verify (thread_log glp i)))
+        = assert(thread_log glp i = thread_log gl i) in
+      Classical.forall_intro aux1;
+      let aux2 (i:seq_index glp) : Lemma (thread_store_is_map (verify (thread_log glp i)))
+        = assert(thread_log glp i = thread_log gl i) in
+      Classical.forall_intro aux2;
+      lemma_forall_is_map_inv glp
+    )
+
+(*
+let lemma_prefix_verifiable_and_forall_is_map (gl:gl_verifiable_log{forall_is_map gl}) (i:seq_index gl)
+  : Lemma (ensures gl_verifiable (prefix gl i) /\ forall_is_map (prefix gl i))
+          [SMTPat (gl_verifiable (prefix gl i))]
+  = let glp = prefix gl i in
+    let aux1 (tid:seq_index glp)
+      : Lemma (Valid? (verify (thread_log glp tid)))
+      = assert(thread_log glp tid = thread_log gl tid) in
+    Classical.forall_intro aux1;
+    let aux2 (tid:seq_index glp)
+      : Lemma (thread_store_is_map (verify (thread_log glp tid)))
+      = assert(thread_log glp tid = thread_log gl tid) in
+    Classical.forall_intro aux2
+
+let lemma_prefix_glogS_to_logK_comm (gl:verifiable_log{forall_is_map gl}) (i:seq_index gl)
+  : Lemma (ensures Seq.equal (prefix (glogS_to_logK gl) i) (glogS_to_logK (prefix gl i)))
+          [SMTPat (prefix (glogS_to_logK gl) i)]
+  = ()
+*)
+
+let rec hadd_equal_aux (gl:gl_verifiable_log{forall_is_map gl}) 
+  : Lemma (ensures hadd gl = SpecVG.hadd (glogS_to_logK gl))
+          (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n <> 0
+    then ( 
+      let glp = prefix gl (n - 1) in
+      admit()
+      //hadd_values_equal_aux glp;
+      //lemma_t_verify_simulates_spec (n - 1) (Seq.index gl (n - 1))
+    )
+
+let lemma_hadd_equal (gl:gl_verifiable_log{forall_is_map gl}) 
+  : Lemma (hadd gl = SpecVG.hadd (glogS_to_logK gl))
+  = hadd_equal_aux gl
+
+let rec hevict_equal_aux (gl:gl_verifiable_log{forall_is_map gl}) 
+  : Lemma (ensures hevict gl = SpecVG.hevict (glogS_to_logK gl))
+          (decreases (Seq.length gl))
+  = let n = Seq.length gl in
+    if n <> 0
+    then ( 
+      let glp = prefix gl (n - 1) in
+      admit()
+      //hevict_values_equal_aux glp;
+      //lemma_t_verify_simulates_spec (n - 1) (Seq.index gl (n - 1))
+    )
+
+let lemma_hevict_equal (gl:gl_verifiable_log{forall_is_map gl}) 
+  : Lemma (hevict gl = SpecVG.hevict (glogS_to_logK gl))
+  = hevict_equal_aux gl
+
+let clock_sorted (il: il_logS {il_verifiable il})
+  = admit()
+ 
+let lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
+  Lemma (ensures (il_verifiable (I.prefix itsl i) /\ clock_sorted (I.prefix itsl i)))
   = admit()
 
-let hadd_values_equal (gl:verifiable_log) : Lemma (hadd gl = SC.hadd gl)
+let il_create (gl: gl_verifiable_log): (itsl:its_log{g_logS_of itsl == gl})
   = admit()
 
-let hevict_values_equal (gl:verifiable_log) : Lemma (hevict gl = SC.hevict gl)
+
+
+
+(*************************************)
+
+
+
+let thread_state (itsl:its_log)
+                 (tid:valid_tid itsl)
+  : Tot (vs:vtls{Valid? vs})
+  = verify (thread_log (I.s_seq itsl) tid)
+
+let il_thread_id_of (itsl: its_log) (i: I.seq_index itsl): valid_tid itsl =
+  fst (I.i2s_map itsl i)
+
+let thread_state_pre (itsl: its_log) (i: I.seq_index itsl): (vs:vtls{Valid? vs}) = 
+  let tid = il_thread_id_of itsl i in
+  thread_state (I.prefix itsl i) tid
+
+let thread_state_post (itsl: its_log) (i: I.seq_index itsl): (vs:vtls{Valid? vs}) = 
+  let tid = il_thread_id_of itsl i in
+  thread_state (I.prefix itsl (i + 1)) tid
+
+let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl):
+  Lemma (thread_state_post itsl i == 
+         t_verify_step (thread_state_pre itsl i) (I.index itsl i))
   = admit()
+
+let forall_store_inv (itsl:its_log)
+  = forall (tid:valid_tid itsl). store_inv (thread_store (thread_state itsl tid))
+  
+let forall_vtls_rel (itsl:its_log) (itsl':SpecVTS.its_log) 
+  = thread_count itsl = SpecVTS.thread_count itsl' /\
+    (forall (tid:valid_tid itsl). 
+       vtls_rel (thread_state itsl tid) 
+                (SpecVTS.thread_state itsl' tid))
+
+let ilogS_to_logK (il:its_log{forall_store_inv il}) : SpecVTS.its_log
+  = admit()
+
+// WANT: I.index (ilogS_to_logK itsl) i == 
+//       logS_to_logK_entry (thread_state_pre itsl i) (I.index itsl i) 
+
+// It should also be the case that if itsl_k is an its_log, then extending
+// it with an element e that verifies at the intermediate level & does not
+// add a duplicate key produces an its_log (itsl_k ++ e)
+
+let lemma_ilogS_to_logK_length (itsl:its_log{forall_store_inv itsl})
+  : Lemma (ensures I.length itsl = I.length (ilogS_to_logK itsl))
+          [SMTPat (I.length (ilogS_to_logK itsl))]
+  = admit()
+
+let lemma_forall_store_inv_specialize (itsl:its_log) (i:I.seq_index itsl)
+  : Lemma (requires (forall_store_inv (I.prefix itsl i)))
+          (ensures (store_inv (thread_store (thread_state_pre itsl i))))
+  = ()
+
+let lemma_forall_store_inv_extend (itsl:its_log) (i:I.seq_index itsl)
+  : Lemma (requires (forall_store_inv (I.prefix itsl i) /\ 
+                     store_inv (thread_store (thread_state_post itsl i))))
+          (ensures (forall_store_inv (I.prefix itsl (i + 1))))
+  = admit()
+
+let lemma_forall_store_inv_prefix (itsl:its_log{forall_store_inv itsl}) (i:I.seq_index itsl)
+  : Lemma (ensures (forall_store_inv (I.prefix itsl i)))
+          [SMTPat (forall_store_inv (I.prefix itsl i))]
+  = admit()
+
+let lemma_forall_vtls_rel_specialize (itsl:its_log{forall_store_inv itsl}) (i:I.seq_index itsl)
+  : Lemma (requires (forall_vtls_rel (I.prefix itsl i) (ilogS_to_logK (I.prefix itsl i))))
+          (ensures (vtls_rel (thread_state_pre itsl i)
+                             (SpecVTS.thread_state_pre (ilogS_to_logK itsl) i)))
+  = admit()
+
+let lemma_forall_vtls_rel_extend (itsl:its_log{forall_store_inv itsl}) (i:I.seq_index itsl)
+  : Lemma (requires (forall_vtls_rel (I.prefix itsl i) (ilogS_to_logK (I.prefix itsl i)) /\
+                     vtls_rel (thread_state_post itsl i) (SpecVTS.thread_state_post (ilogS_to_logK itsl) i)))
+          (ensures (forall_vtls_rel (I.prefix itsl (i + 1)) (ilogS_to_logK (I.prefix itsl (i + 1)))))
+  = admit()
+
+let inductive_step (itsl:il_hash_verifiable_log) (i:I.seq_index itsl{i + 1 < I.length itsl})
+  : Lemma (requires (let itsl_i = I.prefix itsl i in
+                     forall_store_inv itsl_i /\
+                     (let itsl_k_i = ilogS_to_logK itsl_i in 
+                      SpecVTS.is_eac itsl_k_i /\
+                      forall_vtls_rel itsl_i itsl_k_i)))
+          (ensures (let itsl_i1 = I.prefix itsl (i + 1) in
+                    Veritas.Verifier.EAC.hash_collision_gen \/
+                    (forall_store_inv itsl_i1 /\
+                     (let itsl_k_i1 = ilogS_to_logK itsl_i1 in
+                      SpecVTS.is_eac itsl_k_i1 /\
+                      forall_vtls_rel itsl_i1 itsl_k_i1)))) 
+
+  = let itsl_i = I.prefix itsl i in
+    let itsl_k_i = ilogS_to_logK itsl_i in
+    let itsl_i1 = I.prefix itsl (i + 1) in
+    
+    assert (SpecVTS.is_eac itsl_k_i);
+    assert (forall_store_inv itsl_i);
+    assert (forall_vtls_rel itsl_i itsl_k_i);
+
+    let vs = thread_state_pre itsl i in
+
+    lemma_forall_store_inv_specialize itsl i;
+    assert (store_inv (thread_store vs));
+
+    let e = I.index itsl (i + 1) in
+
+    match e with
+    (* Structure of each case:
+       
+       if e does not introduce a duplicate key (e.g. get, put, evict)
+       then extending itsl_k_i with e produces an its_log itsl_k_i1
+            if itsl_k_i1 is eac
+            then e also preserves store_inv
+            else we can produce a hash collision
+       else we can produce a hash collision 
+
+       Note that store_inv says that (1) keys in the store are unique and (2) the in_store
+       bits accurately record what keys are in the store (see in_store_bit_equals_store_contains).
+       We need this second constraint to be able to prove that the intermediate-level
+       evict funtions have the same behavior as their spec-level counterparts -- without
+       this constraint, the intermediate-level call to has_instore_merkle_desc may 
+       return false when the spec-level call returns true, causing intermediate-level
+       verification to succeed where the spec fails. In order to prove that functions
+       preserve this invariant, we sometimes (I think only in vaddm and vevictm) need 
+       to take into account facts that hold of eac spec-level logs. One such fact I have
+       in mind is that only one slot in the store can point to a given key.
+
+       The particularly difficult cases of the proof will be:
+       1. AddM with a duplicate key
+       2. AddB with a duplicate key
+       3. AddB without a duplicate key, but where the resulting spec log is not eac
+
+       In the other cases, we can use the lemmas above
+         lemma_v*_simulates_spec
+         lemma_v*_preserves_inv
+       and lemmas in Veritas.Verifier.EAC that show that non-eac logs produce a hash
+       collision.
+    *) 
+    | _ -> admit()
+    (*
+    | Get_S s k v -> 
+    | Put_S s k v -> 
+    | AddM_S s (k,v) s' -> 
+    | EvictM_S s s' -> 
+    | AddB_S s (k,v) t j ->
+    | EvictB_S s t -> 
+    | EvictBM_S s s' t -> 
+    *)
+
+let rec lemma_il_hash_verifiable_implies_eac_and_vtls_rel_aux 
+      (itsl:il_hash_verifiable_log) 
+      (i:nat{i <= I.length itsl}) 
+  : Lemma (ensures (Veritas.Verifier.EAC.hash_collision_gen \/
+                    (let itsl_i = I.prefix itsl i in
+                     forall_store_inv itsl_i /\
+                     (let itsl_k_i = ilogS_to_logK itsl_i in
+                      SpecVTS.is_eac itsl_k_i /\
+                      forall_vtls_rel itsl_i itsl_k_i))))
+          (decreases i)
+  = if i = 0
+    then admit() // empty log satisfies all properties
+    else (
+      // either the recursive call returns a hash collision, or we can apply
+      // inductive_step to prove the property;
+      // see link below for an example using squashes proofs:
+      // https://github.com/FStarLang/FStar/blob/master/examples/misc/WorkingWithSquashedProofs.fst
+      admit()
+    )
+
+let lemma_il_hash_verifiable_implies_eac_and_vtls_rel (itsl: il_hash_verifiable_log)
+  : Lemma (ensures (Veritas.Verifier.EAC.hash_collision_gen \/
+                    (forall_store_inv itsl /\
+                    (let itsl_k = ilogS_to_logK itsl in
+                     SpecVTS.is_eac itsl_k /\
+                     forall_vtls_rel itsl itsl_k))))
+  = I.lemma_fullprefix_equal itsl;
+    lemma_il_hash_verifiable_implies_eac_and_vtls_rel_aux itsl (I.length itsl)
