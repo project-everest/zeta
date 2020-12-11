@@ -6,7 +6,11 @@ ifeq (,$(KREMLIN_HOME))
   $(error Please define KREMLIN_HOME)
 endif
 
-KRML = $(KREMLIN_HOME)/krml
+KRML := $(KREMLIN_HOME)/krml
+dummy := $(shell test -e $(KRML))
+ifneq ($(.SHELLSTATUS),0)
+  KRML := $(QD_HOME)/bin/krml
+endif
 
 KRML_OPTS = \
   -skip-compilation \
@@ -67,15 +71,16 @@ formats/dist/veritasformats.a:
 
 # Compiling HACL*
 
-HACL_DIST=./hacl-star/dist/gcc-compatible
+HACL_HOME ?= ./hacl-star
+HACL_DIST=$(HACL_HOME)/dist/gcc-compatible
 
-hacl-star:
+$(HACL_DIST):
 	@echo "Please run git submodule --init"
 	false
 
 .PHONY: $(HACL_DIST)/libevercrypt.a
 
-$(HACL_DIST)/Makefile.config: hacl-star
+$(HACL_DIST)/Makefile.config: $(HACL_DIST)
 	cd $(HACL_DIST) && ./configure --disable-ocaml
 
 $(HACL_DIST)/libevercrypt.a: $(HACL_DIST)/Makefile.config
