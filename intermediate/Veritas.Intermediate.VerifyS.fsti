@@ -126,9 +126,10 @@ let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
             else
               let v'_upd = Spec.update_merkle_value v' d k h false in
               let st_upd = update_value st s' (MVal v'_upd) in
-              let st_upd2 = add_to_store st_upd s k v Spec.MAdd in
-              let st_upd3 = update_in_store st_upd2 s' d true in
-              update_thread_store vs st_upd3
+              let st_upd2 = update_in_store st_upd s' d false in // not necessary, but makes proof easier
+              let st_upd3 = add_to_store st_upd2 s k v Spec.MAdd in
+              let st_upd4 = update_in_store st_upd3 s' d true in
+              update_thread_store vs st_upd4
         | Desc k2 h2 b2 -> 
             if k2 = k 
             then (* k is a child of k' *)
@@ -147,13 +148,14 @@ let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
             else if not (is_proper_desc k2 k) then Failed
             else
               let d2 = desc_dir k2 k in
+              let inb = in_store_bit st s' d in // original in_store bit for s' in direction d
               let mv = to_merkle_value v in
               let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
               let v'_upd = Spec.update_merkle_value v' d k h false in
               let st_upd = update_value st s' (MVal v'_upd) in
               let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
               let st_upd3 = update_in_store st_upd2 s' d true in
-              let st_upd4 = update_in_store st_upd3 s d2 true in
+              let st_upd4 = update_in_store st_upd3 s d2 inb in
               update_thread_store vs st_upd4
 
 let has_instore_merkle_desc (st:vstore) (s:slot_id{store_contains st s}): bool = 
