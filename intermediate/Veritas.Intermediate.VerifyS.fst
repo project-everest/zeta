@@ -804,73 +804,39 @@ let inductive_step (itsl:il_hash_verifiable_log) (i:I.seq_index itsl)
     match e with
     
     | Get_S s k v ->
-      assert(Valid? vs);
-      assert(Spec.Valid? vs');
-      assert(vtls_rel vs vs');
-      
-      // let st = thread_store vs in
-      // assert(st.is_map);
-
-      // let vs1 = thread_state itsl_i1 tid in
       lemma_verifier_thread_state_extend itsl i;
-      // assert(vs1 == vget s k v vs);
-      // assert(slot_key_rel vs s k);
       lemma_vget_simulates_spec vs vs' s k v;
 
       let itsl_k_i1 = extend_spec_log itsl_i tid e in
       if SpecVTS.is_eac itsl_k_i1 then (
         lemma_vget_preserves_inv vs s k v;
         lemma_forall_store_inv_extend itsl i;
-        assert(forall_store_inv itsl_i1);
-        assert(itsl_k_i1 == ilogS_to_logK itsl_i1);
-        assert(SpecVTS.is_eac (ilogS_to_logK itsl_i1));
         lemma_forall_vtls_rel_extend itsl i
       )
-      else (
-        assert (Spec.Get? (SpecVTS.eac_boundary_entry itsl_k_i1));
+      else 
+        // assert (Spec.Get? (SpecVTS.eac_boundary_entry itsl_k_i1));
         let _ = Veritas.Verifier.EAC.lemma_non_eac_get_implies_hash_collision itsl_k_i1 in
         ()
-      )
+      
    
     | Put_S s k v ->
-      assert(Valid? vs);
-      assert(Spec.Valid? vs');
-      assert(vtls_rel vs vs');
-
-      let st = thread_store vs in
-      assert(st.is_map);
-
-      let vs1 = thread_state itsl_i1 tid in
       lemma_verifier_thread_state_extend itsl i;
-      assert(vs1 == vput s k v vs);
-      assert(vs1 == t_verify_step vs e);
-      // assert(slot_key_rel vs s k);
       lemma_vput_simulates_spec vs vs' s k v;
 
       let itsl_k_i1 = extend_spec_log itsl_i tid e in
       if SpecVTS.is_eac itsl_k_i1 then (
         lemma_vput_preserves_inv vs s k v; 
-        lemma_forall_store_inv_extend itsl i;
-        assert(forall_store_inv itsl_i1);
-        assert(itsl_k_i1 == ilogS_to_logK itsl_i1);
-        assert(SpecVTS.is_eac (ilogS_to_logK itsl_i1));
-        assert(forall_store_inv itsl_i);
-        assert(forall_vtls_rel itsl_i (ilogS_to_logK itsl_i));
-        assert(Valid? vs1);
-        assert(thread_store_is_map vs1);
-
-         assert(vtls_rel vs1 (Spec.vput k v vs'));
-        SpecVTS.lemma_verifier_thread_state_extend itsl_k_i1 i;
-        // assert(vtls_rel vs1 (SpecVTS.thread_state itsl_k_i1 tid));
-        
-        lemma_forall_vtls_rel_extend itsl i;        
-        ()
+        lemma_forall_store_inv_extend itsl i;        
+        // TODO: this assert seems to be necessary - fix it
+        assert(itsl_k_i1 == ilogS_to_logK itsl_i1);        
+        SpecVTS.lemma_verifier_thread_state_extend itsl_k_i1 i;        
+        lemma_forall_vtls_rel_extend itsl i
       )
-      else (
-        assert (Spec.Put? (SpecVTS.eac_boundary_entry itsl_k_i1));
+      else 
+        // assert (Spec.Put? (SpecVTS.eac_boundary_entry itsl_k_i1));
         let _ = Veritas.Verifier.EAC.lemma_non_eac_put_implies_hash_collision itsl_k_i1 in
         ()      
-      )
+      
     | _ ->
       admit()
 
