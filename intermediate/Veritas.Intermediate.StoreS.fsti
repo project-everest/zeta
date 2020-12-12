@@ -366,10 +366,21 @@ let lemma_add_to_store_MAdd_preserves_key_with_MAdd
   (k:key)
   (v:value_type_of k)
   (k0:key)
-  : Lemma (requires store_contains_key_with_MAdd st k0)
-          (ensures store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)
+  : Lemma (requires k <> k0)
+          (ensures store_contains_key_with_MAdd st k0 =
+                     store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)
           [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)]
   = admit()    
+
+let lemma_add_to_store_adds_key_with_MAdd
+  (st:vstore)
+  (s:st_index st{not (store_contains st s)}) 
+  (k:key)
+  (v:value_type_of k)
+  : Lemma (ensures store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k)
+          [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k)]
+  = admit()    
+
 
 let lemma_update_in_store_preserves_in_store_bit
       (st:vstore)
@@ -392,8 +403,27 @@ let lemma_update_in_store_updates_in_store_bit
           [SMTPat (in_store_bit (update_in_store st s d b) s d)]
   = ()
 
+let lemma_update_in_store_preserves_keys
+  (st:vstore)
+  (s:st_index st{store_contains st s}) 
+  (d:bin_tree_dir)
+  (b:bool)
+  (k:key)
+  : Lemma (ensures store_contains_key st k = store_contains_key (update_in_store st s d b) k)
+          [SMTPat (store_contains_key (update_in_store st s d b) k)]
+  = admit()
 
-let lemma_update_in_store_BAdd_preserves_key_with_MAdd
+let lemma_update_in_store_preserves_add_method
+  (st:vstore)
+  (s:st_index st{store_contains st s}) 
+  (d:bin_tree_dir)
+  (b:bool)
+  (k:key{store_contains_key st k})
+  : Lemma (ensures add_method_of_by_key st k = add_method_of_by_key (update_in_store st s d b) k)
+          [SMTPat (add_method_of_by_key (update_in_store st s d b) k)]
+  = admit()
+
+let lemma_update_in_store_preserves_key_with_MAdd
   (st:vstore)
   (s:st_index st{store_contains st s}) 
   (d:bin_tree_dir)
@@ -402,15 +432,29 @@ let lemma_update_in_store_BAdd_preserves_key_with_MAdd
   : Lemma (ensures store_contains_key_with_MAdd st k = 
                      store_contains_key_with_MAdd (update_in_store st s d b) k)
           [SMTPat (store_contains_key_with_MAdd (update_in_store st s d b) k)]
-  = admit()
+  = ()
 
 let lemma_evict_from_store_evicts_key
   (st:vstore{st.is_map})
   (s:st_index st{store_contains st s}) 
-  (d:bin_tree_dir)
-  (b:bool)
-  (k:key)
   : Lemma (ensures not (store_contains_key (evict_from_store st s) (stored_key st s)))
           [SMTPat (store_contains_key (evict_from_store st s) (stored_key st s))]
   = admit()    
 
+let lemma_evict_from_store_preserves_key_with_MAdd
+  (st:vstore{st.is_map})
+  (s:st_index st{store_contains st s}) 
+  (k:key)
+  : Lemma (requires (k <> stored_key st s))
+          (ensures (store_contains_key_with_MAdd st k = store_contains_key_with_MAdd (evict_from_store st s) k))
+          [SMTPat (store_contains_key_with_MAdd (evict_from_store st s) k)]
+  = admit()    
+
+let lemma_evict_from_store_BAdd_preserves_key_with_MAdd
+  (st:vstore{st.is_map})
+  (s:st_index st{store_contains st s}) 
+  (k:key)
+  : Lemma (requires (add_method_of st s = Spec.BAdd))
+          (ensures (store_contains_key_with_MAdd st k = store_contains_key_with_MAdd (evict_from_store st s) k))
+          [SMTPat (store_contains_key_with_MAdd (evict_from_store st s) k)]
+  = admit()    
