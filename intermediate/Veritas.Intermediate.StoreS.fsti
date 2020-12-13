@@ -328,8 +328,7 @@ val lemma_store_rel_evict_from_store (st:vstore) (st':Spec.vstore) (s:st_index s
           (ensures (store_rel (evict_from_store st s) (Spec.evict_from_store st' k)))
           [SMTPat (evict_from_store st s); SMTPat (Spec.evict_from_store st' k)]
 
-
-
+(* facts about store_contains_key -- useful for store_inv in VerifyS *)
 
 let store_contains_merkle_slot (st:vstore) (s:slot_id) : bool
   = store_contains st s && MVal? (stored_value st s)
@@ -339,6 +338,16 @@ type instore_merkle_slot (st:vstore) = s:slot_id{store_contains_merkle_slot st s
 let store_contains_key_with_MAdd (st:vstore) (k:key) : bool
   = store_contains_key st k && add_method_of_by_key st k = Spec.MAdd
 
+let lemma_update_value_preserves_add_method
+  (st:vstore)
+  (s:slot_id{store_contains st s}) 
+  (v:value_type_of (stored_key st s))
+  (k:key{store_contains_key st k})
+  : Lemma (ensures add_method_of_by_key st k = 
+                     add_method_of_by_key (update_value st s v) k)
+          [SMTPat (add_method_of_by_key (update_value st s v) k)]
+  = admit()
+
 let lemma_update_value_preserves_key_with_MAdd
   (st:vstore)
   (s:slot_id{store_contains st s}) 
@@ -347,8 +356,22 @@ let lemma_update_value_preserves_key_with_MAdd
   : Lemma (ensures store_contains_key_with_MAdd st k = 
                      store_contains_key_with_MAdd (update_value st s v) k)
           [SMTPat (store_contains_key_with_MAdd (update_value st s v) k)]
-  = admit()
-     
+  = ()
+
+let lemma_add_new_key_to_store
+  (st:vstore)
+  (s:st_index st{not (store_contains st s)}) 
+  (k:key)
+  (v:value_type_of k)
+  (am:add_method)
+  (k0:key)
+  : Lemma (requires k <> k0)
+          (ensures store_contains_key st k0 =
+                     store_contains_key (add_to_store st s k v am) k0)
+          [SMTPat (store_contains_key (add_to_store st s k v am) k0);
+           SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)]
+  = admit()    
+
 let lemma_add_to_store_BAdd_preserves_key_with_MAdd
   (st:vstore)
   (s:st_index st{not (store_contains st s)}) 
@@ -360,16 +383,24 @@ let lemma_add_to_store_BAdd_preserves_key_with_MAdd
           [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.BAdd) k0)]
   = admit()    
 
-let lemma_add_to_store_MAdd_preserves_key_with_MAdd
+let lemma_add_to_store_adds_key
   (st:vstore)
   (s:st_index st{not (store_contains st s)}) 
   (k:key)
   (v:value_type_of k)
-  (k0:key)
-  : Lemma (requires k <> k0)
-          (ensures store_contains_key_with_MAdd st k0 =
-                     store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)
-          [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)]
+  (am:add_method)
+  : Lemma (ensures store_contains_key (add_to_store st s k v am) k)
+          [SMTPat (store_contains_key (add_to_store st s k v am) k)]
+  = admit()    
+
+let lemma_add_to_store_adds_key_with_add_method
+  (st:vstore)
+  (s:st_index st{not (store_contains st s)}) 
+  (k:key)
+  (v:value_type_of k)
+  (am:add_method)
+  : Lemma (ensures add_method_of_by_key (add_to_store st s k v am) k = am)
+          [SMTPat (add_method_of_by_key (add_to_store st s k v am) k)]
   = admit()    
 
 let lemma_add_to_store_adds_key_with_MAdd
@@ -379,8 +410,7 @@ let lemma_add_to_store_adds_key_with_MAdd
   (v:value_type_of k)
   : Lemma (ensures store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k)
           [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k)]
-  = admit()    
-
+  = ()    
 
 let lemma_update_in_store_preserves_in_store_bit
       (st:vstore)

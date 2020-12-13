@@ -6,7 +6,6 @@ let slot_key_rel (vs: vtls {Valid? vs}) (s:slot_id) (k:key) =
   let st = thread_store vs in slot_key_equiv st s k
 
 (* Store invariants *)
-// TODO: move to StoreS
 
 let mv_points_to (mv:merkle_value) (d:bin_tree_dir) (k:key) : bool
   = let dh = desc_hash_dir mv d in
@@ -19,7 +18,7 @@ let points_to (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) (k:key) : 
 let in_store_bit_equals_store_contains 
       (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) (k:key{points_to st s d k})
   = in_store_bit st s d = store_contains_key_with_MAdd st k
-    
+
 let store_inv (st:vstore) = 
   st.is_map /\
   (forall (s:instore_merkle_slot st) (d:bin_tree_dir) (k:key{points_to st s d k}).
@@ -113,6 +112,17 @@ let lemma_vaddm_simulates_spec_if_k_is_new
             if k2 = k 
             then assert (in_store_bit_equals_store_contains st s' d k)
 
+(* st satisfies store_inv everywhere except for slot s, direction d 
+   --> this is helpful in the vaddm and vevictm proofs because it allows us to
+       say that the invariant is partially-satisfied in the middle of a step
+*)
+let store_inv_except (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir)
+  = st.is_map /\
+    (forall (s0:instore_merkle_slot st) 
+       (d0:bin_tree_dir{~ (s = s0 /\ d = d0)}) 
+       (k:key{points_to st s0 d0 k}).
+         in_store_bit_equals_store_contains st s0 d0 k)
+
 (* updating a merkle value to point to a new key preserves the invariant *)
 let lemma_update_merkle_value_to_point_to_new_key_preserves_inv
       (st:vstore)
@@ -121,21 +131,19 @@ let lemma_update_merkle_value_to_point_to_new_key_preserves_inv
       (d:bin_tree_dir)
       (h:ms_hash_value)
       (b:bool)
-  : Lemma (requires (Empty? (desc_hash_dir (to_merkle_value (stored_value st s)) d) /\
-                     store_inv st))
+  : Lemma (requires (store_inv st))
           (ensures (let v = to_merkle_value (stored_value st s) in
                     let v_upd = Spec.update_merkle_value v d k h b in
                     let st_upd = update_value st s (MVal v_upd) in  
-                    let st_upd2 = update_in_store st_upd s d false in
-                    store_inv st_upd2))
+                    store_inv_except st_upd s d))
   = let v = to_merkle_value (stored_value st s) in
     let v_upd = Spec.update_merkle_value v d k h b in
     let st_upd = update_value st s (MVal v_upd) in
-    let st_upd2 = update_in_store st_upd s d false in
-    let aux (s0:instore_merkle_slot st_upd2) (d0:bin_tree_dir) (k0:key{points_to st_upd2 s0 d0 k0})
-      : Lemma (in_store_bit_equals_store_contains st_upd2 s0 d0 k0)
-      = if not (s0 = s && d0 = d)
-        then assert (in_store_bit_equals_store_contains st s0 d0 k0) in
+    let aux (s0:instore_merkle_slot st_upd) 
+            (d0:bin_tree_dir{~ (s0 = s /\ d0 = d)}) 
+            (k0:key{points_to st_upd s0 d0 k0})
+      : Lemma (in_store_bit_equals_store_contains st_upd s0 d0 k0)
+      = assert (in_store_bit_equals_store_contains st s0 d0 k0) in
     Classical.forall_intro_3 aux
 
 (* some useful properties that follow from EAC
@@ -159,49 +167,71 @@ let mv_does_not_point_to (st:vstore) (mv:merkle_value) (k:key) : bool
   = not (mv_points_to mv Left k) && not (mv_points_to mv Right k) 
 
 (* adding a slot requires updating the in_store bit *)
-let lemma_add_to_store_update_in_store_preserves_inv
+let lemma_add_to_store_update_in_store_preserves_inv1
       (st:vstore)
       (s':instore_merkle_slot st)
       (s:st_index st{not (store_contains st s)})
       (d:bin_tree_dir)
       (k:key{not (store_contains_key st k)})
       (v:value_type_of k)
-  : Lemma (requires (store_inv st /\
+  : Lemma (requires (store_inv_except st s' d /\
                      points_to st s' d k /\
                      no_other_slot_points_to st s' k /\
                      other_dir_does_not_point_to st s' d k /\
                      (MVal? v ==> (
                         let mv = to_merkle_value v in
                         points_to_new st mv /\ // whatever v points to is not in the store
-                        mv_does_not_point_to st mv k)))) // v does not point to k
+                        mv_does_not_point_to st mv k)) // v does not point to k
+                     ))
           (ensures (let st_upd = add_to_store st s k v Spec.MAdd in
-                    store_inv (update_in_store st_upd s' d true)))
-  = assert (in_store_bit_equals_store_contains st s' d k);
-    assert (in_store_bit st s' d = false);
-    let st_upd = add_to_store st s k v Spec.MAdd in
+                    let st_upd2 = update_in_store st_upd s' d true in
+                    store_inv st_upd2))
+  = let st_upd = add_to_store st s k v Spec.MAdd in
     let st_upd2 = update_in_store st_upd s' d true in
     let aux (s0:instore_merkle_slot st_upd2) (d0:bin_tree_dir) (k0:key{points_to st_upd2 s0 d0 k0})
       : Lemma (in_store_bit_equals_store_contains st_upd2 s0 d0 k0)
       = if s0 = s
-        then (
-          assert (k <> k0); // v does not point to k
-          assert (in_store_bit st_upd2 s0 d0 = false);
-          assert (store_contains_key_with_MAdd st_upd2 k0 = false) // whatever v points to is not in the store
-        ) else if s0 = s' && d0 = d
-        then (
-          assert (k = k0);
-          assert (in_store_bit st_upd2 s0 d0);
-          assert (store_contains_key_with_MAdd st_upd2 k0)
-        ) else if s0 = s'
-        then (
-          assert (k0 <> k); // by points_to_unique
-          assert (in_store_bit_equals_store_contains st s0 d0 k0)
-        ) 
-        else (
-          assert (~ (points_to st s0 d0 k)); // by points_to_unique
-          assert (k0 <> k);
-          assert (in_store_bit_equals_store_contains st s0 d0 k0)
-        ) in
+        then () // follows from the preconditions about v
+        else if s0 = s' && d0 = d
+        then () // follows from the call to update_in_store
+        else assert (in_store_bit_equals_store_contains st s0 d0 k0) // follows from store_inv st
+      in
+    Classical.forall_intro_3 aux
+
+(* modified form of the add_to_store lemma used in the third case of vaddm; 
+   the lemma above assumes that the added value (v) does not point to anything
+   currently in the store, while this lemma assumes that v points to key vk
+   in direction vd, which may or may not be in the store (dictated by vd). *)
+let lemma_add_to_store_update_in_store_preserves_inv2
+      (st:vstore)
+      (s':instore_merkle_slot st)
+      (s:st_index st{not (store_contains st s)})
+      (d:bin_tree_dir)
+      (k:merkle_key{not (store_contains_key st k)})
+      (v:merkle_value)
+      (vk:key{k <> vk})
+      (vd:bin_tree_dir{mv_points_to v vd vk})
+      (vb:bool{vb = store_contains_key_with_MAdd st vk})
+  : Lemma (requires (store_inv_except st s' d /\
+                     points_to st s' d k /\
+                     no_other_slot_points_to st s' k /\
+                     other_dir_does_not_point_to st s' d k /\
+                     Empty? (desc_hash_dir v (other_dir vd)) /\
+                     mv_points_to v vd vk))
+          (ensures (let st_upd = add_to_store st s k (MVal v) Spec.MAdd in
+                    let st_upd2 = update_in_store st_upd s' d true in
+                    let st_upd3 = update_in_store st_upd2 s vd vb in
+                    store_inv st_upd3))
+  = let st_upd = add_to_store st s k (MVal v) Spec.MAdd in
+    let st_upd2 = update_in_store st_upd s' d true in
+    let st_upd3 = update_in_store st_upd2 s vd vb in
+    let aux (s0:instore_merkle_slot st_upd3) (d0:bin_tree_dir) (k0:key{points_to st_upd3 s0 d0 k0})
+      : Lemma (in_store_bit_equals_store_contains st_upd3 s0 d0 k0)
+      = if s0 = s
+        then ()
+        else if s0 = s' && d0 = d
+        then ()
+        else assert (in_store_bit_equals_store_contains st s0 d0 k0) in
     Classical.forall_intro_3 aux
 
 let lemma_update_value_no_other_slot_points_to
@@ -232,7 +262,6 @@ let lemma_update_in_store_no_other_slot_points_to
       : Lemma (~ (points_to st_upd s0 d0 k))
       = assert (~ (points_to st s0 d0 k)) in
     Classical.forall_intro_2 aux
-
 
 let lemma_vaddm_preserves_inv_if_k_is_new
       (vs:vtls{Valid? vs}) 
@@ -265,23 +294,21 @@ let lemma_vaddm_preserves_inv_if_k_is_new
     | Empty ->
         let v'_upd = Spec.update_merkle_value v' d k h false in
         let st_upd = update_value st s' (MVal v'_upd) in
-        let st_upd2 = update_in_store st_upd s' d false in
         lemma_update_merkle_value_to_point_to_new_key_preserves_inv st s' k d h false;
-        lemma_add_to_store_update_in_store_preserves_inv st_upd2 s' s d k v
+        lemma_add_to_store_update_in_store_preserves_inv1 st_upd s' s d k v
     | Desc k2 h2 b2 ->
         if k2 = k 
-        then lemma_add_to_store_update_in_store_preserves_inv st s' s d k v
-        else 
+        then lemma_add_to_store_update_in_store_preserves_inv1 st s' s d k v
+        else ( 
           let d2 = desc_dir k2 k in
           let inb = in_store_bit st s' d in
-          let mv = to_merkle_value v in
-          let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
+          let v_upd = Spec.update_merkle_value (to_merkle_value v) d2 k2 h2 b2 in
           let v'_upd = Spec.update_merkle_value v' d k h false in
           let st_upd = update_value st s' (MVal v'_upd) in
-          let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
-          let st_upd3 = update_in_store st_upd2 s' d true in
-          let st_upd4 = update_in_store st_upd3 s d2 inb in
-          assume (store_inv st_upd4)
+          lemma_update_merkle_value_to_point_to_new_key_preserves_inv st s' k d h false;
+          assert (in_store_bit_equals_store_contains st s' d k2);
+          lemma_add_to_store_update_in_store_preserves_inv2 st_upd s' s d k v_upd k2 d2 inb
+        )
 
 let lemma_has_instore_merkle_desc (st:vstore) (st':Spec.vstore) (s:slot_id) (k:key)
   : Lemma (requires (store_inv st /\ store_rel st st' /\ slot_key_equiv st s k))
@@ -316,7 +343,7 @@ let lemma_vevictm_simulates_spec
   = lemma_has_instore_merkle_desc (thread_store vs) (Spec.thread_store vs') s k
 
 (* updating a merkle value preserves the invariant if you leave the pointed-to key the same *)
-let lemma_update_merkle_value_preserves_inv
+let lemma_update_merkle_value_with_same_key_preserves_inv
       (st:vstore)
       (s:instore_merkle_slot st)
       (k:key)
@@ -396,7 +423,7 @@ let lemma_vevictm_preserves_inv
     | Desc k2 h2 b2 ->
         let v'_upd = Spec.update_merkle_value v' d k h false in
         let st_upd = update_value st s' (MVal v'_upd) in
-        lemma_update_merkle_value_preserves_inv st s' k d h false;
+        lemma_update_merkle_value_with_same_key_preserves_inv st s' k d h false;
         lemma_evict_from_store_update_in_store_preserves_inv st_upd s' s d
 
 let lemma_vaddb_simulates_spec_if_k_is_new 
@@ -935,7 +962,7 @@ let inductive_step (itsl:il_hash_verifiable_log) (i:I.seq_index itsl)
     let itsl_i = I.prefix itsl i in
     let itsl_k_i = ilogS_to_logK itsl_i in
     let itsl_i1 = I.prefix itsl (i + 1) in
-    
+     
     assert (SpecVTS.is_eac itsl_k_i);
     assert (forall_store_inv itsl_i);
     assert (forall_vtls_rel itsl_i itsl_k_i);

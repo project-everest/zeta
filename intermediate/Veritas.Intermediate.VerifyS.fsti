@@ -126,10 +126,9 @@ let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
             else
               let v'_upd = Spec.update_merkle_value v' d k h false in
               let st_upd = update_value st s' (MVal v'_upd) in
-              let st_upd2 = update_in_store st_upd s' d false in // not necessary, but makes proof easier
-              let st_upd3 = add_to_store st_upd2 s k v Spec.MAdd in
-              let st_upd4 = update_in_store st_upd3 s' d true in
-              update_thread_store vs st_upd4
+              let st_upd2 = add_to_store st_upd s k v Spec.MAdd in
+              let st_upd3 = update_in_store st_upd2 s' d true in
+              update_thread_store vs st_upd3
         | Desc k2 h2 b2 -> 
             if k2 = k 
             then (* k is a child of k' *)

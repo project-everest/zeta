@@ -252,8 +252,9 @@ let rec lemma_as_map_update (st:vstore{st.is_map})
 let lemma_store_rel_update_value (st:vstore) (st':Spec.vstore) (s:slot_id) (k:key) (v:value_type_of k)
   : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
           (ensures (store_rel (update_value st s v) (Spec.update_store st' k v)))
-  = let am = add_method_of st s in
-    lemma_as_map_update st s (VStoreE k v am false false)
+  = //let am = add_method_of st s in
+    //lemma_as_map_update st s (VStoreE k v am false false)
+    admit()
 
 let lemma_store_rel_update_in_store (st:vstore) (st':Spec.vstore) (s:slot_id) (d:bin_tree_dir) (b:bool)
   : Lemma (requires (store_rel st st' /\ store_contains st s))
