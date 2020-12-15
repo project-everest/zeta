@@ -413,6 +413,49 @@ let lemma_filter_extend2 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
         (ensures (filter f s = append1 (filter f (prefix s (length s - 1))) (index s (length s - 1))))
    = ()
 
+let rec lemma_filter_update_length_aux (#a:eqtype) (f:a -> bool) (s: seq a) (i:seq_index s) (v:a)
+  : Lemma (requires (f v = f (index s i)))
+          (ensures (length (filter f s) = length (filter f (upd s i v))))
+          (decreases (length s))
+  = let n = length s in
+    if n > 0 &&  i < n - 1
+      then lemma_filter_update_length_aux f (prefix s (n - 1)) i v
+
+let lemma_filter_update_length (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a)
+  : Lemma (requires (f v = f (index s i)))
+          (ensures (length (filter f s) = length (filter f (upd s i v))))
+  = lemma_filter_update_length_aux f s i v
+
+let rec lemma_filter_update_index_eq_aux (#a:eqtype) (f:a -> bool) (s: seq a) (i:seq_index s) (v:a)
+  : Lemma (requires (f v /\ f (index s i)))
+          (ensures (index (filter f (upd s i v)) (filter_index_inv_map f s i) = v))
+          (decreases (length s))
+  = let n = length s in
+    if n > 0 && i < n - 1 
+    then lemma_filter_update_index_eq_aux f (prefix s (n - 1)) i v
+
+let lemma_filter_update_index_eq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a)
+  : Lemma (requires (f v /\ f (index s i)))
+          (ensures (index (filter f (upd s i v)) (filter_index_inv_map f s i) = v))
+  = lemma_filter_update_index_eq_aux f s i v
+
+let rec lemma_filter_update_index_neq_aux (#a:eqtype) (f:a -> bool) (s: seq a) (i:seq_index s) (v:a) (j:seq_index (filter f s))
+  : Lemma (requires (f v = f (index s i) /\ filter_index_map f s j <> i))
+          (ensures (index (filter f s) j = index (filter f (upd s i v)) j))
+          (decreases (length s))
+  = let n = length s in
+    if n > 0 && i < n - 1 
+    then (
+      let sp = prefix s (n - 1) in
+      if j < length (filter f sp)
+      then lemma_filter_update_index_neq_aux f sp i v j
+    )
+
+let lemma_filter_update_index_neq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a) (j:seq_index (filter f s))
+  : Lemma (requires (f v = f (index s i) /\ filter_index_map f s j <> i))
+          (ensures (index (filter f s) j = index (filter f (upd s i v)) j))
+  = lemma_filter_update_index_neq_aux f s i v j
+
 let rec lemma_filter_extensionality_aux (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
   Lemma (requires (ext_pred f1 f2))
         (ensures (filter f1 s = filter f2 s))

@@ -200,6 +200,19 @@ val lemma_filter_extend2 (#a:eqtype) (f:a -> bool) (s:seq a{length s > 0}):
   Lemma (requires (f (index s (length s - 1))))
         (ensures (filter f s = append1 (filter f (prefix s (length s - 1))) (index s (length s - 1))))
 
+val lemma_filter_update_length (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a)
+  : Lemma (requires (f v = f (index s i)))
+          (ensures (length (filter f s) = length (filter f (upd s i v))))
+          [SMTPat (length (filter f (upd s i v)))]
+
+val lemma_filter_update_index_eq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a)
+  : Lemma (requires (f v /\ f (index s i)))
+          (ensures (index (filter f (upd s i v)) (filter_index_inv_map f s i) = v))
+
+val lemma_filter_update_index_neq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a) (j:seq_index (filter f s))
+  : Lemma (requires (f v = f (index s i) /\ filter_index_map f s j <> i))
+          (ensures (index (filter f s) j = index (filter f (upd s i v)) j))
+
 let ext_pred (#a:eqtype) (f1 f2:a -> bool) =
   forall x. f1 x = f2 x
 

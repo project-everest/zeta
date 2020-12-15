@@ -43,11 +43,8 @@ let thread_id_of (vs:vtls {Valid? vs}): thread_id =
 let thread_store (vs: vtls {Valid? vs}): vstore =
   Valid?.st vs
 
-let thread_store_is_map (vs: vtls {Valid? vs}): bool =
-  let st = thread_store vs in st.is_map
-
 let thread_store_size (vs: vtls {Valid? vs}): nat =
-  let st = thread_store vs in Seq.length st.data
+  let st = thread_store vs in Seq.length st
 
 let update_thread_store (vs:vtls {Valid? vs}) (st:vstore) : vtls =
   match vs with
@@ -161,7 +158,6 @@ let has_instore_merkle_desc (st:vstore) (s:slot_id{store_contains st s}): bool =
   let k = stored_key st s in
   if is_data_key k then false
   else 
-    let _ = assert (is_value_of k (stored_value st s)) in
     let v = to_merkle_value (stored_value_by_key st k) in
     let ld = desc_hash_dir v Left in
     let rd = desc_hash_dir v Right in
@@ -182,8 +178,6 @@ let vevictm (s:slot_id) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
     else if has_instore_merkle_desc st s then Failed
     else
       let d = desc_dir k k' in
-      // TODO: remove the assert with a better SMTPat for stored_value_matches_stored_key
-      let _ = assert (is_value_of k' v') in 
       let v' = to_merkle_value v' in
       let dh' = desc_hash_dir v' d in
       let h = hashfn v in
@@ -262,8 +256,6 @@ let vevictbm (s:slot_id) (s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls 
     (* check k has no (merkle) children in the store *)
     else if has_instore_merkle_desc st s then Failed  
     else
-      // TODO: remove the assert with a better SMTPat for stored_value_matches_stored_key
-      let _ = assert (is_value_of k' v') in 
       let v' = to_merkle_value v' in
       let d = desc_dir k k' in
       let dh' = desc_hash_dir v' d in
@@ -277,16 +269,16 @@ let vevictbm (s:slot_id) (s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls 
             let st_upd2 = update_in_store st_upd s' d false in
             vevictb s t (update_thread_store vs st_upd2)
 
-(* Relation between thread-local states *)
-(* either both states have Failed, or both are Valid with equal contents AND the
-   is_map flag in vs is true *)
+(* Relation between thread-local states
+   * either both states have Failed
+   * or both are Valid with equal contents
+     (note that store_rel st st' enforces is_map st) *)
 let vtls_rel (vs:vtls) (vs':Spec.vtls) : Type =
   (Failed? vs /\ Spec.Failed? vs') \/
   (Valid? vs /\ Spec.Valid? vs' /\
    (let Valid id st clk ha he = vs in
     let Spec.Valid id' st' clk' _ ha' he' = vs' in
-    st.is_map /\ store_rel st st' /\
-    id = id' /\ clk = clk' /\ ha = ha' /\ he = he'))
+    store_rel st st' /\ id = id' /\ clk = clk' /\ ha = ha' /\ he = he'))
 
 let t_verify_step (vs:vtls) (e:logS_entry): vtls =
   match vs with
@@ -386,18 +378,18 @@ let tl_clock (tl:tl_verifiable_log) (i:tl_idx tl): timestamp =
 let tl_verify (tl:thread_id_logS) (i:tl_idx tl): vtls =
   verify (tl_prefix tl (i + 1))
 
-let tl_logS_to_logK (tl:tl_verifiable_log{thread_store_is_map (verify tl)}) 
+let tl_logS_to_logK (tl:tl_verifiable_log{is_map (thread_store (verify tl))}) 
   : SpecVT.verifiable_log
   = lemma_t_verify_simulates_spec (fst tl) (snd tl);
     (fst tl, logS_to_logK (fst tl) (snd tl))
 
-let lemma_tl_length (tl:tl_verifiable_log{thread_store_is_map (verify tl)})
+let lemma_tl_length (tl:tl_verifiable_log{is_map (thread_store (verify tl))})
   : Lemma (ensures tl_length tl = SpecVT.length (tl_logS_to_logK tl))
           [SMTPat (tl_length tl)]
   = admit()
 
 // may be useful
-let lemma_tl_clock_simulates_spec (tl: tl_verifiable_log{thread_store_is_map (verify tl)}) (i:tl_idx tl)
+let lemma_tl_clock_simulates_spec (tl: tl_verifiable_log{is_map (thread_store (verify tl))}) (i:tl_idx tl)
   : Lemma (tl_clock tl i = SpecVT.clock (tl_logS_to_logK tl) i)
   = admit()
 
@@ -456,13 +448,7 @@ let gl_verify (gl:g_logS) (i:I.sseq_index gl): vtls =
   tl_verify tl idx
 
 let forall_is_map (gl:gl_verifiable_log)
-  = forall (tid:seq_index gl). thread_store_is_map (verify (thread_log gl tid))
-
-val forall_is_mapb (gl:gl_verifiable_log) : bool
-
-val lemma_forall_is_mapb (gl:gl_verifiable_log)
-  : Lemma (ensures (forall_is_map gl <==> forall_is_mapb gl))
-          [SMTPat (forall_is_mapb gl)]
+  = forall (tid:seq_index gl). is_map (thread_store (verify (thread_log gl tid)))
 
 val glogS_to_logK (gl:gl_verifiable_log{forall_is_map gl}) 
   : gl':SpecVG.verifiable_log{Seq.length gl = Seq.length gl'}
