@@ -347,41 +347,6 @@ val lemma_evict_from_store_BAdd_preserves_key_with_MAdd
           (ensures (store_contains_key_with_MAdd st k = store_contains_key_with_MAdd (evict_from_store st s) k))
           [SMTPat (store_contains_key_with_MAdd (evict_from_store st s) k)]
 
-(* some simple cases where in_store_bit_inv is preserved -- more complicated cases (e.g.
-   add_to_store and evict_from_store with MAdd) are proved in VerifyS.fst *)
-
-(* updating a data value preserves in_store_inv *)
-let lemma_update_value_DVal_preserves_in_store_inv 
-      (st:vstore) 
-      (s:slot_id{store_contains st s /\ is_data_key (stored_key st s)}) 
-      (v:data_value)
-  : Lemma (requires in_store_inv st)
-          (ensures in_store_inv (update_value st s (DVal v)))
-          [SMTPat (in_store_inv (update_value st s (DVal v)))]
-  = let st_upd = update_value st s (DVal v) in
-    let aux (s0:instore_merkle_slot st_upd) (d0:bin_tree_dir{points_to_some st_upd s0 d0})
-      : Lemma (let k = pointed_key st_upd s0 d0 in
-               in_store_bit st_upd s0 d0 = store_contains_key_with_MAdd st_upd k)
-      = let k0 = pointed_key st s0 d0 in
-        assert (in_store_bit st s0 d0 = store_contains_key_with_MAdd st k0) in
-    Classical.forall_intro_2 aux
-
-(* evicting a blum slot preserves in_store_inv *)
-let lemma_evict_from_store_BAdd_preserves_inv
-      (st:vstore)
-      (s:slot_id{store_contains st s})
-  : Lemma (requires (store_inv st /\ add_method_of st s = Spec.BAdd))
-          (ensures (store_inv (evict_from_store st s)))
-          [SMTPat (in_store_inv (evict_from_store st s))]
-  = let st_upd = evict_from_store st s in
-    let aux (s0:instore_merkle_slot st_upd) (d0:bin_tree_dir{points_to_some st_upd s0 d0})
-      : Lemma (let k = pointed_key st_upd s0 d0 in
-               in_store_bit st_upd s0 d0 = store_contains_key_with_MAdd st_upd k)
-      = assert (s0 <> s); 
-        let k0 = pointed_key st s0 d0 in
-        assert (in_store_bit st s0 d0 = store_contains_key_with_MAdd st k0) in
-    Classical.forall_intro_2 aux
-
 (*** Relation w/ Spec-level Stores ***)
 
 (* slot_id s is equivalent to key k *)

@@ -39,6 +39,21 @@ let lemma_vput_simulates_spec
           (ensures (vtls_rel (vput s k v vs) (Spec.vput k v vs'))) 
   = ()
 
+(* updating a data value preserves in_store_inv *)
+let lemma_update_value_DVal_preserves_in_store_inv 
+      (st:vstore) 
+      (s:slot_id{store_contains st s /\ is_data_key (stored_key st s)}) 
+      (v:data_value)
+  : Lemma (requires in_store_inv st)
+          (ensures in_store_inv (update_value st s (DVal v)))
+  = let st_upd = update_value st s (DVal v) in
+    let aux (s0:instore_merkle_slot st_upd) (d0:bin_tree_dir{points_to_some st_upd s0 d0})
+      : Lemma (let k = pointed_key st_upd s0 d0 in
+               in_store_bit st_upd s0 d0 = store_contains_key_with_MAdd st_upd k)
+      = let k0 = pointed_key st s0 d0 in
+        assert (in_store_bit st s0 d0 = store_contains_key_with_MAdd st k0) in
+    Classical.forall_intro_2 aux
+
 let lemma_vput_preserves_inv
       (vs:vtls{Valid? vs}) 
       (s:slot_id) 
@@ -47,7 +62,7 @@ let lemma_vput_preserves_inv
   : Lemma (requires (Valid? (vput s k v vs) /\
                      store_inv (thread_store vs)))
           (ensures (store_inv (thread_store (vput s k v vs)))) 
-  = assert(slot_key_rel vs s k)
+  = lemma_update_value_DVal_preserves_in_store_inv (thread_store vs) s v
 
 // TODO: flaky
 #push-options "--z3rlimit_factor 2"
@@ -435,6 +450,21 @@ let lemma_vevictb_simulates_spec
                      slot_key_rel vs s k))
           (ensures (vtls_rel (vevictb s t vs) (Spec.vevictb k t vs'))) 
   = ()
+
+(* evicting a blum slot preserves in_store_inv *)
+let lemma_evict_from_store_BAdd_preserves_inv
+      (st:vstore)
+      (s:slot_id{store_contains st s})
+  : Lemma (requires (store_inv st /\ add_method_of st s = Spec.BAdd))
+          (ensures (store_inv (evict_from_store st s)))
+  = let st_upd = evict_from_store st s in
+    let aux (s0:instore_merkle_slot st_upd) (d0:bin_tree_dir{points_to_some st_upd s0 d0})
+      : Lemma (let k = pointed_key st_upd s0 d0 in
+               in_store_bit st_upd s0 d0 = store_contains_key_with_MAdd st_upd k)
+      = assert (s0 <> s); 
+        let k0 = pointed_key st s0 d0 in
+        assert (in_store_bit st s0 d0 = store_contains_key_with_MAdd st k0) in
+    Classical.forall_intro_2 aux
 
 let lemma_vevictb_preserves_inv 
       (vs:vtls{Valid? vs}) 
@@ -847,28 +877,32 @@ let inductive_step (itsl: il_hash_verifiable_log)
                    (i:I.seq_index itsl {let itsl_i = I.prefix itsl i in
                                         store_inv_spec_eac_rel itsl_i}):
   store_inv_spec_rel_or_hashcollision (I.prefix itsl (i + 1)) =   
+
   let tid = il_thread_id_of itsl i in
   let itsl_i = I.prefix itsl i in
   let itsl_k_i = ilogS_to_logK itsl_i in
   let itsl_i1 = I.prefix itsl (i + 1) in
 
-  assert (SpecVTS.is_eac itsl_k_i);
-  assert (forall_store_inv itsl_i);
-  assert (forall_vtls_rel itsl_i itsl_k_i);
+  // assert (SpecVTS.is_eac itsl_k_i);
+  // assert (forall_store_inv itsl_i);
+  // assert (forall_vtls_rel itsl_i itsl_k_i);
 
   let vs = thread_state itsl_i tid in
   let vs' = SpecVTS.thread_state itsl_k_i tid in 
 
   lemma_forall_store_inv_specialize itsl i;
-  assert (store_inv (thread_store vs));
+  // assert (store_inv (thread_store vs));
   lemma_forall_vtls_rel_specialize itsl i;
-  assert (vtls_rel vs vs');
+  // assert (vtls_rel vs vs');
 
+  lemma_verifier_thread_state_extend itsl i;
+  //assert (thread_state_post itsl i == t_verify_step (thread_state_pre itsl i) (I.index itsl i));
+
+  let st = thread_store vs in
   let e = I.index itsl i in
   match e with
   
   | Get_S s k v ->
-    lemma_verifier_thread_state_extend itsl i;
     lemma_vget_simulates_spec vs vs' s k v;
 
     let itsl_k_i1 = extend_spec_log itsl_i tid e in
@@ -879,87 +913,64 @@ let inductive_step (itsl: il_hash_verifiable_log)
        None
     )
     else 
-      // assert (Spec.Get? (SpecVTS.eac_boundary_entry itsl_k_i1));
       Some (Veritas.Verifier.EAC.lemma_non_eac_get_implies_hash_collision itsl_k_i1)
+
   | Put_S s k v ->
-    lemma_verifier_thread_state_extend itsl i;
     lemma_vput_simulates_spec vs vs' s k v;
 
     let itsl_k_i1 = extend_spec_log itsl_i tid e in
     if SpecVTS.is_eac itsl_k_i1 then (
        lemma_vput_preserves_inv vs s k v; 
        lemma_forall_store_inv_extend itsl i;        
-       // TODO: this assert seems to be necessary - fix it
-       assert(itsl_k_i1 == ilogS_to_logK itsl_i1);        
        SpecVTS.lemma_verifier_thread_state_extend itsl_k_i1 i; 
        lemma_forall_vtls_rel_extend itsl i;
        None
     )
     else 
-      // assert (Spec.Put? (SpecVTS.eac_boundary_entry itsl_k_i1));
       Some (Veritas.Verifier.EAC.lemma_non_eac_put_implies_hash_collision itsl_k_i1)
-      
-  | _ -> 
-    admit()
 
+  | AddM_S s (k,v) s' ->
+      if store_contains_key st k
+      then (
+        // We know that the log up to this point is EAC and the verifier state satisfies store_inv.
+        // Based on this, we should be able to show that it is impossible for the vaddm
+        // to successfully verify the current entry (contradicting our assumption that itsl is a 
+        // hash verifiable log).
+        // --> if k is in the store via MAdd, then the in_store bit must be set by store_inv
+        // --> if k is in the store via BAdd, then the evicted_to_blum bit must be set by EAC
+        admit()
+      )
+      else (
+        let k' = stored_key st s' in
+        lemma_vaddm_simulates_spec_if_k_is_new vs vs' s s' (k,v) k';
+        
+        let itsl_k_i1 = extend_spec_log itsl_i tid e in
+        if SpecVTS.is_eac itsl_k_i1 then (
+          
+          // The following should hold from eac -- right?
+          assume(no_other_slot_points_to st s' k);
+          assume(other_dir_does_not_point_to st s' (desc_dir k k') k);
+          assume(valid_new_value st k v);
+
+          lemma_vaddm_preserves_inv_if_k_is_new vs s s' (k,v); 
+          lemma_forall_store_inv_extend itsl i;        
+          lemma_forall_vtls_rel_extend itsl i;
+          assert(false); // BAD - there must be a contradiction somewhere
+          None
+        )
+        else 
+          Some (Veritas.Verifier.EAC.lemma_non_eac_addm_implies_hash_collision itsl_k_i1)      
+      )
 
   (*
-
-    match e with
-    (* Structure of each case:
-       
-       if e does not introduce a duplicate key (e.g. get, put, evict)
-       then extending itsl_k_i with e produces an its_log itsl_k_i1
-            if itsl_k_i1 is eac
-            then e also preserves store_inv
-            else we can produce a hash collision
-       else we can produce a hash collision 
-
-       Note that store_inv says that (1) keys in the store are unique and (2) the in_store
-       bits accurately record what keys are in the store (see in_store_bit_equals_store_contains).
-       We need this second constraint to be able to prove that the intermediate-level
-       evict funtions have the same behavior as their spec-level counterparts -- without
-       this constraint, the intermediate-level call to has_instore_merkle_desc may 
-       return false when the spec-level call returns true, causing intermediate-level
-       verification to succeed where the spec fails. In order to prove that functions
-       preserve this invariant, we sometimes (I think only in vaddm and vevictm) need 
-       to take into account facts that hold of eac spec-level logs. One such fact I have
-       in mind is that only one slot in the store can point to a given key.
-
-       The particularly difficult cases of the proof will be:
-       1. AddM with a duplicate key
-       2. AddB with a duplicate key
-       3. AddB without a duplicate key, but where the resulting spec log is not eac
-
-       In the other cases, we can use the lemmas above
-         lemma_v*_simulates_spec
-         lemma_v*_preserves_inv
-       and lemmas in Veritas.Verifier.EAC that show that non-eac logs produce a hash
-       collision.
-    *) 
-    | Get_S s k v ->
-        lemma_vget_simulates_spec vs vs' s k v;
-        let itsl_k_i1 = extend_spec_log itsl_i tid e in
-        if SpecVTS.is_eac itsl_k_i1
-        then (
-          lemma_vget_preserves_inv vs s k v;
-          //itsl_k_i1 == ilogS_to_logK itsl_i1
-          admit()
-        ) 
-        else (
-          assume (Spec.Get? (SpecVTS.eac_boundary_entry itsl_k_i1));
-          Veritas.Verifier.EAC.lemma_non_eac_get_implies_hash_collision itsl_k_i1
-        )
-    | _ -> admit()
-    (*
-    | Put_S s k v -> 
-    | AddM_S s (k,v) s' -> 
     | EvictM_S s s' -> 
     | AddB_S s (k,v) t j ->
     | EvictB_S s t -> 
     | EvictBM_S s s' t -> 
-    *)
-   *)
+  *)
+
+  | _ -> 
+    admit()
 
 (* empty log satisfies all invariants *)
 let lemma_empty_store_inv_spec_rel (itsl: its_log):
@@ -990,3 +1001,78 @@ let lemma_il_hash_verifiable_implies_eac_and_vtls_rel (itsl: il_hash_verifiable_
   : store_inv_spec_rel_or_hashcollision itsl     
   = I.lemma_fullprefix_equal itsl;
     lemma_il_hash_verifiable_implies_eac_and_vtls_rel_aux itsl (I.length itsl)
+
+let lemma_store_inv_spec_eac_rel_implies_spec_hash_verifiable (itsl:il_hash_verifiable_log)
+  : Lemma (requires store_inv_spec_eac_rel itsl)
+          (ensures SpecVTS.hash_verifiable (ilogS_to_logK itsl))
+  = admit()
+
+let lemma_ilogS_to_logK_state_ops (il:its_log{forall_store_inv il})
+  : Lemma (state_ops il == SpecVTS.state_ops (ilogS_to_logK il))
+  = admit()
+
+let lemma_time_seq_rw_consistent  
+  (itsl: il_hash_verifiable_log {~ (Veritas.State.rw_consistent (state_ops itsl))})
+  : Veritas.Verifier.EAC.hash_collision_gen = 
+  let tsl = I.i_seq itsl in  
+  let ts_ops = to_state_op_logS tsl in
+
+  let hc_or_inv = lemma_il_hash_verifiable_implies_eac_and_vtls_rel itsl in
+
+  (* if hc_or_inv returns a hash collision, then we can return the same collision *)
+  if Some? hc_or_inv
+  then Some?.v hc_or_inv
+
+  (* otherwise, we can use the spec-level lemma *)
+  else (
+    assert (store_inv_spec_eac_rel itsl);
+    
+    let itsl_k = ilogS_to_logK itsl in
+
+    lemma_store_inv_spec_eac_rel_implies_spec_hash_verifiable itsl;
+    assert (SpecVTS.hash_verifiable itsl_k);
+
+    lemma_ilogS_to_logK_state_ops itsl;
+    assert (state_ops itsl == SpecVTS.state_ops itsl_k);
+
+    Veritas.Verifier.Correctness.lemma_time_seq_rw_consistent itsl_k
+  )
+
+let lemma_logS_interleave_implies_state_ops_interleave (l: logS) (gl: g_logS{I.interleave #logS_entry l gl})
+  : Lemma (I.interleave #Veritas.State.state_op (to_state_op_logS l) (to_state_op_glogS gl)) 
+  = admit()
+
+(* final correctness lemma; essentially a copy-and-paste from Veritas.Verifier.Correctness *)
+let lemma_verifier_correct (gl: gl_hash_verifiable_log { ~ (Veritas.State.seq_consistent (to_state_op_glogS gl))})
+  : Veritas.Verifier.EAC.hash_collision_gen 
+  = (* sequences of per-thread put/get operations *)
+    let g_ops = to_state_op_glogS gl in
+
+    (* sequence ordered by time of each log entry *)
+    let itsl = il_create gl in  
+    I.lemma_interleaving_correct itsl;
+    assert(I.interleave (I.i_seq itsl) gl);
+
+    (* sequence of state ops induced by tmsl *)
+    let ts_ops = state_ops itsl in
+
+    lemma_logS_interleave_implies_state_ops_interleave (I.i_seq itsl) gl;
+    assert(I.interleave ts_ops g_ops);
+
+    (* if ts_ops is read-write consistent then we have a contradiction *)
+    let is_rw_consistent = Veritas.SeqMachine.valid_all_comp Veritas.StateSeqMachine.ssm ts_ops in
+    Veritas.StateSeqMachine.lemma_state_sm_equiv_rw_consistent ts_ops;
+
+    if is_rw_consistent then (
+      assert(Veritas.SeqMachine.valid_all Veritas.StateSeqMachine.ssm ts_ops);
+      assert(Veritas.State.rw_consistent ts_ops);
+
+      (* a contradiction *)
+      assert(Veritas.State.seq_consistent g_ops);
+
+      (* any return value *)
+      Veritas.Verifier.EAC.SingleHashCollision (Collision (DVal Null) (DVal Null))
+    )
+    else  
+      lemma_time_seq_rw_consistent itsl
+
