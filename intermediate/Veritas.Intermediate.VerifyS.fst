@@ -767,7 +767,7 @@ let spec_thread_state_post (il: SpecTS.il_vlog) (i: I.seq_index il): Spec.vtls =
 
 
 let ilogS_to_logK (il:its_log) : SpecTS.il_vlog
-  = admit()
+  = admit() // @Nik
 
 // WANT: I.index (ilogS_to_logK itsl) i == 
 //       logS_to_logK_entry (thread_state_pre itsl i) (I.index itsl i) 
@@ -828,8 +828,41 @@ let lemma_forall_vtls_rel_implies_its (il:its_log)
           (ensures (let il_k = ilogS_to_logK il in
                     SpecTS.verifiable il_k /\ SpecTS.clock_sorted il_k))
           [SMTPat (forall_vtls_rel il (ilogS_to_logK il))]
-  = admit()
+  = admit() // I will work on this first -Kesha
 
+(*let test (itsl:its_log) (i:I.seq_index itsl)
+  : Lemma 
+    (requires 
+      (let tid = il_thread_id_of itsl i in
+       let itsl_i = I.prefix itsl i in
+       forall_store_inv itsl_i /\
+       forall_vtls_rel itsl_i (ilogS_to_logK itsl_i) /\
+       store_inv (thread_store (thread_state (I.prefix itsl (i + 1)) tid)) /\
+       (let e = I.index itsl i in
+        let vs = thread_state itsl_i tid in
+        let vs1 = t_verify_step vs e in
+        Valid? vs1 /\
+        is_map (thread_store vs1) /\
+        vtls_rel vs1 (SpecVTS.thread_state (extend_spec_log itsl_i tid e) tid))))
+    (ensures False)
+  = let e = I.index itsl i in
+    let tid = il_thread_id_of itsl i in
+    let itsl_i = I.prefix itsl i in
+    let itsl_k_i = ilogS_to_logK itsl_i in
+    let vs' = SpecVTS.thread_state itsl_k_i tid in 
+    let vs = thread_state itsl_i tid in
+    let st = thread_store vs in
+    match e with
+    | AddM_S s (k,v) s' ->
+      assume (not (store_contains_key st k));
+      let k' = stored_key st s' in
+
+      lemma_vaddm_simulates_spec_if_k_is_new vs vs' s s' (k,v) k';
+      lemma_forall_store_inv_extend itsl i;
+      lemma_forall_vtls_rel_extend itsl i;
+      assert(false) // BAD - there must be a contradiction somewhere
+    | _ -> admit() *)
+                       
 (* property that:
  *    (a) the intermediate verifiers all satisfy the store invariant
  *    (b) the spec level log is evict-add-consistent 
@@ -917,7 +950,7 @@ let inductive_step (itsl: il_hash_verifiable_log)
         
         if SpecTS.is_eac itsl_k_i1 then (
           
-          // The following should hold from eac -- right?
+          // The following should hold from eac -- right? @Arvind
           assume(no_other_slot_points_to st s' k);
           assume(other_dir_does_not_point_to st s' (desc_dir k k') k);
           assume(valid_new_value st k v);
@@ -979,7 +1012,7 @@ let lemma_store_inv_spec_eac_rel_implies_spec_hash_verifiable (il:il_hash_verifi
 
 (*
 
-Commmented out for now -- need to change SpecTS.state_ops to take an il_vlog
+Commmented out for now -- need to change SpecTS.state_ops to take an il_vlog -Kesha
 
 let lemma_ilogS_to_logK_state_ops (il:its_log{forall_store_inv il})
   : Lemma (state_ops il == SpecTS.state_ops (ilogS_to_logK il))
