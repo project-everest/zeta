@@ -695,8 +695,8 @@ let lemma_hevict_equal (gl:gl_verifiable_log{forall_is_map gl})
   = hevict_equal_aux gl
 *)
 let clock_sorted (il: il_logS {il_verifiable il})
-  = admit()
- 
+  = forall (i j:I.seq_index il). i <= j ==> il_clock il i `ts_leq` il_clock il j
+
 let lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
   Lemma (ensures (il_verifiable (I.prefix itsl i) /\ clock_sorted (I.prefix itsl i)))
   = admit()
@@ -765,9 +765,72 @@ let spec_thread_state_post (il: SpecTS.il_vlog) (i: I.seq_index il): Spec.vtls =
   let tid = spec_thread_id_of il i in
   spec_thread_state (I.prefix il (i + 1)) tid
 
+module I = Veritas.Interleave
+                         
+#push-options "--fuel 1,1 --ifuel 1,1 --z3rlimit_factor 4"
+module SA = Veritas.SeqAux
 
-let ilogS_to_logK (il:its_log) : SpecTS.il_vlog
-  = admit() // @Nik
+let same_shape #a #b (il:I.interleaving a) (il':I.interleaving b) =
+  let open I in
+  let IL s ss _ = il in
+  let IL s' ss' _ = il' in
+  Seq.length s == Seq.length s' /\
+  Seq.length ss == Seq.length ss' /\
+  (forall (i:SA.seq_index ss). Seq.length (Seq.index ss i) == Seq.length (Seq.index ss i))
+
+let rec ilogS_to_logK (il:its_log) 
+  : Tot (sil:SpecTS.il_vlog { same_shape il sil })
+        (decreases (I.IL?.prf il))
+  = let open I in
+    let IL s ss prf = il in
+    match prf with
+    | IntEmpty ->
+      IL _ _ IntEmpty
+
+    | IntAdd s' ss' prf ->
+      let il' = IL s' ss' prf in
+      assert (Seq.equal ss (append1 ss' Seq.empty));
+      assert (forall (tid:Veritas.SeqAux.seq_index ss'). thread_log ss' tid == thread_log ss tid);
+      I.i2s_map_int_add il';
+      assert (forall (i:I.seq_index il'). il_clock il' i == il_clock il i);
+      assert (clock_sorted il');
+      let IL _ _ prf = ilogS_to_logK il' in
+      let res = IL _ _ (IntAdd _ _ prf) in
+      res
+
+    | IntExtend s0 ss0 prf x i ->
+      let il' = IL _ _ prf in
+      I.hprefix_extend _ _ prf x i;
+      lemma_prefix_verifiable il' (I.length il - 1);
+      let IL _ ss0' prefix = ilogS_to_logK il' in
+      if Seq.length s0 = 0
+      then (
+        assert (Seq.equal s0 Seq.empty);
+        I.interleave_empty prf;
+        let vs = init_thread_state i in
+        assert (tl_verifiable (thread_log ss0 i));
+        assert (Seq.equal (snd (thread_log ss i))
+                          (SA.append1 Seq.empty x));    
+        assert (Valid? (t_verify_step vs x));        
+        lemma_t_verify_step_valid_implies_log_exists vs x;
+        let Some entry = logS_to_logK_entry vs x in 
+        let res = I.IntExtend _ _ (I.interleave_empty_n (Seq.length ss0)) entry i in
+        IL _ _ res
+      )
+      else (
+        assert (Seq.equal (Seq.index ss i)
+                          (SA.append1 (Seq.index ss0 i) x));    
+        assert (Valid? (t_verify i (Seq.index ss i)));
+        assert (snd (thread_log ss i) == Seq.index ss i);
+        assert (SA.prefix (Seq.index ss i) (Seq.length (Seq.index ss i) - 1) `Seq.equal` (Seq.index ss0 i));
+        let vs = t_verify i (Seq.index ss0 i) in
+        assert (Valid? vs);
+        assert (Valid? (t_verify_step vs x));
+        lemma_t_verify_step_valid_implies_log_exists vs x;
+        let Some entry = logS_to_logK_entry vs x in
+        let res = I.IntExtend _ _ prefix entry i in
+        IL _ _ res
+      )
 
 // WANT: I.index (ilogS_to_logK itsl) i == 
 //       logS_to_logK_entry (thread_state_pre itsl i) (I.index itsl i) 
@@ -775,12 +838,12 @@ let ilogS_to_logK (il:its_log) : SpecTS.il_vlog
 let lemma_ilogS_to_logK_length (il:its_log)
   : Lemma (ensures I.length il = I.length (ilogS_to_logK il))
           [SMTPat (I.length (ilogS_to_logK il))]
-  = admit()
+  = ()
 
 let lemma_ilogS_to_logK_thread_count (il:its_log)
   : Lemma (ensures thread_count il = SpecTS.thread_count (ilogS_to_logK il))
           [SMTPat (SpecTS.thread_count (ilogS_to_logK il))]
-  = admit()
+  = ()
 
 // may also want: prefix (ilogS_to_logK il) i == ilogS_to_logK (prefix il i)
 
@@ -830,38 +893,6 @@ let lemma_forall_vtls_rel_implies_its (il:its_log)
           [SMTPat (forall_vtls_rel il (ilogS_to_logK il))]
   = admit() // I will work on this first -Kesha
 
-(*let test (itsl:its_log) (i:I.seq_index itsl)
-  : Lemma 
-    (requires 
-      (let tid = il_thread_id_of itsl i in
-       let itsl_i = I.prefix itsl i in
-       forall_store_inv itsl_i /\
-       forall_vtls_rel itsl_i (ilogS_to_logK itsl_i) /\
-       store_inv (thread_store (thread_state (I.prefix itsl (i + 1)) tid)) /\
-       (let e = I.index itsl i in
-        let vs = thread_state itsl_i tid in
-        let vs1 = t_verify_step vs e in
-        Valid? vs1 /\
-        is_map (thread_store vs1) /\
-        vtls_rel vs1 (SpecVTS.thread_state (extend_spec_log itsl_i tid e) tid))))
-    (ensures False)
-  = let e = I.index itsl i in
-    let tid = il_thread_id_of itsl i in
-    let itsl_i = I.prefix itsl i in
-    let itsl_k_i = ilogS_to_logK itsl_i in
-    let vs' = SpecVTS.thread_state itsl_k_i tid in 
-    let vs = thread_state itsl_i tid in
-    let st = thread_store vs in
-    match e with
-    | AddM_S s (k,v) s' ->
-      assume (not (store_contains_key st k));
-      let k' = stored_key st s' in
-
-      lemma_vaddm_simulates_spec_if_k_is_new vs vs' s s' (k,v) k';
-      lemma_forall_store_inv_extend itsl i;
-      lemma_forall_vtls_rel_extend itsl i;
-      assert(false) // BAD - there must be a contradiction somewhere
-    | _ -> admit() *)
                        
 (* property that:
  *    (a) the intermediate verifiers all satisfy the store invariant
@@ -882,7 +913,6 @@ let inductive_step (itsl: il_hash_verifiable_log)
                    (i:I.seq_index itsl {let itsl_i = I.prefix itsl i in
                                         store_inv_spec_eac_rel itsl_i}):
   store_inv_spec_rel_or_hashcollision (I.prefix itsl (i + 1)) =   
-
   let tid = il_thread_id_of itsl i in
   let itsl_i = I.prefix itsl i in
   let itsl_k_i = ilogS_to_logK itsl_i in
@@ -892,7 +922,6 @@ let inductive_step (itsl: il_hash_verifiable_log)
   assert (forall_store_inv itsl_i);
   assert (forall_vtls_rel itsl_i itsl_k_i);
   assert (SpecTS.is_eac itsl_k_i);
-  
   let vs = thread_state itsl_i tid in
   let vs' = spec_thread_state itsl_k_i tid in 
 
@@ -958,7 +987,7 @@ let inductive_step (itsl: il_hash_verifiable_log)
           lemma_vaddm_preserves_inv_if_k_is_new vs s s' (k,v); 
           lemma_forall_store_inv_extend itsl i;        
           lemma_forall_vtls_rel_extend itsl i;
-          assert(false); // BAD - there must be a contradiction somewhere
+          assert(false); // BAD - there must be a contradiction somewhere          
           None
         )
         else 
