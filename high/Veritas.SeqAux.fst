@@ -426,6 +426,7 @@ let lemma_filter_update_length (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index 
           (ensures (length (filter f s) = length (filter f (upd s i v))))
   = lemma_filter_update_length_aux f s i v
 
+#push-options "--z3rlimit_factor 2"
 let rec lemma_filter_update_index_eq_aux (#a:eqtype) (f:a -> bool) (s: seq a) (i:seq_index s) (v:a)
   : Lemma (requires (f v /\ f (index s i)))
           (ensures (index (filter f (upd s i v)) (filter_index_inv_map f s i) = v))
@@ -433,12 +434,14 @@ let rec lemma_filter_update_index_eq_aux (#a:eqtype) (f:a -> bool) (s: seq a) (i
   = let n = length s in
     if n > 0 && i < n - 1 
     then lemma_filter_update_index_eq_aux f (prefix s (n - 1)) i v
+#pop-options
 
 let lemma_filter_update_index_eq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a)
   : Lemma (requires (f v /\ f (index s i)))
           (ensures (index (filter f (upd s i v)) (filter_index_inv_map f s i) = v))
   = lemma_filter_update_index_eq_aux f s i v
 
+#push-options "--z3rlimit_factor 4"
 let rec lemma_filter_update_index_neq_aux (#a:eqtype) (f:a -> bool) (s: seq a) (i:seq_index s) (v:a) (j:seq_index (filter f s))
   : Lemma (requires (f v = f (index s i) /\ filter_index_map f s j <> i))
           (ensures (index (filter f s) j = index (filter f (upd s i v)) j))
@@ -450,6 +453,7 @@ let rec lemma_filter_update_index_neq_aux (#a:eqtype) (f:a -> bool) (s: seq a) (
       if j < length (filter f sp)
       then lemma_filter_update_index_neq_aux f sp i v j
     )
+#pop-options
 
 let lemma_filter_update_index_neq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a) (j:seq_index (filter f s))
   : Lemma (requires (f v = f (index s i) /\ filter_index_map f s j <> i))

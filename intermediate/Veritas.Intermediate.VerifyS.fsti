@@ -11,14 +11,17 @@ open Veritas.MultiSetHash
 open Veritas.MultiSetHashDomain
 open Veritas.Record
 open Veritas.SeqAux
+open Veritas.SeqMachine
+open Veritas.State
+open Veritas.StateSeqMachine
+open Veritas.Verifier.EAC
 
 (* It's better not to open these modules to avoid naming conflicts *)
 module I = Veritas.Interleave
 module Spec = Veritas.Verifier
-module SpecVT = Veritas.Verifier.Thread
-module SpecVG = Veritas.Verifier.Global
-module SpecVTS = Veritas.Verifier.TSLog
-module SpecVC = Veritas.Verifier.Correctness
+module SpecG = Veritas.Verifier.Global
+module SpecT = Veritas.Verifier.Thread
+module SpecTS = Veritas.Verifier.TSLog
 
 (* Thread-local state
    id     : thread id
@@ -293,16 +296,40 @@ let t_verify_step (vs:vtls) (e:logS_entry): vtls =
     | EvictB_S s t -> vevictb s t vs
     | EvictBM_S s s' t -> vevictbm s s' t vs
 
-(* convert slot-based log entry e to a key-based log entry, given verifier state vtls *)
-val logS_to_logK_entry (vs:vtls{Valid? vs}) (e:logS_entry) : option logK_entry
+(* Convert slot-based log entry e to a key-based log entry, given verifier state vs.
+   This is basically a "light" version of the vfun functions that reconstructs the log. 
+   We could have the vfun functions return logK entries instead, but this seems cleaner. *)
+let logS_to_logK_entry (vs:vtls{Valid? vs}) (e:logS_entry) : option logK_entry =
+  let st = thread_store vs in
+  match e with
+  | Get_S s k v -> 
+      if store_contains st s && k = stored_key st s
+      then Some (Spec.Get k v) else None
+  | Put_S s k v -> 
+      if store_contains st s && k = stored_key st s
+      then Some (Spec.Put k v) else None
+  | AddM_S _ r s' -> 
+      if store_contains st s' && is_merkle_key (stored_key st s') 
+      then Some (Spec.AddM r (stored_key st s')) else None
+  | EvictM_S s s' -> 
+      if store_contains st s && store_contains st s' && is_merkle_key (stored_key st s') 
+      then Some (Spec.EvictM (stored_key st s) (stored_key st s')) else None
+  | AddB_S _ r t j -> 
+      Some (Spec.AddB r t j)
+  | EvictB_S s t -> 
+      if store_contains st s
+      then Some (Spec.EvictB (stored_key st s) t) else None
+  | EvictBM_S s s' t ->
+      if store_contains st s && store_contains st s' && is_merkle_key (stored_key st s') 
+      then Some (Spec.EvictBM (stored_key st s) (stored_key st s') t) else None
 
+(* Add the logK_entry equivalent of e to log l, given current state vs. *)
 let add_to_log (l:option logK) (vs:vtls) (e:logS_entry) : option logK =
   if Some? l && Valid? vs && Some? (logS_to_logK_entry vs e)
   then Some (append1 (Some?.v l) (Some?.v (logS_to_logK_entry vs e)))
   else None
 
-(* Verify a log from a specified initial state; also returns the
-   corresponding log with keys *)
+(* Verify a log from a specified initial state. *)
 let rec t_verify_aux (vs:vtls) (l:logS): Tot (vtls * option logK)
   (decreases (Seq.length l)) =
   let n = Seq.length l in
@@ -344,20 +371,8 @@ let init_thread_state_valid (id:thread_id)
           [SMTPat (init_thread_state id)]
   = ()
 
-val lemma_init_thread_state_rel (id:thread_id) :
-  Lemma (vtls_rel (init_thread_state id) (Spec.init_thread_state id))
-
-val lemma_t_verify_simulates_spec (id:thread_id) (l:logS) 
-  : Lemma (requires (Valid? (t_verify id l)))
-          (ensures (vtls_rel (t_verify id l) (Spec.t_verify id (logS_to_logK id l))))
-
-val lemma_logS_to_logK_to_state_op (id:thread_id) (l:logS{Valid? (t_verify id l)})
-  : Lemma (ensures (Seq.equal (to_state_op_logS l) 
-                              (Veritas.EAC.to_state_op_vlog (logS_to_logK id l))))
-           [SMTPat (Veritas.EAC.to_state_op_vlog (logS_to_logK id l))]
-
-(* Utilities for running a single verifier thread.
-   Follows the definitions in Veritas.Verifier.Thread. *)
+(** Utilities for running a single verifier thread.
+    Follows the definitions in Veritas.Verifier.Thread. **)
 
 let verify (tl:thread_id_logS): vtls =
   t_verify (fst tl) (snd tl)
@@ -378,20 +393,19 @@ let tl_clock (tl:tl_verifiable_log) (i:tl_idx tl): timestamp =
 let tl_verify (tl:thread_id_logS) (i:tl_idx tl): vtls =
   verify (tl_prefix tl (i + 1))
 
-let tl_logS_to_logK (tl:tl_verifiable_log{is_map (thread_store (verify tl))}) 
-  : SpecVT.verifiable_log
-  = lemma_t_verify_simulates_spec (fst tl) (snd tl);
-    (fst tl, logS_to_logK (fst tl) (snd tl))
+//let tl_logS_to_logK (tl:tl_verifiable_log{is_map (thread_store (verify tl))}) 
+//  : SpecT.verifiable_log
+//  = admit() //lemma_t_verify_simulates_spec (fst tl) (snd tl);
+    //(fst tl, logS_to_logK (fst tl) (snd tl))
 
-let lemma_tl_length (tl:tl_verifiable_log{is_map (thread_store (verify tl))})
-  : Lemma (ensures tl_length tl = SpecVT.length (tl_logS_to_logK tl))
-          [SMTPat (tl_length tl)]
-  = admit()
+//let lemma_tl_length (tl:tl_verifiable_log{is_map (thread_store (verify tl))})
+//  : Lemma (ensures tl_length tl = SpecT.length (tl_logS_to_logK tl))
+//          [SMTPat (tl_length tl)]
+//  = admit()
 
-// may be useful
-let lemma_tl_clock_simulates_spec (tl: tl_verifiable_log{is_map (thread_store (verify tl))}) (i:tl_idx tl)
-  : Lemma (tl_clock tl i = SpecVT.clock (tl_logS_to_logK tl) i)
-  = admit()
+//let lemma_tl_clock_simulates_spec (tl: tl_verifiable_log{is_map (thread_store (verify tl))}) (i:tl_idx tl)
+//  : Lemma (tl_clock tl i = SpecT.clock (tl_logS_to_logK tl) i)
+//  = admit()
 
 (* Utilities for running all verifier threads and comparing aggregate add/evict hashes.
    Follows the definitions in Veritas.Verifier.Global. *) 
@@ -447,35 +461,35 @@ let gl_verify (gl:g_logS) (i:I.sseq_index gl): vtls =
   let tl = thread_log gl tid in
   tl_verify tl idx
 
-let forall_is_map (gl:gl_verifiable_log)
-  = forall (tid:seq_index gl). is_map (thread_store (verify (thread_log gl tid)))
+//let forall_is_map (gl:gl_verifiable_log)
+//  = forall (tid:seq_index gl). is_map (thread_store (verify (thread_log gl tid)))
 
-val glogS_to_logK (gl:gl_verifiable_log{forall_is_map gl}) 
-  : gl':SpecVG.verifiable_log{Seq.length gl = Seq.length gl'}
+//val glogS_to_logK (gl:gl_verifiable_log{forall_is_map gl}) 
+//  : gl':SpecVG.verifiable_log{Seq.length gl = Seq.length gl'}
 
-val lemma_glogS_to_logK (gl:gl_verifiable_log{forall_is_map gl}) (id:seq_index gl)
-  : Lemma (ensures Seq.index (glogS_to_logK gl) id = logS_to_logK id (Seq.index gl id))
-          [SMTPat (Seq.index (glogS_to_logK gl) id)]
+//val lemma_glogS_to_logK (gl:gl_verifiable_log{forall_is_map gl}) (id:seq_index gl)
+//  : Lemma (ensures Seq.index (glogS_to_logK gl) id = logS_to_logK id (Seq.index gl id))
+//          [SMTPat (Seq.index (glogS_to_logK gl) id)]
 
-val lemma_hadd_equal (gl:gl_verifiable_log{forall_is_map gl}) 
-  : Lemma (hadd gl = SpecVG.hadd (glogS_to_logK gl))
+//val lemma_hadd_equal (gl:gl_verifiable_log{forall_is_map gl}) 
+//  : Lemma (hadd gl = SpecVG.hadd (glogS_to_logK gl))
 
-val lemma_hevict_equal (gl:gl_verifiable_log{forall_is_map gl}) 
-  : Lemma (hevict gl = SpecVG.hevict (glogS_to_logK gl))
+//val lemma_hevict_equal (gl:gl_verifiable_log{forall_is_map gl}) 
+//  : Lemma (hevict gl = SpecVG.hevict (glogS_to_logK gl))
 
-let lemma_gl_hash_verifiable_simulates_spec (gl:gl_hash_verifiable_log{forall_is_map gl})
-  : Lemma (SpecVG.hash_verifiable (glogS_to_logK gl))
-  = lemma_hadd_equal gl;
-    lemma_hevict_equal gl
+//let lemma_gl_hash_verifiable_simulates_spec (gl:gl_hash_verifiable_log{forall_is_map gl})
+//  : Lemma (SpecVG.hash_verifiable (glogS_to_logK gl))
+//  = lemma_hadd_equal gl;
+//    lemma_hevict_equal gl
 
-let lemma_to_state_op_glogS (gl: gl_verifiable_log{forall_is_map gl})
-  : Lemma (ensures (Seq.equal (to_state_op_glogS gl) 
-                              (SpecVC.to_state_op_gvlog (glogS_to_logK gl))))
-  = let aux (i:seq_index gl) 
-      : Lemma (Seq.index (to_state_op_glogS gl) i = 
-              Seq.index (SpecVC.to_state_op_gvlog (glogS_to_logK gl)) i)
-      = () in
-    Classical.forall_intro aux
+//let lemma_to_state_op_glogS (gl: gl_verifiable_log{forall_is_map gl})
+//  : Lemma (ensures (Seq.equal (to_state_op_glogS gl) 
+//                              (SpecC.to_state_op_gvlog (glogS_to_logK gl))))
+//  = let aux (i:seq_index gl) 
+//      : Lemma (Seq.index (to_state_op_glogS gl) i = 
+//              Seq.index (SpecC.to_state_op_gvlog (glogS_to_logK gl)) i)
+//      = () in
+//    Classical.forall_intro aux
 
 (* Utilities for verifying the global, interleaved log shared among all threads.
    Follows the definitions in Veritas.Verifier.TSLog. *) 
@@ -508,3 +522,6 @@ val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
 
 val il_create (gl: gl_verifiable_log): (itsl:its_log{g_logS_of itsl == gl})
 
+// final correctness property
+//val lemma_verifier_correct (gl: gl_hash_verifiable_log { ~ (seq_consistent (to_state_op_glogS gl))})
+//  : hash_collision_gen 
