@@ -1741,12 +1741,12 @@ let lemma_eac_value_unchanged_evictm (itsl: TL.eac_log {I.length itsl > 0}) (ki:
 let lemma_eac_value_unchanged_evictm_anc_other_dir (itsl: TL.eac_log {I.length itsl > 0}):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
-                   EvictM? e))
+                   (EvictM? e \/ EvictBM? e)))
         (ensures (let n = I.length itsl in
                   let itsl' = I.prefix itsl (n - 1) in
                   let e = I.index itsl (n - 1) in
-                  let k = EvictM?.k e in
-                  let k' = EvictM?.k' e in
+                  let k = V.key_of e in
+                  let k' = evict_ancestor e in
                   is_proper_desc k k' /\
                   (let c = desc_dir k k' in
                    let oc = other_dir c in
@@ -1757,8 +1757,8 @@ let lemma_eac_value_unchanged_evictm_anc_other_dir (itsl: TL.eac_log {I.length i
   let e = I.index itsl (n - 1) in
   let itsl' = I.prefix itsl (n - 1) in
   let tid = TL.thread_id_of itsl (n - 1) in
-  let k = EvictM?.k e in
-  let k' = EvictM?.k' e in
+  let k = V.key_of e in
+  let k' = evict_ancestor e in
 
   lemma_fullprefix_equal itsl;  
   lemma_verifier_thread_state_extend itsl (n - 1);
@@ -2107,11 +2107,11 @@ let lemma_proving_ancestor_has_hash_extend_memop (itsl: TL.eac_log {I.length its
 let lemma_evict_ancestor_is_proving (itsl: TL.eac_log {I.length itsl > 0}):
   Lemma (requires (let n = I.length itsl in
                    let e = I.index itsl (n - 1) in
-                   EvictM? e))
+                   (EvictM? e \/ EvictBM? e)))
         (ensures (let n = I.length itsl in
                   let e = I.index itsl (n - 1) in
-                  let k = EvictM?.k e in
-                  let k' = EvictM?.k' e in
+                  let k = V.key_of e in
+                  let k' = evict_ancestor e in
                   let itsl' = I.prefix itsl (n - 1) in
                   k <> Root /\
                   k' = proving_ancestor itsl' k)) = 
@@ -2121,7 +2121,8 @@ let lemma_evict_ancestor_is_proving (itsl: TL.eac_log {I.length itsl > 0}):
   let itsl' = I.prefix itsl (n - 1) in
   let pf' = eac_ptrfn itsl' in
   match e with
-  | EvictM k k' ->
+  | EvictM k k'
+  | EvictBM k k' _ ->
     lemma_fullprefix_equal itsl;
     lemma_verifier_thread_state_extend itsl (n - 1);
 
@@ -3090,7 +3091,7 @@ let lemma_proving_ancestor_has_blum_bit_extend_evictm (itsl: TL.eac_log {I.lengt
         lemma_evict_ancestor_is_proving itsl;
         //assert(pk = k2);
         
-        lemma_eac_value_is_stored_value itsl pk tid        
+        lemma_eac_value_is_stored_value itsl pk tid
       )
       else if k2 = k then (
         lemma_instore_implies_eac_state_instore itsl k tid;

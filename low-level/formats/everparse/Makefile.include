@@ -1,0 +1,49 @@
+# Here we intend to build Veritas.Formats.*
+# as specified in the parent directory
+# and as implemented with EverParse
+# in the current and children directories
+FORMATS_HOME ?= ..
+
+QD_TARGET_DIR=$(FORMATS_HOME)/everparse/obj
+
+ifeq (,$(FSTAR_HOME))
+  $(error FSTAR_HOME is not defined)
+endif
+
+ifeq (,$(KREMLIN_HOME))
+  $(error KREMLIN_HOME is not defined)
+endif
+
+ifeq (,$(QD_HOME))
+  $(error Please define QD_HOME)
+endif
+
+QD := $(QD_HOME)/qd
+dummy := $(shell test -e $(QD))
+ifneq ($(.SHELLSTATUS),0)
+  QD := $(QD_HOME)/bin/qd
+endif
+
+KRML := $(KREMLIN_HOME)/krml
+dummy := $(shell test -e $(KRML))
+ifneq ($(.SHELLSTATUS),0)
+  KRML := $(QD_HOME)/bin/krml
+endif
+
+SOURCE_DIRS = \
+  $(FORMATS_HOME) \
+  $(FORMATS_HOME)/everparse \
+  $(QD_TARGET_DIR)
+
+INCLUDE_DIRS = \
+  $(SOURCE_DIRS) \
+  $(KREMLIN_HOME)/kremlib \
+  $(KREMLIN_HOME)/kremlib/obj \
+  $(QD_HOME)/src/lowparse
+
+FSTAR_INCLUDES = $(addprefix --include ,$(INCLUDE_DIRS))
+
+FSTAR_OPTIONS = \
+  $(FSTAR_INCLUDES) \
+  --already_cached '*,-Veritas.Formats' \
+  $(OTHERFLAGS)
