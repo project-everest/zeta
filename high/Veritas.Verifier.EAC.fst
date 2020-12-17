@@ -523,7 +523,6 @@ let lemma_non_eac_instore_evictb
       )
   )
 
-
 let lemma_non_eac_instore_evictbm
   (itsl: neac_log {
     EACInStore? (eac_boundary_state_pre itsl) /\
@@ -547,7 +546,19 @@ let lemma_non_eac_instore_evictbm
   | EACInStore m v -> (
     match ee with
     | EvictBlum (EvictBM k k' t) v' tid' ->
+      if MVal? v && not (MVal? v') then (
+        if is_merkle_key k then (
+          lemma_ext_evict_val_is_stored_val itsl i;
+          hash_collision_contra()
+        )
+        else (
+          lemma_eac_value_correct_type itsli k;
+          hash_collision_contra()
+        )
+      )
+
       (* otherwise there won't be an eac failure *)
+      else(
       // assert(DVal? v && v' <> v || m <> MAdd);
 
       (* the thread store of tid contains k *)
@@ -580,6 +591,7 @@ let lemma_non_eac_instore_evictbm
       // assert(v' = stored_value itsli k);
 
       hash_collision_contra()
+      )
   )  
 
 let lemma_non_eac_evicted_requires_key_in_store
