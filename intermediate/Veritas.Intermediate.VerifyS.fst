@@ -484,7 +484,7 @@ let lemma_vevictbm_simulates_spec
       (t:timestamp)
   : Lemma (requires (vtls_rel vs vs' /\ slot_key_rel vs s k /\ slot_key_rel vs s' k'))
           (ensures (vtls_rel (vevictbm s s' t vs) (Spec.vevictbm k k' t vs'))) 
-  = () // TODO: suspicious -- why does the unit proof work?
+  = admit() // TODO: suspicious -- why does the unit proof work?
 
 let lemma_vevictbm_preserves_inv 
       (vs:vtls{Valid? vs}) 
@@ -492,7 +492,7 @@ let lemma_vevictbm_preserves_inv
       (t:timestamp)
   : Lemma (requires (store_inv (thread_store vs) /\ Valid? (vevictbm s s' t vs)))
           (ensures (store_inv (thread_store (vevictbm s s' t vs))))
-  = () // TODO: VERY suspicious
+  = admit() // TODO: VERY suspicious
 
 let lemma_t_verify_step_valid_implies_log_exists (vs:vtls) (e:logS_entry)
   : Lemma (requires (Valid? (t_verify_step vs e)))

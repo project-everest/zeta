@@ -324,15 +324,16 @@ let vaddb (r:record)
     let st_upd = add_to_store st k v BAdd in
     update_thread_store vs_upd2 st_upd
 
-let vevictb (k:key) (t:timestamp)
-            (vs:vtls {Valid? vs}): vtls = 
+let vevictb_aux (k:key) (t:timestamp)
+                (eam:add_method)
+                (vs:vtls {Valid? vs}): vtls =
   let clk = thread_clock vs in
   let e = MkTimestamp?.e t in
   let st = thread_store vs in
   if k = Root then Failed
   else if not (ts_lt clk t) then Failed
   else if not (store_contains st k) then Failed  
-  else if add_method_of st k <> BAdd then Failed
+  else if add_method_of st k <> eam then Failed
   else if has_instore_merkle_desc st k then Failed  
   else 
     (* current h_evict *)
@@ -343,6 +344,10 @@ let vevictb (k:key) (t:timestamp)
     let vs_upd2 = update_thread_clock vs_upd t in    
     let st_upd = evict_from_store st k in
     update_thread_store vs_upd2 st_upd
+
+let vevictb (k:key) (t:timestamp)
+            (vs:vtls {Valid? vs}): vtls =
+  vevictb_aux k t BAdd vs
 
 let vevictbm (k:key) (k':merkle_key) (t:timestamp)
              (vs:vtls {Valid? vs}): vtls = 
@@ -361,7 +366,7 @@ let vevictbm (k:key) (k':merkle_key) (t:timestamp)
     | Desc k2 h2 b2 -> if k2 = k && b2 = false then
                          let v'_upd = update_merkle_value v' d k h2 true in
                          let st_upd = update_store st k' (MVal v'_upd) in
-                         vevictb k t (update_thread_store vs st_upd)
+                         vevictb_aux k t MAdd (update_thread_store vs st_upd)
                        else Failed
 
 (* thread-level verification step *)

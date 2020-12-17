@@ -1,17 +1,18 @@
 module Veritas.LowLevelVerifier
 open FStar.Integers
 open FStar.HyperStack.ST
+
 module B = LowStar.Buffer
 module HS = FStar.HyperStack
+module HST = FStar.HyperStack.ST
 
 open LowStar.Exception
 module VStore = Veritas.VCache
 open Veritas.VCache
 
 
-let thread_id_t = uint_16
 let counter_t = B.pointer uint_64
-let timestamp = uint_64
+
 assume
 val timestamp_lt (t1 t2: timestamp) : bool
 
@@ -22,41 +23,46 @@ let epoch_of_timestamp (t:timestamp)
   : uint_64
   = admit()
 
+unfold
 let vstore = Veritas.VCache.vstore
 
-assume
-val prf_set_hash : Type0
-assume
-val prf_set_hash_loc (v:prf_set_hash) : B.loc
-assume
-val prf_set_hash_inv (v:prf_set_hash) (h:HS.mem) : Type
-assume
-val prf_set_hash_inv_framing (v:prf_set_hash) (h0 h1:HS.mem) (l:B.loc)
-  : Lemma (ensures
-             prf_set_hash_inv v h0 /\
-             B.modifies l h0 h1 /\
-             B.loc_disjoint l (prf_set_hash_loc v) ==>
-             prf_set_hash_inv v h1)
-          [SMTPat (prf_set_hash_inv v h1);
-           SMTPat (B.modifies l h0 h1)]
+inline_for_extraction noextract
+let prf_set_hash : Type0 = Veritas.HashSet.state
 
-assume
-val multiset_hash_upd (r:record) (t:timestamp) (j:thread_id_t) (v:prf_set_hash)
+unfold
+let prf_set_hash_loc (h: HS.mem) (v:prf_set_hash) : GTot B.loc =
+  Veritas.HashSet.footprint h v
+
+unfold
+let prf_set_hash_inv (v:prf_set_hash) (h:HS.mem): Type =
+  Veritas.HashSet.invariant h v
+
+val multiset_hash_upd (r:record) (t:timestamp) (j:thread_id) (v:prf_set_hash)
   : Stack unit
     (requires fun h -> prf_set_hash_inv v h)
     (ensures fun h0 _ h1 ->
       prf_set_hash_inv v h1 /\
-      B.modifies (prf_set_hash_loc v) h0 h1)
+      B.modifies (prf_set_hash_loc h0 v) h0 h1 /\
+      prf_set_hash_loc h0 v == prf_set_hash_loc h1 v)
 
-assume
-val get_current_value   (v:prf_set_hash)
+let multiset_hash_upd r t j v =
+  HST.push_frame ();
+  let dst = B.alloca 0uy 256ul in
+  let len = Veritas.Formats.(serialize_stamped_record dst ({ sr_record = r; sr_timestamp = t; sr_thread_id = j; })) in
+  let src = B.sub dst 0ul len in
+  Veritas.HashSet.add v src len;
+  HST.pop_frame ()
+
+let get_current_value   (v:prf_set_hash)
   : Stack u256
     (requires fun h -> prf_set_hash_inv v h)
-    (ensures fun h0 _ h1 -> h0 == h1)
+    (ensures fun h0 _ h1 -> B.(modifies loc_none h0 h1))
+=
+  Veritas.HashSet.get v
 
 noeq
 type thread_state_t = {
-  id           : thread_id_t;
+  id           : thread_id;
   st           : vstore;  //a map from keys (cache ids) to merkle leaf or internal nodes
   clock        : counter_t;
   hadd         : prf_set_hash; //current incremental set hash values; TODO
@@ -71,22 +77,21 @@ let thread_state_inv (t:thread_state_t) (h:HS.mem)
     B.live h t.clock /\
     B.loc_disjoint (VStore.footprint t.st)
                    (B.loc_union (B.loc_buffer t.clock)
-                     (B.loc_union (prf_set_hash_loc t.hadd)
-                                  (prf_set_hash_loc t.hevict))) /\
+                     (B.loc_union (prf_set_hash_loc h t.hadd)
+                                  (prf_set_hash_loc h t.hevict))) /\
     B.loc_disjoint (B.loc_buffer t.clock)
-                   (B.loc_union (prf_set_hash_loc t.hadd)
-                                (prf_set_hash_loc t.hevict)) /\
-    B.loc_disjoint (prf_set_hash_loc t.hadd)
-                   (prf_set_hash_loc t.hevict)
+                   (B.loc_union (prf_set_hash_loc h t.hadd)
+                                (prf_set_hash_loc h t.hevict)) /\
+    B.loc_disjoint (prf_set_hash_loc h t.hadd)
+                   (prf_set_hash_loc h t.hevict)
     (* /\ ... *)
-let loc_thread_state (t:thread_state_t) =
+let loc_thread_state (t:thread_state_t) (h:HS.mem)=
     B.loc_union (VStore.footprint t.st)
                    (B.loc_union (B.loc_buffer t.clock)
-                     (B.loc_union (prf_set_hash_loc t.hadd)
-                                  (prf_set_hash_loc t.hevict)))
+                     (B.loc_union (prf_set_hash_loc h t.hadd)
+                                  (prf_set_hash_loc h t.hevict)))
 
 ////////////////////////////////////////////////////////////////////////////////
-
 type desc_type =
   | Left
   | Right
@@ -98,27 +103,16 @@ assume
 val is_descendent (k0 k1:key)
   : option desc_type
 
-let data_key   = k:key { is_data_key k }
-let merkle_key = k:key { not (is_data_key k) }
-
-let mvalue = v:value{ MVal? v }
-let dvalue = v:value{ DVal? v }
+let mvalue = v:value{ V_mval? v }
+let dvalue = v:value{ V_dval? v }
 
 val compute_hash (d:value)
   : Stack hash_value
     (requires fun _ -> True)
     (ensures fun h0 _ h1 -> B.modifies B.loc_none h0 h1)
 
-assume val serialize_length: value -> l:UInt32.t { UInt32.v l > 0 }
-
-assume val serialize_value: v:value -> dst: B.lbuffer UInt8.t (UInt32.v (serialize_length v)) ->
-  Stack unit
-    (requires fun _ -> True)
-    (ensures fun h0 _ h1 -> B.(modifies (loc_buffer dst) h0 h1))
-
 let compute_hash d =
-  Veritas.Reveal.reveal_u8 ();
-  assert_norm (8 <= Spec.Hash.Definitions.max_input_length Spec.Hash.Definitions.SHA2_256);
+  assert_norm (8 <= Hacl.Hash.SHA2.max_input_length);
   assert_norm (pow2 32 < pow2 61);
   push_frame ();
   let l = serialize_length d in
@@ -126,18 +120,22 @@ let compute_hash d =
   serialize_value d tmp;
   let hash = B.alloca 0uy 32ul in
   Hacl.Hash.SHA2.hash_256 tmp l hash;
-  let hash0 = B.sub hash 0ul 8ul in
-  let hash1 = B.sub hash 8ul 8ul in
-  let hash2 = B.sub hash 16ul 8ul in
-  let hash3 = B.sub hash 24ul 8ul in
-  let r =
-    LowStar.Endianness.load64_le hash0,
-    LowStar.Endianness.load64_le hash1,
-    LowStar.Endianness.load64_le hash2,
-    LowStar.Endianness.load64_le hash3
-  in
+  (* big endian *)
+  let hash3 = B.sub hash 0ul 8ul in
+  let hash2 = B.sub hash 8ul 8ul in
+  let hash1 = B.sub hash 16ul 8ul in
+  let hash0 = B.sub hash 24ul 8ul in
+  let r3 = LowStar.Endianness.load64_le hash3 in
+  let r2 = LowStar.Endianness.load64_le hash2 in
+  let r1 = LowStar.Endianness.load64_le hash1 in
+  let r0 = LowStar.Endianness.load64_le hash0 in
   pop_frame ();
-  r
+  {
+    v3 = r3;
+    v2 = r2;
+    v1 = r1;
+    v0 = r0;
+  }
 
 let vstore_try_get_record (v:vstore) (s:slot_id)
   : Stack (option record)
@@ -188,9 +186,9 @@ let vget (s:slot_id) (v:data_value) (vs: thread_state_t)
     (ensures fun h0 _ h1 -> h0 == h1)
   = let r = vstore_get_record vs.st s in
     match r.record_value with
-    | MVal _ _ ->
+    | V_mval _ ->
       raise "expected a data value"
-    | DVal dv ->
+    | V_dval dv ->
       if dv = v
       then ()
       else raise "Failed: inconsistent key or value in Get"
@@ -202,28 +200,28 @@ let vput (s:slot_id) (v:data_value) (vs: thread_state_t)
     (ensures fun h0 _ h1 ->
       thread_state_inv vs h1)
   = let r = vstore_get_record vs.st s in
-    vstore_update_record vs.st s ({r with record_value = DVal v})
+    vstore_update_record vs.st s ({r with record_value = V_dval v})
 
 (* update merkle value *)
-let update_merkle_value (v:value{MVal? v})
+let update_merkle_value (v:value{V_mval? v})
                         (d:desc_type_lr)
                         (dh:descendent_hash)
-  : v:value{MVal? v}
-  = let MVal dhl dhr = v in
+  : v:value{V_mval? v}
+  = let V_mval ({ l = dhl; r = dhr }) = v in
     match d with
-    | Left -> MVal dh dhr
-    | Right -> MVal dhl dh
+    | Left -> V_mval ({ l = dh; r = dhr; })
+    | Right -> V_mval ({ l = dhl; r = dh; })
 
 unfold
 let with_in_store_direction r (d:desc_type_lr) (flag:bool)
   : record
   = match d with
-    | Left -> {r with record_l_child_in_store = flag}
-    | Right -> {r with record_r_child_in_store = flag}
+    | Left -> {r with record_l_child_in_store = vbool_of_bool flag}
+    | Right -> {r with record_r_child_in_store = vbool_of_bool flag}
 
 let init_value (k:key): v:value{is_value_of k v} =
-  if is_data_key k then DVal None
-  else MVal Empty Empty
+  if is_data_key k then V_dval (Dv_vnone ())
+  else V_mval ({ l = Dh_vnone (); r = Dh_vnone () })
 
 let vaddm (s:slot_id)
           (r:record)
@@ -245,15 +243,15 @@ let vaddm (s:slot_id)
     let direction, mval, desc_hash_dir
       : desc_type_lr & mvalue & descendent_hash
       = match mv with
-        | DVal _ -> raise "vaddm: expected merkle slot, got data slot"
-        | MVal l r ->
+        | V_dval _ -> raise "vaddm: expected merkle slot, got data slot"
+        | V_mval ({ l = l; r = r; }) ->
           match is_descendent k k' with
           | Some Left ->
-            if Desc? l && l_in_store
+            if Dh_vsome? l && bool_of_vbool l_in_store
             then raise "vaddm: key is already in the store"
             else Left, mv, l
           | Some Right ->
-            if Desc? r && r_in_store
+            if Dh_vsome? r && bool_of_vbool r_in_store
             then raise "vaddm: key is already in the store"
             else Right, mv, r
           | _ -> raise "vaddm: not a proper descendant"
@@ -266,14 +264,14 @@ let vaddm (s:slot_id)
     if not (is_value_of k v) then raise "vaddm: value is not consistent for key";
     let h = compute_hash v in
     match desc_hash_dir with
-    | Empty ->
+    | Dh_vnone _ ->
       if v <> init_value k then raise "vaddm: First add expected initial value";
-      let dh = Desc k h false in
+      let dh = Dh_vsome ({ dhd_key = k; dhd_h = h; evicted_to_blum = Vfalse; }) in
       let mval' = update_merkle_value mval direction dh in
       vstore_update_record vs.st s' (mk_record k' mval' add_method');
       vstore_add_record vs.st s k v MAdd
 
-    | Desc k2 h2 k2_in_blum ->
+    | Dh_vsome ({ dhd_key = k2; dhd_h = h2; evicted_to_blum = k2_in_blum ;}) ->
       if k2 = k then
          if h2 = h then
             vstore_add_record vs.st s k v MAdd //TODO: Need to update s' in_store bit for s
@@ -283,17 +281,17 @@ let vaddm (s:slot_id)
            | None
            | Some Eq -> raise "vaddm: existing edge in merkle tree is not for a proper descendent of k"
            | Some lr ->
-             assume (MVal? v); //k has a strict descendent, so it cannot be a data key
+             assume (V_mval? v); //k has a strict descendent, so it cannot be a data key
              let mv_upd = update_merkle_value v lr desc_hash_dir in
-             let mval' = update_merkle_value mval direction (Desc k h false) in
+             let mval' = update_merkle_value mval direction (Dh_vsome ({ dhd_key = k; dhd_h = h; evicted_to_blum = Vfalse })) in
              vstore_update_record vs.st s' (with_in_store_direction (mk_record k' mval' add_method') direction true);
              vstore_add_record vs.st s k mv_upd MAdd
 
 let desc_hash_dir (v:mvalue) (lr:desc_type_lr)
   : descendent_hash
   = match lr with
-    | Left -> MVal?.l v
-    | Right -> MVal?.r v
+    | Left -> (V_mval?._0 v).l
+    | Right -> (V_mval?._0 v).r
 
 let vevictm (s:slot_id)
             (s':slot_id)
@@ -316,18 +314,18 @@ let vevictm (s:slot_id)
     | None
     | Some Eq -> raise "vevictm: expected a proper descendant"
     | Some lr ->
-      assume (MVal? v'); //k' has a strict descendant
+      assume (V_mval? v'); //k' has a strict descendant
       let dh' = desc_hash_dir v' lr in
       let h = compute_hash v in
       match dh' with
-      | Empty ->
+      | Dh_vnone _ ->
         raise "vevictm: Evicting child node should be in the merkle tree"
-      | Desc k2 h2 b2 ->
+      | Dh_vsome ({ dhd_key = k2; dhd_h = h2; evicted_to_blum = b2; }) ->
         if k2 = k then
         begin
            vstore_evict_record vs.st s k; //evict s, k first
            //then update parent with in_store bit = false
-           let v'_upd = update_merkle_value v' lr (Desc k h b2) in
+           let v'_upd = update_merkle_value v' lr (Dh_vsome ({ dhd_key = k; dhd_h = h; evicted_to_blum = b2; })) in
            vstore_update_record vs.st s' (with_in_store_direction (mk_record k' v'_upd a') lr false)
         end
 
@@ -344,7 +342,7 @@ let update_clock (t:timestamp) (clk:counter_t)
 let vaddb (s:slot_id)
           (r:record)
           (t:timestamp)
-          (thread_id:thread_id_t)
+          (thread_id:thread_id)
           (vs:thread_state_t)
   : StackExn unit
     (requires fun h -> thread_state_inv vs h)
@@ -390,13 +388,13 @@ let vevictbm (s s':slot_id) (t:timestamp) (vs:thread_state_t)
     | Some Eq
     | None -> raise "vevictbm: Not a proper descendant"
     | Some lr ->
-      assume (MVal? r'.record_value);
+      assume (V_mval? r'.record_value);
       let dh' = desc_hash_dir r'.record_value lr in
       match dh' with
-      | Empty -> raise "vevictbm: parent entry is empty for this child"
-      | Desc k2 h2 b2 ->
-        if k2 = r.record_key && b2 = false then
-           let v'_upd = update_merkle_value r'.record_value lr (Desc r.record_key h2 true) in
+      | Dh_vnone _ -> raise "vevictbm: parent entry is empty for this child"
+      | Dh_vsome ({ dhd_key = k2; dhd_h = h2; evicted_to_blum = b2 ;}) ->
+        if k2 = r.record_key && b2 = Vfalse then
+           let v'_upd = update_merkle_value r'.record_value lr (Dh_vsome ({ dhd_key = r.record_key; dhd_h = h2; evicted_to_blum = Vtrue; })) in
            let r' = { r with record_value = v'_upd } in
            vstore_update_record vs.st s' r';
            vevictb s t vs
@@ -404,35 +402,6 @@ let vevictbm (s s':slot_id) (t:timestamp) (vs:thread_state_t)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-(* Each entry of the verifier log *)
-noeq
-type vlog_entry =
-  | Get:     s:slot_id ->
-             v:data_value ->
-             vlog_entry
-  | Put:     s:slot_id ->
-             v:data_value ->
-             vlog_entry
-  | AddM:    s:slot_id ->
-             r:record ->
-             s':slot_id ->
-             vlog_entry
-  | EvictM:  s:slot_id ->
-             s':slot_id ->
-             vlog_entry
-  | AddB:    s:slot_id ->
-             r:record ->
-             t:timestamp ->
-             j:thread_id_t ->
-             vlog_entry
-  | EvictB:  s:slot_id ->
-             t:timestamp ->
-             vlog_entry
-  | EvictBM: s:slot_id ->
-             s':slot_id ->
-             t:timestamp ->
-             vlog_entry
-
 
 noeq
 type log = {
@@ -448,15 +417,20 @@ let log_inv (l:log) (h:HS.mem) =
   B.live h l.pos /\
   B.disjoint l.buf l.pos
 
-assume
 val extract_log_entry (l:log)
-  : Stack vlog_entry
+  : StackExn vlog_entry
           (requires fun h ->
             log_inv l h)
           (ensures fun h0 v h1 ->
             log_inv l h1 /\
             B.modifies (loc_log l) h0 h1) (* /\
             log at position h0.pos contains a vali repr of v *)
+
+let extract_log_entry l =
+  admit ();
+  match extract_log_entry_from l.len l.buf l.pos with
+  | Some log -> log
+  | None -> raise "extract_log_entry: no valid log entry"
 
 let has_more (l:log)
   : Stack bool
@@ -476,7 +450,7 @@ let v_context_inv (vs:v_context) (h:HS.mem) =
   log_inv vs.log_stream h /\
   B.loc_disjoint
     (loc_log vs.log_stream)
-    (loc_thread_state vs.thread_state)
+    (loc_thread_state vs.thread_state h)
 
 let t_verify_step (vs:v_context)
   : StackExn unit
@@ -484,21 +458,21 @@ let t_verify_step (vs:v_context)
       v_context_inv vs h)
     (ensures fun h0 _ h1 ->
       v_context_inv vs h1)
-  = let entry = extract_log_entry vs.log_stream in
+  = admit (); let entry = extract_log_entry vs.log_stream in
     match entry with
-    | Get s v ->
+    | Ve_Get ({ vegp_s = s; vegp_v = v; }) ->
       vget s v vs.thread_state
-    | Put s v ->
+    | Ve_Put ({ vegp_s = s; vegp_v = v; }) ->
       vput s v vs.thread_state
-    | AddM s r s' ->
+    | Ve_AddM ({ veam_s = s; veam_r = r; veam_s2 = s' ;}) ->
       vaddm s r s' vs.thread_state
-    | EvictM s s' ->
+    | Ve_EvictM ({ veem_s = s; veem_s2 = s' ;}) ->
       vevictm s s' vs.thread_state
-    | AddB s r t j ->
+    | Ve_AddB ({ veab_s = s; veab_r = r; veab_t = t; veab_j = j; }) ->
       vaddb s r t j vs.thread_state
-    | EvictB s t ->
+    | Ve_EvictB ({ veeb_s = s; veeb_t = t; }) ->
       vevictb s t vs.thread_state
-    | EvictBM s s' t ->
+    | Ve_EvictBM ({ veebm_s = s; veebm_s2 = s'; veebm_t = t ;}) ->
       vevictbm s s' t vs.thread_state
 
 let rec t_verify (vs:v_context)

@@ -1,0 +1,12 @@
+all: makefileobj
+
+.PHONY: all makefileobj
+
+include Makefile.include
+
+makefileobj: $(QD_TARGET_DIR)/Makefile
+
+$(QD_TARGET_DIR)/Makefile: Makefile.obj Veritas.Formats.rfc
+	mkdir -p $(QD_TARGET_DIR)
+	$(QD) -odir $(QD_TARGET_DIR) Veritas.Formats.rfc -types_to $(FORMATS_HOME)/Veritas.Formats.Types.fst -prefix Veritas.Formats.EverParse.
+	cp $< $@
