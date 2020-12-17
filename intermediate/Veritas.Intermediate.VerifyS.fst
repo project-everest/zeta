@@ -858,12 +858,46 @@ let lemma_forall_vtls_rel_extend (itsl:its_log) (i:I.seq_index itsl)
                     forall_vtls_rel (I.prefix itsl (i + 1)) (extend_spec_log (I.prefix itsl i) tid e)))
   = admit()
 
+let test (itsl:its_log) (i:I.seq_index itsl)
+  : Lemma 
+    (requires 
+      (let tid = il_thread_id_of itsl i in
+       let itsl_i = I.prefix itsl i in
+       forall_store_inv itsl_i /\
+       forall_vtls_rel itsl_i (ilogS_to_logK itsl_i) /\
+       store_inv (thread_store (thread_state (I.prefix itsl (i + 1)) tid)) /\
+       (let e = I.index itsl i in
+        let vs = thread_state itsl_i tid in
+        let vs1 = t_verify_step vs e in
+        Valid? vs1 /\
+        is_map (thread_store vs1) /\
+        vtls_rel vs1 (SpecVTS.thread_state (extend_spec_log itsl_i tid e) tid))))
+    (ensures False)
+  = let e = I.index itsl i in
+    let tid = il_thread_id_of itsl i in
+    let itsl_i = I.prefix itsl i in
+    let itsl_k_i = ilogS_to_logK itsl_i in
+    let vs' = SpecVTS.thread_state itsl_k_i tid in 
+    let vs = thread_state itsl_i tid in
+    let st = thread_store vs in
+    match e with
+    | AddM_S s (k,v) s' ->
+      assume (not (store_contains_key st k));
+      let k' = stored_key st s' in
+
+      lemma_vaddm_simulates_spec_if_k_is_new vs vs' s s' (k,v) k';
+      lemma_forall_store_inv_extend itsl i;
+      lemma_forall_vtls_rel_extend itsl i;
+      assert(false) // BAD - there must be a contradiction somewhere
+    | _ -> admit()
+                       
+
 (* property that:
  *    (a) the intermediate verifiers all satisfy the store invariant
  *    (b) the spec level log is evict-add-consistent 
  *    (c) the intermediate and spec level verifiers states correspond to one-another (related)
  *)
-let store_inv_spec_eac_rel (itsl: its_log) = 
+let store_inv_spec_eac_rel (itsl: its_log) =
   forall_store_inv itsl /\
   (let itsl_k = ilogS_to_logK itsl in
    SpecVTS.is_eac itsl_k /\
