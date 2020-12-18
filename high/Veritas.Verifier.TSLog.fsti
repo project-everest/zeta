@@ -45,12 +45,12 @@ let clock (il: il_vlog{verifiable il}) (i: I.seq_index il): timestamp =
   let j = i2s_map il i in
   VG.clock gl j
 
-
 (*
 let clock_sorted (il: il_vlog{verifiable il}) =
   forall (i:I.seq_index il). i > 0 ==> clock il (i - 1) `ts_leq` clock il i
 *)
-val clock_sorted (il: il_vlog {verifiable il}): prop
+let clock_sorted (il: il_vlog{verifiable il}) =
+ forall (i j:I.seq_index il). i <= j ==> clock il i `ts_leq` clock il j
 
 (* TODO: add clock_sorted *)
 let its_log = il:il_vlog{verifiable il /\ clock_sorted il}
@@ -68,7 +68,7 @@ val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
 (* create a ts log *)
 val create (gl: VG.verifiable_log): (itsl:its_log{g_vlog_of itsl == gl})
 
-let state_ops (itsl: its_log): seq (state_op) =
+let state_ops (itsl: il_vlog): seq (state_op) =
   to_state_op_vlog (i_seq itsl)
 
 let key_at (itsl: its_log) (i: I.seq_index itsl): key = 
@@ -104,7 +104,7 @@ let last_add_idx (itsl: its_log) (k: key{has_some_add_of_key itsl k}):
   last_index (is_add_of_key k) (I.i_seq itsl)
 
 (* thread id of the ith entry *)
-let thread_id_of (itsl: its_log) (i: I.seq_index itsl): valid_tid itsl =
+let thread_id_of (itsl: il_vlog) (i: I.seq_index itsl): valid_tid itsl =
   fst (i2s_map itsl i)
 
 (* the verifier thread where the last add of key k happens *)

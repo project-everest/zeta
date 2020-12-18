@@ -1,10 +1,6 @@
 module Veritas.Verifier.TSLog
 
 module VG = Veritas.Verifier.Global
-
-let clock_sorted (il: il_vlog{verifiable il}) =
- forall (i j:I.seq_index il). i <= j ==> clock il i `ts_leq` clock il j
-
 module SA = Veritas.SeqAux
 open FStar.Calc
 
@@ -1515,7 +1511,7 @@ let eac_value_aux (itsl: eac_log) (k:key)
     | EACEvictedBlum v _ _ -> v
     | EACEvictedMerkle v -> v
 
-#push-options "--ifuel 1,1 --fuel 0,0 --z3rlimit_factor 4"
+#push-options "--ifuel 1,1 --fuel 0,0 --z3rlimit_factor 8"
 let lemma_eac_value_aux_typing (itsl:eac_log) (k:key)
   : Lemma (is_value_of k (eac_value_aux itsl k))
   = let rec aux (itsl:eac_log)

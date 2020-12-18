@@ -127,11 +127,24 @@ val lemma_i2s_s2i (#a:eqtype) (il:interleaving a) (i:seq_index il):
         (ensures (s2i_map il (i2s_map il i) = i))
         [SMTPat (i2s_map il i)]
 
+val i2s_map_int_add (#a:_) (il:interleaving a)
+  : Lemma 
+    (ensures (forall (i:seq_index il).{:pattern (i2s_map il i)} i2s_map il i == i2s_map (IL _ _ (IntAdd _ _ (IL?.prf il))) i))
+
 let hprefix (#a:eqtype) (il:interleaving a {length il > 0}): interleaving a =
   prefix il (length il - 1)
 
 let telem (#a:eqtype) (il:interleaving a {length il > 0}): a =
   SA.telem (i_seq il)
+
+val prefix_identity (#a:eqtype) (il:interleaving a)
+  : Lemma (ensures prefix il (length il) == il)
+
+val hprefix_extend (#a:eqtype) (s:seq a) (ss:sseq a)
+                    (il:interleave s ss)
+                    (x:a)
+                    (i:SA.seq_index ss)
+  : Lemma (hprefix (IL _ _ (IntExtend s ss il x i)) == IL _ _ il)
 
 val lemma_prefix_index (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}):
   Lemma (requires True)

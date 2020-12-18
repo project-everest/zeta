@@ -19,6 +19,7 @@ open Veritas.Verifier.EAC
 (* It's better not to open these modules to avoid naming conflicts *)
 module I = Veritas.Interleave
 module Spec = Veritas.Verifier
+module SpecC = Veritas.Verifier.Correctness
 module SpecG = Veritas.Verifier.Global
 module SpecT = Veritas.Verifier.Thread
 module SpecTS = Veritas.Verifier.TSLog
@@ -217,7 +218,7 @@ let vaddb (s:slot_id) (r:record) (t:timestamp) (j:thread_id) (vs:vtls {Valid? vs
       let st_upd = add_to_store st s k v Spec.BAdd in
       update_thread_store vs_upd2 st_upd
 
-let vevictb (s:slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls = 
+let vevictb_aux (s:slot_id) (t:timestamp) (eam:add_method) (vs:vtls {Valid? vs}): vtls = 
   let clock = thread_clock vs in
   let st = thread_store vs in
   (* check store contains slot s *)
@@ -230,7 +231,7 @@ let vevictb (s:slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls =
     (* check time of evict < current time *)
     else if not (ts_lt clock t) then Failed
     (* check s was added through blum *)  
-    else if add_method_of st s <> Spec.BAdd then Failed
+    else if add_method_of st s <> eam then Failed
     (* check k has no (merkle) children n the store *)
     else if has_instore_merkle_desc st s then Failed  
     else 
@@ -243,6 +244,9 @@ let vevictb (s:slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls =
       (* evict record *)
       let st_upd = evict_from_store st s in
       update_thread_store vs_upd2 st_upd
+
+let vevictb (s:slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls = 
+  vevictb_aux s t Spec.BAdd vs
 
 let vevictbm (s:slot_id) (s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls = 
   let st = thread_store vs in
@@ -270,7 +274,7 @@ let vevictbm (s:slot_id) (s':slot_id) (t:timestamp) (vs:vtls {Valid? vs}): vtls 
             let v'_upd = Spec.update_merkle_value v' d k h2 true in
             let st_upd = update_value st s' (MVal v'_upd) in
             let st_upd2 = update_in_store st_upd s' d false in
-            vevictb s t (update_thread_store vs st_upd2)
+            vevictb_aux s t Spec.MAdd (update_thread_store vs st_upd2)
 
 (* Relation between thread-local states
    * either both states have Failed
@@ -519,8 +523,6 @@ let il_hash_verifiable_log = itsl:its_log {il_hash_verifiable itsl}
 val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
   Lemma (ensures (il_verifiable (I.prefix itsl i) /\ clock_sorted (I.prefix itsl i)))
         [SMTPat (I.prefix itsl i)]
-
-val il_create (gl: gl_verifiable_log): (itsl:its_log{g_logS_of itsl == gl})
 
 // final correctness property
 //val lemma_verifier_correct (gl: gl_hash_verifiable_log { ~ (seq_consistent (to_state_op_glogS gl))})

@@ -472,7 +472,7 @@ let rec prefix_aux (#a:eqtype)
       )
 
 let prefix #a il i = prefix_aux #a il i
-
+  
 let per_thread_prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il})
   = ()
   
@@ -520,6 +520,32 @@ let lemma_i2s_s2i (#a:eqtype) (il:interleaving a) (i:seq_index il)
           else ()
     in
     aux il i
+
+
+let i2s_map_int_add (#a:_) (il:interleaving a)
+  : Lemma 
+    (ensures (forall (i:seq_index il).{:pattern (i2s_map il i)} i2s_map il i == i2s_map (IL _ _ (IntAdd _ _ (IL?.prf il))) i))
+  = ()
+  
+let prefix_identity (#a:eqtype) (il:interleaving a)
+  : Lemma (ensures prefix il (length il) == il)
+  = let rec aux (#a:eqtype) (il:interleaving a)
+      : Lemma (ensures prefix il (length il) == il)
+              (decreases (IL?.prf il))
+      = let IL _ _ prf = il in
+        match prf with
+        | IntEmpty -> ()
+        | IntAdd s' ss' il -> aux (IL s' ss' il)
+        | IntExtend s' ss' il' x i -> aux (IL s' ss' il')
+    in
+    aux il
+
+let hprefix_extend (#a:eqtype) (s:seq a) (ss:sseq a)
+                    (il:interleave s ss)
+                    (x:a)
+                    (i:SA.seq_index ss)
+  : Lemma (hprefix (IL _ _ (IntExtend s ss il x i)) == IL _ _ il)
+  = prefix_identity (IL s ss il)
 
 let lemma_prefix_index (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}) 
   = ()
