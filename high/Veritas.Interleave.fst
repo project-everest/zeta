@@ -612,6 +612,7 @@ let lemma_prefix_interleaving (#a:eqtype)
   (j:nat{j < S.length (s_seq il)}) = 
   per_thread_prefix il i
 
+#push-options "--z3rlimit_factor 2"
 let lemma_prefix_snoc (#a:eqtype) (il:interleaving a) (i:seq_index il)
   = let rec aux (il:interleaving a) (i:seq_index il)
       : Lemma 
@@ -619,7 +620,8 @@ let lemma_prefix_snoc (#a:eqtype) (il:interleaving a) (i:seq_index il)
             (let tid, j = i2s_map il i in
              let il_i = prefix il i in
              let il_i' = prefix il (i + 1) in
-             Seq.index (s_seq il_i') tid `Seq.equal` Seq.snoc (Seq.index (s_seq il_i) tid) (index il i)))
+             Seq.index (s_seq il_i') tid `Seq.equal` Seq.snoc (Seq.index (s_seq il_i) tid) (index il i) /\
+             (forall tid'.  tid' <> tid ==> Seq.index (s_seq il_i') tid' `Seq.equal` Seq.index (s_seq il_i) tid')))
         (decreases (IL?.prf il))
       = let IL is ss prf = il in
         match prf with
@@ -630,6 +632,7 @@ let lemma_prefix_snoc (#a:eqtype) (il:interleaving a) (i:seq_index il)
           then aux (IL is' ss' prf') i
     in
     aux il i
+#pop-options
 
 let rec map_interleave (#a #b:eqtype) (f:a -> b) (s:seq a) (ss:sseq a) (i:interleave s ss)
    : Tot (interleave (map f s) (map (map f) ss))

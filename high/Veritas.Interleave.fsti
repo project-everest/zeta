@@ -178,7 +178,9 @@ val lemma_prefix_snoc (#a:eqtype) (il:interleaving a) (i:seq_index il)
   : Lemma (let tid, j = i2s_map il i in
            let il_i = prefix il i in
            let il_i' = prefix il (i + 1) in
-           Seq.index (s_seq il_i') tid == Seq.snoc (Seq.index (s_seq il_i) tid) (index il i))
+           Seq.index (s_seq il_i') tid == Seq.snoc (Seq.index (s_seq il_i) tid) (index il i) /\
+           (forall tid'. tid' <> tid ==> Seq.index (s_seq il_i') tid' `Seq.equal` Seq.index (s_seq il_i) tid'))
+
 
 
 val map_interleave (#a #b:eqtype) (f:a -> b) (s:seq a) (ss:sseq a) (i:interleave s ss)
