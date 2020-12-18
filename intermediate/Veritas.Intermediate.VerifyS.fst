@@ -765,9 +765,8 @@ let spec_thread_state_post (il: SpecTS.il_vlog) (i: I.seq_index il): Spec.vtls =
   let tid = spec_thread_id_of il i in
   spec_thread_state (I.prefix il (i + 1)) tid
 
-
-let ilogS_to_logK (il:its_log) : SpecTS.il_vlog
-  = admit() // @Nik
+assume
+val ilogS_to_logK (il:its_log) : SpecTS.il_vlog
 
 // WANT: I.index (ilogS_to_logK itsl) i == 
 //       logS_to_logK_entry (thread_state_pre itsl i) (I.index itsl i) 
@@ -823,46 +822,18 @@ let lemma_forall_vtls_rel_extend (il:its_log) (i:I.seq_index il)
           (ensures (forall_vtls_rel (I.prefix il (i + 1)) (I.prefix (ilogS_to_logK il) (i + 1))))
   = admit()
 
-let lemma_forall_vtls_rel_implies_its (il:its_log)
+let lemma_forall_vtls_rel_implies_spec_its (il:its_log)
   : Lemma (requires (forall_vtls_rel il (ilogS_to_logK il)))
           (ensures (let il_k = ilogS_to_logK il in
                     SpecTS.verifiable il_k /\ SpecTS.clock_sorted il_k))
           [SMTPat (forall_vtls_rel il (ilogS_to_logK il))]
   = admit() // I will work on this first -Kesha
 
-(*let test (itsl:its_log) (i:I.seq_index itsl)
-  : Lemma 
-    (requires 
-      (let tid = il_thread_id_of itsl i in
-       let itsl_i = I.prefix itsl i in
-       forall_store_inv itsl_i /\
-       forall_vtls_rel itsl_i (ilogS_to_logK itsl_i) /\
-       store_inv (thread_store (thread_state (I.prefix itsl (i + 1)) tid)) /\
-       (let e = I.index itsl i in
-        let vs = thread_state itsl_i tid in
-        let vs1 = t_verify_step vs e in
-        Valid? vs1 /\
-        is_map (thread_store vs1) /\
-        vtls_rel vs1 (SpecVTS.thread_state (extend_spec_log itsl_i tid e) tid))))
-    (ensures False)
-  = let e = I.index itsl i in
-    let tid = il_thread_id_of itsl i in
-    let itsl_i = I.prefix itsl i in
-    let itsl_k_i = ilogS_to_logK itsl_i in
-    let vs' = SpecVTS.thread_state itsl_k_i tid in 
-    let vs = thread_state itsl_i tid in
-    let st = thread_store vs in
-    match e with
-    | AddM_S s (k,v) s' ->
-      assume (not (store_contains_key st k));
-      let k' = stored_key st s' in
+let lemma_forall_vtls_rel_implies_spec_hash_verifiable (il:il_hash_verifiable_log)
+  : Lemma (requires forall_vtls_rel il (ilogS_to_logK il))
+          (ensures SpecTS.hash_verifiable (ilogS_to_logK il))
+  = admit()
 
-      lemma_vaddm_simulates_spec_if_k_is_new vs vs' s s' (k,v) k';
-      lemma_forall_store_inv_extend itsl i;
-      lemma_forall_vtls_rel_extend itsl i;
-      assert(false) // BAD - there must be a contradiction somewhere
-    | _ -> admit() *)
-                       
 (* property that:
  *    (a) the intermediate verifiers all satisfy the store invariant
  *    (b) the spec level log is evict-add-consistent 
@@ -897,9 +868,9 @@ let inductive_step (itsl: il_hash_verifiable_log)
   let vs' = spec_thread_state itsl_k_i tid in 
 
   lemma_forall_store_inv_specialize itsl i;
-  assert (store_inv (thread_store vs));
+  //assert (store_inv (thread_store vs));
   lemma_forall_vtls_rel_specialize itsl i;
-  assert (vtls_rel vs vs');
+  //assert (vtls_rel vs vs');
 
   lemma_verifier_thread_state_extend itsl i;
   assert (thread_state_post itsl i == t_verify_step (thread_state_pre itsl i) (I.index itsl i));
@@ -908,7 +879,7 @@ let inductive_step (itsl: il_hash_verifiable_log)
   let e = I.index itsl i in
   match e with
   
-  | Get_S s k v ->
+(*  | Get_S s k v ->
     lemma_vget_simulates_spec vs vs' s k v;
 
     if SpecTS.is_eac itsl_k_i1 then (
@@ -964,7 +935,7 @@ let inductive_step (itsl: il_hash_verifiable_log)
         else 
           Some (lemma_non_eac_addm_implies_hash_collision itsl_k_i1)      
       )
-
+*)
   (*
     | EvictM_S s s' -> 
     | AddB_S s (k,v) t j ->
@@ -1004,11 +975,6 @@ let lemma_il_hash_verifiable_implies_eac_and_vtls_rel (il: il_hash_verifiable_lo
   : store_inv_spec_rel_or_hashcollision il     
   = I.lemma_fullprefix_equal il;
     lemma_il_hash_verifiable_implies_eac_and_vtls_rel_aux il (I.length il)
-
-let lemma_store_inv_spec_eac_rel_implies_spec_hash_verifiable (il:il_hash_verifiable_log)
-  : Lemma (requires store_inv_spec_eac_rel il)
-          (ensures SpecTS.hash_verifiable (ilogS_to_logK il))
-  = admit()
 
 (*
 
