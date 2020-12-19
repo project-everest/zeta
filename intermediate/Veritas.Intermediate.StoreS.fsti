@@ -13,16 +13,19 @@ module FE = FStar.FunctionalExtensionality
 let slot_id = nat
 let add_method = Veritas.Verifier.add_method
 
-(* l_in_store/r_in_store record whether this entry was used as a merkle parent to add 
-   a left or right child *)
+(* 
+ * vstore_entry - reflect a Spec.vstore_entry with two additional fields tracking 
+ * whether a left/right descendant was added using merkle using this slot as "proof"
+ *)
 type vstore_entry = 
   | VStoreE: k:key -> 
              v:value_type_of k -> 
              am:add_method -> 
-             l_in_store : bool -> 
-             r_in_store : bool -> 
+             l_in_store : option slot_id{is_merkle_key k \/ None = l_in_store} -> 
+             r_in_store : option slot_id{is_merkle_key k \/ None = r_in_store} -> 
              vstore_entry
 
+(* vstore: None => entry is currently not occupied *)
 type vstore = Seq.seq (option vstore_entry) 
 
 let empty_store (n:nat) :vstore = Seq.create n None
@@ -61,35 +64,27 @@ let stored_value_matches_stored_key (st:vstore) (s:slot_id{store_contains st s})
 
 let add_method_of (st:vstore) (s:slot_id{store_contains st s}) : add_method
   = VStoreE?.am (Some?.v (get_slot st s))
+  
+(* is this a slot containing a merkle key *)
+type instore_merkle_slot (st:vstore)
+  = s:slot_id {store_contains st s /\ is_merkle_key (stored_key st s)}
 
-let in_store_bit (st:vstore) (s:slot_id{store_contains st s}) (d:bin_tree_dir) : bool
+(* was a descendant added with MAdd along direction d *)
+let desc_in_store (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) : bool
   = match d with
-    | Left -> VStoreE?.l_in_store (Some?.v (get_slot st s))
-    | Right -> VStoreE?.r_in_store (Some?.v (get_slot st s))
+    | Left -> Some? (VStoreE?.l_in_store (Some?.v (get_slot st s)))
+    | Right -> Some? (VStoreE?.r_in_store (Some?.v (get_slot st s)))
+
+(* if a descendant was added with MAdd, the slot where the descendant was added *)
+let desc_slot (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir{desc_in_store st s d}): slot_id
+  = match d with
+    | Left -> Some?.v (VStoreE?.l_in_store (Some?.v (get_slot st s)))
+    | Right -> Some?.v (VStoreE?.r_in_store (Some?.v (get_slot st s)))
 
 let has_key (k:key) (e:option vstore_entry) : bool
   = match e with
     | Some (VStoreE k' _ _ _ _) -> k = k'
     | None -> false
-
-(* if the store contains key k, return some entry in the store, otherwise return None *)
-let lookup_key (st:vstore) (k:key) 
-  : option vstore_entry
-  = let s' = filter (has_key k) st in
-    if Seq.length s' = 0 then None
-    else Seq.index s' 0 
-
-let store_contains_key (st:vstore) (k:key) : bool
-  = Some? (lookup_key st k)
-
-val lemma_store_contains_key (st:vstore) (k:key)
-  : Lemma (requires (exists s. stored_key st s = k))
-          (ensures (store_contains_key st k))
-          [SMTPat (store_contains_key st k)]
-
-val stored_value_by_key (st:vstore) (k:key{store_contains_key st k}) : value_type_of k
-
-val add_method_of_by_key (st:vstore) (k:key{store_contains_key st k}) : add_method
 
 let update_slot (st:vstore) (s:st_index st) (e:vstore_entry)
   : vstore
@@ -123,18 +118,33 @@ let lemma_update_value_preserves_slots
           [SMTPat (store_contains (update_value st s v) s')]
   = ()
 
-(* update in-store bits *)
-let update_in_store 
+(* update desc in store *)
+let update_desc_in_store
   (st:vstore)
-  (s:slot_id{store_contains st s}) 
+  (s:instore_merkle_slot st)
   (d:bin_tree_dir)
-  (b:bool)
-  : Tot (st':vstore {store_contains st' s /\
-                     in_store_bit st' s d = b})
-  = let Some (VStoreE k v am l r) = get_slot st s in
+  (s':slot_id{s' <> s})
+  : Tot (st':vstore {store_contains st' s /\ 
+                     stored_key st' s = stored_key st s /\
+                     desc_in_store st' s d /\
+                     desc_slot st' s d = s'})
+  = let Some (VStoreE k v am ld rd) = get_slot st s in
     match d with
-    | Left -> update_slot st s (VStoreE k v am b r) 
-    | Right -> update_slot st s (VStoreE k v am l b)
+    | Left -> update_slot st s (VStoreE k v am (Some s') rd) 
+    | Right -> update_slot st s (VStoreE k v am ld (Some s'))
+
+(* update desc in store *)
+let reset_desc_in_store
+  (st:vstore)
+  (s:instore_merkle_slot st)
+  (d:bin_tree_dir)
+  : Tot (st':vstore {store_contains st' s /\ 
+                     stored_key st' s = stored_key st s /\
+                     not (desc_in_store st' s d)})
+  = let Some (VStoreE k v am ld rd) = get_slot st s in
+    match d with
+    | Left -> update_slot st s (VStoreE k v am None rd) 
+    | Right -> update_slot st s (VStoreE k v am ld None)
 
 (* add a new entry (k,v,am) to the store at en empty slot s 
    --> this is the only function that may violate the is_map invariant (defined below) *)
@@ -148,7 +158,7 @@ let add_to_store
                      stored_key st' s = k /\
                      stored_value st' s = v /\
                      add_method_of st' s = am})
-  = let e = VStoreE k v am false false in // default for in_store bits is false
+  = let e = VStoreE k v am None None in // default for desc_in_store is None (no desc)
     update_slot st s e
 
 (* remove an entry from a slot; reset slot to unused *)
@@ -156,13 +166,31 @@ let evict_from_store (st:vstore) (s:st_index st)
   : Tot (st':vstore {not (store_contains st' s)})
   = Seq.upd st s None
 
+(* if the store contains key k, return some entry in the store, otherwise return None *)
+let lookup_key (st:vstore) (k:key) 
+  : option vstore_entry
+  = let s' = filter (has_key k) st in
+    if Seq.length s' = 0 then None
+    else Seq.index s' 0 
+
+let store_contains_key (st:vstore) (k:key) : bool
+  = Some? (lookup_key st k)
+
+val lemma_store_contains_key (st:vstore) (k:key)
+  : Lemma (requires (exists s. stored_key st s = k))
+          (ensures (store_contains_key st k))
+          [SMTPat (store_contains_key st k)]
+
+val stored_value_by_key (st:vstore) (k:key{store_contains_key st k}) : value_type_of k
+
+val add_method_of_by_key (st:vstore) (k:key{store_contains_key st k}) : add_method
+
 (*** Store Invariants ***)
 
 (* In our correctness proof, we will want to maintain two invariants over stores:
    * is_map: there are no duplicate keys in the store, so there is a 1-to-1 mapping
      between the slot-based store and a standard key-value map
-   * in_store_bit_inv: the "in_store" bits accurately reflect which keys are in the 
-   store via a merkle add
+   * in_store_inv: the "desc_in_store" accurately reflect which the desc invariant
 *)
 
 (* No duplicate keys in the store *)
@@ -180,11 +208,8 @@ let elim_is_map (st:vstore)
           (ensures stored_key st s ≠ stored_key st s')
   = ()
 
-type instore_merkle_slot (st:vstore)
-  = s:slot_id{store_contains st s && MVal? (stored_value st s)}
-
-let store_contains_key_with_MAdd (st:vstore) (k:key) : bool
-  = store_contains_key st k && add_method_of_by_key st k = Spec.MAdd
+let mv_points_to_none (mv:merkle_value) (d:bin_tree_dir): bool 
+  = Empty? (desc_hash_dir mv d)
 
 let mv_points_to_some (mv:merkle_value) (d:bin_tree_dir) : bool
   = Desc? (desc_hash_dir mv d)
@@ -200,11 +225,20 @@ let pointed_key (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir{points_to
   = let mv = to_merkle_value (stored_value st s) in
     mv_pointed_key mv d
 
+(* invariant connecting the value stored in a slot and the desc info *)
+let in_store_inv_slot (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) = 
+  let v = to_merkle_value (stored_value st s) in
+  mv_points_to_none v d /\ not (desc_in_store st s d) \/
+  mv_points_to_some v d /\ (desc_in_store st s d ==> 
+                            (let ds = desc_slot st s d in
+                             let dk = mv_pointed_key v d in
+                             store_contains st ds /\
+                             stored_key st ds = dk))
+
 let in_store_inv (st:vstore) 
-  = forall (s:instore_merkle_slot st) (d:bin_tree_dir{points_to_some st s d}).
-          {:pattern (in_store_bit st s d)}
-    let k = pointed_key st s d in
-    in_store_bit st s d = store_contains_key_with_MAdd st k
+  = forall (s:instore_merkle_slot st) (d:bin_tree_dir).
+          {:pattern (in_store_inv_slot st s d)}
+    in_store_inv_slot st s d
 
 let store_inv (st:vstore) = 
   is_map st /\ in_store_inv st
