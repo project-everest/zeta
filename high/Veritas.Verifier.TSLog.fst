@@ -395,12 +395,16 @@ let create (gl:VG.verifiable_log)
     il
 
 (*thread state after processing ts log - guaranteed to be valid *)
-let thread_state (itsl: its_log)
+let thread_state (itsl: il_vlog)
                  (tid: valid_tid itsl)
-  : Tot (vs:vtls{Valid? vs})
+  : Tot vtls
   = verify (thread_log (s_seq itsl) tid)
 
-let reveal_thread_state (itsl:its_log) (tid: valid_tid itsl)
+let lemma_thread_state_valid (itsl: its_log) (tid: valid_tid itsl)
+  : Lemma (ensures (Valid? (thread_state itsl tid)))
+  = ()
+
+let reveal_thread_state (itsl:il_vlog) (tid: valid_tid itsl)
   : Lemma (thread_state itsl tid ==
            verify (VG.thread_log (s_seq itsl) tid))
   = ()
@@ -414,7 +418,7 @@ let t_verify_aux_snoc (vs:vtls) (l:vlog) (e:vlog_entry)
   = assert (prefix (Seq.snoc l e) (Seq.length l) `Seq.equal` l)
 #pop-options
 
-let lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl)
+let lemma_verifier_thread_state_extend (itsl: il_vlog) (i: I.seq_index itsl)
   : Lemma (thread_state_post itsl i ==
            t_verify_step (thread_state_pre itsl i) (I.index itsl i))
   = let tid = thread_id_of itsl i in
@@ -920,7 +924,7 @@ let lemma_eac_state_of_root_init (itsl: eac_log)
     in
     aux itsl (run_monitor itsl)
 #pop-options
-#push-options "--ifuel 0,0 --fuel 1,1"
+#push-options "--ifuel 0,0 --fuel 1,1 --z3rlimit_factor 4"
 
 (*
  * when the eac state of a key is Init (no operations on the key yet) no

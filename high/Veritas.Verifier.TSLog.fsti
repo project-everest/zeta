@@ -112,9 +112,13 @@ let last_add_tid (itsl: its_log) (k: key{has_some_add_of_key itsl k}): valid_tid
   thread_id_of itsl (last_add_idx itsl k)
 
 (*thread state after processing ts log - guaranteed to be valid *)
-val thread_state (itsl: its_log) (tid: valid_tid itsl): (vs:vtls{Valid? vs})
+val thread_state (itsl: il_vlog) (tid: valid_tid itsl): vtls
 
-val reveal_thread_state (itsl:its_log) (tid: valid_tid itsl)
+val lemma_thread_state_valid (itsl: its_log) (tid: valid_tid itsl)
+  : Lemma (ensures (Valid? (thread_state itsl tid)))
+          [SMTPat (thread_state itsl tid)]
+
+val reveal_thread_state (itsl:il_vlog) (tid: valid_tid itsl)
   : Lemma (thread_state itsl tid == 
            verify (VG.thread_log (s_seq itsl) tid))
 
@@ -122,11 +126,11 @@ val reveal_thread_state (itsl:its_log) (tid: valid_tid itsl)
 let thread_store (itsl: its_log) (tid: valid_tid itsl): vstore =
   Valid?.st (thread_state itsl tid)
 
-let thread_state_pre (itsl: its_log) (i: I.seq_index itsl): (vs:vtls{Valid? vs}) = 
+let thread_state_pre (itsl: il_vlog) (i: I.seq_index itsl): vtls = 
   let tid = thread_id_of itsl i in
   thread_state (I.prefix itsl i) tid
 
-let thread_state_post (itsl: its_log) (i: I.seq_index itsl): (vs:vtls{Valid? vs}) = 
+let thread_state_post (itsl: il_vlog) (i: I.seq_index itsl): vtls = 
   let tid = thread_id_of itsl i in
   thread_state (I.prefix itsl (i + 1)) tid
 
@@ -135,7 +139,7 @@ let thread_state_post (itsl: its_log) (i: I.seq_index itsl): (vs:vtls{Valid? vs}
  * this lemma states that state of tid at (i+1) is obtained by the state at (i) 
  * applying the vlog entry at i.
  *)
-val lemma_verifier_thread_state_extend (itsl: its_log) (i: I.seq_index itsl):
+val lemma_verifier_thread_state_extend (itsl: il_vlog) (i: I.seq_index itsl):
   Lemma (thread_state_post itsl i == 
          t_verify_step (thread_state_pre itsl i) (I.index itsl i))
 

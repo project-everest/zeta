@@ -1,4 +1,4 @@
-module Veritas.Intermediate.StoreS
+module Veritas.Intermediate.Store
 
 open Veritas.BinTree
 open Veritas.Key
