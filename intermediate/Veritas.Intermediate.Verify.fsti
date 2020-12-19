@@ -1,7 +1,7 @@
-module Veritas.Intermediate.VerifyS
+module Veritas.Intermediate.Verify
 
 open Veritas.Intermediate.Logs
-open Veritas.Intermediate.StoreS
+open Veritas.Intermediate.Store
 
 (* These are all independent of the 'verify' function; they should be safe to open *)
 open Veritas.BinTree
@@ -397,20 +397,6 @@ let tl_clock (tl:tl_verifiable_log) (i:tl_idx tl): timestamp =
 let tl_verify (tl:thread_id_logS) (i:tl_idx tl): vtls =
   verify (tl_prefix tl (i + 1))
 
-//let tl_logS_to_logK (tl:tl_verifiable_log{is_map (thread_store (verify tl))}) 
-//  : SpecT.verifiable_log
-//  = admit() //lemma_t_verify_simulates_spec (fst tl) (snd tl);
-    //(fst tl, logS_to_logK (fst tl) (snd tl))
-
-//let lemma_tl_length (tl:tl_verifiable_log{is_map (thread_store (verify tl))})
-//  : Lemma (ensures tl_length tl = SpecT.length (tl_logS_to_logK tl))
-//          [SMTPat (tl_length tl)]
-//  = admit()
-
-//let lemma_tl_clock_simulates_spec (tl: tl_verifiable_log{is_map (thread_store (verify tl))}) (i:tl_idx tl)
-//  : Lemma (tl_clock tl i = SpecT.clock (tl_logS_to_logK tl) i)
-//  = admit()
-
 (* Utilities for running all verifier threads and comparing aggregate add/evict hashes.
    Follows the definitions in Veritas.Verifier.Global. *) 
 
@@ -465,36 +451,6 @@ let gl_verify (gl:g_logS) (i:I.sseq_index gl): vtls =
   let tl = thread_log gl tid in
   tl_verify tl idx
 
-//let forall_is_map (gl:gl_verifiable_log)
-//  = forall (tid:seq_index gl). is_map (thread_store (verify (thread_log gl tid)))
-
-//val glogS_to_logK (gl:gl_verifiable_log{forall_is_map gl}) 
-//  : gl':SpecVG.verifiable_log{Seq.length gl = Seq.length gl'}
-
-//val lemma_glogS_to_logK (gl:gl_verifiable_log{forall_is_map gl}) (id:seq_index gl)
-//  : Lemma (ensures Seq.index (glogS_to_logK gl) id = logS_to_logK id (Seq.index gl id))
-//          [SMTPat (Seq.index (glogS_to_logK gl) id)]
-
-//val lemma_hadd_equal (gl:gl_verifiable_log{forall_is_map gl}) 
-//  : Lemma (hadd gl = SpecVG.hadd (glogS_to_logK gl))
-
-//val lemma_hevict_equal (gl:gl_verifiable_log{forall_is_map gl}) 
-//  : Lemma (hevict gl = SpecVG.hevict (glogS_to_logK gl))
-
-//let lemma_gl_hash_verifiable_simulates_spec (gl:gl_hash_verifiable_log{forall_is_map gl})
-//  : Lemma (SpecVG.hash_verifiable (glogS_to_logK gl))
-//  = lemma_hadd_equal gl;
-//    lemma_hevict_equal gl
-
-//let lemma_to_state_op_glogS (gl: gl_verifiable_log{forall_is_map gl})
-//  : Lemma (ensures (Seq.equal (to_state_op_glogS gl) 
-//                              (SpecC.to_state_op_gvlog (glogS_to_logK gl))))
-//  = let aux (i:seq_index gl) 
-//      : Lemma (Seq.index (to_state_op_glogS gl) i = 
-//              Seq.index (SpecC.to_state_op_gvlog (glogS_to_logK gl)) i)
-//      = () in
-//    Classical.forall_intro aux
-
 (* Utilities for verifying the global, interleaved log shared among all threads.
    Follows the definitions in Veritas.Verifier.TSLog. *) 
 
@@ -525,5 +481,5 @@ val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
         [SMTPat (I.prefix itsl i)]
 
 // final correctness property
-//val lemma_verifier_correct (gl: gl_hash_verifiable_log { ~ (seq_consistent (to_state_op_glogS gl))})
-//  : hash_collision_gen 
+val lemma_verifier_correct (gl: gl_hash_verifiable_log { ~ (seq_consistent (to_state_op_glogS gl))})
+  : hash_collision_gen 

@@ -1,4 +1,4 @@
-module Veritas.Intermediate.StoreS
+module Veritas.Intermediate.Store
 
 let lemma_lookup_key_returns_k (st:vstore) (k:key) 
   : Lemma (requires (store_contains_key st k))
