@@ -1,5 +1,48 @@
 module Veritas.Intermediate.Store
 
+let update_slot (st:vstore_raw) (s:slot_id st) (e:vstore_entry)
+  : vstore_raw
+  = Seq.upd st s (Some e)
+
+
+(* update the data value of a data key *)
+let update_data_value 
+  (st:vstore)
+  (s:data_slot_id st)
+  (v:value{DVal? v})
+  : Tot (st':vstore {Seq.length st = Seq.length st' /\
+                     inuse_slot st' s /\
+                     stored_value st' s = v}) = 
+  assert(not (desc_in_store st s Left));
+  assert(not (desc_in_store st s Right));
+  let Some (VStoreE k _ am _ _) = get_slot st s in
+  let st' = update_slot st s (VStoreE k v am None None) in
+  assert(Seq.length st = Seq.length st');
+  assert(inuse_slot st' s);
+  assert(stored_value st' s = v);
+
+  let aux1 (s0:slot_id st'):
+    Lemma (ensures (inuse_slot st' s0 = inuse_slot st s0 /\
+                    (inuse_slot st' s0 ==> 
+                     stored_key st' s0 = stored_key st s0))) = ()
+  in
+
+  let aux (s0:slot_id st'):
+    Lemma (ensures (store_inv_slot st' s0))
+          [SMTPat (store_inv_slot st' s0)] = 
+    if s0 = s then ()
+    else (
+      assert(Seq.index st s0 = Seq.index st' s0);
+      if empty_slot st s0 then ()
+      else if is_data_key (stored_key st s0) then ()
+      else
+        admit()
+    )
+    in
+  assert(store_inv_local st');
+  st'
+
+
 let lemma_lookup_key_returns_k (st:vstore) (k:key) 
   : Lemma (requires (store_contains_key st k))
           (ensures (VStoreE?.k (Some?.v (lookup_key st k)) = k))
