@@ -1,6 +1,7 @@
 module Veritas.Intermediate.Verify
 
 open Veritas.Intermediate.Logs
+open Veritas.Intermediate.VerifierConfig
 open Veritas.Intermediate.Store
 
 (* These are all independent of the 'verify' function; they should be safe to open *)
@@ -31,132 +32,125 @@ module SpecTS = Veritas.Verifier.TSLog
    hadd   : add set hash
    hevict : evict set hash *)
 noeq
-type vtls =
-  | Failed : vtls
+type vtls vcfg =
+  | Failed : vtls vcfg
   | Valid :
     id : thread_id ->
-    st : vstore ->
+    st : vstore vcfg ->
     clock : timestamp ->
     hadd : ms_hash_value ->
     hevict : ms_hash_value ->
-    vtls
+    vtls vcfg
 
-let thread_id_of (vs:vtls {Valid? vs}): thread_id = 
+let thread_id_of #vcfg (vs:vtls vcfg{Valid? vs}): thread_id = 
   Valid?.id vs
 
-let thread_store (vs: vtls {Valid? vs}): vstore =
+let thread_store #vcfg (vs: vtls vcfg {Valid? vs}): vstore _ =
   Valid?.st vs
 
-let thread_store_size (vs: vtls {Valid? vs}): nat =
+let thread_store_size #vcfg (vs: vtls vcfg {Valid? vs}): nat =
   let st = thread_store vs in Seq.length st
 
-let update_thread_store (vs:vtls {Valid? vs}) (st:vstore) : vtls =
+let update_thread_store #vcfg (vs:vtls vcfg {Valid? vs}) (st:vstore vcfg) : vtls _ =
   match vs with
   | Valid id _ clock hadd hevict -> Valid id st clock hadd hevict
 
-let thread_clock (vs:vtls {Valid? vs}) = 
+let thread_clock #vcfg (vs:vtls vcfg {Valid? vs}) = 
   Valid?.clock vs
 
-let update_thread_clock (vs:vtls {Valid? vs}) (clock:timestamp): vtls = 
+let update_thread_clock #vcfg (vs:vtls vcfg {Valid? vs}) (clock:timestamp): vtls _ = 
   match vs with
   | Valid id st _ hadd hevict -> Valid id st clock hadd hevict
 
-let thread_hadd (vs:vtls {Valid? vs}) = 
+let thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) = 
   Valid?.hadd vs
 
-let thread_hevict (vs:vtls {Valid? vs}) = 
+let thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) = 
   Valid?.hevict vs
 
-let update_thread_hadd (vs:vtls {Valid? vs}) (hadd: ms_hash_value): vtls = 
+let update_thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) (hadd: ms_hash_value): vtls _ = 
   match vs with
   | Valid id st clock _ hevict -> Valid id st clock hadd hevict
 
-let update_thread_hevict (vs:vtls {Valid? vs}) (hevict:ms_hash_value): vtls = 
+let update_thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) (hevict:ms_hash_value): vtls _ = 
   match vs with
   | Valid id st clock hadd _ -> Valid id st clock hadd hevict
 
-let vget (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls =
+let vget #vcfg (s:slot_id vcfg) (k:data_key) (v:data_value) (vs: vtls vcfg {Valid? vs}) : vtls vcfg =
   let st = thread_store vs in
-  (* check store contains slot s *)
-  if not (store_contains st s) then Failed
+  (* check slot s is not empty *)
+  if empty_slot st s then Failed
   (* check stored key and value *)
   else let k' = stored_key st s in
        let v' = stored_value st s in
        if k <> k' then Failed
-       else if not (DVal? v') then Failed
        else if to_data_value v' <> v then Failed
        else vs
 
-let vput (s:slot_id) (k:key) (v:data_value) (vs: vtls {Valid? vs}) : vtls =
+let vput #vcfg (s:slot_id vcfg) (k:data_key) (v:data_value) (vs: vtls vcfg {Valid? vs}) : vtls vcfg =
   let st = thread_store vs in
-  (* check store contains slot s *)
-  if not (store_contains st s) then Failed
+  (* check slot s is not empty *)
+  if empty_slot st s then Failed
   (* check stored key is k *)
   else let k' = stored_key st s in
        if k <> k' then Failed
-       else if not (is_data_key (stored_key st s)) then Failed
-       else update_thread_store vs (update_value st s (DVal v))
+       else update_thread_store vs (update_data_value st s v)
 
-let vaddm (s:slot_id) (r:record) (s':slot_id) (vs: vtls {Valid? vs}): vtls =
-  if not (s < thread_store_size vs) then Failed
-  else 
-    let st = thread_store vs in
-    let (k,v) = r in
-    (* check store contains slot s' *)
-    if not (store_contains st s') then Failed
+let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): vtls vcfg =
+  let st = thread_store vs in
+  let (k,v) = r in
+  (* check slot s' is not empty *)
+  if empty_slot st s' then Failed
+  else
+    let k' = stored_key st s' in
+    let v' = stored_value st s' in
+    (* check k is a proper desc of k' *)
+    if not (is_proper_desc k k') then Failed
+    (* check slot s is empty *)
+    else if inuse_slot st s then Failed
+    (* check type of v is consistent with k *)
+    else if not (is_value_of k v) then Failed
     else
-      let k' = stored_key st s' in
-      let v' = stored_value st s' in
-      (* check k is a proper desc of k' *)
-      if not (is_proper_desc k k') then Failed
-      (* check store does not contain slot s *)
-      else if store_contains st s then Failed
-      (* check type of v is consistent with k *)
-      else if not (is_value_of k v) then Failed
-      (* check v' is a merkle value *)
-      else if DVal? v' then Failed 
-      else
-        let v' = to_merkle_value v' in
-        let d = desc_dir k k' in
-        let dh' = desc_hash_dir v' d in 
-        let h = hashfn v in
-        match dh' with
-        | Empty -> (* k' has no child in direction d *)
-            (* first add must be init value *)
-            if v <> init_value k then Failed
-            else
-              let v'_upd = Spec.update_merkle_value v' d k h false in
-              let st_upd = update_value st s' (MVal v'_upd) in
-              let st_upd2 = add_to_store st_upd s k v Spec.MAdd in
-              let st_upd3 = update_in_store st_upd2 s' d true in
-              update_thread_store vs st_upd3
-        | Desc k2 h2 b2 -> 
-            if k2 = k 
-            then (* k is a child of k' *)
-              (* check hashes match and k was not evicted to blum *)
-              if not (h2 = h && b2 = false) then Failed
-              (* check store does not contain k *)
-              else if in_store_bit st s' d then Failed
-              else 
-                let st_upd = add_to_store st s k v Spec.MAdd in
-                let st_upd2 = update_in_store st_upd s' d true in
-                update_thread_store vs st_upd2
-            else (* otherwise, k is not a child of k' *)
-            (* first add must be init value *)
-            if v <> init_value k then Failed
-            (* check k2 is a proper desc of k *)
-            else if not (is_proper_desc k2 k) then Failed
-            else
-              let d2 = desc_dir k2 k in
-              let inb = in_store_bit st s' d in // original in_store bit for s' in direction d
-              let mv = to_merkle_value v in
-              let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
-              let v'_upd = Spec.update_merkle_value v' d k h false in
-              let st_upd = update_value st s' (MVal v'_upd) in
-              let st_upd2 = add_to_store st_upd s k (MVal mv_upd) Spec.MAdd in
-              let st_upd3 = update_in_store st_upd2 s' d true in
-              let st_upd4 = update_in_store st_upd3 s d2 inb in
-              update_thread_store vs st_upd4
+      let v' = to_merkle_value v' in
+      let d = desc_dir k k' in
+      let dh' = desc_hash_dir v' d in
+      let h = hashfn v in
+      match dh' with
+      | Empty -> (* k' has no child in direction d *)
+        if v <> init_value k then Failed
+        else
+          let st_upd = add_to_store st s k v Spec.MAdd in
+          let v'_upd = Spec.update_merkle_value v' d k h false in
+          let st_upd = update_empty_merkle_value st_upd s' d s v'_upd in
+          update_thread_store vs st_upd
+      | Desc k2 h2 b2 ->
+        if k2 = k then (* k is a child of k' *)
+          (* check hashes match and k was not evicted to blum *)
+          if not (h2 = h && b2 = false) then Failed
+          (* check slot s' does not contain a desc along direction d *)
+          else if desc_in_store st s' d then Failed
+          else
+            let st_upd = add_to_store st s k v Spec.MAdd in
+            let st_upd = add_desc_slot st_upd s' d s in
+            update_thread_store vs st_upd
+        else (* otherwise, k is not a child of k' *)
+          (* first add must be init value *)
+          if v <> init_value k then Failed
+          (* check k2 is a proper desc of k *)
+          else if not (is_proper_desc k2 k) then Failed
+          else
+            let d2 = desc_dir k2 k in
+            let mv = to_merkle_value v in
+            let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
+            let v'_upd = Spec.update_merkle_value v' d k h false in
+            assert(mv_points_to_some mv_upd d2);
+            if desc_in_store st s' d then (
+              admit()
+            )
+            else 
+              let st_upd = add_to_store st s k (MVal mv_upd) Spec.MAdd in
+              let st_upd = update_merkle_value st_upd s' d k h false s in
+              update_thread_store vs st_upd
 
 let has_instore_merkle_desc (st:vstore) (s:slot_id{store_contains st s}): bool = 
   let k = stored_key st s in
