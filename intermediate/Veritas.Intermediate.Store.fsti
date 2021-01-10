@@ -69,57 +69,50 @@ let stored_value #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) : value
 let add_method_of #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) : add_method
   = VStoreE?.am (Some?.v (get_slot st s))
 
-(* TODO: Move to a better place ?*)
-let mv_points_to_none (mv:merkle_value) (d:bin_tree_dir): bool 
-  = Empty? (desc_hash_dir mv d)
+let points_to_info #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) (d:bin_tree_dir) = 
+  match d with
+  | Left -> VStoreE?.l_in_store (Some?.v (get_slot st s))
+  | Right -> VStoreE?.r_in_store (Some?.v (get_slot st s))
 
-let mv_points_to_some (mv:merkle_value) (d:bin_tree_dir) : bool
-  = Desc? (desc_hash_dir mv d)
+(* does the slot point to some slot along a direction *)
+let points_to_some_slot #vcfg (st:vstore_raw vcfg) (s: inuse_slot_id st) (d:bin_tree_dir): bool =
+  Some? (points_to_info st s d)
+  
+let points_to_none #vcfg (st: vstore_raw vcfg) (s: inuse_slot_id st) (d: bin_tree_dir): bool =
+  None? (points_to_info st s d)
+   
+let pointed_slot #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) (d:bin_tree_dir{points_to_some_slot st s d}): slot_id vcfg
+  = Some?.v (points_to_info st s d)
 
-let mv_pointed_key (mv:merkle_value) (d:bin_tree_dir{mv_points_to_some mv d}) : key
-  = Desc?.k (desc_hash_dir mv d)
+let points_to_dir #vcfg (st:vstore_raw vcfg) (s1: slot_id vcfg) (d:bin_tree_dir) (s2: slot_id vcfg) = 
+  inuse_slot st s1 &&
+  points_to_some_slot st s1 d && pointed_slot st s1 d = s2
 
-(* was a descendant added with MAdd along direction d *)
-let desc_in_store #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) (d:bin_tree_dir) : bool
-  = match d with
-    | Left -> Some? (VStoreE?.l_in_store (Some?.v (get_slot st s)))
-    | Right -> Some? (VStoreE?.r_in_store (Some?.v (get_slot st s)))
+(* points to relation of slots *)
+let points_to #vcfg (st:vstore_raw vcfg) (s1:slot_id vcfg) (s2:slot_id vcfg) = 
+  points_to_dir st s1 Left s2 ||
+  points_to_dir st s1 Right s2
 
-(* if a descendant was added with MAdd, the slot where the descendant was added *)
-let desc_slot #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) (d:bin_tree_dir{desc_in_store st s d}): slot_id vcfg
-  = match d with
-    | Left -> Some?.v (VStoreE?.l_in_store (Some?.v (get_slot st s)))
-    | Right -> Some?.v (VStoreE?.r_in_store (Some?.v (get_slot st s)))
+(* a node is pointed to by at most one node *)
+let points_to_uniq_local #vcfg (st:vstore_raw vcfg) (s1 s2 s: slot_id vcfg) = 
+  not (points_to st s1 s) || not (points_to st s2 s)
 
-(* invariant connecting the value stored in a merkle slot and the desc info *)
-let desc_in_store_inv_merkle #vcfg (st:vstore_raw vcfg) (s:merkle_slot_id st) (d:bin_tree_dir) = 
-  let v = to_merkle_value (stored_value st s) in
-  mv_points_to_none v d /\ not (desc_in_store st s d) \/
-  mv_points_to_some v d /\ (desc_in_store st s d ==> 
-                            (let ds = desc_slot st s d in
-                             let dk = mv_pointed_key v d in
-                              inuse_slot st ds /\                // slot_id in use                              
-                              stored_key st ds = dk /\           // stored key is the key in my value
-                              add_method_of st ds = Spec.MAdd))  // Merkle add
+let points_to_uniq #vcfg (st:vstore_raw vcfg) = 
+  forall (s1 s2 s: slot_id vcfg). points_to_uniq_local st s1 s2 s
 
-(* invariant connecting value stored in a data slot and desc info *)
-let desc_in_store_inv_data #vcfg (st:vstore_raw vcfg) (s:data_slot_id st) = 
-  not (desc_in_store st s Left) && 
-  not (desc_in_store st s Right)
+let pointed_to_inv_local #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) = 
+  inuse_slot st s ==> 
+  stored_key st s <> Root ==>
+  add_method_of st s = Spec.MAdd ==> 
+  (exists (s': inuse_slot_id st). exists (d:bin_tree_dir).   
+     points_to_some_slot st s' d /\
+     pointed_slot st s' d = s)
 
-(* general invariant for all slots: a slot is empty or satisfies the invariant for merkle/data *)
-let store_inv_slot #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) = 
-  empty_slot st s \/
-  (is_data_key (stored_key st s) /\ desc_in_store_inv_data st s) \/
-  (is_merkle_key (stored_key st s) /\ 
-   desc_in_store_inv_merkle st s Left /\ 
-   desc_in_store_inv_merkle st s Right)
+let pointed_to_inv #vcfg (st:vstore_raw vcfg) = 
+  forall (s: slot_id vcfg). pointed_to_inv_local st s
 
-let store_inv_local #vcfg (st:vstore_raw vcfg) = 
-  forall (s:slot_id vcfg). store_inv_slot st s
-
-(* vstore is a raw store that satisfies the local invariant *)
-let vstore vcfg = st:vstore_raw vcfg{store_inv_local st}
+(* vstore is a raw store that satisfies the points_to invariant *)
+let vstore vcfg = st:vstore_raw vcfg{points_to_uniq st /\ pointed_to_inv st}
 
 let empty_store vcfg:vstore vcfg = Seq.create (store_size vcfg) None
   
@@ -130,132 +123,140 @@ let has_key #vcfg (k:key) (e:option (vstore_entry vcfg)) : bool
 
 (** vstore update methods **)
 
-(* relationship between two stores st and st' that states that 
- * they are of the same size and differ in only one slot *)
-let idx_store_update_rel #vcfg (st st': vstore vcfg) (s:slot_id vcfg) 
-  = (forall (s':slot_id vcfg). (s' <> s ==> get_slot st s' == get_slot st' s'))
+(* two stores st1 and st2 are identical everywhere except in slot s *)
+let identical_except #vcfg (st1 st2: vstore_raw vcfg) (s: slot_id vcfg) =
+  forall (s': slot_id vcfg). s' <> s ==> get_slot st1 s' = get_slot st2 s'
+
+let identical_except2 #vcfg (st1 st2: vstore_raw vcfg) (s1 s2: slot_id vcfg) = 
+  forall (s': slot_id vcfg). s' <> s1 ==> s' <> s2 ==> get_slot st1 s' = get_slot st2 s'
+
+let identical_except3 #vcfg (st1 st2: vstore_raw vcfg) (s1 s2 s3: slot_id vcfg) = 
+  forall (s': slot_id vcfg). s' <> s1 ==> s' <> s2 ==> s' <> s3 ==> get_slot st1 s' = get_slot st2 s'
+
+(* update a value of a key *)
+val update_value 
+  (#vcfg:_)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st)
+  (v:value_type_of (stored_key st s))
+  : Tot (st':vstore vcfg {identical_except st st' s /\
+                          inuse_slot st' s /\
+                          v = stored_value st' s /\
+                          (let VStoreE k1 _ am1 ld1 rd1 = get_inuse_slot st s in
+                           let VStoreE k2 _ am2 ld2 rd2 = get_inuse_slot st' s in
+                           k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2)})
+
+(* 
+ * add a new record to store with add method madd to slot s.
+ * other paras: s' that points to none in direction d, but points to s 
+ * after the add
+ *)
+val madd_to_store
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  : Tot (st':vstore vcfg{let od = other_dir d in
+                         identical_except2 st st' s s' /\     // st and st' are identical except at s, s'
+
+                         // nothing changes in slot s' except it now points to s in direction d
+                         inuse_slot st' s' /\
+                         stored_key st' s' = stored_key st s' /\
+                         stored_value st' s' = stored_value st s' /\
+                         add_method_of st' s' = add_method_of st s' /\
+                         points_to_dir st' s' d s /\
+                         points_to_info st' s' od = points_to_info st s' od /\
+
+                         // slot s contains (k, v, MAdd) and points to nothing
+                         inuse_slot st' s /\
+                         get_inuse_slot st' s = VStoreE k v Spec.MAdd None None                         
+                         })
+
+(* 
+ * add a new record to store with add method madd to slot s.
+ * other paras: s' that points s2 in direction d; after the add
+ * s' -> s (along d) and s -> s2 (along d2, a parameter)
+ *)
+val madd_to_store_split 
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Tot (st': vstore vcfg{let od = other_dir d in        
+                          let s2 = pointed_slot st s' d in
+                          let od2 = other_dir d2 in
+                          
+                          // st and st' identical except at s, s'
+                          identical_except2 st st' s s' /\
+
+                          // nothing changes in slot s', except it now points to s in direction d 
+                          inuse_slot st' s' /\
+                          stored_key st' s' = stored_key st s' /\
+                          stored_value st' s' = stored_value st s' /\
+                          add_method_of st' s' = add_method_of st s' /\
+                          points_to_dir st' s' d s /\
+                          points_to_info st' s' od = points_to_info st s' od /\
+
+                          // slot s contains (k, v, MAdd) and points to s2 along direction d2
+                          inuse_slot st' s /\
+                          stored_key st' s = k /\ stored_value st' s = v /\ add_method_of st' s = Spec.MAdd /\
+                          points_to_none st' s od2 /\
+                          points_to_dir st' s d2 s2})
 
 (* add a new entry (k,v) to the store at en empty slot s; *)
-val add_to_store 
+val badd_to_store 
       (#vcfg:verifier_config)
       (st:vstore vcfg) 
       (s:empty_slot_id st)
       (k:key) 
       (v:value_type_of k) 
-      (am:add_method)
-  : Tot (st':vstore vcfg {idx_store_update_rel st st' s /\
+  : Tot (st':vstore vcfg {// st and st' identical except for s
+                          identical_except st st' s /\
                           inuse_slot st' s /\
-                          get_inuse_slot st' s = VStoreE k v am None None})
+                          get_inuse_slot st' s = VStoreE k v Spec.BAdd None None})
 
-(* add a new entry with merkle and a descendant *)
-(* TODO: Add when this is used *)
-val add_to_store_with_desc
-      (#vcfg:_)
-      (st:vstore vcfg)
-      (s:empty_slot_id st)
-      (k:merkle_key)
-      (v:merkle_value)
-      (d:bin_tree_dir{mv_points_to_some v d})
-      (s':merkle_slot_id st{mv_pointed_key v d = stored_key st s'})
-  : Tot (st':vstore vcfg {idx_store_update_rel st st' s /\
-                          inuse_slot st' s /\
-                          stored_key st' s = k /\
-                          stored_value st' s = (MVal v) /\
-                          add_method_of st' s = Spec.MAdd /\
-                          desc_in_store st' s d /\
-                          desc_slot st' s d = s' /\
-                          not (desc_in_store st' s d)})
-                     
-(* update the data value of a data key *)
-val update_data_value 
-  (#vcfg:_)
+(* 
+ * evict the current entry from a store slot s; the entry should have been added using MAdd. From the 
+ * invariant of vstore, there is a unique slot s' that points to s. After the update s is empty 
+ * and the s' does not point to anything along the direction.
+ *)
+val mevict_from_store 
+  (#vcfg: verifier_config)
   (st:vstore vcfg)
-  (s:data_slot_id st)
-  (v:data_value)
-  : Tot (st':vstore vcfg {
-        let VStoreE k _ am _ _ = get_inuse_slot st s in
-        (idx_store_update_rel st st' s /\
-         inuse_slot st' s /\
-         get_inuse_slot st' s = VStoreE k (DVal v) am None None)})
-
-(* reset a descendant of a merkle slot *)
-val reset_desc_slot
-  (#vcfg:_)
-  (st:vstore vcfg)
-  (s:merkle_slot_id st)
-  (d:bin_tree_dir{desc_in_store st s d})
-  : Tot (st': vstore vcfg {idx_store_update_rel st st' s /\
-                           inuse_slot st' s /\ 
-                           stored_key st' s = stored_key st s /\
-                           not (desc_in_store st s d)})
-
-(* when the current desc slot along a direction is empty, add a desc slot along that direction *)
-val add_desc_slot
-  (#vcfg:_)
-  (st:vstore vcfg)
-  (s:merkle_slot_id st)
-  (d:bin_tree_dir{not (desc_in_store st s d)})
-  (s':inuse_slot_id st{let v = to_merkle_value (stored_value st s) in
-                       mv_points_to_some v d /\
-                       mv_pointed_key v d = stored_key st s'})
-  : Tot (st':vstore vcfg {idx_store_update_rel st st' s /\
-                          inuse_slot st' s /\
-                          (let VStoreE k v am ld rd = get_inuse_slot st s in
-                           match d with
-                           | Left -> get_inuse_slot st' s = VStoreE k v am (Some s') rd 
-                           | Right -> get_inuse_slot st' s = VStoreE k v am ld (Some s'))})
-
-(* two values point to the same key along some dir (or don't point to any) *)
-let points_to_same (v1 v2: merkle_value) (d:bin_tree_dir) = 
-  mv_points_to_none v1 d && mv_points_to_none v2 d ||
-  mv_points_to_some v1 d && mv_points_to_some v2 d && 
-  mv_pointed_key v1 d = mv_pointed_key v2 d
-
-(* change the merkle value along a given direction *)
-val update_merkle_value
-  (#vcfg:_)
-  (st:vstore vcfg)
-  (s:merkle_slot_id st)
-  (d: bin_tree_dir)
-  (k: key) (h:hash_value) (b:bool)
-  (s':inuse_slot_id st{k = stored_key st s'})  
-  : Tot (st': vstore vcfg {idx_store_update_rel st st' s /\
-                           inuse_slot st' s /\
-                           (let VStoreE k1 v1 am1 ld1 rd1 = get_inuse_slot st s in
-                            let VStoreE k2 v2 am2 ld2 rd2 = get_inuse_slot st' s in
-                            k1 = k2 /\
-                            am1 = am2 /\
-                            to_merkle_value v2 = Spec.update_merkle_value (to_merkle_value v1) d k h b /\
-                            ld2 = (if d = Left then Some s' else ld1) /\
-                            rd2 = (if d = Right then Some s' else rd2))})
-
-val update_empty_merkle_value 
-  (#vcfg:_)
-  (st:vstore vcfg)
-  (s:merkle_slot_id st)
-  (d:bin_tree_dir)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})  
   (s':inuse_slot_id st)
-  (v:merkle_value {let vold = to_merkle_value (stored_value st s) in
-                   let do = other_dir d in
-                   let k' = stored_key st s' in
-                   desc_hash_dir v do = desc_hash_dir vold do && // v and vold are same in dir (1 - d)
-                   mv_points_to_none vold d &&                   // vold points to none in direction d
-                   mv_points_to_some v d &&                      // v points to key k' in slot s'
-                   mv_pointed_key v d = k'})
-  : Tot (st': vstore vcfg {let do = other_dir d in
-                           idx_store_update_rel st st' s /\
-                           inuse_slot st' s /\
-                           desc_in_store st' s d /\               // s points to s' in direction d 
-                           desc_slot st' s d = s' /\ 
-                           desc_in_store st' s do = desc_in_store st s do /\
-                           desc_in_store st' s do ==> desc_slot st' s do = desc_slot st s do /\
-                           stored_key st' s = stored_key st s /\
-                           stored_value st' s = (MVal v) /\
-                           add_method_of st' s = add_method_of st s})
-                                                     
-(* remove an entry from a slot; reset slot to unused *)
-val evict_from_store (#vcfg:_) (st:vstore vcfg) (s:inuse_slot_id st)
-  : Tot (st':vstore vcfg {idx_store_update_rel st st' s /\
+  (d:bin_tree_dir{points_to_dir st s' d s})
+  : Tot (st':vstore vcfg {let od = other_dir d in
+                          
+                          // st and st' identical except at s, s'
+                          identical_except2 st st' s s' /\
+
+                          // slot s is empty after update
+                          empty_slot st' s /\
+
+                          // nothing changes in slot s', except it points to none in directoin d
+                          inuse_slot st' s' /\
+                          stored_key st' s' = stored_key st s /\
+                          stored_value st' s' = stored_value st s' /\
+                          add_method_of st' s' = add_method_of st s' /\
+                          points_to_info st' s' od = points_to_info st s' od /\
+                          points_to_none st' s' d
+                          })
+
+(* evict the current entry from a store slot s that was added using BAdd *)
+val bevict_from_store
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  : Tot (st':vstore vcfg {// st and st' are identical except at slot s 
+                          identical_except st st' s /\
+
+                          // slot s is empty after the update
                           empty_slot st' s})
 
 (* if the store contains key k, return some entry in the store, otherwise return None *)
@@ -307,30 +308,12 @@ let ismap_vstore vcfg = st:vstore vcfg{is_map st}
 val lemma_update_data_value_preserves_is_map
       (#vcfg:_)
       (st:ismap_vstore vcfg)
-      (s:data_slot_id st)
-      (v:data_value)
-  : Lemma (ensures (is_map (update_data_value st s v)))
-          [SMTPat (update_data_value st s v)]
+      (s:inuse_slot_id st)
+      (v:value_type_of (stored_key st s))
+  : Lemma (ensures (is_map (update_value st s v)))
+          [SMTPat (update_value st s v)]
 
-(* reset desc slot preserves is_map *)
-val lemma_reset_desc_slot_preserves_is_map
-      (#vcfg:_)
-      (st:ismap_vstore vcfg)
-      (s:merkle_slot_id st)
-      (d:bin_tree_dir{desc_in_store st s d})
-  : Lemma (ensures (is_map (reset_desc_slot st s d)))
-          [SMTPat (is_map (reset_desc_slot st s d))]
-
-val lemma_update_merkle_value
-      (#vcfg:_)
-      (st:ismap_vstore vcfg)
-      (s:merkle_slot_id st)
-      (d:bin_tree_dir)
-      (k: key) (h:hash_value) (b:bool)
-      (s':inuse_slot_id st{k = stored_key st s'})
-  : Lemma (ensures (is_map (update_merkle_value st s d k h b s')))
-          [SMTPat (is_map (update_merkle_value st s d k h b s'))]
-
+(*
 (* is_map is preserved when adding a new key *)
 val lemma_add_to_store_is_map1
       (#vcfg:_)
@@ -356,6 +339,7 @@ val lemma_add_to_store_is_map2
 val lemma_evict_from_store_preserves_is_map (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id st)
   : Lemma (ensures (is_map (evict_from_store st s)))
           [SMTPat (is_map (evict_from_store st s))]
+*)
 
 (*** Relation w/ Spec-level Stores ***)
 
@@ -421,6 +405,7 @@ val lemma_store_rel_update_in_store (st:vstore) (st':Spec.vstore) (s:slot_id) (d
           [SMTPat (store_rel (update_in_store st s d b) st')]
 *)
 
+(*
 val lemma_store_rel_add_to_store 
       (#vcfg:_)
       (st:vstore vcfg) 
@@ -437,3 +422,4 @@ val lemma_store_rel_evict_from_store (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore
   : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
           (ensures (store_rel (evict_from_store st s) (Spec.evict_from_store st' k)))
           [SMTPat (evict_from_store st s); SMTPat (Spec.evict_from_store st' k)]
+*)
