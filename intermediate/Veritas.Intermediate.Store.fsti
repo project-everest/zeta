@@ -13,9 +13,6 @@ module FE = FStar.FunctionalExtensionality
 
 let add_method = Veritas.Verifier.add_method
 
-(* an index in store *)
-let slot_id (vcfg:verifier_config) = i:nat{i < store_size vcfg}
-
 (* 
  * vstore_entry - reflect a Spec.vstore_entry with two additional fields tracking 
  * whether a left/right descendant was added using merkle using this slot as "proof"
@@ -207,6 +204,18 @@ val madd_to_store_split
                           stored_key st' s = k /\ stored_value st' s = v /\ add_method_of st' s = Spec.MAdd /\
                           points_to_none st' s od2 /\
                           points_to_dir st' s d2 s2})
+
+val madd_to_store_root
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (v:value_type_of Root)
+  : Tot (st':vstore vcfg{// st and st' identical except at s, s'
+                         identical_except st st' s /\
+
+                         // slot s contains (Root, v, MAdd) and points to none 
+                         inuse_slot st' s /\
+                         get_inuse_slot st' s = VStoreE Root v Spec.MAdd None None})                        
 
 (* add a new entry (k,v) to the store at en empty slot s; *)
 val badd_to_store 
