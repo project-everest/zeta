@@ -322,6 +322,10 @@ val lemma_update_data_value_preserves_is_map
   : Lemma (ensures (is_map (update_value st s v)))
           [SMTPat (update_value st s v)]
 
+val lemma_ismap_update_value (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
+  : Lemma (ensures (is_map (update_value st s v)))
+          [SMTPat (update_value st s v)]
+
 (*
 (* is_map is preserved when adding a new key *)
 val lemma_add_to_store_is_map1
@@ -402,11 +406,12 @@ val lemma_store_rel_add_method_of (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (
           (ensures (add_method_of_by_key st k = Spec.add_method_of st' k))
           [SMTPat (add_method_of_by_key st k); SMTPat (Spec.add_method_of st' k)]
 
-(*
-val lemma_store_rel_update_value (st:vstore) (st':Spec.vstore) (s:slot_id) (k:key) (v:value_type_of k)
+val lemma_store_rel_update_value (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (s:slot_id vcfg) (k:key) (v:value_type_of k)
   : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
           (ensures (store_rel (update_value st s v) (Spec.update_store st' k v)))
           [SMTPat (update_value st s v); SMTPat (Spec.update_store st' k v)]
+
+(*
 
 val lemma_store_rel_update_in_store (st:vstore) (st':Spec.vstore) (s:slot_id) (d:bin_tree_dir) (b:bool)
   : Lemma (requires (store_rel st st' /\ store_contains st s))

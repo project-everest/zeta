@@ -2,15 +2,16 @@ module Veritas.Intermediate.Verify
 
 (* Relation between a slot and key *)
 
-let slot_key_rel (vs: vtls {Valid? vs}) (s:slot_id) (k:key) =
+let slot_key_rel #vcfg (vs: vtls vcfg{Valid? vs}) (s:slot_id vcfg) (k:key) =
   let st = thread_store vs in slot_key_equiv st s k
 
 (* Simulation lemmas for v* functions *)
 
 let lemma_vget_simulates_spec 
-      (vs:vtls{Valid? vs})
+      #vcfg
+      (vs:vtls vcfg{Valid? vs})
       (vs':Spec.vtls{Spec.Valid? vs'})
-      (s:slot_id)
+      (s:slot_id vcfg)
       (k:data_key)
       (v:data_value)
   : Lemma (requires (vtls_rel vs vs' /\ 
@@ -19,19 +20,21 @@ let lemma_vget_simulates_spec
   = ()
 
 let lemma_vget_preserves_inv
-      (vs:vtls{Valid? vs})
-      (s:slot_id)
+      #vcfg
+      (vs:vtls vcfg{Valid? vs})
+      (s:slot_id vcfg)
       (k:data_key)
       (v:data_value)
   : Lemma (requires (Valid? (vget s k v vs) /\
-                     store_inv (thread_store vs)))
-          (ensures (store_inv (thread_store (vget s k v vs))))
+                     is_map (thread_store vs)))
+          (ensures (is_map (thread_store (vget s k v vs))))
   = ()
 
 let lemma_vput_simulates_spec 
-      (vs:vtls{Valid? vs}) 
+      #vcfg
+      (vs:vtls vcfg{Valid? vs}) 
       (vs':Spec.vtls{Spec.Valid? vs'}) 
-      (s:slot_id) 
+      (s:slot_id vcfg) 
       (k:data_key) 
       (v:data_value) 
   : Lemma (requires (vtls_rel vs vs' /\
@@ -39,30 +42,16 @@ let lemma_vput_simulates_spec
           (ensures (vtls_rel (vput s k v vs) (Spec.vput k v vs'))) 
   = ()
 
-(* updating a data value preserves in_store_inv *)
-let lemma_update_value_DVal_preserves_in_store_inv 
-      (st:vstore) 
-      (s:slot_id{store_contains st s /\ is_data_key (stored_key st s)}) 
-      (v:data_value)
-  : Lemma (requires in_store_inv st)
-          (ensures in_store_inv (update_value st s (DVal v)))
-  = let st_upd = update_value st s (DVal v) in
-    let aux (s0:instore_merkle_slot st_upd) (d0:bin_tree_dir{points_to_some st_upd s0 d0})
-      : Lemma (let k = pointed_key st_upd s0 d0 in
-               in_store_bit st_upd s0 d0 = store_contains_key_with_MAdd st_upd k)
-      = let k0 = pointed_key st s0 d0 in
-        assert (in_store_bit st s0 d0 = store_contains_key_with_MAdd st k0) in
-    Classical.forall_intro_2 aux
-
 let lemma_vput_preserves_inv
-      (vs:vtls{Valid? vs}) 
-      (s:slot_id) 
+      #vcfg
+      (vs:vtls vcfg{Valid? vs}) 
+      (s:slot_id vcfg) 
       (k:data_key) 
       (v:data_value) 
   : Lemma (requires (Valid? (vput s k v vs) /\
-                     store_inv (thread_store vs)))
-          (ensures (store_inv (thread_store (vput s k v vs)))) 
-  = lemma_update_value_DVal_preserves_in_store_inv (thread_store vs) s v
+                     is_map (thread_store vs)))
+          (ensures (is_map (thread_store (vput s k v vs)))) 
+  = ()
 
 // TODO: flaky
 #push-options "--z3rlimit_factor 2"
