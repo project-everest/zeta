@@ -1016,17 +1016,17 @@ let inductive_step #vcfg (il: il_hash_verifiable_log vcfg)
         assume (Spec.EvictBM? (SpecTS.eac_boundary_entry il_k_i1));
         Some (lemma_non_eac_evictbm_implies_hash_collision il_k_i1)      
       )
+*)
 
 (* empty log satisfies all invariants *)
-let lemma_empty_store_inv_spec_rel (itsl: its_log)
+let lemma_empty_store_inv_spec_rel #vcfg (itsl: its_log vcfg)
   : Lemma (requires (I.length itsl = 0))
           (ensures (store_inv_rel_spec_eac itsl)) 
   = admit()
-*)
-
 
 let rec lemma_il_hash_verifiable_implies_eac_and_vtls_rel_aux 
-      (itsl:il_hash_verifiable_log) 
+      #vcfg
+      (itsl:il_hash_verifiable_log vcfg) 
       (i:nat{i <= I.length itsl}) 
   : Tot (store_inv_rel_spec_eac_or_hashcollision (I.prefix itsl i))
     (decreases i)                 
@@ -1045,13 +1045,12 @@ let rec lemma_il_hash_verifiable_implies_eac_and_vtls_rel_aux
         // assert(store_inv_rel_spec_eac_or_hashcollision itsl_i');
         inductive_step itsl (i - 1)      
     
-let lemma_il_hash_verifiable_implies_eac_and_vtls_rel (il: il_hash_verifiable_log)
+let lemma_il_hash_verifiable_implies_eac_and_vtls_rel #vcfg (il: il_hash_verifiable_log vcfg)
   : store_inv_rel_spec_eac_or_hashcollision il     
   = I.lemma_fullprefix_equal il;
     lemma_il_hash_verifiable_implies_eac_and_vtls_rel_aux il (I.length il)
 
-(*
-let rec hadd_hevict_equal_aux (gl:gl_verifiable_log) (gl':SpecG.verifiable_log) 
+let rec hadd_hevict_equal_aux #vcfg (gl:gl_verifiable_log vcfg) (gl':SpecG.verifiable_log) 
   : Lemma (requires Seq.length gl = Seq.length gl' /\
                     (forall (tid:seq_index gl). 
                        vtls_rel (verify (thread_log gl tid)) 
@@ -1072,7 +1071,7 @@ let rec hadd_hevict_equal_aux (gl:gl_verifiable_log) (gl':SpecG.verifiable_log)
       hadd_hevict_equal_aux glp glp'
     )
 
-let lemma_forall_vtls_rel_implies_spec_hash_verifiable (il:il_hash_verifiable_log) (il':SpecTS.its_log)
+let lemma_forall_vtls_rel_implies_spec_hash_verifiable #vcfg (il:il_hash_verifiable_log vcfg) (il':SpecTS.its_log)
   : Lemma (requires forall_vtls_rel il il')
           (ensures SpecTS.hash_verifiable il')
   = let gl = g_logS_of il in
@@ -1084,23 +1083,19 @@ let lemma_forall_vtls_rel_implies_spec_hash_verifiable (il:il_hash_verifiable_lo
     Classical.forall_intro aux;
     hadd_hevict_equal_aux gl gl'
 
-let lemma_ilogS_to_logK_state_ops (il:its_log{forall_store_inv il})
+(* TODO: Removed forall_store_ismap invariant requirement; reqlly necessary? *)
+let lemma_ilogS_to_logK_state_ops #vcfg (il:its_log vcfg)
   : Lemma (state_ops il == SpecTS.state_ops (ilogS_to_logK il))
   = admit()
 // should be a simple property about map over ilogS_to_logK
-*)
+
 
 let lemma_time_seq_rw_consistent  #vcfg
   (il: il_hash_verifiable_log vcfg {~ (rw_consistent (state_ops il))})
   : hash_collision_gen = 
-  admit()
-
-(*
   let tsl = I.i_seq il in  
   let ts_ops = to_state_op_logS tsl in
-
   let hc_or_inv = lemma_il_hash_verifiable_implies_eac_and_vtls_rel il in
-
   (* if hc_or_inv returns a hash collision, then we can return the same collision *)
   if Some? hc_or_inv
   then Some?.v hc_or_inv
@@ -1118,8 +1113,7 @@ let lemma_time_seq_rw_consistent  #vcfg
     assert (state_ops il == SpecTS.state_ops il_k);
 
     SpecC.lemma_time_seq_rw_consistent il_k
-  )
-*)
+  )  
 
 assume val il_create (#vcfg:_) (gl: gl_verifiable_log vcfg): (itsl:its_log vcfg{g_logS_of itsl == gl})
 // should follow the defn in Veritas.Verifier.TSLog
