@@ -71,7 +71,9 @@ let lemma_vaddm_simulates_spec_if_k_is_new
           (ensures (let sts = thread_store vss in
                     let (k,v) = r in
                     let k' = stored_key sts s' in
-                    vtls_rel (vaddm s r s' vss) (Spec.vaddm r k' vsk))) =
+                    let vss' = vaddm s r s' vss in
+                    (vtls_rel vss' (Spec.vaddm r k' vsk)) /\
+                     (Valid? vss' ==> is_map (thread_store vss')))) = 
   let sts = thread_store vss in                    
   let stk = Spec.thread_store vsk in
   assert(store_rel sts stk);
@@ -1025,10 +1027,10 @@ let lemma_store_rel_extend_addm #vcfg
   // assert (vss_i1 == t_verify_step vss_i es);
 
   SpecTS.lemma_verifier_thread_state_extend ilk i;
-  // assert (SpecTS.thread_state_post ilk i == Spec.t_verify_step vsk_i ek);
+  assert (vsk_i1 == Spec.t_verify_step vsk_i ek);
 
   lemma_ilogS_to_logK_index ils i;
-  assert (ek == Some?.v (logS_to_logK_entry vss_i es));
+  // assert (ek == Some?.v (logS_to_logK_entry vss_i es));
   
   match es with
   | AddM_S s (k,v) s' ->  
@@ -1037,16 +1039,34 @@ let lemma_store_rel_extend_addm #vcfg
     assert(ek = Spec.AddM (k,v) k');    
 
     if store_contains_key sts k then (
+      let stk = Spec.thread_store vsk_i in
+      assert(Spec.store_contains stk k);
+      assert(vsk_i1 == Spec.vaddm (k,v) k' vsk_i);
+      // assert(Spec.Failed = vsk_i1);
+    
+      let sk = slot_of_key sts k in
+      
+
       admit()
     )
     else (
-      assert(not (store_contains_key sts k));
+      admit()
+      (*
+      // assert(not (store_contains_key sts k));
       lemma_vaddm_simulates_spec_if_k_is_new vss_i vsk_i s s' (k,v);
       lemma_forall_vtls_rel_extend ils i;
       lemma_vtls_rel_and_clock_sorted_implies_spec_clock_sorted ils i;
-      
-      admit()
-    )
+      let sts1 = thread_store vss_i1 in
+      // assert(is_map sts1);
+      lemma_forall_store_ismap_extend ils i;
+      // assert(forall_store_ismap ils_i1);
+      // assert(forall_vtls_rel ils_i1 ilk_i1);
+      if SpecTS.is_eac ilk_i1 then None
+      else (
+        lemma_eac_boundary_inv ilk_i1 i;
+        Some (lemma_non_eac_addm_implies_hash_collision ilk_i1)
+      )*)
+   )
 
 let inductive_step #vcfg (ils: il_hash_verifiable_log vcfg) 
                    (i:I.seq_index ils {let ils_i = I.prefix ils i in

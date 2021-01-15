@@ -131,9 +131,11 @@ let bevict_from_store
                           empty_slot st' s})
   = admit()
 
-let lemma_store_contains_key (#vcfg:_) (st:vstore vcfg) (k:key)
-  : Lemma (requires (exists s. stored_key st s = k))
-          (ensures (store_contains_key st k)) = admit()
+
+let store_contains_key (#vcfg:_) (st:vstore vcfg) (k:key): bool  = admit()
+
+let slot_of_key (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}): 
+  (s:inuse_slot_id st{stored_key st s = k}) = admit()
 
 let stored_value_by_key  (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}) : value_type_of k
   = admit()

@@ -268,20 +268,10 @@ val bevict_from_store
                           // slot s is empty after the update
                           empty_slot st' s})
 
-(* if the store contains key k, return some entry in the store, otherwise return None *)
-let lookup_key (#vcfg:_) (st:vstore vcfg) (k:key) 
-  : option (vstore_entry vcfg)
-  = let s' = filter (has_key k) st in
-    if Seq.length s' = 0 then None
-    else Seq.index s' 0 
+val store_contains_key (#vcfg:_) (st:vstore vcfg) (k:key): bool 
 
-let store_contains_key #vcfg (st:vstore vcfg) (k:key) : bool
-  = Some? (lookup_key st k)
-
-val lemma_store_contains_key (#vcfg:_) (st:vstore vcfg) (k:key)
-  : Lemma (requires (exists s. stored_key st s = k))
-          (ensures (store_contains_key st k))
-          [SMTPat (store_contains_key st k)]
+val slot_of_key (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}): 
+  (s:inuse_slot_id st{stored_key st s = k})
 
 val stored_value_by_key  (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}) : value_type_of k
 
