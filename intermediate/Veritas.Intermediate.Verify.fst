@@ -5,7 +5,7 @@ module Veritas.Intermediate.Verify
 let slot_key_rel #vcfg (vs: vtls vcfg{Valid? vs}) (s:slot_id vcfg) (k:key) =
   let st = thread_store vs in slot_key_equiv st s k
 
-(*
+
 (* Simulation lemmas for v* functions *)
 
 let lemma_vget_simulates_spec 
@@ -54,6 +54,7 @@ let lemma_vput_preserves_inv
           (ensures (is_map (thread_store (vput s k v vs)))) 
   = ()
 
+(*
 // TODO: flaky
 #push-options "--z3rlimit_factor 2"
 let lemma_vaddm_simulates_spec_if_k_is_new
@@ -820,47 +821,150 @@ let store_inv_rel_spec_eac #vcfg (il: its_log vcfg) =
 let store_inv_rel_spec_eac_or_hashcollision #vcfg (il:its_log vcfg) = 
   o:option hash_collision_gen{Some? o \/ store_inv_rel_spec_eac il}
 
-let inductive_step #vcfg (il: il_hash_verifiable_log vcfg) 
-                   (i:I.seq_index il {let il_i = I.prefix il i in
-                                      store_inv_rel_spec_eac il_i}):
-  store_inv_rel_spec_eac_or_hashcollision (I.prefix il (i + 1)) =   
-  admit()
+let lemma_eac_boundary_inv (itsl: SpecTS.its_log) (i:I.seq_index itsl): 
+  Lemma (requires (SpecTS.is_eac (I.prefix itsl i) /\
+                   not (SpecTS.is_eac (I.prefix itsl (i + 1)))))
+        (ensures (SpecTS.eac_boundary itsl = i)) = admit()
+
+
+let lemma_store_rel_extend_get #vcfg 
+  (ils: il_hash_verifiable_log vcfg) 
+  (i:I.seq_index ils {let ils_i = I.prefix ils i in
+                      store_inv_rel_spec_eac ils_i /\
+                      Get_S? (I.index ils i)}):
+  store_inv_rel_spec_eac_or_hashcollision (I.prefix ils (i + 1)) =     
+  let ilk = ilogS_to_logK ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+
+  (* thread id handling the i'th log entry *)
+  let tid = il_thread_id_of ils i in
+  // assert(SpecTS.thread_id_of ilk i = tid);
+
+  let es = I.index ils i in
+  let ek = I.index ilk i in
+
+  lemma_ilogS_to_logK_prefix_commute ils i;
+  // assert (ilk_i == ilogS_to_logK ils_i);
+  
+  lemma_ilogS_to_logK_prefix_commute ils (i + 1);
+  // assert (ilk_i1 == ilogS_to_logK ils_i1);
+
+  let vss_i = thread_state_pre ils i in
+  lemma_forall_store_ismap_specialize ils i;
+  // assert (is_map (thread_store vss_i));
+  let vss_i1 = thread_state_post ils i in
+
+  let vsk_i = SpecTS.thread_state_pre ilk i in 
+  lemma_forall_vtls_rel_specialize ils i;
+  // assert (vtls_rel vss_i vsk_i);
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+
+  lemma_verifier_thread_state_extend ils i;
+  // assert (vss_i1 == t_verify_step vss_i es);
+
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  // assert (SpecTS.thread_state_post ilk i == Spec.t_verify_step vsk_i ek);
+
+  //let sts_i = thread_store vss_i in
+  lemma_ilogS_to_logK_index ils i;
+  assert (ek == Some?.v (logS_to_logK_entry vss_i es));
+  
+  match es with
+
+  | Get_S s k v ->
+    lemma_vget_simulates_spec vss_i vsk_i s k v;
+    lemma_forall_vtls_rel_extend ils i;
+    lemma_vtls_rel_and_clock_sorted_implies_spec_clock_sorted ils i;
+
+    if SpecTS.is_eac ilk_i1 then      
+      None    
+    else (   
+      lemma_eac_boundary_inv ilk_i1 i;
+      Some (lemma_non_eac_get_implies_hash_collision ilk_i1)
+    )
+
+let lemma_store_rel_extend_put #vcfg 
+  (ils: il_hash_verifiable_log vcfg) 
+  (i:I.seq_index ils {let ils_i = I.prefix ils i in
+                      store_inv_rel_spec_eac ils_i /\
+                      Put_S? (I.index ils i)}):
+  store_inv_rel_spec_eac_or_hashcollision (I.prefix ils (i + 1)) =     
+  let ilk = ilogS_to_logK ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+
+  (* thread id handling the i'th log entry *)
+  let tid = il_thread_id_of ils i in
+  // assert(SpecTS.thread_id_of ilk i = tid);
+
+  let es = I.index ils i in
+  let ek = I.index ilk i in
+
+  lemma_ilogS_to_logK_prefix_commute ils i;
+  // assert (ilk_i == ilogS_to_logK ils_i);
+  
+  lemma_ilogS_to_logK_prefix_commute ils (i + 1);
+  // assert (ilk_i1 == ilogS_to_logK ils_i1);
+
+  let vss_i = thread_state_pre ils i in
+  lemma_forall_store_ismap_specialize ils i;
+  // assert (is_map (thread_store vss_i));
+  let vss_i1 = thread_state_post ils i in
+
+  let vsk_i = SpecTS.thread_state_pre ilk i in 
+  lemma_forall_vtls_rel_specialize ils i;
+  // assert (vtls_rel vss_i vsk_i);
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+
+  lemma_verifier_thread_state_extend ils i;
+  // assert (vss_i1 == t_verify_step vss_i es);
+
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  // assert (SpecTS.thread_state_post ilk i == Spec.t_verify_step vsk_i ek);
+
+  lemma_ilogS_to_logK_index ils i;
+  assert (ek == Some?.v (logS_to_logK_entry vss_i es));
+  
+  match es with
+  | Put_S s k v ->
+    lemma_vput_simulates_spec vss_i vsk_i s k v;
+    lemma_forall_vtls_rel_extend ils i;
+    lemma_vtls_rel_and_clock_sorted_implies_spec_clock_sorted ils i;
+    if SpecTS.is_eac ilk_i1 then None
+    else (
+      lemma_eac_boundary_inv ilk_i1 i;
+      Some (lemma_non_eac_put_implies_hash_collision ilk_i1)
+    )
+
+let inductive_step #vcfg (ils: il_hash_verifiable_log vcfg) 
+                   (i:I.seq_index ils {let ils_i = I.prefix ils i in
+                                      store_inv_rel_spec_eac ils_i}):
+  store_inv_rel_spec_eac_or_hashcollision (I.prefix ils (i + 1)) =     
+
+  let es = I.index ils i in
+  
+  match es with
+  | Get_S _ _ _ -> lemma_store_rel_extend_get ils i
+  | Put_S _ _ _  -> lemma_store_rel_extend_put ils i
+  | _ -> admit()
 
 (*
-  let il_k = ilogS_to_logK il in
-  let il_i = I.prefix il i in
-  let il_k_i = I.prefix il_k i in
-  let il_i1 = I.prefix il (i + 1) in
-  let il_k_i1 = I.prefix il_k (i + 1) in  
-
-  lemma_ilogS_to_logK_prefix_commute il i;
-  assert (il_k_i == ilogS_to_logK il_i);
-  lemma_ilogS_to_logK_prefix_commute il (i + 1);
-  assert (il_k_i1 == ilogS_to_logK il_i1);
-
-  assert (forall_store_inv il_i);
-  assert (forall_vtls_rel il_i il_k_i);
-  assert (SpecTS.is_eac il_k_i);
   
-  let vs = thread_state_pre il i in
-  let vs' = SpecTS.thread_state_pre il_k i in 
 
-  lemma_forall_store_inv_specialize il i;
-  assert (store_inv (thread_store vs));
-  lemma_forall_vtls_rel_specialize il i;
-  assert (vtls_rel vs vs');
 
-  lemma_verifier_thread_state_extend il i;
-  assert (thread_state_post il i == t_verify_step vs (I.index il i));
-  SpecTS.lemma_verifier_thread_state_extend il_k i;
-  assert (SpecTS.thread_state_post il_k i == Spec.t_verify_step vs' (I.index il_k i));
+  
 
-  let st = thread_store vs in
+
+
+
   let e = I.index il i in
   let e' = I.index il_k i in
 
-  lemma_ilogS_to_logK_index il i;
-  assert (I.index il_k i == Some?.v (logS_to_logK_entry vs e));
   
   match e with
   
