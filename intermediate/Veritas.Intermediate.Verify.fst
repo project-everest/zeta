@@ -54,6 +54,51 @@ let lemma_vput_preserves_inv
           (ensures (is_map (thread_store (vput s k v vs)))) 
   = ()
 
+let lemma_vaddm_simulates_spec_if_k_is_new
+  #vcfg
+  (vss:vtls vcfg{Valid? vss})
+  (vsk:Spec.vtls{Spec.Valid? vsk})
+  (s: empty_slot_id (thread_store vss))
+  (s':inuse_slot_id (thread_store vss))
+  (r: record)
+  : Lemma (requires (let sts = thread_store vss in
+                     let (k,v) = r in
+                     let k' = stored_key sts s' in
+                     not (store_contains_key sts k) /\
+                     vtls_rel vss vsk /\
+                     is_merkle_key k' /\
+                     is_map sts))
+          (ensures (let sts = thread_store vss in
+                    let (k,v) = r in
+                    let k' = stored_key sts s' in
+                    vtls_rel (vaddm s r s' vss) (Spec.vaddm r k' vsk))) =
+  let sts = thread_store vss in                    
+  let stk = Spec.thread_store vsk in
+  assert(store_rel sts stk);
+
+  let (k,v) = r in
+  let k' = stored_key sts s' in
+
+  (* if k' is not an ancestor both intermediate & spec fail *)
+  if not (is_proper_desc k k') then ()
+
+  (* if v is not compatible with k then both fail *)
+  else if not (is_value_of k v) then ()
+
+  else (
+    lemma_as_map_slot_key_equiv sts s' k';
+    assert(stored_value sts s' = Spec.stored_value stk k');
+
+    let v' = to_merkle_value (stored_value sts s') in    
+    let d = desc_dir k k' in
+         
+    admit()
+  )
+
+
+(*
+*)                   
+
 (*
 // TODO: flaky
 #push-options "--z3rlimit_factor 2"
@@ -941,6 +986,68 @@ let lemma_store_rel_extend_put #vcfg
       Some (lemma_non_eac_put_implies_hash_collision ilk_i1)
     )
 
+let lemma_store_rel_extend_addm #vcfg 
+  (ils: il_hash_verifiable_log vcfg) 
+  (i:I.seq_index ils {let ils_i = I.prefix ils i in
+                      store_inv_rel_spec_eac ils_i /\
+                      AddM_S? (I.index ils i)}):
+  store_inv_rel_spec_eac_or_hashcollision (I.prefix ils (i + 1)) =     
+  let ilk = ilogS_to_logK ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+
+  (* thread id handling the i'th log entry *)
+  let tid = il_thread_id_of ils i in
+  // assert(SpecTS.thread_id_of ilk i = tid);
+
+  let es = I.index ils i in
+  let ek = I.index ilk i in
+
+  lemma_ilogS_to_logK_prefix_commute ils i;
+  // assert (ilk_i == ilogS_to_logK ils_i);
+  
+  lemma_ilogS_to_logK_prefix_commute ils (i + 1);
+  // assert (ilk_i1 == ilogS_to_logK ils_i1);
+
+  let vss_i = thread_state_pre ils i in
+  lemma_forall_store_ismap_specialize ils i;
+  // assert (is_map (thread_store vss_i));
+  let vss_i1 = thread_state_post ils i in
+
+  let vsk_i = SpecTS.thread_state_pre ilk i in 
+  lemma_forall_vtls_rel_specialize ils i;
+  // assert (vtls_rel vss_i vsk_i);
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+
+  lemma_verifier_thread_state_extend ils i;
+  // assert (vss_i1 == t_verify_step vss_i es);
+
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  // assert (SpecTS.thread_state_post ilk i == Spec.t_verify_step vsk_i ek);
+
+  lemma_ilogS_to_logK_index ils i;
+  assert (ek == Some?.v (logS_to_logK_entry vss_i es));
+  
+  match es with
+  | AddM_S s (k,v) s' ->  
+    let sts = thread_store vss_i in
+    let k' = stored_key sts s' in    
+    assert(ek = Spec.AddM (k,v) k');    
+
+    if store_contains_key sts k then (
+      admit()
+    )
+    else (
+      assert(not (store_contains_key sts k));
+      lemma_vaddm_simulates_spec_if_k_is_new vss_i vsk_i s s' (k,v);
+      lemma_forall_vtls_rel_extend ils i;
+      lemma_vtls_rel_and_clock_sorted_implies_spec_clock_sorted ils i;
+      
+      admit()
+    )
+
 let inductive_step #vcfg (ils: il_hash_verifiable_log vcfg) 
                    (i:I.seq_index ils {let ils_i = I.prefix ils i in
                                       store_inv_rel_spec_eac ils_i}):
@@ -951,6 +1058,7 @@ let inductive_step #vcfg (ils: il_hash_verifiable_log vcfg)
   match es with
   | Get_S _ _ _ -> lemma_store_rel_extend_get ils i
   | Put_S _ _ _  -> lemma_store_rel_extend_put ils i
+  | AddM_S _ _ _  -> lemma_store_rel_extend_addm ils i
   | _ -> admit()
 
 (*

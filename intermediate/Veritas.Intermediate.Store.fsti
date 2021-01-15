@@ -313,15 +313,7 @@ let elim_is_map (#vcfg:_) (st:vstore vcfg)
 (* a store that is a map *)
 let ismap_vstore vcfg = st:vstore vcfg{is_map st}
 
-(* updating a data value preserves is_map *)
-val lemma_update_data_value_preserves_is_map
-      (#vcfg:_)
-      (st:ismap_vstore vcfg)
-      (s:inuse_slot_id st)
-      (v:value_type_of (stored_key st s))
-  : Lemma (ensures (is_map (update_value st s v)))
-          [SMTPat (update_value st s v)]
-
+(* updating a value preserves is_map *)
 val lemma_ismap_update_value (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
   : Lemma (ensures (is_map (update_value st s v)))
           [SMTPat (update_value st s v)]

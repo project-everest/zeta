@@ -1,10 +1,191 @@
 module Veritas.Intermediate.Store
 
-let update_slot (st:vstore_raw) (s:slot_id st) (e:vstore_entry)
-  : vstore_raw
+let update_slot #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) (e:vstore_entry vcfg)
+  : vstore_raw _
   = Seq.upd st s (Some e)
 
+let update_value 
+  (#vcfg:_)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st)
+  (v:value_type_of (stored_key st s))
+  : Tot (st':vstore vcfg {identical_except st st' s /\
+                          inuse_slot st' s /\
+                          v = stored_value st' s /\
+                          (let VStoreE k1 _ am1 ld1 rd1 = get_inuse_slot st s in
+                           let VStoreE k2 _ am2 ld2 rd2 = get_inuse_slot st' s in
+                           k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2)}) = admit()
 
+let madd_to_store
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  : Tot (st':vstore vcfg{let od = other_dir d in
+                         identical_except2 st st' s s' /\     // st and st' are identical except at s, s'
+
+                         // nothing changes in slot s' except it now points to s in direction d
+                         inuse_slot st' s' /\
+                         stored_key st' s' = stored_key st s' /\
+                         stored_value st' s' = stored_value st s' /\
+                         add_method_of st' s' = add_method_of st s' /\
+                         points_to_dir st' s' d s /\
+                         points_to_info st' s' od = points_to_info st s' od /\
+
+                         // slot s contains (k, v, MAdd) and points to nothing
+                         inuse_slot st' s /\
+                         get_inuse_slot st' s = VStoreE k v Spec.MAdd None None                         
+                         })
+
+  = admit()
+
+let madd_to_store_split 
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Tot (st': vstore vcfg{let od = other_dir d in        
+                          let s2 = pointed_slot st s' d in
+                          let od2 = other_dir d2 in
+                          
+                          // st and st' identical except at s, s'
+                          identical_except2 st st' s s' /\
+
+                          // nothing changes in slot s', except it now points to s in direction d 
+                          inuse_slot st' s' /\
+                          stored_key st' s' = stored_key st s' /\
+                          stored_value st' s' = stored_value st s' /\
+                          add_method_of st' s' = add_method_of st s' /\
+                          points_to_dir st' s' d s /\
+                          points_to_info st' s' od = points_to_info st s' od /\
+
+                          // slot s contains (k, v, MAdd) and points to s2 along direction d2
+                          inuse_slot st' s /\
+                          stored_key st' s = k /\ stored_value st' s = v /\ add_method_of st' s = Spec.MAdd /\
+                          points_to_none st' s od2 /\
+                          points_to_dir st' s d2 s2})
+  = admit()
+
+let madd_to_store_root
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (v:value_type_of Root)
+  : Tot (st':vstore vcfg{// st and st' identical except at s, s'
+                         identical_except st st' s /\
+
+                         // slot s contains (Root, v, MAdd) and points to none 
+                         inuse_slot st' s /\
+                         get_inuse_slot st' s = VStoreE Root v Spec.MAdd None None})                        
+  = admit()
+
+let badd_to_store 
+      (#vcfg:verifier_config)
+      (st:vstore vcfg) 
+      (s:empty_slot_id st)
+      (k:key) 
+      (v:value_type_of k) 
+  : Tot (st':vstore vcfg {// st and st' identical except for s
+                          identical_except st st' s /\
+                          inuse_slot st' s /\
+                          get_inuse_slot st' s = VStoreE k v Spec.BAdd None None})
+  = admit()
+
+let mevict_from_store 
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})  
+  (s':inuse_slot_id st)
+  (d:bin_tree_dir{points_to_dir st s' d s})
+  : Tot (st':vstore vcfg {let od = other_dir d in
+                          
+                          // st and st' identical except at s, s'
+                          identical_except2 st st' s s' /\
+
+                          // slot s is empty after update
+                          empty_slot st' s /\
+
+                          // nothing changes in slot s', except it points to none in directoin d
+                          inuse_slot st' s' /\
+                          stored_key st' s' = stored_key st s /\
+                          stored_value st' s' = stored_value st s' /\
+                          add_method_of st' s' = add_method_of st s' /\
+                          points_to_info st' s' od = points_to_info st s' od /\
+                          points_to_none st' s' d
+                          })
+  = admit()
+
+let bevict_from_store
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  : Tot (st':vstore vcfg {// st and st' are identical except at slot s 
+                          identical_except st st' s /\
+
+                          // slot s is empty after the update
+                          empty_slot st' s})
+  = admit()
+
+let lemma_store_contains_key (#vcfg:_) (st:vstore vcfg) (k:key)
+  : Lemma (requires (exists s. stored_key st s = k))
+          (ensures (store_contains_key st k)) = admit()
+
+let stored_value_by_key  (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}) : value_type_of k
+  = admit()
+
+let add_method_of_by_key (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}) : add_method
+  = admit()
+
+let lemma_ismap_update_value
+      (#vcfg:_)
+      (st:ismap_vstore vcfg)
+      (s:inuse_slot_id st)
+      (v:value_type_of (stored_key st s))
+  : Lemma (ensures (is_map (update_value st s v)))
+  = admit()
+
+let as_map (#vcfg:_) (st:ismap_vstore vcfg) : Spec.vstore = admit()
+
+let lemma_as_map_empty (vcfg:_)
+  : Lemma (ensures (let st = empty_store vcfg in
+                     forall (k:key). as_map st k = None)) = admit()
+
+let lemma_as_map_slot_key_equiv (#vcfg:_) (st:ismap_vstore vcfg) (s:slot_id vcfg) (k:key)
+  : Lemma (requires (slot_key_equiv st s k)) 
+          (ensures (Spec.store_contains (as_map st) k /\
+                    stored_value st s = Spec.stored_value (as_map st) k /\
+                    add_method_of st s = Spec.add_method_of (as_map st) k))
+  = admit()
+
+
+let lemma_store_rel_contains_key (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (k:key)
+  : Lemma (requires (store_rel st st'))
+          (ensures (store_contains_key st k = Spec.store_contains st' k))
+  = admit()
+
+let lemma_store_rel_stored_value (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (k:key)
+  : Lemma (requires (store_rel st st' /\ store_contains_key st k))
+          (ensures (stored_value_by_key st k = Spec.stored_value st' k))
+  = admit()
+
+let lemma_store_rel_add_method_of (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (k:key)
+  : Lemma (requires (store_rel st st' /\ store_contains_key st k))
+          (ensures (add_method_of_by_key st k = Spec.add_method_of st' k))
+  = admit()
+
+let lemma_store_rel_update_value (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (s:slot_id vcfg) (k:key) (v:value_type_of k)
+  : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
+          (ensures (store_rel (update_value st s v) (Spec.update_store st' k v)))
+  = admit()
+
+
+
+(*
 (* update the data value of a data key *)
 let update_data_value 
   (st:vstore)
@@ -526,3 +707,4 @@ let lemma_store_rel_evict_from_store (st:vstore) (st':Spec.vstore) (s:st_index s
   : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
           (ensures (store_rel (evict_from_store st s) (Spec.evict_from_store st' k)))
   = lemma_as_map_evict st s k
+*)
