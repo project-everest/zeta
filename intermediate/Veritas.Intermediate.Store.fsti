@@ -277,6 +277,13 @@ val stored_value_by_key  (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st
 
 val add_method_of_by_key (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}) : add_method
 
+(* any slot added with madd has another slot pointing to it; return one such pointing slot - which is unique in fact *)
+val pointing_slot (#vcfg:_) 
+                (st:vstore vcfg) 
+                (s:inuse_slot_id st{Root <> stored_key st s /\ add_method_of st s = Spec.MAdd})
+ : Tot (s':inuse_slot_id st{points_to st s' s})
+
+
 (*** Store Invariants ***)
 
 (* In our correctness proof, we will want to maintain two invariants over stores:

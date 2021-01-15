@@ -97,6 +97,44 @@ let lemma_vaddm_simulates_spec_if_k_is_new
     admit()
   )
 
+(* 
+ * if we start with a store that is a map and a key in store that 
+ * has been added with Merkle, then adding the key again using addm fails
+ *)
+let lemma_vaddm_dupliate_key_fails
+  #vcfg
+  (vs:vtls vcfg{Valid? vs})
+  (s:empty_slot_id (thread_store vs))
+  (s':slot_id vcfg)
+  (r:record)
+  : Lemma (requires (let st = thread_store vs in
+                     let (k,v) = r in
+                     is_map st /\
+                     store_contains_key st k /\
+                     (let sk = slot_of_key st k in
+                      let am = add_method_of st sk in
+                      am = Spec.MAdd)))
+           (ensures (Failed? (vaddm s r s' vs))) = 
+  let st = thread_store vs in
+  let (k,v) = r in
+  let sk = slot_of_key st k in
+  let am = add_method_of st sk in
+
+  (* if slot s' is empty then addm fails since ancestor slot is empty *)
+  if empty_slot st s' then ()
+  else
+    let k' = stored_key st s' in
+    (* k' is a proper ancestor, otherwise we fail so nothing to prove *)
+    if not (is_proper_desc k k') then ()
+    else (
+      (* k cannot be root *)
+      assert(k <> Root);
+      
+      let sk' = pointed_slot st sk in
+  
+      admit()
+    )
+
 
 (*
 *)                   
@@ -1039,13 +1077,22 @@ let lemma_store_rel_extend_addm #vcfg
     assert(ek = Spec.AddM (k,v) k');    
 
     if store_contains_key sts k then (
-      let stk = Spec.thread_store vsk_i in
-      assert(Spec.store_contains stk k);
-      assert(vsk_i1 == Spec.vaddm (k,v) k' vsk_i);
+      (* since the store contains k, the spec store also contains k, so the addm fails on spec *)
+      // let stk = Spec.thread_store vsk_i in      
+      // assert(Spec.store_contains stk k);
+      assert(Spec.Failed? vsk_i1);
+      // TODO: check with Nik; why does this assert fail while the previous one succeed: because of the noeq?
       // assert(Spec.Failed = vsk_i1);
-    
+
+      (* ... this implies we need to show that addm fails in the intermediate level *)      
+      (* the slot containing key k *)
       let sk = slot_of_key sts k in
+
+      (* the add method of key k *)
+      let amk = add_method_of sts sk in
       
+      
+
 
       admit()
     )

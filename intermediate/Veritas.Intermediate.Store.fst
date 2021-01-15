@@ -143,6 +143,12 @@ let stored_value_by_key  (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st
 let add_method_of_by_key (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}) : add_method
   = admit()
 
+let pointing_slot (#vcfg:_) 
+                (st:vstore vcfg) 
+                (s:inuse_slot_id st{Root <> stored_key st s /\ add_method_of st s = Spec.MAdd})
+ : Tot (s':inuse_slot_id st{points_to st s' s}) = admit()
+
+
 let lemma_ismap_update_value
       (#vcfg:_)
       (st:ismap_vstore vcfg)
