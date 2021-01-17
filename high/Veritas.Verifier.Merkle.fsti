@@ -15,24 +15,6 @@ module I = Veritas.Interleave
 module V = Veritas.Verifier
 module TL = Veritas.Verifier.TSLog
 
-let mv_points_to_none (v: merkle_value) (d:bin_tree_dir): bool = 
-  desc_hash_dir v d = Empty
-
-let mv_points_to_some (v:merkle_value) (d:bin_tree_dir): bool = 
-  Desc? (desc_hash_dir v d) 
-
-let mv_pointed_key (v:merkle_value) (d:bin_tree_dir{mv_points_to_some v d}): key = 
-  Desc?.k (desc_hash_dir v d)
-
-let mv_pointed_hash (v:merkle_value) (d:bin_tree_dir{mv_points_to_some v d}): hash_value = 
-  Desc?.h (desc_hash_dir v d)
-
-let mv_points_to (v:merkle_value) (d:bin_tree_dir) (k:key): bool = 
-  mv_points_to_some v d && mv_pointed_key v d = k
-
-let mv_evicted_to_blum (v:merkle_value) (d:bin_tree_dir {mv_points_to_some v d}): bool =
-  Desc?.b (desc_hash_dir v d)
-
 let eac_merkle_value (itsl: TL.eac_log) (k:merkle_key): merkle_value =
   to_merkle_value (eac_value itsl k)
 

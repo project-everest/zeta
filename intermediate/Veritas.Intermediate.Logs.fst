@@ -1,52 +1,14 @@
 module Veritas.Intermediate.Logs
 
-open Veritas.Interleave
-open Veritas.Key
-open Veritas.MultiSetHashDomain
-open Veritas.Record
-open Veritas.SeqAux
-open Veritas.State
-open Veritas.Intermediate.VerifierConfig
 
-module Spec = Veritas.Verifier
 
-(* Definitions of different styles of verifier logs.
-   - logK : contains only key references (defined in Veritas.Verifier)
-   - logS: contains slot references
-   - logL: contains slot references & low-level data structures (TODO) *)
+let to_logk (#vcfg:_) (tl:thread_id_logS vcfg{consistent_logS tl}): logK
+ = admit()
 
-let thread_id = Spec.thread_id
 
-let logK_entry = Spec.vlog_entry
-let logK = Spec.vlog
-
-type logS_entry (vcfg:verifier_config) =
-  | Get_S: s:slot_id vcfg -> k:data_key -> v:data_value -> logS_entry vcfg
-  | Put_S: s:slot_id vcfg -> k:data_key -> v:data_value -> logS_entry vcfg
-  | AddM_S: s:slot_id vcfg -> r:record -> s':slot_id vcfg -> logS_entry vcfg
-  | EvictM_S: s:slot_id vcfg -> s':slot_id vcfg -> logS_entry vcfg
-  | AddB_S: s:slot_id vcfg -> r:record -> t:timestamp -> j:thread_id -> logS_entry vcfg
-  | EvictB_S: s:slot_id vcfg -> t:timestamp -> logS_entry vcfg
-  | EvictBM_S: s:slot_id vcfg -> s':slot_id vcfg -> t:timestamp -> logS_entry vcfg
-             
-let logS vcfg = Seq.seq (logS_entry vcfg)
-
-let is_state_op #vcfg (e: logS_entry vcfg): bool =
-  match e with
-  | Get_S _ _ _ | Put_S _ _ _ -> true
-  | _ -> false
-
-let to_state_op #vcfg (e:logS_entry vcfg {is_state_op e}): state_op =
-  match e with
-  | Get_S _ k v -> Get k v
-  | Put_S _ k v -> Put k v
-
-let to_state_op_logS #vcfg (l: logS vcfg) =
-  map to_state_op (filter_refine is_state_op l)
-
+(*
 (* Reproducing definitions from Veritas.Verifier.Thread *)
 
-let thread_id_logS (vcfg:verifier_config) = thread_id & logS vcfg
 
 let thread_id_of #vcfg (tl: thread_id_logS vcfg): nat = fst tl
 
@@ -95,3 +57,4 @@ let lemma_logS_interleave_implies_state_ops_interleave #vcfg (l: logS vcfg) (gl:
       (fun i -> 
         let i' = filter_map_interleaving is_state_op to_state_op i in
         FStar.Squash.return_squash i')
+*)
