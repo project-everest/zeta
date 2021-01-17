@@ -1,5 +1,6 @@
 module Veritas.Verifier.Thread
 
+open Veritas.Key
 open Veritas.MultiSetHash
 open Veritas.SeqAux
 open Veritas.Verifier
@@ -190,3 +191,14 @@ val lemma_add_clock (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
 val lemma_evict_clock (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
   Lemma (MH.timestamp_of (blum_evict_elem tl i) = clock tl i)
   
+val lemma_addm_ancestor_merkle (tl:verifiable_log) (i:idx tl{is_merkle_add (index tl i)}):
+  Lemma (ensures (let AddM _ k' = index tl i in
+                  is_merkle_key k'))
+
+val lemma_evictm_ancestor_merkle (tl:verifiable_log) (i:idx tl{is_evict_to_merkle (index tl i)}):
+  Lemma (ensures (let EvictM _ k' = index tl i in
+                  is_merkle_key k'))
+
+val lemma_evictbm_ancestor_merkle (tl:verifiable_log) (i:idx tl{EvictBM? (index tl i)}):
+  Lemma (ensures (let EvictBM _ k' _ = index tl i in
+                  is_merkle_key k'))

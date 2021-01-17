@@ -403,3 +403,30 @@ let lemma_evict_clock (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl
     ()
   | EvictBM k k' t -> ()
 
+let lemma_addm_ancestor_merkle (tl:verifiable_log) (i:idx tl{is_merkle_add (index tl i)}):
+  Lemma (ensures (let AddM _ k' = index tl i in
+                  is_merkle_key k')) = 
+  let tli = prefix tl i in
+  assert(verifiable tli);
+  let tli' = prefix tl (i + 1) in
+  assert(verifiable tli');
+  ()
+
+let lemma_evictm_ancestor_merkle (tl:verifiable_log) (i:idx tl{is_evict_to_merkle (index tl i)}):
+  Lemma (ensures (let EvictM _ k' = index tl i in
+                  is_merkle_key k')) = 
+  let tli = prefix tl i in
+  assert(verifiable tli);
+  let tli' = prefix tl (i + 1) in
+  assert(verifiable tli');
+  ()
+
+let lemma_evictbm_ancestor_merkle (tl:verifiable_log) (i:idx tl{EvictBM? (index tl i)}):
+  Lemma (ensures (let EvictBM _ k' _ = index tl i in
+                  is_merkle_key k')) = 
+  let tli = prefix tl i in
+  assert(verifiable tli);
+  let tli' = prefix tl (i + 1) in
+  assert(verifiable tli');
+  ()
+

@@ -1611,7 +1611,7 @@ let lemma_eac_value_unchanged_memop (itsl: TL.eac_log {I.length itsl > 0}) (k: k
    lemma_eac_value_is_evicted_value itsl k;
    lemma_eac_value_is_evicted_value itsl' k   
 
-let evict_ancestor (e: vlog_entry {EvictM? e \/ EvictBM? e}): merkle_key = 
+let evict_ancestor (e: vlog_entry {EvictM? e \/ EvictBM? e}): key = 
   match e with
   | EvictM _ k' -> k'
   | EvictBM _ k' _ -> k'
@@ -2563,6 +2563,7 @@ let lemma_addm_ancestor_is_proving_caseA (itsl: its_log {I.length itsl > 0}):
                    root_reachable itsl' k /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2616,6 +2617,7 @@ let lemma_addm_ancestor_is_proving_caseB (itsl: its_log {I.length itsl > 0}):
                    root_reachable itsl' k /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2677,6 +2679,7 @@ let lemma_addm_ancestor_is_proving_caseC (itsl: its_log {I.length itsl > 0}):
                    root_reachable itsl' k /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2740,6 +2743,7 @@ let lemma_addm_ancestor_is_proving_caseD (itsl: its_log {I.length itsl > 0}):
                    not (root_reachable itsl' k) /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2822,6 +2826,7 @@ let lemma_addm_ancestor_is_proving_caseE (itsl: its_log {I.length itsl > 0}):
                    not (root_reachable itsl' k) /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2878,6 +2883,7 @@ let lemma_addm_ancestor_is_proving_caseF (itsl: its_log {I.length itsl > 0}):
                    not (root_reachable itsl' k) /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in

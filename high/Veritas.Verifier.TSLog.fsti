@@ -479,3 +479,15 @@ val lemma_eac_value_init (itsl: eac_log) (k:key{k <> Root}):
 (* TODO: oddly enough, this fails if we hardcode k = Root in the statement of the lemma *)
 val lemma_eac_value_root_init (itsl: eac_log {I.length itsl = 0}) (k:key{k = Root}):
   Lemma (eac_value itsl k = init_value k)
+
+val lemma_addm_ancestor_merkle (itsl: its_log) (i: I.seq_index itsl{is_merkle_add (I.index itsl i)}):
+  Lemma (ensures (let AddM _ k' = I.index itsl i in
+                  is_merkle_key k'))
+                      
+val lemma_evictm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{is_evict_to_merkle (I.index itsl i)}):
+  Lemma (ensures (let EvictM _ k' = I.index itsl i in
+                  is_merkle_key k'))
+
+val lemma_evictbm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{EvictBM? (I.index itsl i)}):
+  Lemma (ensures (let EvictBM _ k' _ = I.index itsl i in
+                  is_merkle_key k'))

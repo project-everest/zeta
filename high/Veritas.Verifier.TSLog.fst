@@ -1750,3 +1750,42 @@ let lemma_eac_value_init (itsl: eac_log) (k:key{k <> Root})
 let lemma_eac_value_root_init (itsl: eac_log {I.length itsl = 0}) (k:key{k = Root})
   : Lemma (eac_value itsl k = init_value k)
   = run_monitor_empty itsl k
+
+let lemma_addm_ancestor_merkle (itsl: its_log) (i: I.seq_index itsl{is_merkle_add (I.index itsl i)}):
+  Lemma (ensures (let AddM _ k' = I.index itsl i in
+                  is_merkle_key k')) = 
+  // let itsli = I.prefix itsl i in
+  // let itsli' = I.prefix itsl (i + 1) in
+  lemma_verifier_thread_state_extend itsl i;
+  // let vs = thread_state_pre itsl i in
+  // let vs' = thread_state_post itsl i in
+  
+  // Oddly, enough the proof goes through only if we match e as below
+  let e = I.index itsl i in  
+  match e with
+  | AddM _ k' -> ()
+                      
+let lemma_evictm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{is_evict_to_merkle (I.index itsl i)}):
+  Lemma (ensures (let EvictM _ k' = I.index itsl i in
+                  is_merkle_key k')) = 
+  // let itsli = I.prefix itsl i in
+  // let itsli' = I.prefix itsl (i + 1) in
+  lemma_verifier_thread_state_extend itsl i;
+  // let vs = thread_state_pre itsl i in
+  // let vs' = thread_state_post itsl i in
+  let e = I.index itsl i in  
+  match e with
+  | EvictM _ k' -> ()                  
+
+
+let lemma_evictbm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{EvictBM? (I.index itsl i)}):
+  Lemma (ensures (let EvictBM _ k' _ = I.index itsl i in
+                  is_merkle_key k')) =
+  // let itsli = I.prefix itsl i in
+  // let itsli' = I.prefix itsl (i + 1) in
+  lemma_verifier_thread_state_extend itsl i;
+  // let vs = thread_state_pre itsl i in
+  // let vs' = thread_state_post itsl i in
+  let e = I.index itsl i in  
+  match e with
+  | EvictBM _ k' _ -> ()                  
