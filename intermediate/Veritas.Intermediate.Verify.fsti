@@ -130,7 +130,7 @@ let vtls_rel #vcfg (vs:vtls vcfg) (vs':Spec.vtls) : Type =
 val lemma_vget_simulates_spec 
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls{Spec.Valid? vs'})      
+      (vs':Spec.vtls)      
       (e:logS_entry vcfg{Get_S? e})
   : Lemma (requires (let st = thread_store vs in
                      let s2k = S.to_slot_state_map st in

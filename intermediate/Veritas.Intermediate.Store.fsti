@@ -284,6 +284,10 @@ val bevict_from_store
 
 val store_contains_key (#vcfg:_) (st:vstore vcfg) (k:key): bool 
 
+val lemma_stored_key_implies_contains (#vcfg:_) (st: vstore vcfg) (s:inuse_slot_id st):
+  Lemma (ensures (store_contains_key st (stored_key st s)))
+        [SMTPat (inuse_slot st s)]
+
 val slot_of_key (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}): 
   (s:inuse_slot_id st{stored_key st s = k})
 
@@ -389,6 +393,14 @@ val lemma_as_map_slot_key_equiv (#vcfg:_) (st:ismap_vstore vcfg) (s:slot_id vcfg
                     stored_value st s = Spec.stored_value (as_map st) k /\
                     add_method_of st s = Spec.add_method_of (as_map st) k))
           [SMTPat (slot_key_equiv st s k)]
+
+val lemma_as_map_slot_key_equiv2 (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id _)
+  : Lemma (ensures (let k = stored_key st s in
+                    let stk = as_map st in
+                    Spec.store_contains stk k /\
+                    stored_value st s = Spec.stored_value stk k /\
+                    add_method_of st s = Spec.add_method_of stk k))
+          [SMTPat (inuse_slot st s)]
 
 (* Relation between stores *)
 let store_rel (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) : Type = 

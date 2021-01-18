@@ -289,26 +289,26 @@ let lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_) (vsinit: vtls vc
 
 let lemma_vget_simulates_spec 
       (#vcfg:_)
-      (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls{Spec.Valid? vs'})      
+      (vss:vtls vcfg{Valid? vss})
+      (vsk:Spec.vtls)      
       (e:logS_entry vcfg{Get_S? e})
-  : Lemma (requires (let st = thread_store vs in
+  : Lemma (requires (let st = thread_store vss in
                      let s2k = S.to_slot_state_map st in
-                     vtls_rel vs vs' /\                     
+                     vtls_rel vss vsk /\                     
                      valid_logS_entry s2k e))
-          (ensures (let st = thread_store vs in
+          (ensures (let st = thread_store vss in
                     let s2k = S.to_slot_state_map st in
                     let ek = to_logK_entry s2k e in          
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
-  = admit()
-
+                    vtls_rel (verify_step vss e) (Spec.t_verify_step vsk ek)))
+  = ()
+   
 let lemma_vget_preserves_ismap
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
       (e:logS_entry _{Get_S? e})
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
-  = admit()
+  = ()
 
 let lemma_vput_simulates_spec 
       (#vcfg:_)
@@ -323,7 +323,7 @@ let lemma_vput_simulates_spec
                     let s2k = S.to_slot_state_map st in
                     let ek = to_logK_entry s2k e in          
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
-  = admit()
+  = ()
 
 let lemma_vput_preserves_ismap
       (#vcfg:_)
@@ -331,7 +331,7 @@ let lemma_vput_preserves_ismap
       (e:logS_entry _{Put_S? e})
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
-  = admit()
+  = ()
 
 (* adding a key not in store to vaddm preserves the spec relationship *)
 let lemma_vaddm_preserves_spec_new_key
@@ -467,52 +467,6 @@ let lemma_evictbm_preserves_ismap
 
 
 (* Simulation lemmas for v* functions *)
-
-let lemma_vget_simulates_spec 
-      #vcfg
-      (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls{Spec.Valid? vs'})
-      (s:slot_id vcfg)
-      (k:data_key)
-      (v:data_value)
-  : Lemma (requires (vtls_rel vs vs' /\ 
-                     slot_key_rel vs s k))
-          (ensures (vtls_rel (vget s k v vs) (Spec.vget k v vs')))
-  = ()
-
-let lemma_vget_preserves_inv
-      #vcfg
-      (vs:vtls vcfg{Valid? vs})
-      (s:slot_id vcfg)
-      (k:data_key)
-      (v:data_value)
-  : Lemma (requires (Valid? (vget s k v vs) /\
-                     is_map (thread_store vs)))
-          (ensures (is_map (thread_store (vget s k v vs))))
-  = ()
-
-let lemma_vput_simulates_spec 
-      #vcfg
-      (vs:vtls vcfg{Valid? vs}) 
-      (vs':Spec.vtls{Spec.Valid? vs'}) 
-      (s:slot_id vcfg) 
-      (k:data_key) 
-      (v:data_value) 
-  : Lemma (requires (vtls_rel vs vs' /\
-                     slot_key_rel vs s k))
-          (ensures (vtls_rel (vput s k v vs) (Spec.vput k v vs'))) 
-  = ()
-
-let lemma_vput_preserves_inv
-      #vcfg
-      (vs:vtls vcfg{Valid? vs}) 
-      (s:slot_id vcfg) 
-      (k:data_key) 
-      (v:data_value) 
-  : Lemma (requires (Valid? (vput s k v vs) /\
-                     is_map (thread_store vs)))
-          (ensures (is_map (thread_store (vput s k v vs)))) 
-  = ()
 
 let lemma_vaddm_simulates_spec_if_k_is_new
   #vcfg
