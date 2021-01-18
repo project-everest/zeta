@@ -44,7 +44,7 @@ let to_state_op #vcfg (e:logS_entry vcfg {is_state_op e}): state_op =
   | Get_S _ k v -> Get k v
   | Put_S _ k v -> Put k v
 
-let to_state_op_logS #vcfg (l: logS vcfg) =
+let to_state_ops #vcfg (l: logS vcfg) =
   map to_state_op (filter_refine is_state_op l)
 
 (* 

@@ -288,6 +288,9 @@ val lemma_evictbm_preserves_ismap
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
 
+let init_thread_state #vcfg (tid:thread_id) (st:vstore _): vtls vcfg = 
+  Valid tid st (MkTimestamp 0 0) empty_hash_value empty_hash_value
+
 (*
 
 
@@ -389,50 +392,18 @@ let init_thread_state_valid #vcfg (id:thread_id)
 (** Utilities for running a single verifier thread.
     Follows the definitions in Veritas.Verifier.Thread. **)
 
-let verify #vcfg (tl:thread_id_logS vcfg): vtls _ =
-  t_verify (fst tl) (snd tl)
 
-let tl_verifiable #vcfg (tl: thread_id_logS vcfg): bool =
-  Valid? (verify tl)
 
-let tl_verifiable_log #vcfg = tl: thread_id_logS vcfg {tl_verifiable tl}
 
-val lemma_tl_verifiable_implies_prefix_verifiable
-  (#vcfg:_) (tl:tl_verifiable_log #vcfg) (i:nat{i <= tl_length tl}):
-  Lemma (ensures (tl_verifiable (tl_prefix tl i)))
-
-let tl_clock #vcfg (tl:tl_verifiable_log #vcfg) (i:tl_idx tl): timestamp =
-  let vs = verify #vcfg (tl_prefix tl (i + 1)) in
-  lemma_tl_verifiable_implies_prefix_verifiable tl (i + 1);
-  Valid?.clock (verify #vcfg (tl_prefix tl (i + 1)))
 
 let tl_verify #vcfg (tl:thread_id_logS vcfg) (i:tl_idx tl): vtls _ =
   verify (tl_prefix tl (i + 1))
 
 (* Utilities for running all verifier threads and comparing aggregate add/evict hashes.
    Follows the definitions in Veritas.Verifier.Global. *) 
-let gl_verifiable #vcfg (gl: g_logS vcfg) = 
-  forall (tid:seq_index gl). tl_verifiable (thread_log gl tid)
 
-let gl_verifiable_log vcfg = gl:g_logS vcfg{gl_verifiable gl}
 
-val lemma_gl_verifiable_implies_prefix_verifiable
-  (#vcfg:_) (gl:gl_verifiable_log vcfg) (i:nat{i <= Seq.length gl}):
-  Lemma (ensures (gl_verifiable #vcfg (prefix gl i)))
-        [SMTPat (prefix gl i)]
 
-let rec hadd_aux #vcfg (gl: gl_verifiable_log vcfg)
-  : Tot (ms_hash_value)
-    (decreases (Seq.length gl)) 
-  = let p = Seq.length gl in
-    if p = 0 then empty_hash_value
-    else
-      let gl' = prefix gl (p - 1) in
-      let h1 = hadd_aux gl' in
-      let h2 = thread_hadd (verify (thread_log gl (p - 1))) in
-      ms_hashfn_agg h1 h2
-
-let hadd #vcfg (gl: gl_verifiable_log vcfg): ms_hash_value = hadd_aux gl
 
 let rec hevict_aux #vcfg (gl: gl_verifiable_log vcfg)
   : Tot (ms_hash_value)
@@ -447,8 +418,6 @@ let rec hevict_aux #vcfg (gl: gl_verifiable_log vcfg)
 
 let hevict #vcfg (gl: gl_verifiable_log vcfg): ms_hash_value = hevict_aux gl
 
-let gl_hash_verifiable #vcfg (gl: gl_verifiable_log vcfg): bool = 
-  hadd gl = hevict gl
 
 let gl_hash_verifiable_log vcfg = gl:gl_verifiable_log vcfg{gl_hash_verifiable gl}
 
@@ -491,8 +460,5 @@ val lemma_prefix_verifiable (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length 
   Lemma (ensures (il_verifiable (I.prefix itsl i) /\ clock_sorted (I.prefix itsl i)))
         [SMTPat (I.prefix itsl i)]
 
-// final correctness property
-val lemma_verifier_correct (#vcfg:_) (gl: gl_hash_verifiable_log vcfg { ~ (seq_consistent (to_state_op_glogS gl))})
-  : hash_collision_gen 
 
 *)

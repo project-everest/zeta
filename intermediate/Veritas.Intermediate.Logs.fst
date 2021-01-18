@@ -28,33 +28,9 @@ let lemma_to_logk_index (#vcfg:_) (init_map: slot_state_map vcfg) (l:logS _{cons
   = admit()
 
 (*
-(* Reproducing definitions from Veritas.Verifier.Thread *)
 
-
-let thread_id_of #vcfg (tl: thread_id_logS vcfg): nat = fst tl
-
-let logS_of #vcfg (tl: thread_id_logS vcfg): logS _ = snd tl
-
-let tl_length #vcfg (tl: thread_id_logS vcfg): nat =
-  Seq.length (logS_of tl)
-
-let tl_idx #vcfg (tl: thread_id_logS vcfg) = i:nat{i < tl_length tl}
-
-let tl_index #vcfg (tl: thread_id_logS vcfg) (i:tl_idx tl): logS_entry _ =
-  Seq.index (logS_of tl) i
-
-let tl_prefix #vcfg (tl: thread_id_logS vcfg) (i:nat{i <= tl_length tl}): thread_id_logS _ =
-  (thread_id_of tl), (prefix (logS_of tl) i)
 
 (* Reproducing definitions from Veritas.Verifier.Global *)
-
-let g_logS vcfg = Seq.seq (logS vcfg)
-
-let thread_log #vcfg (gl:g_logS vcfg) (tid:seq_index gl): thread_id_logS _ = 
-   (tid, Seq.index gl tid)
-
-let to_state_op_glogS #vcfg (gl:g_logS vcfg) =
-  map to_state_op_logS gl
 
 (* Reproducing definitions from Veritas.Verifier.TSLog *)
 
