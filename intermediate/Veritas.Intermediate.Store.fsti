@@ -5,6 +5,7 @@ open Veritas.Key
 open Veritas.Record
 open Veritas.SeqAux
 open Veritas.Intermediate.VerifierConfig
+open Veritas.Intermediate.SlotKeyRel
 
 module Spec = Veritas.Verifier
 module FE = FStar.FunctionalExtensionality
@@ -21,8 +22,8 @@ type vstore_entry (vcfg:verifier_config) =
   | VStoreE: k:key -> 
              v:value_type_of k -> 
              am:add_method -> 
-             l_in_store : option (slot_id vcfg){is_merkle_key k \/ None = l_in_store} -> 
-             r_in_store : option (slot_id vcfg){is_merkle_key k \/ None = r_in_store} -> 
+             l_in_store : option (slot_id vcfg) -> 
+             r_in_store : option (slot_id vcfg) -> 
              vstore_entry vcfg
 
 (* vstore_raw: the raw version of the vstore; the actual vstore 
@@ -90,12 +91,25 @@ let points_to #vcfg (st:vstore_raw vcfg) (s1:slot_id vcfg) (s2:slot_id vcfg) =
   points_to_dir st s1 Left s2 ||
   points_to_dir st s1 Right s2
 
+(* the point of this trivial lemma is to trigger the SMTPat below; TODO: is their an idiomatically better way? *)
+let lemma_points_to_dir_implies_points_to #vcfg (st:vstore_raw vcfg) (s1: slot_id vcfg) (d:bin_tree_dir) (s2: slot_id vcfg):
+  Lemma (requires (points_to_dir st s1 d s2))
+        (ensures (points_to st s1 s2))
+        [SMTPat (points_to_dir st s1 d s2)] = ()
+
+(* a pointed slot is inuse *)
+let points_to_inuse_local #vcfg (st:vstore_raw vcfg) (s1 s2: slot_id _) = 
+  points_to st s1 s2 ==> inuse_slot st s2
+
+let points_to_inuse #vcfg (st:vstore_raw vcfg) = 
+  forall (s1 s2: slot_id _). {:pattern (points_to_inuse_local st s1 s2) \/ (points_to st s1 s2)} points_to_inuse_local st s1 s2
+
 (* a node is pointed to by at most one node *)
 let points_to_uniq_local #vcfg (st:vstore_raw vcfg) (s1 s2 s: slot_id vcfg) = 
   not (points_to st s1 s) || not (points_to st s2 s)
 
 let points_to_uniq #vcfg (st:vstore_raw vcfg) = 
-  forall (s1 s2 s: slot_id vcfg). points_to_uniq_local st s1 s2 s
+  forall (s1 s2 s: slot_id vcfg). {:pattern points_to_uniq_local st s1 s2 s} points_to_uniq_local st s1 s2 s
 
 let pointed_to_inv_local #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) = 
   inuse_slot st s ==> 
@@ -106,10 +120,10 @@ let pointed_to_inv_local #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) =
      pointed_slot st s' d = s)
 
 let pointed_to_inv #vcfg (st:vstore_raw vcfg) = 
-  forall (s: slot_id vcfg). pointed_to_inv_local st s
+  forall (s: slot_id vcfg). {:pattern pointed_to_inv_local st s} pointed_to_inv_local st s
 
 (* vstore is a raw store that satisfies the points_to invariant *)
-let vstore vcfg = st:vstore_raw vcfg{points_to_uniq st /\ pointed_to_inv st}
+let vstore vcfg = st:vstore_raw vcfg{points_to_inuse st /\  points_to_uniq st /\ pointed_to_inv st}
 
 let empty_store vcfg:vstore vcfg = Seq.create (store_size vcfg) None
   
@@ -399,6 +413,10 @@ val lemma_store_rel_update_value (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (s
   : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
           (ensures (store_rel (update_value st s v) (Spec.update_store st' k v)))
           [SMTPat (update_value st s v); SMTPat (Spec.update_store st' k v)]
+
+(** Any store can be viewed as an instance of slot-key map *)
+let to_slot_state_map #vcfg (st:vstore_raw vcfg): slot_state_map _ = 
+  fun s -> if inuse_slot st s then Assoc (stored_key st s) else Free
 
 (*
 
