@@ -1086,21 +1086,8 @@ let lemma_prefix_verifiable #vcfg (itsl: its_log vcfg) (i:nat{i <= I.length itsl
   = admit()
 // should follow the proof in Veritas.Verifier.TSLog
 
-let thread_state #vcfg (il:its_log vcfg)
-                 (tid:valid_tid il)
-  : Tot (vs:vtls vcfg{Valid? vs})
-  = verify (thread_log (I.s_seq il) tid)
 
-let il_thread_id_of #vcfg (il: its_log vcfg) (i: I.seq_index il): valid_tid il =
-  fst (I.i2s_map il i)
 
-let thread_state_pre #vcfg (il: its_log vcfg) (i: I.seq_index il): (vs:vtls vcfg{Valid? vs}) = 
-  let tid = il_thread_id_of il i in
-  thread_state (I.prefix il i) tid
-
-let thread_state_post #vcfg (il: its_log vcfg) (i: I.seq_index il): (vs:vtls vcfg{Valid? vs}) = 
-  let tid = il_thread_id_of il i in
-  thread_state (I.prefix il (i + 1)) tid
 
 let t_verify_aux_snoc #vcfg (vs:vtls vcfg) (l:logS vcfg) (e:logS_entry vcfg)
   : Lemma (ensures
@@ -1127,13 +1114,6 @@ let lemma_verifier_thread_state_extend #vcfg (il: its_log vcfg) (i: I.seq_index 
 module SA = Veritas.SeqAux
 module I = Veritas.Interleave
 
-let same_shape #a #b (il:I.interleaving a) (il':I.interleaving b) =
-  let open I in
-  let IL s ss _ = il in
-  let IL s' ss' _ = il' in
-  Seq.length s == Seq.length s' /\
-  Seq.length ss == Seq.length ss' /\
-  (forall (i:SA.seq_index ss). Seq.length (Seq.index ss i) == Seq.length (Seq.index ss i))
 
 let rec ilogS_to_logK #vcfg (il:its_log vcfg) 
   : Tot (sil:SpecTS.il_vlog { same_shape il sil })
@@ -1189,45 +1169,6 @@ let rec ilogS_to_logK #vcfg (il:its_log vcfg)
         IL _ _ res
       )
 
-let lemma_ilogS_to_logK_length #vcfg (il:its_log vcfg)
-  : Lemma (ensures I.length il = I.length (ilogS_to_logK il))
-          [SMTPat (I.length (ilogS_to_logK il))]
-  = ()
-
-let lemma_ilogS_to_logK_thread_count #vcfg (il:its_log vcfg)
-  : Lemma (ensures thread_count il = SpecTS.thread_count (ilogS_to_logK il))
-          [SMTPat (SpecTS.thread_count (ilogS_to_logK il))]
-  = ()
-
-let lemma_ilogS_to_logK_thread_id_of #vcfg (il:its_log vcfg) (i:I.seq_index il)
-  : Lemma (ensures il_thread_id_of il i == SpecTS.thread_id_of (ilogS_to_logK il) i)
-          [SMTPat (SpecTS.thread_id_of (ilogS_to_logK il) i)]
-  = admit()
-
-let lemma_its_log_valid_step #vcfg (il:its_log vcfg) (i:I.seq_index il)
-  : Lemma (ensures Valid? (t_verify_step (thread_state_pre il i) (I.index il i)))
-          [SMTPat (thread_state_pre il i)]
-  = admit()
-
-let lemma_ilogS_to_logK_index #vcfg (il:its_log vcfg) (i:I.seq_index il)
-  : Lemma (I.index (ilogS_to_logK il) i == 
-             Some?.v (logS_to_logK_entry (thread_state_pre il i) (I.index il i)))
-  = admit()
-
-let lemma_ilogS_to_logK_prefix_commute #vcfg (il:its_log vcfg) (i:nat{i <= I.length il})
-  : Lemma (ilogS_to_logK (I.prefix il i) == I.prefix (ilogS_to_logK il) i)
-  = admit()
-
-(* after processing il, the thread store of every verifier thread is a map *)
-let forall_store_ismap #vcfg (il:its_log vcfg)
-  = forall (tid:valid_tid il). 
-      is_map (thread_store (thread_state il tid))
-
-let lemma_forall_store_ismap_specialize #vcfg (il:its_log vcfg) (i:I.seq_index il)
-  : Lemma (requires (forall_store_ismap (I.prefix il i)))
-          (ensures (is_map (thread_store (thread_state_pre il i))))
-  = ()
-
 let lemma_forall_store_ismap_extend #vcfg (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (requires (forall_store_ismap (I.prefix il i) /\ 
                      is_map (thread_store (thread_state_post il i))))
@@ -1246,18 +1187,6 @@ let lemma_forall_store_ismap_extend #vcfg (il:its_log vcfg) (i:I.seq_index il)
         in
     Classical.forall_intro aux
 
-(* the intermediate and spec level verifier states correspond to one-another after processing 
- * il and il', respectively *)
-let forall_vtls_rel #vcfg (il:its_log vcfg) (il':SpecTS.il_vlog) 
-  = thread_count il = SpecTS.thread_count il' /\
-    (forall (tid:valid_tid il). 
-       vtls_rel (thread_state il tid) (SpecTS.thread_state il' tid))
-
-let lemma_forall_vtls_rel_specialize #vcfg (il:its_log vcfg) (i:I.seq_index il)
-  : Lemma (requires (forall_vtls_rel (I.prefix il i) (I.prefix (ilogS_to_logK il) i)))
-          (ensures (vtls_rel (thread_state_pre il i)
-                             (SpecTS.thread_state_pre (ilogS_to_logK il) i)))
-  = ()
 
 let lemma_forall_vtls_rel_extend #vcfg (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (requires (forall_vtls_rel (I.prefix il i) (I.prefix (ilogS_to_logK il) i) /\
@@ -1325,18 +1254,6 @@ let lemma_vtls_rel_and_clock_sorted_implies_spec_clock_sorted #vcfg (il:its_log 
       admit() in
     ()
 
-(* property that:
- *    (a) the intermediate verifiers all satisfy the store invariant
- *    (b) the intermediate and spec level verifiers states correspond to one-another (related)
- *    (c) the spec level log is time sorted (b and c imply that the spec log has type its_log)
- *    (d) the spec level log is evict-add-consistent 
- *)
-let store_inv_rel_spec_eac #vcfg (il: its_log vcfg) = 
-  let il_k = ilogS_to_logK il in
-  forall_store_ismap il /\
-  forall_vtls_rel il il_k /\
-  SpecTS.clock_sorted il_k /\
-  SpecTS.is_eac il_k
 
 (* a union type that contains a hash collision or a proof of store_inv_rel_spec_eac for a specific itsl log *)
 let store_inv_rel_spec_eac_or_hashcollision #vcfg (il:its_log vcfg) = 

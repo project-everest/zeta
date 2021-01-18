@@ -19,7 +19,7 @@ let to_state_ops #vcfg (gl:g_logS vcfg) =
   map IntLog.to_state_ops gl
 
 let verifiable #vcfg (gl: g_logS vcfg) = 
-  forall (tid:seq_index gl). {:pattern IntT.verifiable (thread_log gl tid)} IntT.verifiable (thread_log gl tid)
+  forall (tid:seq_index gl). {:pattern IntT.verify (thread_log gl tid)} IntT.verifiable (thread_log gl tid)
 
 let verifiable_log vcfg = gl:g_logS vcfg{verifiable gl}
 

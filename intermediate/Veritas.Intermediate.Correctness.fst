@@ -1,5 +1,6 @@
 module Veritas.Intermediate.Correctness
 
+(*
 open Veritas.Hash
 open Veritas.Record
 open Veritas.SeqMachine
@@ -12,12 +13,52 @@ open Veritas.Intermediate.VerifierConfig
 
 module I = Veritas.Interleave
 module IntG = Veritas.Intermediate.Global
-module IntTL = Veritas.Intermediate.TSLog
+module IntTS = Veritas.Intermediate.TSLog
+module SpecTS = Veritas.Verifier.TSLog
+
+(* property that:
+ *    (a) the intermediate verifiers all satisfy the store invariant
+ *    (b) the intermediate and spec level verifiers states correspond to one-another (related)
+ *    (c) the spec level log is time sorted (b and c imply that the spec log has type its_log)
+ *    (d) the spec level log is evict-add-consistent 
+ *)
+let store_inv_rel_spec_eac #vcfg (il: IntTS.its_log vcfg) = 
+  let il_k = ilogS_to_logK il in
+  forall_store_ismap il /\
+  forall_vtls_rel il il_k /\
+  SpecTS.clock_sorted il_k /\
+  SpecTS.is_eac il_k
+
+
+
+val lemma_il_hash_verifiable_implies_eac_and_vtls_rel #vcfg (il: il_hash_verifiable_log vcfg)
+  : store_inv_rel_spec_eac_or_hashcollision il     
 
 
 let lemma_time_seq_rw_consistent  #vcfg
   (il: IntTL.hash_verifiable_log vcfg {~ (rw_consistent (IntTL.to_state_ops il))})
-  : hash_collision_gen = admit()
+  : hash_collision_gen = 
+  let tsl = I.i_seq il in  
+  let ts_ops = IntTL.to_state_ops tsl in
+  let hc_or_inv = lemma_il_hash_verifiable_implies_eac_and_vtls_rel il in
+  (* if hc_or_inv returns a hash collision, then we can return the same collision *)
+  if Some? hc_or_inv
+  then Some?.v hc_or_inv
+
+  (* otherwise, we can use the spec-level lemma *)
+  else (
+    assert (store_inv_rel_spec_eac il);
+    
+    let il_k = ilogS_to_logK il in
+
+    lemma_forall_vtls_rel_implies_spec_hash_verifiable il il_k;
+    assert (SpecTS.hash_verifiable il_k);
+
+    lemma_ilogS_to_logK_state_ops il;
+    assert (state_ops il == SpecTS.state_ops il_k);
+
+    SpecC.lemma_time_seq_rw_consistent il_k  
+  )
 
 // final correctness property
 let lemma_verifier_correct (#vcfg:_) (gl: hash_verifiable_log vcfg { ~ (seq_consistent (IntG.to_state_ops gl))})
@@ -50,3 +91,4 @@ let lemma_verifier_correct (#vcfg:_) (gl: hash_verifiable_log vcfg { ~ (seq_cons
     )
     else
       lemma_time_seq_rw_consistent il
+*)
