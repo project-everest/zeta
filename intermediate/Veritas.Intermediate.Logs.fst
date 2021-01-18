@@ -34,16 +34,10 @@ let lemma_to_logk_index (#vcfg:_) (init_map: slot_state_map vcfg) (l:logS _{cons
 
 (* Reproducing definitions from Veritas.Verifier.TSLog *)
 
-let il_logS vcfg = interleaving (logS_entry vcfg)
 
-let thread_count #vcfg (il:il_logS vcfg) = Seq.length (s_seq il)
 
-let valid_tid #vcfg (il:il_logS vcfg) = tid:nat{tid < thread_count il}
 
-let g_logS_of #vcfg (il:il_logS vcfg): g_logS _ = s_seq il
 
-let state_ops #vcfg (itsl:il_logS vcfg): Seq.seq (state_op) =
-  to_state_op_logS (i_seq itsl)
 
 let lemma_logS_interleave_implies_state_ops_interleave #vcfg (l: logS vcfg) (gl: g_logS vcfg{interleave #(logS_entry vcfg) l gl})
   : Lemma (interleave #state_op (to_state_op_logS l) (to_state_op_glogS gl)) 

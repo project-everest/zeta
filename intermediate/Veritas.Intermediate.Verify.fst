@@ -1830,41 +1830,5 @@ let lemma_time_seq_rw_consistent  #vcfg
     SpecC.lemma_time_seq_rw_consistent il_k
   )  
 
-assume val il_create (#vcfg:_) (gl: gl_verifiable_log vcfg): (itsl:its_log vcfg{g_logS_of itsl == gl})
-// should follow the defn in Veritas.Verifier.TSLog
-
-(* final correctness lemma; essentially a copy-and-paste from Veritas.Verifier.Correctness *)
-let lemma_verifier_correct #vcfg (gl: gl_hash_verifiable_log vcfg { ~ (seq_consistent (to_state_op_glogS gl))})
-  : hash_collision_gen 
-  = (* sequences of per-thread put/get operations *)
-    let g_ops = to_state_op_glogS gl in
-
-    (* sequence ordered by time of each log entry *)
-    let il = il_create gl in  
-    I.lemma_interleaving_correct il;
-    assert(I.interleave (I.i_seq il) gl);
-
-    (* sequence of state ops induced by tmsl *)
-    let ts_ops = state_ops il in
-
-    lemma_logS_interleave_implies_state_ops_interleave (I.i_seq il) gl;
-    assert(I.interleave ts_ops g_ops);
-
-    (* if ts_ops is read-write consistent then we have a contradiction *)
-    let is_rw_consistent = valid_all_comp ssm ts_ops in
-    lemma_state_sm_equiv_rw_consistent ts_ops;
-
-    if is_rw_consistent then (
-      assert(valid_all ssm ts_ops);
-      assert(rw_consistent ts_ops);
-
-      (* a contradiction *)
-      assert(seq_consistent g_ops);
-
-      (* any return value *)
-      SingleHashCollision (Collision (DVal Null) (DVal Null))
-    )
-    else
-      lemma_time_seq_rw_consistent il
 
 *)
