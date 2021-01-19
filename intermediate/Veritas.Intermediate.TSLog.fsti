@@ -98,6 +98,11 @@ val lemma_to_logk_thread_id_of (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
 val lemma_to_logk_prefix_commute (#vcfg:_) (il:its_log vcfg) (i:nat{i <= I.length il})
   : Lemma (to_logk (I.prefix il i) == I.prefix (to_logk il) i)
 
+val lemma_to_logk_state_ops (#vcfg:_) (ils:its_log vcfg)
+  : Lemma (ensures (let ilk = to_logk ils in
+                    to_state_ops ils = SpecTS.state_ops ilk))
+          [SMTPat (to_logk ils)]
+
 val lemma_its_log_valid_step (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (ensures Valid? (IntV.verify_step (thread_state_pre il i) (I.index il i)))
           [SMTPat (thread_state_pre il i)]
@@ -117,39 +122,41 @@ val lemma_forall_store_ismap_extend (#vcfg:_) (il:its_log vcfg) (i:I.seq_index i
                      is_map (thread_store (thread_state_post il i))))
           (ensures (forall_store_ismap (I.prefix il (i + 1))))
 
-(* the intermediate and spec level verifier states correspond to one-another after processing 
- * il and il', respectively *)
-let forall_vtls_rel #vcfg (il:its_log vcfg) (il':SpecTS.il_vlog) 
-  = thread_count il = SpecTS.thread_count il' /\
-    (forall (tid:valid_tid il). 
-      {:pattern vtls_rel (thread_state il tid) (SpecTS.thread_state il' tid)}
-       vtls_rel (thread_state il tid) (SpecTS.thread_state il' tid))
+(* 
+ * the property that for an its_log ils, ils and (to_logk ils) are vts_rel 
+ * for every thread 
+ *)
+let forall_vtls_rel #vcfg (ils:its_log vcfg)
+  = let ilk = to_logk ils in    
+    (forall (tid:valid_tid ils). 
+      {:pattern vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid)}
+       vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid))
 
 val lemma_forall_vtls_rel_extend (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils)
   : Lemma (requires (let ils_i = I.prefix ils i in
                      let ilk = to_logk ils in
                      let ilk_i = I.prefix ilk i in                     
-                     forall_vtls_rel ils_i ilk_i /\
+                     forall_vtls_rel ils_i /\
                      vtls_rel (thread_state_post ils i) 
                               (SpecTS.thread_state_post ilk i)))
           (ensures (let ilk = to_logk ils in
                     let ils_i1 = I.prefix ils (i + 1) in
-                    let ilk_i1 = I.prefix ilk (i + 1) in
-                    forall_vtls_rel ils_i1 ilk_i1))
+                    forall_vtls_rel ils_i1))
 
 val lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (ils:its_log vcfg)
-  : Lemma (requires (let ilk = to_logk ils in
-                     forall_vtls_rel ils ilk))
+  : Lemma (requires (forall_vtls_rel ils))
           (ensures (let ilk = to_logk ils in
                     SpecTS.verifiable ilk))
-          [SMTPat (forall_vtls_rel ils (to_logk ils))]
+          [SMTPat (forall_vtls_rel ils)]
 
-(*
 val lemma_vtls_rel_implies_spec_clock_sorted (#vcfg:_) (ils:its_log vcfg)
-  : Lemma (requires (let ilk = to_logk ils in
-                     forall_vtls_rel (I.prefix il i) (I.prefix il' i)  /\
-                     forall_vtls_rel (I.prefix il (i + 1)) (I.prefix il' (i + 1)) /\
-                     SpecTS.clock_sorted (I.prefix il' i)))
-          (ensures (let il' = ilogS_to_logK il in
-                    SpecTS.clock_sorted (I.prefix il' (i + 1))))
-*)
+  : Lemma (requires (forall_vtls_rel ils))
+          (ensures (let ilk = to_logk ils  in
+                    SpecTS.clock_sorted ilk))
+          [SMTPat (forall_vtls_rel ils)]
+
+val lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vcfg)
+  : Lemma (requires (forall_vtls_rel ils))
+          (ensures (let ilk = to_logk ils in
+                    SpecTS.hash_verifiable ilk))
+          [SMTPat (forall_vtls_rel ils)]

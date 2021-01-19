@@ -1,6 +1,5 @@
 module Veritas.Intermediate.Correctness
 
-(*
 open Veritas.Hash
 open Veritas.Record
 open Veritas.SeqMachine
@@ -9,71 +8,77 @@ open Veritas.StateSeqMachine
 open Veritas.Verifier.EAC
 open Veritas.Intermediate.Global
 open Veritas.Intermediate.Thread
+open Veritas.Intermediate.TSLog
 open Veritas.Intermediate.VerifierConfig
 
 module I = Veritas.Interleave
 module IntG = Veritas.Intermediate.Global
 module IntTS = Veritas.Intermediate.TSLog
 module SpecTS = Veritas.Verifier.TSLog
+module SpecC = Veritas.Verifier.Correctness
 
-(* property that:
+(* 
+ * A bunch of properties we use in the induction step:
  *    (a) the intermediate verifiers all satisfy the store invariant
  *    (b) the intermediate and spec level verifiers states correspond to one-another (related)
  *    (c) the spec level log is time sorted (b and c imply that the spec log has type its_log)
  *    (d) the spec level log is evict-add-consistent 
  *)
-let store_inv_rel_spec_eac #vcfg (il: IntTS.its_log vcfg) = 
-  let il_k = ilogS_to_logK il in
-  forall_store_ismap il /\
-  forall_vtls_rel il il_k /\
-  SpecTS.clock_sorted il_k /\
-  SpecTS.is_eac il_k
+let induction_props #vcfg (ils: its_log vcfg) = 
+  let ilk = IntTS.to_logk ils in
+  IntTS.forall_store_ismap ils /\
+  IntTS.forall_vtls_rel ils /\
+  SpecTS.is_eac ilk
 
+let induction_props_or_hash_collision #vcfg (ils: its_log vcfg) = 
+  o:option hash_collision_gen{Some? o \/ induction_props ils}
 
+(* 
+ * induction step: if all the induction properties hold for prefix of length i, 
+ * then the properties hold for prefix of length (i + 1) or we construct 
+ * a hash collision
+ *)
+let inductive_step #vcfg 
+                   (ils: IntTS.hash_verifiable_log vcfg) 
+                   (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                      induction_props ils_i}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  admit()                                      
 
-val lemma_il_hash_verifiable_implies_eac_and_vtls_rel #vcfg (il: il_hash_verifiable_log vcfg)
-  : store_inv_rel_spec_eac_or_hashcollision il     
+let rec lemma_hash_verifiable_implies_induction_props_or_hash_collision #vcfg (ils: hash_verifiable_log vcfg)
+  : Tot (induction_props_or_hash_collision ils)
+    (decreases (I.length ils))
+  = admit()
 
-
-let lemma_time_seq_rw_consistent  #vcfg
-  (il: IntTL.hash_verifiable_log vcfg {~ (rw_consistent (IntTL.to_state_ops il))})
+let lemma_time_seq_rw_consistent #vcfg
+                                 (ils: IntTS.hash_verifiable_log vcfg {~ (rw_consistent (IntTS.to_state_ops ils))})
   : hash_collision_gen = 
-  let tsl = I.i_seq il in  
-  let ts_ops = IntTL.to_state_ops tsl in
-  let hc_or_inv = lemma_il_hash_verifiable_implies_eac_and_vtls_rel il in
+  let ts_ops = IntTS.to_state_ops ils in
+  let hc_or_props = lemma_hash_verifiable_implies_induction_props_or_hash_collision ils in
+  
   (* if hc_or_inv returns a hash collision, then we can return the same collision *)
-  if Some? hc_or_inv
-  then Some?.v hc_or_inv
+  if Some? hc_or_props
+    then Some?.v hc_or_props
 
   (* otherwise, we can use the spec-level lemma *)
-  else (
-    assert (store_inv_rel_spec_eac il);
-    
-    let il_k = ilogS_to_logK il in
-
-    lemma_forall_vtls_rel_implies_spec_hash_verifiable il il_k;
-    assert (SpecTS.hash_verifiable il_k);
-
-    lemma_ilogS_to_logK_state_ops il;
-    assert (state_ops il == SpecTS.state_ops il_k);
-
-    SpecC.lemma_time_seq_rw_consistent il_k  
-  )
+  else 
+    let ilk = IntTS.to_logk ils in
+    SpecC.lemma_time_seq_rw_consistent ilk
+  
 
 // final correctness property
-let lemma_verifier_correct (#vcfg:_) (gl: hash_verifiable_log vcfg { ~ (seq_consistent (IntG.to_state_ops gl))})
+let lemma_verifier_correct (#vcfg:_) (gl: IntG.hash_verifiable_log vcfg { ~ (seq_consistent (IntG.to_state_ops gl))})
   : hash_collision_gen = 
   (* sequences of per-thread put/get operations *)
   let g_ops = IntG.to_state_ops gl in
   
   (* sequence ordered by time of each log entry *)
-  let il = IntTL.create gl in  
+  let il = IntTS.create gl in  
   I.lemma_interleaving_correct il;
   assert(I.interleave (I.i_seq il) gl);
 
   (* sequence of state ops induced by tmsl *)
-  let ts_ops = IntTL.to_state_ops il in
-  IntTL.lemma_logS_interleave_implies_state_ops_interleave (I.i_seq il) gl;
+  let ts_ops = IntTS.to_state_ops il in
+  IntTS.lemma_logS_interleave_implies_state_ops_interleave (I.i_seq il) gl;
   assert(I.interleave ts_ops g_ops);
 
   let is_rw_consistent = valid_all_comp ssm ts_ops in
@@ -91,4 +96,3 @@ let lemma_verifier_correct (#vcfg:_) (gl: hash_verifiable_log vcfg { ~ (seq_cons
     )
     else
       lemma_time_seq_rw_consistent il
-*)
