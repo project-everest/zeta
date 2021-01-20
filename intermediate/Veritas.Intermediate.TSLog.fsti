@@ -3,6 +3,7 @@ module Veritas.Intermediate.TSLog
 open Veritas.Interleave
 open Veritas.SeqAux
 open Veritas.State
+open Veritas.Verifier
 open Veritas.Intermediate.Global
 open Veritas.Intermediate.Logs
 open Veritas.Intermediate.Store
@@ -62,6 +63,10 @@ let thread_state_post #vcfg (il: its_log vcfg) (i: I.seq_index il): (vs:vtls vcf
   let tid = thread_id_of il i in
   thread_state (I.prefix il (i + 1)) tid
 
+val lemma_verifier_thread_state_extend (#vcfg:_) (ils: its_log vcfg) (i: I.seq_index ils):
+  Lemma (ensures (thread_state_post ils i == IntV.verify_step (thread_state_pre ils i) (I.index ils i)))
+        [SMTPat (I.prefix ils i)]
+
 let lemma_logS_interleave_implies_state_ops_interleave #vcfg (l: logS vcfg) (gl: g_logS vcfg{interleave #(logS_entry vcfg) l gl})
   : Lemma (interleave #state_op (IntL.to_state_ops l) (IntG.to_state_ops gl)) 
   = FStar.Squash.bind_squash
@@ -97,6 +102,7 @@ val lemma_to_logk_thread_id_of (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
 
 val lemma_to_logk_prefix_commute (#vcfg:_) (il:its_log vcfg) (i:nat{i <= I.length il})
   : Lemma (to_logk (I.prefix il i) == I.prefix (to_logk il) i)
+          [SMTPat (I.prefix il i)]
 
 val lemma_to_logk_state_ops (#vcfg:_) (ils:its_log vcfg)
   : Lemma (ensures (let ilk = to_logk ils in
@@ -107,6 +113,17 @@ val lemma_its_log_valid_step (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (ensures Valid? (IntV.verify_step (thread_state_pre il i) (I.index il i)))
           [SMTPat (thread_state_pre il i)]
 
+val lemma_valid_logs_entry (#vcfg:_) (il: its_log vcfg) (i:I.seq_index il)
+  : Lemma (ensures (IntV.valid_logS_entry (thread_state_pre il i) (I.index il i)))
+          [SMTPat (I.index il i)]
+
+let to_logK_entry #vcfg (il:its_log vcfg) (i:I.seq_index il) = 
+  IntV.to_logK_entry (thread_state_pre il i) (I.index il i)
+
+val lemma_to_logk_index (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils)
+  : Lemma (ensures (I.index (to_logk ils) i == to_logK_entry ils i))
+          [SMTPat (I.index ils i)]
+            
 (* after processing il, the thread store of every verifier thread is a map *)
 let forall_store_ismap #vcfg (il:its_log vcfg)
   = forall (tid:valid_tid il). 
