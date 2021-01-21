@@ -104,6 +104,36 @@ let lemma_vaddm_preserves_ismap_new_key
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
    = admit()
 
+let lemma_addm_props (#vcfg:_)
+                     (vs:vtls vcfg{Valid? vs})
+                     (e:logS_entry _{AddM_S? e}):
+  Lemma (requires (Valid? (verify_step vs e)))
+        (ensures (let AddM_S s (k,v) s' = e in
+                  let st = thread_store vs in
+                  inuse_slot st s' /\
+                  (let k' = stored_key st s' in
+                   is_proper_desc k k' /\
+                   is_merkle_key k' /\
+                   (let mv' = to_merkle_value (stored_value st s') in
+                    let d = desc_dir k k' in
+                    (mv_points_to_none mv' d || 
+                     is_desc (mv_pointed_key mv' d) k))))) = 
+  let AddM_S s (k, v) s' = e in
+  let st = thread_store vs in
+  // assert(inuse_slot st s');
+  
+  let k' = stored_key st s' in
+  assert(is_proper_desc k k');
+  assert(is_merkle_key k');
+  let mv' = to_merkle_value (stored_value st s') in
+  let d = desc_dir k k' in
+  let dh' = desc_hash_dir mv' d in
+  match dh' with
+  | Empty -> ()
+  | Desc k2 _ _  -> 
+    if k2 = k then lemma_desc_reflexive k
+    else ()
+
 (* addb preserves spec relationship if the kew is not in store *)
 let lemma_vaddb_preserves_spec_new_key
       (#vcfg:_)

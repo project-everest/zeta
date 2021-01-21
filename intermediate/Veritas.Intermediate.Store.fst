@@ -162,6 +162,11 @@ let lemma_ismap_update_value
   : Lemma (ensures (is_map (update_value st s v)))
   = admit()
 
+let lemma_ismap_correct (#vcfg:_) (st:ismap_vstore vcfg) (s1 s2: inuse_slot_id st)
+  : Lemma (requires (stored_key st s1 = stored_key st s2))
+          (ensures (s1 = s2))
+  = admit()
+  
 let as_map (#vcfg:_) (st:ismap_vstore vcfg) : Spec.vstore = admit()
 
 let lemma_as_map_empty (vcfg:_)

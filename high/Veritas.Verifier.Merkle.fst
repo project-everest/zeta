@@ -4119,3 +4119,12 @@ let lemma_init_ancestor_ancestor_of_proving (itsl: TL.eac_log) (k:key) (k':key{i
     // assert(desc_dir k k' = d);
     lemma_reachable_between pf pk k'
   )
+
+let lemma_mv_points_to_dir_correct (itsl: TL.eac_log) (k:merkle_key) (d:bin_tree_dir):
+  Lemma (requires (let mv = eac_merkle_value itsl k in
+                   mv_points_to_some mv d))
+        (ensures (let mv = eac_merkle_value itsl k in
+                  let kd = mv_pointed_key mv d in
+                  is_proper_desc kd k /\
+                  d = desc_dir kd k)) =
+  lemma_eac_value_empty_or_points_to_desc itsl k d

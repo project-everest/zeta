@@ -333,6 +333,11 @@ val lemma_ismap_update_value (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id s
   : Lemma (ensures (is_map (update_value st s v)))
           [SMTPat (update_value st s v)]
 
+(* if two slots of an ismap store contain the same key, then the two slots should be identical *)
+val lemma_ismap_correct (#vcfg:_) (st:ismap_vstore vcfg) (s1 s2: inuse_slot_id st)
+  : Lemma (requires (stored_key st s1 = stored_key st s2))
+          (ensures (s1 = s2))
+
 (*
 (* is_map is preserved when adding a new key *)
 val lemma_add_to_store_is_map1
