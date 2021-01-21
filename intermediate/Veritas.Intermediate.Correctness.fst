@@ -433,8 +433,6 @@ let inductive_step_addm #vcfg
                        (i:I.seq_index ils{let ils_i = I.prefix ils i in
                                           induction_props ils_i /\
                                           AddM_S? (I.index ils i)}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
-    admit()
-(*                                          
   let tid = IntTS.thread_id_of ils i in                                          
   let ilk = to_logk ils in  
   let ils_i = I.prefix ils i in
@@ -453,97 +451,34 @@ let inductive_step_addm #vcfg
   | AddM_S s (k,v) s' ->
     let sts = IntV.thread_store vss_i in
     let stk = SpecV.thread_store vsk_i in
-
-    assert(inuse_slot sts s');
-    assert(empty_slot sts s);
     let k' = stored_key sts s' in
-    let v' = stored_value sts s' in
-    let mv' = to_merkle_value v' in
-    assert(ek = AddM (k, v) k');
     
-    // assert(vtls_rel vss_i vsk_i);
-    // assert(Valid? vss_i);
-    // assert(store_rel sts_i stk_i);
-
-    if store_contains_key sts k then (
-      // lemma_store_rel_contains_key sts_i stk_i k;
-      (* since the int-store contains the key k, then spec store also contains key k *)
-      assert(SpecV.store_contains stk k); 
-
-      (* so Spec verifier fails *)
-      assert(SpecV.Failed? vsk_i1);
-      
-      (* this implies we need to show that IntV fails as well - which yields a contradiction *)
-      
-      (* sk is some slot that contains key k *)
-      let sk = slot_of_key sts k in      
-      let amk = add_method_of sts sk in
-
-      if amk = SpecV.MAdd then (
-        assert (k <> Root);
-        
-        (* since slot sk was added using merkle, there exists another slot pointing to sk, say sk' *)
+    if store_contains_key sts k then
+      let sk = slot_of_key sts k in
+      let pk = proving_ancestor ils i sk in
+      if pk <> k' then
+        inductive_step_addm_caseE ils i sk
+      else if add_method_of sts sk = MAdd then (
         let sk_anc = IntS.pointing_slot sts sk in
-        assert(points_to sts sk_anc sk);
+        assert(inuse_slot sts sk_anc);
 
-        (* direction in which sk_anc -> sk *)
         let d_anc = if points_to_dir sts sk_anc Left sk then Left else Right in
-        assert(points_to_dir sts sk_anc d_anc sk);
-
-        (* we have the invariant that merkle value stored in sk_anc points to sk *)
         assert(slot_points_to_is_merkle_points_to_local sts sk_anc sk d_anc);
-
-        let mv_anc = to_merkle_value (stored_value sts sk_anc) in
-        assert(mv_points_to mv_anc d_anc k);
-
+        // let mv_anc = to_merkle_value (stored_value sts sk_anc) in        
         let k_anc = stored_key sts sk_anc in
 
-        (* store invariant says that spec store contains k_anc with the same value *)
-        assert(SpecV.store_contains stk k_anc);
-        assert(SpecV.stored_value stk k_anc = stored_value sts sk_anc);
         SpecTS.lemma_eac_value_is_stored_value ilk_i k_anc tid;
-        assert(mv_anc = eac_merkle_value ilk_i k_anc);
+        // assert(mv_anc = eac_merkle_value ilk_i k_anc);
         lemma_points_to_implies_proving_ancestor ilk_i k k_anc d_anc;
-        assert(k_anc = proving_ancestor ilk_i k);
+        // assert(k_anc = SpecM.proving_ancestor ilk_i k);
         
-
-        assert(is_proper_desc k k');      
-        let d = desc_dir k k' in
-        assert(SpecV.store_contains stk k');
-        assert(is_merkle_key k');
-
-        if k_anc = k' then (
-          assume (sk_anc = s');
-          assume (d = d_anc);
-          None
-        )
-        else (
-          assert(SpecV.store_contains stk k');
-
-          // SpecTS.lemma_instore_implies_eac_state_instore ilk_i k' tid;
-          // lemma_init_ancestor_ancestor_of_proving ilk_i k k';
-
-          // let v':value_type_of k' = stored_value sts s' in
-          // assert(MVal? v');
-          // let mv' = to_merkle_value v' in
-          // let dh' = desc_hash_dir v' d in
-
-          admit()
-          (*
-          match dh' with
-          | Empty ->
-            admit()
-          | _ -> admit()
-          *)
-        )
+        inductive_step_addm_caseB ils i sk sk_anc
       )
-      else (
-        admit()      
-      )
-    )
+      else 
+        inductive_step_addm_caseD ils i sk
+    
     else 
       inductive_step_addm_caseA ils i
-*)
 
 (* 
  * induction step: if all the induction properties hold for prefix of length i, 
