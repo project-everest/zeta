@@ -67,6 +67,10 @@ val lemma_verifier_thread_state_extend (#vcfg:_) (ils: its_log vcfg) (i: I.seq_i
   Lemma (ensures (thread_state_post ils i == IntV.verify_step (thread_state_pre ils i) (I.index ils i)))
         [SMTPat (I.prefix ils i)]
 
+val lemma_slot_is_merkle_points_to (#vcfg:_) (ils: its_log vcfg) (i: I.seq_index ils):
+  Lemma (ensures (slot_points_to_is_merkle_points_to (IntV.thread_store (thread_state_pre ils i))))
+        [SMTPat (I.prefix ils i)]
+
 let lemma_logS_interleave_implies_state_ops_interleave #vcfg (l: logS vcfg) (gl: g_logS vcfg{interleave #(logS_entry vcfg) l gl})
   : Lemma (interleave #state_op (IntL.to_state_ops l) (IntG.to_state_ops gl)) 
   = FStar.Squash.bind_squash

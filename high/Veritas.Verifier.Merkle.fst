@@ -4065,3 +4065,57 @@ let lemma_store_contains_proving_ancestor (itsl: TL.eac_log)
   else 
     lemma_store_contains_proving_ancestor_aux itsl k
   
+(* if a key pk points to key k, then pk is the proving ancestor of k; (inverse of 
+ * lemma_proving_ancestor_points_to_self *)
+let lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{is_proper_desc k k'}):
+  Lemma (requires (let d = desc_dir k k' in
+                   let mv = eac_merkle_value itsl k' in                   
+                   mv_points_to mv d k))
+        (ensures (proving_ancestor itsl k = k')) = 
+  let pf = eac_ptrfn itsl in   
+  assert(eac_value itsl k' <> init_value k');  
+  
+  let aux () : 
+    Lemma (root_reachable itsl k') = 
+      if k' = Root then lemma_reachable_reflexive pf k'
+      else if is_eac_state_init itsl k' then 
+        lemma_eac_value_init itsl k'
+      else
+        lemma_not_init_equiv_root_reachable itsl k'
+  in
+  aux();
+  lemma_points_to_reachable pf k k';
+  lemma_reachable_transitive pf k k' Root;
+  assert(root_reachable itsl k);
+  lemma_points_to_is_prev pf k Root k'
+
+let lemma_init_ancestor_ancestor_of_proving (itsl: TL.eac_log) (k:key) (k':key{is_proper_desc k k'}):
+  Lemma (requires (not (is_eac_state_init itsl k') /\
+                   k' <> proving_ancestor itsl k))
+        (ensures (let d = desc_dir k k' in
+                  let mv = eac_merkle_value itsl k' in
+                  let pk = proving_ancestor itsl k in
+                  mv_points_to_some mv d /\
+                  is_desc pk (mv_pointed_key mv d))) = 
+  let pf = eac_ptrfn itsl in
+  let pk = proving_ancestor itsl k in
+  let aux() :
+    Lemma (root_reachable itsl k') = 
+      if k' = Root then lemma_reachable_reflexive pf k'
+      else lemma_not_init_equiv_root_reachable itsl k'
+  in
+  aux();
+  // assert(root_reachable itsl k');
+  lemma_proving_ancestor_greatest_depth itsl k k';
+  // assert(depth k' <= depth pk);
+
+  lemma_two_ancestors_related k k' pk;
+  if is_desc k' pk then 
+    lemma_proper_desc_depth_monotonic k' pk
+  else (
+    let d = desc_dir pk k' in
+    lemma_desc_transitive k pk (child d k');
+    // assert(desc_dir k k' = d);
+    lemma_reachable_between pf pk k'
+  )
+

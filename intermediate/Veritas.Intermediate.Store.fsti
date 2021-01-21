@@ -456,3 +456,19 @@ val lemma_store_rel_evict_from_store (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore
           (ensures (store_rel (evict_from_store st s) (Spec.evict_from_store st' k)))
           [SMTPat (evict_from_store st s); SMTPat (Spec.evict_from_store st' k)]
 *)
+
+(* the property that slot pointing to implies merkle value pointing to *)
+let slot_points_to_is_merkle_points_to_local
+  (#vcfg:_) 
+  (st: vstore vcfg)
+  (s1 s2: slot_id vcfg)
+  (d: bin_tree_dir{points_to_dir st s1 d s2}) =  
+    points_to_dir st s1 d s2 ==> 
+    (let k1 = stored_key st s1 in
+     let k2 = stored_key st s2 in
+     is_merkle_key k1 /\
+     (let v1 = to_merkle_value (stored_value st s1) in
+      mv_points_to v1 d k2))
+
+let slot_points_to_is_merkle_points_to (#vcfg:_) (st: vstore vcfg) = 
+  forall (s1 s2: slot_id _). forall d. slot_points_to_is_merkle_points_to_local st s1 s2 d

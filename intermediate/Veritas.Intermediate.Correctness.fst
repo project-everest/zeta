@@ -1,5 +1,6 @@
 module Veritas.Intermediate.Correctness
 
+open Veritas.BinTree
 open Veritas.Hash
 open Veritas.Record
 open Veritas.SeqMachine
@@ -9,6 +10,7 @@ open Veritas.Verifier
 open Veritas.Verifier.EAC
 open Veritas.Intermediate.Global
 open Veritas.Intermediate.Logs
+open Veritas.Intermediate.Store
 open Veritas.Intermediate.Thread
 open Veritas.Intermediate.TSLog
 open Veritas.Intermediate.Verify
@@ -20,6 +22,7 @@ module IntG = Veritas.Intermediate.Global
 module IntV = Veritas.Intermediate.Verify
 module IntS = Veritas.Intermediate.Store
 module IntTS = Veritas.Intermediate.TSLog
+module SpecV = Veritas.Verifier
 module SpecTS = Veritas.Verifier.TSLog
 module SpecC = Veritas.Verifier.Correctness
 
@@ -108,6 +111,108 @@ let inductive_step_put #vcfg
       Some (lemma_non_eac_put_implies_hash_collision ilk_i1)
     )  
 
+let lemma_induction_props_implies_vtls_rel #vcfg
+                                           (ils: its_log vcfg)
+                                           (i:I.seq_index ils{induction_props (I.prefix ils i)})
+  : Lemma (ensures (let ilk = IntTS.to_logk ils in
+                    let vss_i = IntTS.thread_state_pre ils i in
+                    let vsk_i = SpecTS.thread_state_pre ilk i in
+                    vtls_rel vss_i vsk_i))
+          [SMTPat (I.prefix ils i)]
+  = ()                    
+
+let inductive_step_addm #vcfg 
+                       (ils: IntTS.hash_verifiable_log vcfg) 
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                          induction_props ils_i /\
+                                          AddM_S? (I.index ils i)}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+
+  let ek = I.index ilk i in
+
+  match es with
+  | AddM_S s (k,v) s' ->
+    let sts = IntV.thread_store vss_i in
+    let stk = SpecV.thread_store vsk_i in
+
+    assert(inuse_slot sts s');
+    assert(empty_slot sts s);
+    let k' = stored_key sts s' in
+    assert(ek = AddM (k, v) k');
+    // assert(vtls_rel vss_i vsk_i);
+    // assert(Valid? vss_i);
+    // assert(store_rel sts_i stk_i);
+
+    if store_contains_key sts k then (
+      // lemma_store_rel_contains_key sts_i stk_i k;
+      (* since the int-store contains the key k, then spec store also contains key k *)
+      assert(SpecV.store_contains stk k); 
+
+      (* so Spec verifier fails *)
+      assert(SpecV.Failed? vsk_i1);
+      
+      (* this implies we need to show that IntV fails as well - which yields a contradiction *)
+      
+      (* sk is some slot that contains key k *)
+      let sk = slot_of_key sts k in      
+      let amk = add_method_of sts sk in
+
+      if amk = SpecV.MAdd then (
+        assert (k <> Root);
+        
+        (* since slot sk was added using merkle, there exists another slot pointing to sk, say sk' *)
+        let sk_anc = IntS.pointing_slot sts sk in
+        assert(points_to sts sk_anc sk);
+
+        (* direction in which sk_anc -> sk *)
+        let d = if points_to_dir sts sk_anc Left sk then Left else Right in
+        assert(points_to_dir sts sk_anc d sk);
+
+        (* we have the invariant that merkle value stored in sk_anc points to sk *)
+        assert(slot_points_to_is_merkle_points_to_local sts sk_anc sk d);
+
+        let mv_anc = to_merkle_value (stored_value sts sk_anc) in
+        assert(mv_points_to mv_anc d k);
+
+        let k_anc = stored_key sts sk_anc in
+
+        (* store invariant says that spec store contains k_anc with the same value *)
+        assert(SpecV.store_contains stk k_anc);
+        assert(SpecV.stored_value stk k_anc = stored_value sts sk_anc);
+
+        
+
+
+        admit()
+      )
+      else
+        admit()
+      
+    )
+    else (
+      (* k does not exist in current store so it is a new key *)
+      lemma_vaddm_preserves_spec_new_key vss_i vsk_i es;
+      lemma_forall_vtls_rel_extend ils i;              
+      lemma_vaddm_preserves_ismap_new_key vss_i es;
+      lemma_forall_store_ismap_extend ils i;      
+      if SpecTS.is_eac ilk_i1 then
+        None    
+      else (
+        lemma_eac_boundary_inv ilk_i1 i;
+        Some (lemma_non_eac_addm_implies_hash_collision ilk_i1)
+      )
+    )
+
 (* 
  * induction step: if all the induction properties hold for prefix of length i, 
  * then the properties hold for prefix of length (i + 1) or we construct 
@@ -121,6 +226,7 @@ let inductive_step #vcfg
   match es with
   | IntL.Get_S _ _ _ -> inductive_step_get ils i
   | IntL.Put_S _ _ _ -> inductive_step_put ils i  
+  | IntL.AddM_S _ _ _ -> inductive_step_addm ils i
   | _ -> admit()                                      
 
 let lemma_empty_implies_induction_props #vcfg (ils: its_log vcfg{I.length ils = 0})
