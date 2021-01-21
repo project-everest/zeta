@@ -80,7 +80,6 @@ val lemma_store_contains_proving_ancestor (itsl: TL.eac_log)
                                  store_contains (TL.thread_store itsl tid)
                                  (proving_ancestor itsl k)))
 
-
 (* if a key pk points to key k, then pk is the proving ancestor of k; (inverse of 
  * lemma_proving_ancestor_points_to_self *)
 val lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{is_merkle_key k'}) (d:bin_tree_dir):
@@ -93,7 +92,7 @@ val lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{
  * ensures: k' points to something along direction (k' -> k) and that something is an ancestor of pk
  *) 
 val lemma_init_ancestor_ancestor_of_proving (itsl: TL.eac_log) (k:key) (k':key{is_proper_desc k k'}):
-  Lemma (requires (not (is_eac_state_init itsl k') /\
+  Lemma (requires ((k' = Root \/ not (is_eac_state_init itsl k')) /\
                    k' <> proving_ancestor itsl k))
         (ensures (let d = desc_dir k k' in
                   let mv = eac_merkle_value itsl k' in

@@ -123,6 +123,103 @@ let lemma_induction_props_implies_vtls_rel #vcfg
           [SMTPat (I.prefix ils i)]
   = ()                    
 
+let inductive_step_addm_caseA #vcfg 
+                              (ils: IntTS.hash_verifiable_log vcfg) 
+                              (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                                 let vss_i = IntTS.thread_state_pre ils i in
+                                                 let sts = IntV.thread_store vss_i in
+                                                 induction_props ils_i /\
+                                                 AddM_S? (I.index ils i) /\                                                 
+                                                 (let AddM_S s (k,v) s' = I.index ils i in
+                                                  not (store_contains_key sts k))})
+  : induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let tid = IntTS.thread_id_of ils i in                                          
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  
+  let ek = I.index ilk i in
+
+  match es with
+  | AddM_S s (k,v) s' ->
+    let sts = IntV.thread_store vss_i in
+    let stk = SpecV.thread_store vsk_i in
+    lemma_vaddm_preserves_spec_new_key vss_i vsk_i es;
+    lemma_forall_vtls_rel_extend ils i;              
+    lemma_vaddm_preserves_ismap_new_key vss_i es;
+    lemma_forall_store_ismap_extend ils i;      
+    if SpecTS.is_eac ilk_i1 then
+      None    
+    else (
+      lemma_eac_boundary_inv ilk_i1 i;
+      Some (lemma_non_eac_addm_implies_hash_collision ilk_i1)
+    )    
+
+let inductive_step_addm_caseB #vcfg 
+                              (ils: IntTS.hash_verifiable_log vcfg)                               
+                              (i:I.seq_index ils)
+                              (sk: slot_id vcfg)
+                              (sk_anc: slot_id vcfg{let ils_i = I.prefix ils i in
+                                                    let vss_i = IntTS.thread_state_pre ils i in
+                                                    let sts = IntV.thread_store vss_i in                                                    
+                                                    induction_props ils_i /\
+                                                    AddM_S? (I.index ils i) /\
+                                                    inuse_slot sts sk /\ inuse_slot sts sk_anc /\
+                                                    (let AddM_S s (k,v) s' = I.index ils i in
+                                                     let k_anc = stored_key sts sk_anc in
+                                                     let k' = stored_key sts s' in                                                      
+                                                     stored_key sts sk = k /\ k_anc <> k' /\ points_to sts sk_anc sk)})
+  : induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+
+  let ek = I.index ilk i in
+
+  match es with
+  | AddM_S s (k,v) s' ->
+    let sts = IntV.thread_store vss_i in
+    let stk = SpecV.thread_store vsk_i in
+    let d_anc = if points_to_dir sts sk_anc Left sk then Left else Right in
+    
+    (* we have the invariant that merkle value stored in sk_anc points to sk *)
+    assert(slot_points_to_is_merkle_points_to_local sts sk_anc sk d_anc);
+    
+    let mv_anc = to_merkle_value (stored_value sts sk_anc) in
+    assert(mv_points_to mv_anc d_anc k);
+    
+    admit()
+
+  (*
+  let tid = IntTS.thread_id_of ils i in                                          
+  
+  let ek = I.index ilk i in
+
+  match es with
+  | AddM_S s (k,v) s' ->
+    let sts = IntV.thread_store vss_i in
+    let stk = SpecV.thread_store vsk_i in
+
+    let sk = slot_of_key sts k in      
+  
+    admit()
+  *)
+
+
 let inductive_step_addm #vcfg 
                        (ils: IntTS.hash_verifiable_log vcfg) 
                        (i:I.seq_index ils{let ils_i = I.prefix ils i in
@@ -150,7 +247,10 @@ let inductive_step_addm #vcfg
     assert(inuse_slot sts s');
     assert(empty_slot sts s);
     let k' = stored_key sts s' in
+    let v' = stored_value sts s' in
+    let mv' = to_merkle_value v' in
     assert(ek = AddM (k, v) k');
+    
     // assert(vtls_rel vss_i vsk_i);
     // assert(Valid? vss_i);
     // assert(store_rel sts_i stk_i);
@@ -196,30 +296,43 @@ let inductive_step_addm #vcfg
         lemma_points_to_implies_proving_ancestor ilk_i k k_anc d_anc;
         assert(k_anc = proving_ancestor ilk_i k);
         
-        assert(is_proper_desc k k');
+
+        assert(is_proper_desc k k');      
+        let d = desc_dir k k' in
         assert(SpecV.store_contains stk k');
         assert(is_merkle_key k');
-        let v' = to_merkle_value (stored_value sts s') in
-        
 
-        admit()
+        if k_anc = k' then (
+          assume (sk_anc = s');
+          assume (d = d_anc);
+          None
+        )
+        else (
+          assert(SpecV.store_contains stk k');
+
+          // SpecTS.lemma_instore_implies_eac_state_instore ilk_i k' tid;
+          // lemma_init_ancestor_ancestor_of_proving ilk_i k k';
+
+          // let v':value_type_of k' = stored_value sts s' in
+          // assert(MVal? v');
+          // let mv' = to_merkle_value v' in
+          // let dh' = desc_hash_dir v' d in
+
+          admit()
+          (*
+          match dh' with
+          | Empty ->
+            admit()
+          | _ -> admit()
+          *)
+        )
       )
-      else
-        admit()      
-    )
-    else (
-      (* k does not exist in current store so it is a new key *)
-      lemma_vaddm_preserves_spec_new_key vss_i vsk_i es;
-      lemma_forall_vtls_rel_extend ils i;              
-      lemma_vaddm_preserves_ismap_new_key vss_i es;
-      lemma_forall_store_ismap_extend ils i;      
-      if SpecTS.is_eac ilk_i1 then
-        None    
       else (
-        lemma_eac_boundary_inv ilk_i1 i;
-        Some (lemma_non_eac_addm_implies_hash_collision ilk_i1)
+        admit()      
       )
     )
+    else 
+      inductive_step_addm_caseA ils i
 
 (* 
  * induction step: if all the induction properties hold for prefix of length i, 

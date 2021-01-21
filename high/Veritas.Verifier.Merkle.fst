@@ -4091,7 +4091,7 @@ let lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{
   lemma_points_to_is_prev pf k Root k'
 
 let lemma_init_ancestor_ancestor_of_proving (itsl: TL.eac_log) (k:key) (k':key{is_proper_desc k k'}):
-  Lemma (requires (not (is_eac_state_init itsl k') /\
+  Lemma (requires ((k' = Root \/ not (is_eac_state_init itsl k')) /\
                    k' <> proving_ancestor itsl k))
         (ensures (let d = desc_dir k k' in
                   let mv = eac_merkle_value itsl k' in
@@ -4119,5 +4119,3 @@ let lemma_init_ancestor_ancestor_of_proving (itsl: TL.eac_log) (k:key) (k':key{i
     // assert(desc_dir k k' = d);
     lemma_reachable_between pf pk k'
   )
-
-  
