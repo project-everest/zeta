@@ -181,3 +181,7 @@ val lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vc
           (ensures (let ilk = to_logk ils in
                     SpecTS.hash_verifiable ilk))
           [SMTPat (forall_vtls_rel ils)]
+
+let spec_rel #vcfg (ils: its_log vcfg) = 
+  forall_store_ismap ils /\
+  forall_vtls_rel ils

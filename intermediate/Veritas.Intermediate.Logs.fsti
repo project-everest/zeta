@@ -47,6 +47,17 @@ let to_state_op #vcfg (e:logS_entry vcfg {is_state_op e}): state_op =
 let to_state_ops #vcfg (l: logS vcfg) =
   map to_state_op (filter_refine is_state_op l)
 
+let is_blum_add #vcfg (e: logS_entry vcfg): bool = 
+  match e with
+  | AddB_S _ _ _ _ -> true
+  | _ -> false
+
+let is_evict_to_blum #vcfg (e:logS_entry vcfg): bool = 
+  match e with
+  | EvictB_S _ _ -> true
+  | EvictBM_S _ _ _ -> true
+  | _ -> false
+
 (* 
  * Given a slot -> key mapping, we define a boolean whether a log entry is valid.
  * This definition checks if the slots are used correctly:
@@ -79,7 +90,7 @@ let to_logK_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg{valid_log
   | EvictM_S s s' -> Spec.EvictM (assoc_key ssm s) (assoc_key ssm s')
   | EvictB_S s t -> Spec.EvictB (assoc_key ssm s) t
   | EvictBM_S s s' t -> Spec.EvictBM (assoc_key ssm s) (assoc_key ssm s') t
-  
+
 (* 
  * define a state machine over slot_states; to allow for "failures" where the log 
  * uses slot states in an inconsistent manner (e.g., evict a slot without adding to it) 

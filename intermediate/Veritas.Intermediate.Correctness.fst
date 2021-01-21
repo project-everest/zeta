@@ -36,12 +36,13 @@ module SpecC = Veritas.Verifier.Correctness
  *    (b) the intermediate and spec level verifiers states correspond to one-another (related)
  *    (c) the spec level log is time sorted (b and c imply that the spec log has type its_log)
  *    (d) the spec level log is evict-add-consistent 
+ * TODO: rename this
  *)
 let induction_props #vcfg (ils: its_log vcfg) = 
-  let ilk = IntTS.to_logk ils in
-  IntTS.forall_store_ismap ils /\
-  IntTS.forall_vtls_rel ils /\
+  let ilk = to_logk ils in
+  spec_rel ils /\
   SpecTS.is_eac ilk
+
 
 let induction_props_or_hash_collision #vcfg (ils: its_log vcfg) = 
   o:option hash_collision_gen{Some? o \/ induction_props ils}
@@ -413,6 +414,106 @@ let inductive_step_addm #vcfg
     else 
       inductive_step_addm_caseA ils i
 
+let inductive_step_evictm #vcfg 
+                       (ils: IntTS.hash_verifiable_log vcfg) 
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                          induction_props ils_i /\
+                                          EvictM_S? (I.index ils i)}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let tid = IntTS.thread_id_of ils i in                                          
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  
+  let ek = I.index ilk i in
+
+  match es with
+  | EvictM_S s s' ->
+    lemma_evictm_simulates_spec vss_i vsk_i es;
+    lemma_forall_vtls_rel_extend ils i;    
+    lemma_evictm_preserves_ismap vss_i es;
+    lemma_forall_store_ismap_extend ils i;
+    
+    if SpecTS.is_eac ilk_i1 then
+      None    
+    else (
+      lemma_eac_boundary_inv ilk_i1 i;
+      Some (lemma_non_eac_evictm_implies_hash_collision ilk_i1)
+    )
+
+
+let inductive_step_addb_neac #vcfg 
+                       (ils: IntTS.hash_verifiable_log vcfg) 
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                          let ils_i1 = I.prefix ils (i + 1) in
+                                          let vss_i = IntTS.thread_state_pre ils i in
+                                          let sts = IntV.thread_store vss_i in
+                                          let ilk_i = to_logk ils_i in
+                                          let ilk_i1 = to_logk ils_i1 in
+                                          induction_props ils_i /\
+                                          spec_rel ils_i1 /\
+                                          AddB_S? (I.index ils i) /\
+                                          not (SpecTS.is_eac ilk_i1) /\
+                                          SpecTS.is_eac ilk_i
+                                          }): 
+  induction_props_or_hash_collision (I.prefix ils (i + 1)) =
+  let ils_i = I.prefix ils i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let vss_i = IntTS.thread_state_pre ils i in
+  let sts = IntV.thread_store vss_i in                       
+  let ilk_i1 = to_logk ils_i1 in  
+  lemma_eac_boundary_inv ilk_i1 i;
+  assert(SpecTS.eac_boundary ilk_i1 = i);
+  
+  admit()                                          
+
+
+let inductive_step_addb_caseA #vcfg 
+                       (ils: IntTS.hash_verifiable_log vcfg) 
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                          let vss_i = IntTS.thread_state_pre ils i in
+                                          let sts = IntV.thread_store vss_i in                       
+                                          induction_props ils_i /\
+                                          AddB_S? (I.index ils i) /\
+                                          (let AddB_S _ (k,_) _ _ = I.index ils i in
+                                           not (store_contains_key sts k)                                          
+                                          )}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let tid = IntTS.thread_id_of ils i in                                          
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  
+  let ek = I.index ilk i in
+
+  match es with
+  | AddB_S s (k,v) t j ->
+    lemma_vaddb_preserves_spec_new_key vss_i vsk_i es;
+    lemma_forall_vtls_rel_extend ils i;    
+    lemma_vaddb_preserves_ismap_new_key vss_i es;
+    lemma_forall_store_ismap_extend ils i;
+
+    if SpecTS.is_eac ilk_i1 then None
+    else (
+      lemma_eac_boundary_inv ilk_i1 i;
+      assert(SpecTS.eac_boundary ilk_i1 = i);
+      
+      admit()
+    )
+
+
 (* 
  * induction step: if all the induction properties hold for prefix of length i, 
  * then the properties hold for prefix of length (i + 1) or we construct 
@@ -424,13 +525,14 @@ let inductive_step #vcfg
                                       induction_props ils_i}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
   let es = I.index ils i in 
   match es with
-  | IntL.Get_S _ _ _ -> inductive_step_get ils i
-  | IntL.Put_S _ _ _ -> inductive_step_put ils i  
-  | IntL.AddM_S _ _ _ -> inductive_step_addm ils i
+  | Get_S _ _ _ -> inductive_step_get ils i
+  | Put_S _ _ _ -> inductive_step_put ils i  
+  | AddM_S _ _ _ -> inductive_step_addm ils i
+  | EvictM_S _ _ -> inductive_step_evictm ils i
   | _ -> admit()                                      
 
 let lemma_empty_implies_induction_props #vcfg (ils: its_log vcfg{I.length ils = 0})
-  : Lemma (ensures (induction_props ils))
+  : Lemma (ensures (induction_props ils)) 
   = admit()          
 
 let rec lemma_hash_verifiable_implies_induction_props_or_hash_collision_aux 

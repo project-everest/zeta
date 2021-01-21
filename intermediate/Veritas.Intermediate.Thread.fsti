@@ -1,6 +1,7 @@
 module Veritas.Intermediate.Thread
 
 open Veritas.BinTree
+open Veritas.MultiSetHash
 open Veritas.MultiSetHashDomain
 open Veritas.Record
 open Veritas.SeqAux
@@ -9,6 +10,7 @@ open Veritas.Intermediate.Store
 open Veritas.Intermediate.Verify
 open Veritas.Intermediate.VerifierConfig
 
+module S = FStar.Seq
 module SA = Veritas.SeqAux
 module IntV = Veritas.Intermediate.Verify
 
@@ -20,6 +22,8 @@ let logS_of #vcfg (tl: thread_id_logS vcfg): logS _ = snd tl
 
 let length #vcfg (tl: thread_id_logS vcfg): nat =
   Seq.length (logS_of tl)
+
+let seq_index #vcfg (tl: thread_id_logS vcfg) = (i:nat{i < length tl})
 
 let tl_idx #vcfg (tl: thread_id_logS vcfg) = i:nat{i < length tl}
 
@@ -64,3 +68,54 @@ val verifiable_implies_prefix_verifiable
 let clock #vcfg (tl:verifiable_log vcfg) (i:tl_idx tl): timestamp =
   let vs = verify (prefix tl (i + 1)) in
   Valid?.clock (verify (prefix tl (i + 1)))
+
+(* get the blum add element from an index *)
+let blum_add_elem #vcfg (e:logS_entry vcfg {is_blum_add e}):
+  ms_hashfn_dom = 
+  match e with
+  | AddB_S s r t j -> MHDom r t j
+
+val blum_add_seq (#vcfg:_) (tl: verifiable_log vcfg): S.seq ms_hashfn_dom
+
+val add_seq_map (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
+  (j: SA.seq_index (blum_add_seq tl){S.index (blum_add_seq tl) j =
+                                     blum_add_elem (index tl i)})
+
+val add_seq_inv_map (#vcfg:_) (tl: verifiable_log vcfg) (j: SA.seq_index (blum_add_seq tl)):
+  (i: seq_index tl {is_blum_add (index tl i) /\
+              blum_add_elem (index tl i) = S.index (blum_add_seq tl) j /\
+              add_seq_map tl i = j})
+
+val lemma_add_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
+  Lemma (ensures (add_seq_inv_map tl (add_seq_map tl i) = i))
+        [SMTPat (add_seq_map tl i)]
+
+let hadd #vcfg (tl: verifiable_log vcfg): ms_hash_value = 
+  Valid?.hadd (verify tl)
+
+val lemma_hadd_correct (#vcfg:_) (tl: verifiable_log vcfg):
+  Lemma (ensures (hadd tl = ms_hashfn (blum_add_seq tl)))
+        [SMTPat (verifiable tl)]
+
+val blum_evict_elem (#vcfg:_) (tl: verifiable_log vcfg) (i:seq_index tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom
+
+val blum_evict_seq (#vcfg:_) (tl: verifiable_log vcfg): S.seq ms_hashfn_dom
+
+let hevict #vcfg (tl: verifiable_log vcfg): ms_hash_value = 
+  Valid?.hevict (verify tl)
+
+val lemma_hevict_correct (#vcfg:_) (tl: verifiable_log vcfg):
+  Lemma (hevict tl = ms_hashfn (blum_evict_seq tl))
+
+val evict_seq_map (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
+  (j: SA.seq_index (blum_evict_seq tl) {S.index (blum_evict_seq tl) j = 
+                                        blum_evict_elem tl i})
+
+val evict_seq_inv_map (#vcfg:_) (tl: verifiable_log vcfg) (j: SA.seq_index (blum_evict_seq tl)):
+  (i: seq_index tl{is_evict_to_blum (index tl i) /\
+             blum_evict_elem tl i = S.index (blum_evict_seq tl) j /\
+             evict_seq_map tl i = j})
+
+val lemma_evict_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
+  Lemma (ensures (evict_seq_inv_map tl (evict_seq_map tl i) = i))
+        [SMTPat (evict_seq_map tl i)]
