@@ -214,81 +214,6 @@ let inductive_step_addm_caseB #vcfg
     // assert(s' = sk_anc);
     None
 
-let inductive_step_addm_caseC #vcfg 
-                              (ils: IntTS.hash_verifiable_log vcfg)                               
-                              (i:I.seq_index ils)
-                              (sk: slot_id vcfg)
-                              (sk_anc: slot_id vcfg{let ils_i = I.prefix ils i in
-                                                    let vss_i = IntTS.thread_state_pre ils i in
-                                                    let sts = IntV.thread_store vss_i in
-                                                    induction_props ils_i /\
-                                                    AddM_S? (I.index ils i) /\
-                                                    inuse_slot sts sk /\ inuse_slot sts sk_anc /\
-                                                    (let AddM_S s (k,v) s' = I.index ils i in
-                                                     let k_anc = stored_key sts sk_anc in
-                                                     let k' = stored_key sts s' in                                                      
-                                                     stored_key sts sk = k /\ k_anc <> k' /\ points_to sts sk_anc sk)})
-  : induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
-  let tid = IntTS.thread_id_of ils i in
-  let ilk = to_logk ils in  
-  let ils_i = I.prefix ils i in
-  let ilk_i = I.prefix ilk i in
-  let ils_i1 = I.prefix ils (i + 1) in
-  let ilk_i1 = I.prefix ilk (i + 1) in  
-  let vss_i = thread_state_pre ils i in
-  let vsk_i = SpecTS.thread_state_pre ilk i in
-  let vsk_i1 = SpecTS.thread_state_post ilk i in
-  let es = I.index ils i in
-  SpecTS.lemma_verifier_thread_state_extend ilk i;
-
-  let ek = I.index ilk i in
-
-  match es with
-  | AddM_S s (k,v) s' ->
-    let sts = IntV.thread_store vss_i in
-    let stk = SpecV.thread_store vsk_i in     
-
-    lemma_addm_props vss_i es;
-    let k' = stored_key sts s' in
-    let v' = to_merkle_value (stored_value sts s') in
-    let d = desc_dir k k' in
-
-    let d_anc = if points_to_dir sts sk_anc Left sk then Left else Right in
-    
-    (* we have the invariant that merkle value stored in sk_anc points to sk *)
-    assert(slot_points_to_is_merkle_points_to_local sts sk_anc sk d_anc);
-    
-    let mv_anc = to_merkle_value (stored_value sts sk_anc) in
-    // assert(mv_points_to mv_anc d_anc k);
-
-    let k_anc = stored_key sts sk_anc in
-    // assert(SpecV.store_contains stk k_anc);
-    // assert(SpecV.stored_value stk k_anc = stored_value sts sk_anc);    
-    SpecTS.lemma_eac_value_is_stored_value ilk_i k_anc tid;    
-    lemma_points_to_implies_proving_ancestor ilk_i k k_anc d_anc;
-    assert(k_anc = proving_ancestor ilk_i k);
-    
-    let aux () 
-      : Lemma (k' = Root \/ not (SpecTS.is_eac_state_init ilk_i k')) = 
-      if k' = Root then ()
-      else (
-        assert(SpecV.store_contains stk k');
-        SpecTS.lemma_instore_implies_eac_state_instore ilk_i k' tid
-      )
-    in
-    aux();
-    lemma_init_ancestor_ancestor_of_proving ilk_i k k';
-    SpecTS.lemma_eac_value_is_stored_value ilk_i k' tid;
-
-    let k2 = mv_pointed_key v' d in
-
-    lemma_proper_desc_depth_monotonic k k_anc;
-    assert(is_desc k2 k);
-    lemma_desc_depth_monotonic k2 k;
-    assert(is_desc k_anc k2);
-    lemma_desc_depth_monotonic k_anc k2;    
-    None
-
 let proving_ancestor #vcfg
                      (ils: IntTS.hash_verifiable_log vcfg)
                      (i:I.seq_index ils)
@@ -304,8 +229,16 @@ let proving_ancestor #vcfg
                  let ilk = to_logk ils in
                  let ilk_i = I.prefix ilk i in
                  pk = SpecM.proving_ancestor ilk_i k} = 
-                   
-  admit()
+  let tid = IntTS.thread_id_of ils i in
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let vss_i = thread_state_pre ils i in
+  
+  let sts = IntV.thread_store vss_i in
+
+  let k = stored_key sts s in
+  SpecM.proving_ancestor ilk_i k
                  
 let inductive_step_addm_caseD #vcfg 
                               (ils: IntTS.hash_verifiable_log vcfg)                               
