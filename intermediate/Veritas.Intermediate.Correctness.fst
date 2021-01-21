@@ -2,12 +2,14 @@ module Veritas.Intermediate.Correctness
 
 open Veritas.BinTree
 open Veritas.Hash
+open Veritas.Key
 open Veritas.Record
 open Veritas.SeqMachine
 open Veritas.State
 open Veritas.StateSeqMachine
 open Veritas.Verifier
 open Veritas.Verifier.EAC
+open Veritas.Verifier.Merkle
 open Veritas.Intermediate.Global
 open Veritas.Intermediate.Logs
 open Veritas.Intermediate.Store
@@ -126,18 +128,18 @@ let inductive_step_addm #vcfg
                        (i:I.seq_index ils{let ils_i = I.prefix ils i in
                                           induction_props ils_i /\
                                           AddM_S? (I.index ils i)}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let tid = IntTS.thread_id_of ils i in                                          
   let ilk = to_logk ils in  
   let ils_i = I.prefix ils i in
   let ilk_i = I.prefix ilk i in
   let ils_i1 = I.prefix ils (i + 1) in
   let ilk_i1 = I.prefix ilk (i + 1) in  
-
   let vss_i = thread_state_pre ils i in
   let vsk_i = SpecTS.thread_state_pre ilk i in
   let vsk_i1 = SpecTS.thread_state_post ilk i in
   let es = I.index ils i in
   SpecTS.lemma_verifier_thread_state_extend ilk i;
-
+  
   let ek = I.index ilk i in
 
   match es with
@@ -175,29 +177,35 @@ let inductive_step_addm #vcfg
         assert(points_to sts sk_anc sk);
 
         (* direction in which sk_anc -> sk *)
-        let d = if points_to_dir sts sk_anc Left sk then Left else Right in
-        assert(points_to_dir sts sk_anc d sk);
+        let d_anc = if points_to_dir sts sk_anc Left sk then Left else Right in
+        assert(points_to_dir sts sk_anc d_anc sk);
 
         (* we have the invariant that merkle value stored in sk_anc points to sk *)
-        assert(slot_points_to_is_merkle_points_to_local sts sk_anc sk d);
+        assert(slot_points_to_is_merkle_points_to_local sts sk_anc sk d_anc);
 
         let mv_anc = to_merkle_value (stored_value sts sk_anc) in
-        assert(mv_points_to mv_anc d k);
+        assert(mv_points_to mv_anc d_anc k);
 
         let k_anc = stored_key sts sk_anc in
 
         (* store invariant says that spec store contains k_anc with the same value *)
         assert(SpecV.store_contains stk k_anc);
         assert(SpecV.stored_value stk k_anc = stored_value sts sk_anc);
-
+        SpecTS.lemma_eac_value_is_stored_value ilk_i k_anc tid;
+        assert(mv_anc = eac_merkle_value ilk_i k_anc);
+        lemma_points_to_implies_proving_ancestor ilk_i k k_anc d_anc;
+        assert(k_anc = proving_ancestor ilk_i k);
         
-
+        assert(is_proper_desc k k');
+        assert(SpecV.store_contains stk k');
+        assert(is_merkle_key k');
+        let v' = to_merkle_value (stored_value sts s') in
+        
 
         admit()
       )
       else
-        admit()
-      
+        admit()      
     )
     else (
       (* k does not exist in current store so it is a new key *)

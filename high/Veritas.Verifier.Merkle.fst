@@ -4067,11 +4067,10 @@ let lemma_store_contains_proving_ancestor (itsl: TL.eac_log)
   
 (* if a key pk points to key k, then pk is the proving ancestor of k; (inverse of 
  * lemma_proving_ancestor_points_to_self *)
-let lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{is_proper_desc k k'}):
-  Lemma (requires (let d = desc_dir k k' in
-                   let mv = eac_merkle_value itsl k' in                   
+let lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{is_merkle_key k'}) (d:bin_tree_dir):
+  Lemma (requires (let mv = eac_merkle_value itsl k' in                   
                    mv_points_to mv d k))
-        (ensures (proving_ancestor itsl k = k')) = 
+        (ensures (k <> Root /\ proving_ancestor itsl k = k')) = 
   let pf = eac_ptrfn itsl in   
   assert(eac_value itsl k' <> init_value k');  
   
@@ -4084,6 +4083,8 @@ let lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{
         lemma_not_init_equiv_root_reachable itsl k'
   in
   aux();
+  lemma_eac_value_empty_or_points_to_desc itsl k' d;
+  assert(points_to pf k k');
   lemma_points_to_reachable pf k k';
   lemma_reachable_transitive pf k k' Root;
   assert(root_reachable itsl k);
@@ -4119,3 +4120,4 @@ let lemma_init_ancestor_ancestor_of_proving (itsl: TL.eac_log) (k:key) (k':key{i
     lemma_reachable_between pf pk k'
   )
 
+  

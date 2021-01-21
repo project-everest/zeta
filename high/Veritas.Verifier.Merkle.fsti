@@ -83,11 +83,10 @@ val lemma_store_contains_proving_ancestor (itsl: TL.eac_log)
 
 (* if a key pk points to key k, then pk is the proving ancestor of k; (inverse of 
  * lemma_proving_ancestor_points_to_self *)
-val lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (pk:key{is_proper_desc k pk}):
-  Lemma (requires (let d = desc_dir k pk in
-                   let mv = eac_merkle_value itsl pk in                   
+val lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{is_merkle_key k'}) (d:bin_tree_dir):
+  Lemma (requires (let mv = eac_merkle_value itsl k' in                   
                    mv_points_to mv d k))
-        (ensures (proving_ancestor itsl k = pk))
+        (ensures (k <> Root /\ proving_ancestor itsl k = k'))
 
 (* precond: k' is a proper ancestor of k, but not the proving ancestor. 
  *          k' is also initialized (previously added)

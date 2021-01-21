@@ -61,7 +61,7 @@ let merkle_slot_id #vcfg (st:vstore_raw vcfg)
 let data_slot_id #vcfg (st:vstore_raw vcfg)
   = s:inuse_slot_id st{is_data_key (stored_key st s)}
 
-let stored_value #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) : value
+let stored_value #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) : value_type_of (stored_key st s)
   = VStoreE?.v (Some?.v (get_slot st s))
 
 let add_method_of #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) : add_method
