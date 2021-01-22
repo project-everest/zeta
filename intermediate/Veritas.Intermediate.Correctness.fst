@@ -24,7 +24,9 @@ open Veritas.Intermediate.VerifierConfig
 
 module E=Veritas.EAC
 module I = Veritas.Interleave
+module MS = Veritas.MultiSet
 module S = FStar.Seq
+module SA = Veritas.SeqAux
 module SpecB = Veritas.Verifier.Blum
 module SpecM = Veritas.Verifier.Merkle
 module IntB = Veritas.Intermediate.Blum
@@ -533,7 +535,54 @@ let inductive_step_addb_neac_caseB #vcfg
                                           not (SpecTS.is_eac ilk_i1) /\
                                           SpecTS.is_eac ilk_i /\
                                           E.EACInStore? (SpecTS.eac_state_pre ilk_i1 i)
-                                          }): hash_collision_gen = admit()
+                                          }): hash_collision_gen = 
+  let gl = g_logS_of ils in                                          
+  // let ils_i = I.prefix ils i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  // let vss_i = IntTS.thread_state_pre ils i in
+  // let sts = IntV.thread_store vss_i in        
+  // let ilk_i = to_logk ils_i in
+  let ilk_i1 = to_logk ils_i1 in  
+  lemma_eac_boundary_inv ilk_i1 i;
+  // assert(SpecTS.eac_boundary ilk_i1 = i);
+  // let st = SpecTS.eac_state_pre ilk_i1 i in
+  // let ee = SpecTS.vlog_entry_ext_at ilk_i1 i in
+  let es = I.index ils i in
+  // let ek = I.index ilk_i1 i in
+
+  // assert(I.length ils_i1 = (i + 1));
+  // lemma_to_logk_index ils_i1 i;
+  // lemma_to_logk_length ils_i1;
+  // assert(I.length ilk_i1 = (i + 1));
+
+  match es with
+  | AddB_S s (k, v) t j ->
+    let be = SpecB.eac_instore_addb_diff_elem ilk_i1 i in
+    let _ = I.prefix ilk_i1 (i + 1) in
+    // let as = SpecB.ts_add_set itsli' in
+    // let es = SpecB.ts_evict_set itsli' in
+    // assert(MS.mem be as > MS.mem be es);
+    I.prefix_identity ilk_i1;
+    // assert(ilk_i1 == itsli');
+    // assert(MS.mem be (SpecB.ts_add_set ilk_i1) > MS.mem be (SpecB.ts_evict_set ilk_i1));
+    // assert(IntB.add_set ils_i1 == SpecB.ts_add_set ilk_i1);
+    // assert(IntB.evict_set ils_i1 == SpecB.ts_evict_set ilk_i1);
+    // assert(MS.mem be (SpecB.ts_add_set ilk_i1) = MS.mem be (IntB.add_set ils_i1));
+    // assert(MS.mem be (SpecB.ts_evict_set ilk_i1) = MS.mem be (IntB.evict_set ils_i1));
+    
+    
+    lemma_add_delta_implies_not_eq ils (i + 1) be;
+    // assert(~ (IntB.add_set ils == IntB.evict_set ils));
+    // assert(IntB.add_set ils == IntG.add_set gl);
+    // assert(IntB.evict_set ils == IntG.evict_set gl);
+    // assert(~ (IntG.add_set gl == IntG.evict_set gl));
+    // let s1 = (IntG.add_seq gl) in
+    // let s2 = IntG.evict_seq gl in
+    // assert(ms_hashfn s1 = ms_hashfn s2);
+
+    // assert(seq2mset #_ #ms_hashfn_dom_cmp s1 == IntG.add_set gl);
+    // assert(seq2mset #_ #ms_hashfn_dom_cmp s2 == IntG.evict_set gl);
+    MultiHashCollision (MSCollision (IntG.add_seq gl) (IntG.evict_seq gl))
 
 
 let inductive_step_addb_neac_caseC #vcfg 
@@ -666,10 +715,10 @@ let inductive_step #vcfg
                                       induction_props ils_i}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
   let es = I.index ils i in 
   match es with
-  | Get_S _ _ _ -> admit() // inductive_step_get ils i
-  | Put_S _ _ _ -> admit() // inductive_step_put ils i  
-  | AddM_S _ _ _ ->admit() // inductive_step_addm ils i
-  | EvictM_S _ _ -> admit() //inductive_step_evictm ils i
+  | Get_S _ _ _ -> inductive_step_get ils i
+  | Put_S _ _ _ -> inductive_step_put ils i  
+  | AddM_S _ _ _ -> inductive_step_addm ils i
+  | EvictM_S _ _ -> inductive_step_evictm ils i
   | _ -> admit()                                      
 
 let lemma_empty_implies_induction_props #vcfg (ils: its_log vcfg{I.length ils = 0})

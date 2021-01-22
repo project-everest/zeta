@@ -11,6 +11,7 @@ open Veritas.Intermediate.Thread
 open Veritas.Intermediate.VerifierConfig
 
 module I = Veritas.Interleave
+module MS = Veritas.MultiSet
 module SpecV = Veritas.Verifier
 module SpecB = Veritas.Verifier.Blum
 module SpecT = Veritas.Verifier.Thread
@@ -116,6 +117,11 @@ val lemma_spec_rel_implies_same_evict_elem (#vcfg:_)
                   SpecV.is_evict_to_blum (I.index ilk i) /\
                   SpecB.blum_evict_elem ilk i = blum_evict_elem ils i))
 
+val lemma_spec_rel_implies_same_evict_seq (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
+  : Lemma (ensures (let ilk = to_logk ils in 
+                    evict_seq ils = SpecB.ts_evict_seq ilk))
+          [SMTPat (spec_rel ils)]
+
 (* since evict_set is a pure set (not a multiset) we can identify the unique index 
  * for each element of the set *)
 val index_blum_evict (#vcfg:_) (itsl: its_log vcfg) (e: ms_hashfn_dom {evict_set itsl `contains` e}):
@@ -126,3 +132,12 @@ val index_blum_evict (#vcfg:_) (itsl: its_log vcfg) (e: ms_hashfn_dom {evict_set
 val lemma_evict_before_add (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
   Lemma (ensures (not (evict_set itsl `contains` blum_add_elem itsl i)) \/
                   index_blum_evict itsl (blum_add_elem itsl i) < i)
+
+///  for any prefix of itsl, there exists an element be whose membership in add set > membership in evict set, then
+///  the add and evict sets of the entire sequence cannot be equal.
+///  The intuition is that a matching element of be in an evict set happens prior to that of add set meaning there 
+///  cannot be element be in the suffix. This implies the add- and evict-sets cannot be equal.
+val lemma_add_delta_implies_not_eq (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}) (be:ms_hashfn_dom):
+    Lemma (requires (let itsli = I.prefix itsl i in
+                     MS.mem be (add_set itsli) > MS.mem be (evict_set itsli)))
+          (ensures (~ ((add_set itsl) == (evict_set itsl))))
