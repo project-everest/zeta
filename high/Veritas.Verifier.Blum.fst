@@ -982,3 +982,33 @@ let lemma_add_set_mem (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index itsl{
   let j1 = add_seq_map itsl j in
   //assert(i1 <> j1);
   seq_mset_elem2 #_ #ms_hashfn_dom_cmp s i1 j1
+
+let eac_instore_addb_diff_elem (itsl: its_log) 
+                               (i: I.seq_index itsl{let itsli = I.prefix itsl i in
+                                                    let e = I.index itsl i in
+                                                    is_blum_add e /\
+                                                    TL.is_eac itsli /\
+                                                    (let k = key_of e in
+                                                     TL.is_eac_state_instore itsli k)})
+  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                      let as = ts_add_set itsli' in
+                      let es = ts_evict_set itsli' in
+                      MS.mem be as > MS.mem be es}) =                      
+  let itsli = I.prefix itsl i in
+  let itsli' = I.prefix itsl (i + 1) in
+  let e = I.index itsl i in
+  let k = key_of e in
+
+  lemma_evict_add_count_same itsli k;
+  // assert(MS.size (ts_add_set_key itsli k) = MS.size (ts_evict_set_key itsli k));
+  
+  // assert(I.index itsl i = I.index itsli' i);
+  lemma_ts_add_set_key_extend itsli';
+  lemma_ts_evict_set_key_extend2 itsli';
+  // assert(MS.size (ts_add_set_key itsli' k) = 1 + (MS.size (ts_evict_set_key itsli' k)));
+  let be = diff_elem (ts_add_set_key itsli' k) (ts_evict_set_key itsli' k) in
+  lemma_ts_add_set_key_contains_only itsli' k be;
+  // assert(MH.key_of be = k);
+  lemma_mem_key_add_set_same itsli' be;
+  lemma_mem_key_evict_set_same itsli' be;
+  be

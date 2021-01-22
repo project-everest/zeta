@@ -170,3 +170,15 @@ val lemma_add_set_mem (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index itsl{
                    is_blum_add (I.index itsl j) /\
                    blum_add_elem (I.index itsl i) = blum_add_elem (I.index itsl j)))
         (ensures (MS.mem (blum_add_elem (I.index itsl i)) (ts_add_set itsl) >= 2))
+
+val eac_instore_addb_diff_elem (itsl: its_log) 
+                               (i: I.seq_index itsl{let itsli = I.prefix itsl i in
+                                                    let e = I.index itsl i in
+                                                    is_blum_add e /\
+                                                    TL.is_eac itsli /\
+                                                    (let k = key_of e in
+                                                     TL.is_eac_state_instore itsli k)})
+  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                      let as = ts_add_set itsli' in
+                      let es = ts_evict_set itsli' in
+                      MS.mem be as > MS.mem be es})
