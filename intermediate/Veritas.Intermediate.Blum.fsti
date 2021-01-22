@@ -11,9 +11,12 @@ open Veritas.Intermediate.Thread
 open Veritas.Intermediate.VerifierConfig
 
 module I = Veritas.Interleave
+module SpecV = Veritas.Verifier
 module SpecB = Veritas.Verifier.Blum
+module SpecT = Veritas.Verifier.Thread
 module IntG = Veritas.Intermediate.Global
 module IntT = Veritas.Intermediate.Thread
+module IntTS = Veritas.Intermediate.TSLog
 
 (* sequence of blum adds in the time sequenced log *)
 val add_seq (#vcfg:_) (ils: its_log vcfg): seq ms_hashfn_dom
@@ -24,7 +27,12 @@ let add_set #vcfg (ils: its_log vcfg): mset_ms_hashfn_dom
 
 let blum_add_elem (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl {is_blum_add (I.index itsl i)}) = 
   IntT.blum_add_elem (I.index itsl i)
-  
+
+val lemma_blum_add_elem (#vcfg:_) (ils: its_log vcfg) (i:I.seq_index ils)
+  : Lemma (requires (is_blum_add (I.index ils i)))
+          (ensures (let ils_i1 = I.prefix ils (i + 1) in
+                    blum_add_elem ils i = blum_add_elem ils_i1 i))
+
 val lemma_add_elem_correct (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i)))
         (ensures (add_set itsl `contains` blum_add_elem itsl i))
@@ -40,7 +48,8 @@ let add_set_key (#vcfg:_) (itsl: its_log vcfg) (k:key): mset_ms_hashfn_dom
 (* the blum adds in the time sequenced log should be the same as global add set *)
 val lemma_add_set_correct (#vcfg:_) (itsl: its_log vcfg): 
   Lemma (ensures (add_set itsl == IntG.add_set (g_logS_of itsl)))
-
+        [SMTPat (clock_sorted itsl)]
+        
 (* if the tail element is a blum add, then the add set is obtained by adding that 
  * blum add to the prefix *)
 val lemma_add_set_key_extend  (#vcfg:_) (itsl: its_log vcfg {I.length itsl > 0}):
@@ -66,6 +75,10 @@ val lemma_add_set_key_contains_only (#vcfg:_) (itsl: its_log vcfg) (k:key) (be: 
 val blum_evict_elem (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
   ms_hashfn_dom
 
+val lemma_blum_evict_elem (#vcfg:_) (ils: its_log vcfg) (i:nat{i <= I.length ils}) (j:nat{j < i})
+  : Lemma (requires (is_evict_to_blum (I.index ils j)))
+          (ensures (blum_evict_elem ils j = blum_evict_elem (I.prefix ils i) j))
+
 (* sequence of evicts in time sequence log *)
 val evict_seq (#vcfg:_) (itsl: its_log vcfg): seq ms_hashfn_dom
 
@@ -81,10 +94,35 @@ let evict_set_key #vcfg (itsl: its_log vcfg) (k:key): mset_ms_hashfn_dom=
 
 (* the blum evicts in time sequenced log should be the same as global evict set *)
 val evict_set_correct (#vcfg:_) (itsl: its_log vcfg):
-  Lemma (evict_set itsl == IntG.evict_set (g_logS_of itsl))
+  Lemma (ensures (evict_set itsl == IntG.evict_set (g_logS_of itsl)))
+        [SMTPat (clock_sorted itsl)]
 
-
+val lemma_spec_rel_implies_same_add_elem (#vcfg:_) 
+                                         (ils: its_log vcfg{spec_rel ils}) 
+                                         (i: I.seq_index ils{is_blum_add (I.index ils i)}):
+  Lemma (ensures (let ilk = IntTS.to_logk ils in
+                  SpecV.is_blum_add (I.index ilk i) /\
+                  SpecT.blum_add_elem (I.index ilk i) = blum_add_elem ils i))
+ 
 val lemma_spec_rel_implies_same_add_seq (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
   : Lemma (ensures (let ilk = to_logk ils in 
                     add_seq ils = SpecB.ts_add_seq ilk))
           [SMTPat (spec_rel ils)]
+
+val lemma_spec_rel_implies_same_evict_elem (#vcfg:_) 
+                                         (ils: its_log vcfg{spec_rel ils}) 
+                                         (i: I.seq_index ils{is_evict_to_blum (I.index ils i)}):
+  Lemma (ensures (let ilk = IntTS.to_logk ils in
+                  SpecV.is_evict_to_blum (I.index ilk i) /\
+                  SpecB.blum_evict_elem ilk i = blum_evict_elem ils i))
+
+(* since evict_set is a pure set (not a multiset) we can identify the unique index 
+ * for each element of the set *)
+val index_blum_evict (#vcfg:_) (itsl: its_log vcfg) (e: ms_hashfn_dom {evict_set itsl `contains` e}):
+  (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i) /\ 
+                      blum_evict_elem itsl i = e})
+
+(* if the blum add occurs in the blum evict set, its index is earlier *)
+val lemma_evict_before_add (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
+  Lemma (ensures (not (evict_set itsl `contains` blum_add_elem itsl i)) \/
+                  index_blum_evict itsl (blum_add_elem itsl i) < i)
