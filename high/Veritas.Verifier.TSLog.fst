@@ -1839,3 +1839,9 @@ let lemma_instore_implies_last_entry_non_evict (itsl: eac_log) (k:key) (tid:vali
     in
     aux itsl    
   )
+
+let lemma_empty_log_eac (itsl: its_log{I.length itsl = 0})
+  : Lemma (ensures (is_eac itsl)) = 
+  let el: seq vlog_entry_ext = vlog_ext_of_its_log itsl in
+  lemma_empty_seq_valid_all eac_sm;
+  lemma_empty el

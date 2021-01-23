@@ -185,3 +185,7 @@ val lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vc
 let spec_rel #vcfg (ils: its_log vcfg) = 
   forall_store_ismap ils /\
   forall_vtls_rel ils
+
+val lemma_empty_implies_spec_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
+  : Lemma (spec_rel ils)
+  

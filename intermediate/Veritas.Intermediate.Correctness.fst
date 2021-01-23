@@ -854,7 +854,10 @@ let inductive_step #vcfg
 
 let lemma_empty_implies_induction_props #vcfg (ils: its_log vcfg{I.length ils = 0})
   : Lemma (ensures (induction_props ils)) 
-  = admit()          
+  = 
+  IntTS.lemma_empty_implies_spec_rel ils;
+  SpecTS.lemma_empty_log_eac (to_logk ils);
+  ()          
 
 let rec lemma_hash_verifiable_implies_induction_props_or_hash_collision_aux 
         #vcfg 

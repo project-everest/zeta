@@ -503,3 +503,8 @@ val lemma_instore_implies_last_entry_non_evict (itsl: eac_log) (k:key) (tid:vali
   Lemma (requires (store_contains (thread_store itsl tid) k))
         (ensures (has_some_entry_of_key itsl k ==> 
                   not (is_evict_to_blum (I.index itsl (last_idx_of_key itsl k))))) 
+
+/// An empty log is eac
+/// 
+val lemma_empty_log_eac (itsl: its_log{I.length itsl = 0})
+  : Lemma (ensures (is_eac itsl))
