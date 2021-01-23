@@ -491,3 +491,15 @@ val lemma_evictm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{is_evict_to
 val lemma_evictbm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{EvictBM? (I.index itsl i)}):
   Lemma (ensures (let EvictBM _ k' _ = I.index itsl i in
                   is_merkle_key k'))
+
+val lemma_eac_boundary_inv (itsl: its_log) (i:I.seq_index itsl): 
+  Lemma (requires (is_eac (I.prefix itsl i) /\
+                   not (is_eac (I.prefix itsl (i + 1)))))
+        (ensures (eac_boundary itsl = i)) 
+
+///  If a key is in store, then the last entry of the key cannot be an evict
+/// 
+val lemma_instore_implies_last_entry_non_evict (itsl: eac_log) (k:key) (tid:valid_tid itsl):
+  Lemma (requires (store_contains (thread_store itsl tid) k))
+        (ensures (has_some_entry_of_key itsl k ==> 
+                  not (is_evict_to_blum (I.index itsl (last_idx_of_key itsl k))))) 

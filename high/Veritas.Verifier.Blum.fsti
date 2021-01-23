@@ -6,12 +6,14 @@ open Veritas.Interleave
 open Veritas.Key
 open Veritas.MultiSet
 open Veritas.MultiSetHash
+open Veritas.MultiSetHashDomain
 open Veritas.SeqAux
 open Veritas.Verifier
 open Veritas.Verifier.Global
 open Veritas.Verifier.Thread
 open Veritas.Verifier.TSLog
 
+module S = FStar.Seq
 module E=Veritas.EAC
 module I = Veritas.Interleave
 module MS=Veritas.MultiSet
@@ -182,3 +184,34 @@ val eac_instore_addb_diff_elem (itsl: its_log)
                       let as = ts_add_set itsli' in
                       let es = ts_evict_set itsli' in
                       MS.mem be as > MS.mem be es})
+
+val eac_evictedm_addb_diff_elem (itsl: its_log) 
+                               (i: I.seq_index itsl{let itsli = I.prefix itsl i in
+                                                    let e = I.index itsl i in
+                                                    is_blum_add e /\
+                                                    TL.is_eac itsli /\
+                                                    (let k = key_of e in
+                                                     TL.is_eac_state_evicted_merkle itsli k)})
+  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                      let as = ts_add_set itsli' in
+                      let es = ts_evict_set itsli' in
+                      MS.mem be as > MS.mem be es})
+
+val eac_evictedb_addb_diff_elem (itsl: its_log) 
+                               (i: I.seq_index itsl{let itsli = I.prefix itsl i in
+                                                    let itsli' = I.prefix itsl (i + 1) in
+                                                    let e = I.index itsl i in
+                                                    is_blum_add e /\
+                                                    TL.is_eac itsli /\
+                                                    not (TL.is_eac itsli') /\
+                                                    (let k = key_of e in
+                                                     TL.is_eac_state_evicted_blum itsli k)})
+  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                      let as = ts_add_set itsli' in
+                      let es = ts_evict_set itsli' in
+                      MS.mem be as > MS.mem be es}) 
+
+val eac_add_set_mem_atleast_evict_set_mem (itsl: TL.eac_log) (be: ms_hashfn_dom) (tid: valid_tid itsl):
+  Lemma (requires (let k = MH.key_of be in
+                   store_contains (TL.thread_store itsl tid) k))
+        (ensures (MS.mem be (ts_add_set itsl) >= MS.mem be (ts_evict_set itsl)))

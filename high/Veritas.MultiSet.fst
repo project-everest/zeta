@@ -496,3 +496,16 @@ let rec length_size_aux (#a:eqtype) (#f:cmp a) (s:Seq.seq a)
       length_size_aux #a #f (Seq.tail s)
 
 let length_size = length_size_aux
+
+let rec lemma_add_incr_mem_aux (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
+  : Lemma (ensures mem x (add_elem s x) = 1 + mem x s) =
+  match s with
+  | [] -> ()
+  | (y,n)::_ -> 
+    if x = y then ()
+    else if f x y then mem_elt_lt_hd x s
+    else lemma_add_incr_mem_aux (tl s) x
+
+let lemma_add_incr_mem (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
+ : Lemma (ensures mem x (add_elem s x) = 1 + mem x s) = lemma_add_incr_mem_aux s x
+

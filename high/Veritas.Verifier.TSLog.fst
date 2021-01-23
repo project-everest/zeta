@@ -1789,3 +1789,53 @@ let lemma_evictbm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{EvictBM? (
   let e = I.index itsl i in  
   match e with
   | EvictBM _ k' _ -> ()                  
+
+let lemma_eac_boundary_inv (itsl: its_log) (i:I.seq_index itsl): 
+  Lemma (requires (is_eac (I.prefix itsl i) /\
+                   not (is_eac (I.prefix itsl (i + 1)))))
+        (ensures (eac_boundary itsl = i)) = 
+  if is_eac itsl then
+    lemma_eac_implies_prefix_eac itsl (i + 1)
+  else
+    let itsli = I.prefix itsl i in
+    let i' = eac_boundary itsl in
+    if i' = i then ()
+    else if i' < i then 
+      lemma_eac_implies_prefix_eac itsli (i' + 1)
+    else 
+      lemma_eac_implies_prefix_eac (I.prefix itsl i') (i + 1)
+
+let lemma_instore_implies_last_entry_non_evict (itsl: eac_log) (k:key) (tid:valid_tid itsl):
+  Lemma (requires (store_contains (thread_store itsl tid) k))
+        (ensures (has_some_entry_of_key itsl k ==> 
+                  not (is_evict_to_blum (I.index itsl (last_idx_of_key itsl k))))) =      
+  if k = Root then (
+    lemma_eac_state_of_root_init itsl;
+    lemma_eac_state_init_no_entry itsl k
+  )
+  else (
+    lemma_instore_implies_eac_state_instore itsl k tid;
+    let rec aux (itsl: eac_log)
+    : Lemma (ensures (is_eac_state_instore itsl k ==> has_some_entry_of_key itsl k ==> 
+                  not (is_evict_to_blum (I.index itsl (last_idx_of_key itsl k)))))
+            (decreases (I.length itsl)) =                  
+    if I.length itsl = 0
+    then run_monitor_empty itsl k
+    else (
+      let n = I.length itsl in
+      let itsl' = I.prefix itsl (n - 1) in
+      let m = run_monitor itsl in
+      let e = I.index itsl (n - 1) in 
+      aux itsl';
+      run_monitor_step itsl k;
+      match m.eacs k with
+      | EACInStore am v -> 
+        if key_of e = k then
+          SA.lemma_last_index_last_elem_sat (is_entry_of_key k) (I.i_seq itsl)        
+        else 
+          SA.lemma_last_index_opt_last_elem_nsat (is_entry_of_key k) (I.i_seq itsl)        
+      | _ -> ()
+    )
+    in
+    aux itsl    
+  )

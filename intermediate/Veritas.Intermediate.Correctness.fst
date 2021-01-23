@@ -56,14 +56,6 @@ let induction_props #vcfg (ils: its_log vcfg) =
 let induction_props_or_hash_collision #vcfg (ils: its_log vcfg) = 
   o:option hash_collision_gen{Some? o \/ induction_props ils}
 
-
-let lemma_eac_boundary_inv (itsl: SpecTS.its_log) (i:I.seq_index itsl): 
-  Lemma (requires (SpecTS.is_eac (I.prefix itsl i) /\
-                   not (SpecTS.is_eac (I.prefix itsl (i + 1)))))
-        (ensures (SpecTS.eac_boundary itsl = i)) 
-        [SMTPat (I.prefix itsl i)]
-        = admit()
-
 let inductive_step_get #vcfg 
                        (ils: IntTS.hash_verifiable_log vcfg) 
                        (i:I.seq_index ils{let ils_i = I.prefix ils i in
@@ -91,7 +83,7 @@ let inductive_step_get #vcfg
     if SpecTS.is_eac ilk_i1 then
       None    
     else (
-      lemma_eac_boundary_inv ilk_i1 i;
+      SpecTS.lemma_eac_boundary_inv ilk_i1 i;
       Some (lemma_non_eac_get_implies_hash_collision ilk_i1)
     )
 
@@ -121,7 +113,7 @@ let inductive_step_put #vcfg
     if SpecTS.is_eac ilk_i1 then
       None    
     else (
-      lemma_eac_boundary_inv ilk_i1 i;
+      SpecTS.lemma_eac_boundary_inv ilk_i1 i;
       Some (lemma_non_eac_put_implies_hash_collision ilk_i1)
     )  
 
@@ -170,7 +162,7 @@ let inductive_step_addm_caseA #vcfg
     if SpecTS.is_eac ilk_i1 then
       None    
     else (
-      lemma_eac_boundary_inv ilk_i1 i;
+      SpecTS.lemma_eac_boundary_inv ilk_i1 i;
       Some (lemma_non_eac_addm_implies_hash_collision ilk_i1)
     )    
 
@@ -452,7 +444,7 @@ let inductive_step_evictm #vcfg
     if SpecTS.is_eac ilk_i1 then
       None    
     else (
-      lemma_eac_boundary_inv ilk_i1 i;
+      SpecTS.lemma_eac_boundary_inv ilk_i1 i;
       Some (lemma_non_eac_evictm_implies_hash_collision ilk_i1)
     )
 
@@ -478,7 +470,7 @@ let inductive_step_addb_neac_caseA #vcfg
   let sts = IntV.thread_store vss_i in        
   let ilk_i = to_logk ils_i in
   let ilk_i1 = to_logk ils_i1 in  
-  lemma_eac_boundary_inv ilk_i1 i;
+  SpecTS.lemma_eac_boundary_inv ilk_i1 i;
   assert(SpecTS.eac_boundary ilk_i1 = i);
   let st = SpecTS.eac_state_pre ilk_i1 i in
   let ee = SpecTS.vlog_entry_ext_at ilk_i1 i in
@@ -537,53 +529,18 @@ let inductive_step_addb_neac_caseB #vcfg
                                           E.EACInStore? (SpecTS.eac_state_pre ilk_i1 i)
                                           }): hash_collision_gen = 
   let gl = g_logS_of ils in                                          
-  // let ils_i = I.prefix ils i in
   let ils_i1 = I.prefix ils (i + 1) in
-  // let vss_i = IntTS.thread_state_pre ils i in
-  // let sts = IntV.thread_store vss_i in        
-  // let ilk_i = to_logk ils_i in
   let ilk_i1 = to_logk ils_i1 in  
-  lemma_eac_boundary_inv ilk_i1 i;
-  // assert(SpecTS.eac_boundary ilk_i1 = i);
-  // let st = SpecTS.eac_state_pre ilk_i1 i in
-  // let ee = SpecTS.vlog_entry_ext_at ilk_i1 i in
+  SpecTS.lemma_eac_boundary_inv ilk_i1 i;
   let es = I.index ils i in
-  // let ek = I.index ilk_i1 i in
-
-  // assert(I.length ils_i1 = (i + 1));
-  // lemma_to_logk_index ils_i1 i;
-  // lemma_to_logk_length ils_i1;
-  // assert(I.length ilk_i1 = (i + 1));
 
   match es with
   | AddB_S s (k, v) t j ->
     let be = SpecB.eac_instore_addb_diff_elem ilk_i1 i in
-    let _ = I.prefix ilk_i1 (i + 1) in
-    // let as = SpecB.ts_add_set itsli' in
-    // let es = SpecB.ts_evict_set itsli' in
-    // assert(MS.mem be as > MS.mem be es);
-    I.prefix_identity ilk_i1;
-    // assert(ilk_i1 == itsli');
-    // assert(MS.mem be (SpecB.ts_add_set ilk_i1) > MS.mem be (SpecB.ts_evict_set ilk_i1));
-    // assert(IntB.add_set ils_i1 == SpecB.ts_add_set ilk_i1);
-    // assert(IntB.evict_set ils_i1 == SpecB.ts_evict_set ilk_i1);
-    // assert(MS.mem be (SpecB.ts_add_set ilk_i1) = MS.mem be (IntB.add_set ils_i1));
-    // assert(MS.mem be (SpecB.ts_evict_set ilk_i1) = MS.mem be (IntB.evict_set ils_i1));
-    
-    
+    // triggers some SMTPat ...
+    let _ = I.prefix ilk_i1 (i + 1) in        
     lemma_add_delta_implies_not_eq ils (i + 1) be;
-    // assert(~ (IntB.add_set ils == IntB.evict_set ils));
-    // assert(IntB.add_set ils == IntG.add_set gl);
-    // assert(IntB.evict_set ils == IntG.evict_set gl);
-    // assert(~ (IntG.add_set gl == IntG.evict_set gl));
-    // let s1 = (IntG.add_seq gl) in
-    // let s2 = IntG.evict_seq gl in
-    // assert(ms_hashfn s1 = ms_hashfn s2);
-
-    // assert(seq2mset #_ #ms_hashfn_dom_cmp s1 == IntG.add_set gl);
-    // assert(seq2mset #_ #ms_hashfn_dom_cmp s2 == IntG.evict_set gl);
     MultiHashCollision (MSCollision (IntG.add_seq gl) (IntG.evict_seq gl))
-
 
 let inductive_step_addb_neac_caseC #vcfg 
                        (ils: IntTS.hash_verifiable_log vcfg) 
@@ -599,8 +556,21 @@ let inductive_step_addb_neac_caseC #vcfg
                                           not (SpecTS.is_eac ilk_i1) /\
                                           SpecTS.is_eac ilk_i /\
                                           E.EACEvictedMerkle? (SpecTS.eac_state_pre ilk_i1 i)
-                                          }): hash_collision_gen = admit()
+                                          }): hash_collision_gen = 
+  let gl = g_logS_of ils in                                          
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = to_logk ils_i1 in  
+  SpecTS.lemma_eac_boundary_inv ilk_i1 i;
+  let es = I.index ils i in
 
+  match es with
+  | AddB_S s (k, v) t j ->
+    let be = SpecB.eac_evictedm_addb_diff_elem ilk_i1 i in
+    // triggers some SMTPat ...
+    let _ = I.prefix ilk_i1 (i + 1) in        
+    lemma_add_delta_implies_not_eq ils (i + 1) be;
+    MultiHashCollision (MSCollision (IntG.add_seq gl) (IntG.evict_seq gl))                                          
+    
 let inductive_step_addb_neac_caseD #vcfg 
                        (ils: IntTS.hash_verifiable_log vcfg) 
                        (i:I.seq_index ils{let ils_i = I.prefix ils i in
@@ -615,7 +585,20 @@ let inductive_step_addb_neac_caseD #vcfg
                                           not (SpecTS.is_eac ilk_i1) /\
                                           SpecTS.is_eac ilk_i /\
                                           E.EACEvictedBlum? (SpecTS.eac_state_pre ilk_i1 i)
-                                          }): hash_collision_gen = admit()
+                                          }): hash_collision_gen = 
+  let gl = g_logS_of ils in                                          
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = to_logk ils_i1 in  
+  SpecTS.lemma_eac_boundary_inv ilk_i1 i;
+  let es = I.index ils i in
+
+  match es with
+  | AddB_S s (k, v) t j ->
+    let be = SpecB.eac_evictedb_addb_diff_elem ilk_i1 i in
+    // triggers some SMTPat ...
+    let _ = I.prefix ilk_i1 (i + 1) in        
+    lemma_add_delta_implies_not_eq ils (i + 1) be;
+    MultiHashCollision (MSCollision (IntG.add_seq gl) (IntG.evict_seq gl))
 
 let inductive_step_addb_neac #vcfg 
                        (ils: IntTS.hash_verifiable_log vcfg) 
@@ -635,7 +618,7 @@ let inductive_step_addb_neac #vcfg
   let vss_i = IntTS.thread_state_pre ils i in
   let sts = IntV.thread_store vss_i in                       
   let ilk_i1 = to_logk ils_i1 in  
-  lemma_eac_boundary_inv ilk_i1 i;
+  SpecTS.lemma_eac_boundary_inv ilk_i1 i;
   assert(SpecTS.eac_boundary ilk_i1 = i);
   let st = SpecTS.eac_state_pre ilk_i1 i in
   let ee = SpecTS.vlog_entry_ext_at ilk_i1 i in
@@ -697,12 +680,91 @@ let inductive_step_addb_caseA #vcfg
     lemma_forall_store_ismap_extend ils i;
 
     if SpecTS.is_eac ilk_i1 then None
-    else (
-      lemma_eac_boundary_inv ilk_i1 i;
-      assert(SpecTS.eac_boundary ilk_i1 = i);
-      
-      admit()
-    )
+    else
+      Some (inductive_step_addb_neac ils i)
+
+#push-options "--z3rlimit_factor 5"
+
+let inductive_step_addb_caseB #vcfg 
+                       (ils: IntTS.hash_verifiable_log vcfg) 
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                          let vss_i = IntTS.thread_state_pre ils i in
+                                          let sts = IntV.thread_store vss_i in                       
+                                          induction_props ils_i /\
+                                          AddB_S? (I.index ils i) /\
+                                          (let AddB_S _ (k,_) _ _ = I.index ils i in
+                                           store_contains_key sts k
+                                          )}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let gl = g_logS_of ils in
+  let tid = IntTS.thread_id_of ils i in                                          
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  
+  let ek = I.index ilk i in
+  // assert(forall_vtls_rel ils_i);
+  assert(ilk_i == to_logk ils_i);
+  assert(vtls_rel (thread_state ils_i tid) (SpecTS.thread_state ilk_i tid));
+
+  match es with
+  | AddB_S s (k,v) t j ->
+
+    let sts = IntV.thread_store vss_i in
+    let stk = SpecV.thread_store vsk_i in
+    assert(SpecV.store_contains stk k);
+    let be = IntB.blum_add_elem ils i in
+    SpecB.eac_add_set_mem_atleast_evict_set_mem ilk_i be tid;
+
+    (* be occurs at least as many times in add-set as in evict set *)
+    assert(MS.mem be (IntB.add_set ils_i) >= MS.mem be (IntB.evict_set ils_i));
+    assert(is_blum_add (I.telem ils_i1));
+    IntB.lemma_add_set_extend ils_i1;
+
+    // assert(IntB.add_set ils_i1 == MS.add_elem (IntB.add_set ils_i) be);
+    lemma_add_incr_mem (IntB.add_set ils_i) be;
+    IntB.lemma_evict_set_extend2 ils_i1;    
+    // assert(MS.mem be (IntB.add_set ils_i1) > MS.mem be (IntB.evict_set ils_i));
+    lemma_add_delta_implies_not_eq ils (i + 1) be;
+    Some (MultiHashCollision (MSCollision (IntG.add_seq gl) (IntG.evict_seq gl)))
+    
+#pop-options
+
+let inductive_step_addb #vcfg 
+                       (ils: IntTS.hash_verifiable_log vcfg) 
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                          let vss_i = IntTS.thread_state_pre ils i in
+                                          let sts = IntV.thread_store vss_i in                       
+                                          induction_props ils_i /\
+                                          AddB_S? (I.index ils i) 
+                                          }): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let tid = IntTS.thread_id_of ils i in                                          
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  
+  let ek = I.index ilk i in
+
+  match es with
+  | AddB_S s (k,v) t j ->
+    let sts = IntV.thread_store vss_i in
+    if store_contains_key sts k then 
+      inductive_step_addb_caseB ils i
+    else
+      inductive_step_addb_caseA ils i
 
 (* 
  * induction step: if all the induction properties hold for prefix of length i, 
@@ -719,7 +781,8 @@ let inductive_step #vcfg
   | Put_S _ _ _ -> inductive_step_put ils i  
   | AddM_S _ _ _ -> inductive_step_addm ils i
   | EvictM_S _ _ -> inductive_step_evictm ils i
-  | _ -> admit()                                      
+  | AddB_S _ _ _ _ -> inductive_step_addb ils i
+  | _ -> admit()
 
 let lemma_empty_implies_induction_props #vcfg (ils: its_log vcfg{I.length ils = 0})
   : Lemma (ensures (induction_props ils)) 

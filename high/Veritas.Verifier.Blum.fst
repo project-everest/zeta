@@ -1012,3 +1012,138 @@ let eac_instore_addb_diff_elem (itsl: its_log)
   lemma_mem_key_add_set_same itsli' be;
   lemma_mem_key_evict_set_same itsli' be;
   be
+
+let eac_evictedm_addb_diff_elem (itsl: its_log) 
+                               (i: I.seq_index itsl{let itsli = I.prefix itsl i in
+                                                    let e = I.index itsl i in
+                                                    is_blum_add e /\
+                                                    TL.is_eac itsli /\
+                                                    (let k = key_of e in
+                                                     TL.is_eac_state_evicted_merkle itsli k)})
+  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                      let as = ts_add_set itsli' in
+                      let es = ts_evict_set itsli' in
+                      MS.mem be as > MS.mem be es}) = 
+  let itsli = I.prefix itsl i in
+  let itsli' = I.prefix itsl (i + 1) in
+  let e = I.index itsl i in
+  let k = key_of e in
+
+  lemma_evict_add_count_same_evictedm itsli k;
+  lemma_ts_add_set_key_extend itsli';
+  lemma_ts_evict_set_key_extend2 itsli';
+  // assert(MS.size (ts_add_set_key itsli' k) = 1 + (MS.size (ts_evict_set_key itsli' k)));
+  let be = diff_elem (ts_add_set_key itsli' k) (ts_evict_set_key itsli' k) in
+  lemma_ts_add_set_key_contains_only itsli' k be;
+  // assert(MH.key_of be = k);
+  lemma_mem_key_add_set_same itsli' be;
+  lemma_mem_key_evict_set_same itsli' be;
+  be
+
+let eac_evictedb_addb_diff_elem (itsl: its_log) 
+                               (i: I.seq_index itsl{let itsli = I.prefix itsl i in
+                                                    let itsli' = I.prefix itsl (i + 1) in
+                                                    let e = I.index itsl i in
+                                                    is_blum_add e /\
+                                                    TL.is_eac itsli /\
+                                                    not (TL.is_eac itsli') /\
+                                                    (let k = key_of e in
+                                                     TL.is_eac_state_evicted_blum itsli k)})
+  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                      let as = ts_add_set itsli' in
+                      let es = ts_evict_set itsli' in
+                      MS.mem be as > MS.mem be es}) = 
+  let itsli = I.prefix itsl i in
+  let itsli' = I.prefix itsl (i + 1) in
+  let e = I.index itsl i in
+  let k = key_of e in
+  let ee = TL.vlog_entry_ext_at itsl i in
+  let st = TL.eac_state_pre itsl i in
+  lemma_eac_state_transition itsl i;
+  lemma_eac_boundary_inv itsl i;
+  assert(EACFail = eac_add ee st);
+
+  match st with
+  | EACEvictedBlum v_e t j -> (
+    match ee with
+    | NEvict (AddB (k,v) t' j') ->
+      assert(v_e <> v || t' <> t || j' <> j);     
+      let be = blum_add_elem (I.index itsl i) in
+
+      lemma_eac_evicted_blum_implies_previous_evict itsli k;
+      let i' = last_idx_of_key itsli k in
+      assert(is_evict_to_blum (I.index itsli i'));
+
+      let be' = blum_evict_elem itsli i' in
+      assert(be <> be');
+
+      if ts_evict_set itsl `MS.contains` be then (
+        let j = index_blum_evict itsl be in
+        lemma_evict_before_add3 itsl i j;
+        
+        assert(j < i);
+        assert(S.index (I.i_seq itsli) j = I.index itsli j);
+        lemma_last_index_correct2 (is_entry_of_key k) (I.i_seq itsli) j;
+        assert(j < i');
+
+        lemma_evict_has_next_add itsli j i;
+        lemma_blum_evict_add_same itsli j;
+        let j' = next_add_of_key itsli j k in
+        assert(blum_add_elem (I.index itsli' j') = be);
+        lemma_add_set_mem itsli' i j';
+        assert(MS.mem be (ts_add_set itsli') >= 2);
+
+        lemma_ts_evict_set_correct itsli';
+        let gl' = g_vlog_of itsli' in
+
+        g_evict_set_is_set gl';
+        assert(MS.mem be (ts_evict_set itsli') <= 1);
+
+        be
+      )
+      else (
+        lemma_add_elem_correct itsli' i;
+        // assert(ts_add_set itsli' `MS.contains` be);
+        // assert(MS.mem be (ts_add_set itsli') > 0);
+        lemma_mem_monotonic be itsl (i + 1);
+        // assert(MS.mem be (ts_evict_set itsli') = 0);
+        be
+      )
+    )                      
+
+let eac_add_set_mem_atleast_evict_set_mem (itsl: TL.eac_log) (be: ms_hashfn_dom) (tid: valid_tid itsl):
+  Lemma (requires (let k = MH.key_of be in
+                   store_contains (TL.thread_store itsl tid) k))
+        (ensures (MS.mem be (ts_add_set itsl) >= MS.mem be (ts_evict_set itsl)))
+  = 
+  let k = MH.key_of be in
+  if ts_evict_set itsl `MS.contains` be then (
+
+    let j = index_blum_evict itsl be in
+    lemma_instore_implies_last_entry_non_evict itsl k tid;
+    // assert(key_of (I.index itsl j) = k);
+    lemma_last_index_correct2 (is_entry_of_key k) (I.i_seq itsl) j;
+    // assert(has_some_entry_of_key itsl k);
+    let li = last_idx_of_key itsl k in
+    assert(not (is_evict_to_blum (I.index itsl li)));
+    assert(li > j);
+
+    lemma_evict_has_next_add itsl j (I.length itsl);
+    lemma_blum_evict_add_same itsl j;
+
+    let j' = next_add_of_key itsl j k in
+    assert(blum_add_elem (I.index itsl j') = be);
+    lemma_add_elem_correct itsl j';
+    assert(ts_add_set itsl `MS.contains` be);
+    assert(MS.mem be (ts_add_set itsl) >= 1);
+
+    let gl = g_vlog_of itsl in
+    lemma_ts_evict_set_correct itsl;
+    g_evict_set_is_set gl;
+
+    assert(MS.mem be (ts_evict_set itsl) <= 1);
+
+    ()
+  )
+  else ()
+  

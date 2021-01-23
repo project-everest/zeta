@@ -63,6 +63,16 @@ val lemma_add_set_key_extend  (#vcfg:_) (itsl: its_log vcfg {I.length itsl > 0})
                   add_set_key itsl k == 
                   add_elem (add_set_key itsl' k) be))
 
+
+val lemma_add_set_extend  (#vcfg:_) (itsl: its_log vcfg {I.length itsl > 0}):
+  Lemma (requires (is_blum_add (I.telem itsl)))
+        (ensures (let i = I.length itsl - 1 in
+                  let e = I.index itsl i in
+                  let be = blum_add_elem itsl i in
+                  let itsl' = I.prefix itsl i in
+                  add_set itsl == 
+                  add_elem (add_set itsl') be))
+
 val some_add_elem_idx (#vcfg:_) (itsl: its_log vcfg) 
   (be: ms_hashfn_dom{add_set itsl `contains` be}): 
   (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\
@@ -97,6 +107,12 @@ let evict_set_key #vcfg (itsl: its_log vcfg) (k:key): mset_ms_hashfn_dom=
 val evict_set_correct (#vcfg:_) (itsl: its_log vcfg):
   Lemma (ensures (evict_set itsl == IntG.evict_set (g_logS_of itsl)))
         [SMTPat (clock_sorted itsl)]
+
+val lemma_evict_set_extend2 (#vcfg:_) (itsl: its_log vcfg{I.length itsl > 0}):
+  Lemma (requires (let i = I.length itsl - 1 in  
+                   not (is_evict_to_blum (I.index itsl i))))
+        (ensures (let i = I.length itsl - 1 in  
+                  evict_set itsl == evict_set (I.prefix itsl i)))
 
 val lemma_spec_rel_implies_same_add_elem (#vcfg:_) 
                                          (ils: its_log vcfg{spec_rel ils}) 
