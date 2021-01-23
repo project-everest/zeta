@@ -685,6 +685,7 @@ let inductive_step_addb_caseA #vcfg
 
 #push-options "--z3rlimit_factor 5"
 
+// TODO: extremely unstable proof - debug
 let inductive_step_addb_caseB #vcfg 
                        (ils: IntTS.hash_verifiable_log vcfg) 
                        (i:I.seq_index ils{let ils_i = I.prefix ils i in
@@ -766,6 +767,72 @@ let inductive_step_addb #vcfg
     else
       inductive_step_addb_caseA ils i
 
+
+let inductive_step_evictb #vcfg 
+                       (ils: IntTS.hash_verifiable_log vcfg) 
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                          induction_props ils_i /\
+                                          EvictB_S? (I.index ils i)}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let tid = IntTS.thread_id_of ils i in                                          
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  
+  let ek = I.index ilk i in
+
+  match es with
+  | EvictB_S s t ->
+    lemma_evictb_simulates_spec vss_i vsk_i es;
+    lemma_forall_vtls_rel_extend ils i;        
+    lemma_evictb_preserves_ismap vss_i es;    
+    lemma_forall_store_ismap_extend ils i;    
+    if SpecTS.is_eac ilk_i1 then
+      None    
+    else (
+      SpecTS.lemma_eac_boundary_inv ilk_i1 i;
+      Some (lemma_non_eac_evictb_implies_hash_collision ilk_i1)
+    )
+
+
+let inductive_step_evictbm #vcfg 
+                       (ils: IntTS.hash_verifiable_log vcfg) 
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                          induction_props ils_i /\
+                                          EvictBM_S? (I.index ils i)}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  let tid = IntTS.thread_id_of ils i in                                          
+  let ilk = to_logk ils in  
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in  
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let vsk_i1 = SpecTS.thread_state_post ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+  
+  let ek = I.index ilk i in
+
+  match es with
+  | EvictBM_S s s' t ->
+    lemma_evictbm_simulates_spec vss_i vsk_i es;
+    lemma_forall_vtls_rel_extend ils i;        
+    lemma_evictbm_preserves_ismap vss_i es;    
+    lemma_forall_store_ismap_extend ils i;    
+    if SpecTS.is_eac ilk_i1 then
+      None    
+    else (
+      SpecTS.lemma_eac_boundary_inv ilk_i1 i;
+      Some (lemma_non_eac_evictbm_implies_hash_collision ilk_i1)
+    )
+
 (* 
  * induction step: if all the induction properties hold for prefix of length i, 
  * then the properties hold for prefix of length (i + 1) or we construct 
@@ -782,7 +849,8 @@ let inductive_step #vcfg
   | AddM_S _ _ _ -> inductive_step_addm ils i
   | EvictM_S _ _ -> inductive_step_evictm ils i
   | AddB_S _ _ _ _ -> inductive_step_addb ils i
-  | _ -> admit()
+  | EvictB_S _ _ -> inductive_step_evictb ils i
+  | EvictBM_S _ _ _  -> inductive_step_evictbm ils i
 
 let lemma_empty_implies_induction_props #vcfg (ils: its_log vcfg{I.length ils = 0})
   : Lemma (ensures (induction_props ils)) 
