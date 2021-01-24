@@ -263,15 +263,113 @@ let rec evict_seq_map #vcfg (itsl: its_log vcfg) (i:I.seq_index itsl {is_evict_t
   
 #pop-options
 
+let rec evict_seq_inv_map #vcfg (itsl: its_log vcfg) (j:SA.seq_index (evict_seq itsl)):
+  Tot (i:I.seq_index itsl {is_evict_to_blum (I.index itsl i) /\
+                           evict_seq_map itsl i = j}) 
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = evict_seq itsl' in
+  if j = S.length s' then n - 1
+  else
+    evict_seq_inv_map itsl' j
+
+
+#push-options "--z3rlimit_factor 3"
+
+let rec lemma_evict_seq_inv_map #vcfg (itsl: its_log vcfg) (i:I.seq_index itsl {is_evict_to_blum (I.index itsl i)}):
+  Lemma (ensures (evict_seq_inv_map itsl (evict_seq_map itsl i) = i))
+        (decreases (I.length itsl))
+        [SMTPat (evict_seq_map itsl i)] = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = evict_seq itsl' in
+  if i = n - 1 then ()
+  else 
+    lemma_evict_seq_inv_map itsl' i
+#pop-options
+
+let global_to_ts_evictseq_map_aux #vcfg (itsl: its_log vcfg) (i: SA.seq_index (IntG.evict_seq (g_logS_of itsl))):
+  Tot (j: SA.seq_index (evict_seq itsl)
+       {
+         S.index (IntG.evict_seq (g_logS_of itsl)) i =
+         S.index (evict_seq itsl) j
+       }) = 
+  let gl = g_logS_of itsl in
+  let gs = IntG.evict_seq gl in
+  let ii = IntG.evict_seq_map_inv gl i in
+  let ts = add_seq itsl in
+  let i' = s2i_map itsl ii in
+  let j = evict_seq_map itsl i' in
+  j
+
+let lemma_global_to_ts_evictseq_map_into #vcfg (itsl: its_log vcfg):
+  Lemma (forall (i1: SA.seq_index (IntG.evict_seq (g_logS_of itsl))).
+         forall (i2: SA.seq_index (IntG.evict_seq (g_logS_of itsl))).
+         i1 <> i2 ==> global_to_ts_evictseq_map_aux itsl i1 <>
+                    global_to_ts_evictseq_map_aux itsl i2) = 
+  let gl = g_logS_of itsl in
+  let gs = IntG.evict_seq gl in
+  let aux (i1 i2: SA.seq_index gs):
+    Lemma (requires True)
+          (ensures (i1 <> i2 ==> global_to_ts_evictseq_map_aux itsl i1 <>
+                               global_to_ts_evictseq_map_aux itsl i2)) = ()    
+  in  
+  forall_intro_2 aux                   
+
+let global_to_ts_evictseq_map #vcfg (itsl: its_log vcfg):
+  into_smap (IntG.evict_seq (g_logS_of itsl))
+            (evict_seq itsl) = 
+  lemma_global_to_ts_evictseq_map_into itsl;
+  global_to_ts_evictseq_map_aux itsl
+
+let ts_to_global_evictseq_map_aux #vcfg (itsl: its_log vcfg) (j:SA.seq_index (evict_seq itsl)):
+  Tot (i: SA.seq_index (IntG.evict_seq (g_logS_of itsl))
+       {
+         S.index (IntG.evict_seq (g_logS_of itsl)) i =
+         S.index (evict_seq itsl) j
+       }) = 
+  let gl = g_logS_of itsl in       
+  let gs = IntG.evict_seq gl in
+  let ts = evict_seq itsl in
+  let i' = evict_seq_inv_map itsl j in
+  let ii = i2s_map itsl i' in
+  let i = IntG.evict_seq_map gl ii in
+  i
+
+let lemma_ts_to_global_evictseq_map_into #vcfg (itsl: its_log vcfg):
+  Lemma (forall (i1: SA.seq_index (evict_seq itsl)).
+         forall (i2: SA.seq_index (evict_seq itsl)).
+         i1 <> i2 ==> ts_to_global_evictseq_map_aux itsl i1 <>
+                    ts_to_global_evictseq_map_aux itsl i2) = 
+  let ts = evict_seq itsl in
+
+  let aux (i1 i2: SA.seq_index ts):
+    Lemma (i1 <> i2 ==> ts_to_global_evictseq_map_aux itsl i1 <>
+                      ts_to_global_evictseq_map_aux itsl i2) = ()
+  in                      
+  forall_intro_2 aux
+
+let ts_to_global_evictseq_map #vcfg (itsl: its_log vcfg):
+  into_smap (evict_seq itsl)
+            (IntG.evict_seq (g_logS_of itsl)) = 
+  lemma_ts_to_global_evictseq_map_into itsl;
+  ts_to_global_evictseq_map_aux itsl
+
 let evict_set_correct (#vcfg:_) (itsl: its_log vcfg):
   Lemma (ensures (evict_set itsl == IntG.evict_set (g_logS_of itsl))) = 
-  admit()
-
+  let gl = g_logS_of itsl in
+  let gs = IntG.evict_seq gl in
+  let ts = evict_seq itsl in
+  
+  bijection_seq_mset #_ #ms_hashfn_dom_cmp gs ts (global_to_ts_evictseq_map itsl)
+                             (ts_to_global_evictseq_map itsl)
+  
 let lemma_evict_set_extend2 (#vcfg:_) (itsl: its_log vcfg{I.length itsl > 0}):
   Lemma (requires (let i = I.length itsl - 1 in  
                    not (is_evict_to_blum (I.index itsl i))))
         (ensures (let i = I.length itsl - 1 in  
-                  evict_set itsl == evict_set (I.prefix itsl i))) = admit()
+                  evict_set itsl == evict_set (I.prefix itsl i))) = ()
 
 let lemma_spec_rel_implies_same_add_elem (#vcfg:_) 
                                          (ils: its_log vcfg{spec_rel ils}) 
