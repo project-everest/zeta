@@ -376,13 +376,72 @@ let lemma_spec_rel_implies_same_add_elem (#vcfg:_)
                                          (i: I.seq_index ils{is_blum_add (I.index ils i)}):
   Lemma (ensures (let ilk = IntTS.to_logk ils in
                   SpecV.is_blum_add (I.index ilk i) /\
-                  SpecT.blum_add_elem (I.index ilk i) = blum_add_elem ils i)) = admit()
- 
-let lemma_spec_rel_implies_same_add_seq (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
+                  SpecT.blum_add_elem (I.index ilk i) = blum_add_elem ils i)) =   
+  ()
+
+let rec lemma_spec_rel_implies_same_add_seq_len #vcfg (ils: its_log vcfg{spec_rel ils})
+  : Lemma (ensures (let ilk = to_logk ils in
+                    S.length (add_seq ils) = S.length (SpecB.ts_add_seq ilk))) 
+          (decreases (I.length ils)) =   
+  let ilk = to_logk ils in                    
+  let as_s = add_seq ils in
+  let as_k = SpecB.ts_add_seq ilk in
+  let n = I.length ils in 
+  if n = 0 then 
+    SpecB.lemma_add_seq_empty ilk  
+  else (
+    let ils' = I.prefix ils (n - 1) in
+    let ilk' = to_logk ils' in
+    assert(ilk' == I.prefix ilk (n - 1));
+    let es = I.index ils (n - 1) in
+    let ek = I.index ilk (n - 1) in
+    assert(ek = to_logK_entry ils (n - 1));
+    lemma_spec_rel_implies_prefix_spec_rel ils (n - 1);
+    // assert(spec_rel ils');
+    lemma_spec_rel_implies_same_add_seq_len ils';
+
+    if is_blum_add es then
+      // assert(SpecV.is_blum_add ek);
+      SpecB.lemma_add_seq_extend ilk    
+    else      
+      SpecB.lemma_add_seq_extend2 ilk     
+  )
+
+let rec lemma_spec_rel_implies_same_add_seq_aux (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
   : Lemma (ensures (let ilk = to_logk ils in 
                     add_seq ils = SpecB.ts_add_seq ilk))
-  = admit()
+          (decreases (I.length ils)) =                     
+  let ilk = to_logk ils in
+  let asl = add_seq ils in
+  let ask = SpecB.ts_add_seq ilk in  
+  let n = I.length ils in
+  if n = 0 then (
+    SpecB.lemma_add_seq_empty ilk;
+    S.lemma_empty ask;
+    S.lemma_empty asl
+  )
+  else (
+    let ils' = I.prefix ils (n - 1) in
+    let ilk' = to_logk ils' in
+    assert(ilk' == I.prefix ilk (n - 1));
+    let es = I.index ils (n - 1) in
+    let ek = I.index ilk (n - 1) in
+    assert(ek = to_logK_entry ils (n - 1));
+    lemma_spec_rel_implies_prefix_spec_rel ils (n - 1);
+    // assert(spec_rel ils');
+    lemma_spec_rel_implies_same_add_seq_aux ils';
+    if is_blum_add es then
+      // assert(SpecV.is_blum_add ek);
+      SpecB.lemma_add_seq_extend ilk    
+    else      
+      SpecB.lemma_add_seq_extend2 ilk       
+  )
 
+let lemma_spec_rel_implies_same_add_seq (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
+  : Lemma (ensures (let ilk = to_logk ils in 
+                    add_seq ils = SpecB.ts_add_seq ilk)) = 
+  lemma_spec_rel_implies_same_add_seq_aux ils
+  
 let lemma_spec_rel_implies_same_evict_elem (#vcfg:_) 
                                          (ils: its_log vcfg{spec_rel ils}) 
                                          (i: I.seq_index ils{is_evict_to_blum (I.index ils i)}):

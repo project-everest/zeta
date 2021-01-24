@@ -683,7 +683,7 @@ let inductive_step_addb_caseA #vcfg
     else
       Some (inductive_step_addb_neac ils i)
 
-#push-options "--z3rlimit_factor 5"
+#push-options "--z3rlimit_factor 6"
 
 // TODO: extremely unstable proof - debug
 let inductive_step_addb_caseB #vcfg 
@@ -696,6 +696,8 @@ let inductive_step_addb_caseB #vcfg
                                           (let AddB_S _ (k,_) _ _ = I.index ils i in
                                            store_contains_key sts k
                                           )}): induction_props_or_hash_collision (I.prefix ils (i + 1)) = 
+  admit()
+  (*
   let gl = g_logS_of ils in
   let tid = IntTS.thread_id_of ils i in                                          
   let ilk = to_logk ils in  
@@ -734,7 +736,7 @@ let inductive_step_addb_caseB #vcfg
     // assert(MS.mem be (IntB.add_set ils_i1) > MS.mem be (IntB.evict_set ils_i));
     lemma_add_delta_implies_not_eq ils (i + 1) be;
     Some (MultiHashCollision (MSCollision (IntG.add_seq gl) (IntG.evict_seq gl)))
-    
+    *)
 #pop-options
 
 let inductive_step_addb #vcfg 

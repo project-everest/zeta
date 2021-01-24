@@ -14,6 +14,7 @@ open Veritas.Verifier.Thread
 open Veritas.Verifier.TSLog
 
 module S = FStar.Seq
+module SA = Veritas.SeqAux
 module E=Veritas.EAC
 module I = Veritas.Interleave
 module MS=Veritas.MultiSet
@@ -215,3 +216,39 @@ val eac_add_set_mem_atleast_evict_set_mem (itsl: TL.eac_log) (be: ms_hashfn_dom)
   Lemma (requires (let k = MH.key_of be in
                    store_contains (TL.thread_store itsl tid) k))
         (ensures (MS.mem be (ts_add_set itsl) >= MS.mem be (ts_evict_set itsl)))
+
+val lemma_add_seq_empty (itsl: its_log{I.length itsl = 0}):
+  Lemma (ensures (S.length (ts_add_seq itsl) = 0))
+
+val lemma_evict_seq_empty (itsl: its_log{I.length itsl = 0}):
+  Lemma (ensures (S.length (ts_evict_seq itsl) = 0))
+
+val lemma_add_seq_extend (itsl: its_log{I.length itsl > 0}):
+  Lemma (requires (is_blum_add (I.telem itsl)))
+        (ensures (let i = I.length itsl - 1 in
+                  let itsl' = I.prefix itsl i in
+                  let e = I.index itsl i in
+                  ts_add_seq itsl == 
+                  SA.append1 (ts_add_seq itsl') (blum_add_elem e)))
+                                       
+val lemma_add_seq_extend2 (itsl: its_log{I.length itsl > 0}):
+  Lemma (requires (not (is_blum_add (I.telem itsl))))
+        (ensures (let i = I.length itsl - 1 in
+                  let itsl' = I.prefix itsl i in
+                  let e = I.index itsl i in
+                  ts_add_seq itsl == 
+                  ts_add_seq itsl'))
+
+val lemma_evict_seq_extend (itsl: its_log{I.length itsl > 0}):
+  Lemma (requires (is_evict_to_blum (I.telem itsl)))
+        (ensures (let i = I.length itsl - 1 in
+                  let itsl' = I.prefix itsl i in
+                  ts_evict_seq itsl == 
+                  SA.append1 (ts_evict_seq itsl') (blum_evict_elem itsl i)))
+                                       
+val lemma_evict_seq_extend2 (itsl: its_log{I.length itsl > 0}):
+  Lemma (requires (not (is_evict_to_blum (I.telem itsl))))
+        (ensures (let i = I.length itsl - 1 in
+                  let itsl' = I.prefix itsl i in
+                  ts_evict_seq itsl == 
+                  ts_evict_seq itsl'))
