@@ -205,13 +205,63 @@ let blum_evict_elem (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_evict_
   let tl = IntG.thread_log gl tid in
   IntG.blum_evict_elem gl ii
 
-let lemma_blum_evict_elem (#vcfg:_) (ils: its_log vcfg) (i:nat{i <= I.length ils}) (j:nat{j < i})
-  : Lemma (requires (is_evict_to_blum (I.index ils j)))
-          (ensures (blum_evict_elem ils j = blum_evict_elem (I.prefix ils i) j)) = 
-  admit()          
+let lemma_blum_evict_elem (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}) (j:nat{j < i})
+  : Lemma (requires (is_evict_to_blum (I.index itsl j)))
+          (ensures (blum_evict_elem itsl j = blum_evict_elem (I.prefix itsl i) j)) = 
+  let gl = g_logS_of itsl in
+  let (t,j') = i2s_map itsl j in
+  let tl = thread_log gl t in  
+  assert(blum_evict_elem itsl j = IntT.blum_evict_elem tl j');
+  
+  let itsl' = I.prefix itsl i in
+  let gl' = g_logS_of itsl' in
+  let tl' = thread_log gl' t in
+  lemma_i2s_map_prefix itsl i j;
+  //assert(i2s_map itsl j = i2s_map itsl' j);
+  //assert(blum_evict_elem itsl' j = VT.blum_evict_elem tl' j');
+  lemma_prefix_interleaving itsl i t;
+  //assert(tl' = VT.prefix tl (VT.length tl'));
+  lemma_blum_evict_elem_prefix tl (IntT.length tl') j'
+
+let rec evict_seq_aux #vcfg (itsl: its_log vcfg): 
+  Tot (seq ms_hashfn_dom)
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if n = 0 then S.empty #ms_hashfn_dom
+  else
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = evict_seq_aux itsl' in
+    let e = I.index itsl (n - 1) in
+    if is_evict_to_blum e then
+      SA.append1 s' (blum_evict_elem itsl (n - 1))
+    else
+      s'
 
 let evict_seq (#vcfg:_) (itsl: its_log vcfg): seq ms_hashfn_dom =
-  admit()
+  evict_seq_aux itsl
+
+#push-options "--z3rlimit_factor 3"
+
+let rec evict_seq_map #vcfg (itsl: its_log vcfg) (i:I.seq_index itsl {is_evict_to_blum (I.index itsl i)}):
+  Tot (j:SA.seq_index (evict_seq itsl){S.index (evict_seq itsl) j = 
+                                          blum_evict_elem itsl i}) 
+  (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = evict_seq itsl' in
+  if i = n - 1 then S.length s'
+  else ( 
+    lemma_blum_evict_elem itsl (n - 1) i;
+    let e = I.index itsl (n - 1) in
+    if is_evict_to_blum e then 
+      evict_seq_map itsl' i
+    
+    else 
+      evict_seq_map itsl' i
+    
+  )
+  
+#pop-options
 
 let evict_set_correct (#vcfg:_) (itsl: its_log vcfg):
   Lemma (ensures (evict_set itsl == IntG.evict_set (g_logS_of itsl))) = 

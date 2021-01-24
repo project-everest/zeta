@@ -119,3 +119,7 @@ val evict_seq_inv_map (#vcfg:_) (tl: verifiable_log vcfg) (j: SA.seq_index (blum
 val lemma_evict_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
   Lemma (ensures (evict_seq_inv_map tl (evict_seq_map tl i) = i))
         [SMTPat (evict_seq_map tl i)]
+
+val lemma_blum_evict_elem_prefix (#vcfg:_) (tl: verifiable_log vcfg) (i: nat{i <= length tl}) 
+  (j: nat{j < i && is_evict_to_blum (index tl j)}):
+  Lemma (blum_evict_elem tl j = blum_evict_elem (prefix tl i) j)
