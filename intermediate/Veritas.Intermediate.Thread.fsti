@@ -129,3 +129,6 @@ val lemma_evict_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_
 val lemma_blum_evict_elem_prefix (#vcfg:_) (tl: verifiable_log vcfg) (i: nat{i <= length tl}) 
   (j: nat{j < i && is_evict_to_blum (index tl j)}):
   Lemma (blum_evict_elem tl j = blum_evict_elem (prefix tl i) j)
+
+val lemma_add_clock (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
+  Lemma (timestamp_of (blum_add_elem (index tl i)) `ts_lt`  clock tl i) 

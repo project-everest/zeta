@@ -66,6 +66,13 @@ let hash_verifiable #vcfg (gl: verifiable_log vcfg): bool =
 
 let hash_verifiable_log vcfg = gl:verifiable_log vcfg{hash_verifiable gl}
 
+/// the the clock of a specific log entry
+/// 
+let clock #vcfg (gl: verifiable_log vcfg) (i: sseq_index gl): timestamp = 
+  let (tid, idx) = i in  
+  let tl = thread_log gl tid in
+  IntT.clock tl idx
+
 (* global add sequence *)
 val add_seq (#vcfg:_) (gl: verifiable_log vcfg): seq (ms_hashfn_dom)
 

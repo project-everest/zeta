@@ -32,6 +32,12 @@ let to_state_ops #vcfg (itsl:il_logS vcfg): Seq.seq (state_op) =
 let verifiable #vcfg (il: il_logS vcfg) = 
   IntG.verifiable (g_logS_of il)
 
+/// the clock of an entry in a verifiable idx seq
+let clock #vcfg (il: il_logS vcfg{verifiable il}) (i: I.seq_index il): timestamp =
+  let gl = g_logS_of il in
+  let j = i2s_map il i in
+  IntG.clock gl j
+
 val clock_sorted (#vcfg:_) (il: il_logS vcfg {verifiable il}): prop
 
 let its_log vcfg = il:il_logS vcfg{verifiable il /\ clock_sorted il}

@@ -503,18 +503,48 @@ let rec lemma_spec_rel_implies_same_evict_seq_aux (#vcfg:_) (ils: its_log vcfg{s
 let lemma_spec_rel_implies_same_evict_seq (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
   : Lemma (ensures (let ilk = to_logk ils in 
                     evict_seq ils = SpecB.ts_evict_seq ilk))
-  = admit()
+  = lemma_spec_rel_implies_same_evict_seq_aux ils
 
 (* since evict_set is a pure set (not a multiset) we can identify the unique index 
  * for each element of the set *)
 let index_blum_evict (#vcfg:_) (itsl: its_log vcfg) (e: ms_hashfn_dom {evict_set itsl `contains` e}):
   (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i) /\ 
-                      blum_evict_elem itsl i = e}) = admit()
+                      blum_evict_elem itsl i = e}) = 
+  let esq = evict_seq itsl in
+  let est = evict_set itsl in
+  let j = index_of_mselem #_ #ms_hashfn_dom_cmp esq e in
+  assert(S.index esq j = e);
+  evict_seq_inv_map itsl j
+
+let lemma_add_clock #vcfg (itsl: its_log vcfg) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
+  Lemma (timestamp_of (blum_add_elem itsl i) `ts_lt` IntTS.clock itsl i) = 
+  let gl = g_logS_of itsl in
+  let (tid,j) = i2s_map itsl i in
+  let tl = thread_log gl tid in
+  IntT.lemma_add_clock tl j
 
 (* if the blum add occurs in the blum evict set, its index is earlier *)
 let lemma_evict_before_add (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
   Lemma (ensures (not (evict_set itsl `contains` blum_add_elem itsl i)) \/
-                  index_blum_evict itsl (blum_add_elem itsl i) < i) = admit()
+                  index_blum_evict itsl (blum_add_elem itsl i) < i) = 
+  let be = blum_add_elem itsl i in                  
+  let evt_set = evict_set itsl in
+  let add_set = add_set itsl in
+  lemma_add_clock itsl i;
+  if evt_set `contains` be then (
+    let j = index_blum_evict itsl be in
+    admit()
+  )
+  else ()
+  (*
+  if evt_set `contains` be then (
+    
+    lemma_evict_clock itsl j;
+    lemma_clock_ordering itsl j i
+  )
+  else ()
+  *)
+
 
 let lemma_add_delta_implies_not_eq (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}) (be:ms_hashfn_dom):
     Lemma (requires (let itsli = I.prefix itsl i in
