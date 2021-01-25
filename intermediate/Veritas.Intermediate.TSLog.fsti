@@ -1,6 +1,7 @@
 module Veritas.Intermediate.TSLog
 
 open Veritas.Interleave
+open Veritas.MultiSetHash
 open Veritas.SeqAux
 open Veritas.State
 open Veritas.Verifier
@@ -192,3 +193,32 @@ val lemma_empty_implies_spec_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
 val lemma_spec_rel_implies_prefix_spec_rel (#vcfg:_) (ils:its_log vcfg) (i:nat{i <= I.length ils})
  : Lemma (ensures (let ils' = I.prefix ils i in
                    spec_rel ils'))
+
+///  If the i'th position in the interleaved log is an evict to blum (EvictB/EvictBM) return the
+///  multiset element at this position (that is added to the evict set)
+/// 
+let blum_evict_elem #vcfg (ils: its_log vcfg) 
+                          (i:I.seq_index ils{is_evict_to_blum (I.index ils i)}): ms_hashfn_dom =
+  let gl = g_logS_of ils in
+  let ii = i2s_map ils i in
+  IntG.blum_evict_elem gl ii
+
+///  Some properties of the blum evict element returned at the position i
+///
+val lemma_blum_evict_def (#vcfg:_) 
+                         (ils: its_log vcfg) 
+                         (i:I.seq_index ils {is_evict_to_blum (I.index ils i)})
+  : Lemma (ensures (let be = blum_evict_elem ils i in
+                    let tid = thread_id_of ils i in
+                    let vs = thread_state_pre ils i in
+                    let st = IntV.thread_store vs in
+                    let e = I.index ils i in
+                    let s = slot_of e in
+                    inuse_slot st s /\
+                    (let k = stored_key st s in
+                     let v = stored_value st s in
+                     match e with
+                     | EvictB_S _ t -> be = MHDom (k,v) t tid
+                     | EvictBM_S _ _ t -> be = MHDom (k,v) t tid
+                    )))
+                         

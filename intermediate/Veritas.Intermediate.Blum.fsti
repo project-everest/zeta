@@ -6,8 +6,10 @@ open Veritas.MultiSet
 open Veritas.MultiSetHash
 open Veritas.Intermediate.Global
 open Veritas.Intermediate.Logs
+open Veritas.Intermediate.Store
 open Veritas.Intermediate.TSLog
 open Veritas.Intermediate.Thread
+open Veritas.Intermediate.Verify
 open Veritas.Intermediate.VerifierConfig
 
 module I = Veritas.Interleave
@@ -15,6 +17,8 @@ module MS = Veritas.MultiSet
 module SpecV = Veritas.Verifier
 module SpecB = Veritas.Verifier.Blum
 module SpecT = Veritas.Verifier.Thread
+module SpecTS = Veritas.Verifier.TSLog
+module IntV = Veritas.Intermediate.Verify
 module IntG = Veritas.Intermediate.Global
 module IntT = Veritas.Intermediate.Thread
 module IntTS = Veritas.Intermediate.TSLog
@@ -49,8 +53,8 @@ val lemma_add_set_extend  (#vcfg:_) (itsl: its_log vcfg {I.length itsl > 0}):
                   add_elem (add_set itsl') be))
 
 (* get the blum evict element from an index *)
-val blum_evict_elem (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
-  ms_hashfn_dom
+let blum_evict_elem (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}): ms_hashfn_dom  =
+  IntTS.blum_evict_elem itsl i
 
 val lemma_blum_evict_elem (#vcfg:_) (ils: its_log vcfg) (i:nat{i <= I.length ils}) (j:nat{j < i})
   : Lemma (requires (is_evict_to_blum (I.index ils j)))

@@ -63,8 +63,8 @@ val lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_do
         (ensures (MH.key_of be = k))
 
 (* get the blum evict element from an index *)
-val blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
-  (e:ms_hashfn_dom{MH.key_of e = key_of (I.index itsl i)})
+let blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
+  (e:ms_hashfn_dom{MH.key_of e = key_of (I.index itsl i)}) = TL.blum_evict_elem itsl i
 
 val lemma_index_blum_evict_prefix (itsl: its_log) (i:nat{i <= I.length itsl}) (j:nat{j < i}):
   Lemma (requires (is_evict_to_blum (I.index itsl j)))

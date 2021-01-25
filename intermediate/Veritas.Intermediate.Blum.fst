@@ -197,14 +197,6 @@ let lemma_add_set_extend  (#vcfg:_) (itsl: its_log vcfg {I.length itsl > 0}):
   let be = IntT.blum_add_elem e in
   seq2mset_add_elem #_ #ms_hashfn_dom_cmp s' be                  
 
-let blum_evict_elem (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
-  ms_hashfn_dom = 
-  let gl = g_logS_of itsl in
-  let ii = i2s_map itsl i in
-  let (tid,j) = ii in
-  let tl = IntG.thread_log gl tid in
-  IntG.blum_evict_elem gl ii
-
 let lemma_blum_evict_elem (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}) (j:nat{j < i})
   : Lemma (requires (is_evict_to_blum (I.index itsl j)))
           (ensures (blum_evict_elem itsl j = blum_evict_elem (I.prefix itsl i) j)) = 
@@ -395,7 +387,7 @@ let rec lemma_spec_rel_implies_same_add_seq_len #vcfg (ils: its_log vcfg{spec_re
     assert(ilk' == I.prefix ilk (n - 1));
     let es = I.index ils (n - 1) in
     let ek = I.index ilk (n - 1) in
-    assert(ek = to_logK_entry ils (n - 1));
+    assert(ek = IntTS.to_logK_entry ils (n - 1));
     lemma_spec_rel_implies_prefix_spec_rel ils (n - 1);
     // assert(spec_rel ils');
     lemma_spec_rel_implies_same_add_seq_len ils';
@@ -426,7 +418,7 @@ let rec lemma_spec_rel_implies_same_add_seq_aux (#vcfg:_) (ils: its_log vcfg{spe
     assert(ilk' == I.prefix ilk (n - 1));
     let es = I.index ils (n - 1) in
     let ek = I.index ilk (n - 1) in
-    assert(ek = to_logK_entry ils (n - 1));
+    assert(ek = IntTS.to_logK_entry ils (n - 1));
     lemma_spec_rel_implies_prefix_spec_rel ils (n - 1);
     // assert(spec_rel ils');
     lemma_spec_rel_implies_same_add_seq_aux ils';
@@ -441,14 +433,42 @@ let lemma_spec_rel_implies_same_add_seq (#vcfg:_) (ils: its_log vcfg{spec_rel il
   : Lemma (ensures (let ilk = to_logk ils in 
                     add_seq ils = SpecB.ts_add_seq ilk)) = 
   lemma_spec_rel_implies_same_add_seq_aux ils
-  
+
+module SpecTS = Veritas.Verifier.TSLog
+
 let lemma_spec_rel_implies_same_evict_elem (#vcfg:_) 
                                          (ils: its_log vcfg{spec_rel ils}) 
                                          (i: I.seq_index ils{is_evict_to_blum (I.index ils i)}):
   Lemma (ensures (let ilk = IntTS.to_logk ils in
                   SpecV.is_evict_to_blum (I.index ilk i) /\
-                  SpecB.blum_evict_elem ilk i = blum_evict_elem ils i))
-  = admit()                  
+                  SpecB.blum_evict_elem ilk i = blum_evict_elem ils i)) = 
+  let ilk = IntTS.to_logk ils in                  
+  // let bes = blum_evict_elem ils i in
+  // let bek = SpecB.blum_evict_elem ilk i in
+  // let tid = IntTS.thread_id_of ils i in
+
+  // let es = I.index ils i in
+  // let ek = I.index ilk i in
+  let vss = IntTS.thread_state_pre ils i in
+  //let sts = IntV.thread_store vss in
+  let vsk = SpecTS.thread_state_pre ilk i in
+  //let stk = SpecV.thread_store vsk in
+  // assert(ek = IntV.to_logK_entry vss es);
+  lemma_blum_evict_def ils i;
+  SpecTS.lemma_blum_evict_def ilk i;
+
+  // let s = slot_of es in
+  // assert(inuse_slot sts s); 
+  // let k = stored_key sts s in
+  // assert(SpecV.key_of ek = k);
+
+  // let v = stored_value sts s in
+  // assert(tid = SpecTS.thread_id_of ilk i);
+  lemma_spec_rel_implies_prefix_spec_rel ils i;
+  assert(vtls_rel vss vsk);
+  // assert(SpecV.store_contains stk k);
+  // assert(SpecV.stored_value stk k = v);
+  ()                  
 
 let lemma_spec_rel_implies_same_evict_seq (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
   : Lemma (ensures (let ilk = to_logk ils in 

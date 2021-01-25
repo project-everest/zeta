@@ -225,16 +225,6 @@ let lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_do
   assert(S.index s j = be);
   lemma_ts_add_set_key_contains_only_aux itsl k j
 
-(* get the blum evict element from an index *)
-let blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
-  (e:ms_hashfn_dom{MH.key_of e = key_of (I.index itsl i)}) = 
-  let gl = g_vlog_of itsl in
-  let ii = i2s_map itsl i in
-  let (tid,j) = ii in
-  let tl = VG.thread_log gl tid in
-  lemma_blum_evict_elem_key tl j;  
-  VG.blum_evict_elem gl ii
-
 let lemma_index_blum_evict_prefix (itsl: its_log) (i:nat{i <= I.length itsl}) (j:nat{j < i}):
   Lemma (requires (is_evict_to_blum (I.index itsl j)))
         (ensures (blum_evict_elem itsl j = blum_evict_elem (I.prefix itsl i) j)) =

@@ -58,6 +58,16 @@ let is_evict_to_blum #vcfg (e:logS_entry vcfg): bool =
   | EvictBM_S _ _ _ -> true
   | _ -> false
 
+let slot_of #vcfg (e:logS_entry vcfg): slot_id _ = 
+  match e with
+  | Get_S s _ _ -> s
+  | Put_S s _ _ -> s
+  | AddM_S s _ _ -> s
+  | EvictM_S s _ -> s
+  | AddB_S s _ _ _ -> s
+  | EvictB_S s _ -> s
+  | EvictBM_S s _ _ -> s
+
 (* 
  * Given a slot -> key mapping, we define a boolean whether a log entry is valid.
  * This definition checks if the slots are used correctly:
