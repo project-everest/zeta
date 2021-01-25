@@ -793,13 +793,13 @@ let blum_evict_elem_val (itsl:TL.eac_log) (i:I.seq_index itsl)
       let k = key_of vi in
       let EACEvictedBlum v ts tid = eac_state_of_key (I.prefix itsl (i + 1)) k in
       blum_evict_elem itsl i == MHDom (k, v) ts tid))
-  = VT.reveal_blum_evict_elem ();
+  = //VT.reveal_blum_evict_elem ();
     let gl = g_vlog_of itsl in
     let ii = i2s_map itsl i in
     let (tid,j) = ii in
     assert (thread_id_of itsl i == tid);
     let tl = VG.thread_log gl tid in
-    assert (blum_evict_elem itsl i == VT.blum_evict_elem_def tl j);
+    // assert (blum_evict_elem itsl i == VT.blum_evict_elem_def tl j);
     let itsl_i = I.prefix itsl (i + 1) in  
     let itsl_i' = I.prefix itsl_i i in
     let vi = I.index itsl_i i in

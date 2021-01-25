@@ -157,12 +157,6 @@ let rec lemma_hadd_correct_aux (tl: verifiable_log):
   )
 
 let lemma_hadd_correct = lemma_hadd_correct_aux
-
-let blum_evict_elem = blum_evict_elem_def
-
-let reveal_blum_evict_elem () 
-  : Lemma (blum_evict_elem == blum_evict_elem_def)
-  = norm_spec [delta_only [`%blum_evict_elem]] blum_evict_elem
   
 let rec blum_evict_seq_aux (tl: verifiable_log): 
   Tot (S.seq ms_hashfn_dom)

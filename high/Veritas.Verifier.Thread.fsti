@@ -130,24 +130,12 @@ let hadd (tl: verifiable_log): ms_hash_value =
 val lemma_hadd_correct (tl: verifiable_log):
   Lemma (hadd tl = ms_hashfn (blum_add_seq tl))
 
-let blum_evict_elem_def (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom =
+let blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom = 
   let tli = prefix tl i in
   let tli' = prefix tl (i + 1) in
   let e = index tl i in
-  match e with
-  | EvictB k t -> 
-    let st = store_at tl i in
-    let v = stored_value st k in
-    MHDom (k,v) t (thread_id_of tl) 
-  | EvictBM k k' t -> 
-    let st = store_at tl i in
-    let v = stored_value st k in
-    MHDom (k,v) t (thread_id_of tl)   
-
-val blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom
-
-val reveal_blum_evict_elem (_:unit)
-  : Lemma (blum_evict_elem == blum_evict_elem_def)
+  let vs = verify tli in
+  V.blum_evict_elem vs e (thread_id_of tl)
 
 val blum_evict_seq (tl: verifiable_log): S.seq ms_hashfn_dom
 

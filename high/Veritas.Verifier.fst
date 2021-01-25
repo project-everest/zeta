@@ -414,3 +414,15 @@ let addm_of_entry (e:vlog_entry{is_add e}): add_method =
   | AddM _ _ -> MAdd
   | AddB _ _ _ -> BAdd
 
+let blum_evict_elem (vs:vtls{Valid? vs}) 
+                    (e:vlog_entry {is_evict_to_blum e /\ Valid? (t_verify_step vs e)}) 
+                    (tid: thread_id): ms_hashfn_dom = 
+  let st = thread_store vs in
+  match e with
+  | EvictB k t ->
+    let v = stored_value st k in
+    MHDom (k,v) t tid
+  | EvictBM k k' t ->
+    let v = stored_value st k in
+    MHDom (k,v) t tid
+    

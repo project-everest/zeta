@@ -508,3 +508,22 @@ val lemma_instore_implies_last_entry_non_evict (itsl: eac_log) (k:key) (tid:vali
 /// 
 val lemma_empty_log_eac (itsl: its_log{I.length itsl = 0})
   : Lemma (ensures (is_eac itsl))
+
+let blum_evict_elem (itsl: its_log) 
+                    (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}): ms_hashfn_dom = 
+  let gl = g_vlog_of itsl in
+  let ii = i2s_map itsl i in
+  VG.blum_evict_elem gl ii
+
+val lemma_blum_evict_def (itsl: its_log)
+                         (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
+  Lemma (ensures (let tid = thread_id_of itsl i in 
+                  let e = I.index itsl i in
+                  let k = key_of e in
+                  let itsli = I.prefix itsl i in
+                  let st = thread_store itsli tid in
+                  V.store_contains st k /\
+                  (let v = V.stored_value st k in
+                   match e with
+                   | EvictB _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid
+                   | EvictBM _ _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid)))

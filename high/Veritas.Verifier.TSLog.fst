@@ -1845,3 +1845,23 @@ let lemma_empty_log_eac (itsl: its_log{I.length itsl = 0})
   let el: seq vlog_entry_ext = vlog_ext_of_its_log itsl in
   lemma_empty_seq_valid_all eac_sm;
   lemma_empty el
+
+let lemma_blum_evict_def (itsl: its_log)
+                         (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
+  Lemma (ensures (let tid = thread_id_of itsl i in 
+                  let e = I.index itsl i in
+                  let k = key_of e in
+                  let itsli = I.prefix itsl i in
+                  let st = thread_store itsli tid in
+                  V.store_contains st k /\
+                  (let v = V.stored_value st k in
+                   match e with
+                   | EvictB _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid
+                   | EvictBM _ _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid))) = 
+  let gl = g_vlog_of itsl in
+  let ii = i2s_map itsl i in
+  let (tid,j) = ii in
+  let tl = VG.thread_log gl tid in
+  VT.lemma_verifiable_implies_prefix_verifiable tl (j + 1);
+  VT.lemma_state_transition tl j;
+  I.interleave_sseq_index itsl i
