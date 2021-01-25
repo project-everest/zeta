@@ -470,6 +470,36 @@ let lemma_spec_rel_implies_same_evict_elem (#vcfg:_)
   // assert(SpecV.stored_value stk k = v);
   ()                  
 
+let rec lemma_spec_rel_implies_same_evict_seq_aux (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
+  : Lemma (ensures (let ilk = to_logk ils in 
+                    evict_seq ils = SpecB.ts_evict_seq ilk))
+          (decreases (I.length ils))
+  = 
+  let ilk = to_logk ils in
+  let esl = evict_seq ils in
+  let esk = SpecB.ts_evict_seq ilk in
+  let n = I.length ils in
+  if n = 0 then (
+    SpecB.lemma_evict_seq_empty ilk;
+    S.lemma_empty esl;
+    S.lemma_empty esk
+  )
+  else (
+    let ils' = I.prefix ils (n - 1) in
+    let ilk' = to_logk ils' in
+    let es = I.index ils (n - 1) in 
+    let ek = I.index ilk (n - 1) in
+    lemma_spec_rel_implies_prefix_spec_rel ils (n -1);
+    lemma_spec_rel_implies_same_evict_seq_aux ils';
+    if is_evict_to_blum es then (
+      SpecB.lemma_evict_seq_extend ilk;
+      lemma_spec_rel_implies_same_evict_elem ils (n - 1)
+    )
+    else 
+      SpecB.lemma_evict_seq_extend2 ilk    
+  )
+
+
 let lemma_spec_rel_implies_same_evict_seq (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
   : Lemma (ensures (let ilk = to_logk ils in 
                     evict_seq ils = SpecB.ts_evict_seq ilk))
