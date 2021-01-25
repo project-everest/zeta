@@ -522,6 +522,20 @@ val lemma_evictbm_preserves_ismap
 let init_thread_state #vcfg (tid:thread_id) (st:vstore _): vtls vcfg = 
   Valid tid st (MkTimestamp 0 0) empty_hash_value empty_hash_value
 
+let blum_evict_elem #vcfg (vs:vtls vcfg{Valid? vs}) 
+                    (e:logS_entry _ {is_evict_to_blum e /\ Valid? (verify_step vs e)}) 
+                    (tid: thread_id): ms_hashfn_dom = 
+  let st = thread_store vs in
+  match e with
+  | EvictB_S s t ->    
+    let k = stored_key st s in
+    let v = stored_value st s in
+    MHDom (k,v) t tid
+  | EvictBM_S s _ t ->
+    let k = stored_key st s in
+    let v = stored_value st s in
+    MHDom (k,v) t tid
+
 (*
 
 

@@ -97,7 +97,13 @@ val lemma_hadd_correct (#vcfg:_) (tl: verifiable_log vcfg):
   Lemma (ensures (hadd tl = ms_hashfn (blum_add_seq tl)))
         [SMTPat (verifiable tl)]
 
-val blum_evict_elem (#vcfg:_) (tl: verifiable_log vcfg) (i:seq_index tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom
+let blum_evict_elem (#vcfg:_) (tl: verifiable_log vcfg) (i:seq_index tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom = 
+  let (tid, _) = tl in
+  let tli = prefix tl i in
+  let tli' = prefix tl (i + 1) in
+  let e = index tl i in
+  let vs = verify tli in
+  IntV.blum_evict_elem vs e tid
 
 val blum_evict_seq (#vcfg:_) (tl: verifiable_log vcfg): S.seq ms_hashfn_dom
 
