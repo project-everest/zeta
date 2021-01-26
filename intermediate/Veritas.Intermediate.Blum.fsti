@@ -72,6 +72,10 @@ val evict_set_correct (#vcfg:_) (itsl: its_log vcfg):
   Lemma (ensures (evict_set itsl == IntG.evict_set (g_logS_of itsl)))
         [SMTPat (clock_sorted itsl)]
 
+val lemma_evict_elem_correct (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl):
+  Lemma (requires (is_evict_to_blum (I.index itsl i)))
+        (ensures (evict_set itsl `contains` blum_evict_elem itsl i))
+
 val lemma_evict_set_extend2 (#vcfg:_) (itsl: its_log vcfg{I.length itsl > 0}):
   Lemma (requires (let i = I.length itsl - 1 in  
                    not (is_evict_to_blum (I.index itsl i))))
@@ -112,6 +116,16 @@ val index_blum_evict (#vcfg:_) (itsl: its_log vcfg) (e: ms_hashfn_dom {evict_set
 val lemma_evict_before_add (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
   Lemma (ensures (not (evict_set itsl `contains` blum_add_elem itsl i)) \/
                   index_blum_evict itsl (blum_add_elem itsl i) < i)
+
+/// index of some add element given that the the add set contains the element
+/// 
+val some_add_elem_idx (#vcfg:_) (itsl: its_log vcfg) 
+                                (be: ms_hashfn_dom{add_set itsl `contains` be}):
+   (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\ be = blum_add_elem itsl i})
+
+/// The membership of an element in a prefix addset <= membership in the full addset 
+val lemma_mem_monotonic_add_set (#vcfg:_) (be:ms_hashfn_dom) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}):
+  Lemma (mem be (add_set itsl) >= mem be (add_set (I.prefix itsl i)))
 
 ///  for any prefix of itsl, there exists an element be whose membership in add set > membership in evict set, then
 ///  the add and evict sets of the entire sequence cannot be equal.

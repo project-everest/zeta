@@ -356,7 +356,14 @@ let evict_set_correct (#vcfg:_) (itsl: its_log vcfg):
   
   bijection_seq_mset #_ #ms_hashfn_dom_cmp gs ts (global_to_ts_evictseq_map itsl)
                              (ts_to_global_evictseq_map itsl)
-  
+
+let lemma_evict_elem_correct (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl):
+  Lemma (requires (is_evict_to_blum (I.index itsl i)))
+        (ensures (evict_set itsl `contains` blum_evict_elem itsl i)) = 
+  let es = evict_seq itsl in        
+  let j = evict_seq_map itsl i in
+  mset_contains_seq_element #_ #ms_hashfn_dom_cmp es j
+
 let lemma_evict_set_extend2 (#vcfg:_) (itsl: its_log vcfg{I.length itsl > 0}):
   Lemma (requires (let i = I.length itsl - 1 in  
                    not (is_evict_to_blum (I.index itsl i))))
@@ -516,6 +523,14 @@ let index_blum_evict (#vcfg:_) (itsl: its_log vcfg) (e: ms_hashfn_dom {evict_set
   assert(S.index esq j = e);
   evict_seq_inv_map itsl j
 
+(* the clock of an evict entry is the timestamp in the corresponding blum element *)
+let lemma_evict_clock  #vcfg (itsl: its_log vcfg) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
+  Lemma (IntTS.clock itsl i = timestamp_of (blum_evict_elem itsl i)) = 
+  let gl = g_logS_of itsl in
+  let (tid,j) = i2s_map itsl i in
+  let tl = thread_log gl tid in
+  IntT.lemma_evict_clock tl j
+
 let lemma_add_clock #vcfg (itsl: its_log vcfg) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
   Lemma (timestamp_of (blum_add_elem itsl i) `ts_lt` IntTS.clock itsl i) = 
   let gl = g_logS_of itsl in
@@ -533,20 +548,79 @@ let lemma_evict_before_add (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is
   lemma_add_clock itsl i;
   if evt_set `contains` be then (
     let j = index_blum_evict itsl be in
-    admit()
+    lemma_evict_clock itsl j;    
+    lemma_clock_ordering itsl j i    
   )
   else ()
-  (*
-  if evt_set `contains` be then (
-    
-    lemma_evict_clock itsl j;
-    lemma_clock_ordering itsl j i
-  )
-  else ()
-  *)
 
+let some_add_elem_idx (#vcfg:_) (itsl: its_log vcfg) 
+                                (be: ms_hashfn_dom{add_set itsl `contains` be}):
+   (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\ be = blum_add_elem itsl i}) = 
+  let s = add_seq itsl in  
+  (* index of element be in s *)
+  let j = index_of_mselem #_ #ms_hashfn_dom_cmp s be in
+  add_seq_map_inv itsl j
+
+let rec lemma_prefix_add_seq #vcfg (itsl: its_log vcfg) (i: nat{ i <= I.length itsl}):
+  Lemma (ensures (SA.is_prefix (add_seq itsl) (add_seq (I.prefix itsl i))))
+        (decreases (I.length itsl)) = 
+  let n = I.length itsl in
+  if i = n then () // prefix is the same sequence
+  else (
+    let itsl' = I.prefix itsl (n - 1) in
+    let s' = add_seq itsl' in
+    let e = I.index itsl (n - 1) in
+    if i = n - 1 then
+      if is_blum_add e then
+        lemma_prefix1_append s' (IntT.blum_add_elem e)
+      else ()
+    else (
+      lemma_prefix_add_seq itsl' i;
+      if is_blum_add e then
+        lemma_prefix1_append s' (IntT.blum_add_elem e)
+      else ()
+    )
+  )
+
+let lemma_mem_monotonic_add_set (#vcfg:_) (be:ms_hashfn_dom) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}):
+  Lemma (mem be (add_set itsl) >= mem be (add_set (I.prefix itsl i))) = 
+  let itsl' = I.prefix itsl i in
+  let s' = add_seq itsl' in
+  let s = add_seq itsl in
+  lemma_prefix_add_seq itsl i;
+  seq_prefix_mset_mem #_ #ms_hashfn_dom_cmp s s' be;
+  ()
+
+#push-options "--z3rlimit_factor 3"
 
 let lemma_add_delta_implies_not_eq (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}) (be:ms_hashfn_dom):
     Lemma (requires (let itsli = I.prefix itsl i in
                      MS.mem be (add_set itsli) > MS.mem be (evict_set itsli)))
-          (ensures (~ ((add_set itsl) == (evict_set itsl)))) = admit()
+          (ensures (~ ((add_set itsl) == (evict_set itsl)))) =
+  let gl = g_logS_of itsl in      
+  let itsli = I.prefix itsl i in
+  let asi = add_set itsli in
+  let esi = evict_set itsli in
+  let as = add_set itsl in
+  let es = evict_set itsl in
+
+  let j = some_add_elem_idx itsli be in
+  lemma_mem_monotonic_add_set be itsl i;
+  
+  if es `contains` be then (
+    lemma_evict_before_add itsl j;
+    let j' = index_blum_evict itsl be in
+    // assert(j' < j);
+    // assert(be = blum_evict_elem itsl j');
+    lemma_blum_evict_elem itsl i j';
+    // assert(be = blum_evict_elem itsli j');
+    lemma_evict_elem_correct itsli j';
+    // assert(esi `contains` be);
+    // assert(mem be asi > 1);
+    // assert(mem be as > 1);
+    evict_set_correct itsl;
+    evict_set_is_set gl
+  )
+  else ()
+
+#pop-options

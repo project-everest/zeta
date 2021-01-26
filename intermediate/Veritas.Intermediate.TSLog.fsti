@@ -228,3 +228,6 @@ val lemma_blum_evict_def (#vcfg:_)
                      | EvictBM_S _ _ t -> be = MHDom (k,v) t tid
                     )))
                          
+val lemma_clock_ordering (#vcfg:_) (itsl: its_log vcfg) (i1 i2: I.seq_index itsl):
+  Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
+        (ensures (i1 < i2))
