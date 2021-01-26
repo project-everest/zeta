@@ -38,7 +38,8 @@ let clock #vcfg (il: il_logS vcfg{verifiable il}) (i: I.seq_index il): timestamp
   let j = i2s_map il i in
   IntG.clock gl j
 
-val clock_sorted (#vcfg:_) (il: il_logS vcfg {verifiable il}): prop
+let clock_sorted (#vcfg:_) (il: il_logS vcfg {verifiable il}) = 
+  forall (i j: I.seq_index il). i <= j ==> clock il i `ts_leq` clock il j
 
 let its_log vcfg = il:il_logS vcfg{verifiable il /\ clock_sorted il}
 

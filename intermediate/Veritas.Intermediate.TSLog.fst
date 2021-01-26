@@ -1,7 +1,5 @@
 module Veritas.Intermediate.TSLog
 
-let clock_sorted (#vcfg:_) (il: il_logS vcfg {verifiable il}): prop = admit()
-
 let create (#vcfg:_) (gl: verifiable_log vcfg): (itsl:its_log vcfg{g_logS_of itsl == gl}) = admit()
 
 let lemma_prefix_verifiable (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}):
