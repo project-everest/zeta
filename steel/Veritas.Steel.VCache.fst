@@ -12,6 +12,7 @@ let is_data_key (k:key) : bool = admit()
 
 let vstore  = Steel.Array.array (option record)
 
+[@@__reduce__]
 let is_vstore (st:vstore) (c:contents) : slprop u#1 =
   Steel.Array.is_array st (full_perm (Seq.length c)) c
 
@@ -32,9 +33,9 @@ let change_slprop_ret (#a:Type)
 let vcache_create _ n =
   let a = Steel.Array.alloc None n in
   // // This didn't work
-  // let x = change_slprop_ret a in
-  // x
-  change_slprop #(Steel.Array.is_array _ _ _) #(is_vstore _ _) ();
+  // rewrite_context();
+  // a
+  rewrite_context #(Steel.Array.is_array _ _ _) #(is_vstore _ _) ();
   a
 
 let vcache_get_record (#c:contents) (vst:vstore) (s:slot_id c)
@@ -50,4 +51,7 @@ let vcache_set (#c:contents) (st:vstore) (s:slot_id c) (r:option record)
       (is_vstore st c)
       (fun _ -> is_vstore st (Seq.upd c (U32.v s) r))
   = write st s r;
-    change_slprop ()
+    //without the implicit below, rewrite_context aims to prove at `is_array _ _ _ * emp == is_array _ _ _`
+    //which the SMT solver can't do
+    //providing the implicit below, focuses the rewrite_context
+    rewrite_context #(is_array _ _ _) ()
