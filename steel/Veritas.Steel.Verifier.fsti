@@ -179,6 +179,8 @@ let update_clock (#tsm:_) (ts:timestamp) (vs:thread_state_t)
     (fun _ -> thread_state_inv vs (model_update_clock tsm ts))
   = sladmit()
 
+val is_proper_descendent (k0 k1:key) : bool
+
 let mk_record k v am = { record_key = k; record_value = v; record_add_method = am;
                          record_l_child_in_store = Vfalse;
                          record_r_child_in_store = Vfalse }
@@ -317,24 +319,114 @@ let vevictb (#tsm:_)
                         #(thread_state_inv vs (vevictb_model tsm s t vs.id))
                         ())
 
-// let vevictbm (s s':slot_id) (t:timestamp) (vs:thread_state_t)
-//   : StackExn unit
-//     (requires fun h -> thread_state_inv vs h)
-//     (ensures fun h0 _ h1 -> thread_state_inv vs h1)
-//   = let r = vstore_get_record vs.st s in
-//     let r' = vstore_get_record vs.st s' in
-//     match is_descendent r.record_key r'.record_key with
-//     | Some Eq
-//     | None -> raise "vevictbm: Not a proper descendant"
-//     | Some lr ->
-//       assume (V_mval? r'.record_value);
-//       let dh' = desc_hash_dir r'.record_value lr in
-//       match dh' with
-//       | Dh_vnone _ -> raise "vevictbm: parent entry is empty for this child"
-//       | Dh_vsome ({ dhd_key = k2; dhd_h = h2; evicted_to_blum = b2 ;}) ->
-//         if k2 = r.record_key && b2 = Vfalse then
-//            let v'_upd = update_merkle_value r'.record_value lr (Dh_vsome ({ dhd_key = r.record_key; dhd_h = h2; evicted_to_blum = Vtrue; })) in
-//            let r' = { r with record_value = v'_upd } in
-//            vstore_update_record vs.st s' r';
-//            vevictb s t vs
-//         else raise "vevictbm: evicted to blum is already set in parent"
+val has_instore_merkle_desc (tsm:thread_state_model) (s:slot tsm) : bool
+val has_instore_merkle_desc_impl (#tsm:_) (s:slot tsm) (vs:thread_state_t)
+  : Steel bool
+    (requires thread_state_inv vs tsm)
+    (ensures fun _ -> thread_state_inv vs tsm)
+    (requires fun _ -> True)
+    (ensures fun _ b _ -> b == has_instore_merkle_desc tsm s)
+
+
+val desc_dir (k0:key) (k1:key { k0 `is_proper_descendent` k1 }) : bool
+
+val to_merkle_value (v:value) : option mval_value
+
+val desc_hash_dir (v:mval_value) (d:bool) : descendent_hash
+val hashfn (v:value) : hash_value
+val update_merkle_value (v:mval_value) (d:bool) (k:key) (h:hash_value) (b:bool) : mval_value
+val update_in_store (tsm:thread_state_model) (s:slot tsm) (d:bool) (b:bool) : tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store}
+val update_in_store_impl (#tsm:_) (s:slot tsm) (d:bool) (b:bool) (vs:thread_state_t)
+  : SteelT unit
+    (thread_state_inv vs tsm)
+    (fun _ -> thread_state_inv vs (update_in_store tsm s d b))
+
+let vevictbm_model (tsm:thread_state_model)
+                   (s s':slot tsm)
+                   (t:timestamp)
+                   (thread_id:thread_id)
+  : thread_state_model
+  = match model_get_record tsm s, model_get_record tsm s' with
+    | Some r, Some r' ->
+      begin
+      if not (is_proper_descendent r.record_key r'.record_key) then model_fail tsm
+      else if has_instore_merkle_desc tsm s then model_fail tsm
+      else if r.record_add_method <> MAdd then model_fail tsm
+      else let d = desc_dir r.record_key r'.record_key in
+           match to_merkle_value r'.record_value with
+           | None -> model_fail tsm //should be impossible, since r' has a proper descendent
+           | Some v' ->
+             let dh' = desc_hash_dir v' d in
+             match dh' with
+             | Dh_vnone _ ->
+               model_fail tsm
+             | Dh_vsome {dhd_key=k2; dhd_h=h2; evicted_to_blum = b2} ->
+               if (k2 <> r.record_key) `Prims.op_BarBar` (b2 = Vtrue)
+               then model_fail tsm
+               else let tsm = model_put_record tsm s' ({r' with record_value=(V_mval (update_merkle_value v' d r.record_key h2 true))}) in
+                    let tsm = update_in_store tsm s' d false in
+                    vevictb_model tsm s t thread_id
+      end
+    | _ -> model_fail tsm
+
+//needed to factor this out below, now sure why
+let update_record (#tsm:_) (s:slot tsm) (r:record) (vs:thread_state_t)
+  : SteelT unit
+    (thread_state_inv vs tsm)
+    (fun _ -> thread_state_inv vs (model_put_record tsm s r))
+  = VCache.vcache_update_record vs.st s r;
+    rewrite_context #(is_vstore _ _ `star` _) #(thread_state_inv _ _) ()
+
+let vevictbm (#tsm:_) (s s':slot tsm) (t:timestamp) (vs:thread_state_t)
+  : SteelT unit
+    (requires thread_state_inv vs tsm)
+    (ensures fun _ -> thread_state_inv vs (vevictbm_model tsm s s' t vs.id))
+  = let r = VCache.vcache_get_record vs.st s in
+    let r' = VCache.vcache_get_record vs.st s' in
+    match r, r' with
+    | Some r, Some r' ->
+      if not (is_proper_descendent r.record_key r'.record_key)
+      then (fail vs "Not proper descendant"; rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+      else if has_instore_merkle_desc_impl s vs
+      then (fail vs "Not proper descendant"; rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+      else if r.record_add_method <> MAdd
+      then (fail vs "Not merkle add"; rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+      else (
+           let d = desc_dir r.record_key r'.record_key in
+           match to_merkle_value r'.record_value with
+           | None ->
+             fail vs "should be impossible, since r' has a proper descendent";
+             rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ()
+           | Some v' ->
+             let dh' = desc_hash_dir v' d in
+             match dh' with
+             | Dh_vnone _ ->
+               fail vs "no hash in specified direction";
+               rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ()
+
+             | Dh_vsome {dhd_key=k2; dhd_h=h2; evicted_to_blum = b2} ->
+               if (k2 <> r.record_key) `Prims.op_BarBar` (b2 = Vtrue)
+               then (
+                 fail vs "no hash in specified direction";
+                 rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ()
+               )
+               else (
+                 let r'' = {r' with record_value=V_mval (update_merkle_value v' d r.record_key h2 true)} in
+                 update_record #tsm s' r'' vs;
+                 // Couldn't inline this, not sure why
+                 // VCache.vcache_update_record #tsm.model_store vs.st s' r'';
+                 // rewrite_context #(is_vstore _ _ `star` _) #(thread_state_inv vs (model_put_record tsm s' r'')) ();
+
+                 // As in vaddb etc., (s' : slot tsm) leads to problems, since we
+                 // unify the implicit with `tsm` rather than the `model_put_record`
+                 // which then leads to trouble, since we really do need to retype s'
+                 update_in_store_impl #(model_put_record tsm s' r'') s' d false vs;
+                 vevictb #(update_in_store (model_put_record tsm s' r'') s' d false) s t vs;
+                 rewrite_context #(thread_state_inv _ _)
+                                 #(thread_state_inv vs (vevictbm_model tsm s s' t vs.id))
+                                 ();
+                 ()
+
+               ))
+    | _ ->
+      fail vs "Records not found"; rewrite_context ()
