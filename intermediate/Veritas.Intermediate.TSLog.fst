@@ -11,15 +11,51 @@ let lemma_verifier_thread_state_extend (#vcfg:_) (ils: its_log vcfg) (i: I.seq_i
 let lemma_slot_is_merkle_points_to (#vcfg:_) (ils: its_log vcfg) (i: I.seq_index ils):
   Lemma (ensures (slot_points_to_is_merkle_points_to (IntV.thread_store (thread_state_pre ils i)))) = admit()
 
+let rec to_logk_aux #vcfg (il:its_log vcfg) 
+  : Tot (sil:SpecTS.il_vlog { same_shape il sil })
+        (decreases (I.IL?.prf il))
+  = let IL s ss prf = il in
+    match prf with
+    | IntEmpty -> 
+      IL _ _ IntEmpty
+
+    | IntAdd s' ss' prf ->
+      let il' = IL s' ss' prf in
+      assert(Seq.equal ss (append1 ss' Seq.empty));
+      assert (forall (tid:Veritas.SeqAux.seq_index ss'). IntG.thread_log ss' tid == IntG.thread_log ss tid);
+      I.i2s_map_int_add il';
+      assert (forall (i:I.seq_index il'). clock il' i == clock il i);      
+      assert (clock_sorted il');      
+      let IL _ _ prf = to_logk_aux il' in
+      let res = IL _ _ (IntAdd _ _ prf) in
+      res      
+
+    | IntExtend s0 ss0 prf x i ->
+      let il' = IL _ _ prf in
+      I.hprefix_extend _ _ prf x i;      
+      let n' = I.length il - 1 in
+      lemma_prefix_verifiable il' n';
+      assert(il' == I.prefix il n');
+      let vss_pre = thread_state_pre il n' in
+      let vss_post = thread_state_post il n' in
+      let es = I.index il n' in
+      assert(vss_post == IntV.verify_step vss_pre es);
+      let ek = IntV.to_logK_entry vss_pre es in
+      
+      let IL _ ss0k prfk = to_logk_aux il' in 
+      let res = I.IntExtend _ _ prfk ek i in
+      IL _ _ res      
+
 let to_logk (#vcfg:_) (il:its_log vcfg) 
-  : Tot (sil:SpecTS.il_vlog { same_shape il sil }) = admit()
+  : Tot (sil:SpecTS.il_vlog { same_shape il sil }) = 
+  to_logk_aux il
 
 let lemma_to_logk_length (#vcfg:_) (il:its_log vcfg)
-  : Lemma (ensures I.length il = I.length (to_logk il)) = admit()
+  : Lemma (ensures I.length il = I.length (to_logk il)) = ()
 
 let lemma_to_logk_thread_count (#vcfg:_) (il:its_log vcfg)
   : Lemma (ensures thread_count il = SpecTS.thread_count (to_logk il))
-  = admit()
+  = ()
 
 let lemma_to_logk_thread_id_of (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (ensures thread_id_of il i == SpecTS.thread_id_of (to_logk il) i)
