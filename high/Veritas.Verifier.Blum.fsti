@@ -6,12 +6,15 @@ open Veritas.Interleave
 open Veritas.Key
 open Veritas.MultiSet
 open Veritas.MultiSetHash
+open Veritas.MultiSetHashDomain
 open Veritas.SeqAux
 open Veritas.Verifier
 open Veritas.Verifier.Global
 open Veritas.Verifier.Thread
 open Veritas.Verifier.TSLog
 
+module S = FStar.Seq
+module SA = Veritas.SeqAux
 module E=Veritas.EAC
 module I = Veritas.Interleave
 module MS=Veritas.MultiSet
@@ -60,8 +63,8 @@ val lemma_ts_add_set_key_contains_only (itsl: its_log) (k:key) (be: ms_hashfn_do
         (ensures (MH.key_of be = k))
 
 (* get the blum evict element from an index *)
-val blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
-  (e:ms_hashfn_dom{MH.key_of e = key_of (I.index itsl i)})
+let blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
+  (e:ms_hashfn_dom{MH.key_of e = key_of (I.index itsl i)}) = TL.blum_evict_elem itsl i
 
 val lemma_index_blum_evict_prefix (itsl: its_log) (i:nat{i <= I.length itsl}) (j:nat{j < i}):
   Lemma (requires (is_evict_to_blum (I.index itsl j)))
@@ -170,3 +173,82 @@ val lemma_add_set_mem (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index itsl{
                    is_blum_add (I.index itsl j) /\
                    blum_add_elem (I.index itsl i) = blum_add_elem (I.index itsl j)))
         (ensures (MS.mem (blum_add_elem (I.index itsl i)) (ts_add_set itsl) >= 2))
+
+val eac_instore_addb_diff_elem (itsl: its_log) 
+                               (i: I.seq_index itsl{let itsli = I.prefix itsl i in
+                                                    let e = I.index itsl i in
+                                                    is_blum_add e /\
+                                                    TL.is_eac itsli /\
+                                                    (let k = key_of e in
+                                                     TL.is_eac_state_instore itsli k)})
+  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                      let as = ts_add_set itsli' in
+                      let es = ts_evict_set itsli' in
+                      MS.mem be as > MS.mem be es})
+
+val eac_evictedm_addb_diff_elem (itsl: its_log) 
+                               (i: I.seq_index itsl{let itsli = I.prefix itsl i in
+                                                    let e = I.index itsl i in
+                                                    is_blum_add e /\
+                                                    TL.is_eac itsli /\
+                                                    (let k = key_of e in
+                                                     TL.is_eac_state_evicted_merkle itsli k)})
+  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                      let as = ts_add_set itsli' in
+                      let es = ts_evict_set itsli' in
+                      MS.mem be as > MS.mem be es})
+
+val eac_evictedb_addb_diff_elem (itsl: its_log) 
+                               (i: I.seq_index itsl{let itsli = I.prefix itsl i in
+                                                    let itsli' = I.prefix itsl (i + 1) in
+                                                    let e = I.index itsl i in
+                                                    is_blum_add e /\
+                                                    TL.is_eac itsli /\
+                                                    not (TL.is_eac itsli') /\
+                                                    (let k = key_of e in
+                                                     TL.is_eac_state_evicted_blum itsli k)})
+  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                      let as = ts_add_set itsli' in
+                      let es = ts_evict_set itsli' in
+                      MS.mem be as > MS.mem be es}) 
+
+val eac_add_set_mem_atleast_evict_set_mem (itsl: TL.eac_log) (be: ms_hashfn_dom) (tid: valid_tid itsl):
+  Lemma (requires (let k = MH.key_of be in
+                   store_contains (TL.thread_store itsl tid) k))
+        (ensures (MS.mem be (ts_add_set itsl) >= MS.mem be (ts_evict_set itsl)))
+
+val lemma_add_seq_empty (itsl: its_log{I.length itsl = 0}):
+  Lemma (ensures (S.length (ts_add_seq itsl) = 0))
+
+val lemma_evict_seq_empty (itsl: its_log{I.length itsl = 0}):
+  Lemma (ensures (S.length (ts_evict_seq itsl) = 0))
+
+val lemma_add_seq_extend (itsl: its_log{I.length itsl > 0}):
+  Lemma (requires (is_blum_add (I.telem itsl)))
+        (ensures (let i = I.length itsl - 1 in
+                  let itsl' = I.prefix itsl i in
+                  let e = I.index itsl i in
+                  ts_add_seq itsl == 
+                  SA.append1 (ts_add_seq itsl') (blum_add_elem e)))
+                                       
+val lemma_add_seq_extend2 (itsl: its_log{I.length itsl > 0}):
+  Lemma (requires (not (is_blum_add (I.telem itsl))))
+        (ensures (let i = I.length itsl - 1 in
+                  let itsl' = I.prefix itsl i in
+                  let e = I.index itsl i in
+                  ts_add_seq itsl == 
+                  ts_add_seq itsl'))
+
+val lemma_evict_seq_extend (itsl: its_log{I.length itsl > 0}):
+  Lemma (requires (is_evict_to_blum (I.telem itsl)))
+        (ensures (let i = I.length itsl - 1 in
+                  let itsl' = I.prefix itsl i in
+                  ts_evict_seq itsl == 
+                  SA.append1 (ts_evict_seq itsl') (blum_evict_elem itsl i)))
+                                       
+val lemma_evict_seq_extend2 (itsl: its_log{I.length itsl > 0}):
+  Lemma (requires (not (is_evict_to_blum (I.telem itsl))))
+        (ensures (let i = I.length itsl - 1 in
+                  let itsl' = I.prefix itsl i in
+                  ts_evict_seq itsl == 
+                  ts_evict_seq itsl'))

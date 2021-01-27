@@ -21,11 +21,11 @@ let thread_id = nat
 type vlog_entry =
   | Get: k:data_key -> v:data_value -> vlog_entry
   | Put: k:data_key -> v:data_value -> vlog_entry
-  | AddM: r:record -> k':merkle_key -> vlog_entry
-  | EvictM: k:key -> k':merkle_key -> vlog_entry
+  | AddM: r:record -> k':key -> vlog_entry
+  | EvictM: k:key -> k':key -> vlog_entry
   | AddB: r:record -> t:timestamp -> j:thread_id -> vlog_entry
   | EvictB: k:key -> t:timestamp -> vlog_entry
-  | EvictBM: k:key -> k':merkle_key -> t:timestamp -> vlog_entry
+  | EvictBM: k:key -> k':key -> t:timestamp -> vlog_entry
 
 let key_of (e:vlog_entry): key =
   match e with 
@@ -217,7 +217,7 @@ let update_merkle_value (v:merkle_value)
                       | Right -> MkValue dhl (Desc k h b)
 
 let vaddm (r:record)
-          (k':merkle_key)
+          (k':key)
           (vs: vtls {Valid? vs}): vtls =
   let st = thread_store vs in
   let (k,v) = r in
@@ -271,7 +271,7 @@ let has_instore_merkle_desc (st: vstore) (k:key{store_contains st k}): bool =
     Desc? rd && is_instore_madd st (Desc?.k rd)
 
 let vevictm (k:key)
-            (k':merkle_key)
+            (k':key)
             (vs: vtls {Valid? vs}): vtls = 
   let st = thread_store vs in
   (* check store contains a and a' *)
@@ -349,7 +349,7 @@ let vevictb (k:key) (t:timestamp)
             (vs:vtls {Valid? vs}): vtls =
   vevictb_aux k t BAdd vs
 
-let vevictbm (k:key) (k':merkle_key) (t:timestamp)
+let vevictbm (k:key) (k':key) (t:timestamp)
              (vs:vtls {Valid? vs}): vtls = 
   let st = thread_store vs in
   if not (store_contains st k') then Failed 
@@ -414,3 +414,15 @@ let addm_of_entry (e:vlog_entry{is_add e}): add_method =
   | AddM _ _ -> MAdd
   | AddB _ _ _ -> BAdd
 
+let blum_evict_elem (vs:vtls{Valid? vs}) 
+                    (e:vlog_entry {is_evict_to_blum e /\ Valid? (t_verify_step vs e)}) 
+                    (tid: thread_id): ms_hashfn_dom = 
+  let st = thread_store vs in
+  match e with
+  | EvictB k t ->
+    let v = stored_value st k in
+    MHDom (k,v) t tid
+  | EvictBM k k' t ->
+    let v = stored_value st k in
+    MHDom (k,v) t tid
+    

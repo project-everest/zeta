@@ -15,24 +15,6 @@ module I = Veritas.Interleave
 module V = Veritas.Verifier
 module TL = Veritas.Verifier.TSLog
 
-let mv_points_to_none (v: merkle_value) (d:bin_tree_dir): bool = 
-  desc_hash_dir v d = Empty
-
-let mv_points_to_some (v:merkle_value) (d:bin_tree_dir): bool = 
-  Desc? (desc_hash_dir v d) 
-
-let mv_pointed_key (v:merkle_value) (d:bin_tree_dir{mv_points_to_some v d}): key = 
-  Desc?.k (desc_hash_dir v d)
-
-let mv_pointed_hash (v:merkle_value) (d:bin_tree_dir{mv_points_to_some v d}): hash_value = 
-  Desc?.h (desc_hash_dir v d)
-
-let mv_points_to (v:merkle_value) (d:bin_tree_dir) (k:key): bool = 
-  mv_points_to_some v d && mv_pointed_key v d = k
-
-let mv_evicted_to_blum (v:merkle_value) (d:bin_tree_dir {mv_points_to_some v d}): bool =
-  Desc?.b (desc_hash_dir v d)
-
 let eac_merkle_value (itsl: TL.eac_log) (k:merkle_key): merkle_value =
   to_merkle_value (eac_value itsl k)
 
@@ -98,4 +80,32 @@ val lemma_store_contains_proving_ancestor (itsl: TL.eac_log)
                                  store_contains (TL.thread_store itsl tid)
                                  (proving_ancestor itsl k)))
 
+(* if a key pk points to key k, then pk is the proving ancestor of k; (inverse of 
+ * lemma_proving_ancestor_points_to_self *)
+val lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{is_merkle_key k'}) (d:bin_tree_dir):
+  Lemma (requires (let mv = eac_merkle_value itsl k' in                   
+                   mv_points_to mv d k))
+        (ensures (k <> Root /\ proving_ancestor itsl k = k'))
 
+(* precond: k' is a proper ancestor of k, but not the proving ancestor. 
+ *          k' is also initialized (previously added)
+ * ensures: k' points to something along direction (k' -> k) and that something is an ancestor of pk
+ *) 
+val lemma_init_ancestor_ancestor_of_proving (itsl: TL.eac_log) (k:key) (k':key{is_proper_desc k k'}):
+  Lemma (requires ((k' = Root \/ not (is_eac_state_init itsl k')) /\
+                   k' <> proving_ancestor itsl k))
+        (ensures (let d = desc_dir k k' in
+                  let mv = eac_merkle_value itsl k' in
+                  let pk = proving_ancestor itsl k in
+                  mv_points_to_some mv d /\
+                  is_desc pk (mv_pointed_key mv d)))
+
+(* if a merkle value of key k points to a key kd in some direction d, then kd is a proper desc of 
+ * k in direction d *)
+val lemma_mv_points_to_dir_correct (itsl: TL.eac_log) (k:merkle_key) (d:bin_tree_dir):
+  Lemma (requires (let mv = eac_merkle_value itsl k in
+                   mv_points_to_some mv d))
+        (ensures (let mv = eac_merkle_value itsl k in
+                  let kd = mv_pointed_key mv d in
+                  is_proper_desc kd k /\
+                  d = desc_dir kd k))

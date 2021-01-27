@@ -202,3 +202,8 @@ val length_size (#a:eqtype) (#f:cmp a) (s:Seq.seq a)
 /// A multiset is a set when max cardinality of all elements is 1
 
 let is_set (#a:eqtype) (#f:cmp a) (s:mset a f) = forall (x:a). mem x s <= 1
+
+/// Adding an element increases the membership of that element by 1
+
+val lemma_add_incr_mem (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
+  : Lemma (ensures mem x (add_elem s x) = 1 + mem x s)

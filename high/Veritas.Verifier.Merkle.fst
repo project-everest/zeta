@@ -1611,7 +1611,7 @@ let lemma_eac_value_unchanged_memop (itsl: TL.eac_log {I.length itsl > 0}) (k: k
    lemma_eac_value_is_evicted_value itsl k;
    lemma_eac_value_is_evicted_value itsl' k   
 
-let evict_ancestor (e: vlog_entry {EvictM? e \/ EvictBM? e}): merkle_key = 
+let evict_ancestor (e: vlog_entry {EvictM? e \/ EvictBM? e}): key = 
   match e with
   | EvictM _ k' -> k'
   | EvictBM _ k' _ -> k'
@@ -2563,6 +2563,7 @@ let lemma_addm_ancestor_is_proving_caseA (itsl: its_log {I.length itsl > 0}):
                    root_reachable itsl' k /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2616,6 +2617,7 @@ let lemma_addm_ancestor_is_proving_caseB (itsl: its_log {I.length itsl > 0}):
                    root_reachable itsl' k /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2677,6 +2679,7 @@ let lemma_addm_ancestor_is_proving_caseC (itsl: its_log {I.length itsl > 0}):
                    root_reachable itsl' k /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2740,6 +2743,7 @@ let lemma_addm_ancestor_is_proving_caseD (itsl: its_log {I.length itsl > 0}):
                    not (root_reachable itsl' k) /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2822,6 +2826,7 @@ let lemma_addm_ancestor_is_proving_caseE (itsl: its_log {I.length itsl > 0}):
                    not (root_reachable itsl' k) /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -2878,6 +2883,7 @@ let lemma_addm_ancestor_is_proving_caseF (itsl: its_log {I.length itsl > 0}):
                    not (root_reachable itsl' k) /\
                    AddM? e /\
                    (let k' = AddM?.k' e in
+                    TL.lemma_addm_ancestor_merkle itsl (n - 1);
                     let v' = eac_merkle_value itsl' k' in
                      is_proper_desc k k' /\
                      (let d = desc_dir k k' in
@@ -4059,3 +4065,66 @@ let lemma_store_contains_proving_ancestor (itsl: TL.eac_log)
   else 
     lemma_store_contains_proving_ancestor_aux itsl k
   
+(* if a key pk points to key k, then pk is the proving ancestor of k; (inverse of 
+ * lemma_proving_ancestor_points_to_self *)
+let lemma_points_to_implies_proving_ancestor (itsl: TL.eac_log) (k:key) (k':key{is_merkle_key k'}) (d:bin_tree_dir):
+  Lemma (requires (let mv = eac_merkle_value itsl k' in                   
+                   mv_points_to mv d k))
+        (ensures (k <> Root /\ proving_ancestor itsl k = k')) = 
+  let pf = eac_ptrfn itsl in   
+  assert(eac_value itsl k' <> init_value k');  
+  
+  let aux () : 
+    Lemma (root_reachable itsl k') = 
+      if k' = Root then lemma_reachable_reflexive pf k'
+      else if is_eac_state_init itsl k' then 
+        lemma_eac_value_init itsl k'
+      else
+        lemma_not_init_equiv_root_reachable itsl k'
+  in
+  aux();
+  lemma_eac_value_empty_or_points_to_desc itsl k' d;
+  assert(points_to pf k k');
+  lemma_points_to_reachable pf k k';
+  lemma_reachable_transitive pf k k' Root;
+  assert(root_reachable itsl k);
+  lemma_points_to_is_prev pf k Root k'
+
+let lemma_init_ancestor_ancestor_of_proving (itsl: TL.eac_log) (k:key) (k':key{is_proper_desc k k'}):
+  Lemma (requires ((k' = Root \/ not (is_eac_state_init itsl k')) /\
+                   k' <> proving_ancestor itsl k))
+        (ensures (let d = desc_dir k k' in
+                  let mv = eac_merkle_value itsl k' in
+                  let pk = proving_ancestor itsl k in
+                  mv_points_to_some mv d /\
+                  is_desc pk (mv_pointed_key mv d))) = 
+  let pf = eac_ptrfn itsl in
+  let pk = proving_ancestor itsl k in
+  let aux() :
+    Lemma (root_reachable itsl k') = 
+      if k' = Root then lemma_reachable_reflexive pf k'
+      else lemma_not_init_equiv_root_reachable itsl k'
+  in
+  aux();
+  // assert(root_reachable itsl k');
+  lemma_proving_ancestor_greatest_depth itsl k k';
+  // assert(depth k' <= depth pk);
+
+  lemma_two_ancestors_related k k' pk;
+  if is_desc k' pk then 
+    lemma_proper_desc_depth_monotonic k' pk
+  else (
+    let d = desc_dir pk k' in
+    lemma_desc_transitive k pk (child d k');
+    // assert(desc_dir k k' = d);
+    lemma_reachable_between pf pk k'
+  )
+
+let lemma_mv_points_to_dir_correct (itsl: TL.eac_log) (k:merkle_key) (d:bin_tree_dir):
+  Lemma (requires (let mv = eac_merkle_value itsl k in
+                   mv_points_to_some mv d))
+        (ensures (let mv = eac_merkle_value itsl k in
+                  let kd = mv_pointed_key mv d in
+                  is_proper_desc kd k /\
+                  d = desc_dir kd k)) =
+  lemma_eac_value_empty_or_points_to_desc itsl k d

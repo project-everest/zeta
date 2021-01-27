@@ -4,355 +4,375 @@ open Veritas.BinTree
 open Veritas.Key
 open Veritas.Record
 open Veritas.SeqAux
+open Veritas.Intermediate.VerifierConfig
+open Veritas.Intermediate.SlotKeyRel
 
 module Spec = Veritas.Verifier
 module FE = FStar.FunctionalExtensionality
 
 (*** General Definitions & Basic Facts ***)
 
-let slot_id = nat
 let add_method = Veritas.Verifier.add_method
 
-(* l_in_store/r_in_store record whether this entry was used as a merkle parent to add 
-   a left or right child *)
-type vstore_entry = 
+(* 
+ * vstore_entry - reflect a Spec.vstore_entry with two additional fields tracking 
+ * whether a left/right descendant was added using merkle using this slot as "proof"
+ *)
+type vstore_entry (vcfg:verifier_config) = 
   | VStoreE: k:key -> 
              v:value_type_of k -> 
              am:add_method -> 
-             l_in_store : bool -> 
-             r_in_store : bool -> 
-             vstore_entry
+             l_in_store : option (slot_id vcfg) -> 
+             r_in_store : option (slot_id vcfg) -> 
+             vstore_entry vcfg
 
-type vstore = Seq.seq (option vstore_entry) 
+(* vstore_raw: the raw version of the vstore; the actual vstore 
+ * is the raw version with some invariants *)
+let vstore_raw vcfg = st:Seq.seq (option (vstore_entry vcfg)){Seq.length st = store_size vcfg}
 
-let empty_store (n:nat) :vstore = Seq.create n None
-
-let st_index (st:vstore) = seq_index st
-
-let get_slot (st:vstore) (s:slot_id)
-  : option vstore_entry
-  = if s >= Seq.length st then None else Seq.index st s
+let get_slot #vcfg (st:vstore_raw vcfg) (s: slot_id vcfg)
+  : option (vstore_entry vcfg)
+  = Seq.index st s
 
 (* return true if s is a valid slot that is occupied *)
-let store_contains (st:vstore) (s:slot_id) : bool
+let inuse_slot #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) : bool
   = Some? (get_slot st s)
 
-let store_contains_st_index (st:vstore) (s:slot_id{store_contains st s})
-  : Lemma (s < Seq.length st)
-          [SMTPat (store_contains st s)] 
-  = ()
+(* dep type of all slots in use *)
+let inuse_slot_id #vcfg (st: vstore_raw vcfg) = s:slot_id vcfg{inuse_slot st s}
 
-let lemma_store_contains_empty (n:nat) (s:slot_id)
-  : Lemma (not (store_contains (empty_store n) s))
-          [SMTPat (store_contains (empty_store n) s)]
-  = ()
+let get_inuse_slot #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) =
+  Some?.v (get_slot st s)
+
+(* is this an empty slot *)
+let empty_slot #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg): bool 
+  = None = get_slot st s
+
+let empty_slot_id #vcfg (st: vstore_raw vcfg) = s:slot_id vcfg{empty_slot st s}
 
 (* key stored at an occupied slot *)
-let stored_key (st:vstore) (s:slot_id{store_contains st s}) : key
+let stored_key #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) : key
   = VStoreE?.k (Some?.v (get_slot st s))
 
-let stored_value (st:vstore) (s:slot_id{store_contains st s}) : value
+(* is this a slot containing a merkle key *)
+let merkle_slot_id #vcfg (st:vstore_raw vcfg)
+  = s:inuse_slot_id st{is_merkle_key (stored_key st s)}
+
+let data_slot_id #vcfg (st:vstore_raw vcfg)
+  = s:inuse_slot_id st{is_data_key (stored_key st s)}
+
+let stored_value #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) : value_type_of (stored_key st s)
   = VStoreE?.v (Some?.v (get_slot st s))
 
-let stored_value_matches_stored_key (st:vstore) (s:slot_id{store_contains st s}) 
-  : Lemma (is_value_of (stored_key st s) (stored_value st s))
-    [SMTPat (is_value_of (stored_key st s) (stored_value st s))]
-  = ()
-
-let add_method_of (st:vstore) (s:slot_id{store_contains st s}) : add_method
+let add_method_of #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) : add_method
   = VStoreE?.am (Some?.v (get_slot st s))
 
-let in_store_bit (st:vstore) (s:slot_id{store_contains st s}) (d:bin_tree_dir) : bool
-  = match d with
-    | Left -> VStoreE?.l_in_store (Some?.v (get_slot st s))
-    | Right -> VStoreE?.r_in_store (Some?.v (get_slot st s))
+let points_to_info #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) (d:bin_tree_dir) = 
+  match d with
+  | Left -> VStoreE?.l_in_store (Some?.v (get_slot st s))
+  | Right -> VStoreE?.r_in_store (Some?.v (get_slot st s))
 
-let has_key (k:key) (e:option vstore_entry) : bool
+(* does the slot point to some slot along a direction *)
+let points_to_some_slot #vcfg (st:vstore_raw vcfg) (s: inuse_slot_id st) (d:bin_tree_dir): bool =
+  Some? (points_to_info st s d)
+  
+let points_to_none #vcfg (st: vstore_raw vcfg) (s: inuse_slot_id st) (d: bin_tree_dir): bool =
+  None? (points_to_info st s d)
+   
+let pointed_slot #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) (d:bin_tree_dir{points_to_some_slot st s d}): slot_id vcfg
+  = Some?.v (points_to_info st s d)
+
+let points_to_dir #vcfg (st:vstore_raw vcfg) (s1: slot_id vcfg) (d:bin_tree_dir) (s2: slot_id vcfg) = 
+  inuse_slot st s1 &&
+  points_to_some_slot st s1 d && pointed_slot st s1 d = s2
+
+(* points to relation of slots *)
+let points_to #vcfg (st:vstore_raw vcfg) (s1:slot_id vcfg) (s2:slot_id vcfg) = 
+  points_to_dir st s1 Left s2 ||
+  points_to_dir st s1 Right s2
+
+(* the point of this trivial lemma is to trigger the SMTPat below; TODO: is their an idiomatically better way? *)
+let lemma_points_to_dir_implies_points_to #vcfg (st:vstore_raw vcfg) (s1: slot_id vcfg) (d:bin_tree_dir) (s2: slot_id vcfg):
+  Lemma (requires (points_to_dir st s1 d s2))
+        (ensures (points_to st s1 s2))
+        [SMTPat (points_to_dir st s1 d s2)] = ()
+
+(* a pointed slot is inuse *)
+let points_to_inuse_local #vcfg (st:vstore_raw vcfg) (s1 s2: slot_id _) = 
+  points_to st s1 s2 ==> inuse_slot st s2
+
+let points_to_inuse #vcfg (st:vstore_raw vcfg) = 
+  forall (s1 s2: slot_id _). {:pattern (points_to_inuse_local st s1 s2) \/ (points_to st s1 s2)} points_to_inuse_local st s1 s2
+
+(* a node is pointed to by at most one node *)
+let points_to_uniq_local #vcfg (st:vstore_raw vcfg) (s1 s2 s: slot_id vcfg) = 
+  not (points_to st s1 s) || not (points_to st s2 s)
+
+let points_to_uniq #vcfg (st:vstore_raw vcfg) = 
+  forall (s1 s2 s: slot_id vcfg). {:pattern points_to_uniq_local st s1 s2 s} points_to_uniq_local st s1 s2 s
+
+let pointed_to_inv_local #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) = 
+  inuse_slot st s ==> 
+  stored_key st s <> Root ==>
+  add_method_of st s = Spec.MAdd ==> 
+  (exists (s': inuse_slot_id st). exists (d:bin_tree_dir).   
+     points_to_some_slot st s' d /\
+     pointed_slot st s' d = s)
+
+let pointed_to_inv #vcfg (st:vstore_raw vcfg) = 
+  forall (s: slot_id vcfg). {:pattern pointed_to_inv_local st s} pointed_to_inv_local st s
+
+(* vstore is a raw store that satisfies the points_to invariant *)
+let vstore vcfg = st:vstore_raw vcfg{points_to_inuse st /\  points_to_uniq st /\ pointed_to_inv st}
+
+let empty_store vcfg:vstore vcfg = Seq.create (store_size vcfg) None
+  
+let has_key #vcfg (k:key) (e:option (vstore_entry vcfg)) : bool
   = match e with
     | Some (VStoreE k' _ _ _ _) -> k = k'
     | None -> false
 
-(* if the store contains key k, return some entry in the store, otherwise return None *)
-let lookup_key (st:vstore) (k:key) 
-  : option vstore_entry
-  = let s' = filter (has_key k) st in
-    if Seq.length s' = 0 then None
-    else Seq.index s' 0 
+(** vstore update methods **)
 
-let store_contains_key (st:vstore) (k:key) : bool
-  = Some? (lookup_key st k)
+(* two stores st1 and st2 are identical everywhere except in slot s *)
+let identical_except #vcfg (st1 st2: vstore_raw vcfg) (s: slot_id vcfg) =
+  forall (s': slot_id vcfg). s' <> s ==> get_slot st1 s' = get_slot st2 s'
 
-val lemma_store_contains_key (st:vstore) (k:key)
-  : Lemma (requires (exists s. stored_key st s = k))
-          (ensures (store_contains_key st k))
-          [SMTPat (store_contains_key st k)]
+let identical_except2 #vcfg (st1 st2: vstore_raw vcfg) (s1 s2: slot_id vcfg) = 
+  forall (s': slot_id vcfg). s' <> s1 ==> s' <> s2 ==> get_slot st1 s' = get_slot st2 s'
 
-val stored_value_by_key (st:vstore) (k:key{store_contains_key st k}) : value_type_of k
+let identical_except3 #vcfg (st1 st2: vstore_raw vcfg) (s1 s2 s3: slot_id vcfg) = 
+  forall (s': slot_id vcfg). s' <> s1 ==> s' <> s2 ==> s' <> s3 ==> get_slot st1 s' = get_slot st2 s'
 
-val add_method_of_by_key (st:vstore) (k:key{store_contains_key st k}) : add_method
-
-let update_slot (st:vstore) (s:st_index st) (e:vstore_entry)
-  : vstore
-  = Seq.upd st s (Some e)
-
-(* update the value of an occupied store slot with a compatible value *)
-let update_value 
-  (st:vstore)
-  (s:slot_id{store_contains st s}) 
+(* update a value of a key *)
+val update_value 
+  (#vcfg:_)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st)
   (v:value_type_of (stored_key st s))
-  : Tot (st':vstore {store_contains st' s /\
-                     stored_value st' s = v})
-  = let Some (VStoreE k _ am l r) = get_slot st s in
-    update_slot st s (VStoreE k v am l r)
+  : Tot (st':vstore vcfg {identical_except st st' s /\
+                          inuse_slot st' s /\
+                          v = stored_value st' s /\
+                          (let VStoreE k1 _ am1 ld1 rd1 = get_inuse_slot st s in
+                           let VStoreE k2 _ am2 ld2 rd2 = get_inuse_slot st' s in
+                           k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2)})
 
-let update_value_preserves_length 
-      (st:vstore) 
-      (s:slot_id{store_contains st s}) 
-      (v:value_type_of (stored_key st s)) 
-  : Lemma (let st' = update_value st s v in
-           Seq.length st = Seq.length st')
-          [SMTPat (Seq.length (update_value st s v))]  
-  = ()
+(* 
+ * add a new record to store with add method madd to slot s.
+ * other paras: s' that points to none in direction d, but points to s 
+ * after the add
+ *)
+val madd_to_store
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  : Tot (st':vstore vcfg{let od = other_dir d in
+                         identical_except2 st st' s s' /\     // st and st' are identical except at s, s'
 
-let lemma_update_value_preserves_slots
-      (st:vstore) 
-      (s:slot_id{store_contains st s}) 
-      (v:value_type_of (stored_key st s))
-      (s':slot_id)
-  : Lemma (store_contains st s' = store_contains (update_value st s v) s')
-          [SMTPat (store_contains (update_value st s v) s')]
-  = ()
+                         // nothing changes in slot s' except it now points to s in direction d
+                         inuse_slot st' s' /\
+                         stored_key st' s' = stored_key st s' /\
+                         stored_value st' s' = stored_value st s' /\
+                         add_method_of st' s' = add_method_of st s' /\
+                         points_to_dir st' s' d s /\
+                         points_to_info st' s' od = points_to_info st s' od /\
 
-(* update in-store bits *)
-let update_in_store 
-  (st:vstore)
-  (s:slot_id{store_contains st s}) 
-  (d:bin_tree_dir)
-  (b:bool)
-  : Tot (st':vstore {store_contains st' s /\
-                     in_store_bit st' s d = b})
-  = let Some (VStoreE k v am l r) = get_slot st s in
-    match d with
-    | Left -> update_slot st s (VStoreE k v am b r) 
-    | Right -> update_slot st s (VStoreE k v am l b)
+                         // slot s contains (k, v, MAdd) and points to nothing
+                         inuse_slot st' s /\
+                         get_inuse_slot st' s = VStoreE k v Spec.MAdd None None                         
+                         })
 
-(* add a new entry (k,v,am) to the store at en empty slot s 
-   --> this is the only function that may violate the is_map invariant (defined below) *)
-let add_to_store 
-      (st:vstore) 
-      (s:st_index st{not (store_contains st s)}) 
+(* 
+ * add a new record to store with add method madd to slot s.
+ * other paras: s' that points s2 in direction d; after the add
+ * s' -> s (along d) and s -> s2 (along d2, a parameter)
+ *)
+val madd_to_store_split 
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Tot (st': vstore vcfg{let od = other_dir d in        
+                          let s2 = pointed_slot st s' d in
+                          let od2 = other_dir d2 in
+                          
+                          // st and st' identical except at s, s'
+                          identical_except2 st st' s s' /\
+
+                          // nothing changes in slot s', except it now points to s in direction d 
+                          inuse_slot st' s' /\
+                          stored_key st' s' = stored_key st s' /\
+                          stored_value st' s' = stored_value st s' /\
+                          add_method_of st' s' = add_method_of st s' /\
+                          points_to_dir st' s' d s /\
+                          points_to_info st' s' od = points_to_info st s' od /\
+
+                          // slot s contains (k, v, MAdd) and points to s2 along direction d2
+                          inuse_slot st' s /\
+                          stored_key st' s = k /\ stored_value st' s = v /\ add_method_of st' s = Spec.MAdd /\
+                          points_to_none st' s od2 /\
+                          points_to_dir st' s d2 s2})
+
+val madd_to_store_root
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (v:value_type_of Root)
+  : Tot (st':vstore vcfg{// st and st' identical except at s, s'
+                         identical_except st st' s /\
+
+                         // slot s contains (Root, v, MAdd) and points to none 
+                         inuse_slot st' s /\
+                         get_inuse_slot st' s = VStoreE Root v Spec.MAdd None None})                        
+
+(* add a new entry (k,v) to the store at en empty slot s; *)
+val badd_to_store 
+      (#vcfg:verifier_config)
+      (st:vstore vcfg) 
+      (s:empty_slot_id st)
       (k:key) 
       (v:value_type_of k) 
-      (am:add_method)
-  : Tot (st':vstore {store_contains st' s /\
-                     stored_key st' s = k /\
-                     stored_value st' s = v /\
-                     add_method_of st' s = am})
-  = let e = VStoreE k v am false false in // default for in_store bits is false
-    update_slot st s e
+  : Tot (st':vstore vcfg {// st and st' identical except for s
+                          identical_except st st' s /\
+                          inuse_slot st' s /\
+                          get_inuse_slot st' s = VStoreE k v Spec.BAdd None None})
 
-(* remove an entry from a slot; reset slot to unused *)
-let evict_from_store (st:vstore) (s:st_index st)
-  : Tot (st':vstore {not (store_contains st' s)})
-  = Seq.upd st s None
+(* 
+ * evict the current entry from a store slot s; the entry should have been added using MAdd. From the 
+ * invariant of vstore, there is a unique slot s' that points to s. After the update s is empty 
+ * and the s' does not point to anything along the direction.
+ *)
+val mevict_from_store 
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})  
+  (s':inuse_slot_id st)
+  (d:bin_tree_dir{points_to_dir st s' d s})
+  : Tot (st':vstore vcfg {let od = other_dir d in
+                          
+                          // st and st' identical except at s, s'
+                          identical_except2 st st' s s' /\
+
+                          // slot s is empty after update
+                          empty_slot st' s /\
+
+                          // nothing changes in slot s', except it points to none in directoin d
+                          inuse_slot st' s' /\
+                          stored_key st' s' = stored_key st s /\
+                          stored_value st' s' = stored_value st s' /\
+                          add_method_of st' s' = add_method_of st s' /\
+                          points_to_info st' s' od = points_to_info st s' od /\
+                          points_to_none st' s' d
+                          })
+
+(* evict the current entry from a store slot s that was added using BAdd *)
+val bevict_from_store
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  : Tot (st':vstore vcfg {// st and st' are identical except at slot s 
+                          identical_except st st' s /\
+
+                          // slot s is empty after the update
+                          empty_slot st' s})
+
+val store_contains_key (#vcfg:_) (st:vstore vcfg) (k:key): bool 
+
+val lemma_stored_key_implies_contains (#vcfg:_) (st: vstore vcfg) (s:inuse_slot_id st):
+  Lemma (ensures (store_contains_key st (stored_key st s)))
+        [SMTPat (inuse_slot st s)]
+
+val slot_of_key (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}): 
+  (s:inuse_slot_id st{stored_key st s = k})
+
+val stored_value_by_key  (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}) : value_type_of k
+
+val add_method_of_by_key (#vcfg:_) (st:vstore vcfg) (k:key{store_contains_key st k}) : add_method
+
+(* any slot added with madd has another slot pointing to it; return one such pointing slot - which is unique in fact *)
+val pointing_slot (#vcfg:_) 
+                (st:vstore vcfg) 
+                (s:inuse_slot_id st{Root <> stored_key st s /\ add_method_of st s = Spec.MAdd})
+ : Tot (s':inuse_slot_id st{points_to st s' s})
+
 
 (*** Store Invariants ***)
 
 (* In our correctness proof, we will want to maintain two invariants over stores:
    * is_map: there are no duplicate keys in the store, so there is a 1-to-1 mapping
      between the slot-based store and a standard key-value map
-   * in_store_bit_inv: the "in_store" bits accurately reflect which keys are in the 
-   store via a merkle add
+   * in_store_inv: the "desc_in_store" accurately reflect which the desc invariant
 *)
 
 (* No duplicate keys in the store *)
-let is_map (st:vstore) =
-  forall (s:slot_id{store_contains st s}) 
-    (s':slot_id{store_contains st s' /\ s' <> s}). 
+let is_map (#vcfg:_) (st:vstore vcfg) =
+  forall (s:inuse_slot_id st) 
+    (s':inuse_slot_id st{s' <> s}). 
         // TODO: this pattern is pretty general -- it may lead to proof performance issues
         {:pattern (Seq.index st s); (Seq.index st s')} 
     stored_key st s <> stored_key st s'
 
-let elim_is_map (st:vstore) 
-                (s:slot_id{store_contains st s})
-                (s':slot_id{store_contains st s' /\ s' <> s})
+let elim_is_map (#vcfg:_) (st:vstore vcfg) 
+                (s:inuse_slot_id st)
+                (s':inuse_slot_id st{s' <> s})
   : Lemma (requires is_map st)
           (ensures stored_key st s ≠ stored_key st s')
   = ()
 
-type instore_merkle_slot (st:vstore)
-  = s:slot_id{store_contains st s && MVal? (stored_value st s)}
+(* a store that is a map *)
+let ismap_vstore vcfg = st:vstore vcfg{is_map st}
 
-let store_contains_key_with_MAdd (st:vstore) (k:key) : bool
-  = store_contains_key st k && add_method_of_by_key st k = Spec.MAdd
+(* updating a value preserves is_map *)
+val lemma_ismap_update_value (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
+  : Lemma (ensures (is_map (update_value st s v)))
+          [SMTPat (update_value st s v)]
 
-let mv_points_to_some (mv:merkle_value) (d:bin_tree_dir) : bool
-  = Desc? (desc_hash_dir mv d)
+(* if two slots of an ismap store contain the same key, then the two slots should be identical *)
+val lemma_ismap_correct (#vcfg:_) (st:ismap_vstore vcfg) (s1 s2: inuse_slot_id st)
+  : Lemma (requires (stored_key st s1 = stored_key st s2))
+          (ensures (s1 = s2))
 
-let points_to_some (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir) : bool
-  = let mv = to_merkle_value (stored_value st s) in
-    mv_points_to_some mv d
-
-let mv_pointed_key (mv:merkle_value) (d:bin_tree_dir{mv_points_to_some mv d}) : key
-  = Desc?.k (desc_hash_dir mv d)
-
-let pointed_key (st:vstore) (s:instore_merkle_slot st) (d:bin_tree_dir{points_to_some st s d}) : key
-  = let mv = to_merkle_value (stored_value st s) in
-    mv_pointed_key mv d
-
-let in_store_inv (st:vstore) 
-  = forall (s:instore_merkle_slot st) (d:bin_tree_dir{points_to_some st s d}).
-          {:pattern (in_store_bit st s d)}
-    let k = pointed_key st s d in
-    in_store_bit st s d = store_contains_key_with_MAdd st k
-
-let store_inv (st:vstore) = 
-  is_map st /\ in_store_inv st
-
-let lemma_update_value_preserves_is_map
-      (st:vstore) 
-      (s:slot_id{store_contains st s}) 
-      (v:value_type_of (stored_key st s)) 
-  : Lemma (requires (is_map st))
-          (ensures (is_map (update_value st s v)))
-          [SMTPat (is_map (update_value st s v))]
-  = ()
-
-let lemma_update_in_store_preserves_is_map
-      (st:vstore) 
-      (s:slot_id{store_contains st s}) 
-      (d:bin_tree_dir)
-      (b:bool)
-  : Lemma (requires (is_map st))
-          (ensures (is_map (update_in_store st s d b)))
-          [SMTPat (is_map (update_in_store st s d b))]
-  = ()
-
+(*
 (* is_map is preserved when adding a new key *)
 val lemma_add_to_store_is_map1
-      (st:vstore) 
-      (s:st_index st{not (store_contains st s)}) 
+      (#vcfg:_)
+      (st:ismap_vstore vcfg) 
+      (s:empty_slot_id st) 
       (k:key{not (store_contains_key st k)}) 
       (v:value_type_of k) 
       (am:add_method)
-  : Lemma (requires (is_map st))
-          (ensures (is_map (add_to_store st s k v am)))
+  : Lemma (ensures (is_map (add_to_store st s k v am)))
           [SMTPat (is_map (add_to_store st s k v am))]
 
 (* is_map is violated when adding a duplicate key *)
 val lemma_add_to_store_is_map2
-      (st:vstore) 
-      (s:st_index st{not (store_contains st s)}) 
+      (#vcfg:_)
+      (st:vstore vcfg) 
+      (s:empty_slot_id st) 
       (k:key{store_contains_key st k}) 
       (v:value_type_of k) 
       (am:add_method)
   : Lemma (ensures (~ (is_map (add_to_store st s k v am))))
           [SMTPat (is_map (add_to_store st s k v am))]
 
-let lemma_evict_from_store_preserves_is_map (st:vstore) (s:st_index st)
-  : Lemma (requires (is_map st))
-          (ensures (is_map (evict_from_store st s)))
+val lemma_evict_from_store_preserves_is_map (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id st)
+  : Lemma (ensures (is_map (evict_from_store st s)))
           [SMTPat (is_map (evict_from_store st s))]
-  = ()
-
-(* proving in_store_bit_inv requires a bunch of simple facts about store_contains_key_with_MAdd *)
-
-(* a key is present in a store iff it is present after updating 
-   the store with a new value for some key at some slot *)
-val lemma_update_value_preserves_keys
-      (st:vstore) 
-      (s:slot_id{store_contains st s}) 
-      (v:value_type_of (stored_key st s))
-      (k:key)
-  : Lemma (store_contains_key st k = store_contains_key (update_value st s v) k)
-          [SMTPat (store_contains_key (update_value st s v) k)]
-
-val lemma_update_value_preserves_key_with_MAdd
-  (st:vstore)
-  (s:slot_id{store_contains st s}) 
-  (v:value_type_of (stored_key st s))
-  (k:key)
-  : Lemma (ensures store_contains_key_with_MAdd st k = 
-                     store_contains_key_with_MAdd (update_value st s v) k)
-          [SMTPat (store_contains_key_with_MAdd (update_value st s v) k)]
-
-val lemma_add_different_key_to_store_preserves_keys_with_MAdd
-  (st:vstore)
-  (s:st_index st{not (store_contains st s)}) 
-  (k:key)
-  (v:value_type_of k)
-  (k0:key)
-  : Lemma (requires k <> k0)
-          (ensures store_contains_key_with_MAdd st k0 =
-                     store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)
-          [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k0)]
-
-val lemma_add_to_store_BAdd_preserves_key_with_MAdd
-  (st:vstore)
-  (s:st_index st{not (store_contains st s)}) 
-  (k:key{not (store_contains_key st k)})
-  (v:value_type_of k)
-  (k0:key)
-  : Lemma (ensures store_contains_key_with_MAdd st k0 = 
-                     store_contains_key_with_MAdd (add_to_store st s k v Spec.BAdd) k0)
-          [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.BAdd) k0)]
-
-val lemma_add_to_store_MAdd_adds_key_with_MAdd
-  (st:vstore)
-  (s:st_index st{not (store_contains st s)}) 
-  (k:key{not (store_contains_key st k)})
-  (v:value_type_of k)
-  : Lemma (ensures store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k)
-          [SMTPat (store_contains_key_with_MAdd (add_to_store st s k v Spec.MAdd) k)]
-
-val lemma_update_in_store_preserves_keys
-  (st:vstore)
-  (s:st_index st{store_contains st s}) 
-  (d:bin_tree_dir)
-  (b:bool)
-  (k:key)
-  : Lemma (ensures store_contains_key st k = store_contains_key (update_in_store st s d b) k)
-          [SMTPat (store_contains_key (update_in_store st s d b) k)]
-
-val lemma_update_in_store_preserves_key_with_MAdd
-  (st:vstore)
-  (s:st_index st{store_contains st s}) 
-  (d:bin_tree_dir)
-  (b:bool)
-  (k:key)
-  : Lemma (ensures store_contains_key_with_MAdd st k = 
-                     store_contains_key_with_MAdd (update_in_store st s d b) k)
-          [SMTPat (store_contains_key_with_MAdd (update_in_store st s d b) k)]
-
-val lemma_evict_from_store_evicts_key
-  (st:vstore)
-  (s:st_index st{store_contains st s}) 
-  : Lemma (requires is_map st)
-          (ensures not (store_contains_key (evict_from_store st s) (stored_key st s)))
-          [SMTPat (store_contains_key (evict_from_store st s) (stored_key st s))]
-
-val lemma_evict_from_store_preserves_key_with_MAdd
-  (st:vstore)
-  (s:st_index st{store_contains st s}) 
-  (k:key)
-  : Lemma (requires (k <> stored_key st s))
-          (ensures (store_contains_key_with_MAdd st k = store_contains_key_with_MAdd (evict_from_store st s) k))
-          [SMTPat (store_contains_key_with_MAdd (evict_from_store st s) k)]
-
-val lemma_evict_from_store_BAdd_preserves_key_with_MAdd
-  (st:vstore{is_map st})
-  (s:st_index st{store_contains st s}) 
-  (k:key)
-  : Lemma (requires (add_method_of st s = Spec.BAdd))
-          (ensures (store_contains_key_with_MAdd st k = store_contains_key_with_MAdd (evict_from_store st s) k))
-          [SMTPat (store_contains_key_with_MAdd (evict_from_store st s) k)]
+*)
 
 (*** Relation w/ Spec-level Stores ***)
 
 (* slot_id s is equivalent to key k *)
-let slot_key_equiv (st:vstore) (s:slot_id) (k:key) : bool =
-  store_contains st s && stored_key st s = k 
+let slot_key_equiv #vcfg (st:vstore vcfg) (s:slot_id vcfg) (k:key) : bool =
+  inuse_slot st s && stored_key st s = k 
 
+(*
 (* if s contains k, it continues to contain k after an unrelated update *)
 val lemma_slot_key_equiv_update_value 
       (st:vstore) 
@@ -363,60 +383,97 @@ val lemma_slot_key_equiv_update_value
   : Lemma (requires (slot_key_equiv st s k /\ s <> s'))
           (ensures (slot_key_equiv (update_value st s' v) s k))
           [SMTPat (slot_key_equiv (update_value st s' v) s k)]
+*)
 
 (* convert a slot-indexed store to a key-indexed store *)
-val as_map (st:vstore{is_map st}) : Spec.vstore
+val as_map (#vcfg:_) (st:ismap_vstore vcfg) : Spec.vstore
 
-val lemma_as_map_empty (n:nat) 
-  : Lemma (ensures (let st = empty_store n in
+val lemma_as_map_empty (vcfg:_)
+  : Lemma (ensures (let st = empty_store vcfg in
                      forall (k:key). as_map st k = None))
-          (decreases n)
 
-val lemma_as_map_slot_key_equiv (st:vstore{is_map st}) (s:slot_id) (k:key)
+val lemma_as_map_slot_key_equiv (#vcfg:_) (st:ismap_vstore vcfg) (s:slot_id vcfg) (k:key)
   : Lemma (requires (slot_key_equiv st s k)) 
           (ensures (Spec.store_contains (as_map st) k /\
                     stored_value st s = Spec.stored_value (as_map st) k /\
                     add_method_of st s = Spec.add_method_of (as_map st) k))
           [SMTPat (slot_key_equiv st s k)]
 
+val lemma_as_map_slot_key_equiv2 (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id _)
+  : Lemma (ensures (let k = stored_key st s in
+                    let stk = as_map st in
+                    Spec.store_contains stk k /\
+                    stored_value st s = Spec.stored_value stk k /\
+                    add_method_of st s = Spec.add_method_of stk k))
+          [SMTPat (inuse_slot st s)]
+
 (* Relation between stores *)
-let store_rel (st:vstore) (st':Spec.vstore) : Type = 
+let store_rel (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) : Type = 
   is_map st /\ FE.feq st' (as_map st)
 
-val lemma_store_rel_contains_key (st:vstore) (st':Spec.vstore) (k:key)
+val lemma_store_rel_contains_key (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (k:key)
   : Lemma (requires (store_rel st st'))
           (ensures (store_contains_key st k = Spec.store_contains st' k))
           [SMTPat (store_contains_key st k); SMTPat (Spec.store_contains st' k)]
 
-val lemma_store_rel_stored_value (st:vstore) (st':Spec.vstore) (k:key)
+val lemma_store_rel_stored_value (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (k:key)
   : Lemma (requires (store_rel st st' /\ store_contains_key st k))
           (ensures (stored_value_by_key st k = Spec.stored_value st' k))
           [SMTPat (stored_value_by_key st k); SMTPat (Spec.stored_value st' k)]
 
-val lemma_store_rel_add_method_of (st:vstore) (st':Spec.vstore) (k:key)
+val lemma_store_rel_add_method_of (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (k:key)
   : Lemma (requires (store_rel st st' /\ store_contains_key st k))
           (ensures (add_method_of_by_key st k = Spec.add_method_of st' k))
           [SMTPat (add_method_of_by_key st k); SMTPat (Spec.add_method_of st' k)]
 
-val lemma_store_rel_update_value (st:vstore) (st':Spec.vstore) (s:slot_id) (k:key) (v:value_type_of k)
+val lemma_store_rel_update_value (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (s:slot_id vcfg) (k:key) (v:value_type_of k)
   : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
           (ensures (store_rel (update_value st s v) (Spec.update_store st' k v)))
           [SMTPat (update_value st s v); SMTPat (Spec.update_store st' k v)]
+
+(** Any store can be viewed as an instance of slot-key map *)
+let to_slot_state_map #vcfg (st:vstore_raw vcfg): slot_state_map _ = 
+  fun s -> if inuse_slot st s then Assoc (stored_key st s) else Free
+
+(*
 
 val lemma_store_rel_update_in_store (st:vstore) (st':Spec.vstore) (s:slot_id) (d:bin_tree_dir) (b:bool)
   : Lemma (requires (store_rel st st' /\ store_contains st s))
           (ensures (store_rel (update_in_store st s d b) st'))
           [SMTPat (store_rel (update_in_store st s d b) st')]
+*)
 
-val lemma_store_rel_add_to_store (st:vstore) (st':Spec.vstore) (s:st_index st) (k:key) (v:value_type_of k) (am:add_method)
-  : Lemma (requires (store_rel st st' /\ not (store_contains st s) /\ not (Spec.store_contains st' k)))
+(*
+val lemma_store_rel_add_to_store 
+      (#vcfg:_)
+      (st:vstore vcfg) 
+      (st':Spec.vstore) 
+      (s:empty_slot_id st) 
+      (k:key) 
+      (v:value_type_of k) 
+      (am:add_method)
+  : Lemma (requires (store_rel st st' /\ not (Spec.store_contains st' k)))
           (ensures (store_rel (add_to_store st s k v am) (Spec.add_to_store st' k v am)))
           [SMTPat (add_to_store st s k v am); SMTPat (Spec.add_to_store st' k v am)]
 
-val lemma_store_rel_evict_from_store (st:vstore) (st':Spec.vstore) (s:st_index st) (k:key)
+val lemma_store_rel_evict_from_store (#vcfg:_) (st:vstore vcfg) (st':Spec.vstore) (s:slot_id vcfg) (k:key)
   : Lemma (requires (store_rel st st' /\ slot_key_equiv st s k))
           (ensures (store_rel (evict_from_store st s) (Spec.evict_from_store st' k)))
           [SMTPat (evict_from_store st s); SMTPat (Spec.evict_from_store st' k)]
+*)
 
+(* the property that slot pointing to implies merkle value pointing to *)
+let slot_points_to_is_merkle_points_to_local
+  (#vcfg:_) 
+  (st: vstore vcfg)
+  (s1 s2: slot_id vcfg)
+  (d: bin_tree_dir{points_to_dir st s1 d s2}) =  
+    points_to_dir st s1 d s2 ==> 
+    (let k1 = stored_key st s1 in
+     let k2 = stored_key st s2 in
+     is_merkle_key k1 /\
+     (let v1 = to_merkle_value (stored_value st s1) in
+      mv_points_to v1 d k2))
 
-
+let slot_points_to_is_merkle_points_to (#vcfg:_) (st: vstore vcfg) = 
+  forall (s1 s2: slot_id _). forall d. slot_points_to_is_merkle_points_to_local st s1 s2 d

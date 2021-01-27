@@ -318,6 +318,8 @@ let g_evict_set_is_set (gl: verifiable_log):
   //assert(is_set es);
   ()
 
+#push-options "--z3rlimit_factor 3"
+
 let rec evict_seq_map_aux (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   Tot (j: seq_index (g_evict_seq gl) {index (g_evict_seq gl) j = 
                                       blum_evict_elem gl ii})
@@ -327,11 +329,11 @@ let rec evict_seq_map_aux (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_b
   let gl' = prefix gl (p - 1) in
   let s' = g_evict_seq gl' in
   let tl = thread_log gl (p - 1) in
-  
   if tid = p - 1 then
     length s' + VT.evict_seq_map tl i
   else
     evict_seq_map_aux gl' ii
+#pop-options
 
 let evict_seq_map = evict_seq_map_aux
 
