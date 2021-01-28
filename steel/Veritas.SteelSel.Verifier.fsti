@@ -285,3 +285,171 @@ let vaddb (s:U32.t)
         //    here. despite the check above.
         VCache.vcache_update_record vs.st s (mk_record k v BAdd)      )
     )
+
+
+let timestamp_lt (t0 t1:timestamp) = t0 `U64.lt` t1
+
+let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:timestamp) (thread_id:thread_id)
+  : GTot thread_state_model
+  = let e = epoch_of_timestamp t in
+    let clk = tsm.model_clock in
+    if not (clk `timestamp_lt` t)
+    then model_fail tsm
+    else begin
+      (* check that the vstore contains s *)
+      match model_get_record tsm s with
+      | None -> model_fail tsm
+      | Some r ->
+        (* update the evict hash *)
+        let tsm = model_update_hevict tsm r t thread_id in
+        (* advance clock to t *)
+        let tsm = model_update_clock tsm t in
+        (* evict record *)
+        model_evict_record tsm s
+    end
+
+let vevictb (s:U32.t)
+            (t:timestamp)
+            (vs:thread_state_t)
+  : SteelSel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h -> U32.v s < length (v_thread vs h).model_store)
+    (ensures  fun h0 _ h1 ->
+      U32.v s < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == vevictb_model (v_thread vs h0) s t vs.id)
+  = let h = get() in
+    assert (U32.v s < length (v_thread vs h).model_store);
+    let clk = read vs.clock in
+    if not (clk `timestamp_lt` t)
+    then (
+      fail vs "Timestamp is old"
+    )
+    else (
+      (* check that the vstore contains s *)
+      let r = VCache.vcache_get_record vs.st s in
+      match r with
+      | None ->
+        fail vs "Slot is empty"
+
+      | Some r ->
+        (* update the evict hash *)
+        prf_update_hash vs.hevict r t vs.id;
+
+        update_clock t vs;
+
+        VCache.vcache_evict_record vs.st s)
+
+
+val has_instore_merkle_desc (tsm:thread_state_model) (s:slot tsm) : bool
+
+val has_instore_merkle_desc_impl (s:U32.t) (vs:thread_state_t)
+  : SteelSel bool
+    (requires thread_state_inv vs)
+    (ensures fun _ -> thread_state_inv vs)
+    (requires fun h -> U32.v s < length (v_thread vs h).model_store)
+    (ensures fun h0 b h1 ->
+      U32.v s < length (v_thread vs h0).model_store /\
+      b == has_instore_merkle_desc (v_thread vs h0) s /\
+      v_thread vs h0 == v_thread vs h1)
+
+val desc_dir (k0:key) (k1:key { k0 `is_proper_descendent` k1 }) : bool
+
+val to_merkle_value (v:value) : option mval_value
+
+val desc_hash_dir (v:mval_value) (d:bool) : descendent_hash
+val hashfn (v:value) : hash_value
+val update_merkle_value (v:mval_value) (d:bool) (k:key) (h:hash_value) (b:bool) : mval_value
+val update_in_store (tsm:thread_state_model) (s:slot tsm) (d:bool) (b:bool) : tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store}
+
+val update_in_store_impl (s:U32.t) (d:bool) (b:bool) (vs:thread_state_t)
+  : SteelSel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h -> U32.v s < length (v_thread vs h).model_store)
+    (ensures fun h0 _ h1 ->
+      U32.v s < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == update_in_store (v_thread vs h0) s d b)
+
+#push-options "--ifuel 1"
+
+let vevictbm_model (tsm:thread_state_model)
+                   (s s':slot tsm)
+                   (t:timestamp)
+                   (thread_id:thread_id)
+  : thread_state_model
+  = match model_get_record tsm s, model_get_record tsm s' with
+    | Some r, Some r' ->
+      begin
+      if not (is_proper_descendent r.record_key r'.record_key) then model_fail tsm
+      else if has_instore_merkle_desc tsm s then model_fail tsm
+      else if r.record_add_method <> MAdd then model_fail tsm
+      else let d = desc_dir r.record_key r'.record_key in
+           match to_merkle_value r'.record_value with
+           | None -> model_fail tsm //should be impossible, since r' has a proper descendent
+           | Some v' ->
+             let dh' = desc_hash_dir v' d in
+             match dh' with
+             | Dh_vnone _ ->
+               model_fail tsm
+             | Dh_vsome {dhd_key=k2; dhd_h=h2; evicted_to_blum = b2} ->
+               if (k2 <> r.record_key) `Prims.op_BarBar` (b2 = Vtrue)
+               then model_fail tsm
+               else let tsm = model_put_record tsm s' ({r' with record_value=(V_mval (update_merkle_value v' d r.record_key h2 true))}) in
+                    let tsm = update_in_store tsm s' d false in
+                    vevictb_model tsm s t thread_id
+      end
+    | _ -> model_fail tsm
+
+
+let vevictbm (s s':U32.t) (t:timestamp) (vs:thread_state_t)
+  : SteelSel unit
+    (requires thread_state_inv vs)
+    (ensures fun _ -> thread_state_inv vs)
+    (requires fun h ->
+      U32.v s < length (v_thread vs h).model_store /\
+      U32.v s' < length (v_thread vs h).model_store)
+    (ensures fun h0 _ h1 ->
+      U32.v s < length (v_thread vs h0).model_store /\
+      U32.v s' < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == vevictbm_model (v_thread vs h0) s s' t vs.id)
+  = // AF: Same problem as usual
+    let h = get() in
+    assert (U32.v s < length (v_thread vs h).model_store);
+    assert (U32.v s' < length (v_thread vs h).model_store);
+
+    let r = VCache.vcache_get_record vs.st s in
+    let r' = VCache.vcache_get_record vs.st s' in
+    match r, r' with
+    | Some r, Some r' ->
+      if not (is_proper_descendent r.record_key r'.record_key)
+      then fail vs "Not proper descendant"
+      else if has_instore_merkle_desc_impl s vs
+      then fail vs "Not proper descendant"
+      else if r.record_add_method <> MAdd
+      then fail vs "Not merkle add"
+      else (
+           let d = desc_dir r.record_key r'.record_key in
+           match to_merkle_value r'.record_value with
+           | None ->
+             fail vs "should be impossible, since r' has a proper descendent"
+           | Some v' ->
+             let dh' = desc_hash_dir v' d in
+             match dh' with
+             | Dh_vnone _ ->
+               fail vs "no hash in specified direction"
+
+             | Dh_vsome {dhd_key=k2; dhd_h=h2; evicted_to_blum = b2} ->
+               if (k2 <> r.record_key) `Prims.op_BarBar` (b2 = Vtrue)
+               then (
+                 fail vs "no hash in specified direction"
+               )
+               else (
+                 let r'' = {r' with record_value=V_mval (update_merkle_value v' d r.record_key h2 true)} in
+                 VCache.vcache_update_record vs.st s' r'';
+
+                 update_in_store_impl s' d false vs;
+                 vevictb s t vs
+               ))
+    | _ ->
+      fail vs "Records not found"
