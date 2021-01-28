@@ -431,10 +431,21 @@ let vevictbm (#tsm:_) (s s':slot tsm) (t:timestamp) (vs:thread_state_t)
 
 val init_value (k:key) : value
 val points_to_some_slot (tsm:thread_state_model) (s:slot tsm) (d:bool) : bool
-val madd_to_store (tsm:thread_state_model) (s:slot tsm) (k:key) (v:_{is_value_of k v}) (s':slot tsm) (d:bool)
+val model_madd_to_store (tsm:thread_state_model) (s:slot tsm) (k:key) (v:value) (s':slot tsm) (d:bool)
   : tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store}
-val madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:key) (v:_{is_value_of k v}) (s':slot tsm) (d d2:bool)
+val model_madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:key) (v:value) (s':slot tsm) (d d2:bool)
   : tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store}
+
+val madd_to_store (#tsm:thread_state_model) (s:slot tsm) (k:key) (v:value) (s':slot tsm) (d:bool) (vs:thread_state_t)
+  : SteelT unit
+    (thread_state_inv vs tsm)
+    (fun _ -> thread_state_inv vs (model_madd_to_store tsm s k v s' d))
+
+val madd_to_store_split (#tsm:thread_state_model) (s:slot tsm) (k:key) (v:value) (s':slot tsm) (d d2:bool)
+                        (vs:thread_state_t)
+  : SteelT unit
+    (thread_state_inv vs tsm)
+    (fun _ -> thread_state_inv vs (model_madd_to_store_split tsm s k v s' d d2))
 
 let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:record) (s':slot tsm) (thread_id:thread_id) : thread_state_model =
     let k = r.record_key in
@@ -473,7 +484,7 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:record) (s':slot tsm) (
             if not (h2 = h && b2 = Vfalse) then model_fail tsm
             (* check slot s' does not contain a desc along direction d *)
             else if points_to_some_slot tsm s' d then model_fail tsm
-            else madd_to_store tsm s k v s' d
+            else model_madd_to_store tsm s k v s' d
           else
             (* first add must be init value *)
             if v <> init_value k then model_fail tsm
@@ -481,17 +492,125 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:record) (s':slot tsm) (
             else if not (is_proper_descendent k2 k) then model_fail tsm
             else
               let d2 = desc_dir k2 k in
-              let mv = to_merkle_value v in
-              assume (Some? mv);
-              let Some mv  = mv in
-              let mv_upd = update_merkle_value mv d2 k2 h2 (b2=Vtrue) in
-              let v'_upd = update_merkle_value v' d k h false in
-              let tsm =
-                if points_to_some_slot tsm s' d then
-                   madd_to_store_split tsm s k v s' d d2
+              match to_merkle_value v with
+              | None -> model_fail tsm
+              | Some mv ->
+                let mv_upd = update_merkle_value mv d2 k2 h2 (b2=Vtrue) in
+                let v'_upd = update_merkle_value v' d k h false in
+                let tsm =
+                  if points_to_some_slot tsm s' d then
+                    model_madd_to_store_split tsm s k v s' d d2
+                  else (
+                    model_madd_to_store tsm s k (V_mval mv_upd) s' d
+                  )
+                in
+                model_put_record tsm s' ({r' with record_value=(V_mval v'_upd)})
+
+#push-options "--query_stats"
+let vaddm (#tsm:thread_state_model)
+          (s:slot tsm)
+          (r:record)
+          (s':slot tsm)
+          (vs: thread_state_t)
+  : SteelT unit
+    (thread_state_inv vs tsm)
+    (fun _ -> thread_state_inv vs (vaddm_model tsm s r s' vs.id))
+  = let k = r.record_key in
+    let v = r.record_value in
+    match VCache.vcache_get_record vs.st s' with
+    | None ->
+      fail vs "Record not found";
+      rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ()
+    | Some r' ->
+      let k' = r'.record_key in
+      let v' = r'.record_value in
+      (* check k is a proper desc of k' *)
+      if not (is_proper_descendent k k')
+      then (fail vs "Record not found";
+            rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+      (* check store does not contain slot s *)
+      else
+        let ropt = VCache.vcache_get_record vs.st s in
+        if Some? ropt
+        then (fail vs "Record not found";
+              rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+        (* check type of v is consistent with k *)
+        else if not (is_value_of k v)
+        then (fail vs "Record not found";
+              rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+        else
+          (* check v' is a merkle value *)
+          match to_merkle_value v' with
+          | None ->
+            (fail vs "Record not found";
+             rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+          | Some v' ->
+            let d = desc_dir k k' in
+            let dh' = desc_hash_dir v' d in
+            let h = hashfn v in
+            match dh' with
+            | Dh_vnone _ -> (* k' has no child in direction d *)
+              (* first add must be init value *)
+              if v <> init_value k
+              then (fail vs "Record not found";
+                    rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+              else (
+                let r'' = {r' with record_value=(V_mval (update_merkle_value v' d k h false))} in
+                update_record #tsm s' r'' vs;
+                update_record #(model_put_record _ _ _) s (mk_record k v MAdd) vs;
+                update_in_store_impl #(model_put_record _ _ _) s' d true vs;
+                rewrite_context #(thread_state_inv _ _)
+                                #(thread_state_inv _ _)
+                                ()
+              )
+
+            | Dh_vsome {dhd_key=k2; dhd_h=h2; evicted_to_blum = b2} ->
+              if k2 = k then (* k is a child of k' *)
+                (* check hashes match and k was not evicted to blum *)
+                if not (h2 = h && b2 = Vfalse)
+                then (fail vs "Record not found";
+                      rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+                (* check slot s' does not contain a desc along direction d *)
+                else if points_to_some_slot tsm s' d
+                then (fail vs "Record not found";
+                      rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
                 else (
-                   assume (is_value_of k (V_mval mv_upd));
-                   madd_to_store tsm s k (V_mval mv_upd) s' d
+                  madd_to_store s k v s' d vs;
+                  rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ()
                 )
-              in
-              model_put_record tsm s' ({r' with record_value=(V_mval v'_upd)})
+              else
+                (* first add must be init value *)
+                if v <> init_value k
+                then (fail vs "Record not found";
+                      rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+                (* check k2 is a proper desc of k *)
+                else if not (is_proper_descendent k2 k)
+                then (fail vs "Record not found";
+                      rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ())
+                else
+                  let d2 = desc_dir k2 k in
+                  match to_merkle_value v with
+                  | None ->
+                    fail vs "Record not found";
+                    rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ()
+
+                  | Some mv ->
+                    let mv_upd = update_merkle_value mv d2 k2 h2 (b2=Vtrue) in
+                    let v'_upd = update_merkle_value v' d k h false in
+                    if points_to_some_slot tsm s' d
+                    then (
+                        madd_to_store_split s k v s' d d2 vs;
+                        update_record #(model_madd_to_store_split _ _ _ _ _ _ _)
+                                      s'
+                                      ({r' with record_value=(V_mval v'_upd)})
+                                      vs;
+                        rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ()
+                    )
+                    else (
+                        madd_to_store s k (V_mval mv_upd) s' d vs;
+                        update_record #(model_madd_to_store _ _ _ _ _ _)
+                                      s'
+                                      ({r' with record_value=(V_mval v'_upd)})
+                                      vs;
+                        rewrite_context #(thread_state_inv _ _) #(thread_state_inv _ _) ()
+                    )

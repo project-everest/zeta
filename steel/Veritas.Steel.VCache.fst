@@ -30,7 +30,7 @@ let change_slprop_ret (#a:Type)
   : Steel a (p x) (fun x -> q x) (requires fun _ -> p x == q x) (ensures fun _ _ _ -> True)
   = Steel.Effect.change_slprop (p x) (q x) (fun _ -> ()); x
 
-let vcache_create _ n =
+let vcache_create n =
   let a = Steel.Array.alloc None n in
   // // This didn't work
   // rewrite_context();

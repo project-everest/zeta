@@ -27,7 +27,7 @@ val vstore : Type0
 let contents = Steel.Array.contents (option record)
 val is_vstore (st:vstore) (c:contents) : slprop u#1
 
-val vcache_create (_:unit) (n:U32.t)
+val vcache_create (n:U32.t)
   : SteelT vstore
            emp
            (fun v -> is_vstore v (Seq.create (U32.v n) None))
