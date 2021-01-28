@@ -23,6 +23,7 @@ let mk_record (k:key) (v:value{is_value_of k v}) (a:add_method) : record
 
 let vstore : Type0 = Steel.SelArray.array (option record)
 let contents = Steel.SelArray.contents (option record)
+unfold
 let is_vstore (st:vstore) = varray st
 
 val vcache_create (n:U32.t)

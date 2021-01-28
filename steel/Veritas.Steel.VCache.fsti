@@ -20,7 +20,7 @@ let mk_record (k:key) (v:value{is_value_of k v}) (a:add_method) : record
       record_value = v;
       record_add_method = a;
       record_l_child_in_store = Vfalse;
-      record_r_child_in_store = Vfalse 
+      record_r_child_in_store = Vfalse
     }
 
 val vstore : Type0
