@@ -1,8 +1,99 @@
 module Veritas.Intermediate.Store
+open FStar.Classical
 
 let update_slot #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) (e:vstore_entry vcfg)
   : vstore_raw _
   = Seq.upd st s (Some e)
+
+let update_value_raw #vcfg (st:vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
+  : vstore_raw vcfg = 
+  let VStoreE k v' am lp rp = get_inuse_slot st s in
+  let e' = VStoreE k v am lp rp in
+  update_slot st s e'
+
+let lemma_update_value_identical_except 
+  #vcfg (st:vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
+  : Lemma (ensures (let st' = update_value_raw st s v in 
+                    identical_except st st' s)) = 
+  let st' = update_value_raw st s v in                    
+  let aux (s': slot_id vcfg)
+    : Lemma (ensures (s' <> s ==> get_slot st s' = get_slot st' s'))
+            [SMTPat (get_slot st s' = get_slot st' s')]
+    = 
+    ()
+  in
+  ()
+
+let points_to_unchanged_slot #vcfg (st1 st2: vstore_raw vcfg) (s: slot_id vcfg) = 
+  inuse_slot st1 s = inuse_slot st2 s /\
+  (inuse_slot st1 s ==> points_to_info st1 s Left = points_to_info st2 s Left /\
+                       points_to_info st1 s Right = points_to_info st2 s Right)
+                       
+let points_to_unchanged #vcfg (st1 st2: vstore_raw vcfg) = 
+  forall (s: slot_id vcfg). {:pattern points_to_unchanged_slot st1 st2 s} 
+                       points_to_unchanged_slot st1 st2 s
+
+let lemma_points_to_unchanged_implies_points_to_inuse #vcfg (st1 st2: vstore_raw vcfg) (s1 s2: slot_id _)
+  : Lemma (requires (points_to_unchanged st1 st2))
+          (ensures (points_to_inuse_local st1 s1 s2 <==> points_to_inuse_local st2 s1 s2)) = 
+  assert(points_to_unchanged_slot st1 st2 s1);          
+  assert(points_to_unchanged_slot st1 st2 s2); // inuse_slot st1 s2 = inuse_slot st2 s2
+  ()
+
+let slot_dir vcfg = (slot_id vcfg) & bin_tree_dir
+
+/// Computational version of pointed_to_inv_local
+///
+let rec pointed_to_inv_local_find_aux #vcfg (st: vstore_raw vcfg) 
+                                        (s: slot_id vcfg{pointed_to_inv_local st s /\
+                                                         inuse_slot st s /\
+                                                         stored_key st s <> Root /\
+                                                         add_method_of st s = Spec.MAdd})
+                                        (sl: nat{sl <= store_size vcfg})     // slot limit 
+  : (r:option (slot_dir vcfg){r = None /\
+                              (forall (s1:slot_id vcfg{s < sl}). forall (d:bin_tree_dir). 
+                                empty_slot st s1 \/
+                                points_to_none st s1 d \/ 
+                                pointed_slot st s1 d <> s) \/
+                              Some? r /\ (let (s1,d) = Some?.v r in
+                                          inuse_slot st s1 /\
+                                          points_to_some_slot st s1 d /\
+                                          pointed_slot st s1 d = s)})
+  = admit()
+
+let pointed_to_inv_local_find #vcfg (st: vstore_raw vcfg) 
+                                    (s: slot_id vcfg{pointed_to_inv_local st s /\
+                                                         inuse_slot st s /\
+                                                         stored_key st s <> Root /\
+                                                         add_method_of st s = Spec.MAdd})
+                                        (sl: nat{sl <= store_size vcfg})     // slot limit 
+  : (sd: (slot_dir vcfg){let (s1,d) = sd in
+                         inuse_slot st s1 /\
+                         points_to_some_slot st s1 d /\
+                         pointed_slot st s1 d = s})
+  = 
+  let r = pointed_to_inv_local_find_aux st s (store_size vcfg) in
+  if r = None then (
+    assert(pointed_to_inv_local st s);
+    let aux (d:bin_tree_dir)
+      : Lemma (ensures (forall (s':inuse_slot_id st). ~ (points_to_some_slot st s' d /\ pointed_slot st s' d = s)))
+      = 
+      let aux2 (s':inuse_slot_id st):
+        Lemma (ensures (~ (points_to_some_slot st s' d /\ pointed_slot st s' d = s)))
+        = 
+        assert(empty_slot st s' \/
+               points_to_none st s' d \/ 
+               pointed_slot st s' d <> s);
+        ()
+      in
+      forall_intro aux2      
+    in
+    forall_intro aux;
+    // assert (forall (s':inuse_slot_id st) (d:bin_tree_dir). ~ (points_to_some_slot st s' d /\ pointed_slot st s' d = s));
+    // assert(False);
+    (0,Left)
+  )
+  else Some?.v r
 
 let update_value 
   (#vcfg:_)
@@ -14,7 +105,18 @@ let update_value
                           v = stored_value st' s /\
                           (let VStoreE k1 _ am1 ld1 rd1 = get_inuse_slot st s in
                            let VStoreE k2 _ am2 ld2 rd2 = get_inuse_slot st' s in
-                           k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2)}) = admit()
+                           k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2)}) = 
+  let st' = update_value_raw st s v in
+  lemma_update_value_identical_except st s v;
+  assert(inuse_slot st' s);
+  let v = stored_value st' s in
+  let VStoreE k1 _ am1 ld1 rd1 = get_inuse_slot st s in
+  let VStoreE k2 _ am2 ld2 rd2 = get_inuse_slot st' s in
+  assert(k1 = k2);
+  assert(am1 = am2);
+  assert(ld1 = ld2);
+  assert(rd1 = rd2);
+  admit()
 
 let madd_to_store
   (#vcfg: verifier_config)
