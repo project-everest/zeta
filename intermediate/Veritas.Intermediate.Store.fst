@@ -220,6 +220,19 @@ let lemma_update_value_keys_unchanged
   in
   ()
 
+let lemma_update_value_add_method_unchaged
+  #vcfg (st:vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
+  : Lemma (ensures (let st' = update_value_raw st s v in
+                    add_method_unchanged st st'))
+          [SMTPat (update_value_raw st s v)] = 
+  let st' = update_value_raw st s v in
+  let aux (s2: slot_id vcfg)
+    : Lemma (ensures (add_method_unchanged_slot st st' s2))
+            [SMTPat (add_method_unchanged_slot st st' s2)] = 
+    ()
+  in
+  ()
+   
 let update_value 
   (#vcfg:_)
   (st:vstore vcfg)
