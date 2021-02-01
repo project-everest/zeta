@@ -166,7 +166,8 @@ let lemma_points_to_unchanged_implies_pointed_to_inv_local #vcfg (st1 st2: vstor
 
 let lemma_points_to_unchanged_implies_pointed_to_inv #vcfg (st1 st2: vstore_raw vcfg)
   : Lemma (requires (points_to_unchanged st1 st2 /\ keys_unchanged st1 st2 /\ add_method_unchanged st1 st2 /\ pointed_to_inv st1))
-          (ensures (pointed_to_inv st2)) = 
+          (ensures (pointed_to_inv st2))
+          [SMTPat (points_to_unchanged st1 st2)] = 
   let aux (s: slot_id vcfg)
     : Lemma (ensures (pointed_to_inv_local st2 s))
             [SMTPat (pointed_to_inv_local st2 s)]
@@ -176,7 +177,8 @@ let lemma_points_to_unchanged_implies_pointed_to_inv #vcfg (st1 st2: vstore_raw 
 
 let lemma_points_to_unchanged_implies_points_to_uniq #vcfg (st1 st2: vstore_raw vcfg)
   : Lemma (requires (points_to_unchanged st1 st2 /\ points_to_uniq st1))
-          (ensures (points_to_uniq st2)) =
+          (ensures (points_to_uniq st2))
+          [SMTPat (points_to_unchanged st1 st2)] =
   let aux (s1 s2 s: slot_id vcfg)
     : Lemma (ensures (points_to_uniq_local st2 s1 s2 s))
             [SMTPat (points_to_uniq_local st2 s1 s2 s)] = 
@@ -232,7 +234,20 @@ let lemma_update_value_add_method_unchaged
     ()
   in
   ()
-   
+
+let lemma_update_value_points_to_unchanged
+  #vcfg (st:vstore vcfg) (s:inuse_slot_id st) (v: value_type_of (stored_key st s))
+  : Lemma (ensures (let st' = update_value_raw st s v in
+                    points_to_unchanged st st'))
+          [SMTPat (update_value_raw st s v)] = 
+  let st' = update_value_raw st s v in
+  let aux (s2: slot_id vcfg)
+    : Lemma (ensures (points_to_unchanged_slot st st' s2))
+            [SMTPat (points_to_unchanged_slot st st' s2)] = 
+    ()
+  in
+  ()
+
 let update_value 
   (#vcfg:_)
   (st:vstore vcfg)
@@ -244,17 +259,7 @@ let update_value
                           (let VStoreE k1 _ am1 ld1 rd1 = get_inuse_slot st s in
                            let VStoreE k2 _ am2 ld2 rd2 = get_inuse_slot st' s in
                            k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2)}) = 
-  let st' = update_value_raw st s v in
-  lemma_update_value_identical_except st s v;
-  assert(inuse_slot st' s);
-  let v = stored_value st' s in
-  let VStoreE k1 _ am1 ld1 rd1 = get_inuse_slot st s in
-  let VStoreE k2 _ am2 ld2 rd2 = get_inuse_slot st' s in
-  assert(k1 = k2);
-  assert(am1 = am2);
-  assert(ld1 = ld2);
-  assert(rd1 = rd2);
-  admit()
+  update_value_raw st s v 
 
 let madd_to_store
   (#vcfg: verifier_config)
