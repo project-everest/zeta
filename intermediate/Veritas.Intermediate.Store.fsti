@@ -106,7 +106,7 @@ let points_to_inuse #vcfg (st:vstore_raw vcfg) =
 
 (* a node is pointed to by at most one node *)
 let points_to_uniq_local #vcfg (st:vstore_raw vcfg) (s1 s2 s: slot_id vcfg) = 
-  not (points_to st s1 s) || not (points_to st s2 s)
+  s1 = s2 || not (points_to st s1 s) || not (points_to st s2 s)
 
 let points_to_uniq #vcfg (st:vstore_raw vcfg) = 
   forall (s1 s2 s: slot_id vcfg). {:pattern points_to_uniq_local st s1 s2 s} points_to_uniq_local st s1 s2 s

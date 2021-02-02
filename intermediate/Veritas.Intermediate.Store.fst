@@ -325,6 +325,68 @@ let lemma_madd_to_store_points_to_inuse
 
 #pop-options
 
+let lemma_madd_to_store_points_to_uniq
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
+                    points_to_uniq st'))
+          [SMTPat (madd_to_store_raw st s k v s' d)] = 
+  let st' = madd_to_store_raw st s k v s' d in
+  let aux (s1 s2 s3: _):
+    Lemma (ensures (points_to_uniq_local st' s1 s2 s3))
+          [SMTPat (points_to_uniq_local st' s1 s2 s3)] = 
+    assert(points_to_uniq_local st s1 s2 s3);          
+    if points_to_uniq_local st' s1 s2 s3 then ()
+    else (
+      assert(points_to st' s1 s3 && points_to st' s2 s3);
+      assert(s1 <> s);
+      assert(s2 <> s);
+
+      if not (points_to st s1 s3) then (
+        (* we have s1 -> s3 in st' and not (s1 -> s3) in st' *)
+        if s1 = s' then
+          if s3 = s then (
+            assert(s1 <> s2);
+            assert(get_slot st s2 = get_slot st' s2);
+            assert(points_to st s2 s);
+            assert(points_to_inuse_local st s2 s2);
+            ()
+          )
+          else (
+            let od = pointed_dir st' s1 s3 in
+            assert(od <> d);
+            ()
+          )
+        else ()
+      )
+      else (
+        assert(not (points_to st s2 s3));
+        (* we have s2 -> s3 in st' and not (s2 -> s3) in st' *)
+        if s2 = s' then (
+          if s3 = s then (
+            assert(s1 <> s2);
+            assert(get_slot st s1 = get_slot st' s1);
+            assert(points_to st s1 s);
+            assert(points_to_inuse_local st s1 s);
+            ()
+          )
+          else (
+            let od = pointed_dir st' s2 s3 in
+            assert(od <> d);
+            ()
+          )
+        )
+        else ()
+          //assert(get_slot st s2 = get_slot st' s2);
+      )
+    )
+  in
+  ()
+
 let madd_to_store
   (#vcfg: verifier_config)
   (st:vstore vcfg)
