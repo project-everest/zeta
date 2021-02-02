@@ -261,6 +261,70 @@ let update_value
                            k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2)}) = 
   update_value_raw st s v 
 
+/// The "raw" version of madd_to_store on which we prove properties
+/// 
+let madd_to_store_raw
+  (#vcfg: verifier_config)
+  (st: vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  : Tot (vstore_raw vcfg) = 
+  let e = VStoreE k v Spec.MAdd None None in
+  let st = update_slot st s e in
+  let VStoreE k' v' am' l' r' = get_inuse_slot st s' in
+  assert(None == (if d = Left then l' else r'));
+
+  if d = Left then
+    update_slot st s' (VStoreE k' v' am' (Some s) r')
+  else 
+    update_slot st s' (VStoreE k' v' am' l' (Some s))  
+
+let lemma_madd_to_store_identical_except
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
+                    identical_except2 st st' s s'))
+          [SMTPat (madd_to_store_raw st s k v s' d)] = 
+  let st' = madd_to_store_raw st s k v s' d in          
+  let aux (s2: slot_id _)
+    : Lemma (ensures (s2 <> s ==> s2 <> s' ==> get_slot st s2 = get_slot st' s2))
+            [SMTPat (get_slot st s2 = get_slot st' s2)] =
+      if s2 = s then ()
+      else if s2 = s' then ()
+      else
+       ()
+    in
+  ()
+
+#push-options "--z3rlimit_factor 3"
+
+let lemma_madd_to_store_points_to_inuse
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
+                    points_to_inuse st'))
+          [SMTPat (madd_to_store_raw st s k v s' d)] = 
+  let st' = madd_to_store_raw st s k v s' d in
+  let aux (s1 s2: slot_id _)
+    : Lemma (ensures (points_to_inuse_local st' s1 s2))
+            [SMTPat (points_to_inuse_local st' s1 s2)] = 
+    assert(points_to_inuse_local st s1 s2);
+    ()
+  in
+  ()
+
+#pop-options
+
 let madd_to_store
   (#vcfg: verifier_config)
   (st:vstore vcfg)
