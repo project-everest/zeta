@@ -51,14 +51,14 @@ let thread_state_inv (t:thread_state_t) (m:thread_state_model)
     prf_set_hash_inv t.hadd m.model_hadd `star`
     prf_set_hash_inv t.hevict m.model_hevict
 
-let change_slprop (#[@@framing_implicit] p:slprop)
-                  (#[@@framing_implicit] q:slprop)
+let change_slprop (#[@@@ framing_implicit] p:slprop)
+                  (#[@@@ framing_implicit] q:slprop)
                   (_:unit)
   : Steel unit p (fun _ -> q) (requires fun _ -> p==q) (ensures fun _ _ _ -> True)
   = Steel.Effect.change_slprop p q (fun _ -> ())
 
-val sladmit (#[@@framing_implicit] p:slprop)
-            (#[@@framing_implicit] q:slprop)
+val sladmit (#[@@@ framing_implicit] p:slprop)
+            (#[@@@ framing_implicit] q:slprop)
             (_:unit)
   : SteelT unit p (fun _ -> q)
 

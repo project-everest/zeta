@@ -17,15 +17,15 @@ let is_vstore (st:vstore) (c:contents) : slprop u#1 =
   Steel.Array.is_array st (full_perm (Seq.length c)) c
 
 
-let change_slprop (#[@@framing_implicit] p:slprop)
-                  (#[@@framing_implicit] q:slprop)
+let change_slprop (#[@@@ framing_implicit] p:slprop)
+                  (#[@@@ framing_implicit] q:slprop)
                   (_:unit)
   : Steel unit p (fun _ -> q) (requires fun _ -> p==q) (ensures fun _ _ _ -> True)
   = Steel.Effect.change_slprop p q (fun _ -> ())
 
 let change_slprop_ret (#a:Type)
-                      (#[@@framing_implicit] p:a -> slprop)
-                      (#[@@framing_implicit] q:a -> slprop)
+                      (#[@@@ framing_implicit] p:a -> slprop)
+                      (#[@@@ framing_implicit] q:a -> slprop)
                       (x:a)
   : Steel a (p x) (fun x -> q x) (requires fun _ -> p x == q x) (ensures fun _ _ _ -> True)
   = Steel.Effect.change_slprop (p x) (q x) (fun _ -> ()); x
