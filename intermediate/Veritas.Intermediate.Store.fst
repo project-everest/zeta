@@ -387,6 +387,70 @@ let lemma_madd_to_store_points_to_uniq
   in
   ()
 
+
+let exists_intro_helper #vcfg
+  (st: vstore_raw vcfg)
+  (s': inuse_slot_id st)
+  (d: bin_tree_dir)
+  : Lemma (requires (points_to_some_slot st s' d))
+          (ensures (let s = pointed_slot st s' d in
+                    exists (s2:inuse_slot_id st). exists (d2:bin_tree_dir).
+                      points_to_some_slot st s2 d2 /\
+                      pointed_slot st s2 d2 = s))
+          [SMTPat (pointed_slot st s' d)] = 
+  let s = pointed_slot st s' d in          
+  let aux(d1: bin_tree_dir): Type0 = points_to_dir st s' d1 s in
+  exists_intro aux d;
+  let aux(s1:inuse_slot_id st) = exists d1. points_to_dir st s1 d1 s in
+  exists_intro aux s'
+
+let lemma_madd_to_store_pointed_to_inverse_local 
+  (#vcfg: verifier_config)
+  (st: vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  (s2: slot_id vcfg)
+  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
+                    pointed_to_inv_local st' s2)) 
+          [SMTPat (pointed_to_inv_local (madd_to_store_raw st s k v s' d) s2)]                    
+  = let st' = madd_to_store_raw st s k v s' d in  
+    if empty_slot st' s2 || stored_key st' s2 = Root || add_method_of st' s2 <> Spec.MAdd then ()
+    else (
+      if s2 = s then (
+        assert(points_to_dir st' s' d s);
+        ()
+      )
+      else (
+        assert(empty_slot st s2 = empty_slot st' s2);
+        assert(stored_key st s2 = stored_key st' s2);
+        assert(add_method_of st s2 = add_method_of st' s2);
+
+        let (s2',d2) = pointed_to_inv_local_find st s2 in
+
+        (* s2' is inuse in st, so it cannot be s *)
+        assert(s2' <> s);
+        (* otherwise s2 = s, a case we have ruled out in this else branch *)
+        assert(s2' <> s' \/ d2 <> d);
+
+        // assert(points_to_some_slot st' s2' d2);
+        assert(pointed_slot st' s2' d2 = s2);        
+        ()
+      )
+    )
+
+let lemma_madd_to_store_pointed_to_inverse
+  (#vcfg: verifier_config)
+  (st: vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
+                    pointed_to_inv st'))
+          [SMTPat (madd_to_store_raw st s k v s' d)] = ()
+       
 let madd_to_store
   (#vcfg: verifier_config)
   (st:vstore vcfg)
@@ -410,7 +474,12 @@ let madd_to_store
                          get_inuse_slot st' s = VStoreE k v Spec.MAdd None None                         
                          })
 
-  = admit()
+  = 
+  let st' = madd_to_store_raw st s k v s' d in
+  assert(points_to_inuse st');
+  assert(points_to_uniq st');
+  assert(pointed_to_inv st');
+  st'
 
 let madd_to_store_split 
   (#vcfg: verifier_config)
