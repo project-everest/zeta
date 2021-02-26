@@ -473,13 +473,7 @@ let madd_to_store
                          inuse_slot st' s /\
                          get_inuse_slot st' s = VStoreE k v Spec.MAdd None None                         
                          })
-
-  = 
-  let st' = madd_to_store_raw st s k v s' d in
-  assert(points_to_inuse st');
-  assert(points_to_uniq st');
-  assert(pointed_to_inv st');
-  st'
+  = madd_to_store_raw st s k v s' d
 
 let madd_to_store_split 
   (#vcfg: verifier_config)
