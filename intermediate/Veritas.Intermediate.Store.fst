@@ -475,6 +475,86 @@ let madd_to_store
                          })
   = madd_to_store_raw st s k v s' d
 
+let madd_to_store_split_raw 
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : vstore_raw  vcfg = 
+
+  let s2 = pointed_slot st s' d in
+  let VStoreE k' v' am' l' r' = get_inuse_slot st s' in  
+  let e = (if d2 = Left then 
+             VStoreE k v Spec.MAdd (Some s2) None
+           else
+             VStoreE k v Spec.MAdd None (Some s2))
+          in
+  let st = update_slot st s e in
+  let e' = (if d = Left then
+              VStoreE k' v' am' (Some s) r'
+            else
+              VStoreE k' v' am' l' (Some s)) in
+  update_slot st s' e'
+
+let lemma_madd_to_store_split_identical_except
+  #vcfg
+  (st: vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Lemma (ensures (let st' = madd_to_store_split_raw st s k v s' d d2 in
+                    identical_except2 st st' s s'))
+          [SMTPat (madd_to_store_split_raw st s k v s' d d2)] = 
+  let st' = madd_to_store_split_raw st s k v s' d d2 in
+  let aux (s2: slot_id _)
+    : Lemma (ensures (s2 <> s ==> s2 <> s' ==> get_slot st s2 = get_slot st' s2))
+            [SMTPat (get_slot st s2 = get_slot st' s2)] = 
+    if s2 = s then ()
+    else if s2 = s' then ()
+    else ()
+  in ()
+
+let lemma_madd_to_store_split_points_to_inuse
+  #vcfg
+  (st: vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Lemma (ensures (let st' = madd_to_store_split_raw st s k v s' d d2 in
+                    points_to_inuse st'))
+          [SMTPat (madd_to_store_split_raw st s k v s' d d2)] = 
+  let st' = madd_to_store_split_raw st s k v s' d d2 in
+  let aux (s1 s2: slot_id _)
+    : Lemma (ensures (points_to_inuse_local st' s1 s2))
+            [SMTPat (points_to_inuse_local st' s1 s2)] =
+    assert(points_to_inuse_local st s1 s2); 
+    if not (points_to st' s1 s2) then ()
+    else (
+      let d12 = pointed_dir st' s1 s2 in
+      if s1 = s then (
+        if d12 = d2 then (
+          assert(points_to_inuse_local st s' s2);
+          ()
+        )
+        else ()
+      )
+      else if s1 = s' then ()
+      else (
+        // assert(points_to_dir st s1 d12 s2);
+        // assert(inuse_slot st s2);
+        ()
+      )
+    )
+  in
+  ()
+
 let madd_to_store_split 
   (#vcfg: verifier_config)
   (st:vstore vcfg)
