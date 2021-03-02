@@ -59,7 +59,7 @@ let rec hevict_aux #vcfg (gl: verifiable_log vcfg):
     ms_hashfn_agg h1 h2
   )
 
-val hevict (#vcfg:_) (gl: verifiable_log vcfg): ms_hash_value
+let hevict (#vcfg:_) (gl: verifiable_log vcfg): ms_hash_value = hevict_aux gl
 
 let hash_verifiable #vcfg (gl: verifiable_log vcfg): bool = 
   hadd gl = hevict gl
