@@ -273,19 +273,106 @@ let lemma_evict_elem_unique #vcfg (gl: verifiable_log vcfg) (i1 i2: SA.seq_index
   else
     lemma_evict_elem_unique_aux gl i2 i1
 
+let lemma_evict_elem_unique2 #vcfg (gl: verifiable_log vcfg):
+  Lemma (uniq_prop (evict_seq gl)) = ()
+
+let lemma_evict_elem_count #vcfg (gl: verifiable_log vcfg) (x: ms_hashfn_dom)
+  : Lemma (count x (evict_seq gl) <= 1) =
+  lemma_evict_elem_unique2 gl;
+  lemma_uniq_prop_counts (evict_seq gl) x
+
+
+module MS = Veritas.MultiSet
+
 (* the global evict set is a set (not a multiset) *)
 let evict_set_is_set (#vcfg:_) (gl: verifiable_log vcfg): 
-  Lemma (ensures (is_set (evict_set gl))) = admit()
+  Lemma (ensures (is_set (evict_set gl))) = 
+  let es = evict_set gl in
+  let aux (x:ms_hashfn_dom):
+    Lemma (ensures (MS.mem x es <= 1))
+          [SMTPat (MS.mem x es)] = 
+      lemma_evict_elem_count gl x;
+      seq2mset_mem #_ #ms_hashfn_dom_cmp (evict_seq gl) x
+  in
+  ()
+
+#push-options "--z3rlimit_factor 6"
+
+let rec evict_seq_map_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
+  Tot (j: SA.seq_index (evict_seq gl) {S.index (evict_seq gl) j = blum_evict_elem gl ii})
+  (decreases (S.length gl)) = 
+  let (tid, i) = ii in
+  let p = S.length gl in
+  let gl' = SA.prefix gl (p - 1) in
+  let s' = evict_seq gl' in
+  let s = evict_seq gl in
+  let tl = thread_log gl (p - 1) in
+  let et = IntT.blum_evict_seq tl in
+  if tid = p - 1 then (
+    //S.length s' + IntT.evict_seq_map tl i
+    assert(s == append s' et);
+    assert(S.length s = S.length s' + S.length et);
+    let i' = IntT.evict_seq_map tl i in
+    assert(i' < S.length et);
+    let j = S.length s' + i' in
+    assert(j < S.length s);
+    //assert(S.index s j = blum_evict_elem gl ii);
+    assert(blum_evict_elem gl ii = IntT.blum_evict_elem tl i);
+    assert(IntT.blum_evict_elem tl i = S.index et i');
+    assert(S.index s j = S.index et i');
+    j
+  )
+  else
+    evict_seq_map_aux gl' ii
+
+#pop-options
 
 let evict_seq_map (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   (j: SA.seq_index (evict_seq gl) {S.index (evict_seq gl) j = 
-                                 blum_evict_elem gl ii}) = admit()
+                                 blum_evict_elem gl ii}) = evict_seq_map_aux gl ii
+
+#push-options "--z3rlimit_factor 3"
+
+let rec evict_seq_map_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_index (evict_seq gl)):
+  Tot (ii: sseq_index gl {is_evict_to_blum (indexss gl ii) /\
+                      blum_evict_elem gl ii = S.index (evict_seq gl) j /\
+                      evict_seq_map gl ii = j}) 
+  (decreases (S.length gl)) = 
+  let p = S.length gl in
+  let gl' = SA.prefix gl (p - 1) in
+  let s' = evict_seq gl' in
+  let s = evict_seq gl in
+  let tl = thread_log gl (p - 1) in
+  let et = IntT.blum_evict_seq tl in
+  if j < S.length s' then
+    evict_seq_map_inv_aux gl' j
+  else
+    let j' = j - S.length s' in
+    let i = IntT.evict_seq_inv_map tl j' in
+    let ii = (p - 1, i) in
+    assert(s == append s' et);
+    assert(S.index s j = S.index et j');
+    (p-1, i)
+
+#pop-options
 
 let evict_seq_map_inv (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_index (evict_seq gl)):
   (ii: sseq_index gl {is_evict_to_blum (indexss gl ii) /\
                       blum_evict_elem gl ii = S.index (evict_seq gl) j /\
-                      evict_seq_map gl ii = j}) = admit()
+                      evict_seq_map gl ii = j}) = evict_seq_map_inv_aux gl j
+
+let rec lemma_evict_seq_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
+  Lemma (ensures (evict_seq_map_inv gl (evict_seq_map gl ii) = ii)) 
+        (decreases (S.length gl)) = 
+  let (tid, i) = ii in
+  let p = S.length gl in
+  let gl' = SA.prefix gl (p - 1) in
+  let s' = evict_seq gl' in
+  let tl = thread_log gl (p - 1) in
+  if tid = p - 1 then ()
+  else
+    lemma_evict_seq_inv_aux gl' ii
 
 let lemma_evict_seq_inv (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   Lemma (requires True)
-        (ensures (evict_seq_map_inv gl (evict_seq_map gl ii) = ii)) = admit()
+        (ensures (evict_seq_map_inv gl (evict_seq_map gl ii) = ii)) = lemma_evict_seq_inv_aux gl ii
