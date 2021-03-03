@@ -187,21 +187,55 @@ let rec lemma_hevict_correct_aux #vcfg (tl: verifiable_log vcfg):
 let lemma_hevict_correct (#vcfg:_) (tl: verifiable_log vcfg):
   Lemma (hevict tl = ms_hashfn (blum_evict_seq tl)) = lemma_hevict_correct_aux tl
 
+let rec evict_seq_map_aux (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
+  Tot (j: SA.seq_index (blum_evict_seq tl) {S.index (blum_evict_seq tl) j = 
+                                        blum_evict_elem tl i}) 
+  (decreases (length tl)) = 
+  let n = length tl in
+  let tl' = prefix tl (n - 1) in
+  let s' = blum_evict_seq tl' in
+  if i = n - 1 then
+    S.length s'
+  else
+    evict_seq_map_aux tl' i
+
 let evict_seq_map (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
   (j: SA.seq_index (blum_evict_seq tl) {S.index (blum_evict_seq tl) j = 
-                                        blum_evict_elem tl i}) = admit()
+                                        blum_evict_elem tl i}) = evict_seq_map_aux tl i
+
+let rec evict_seq_inv_map_aux (#vcfg:_) (tl: verifiable_log vcfg) (j: SA.seq_index (blum_evict_seq tl)):
+  Tot (i: seq_index tl{is_evict_to_blum (index tl i) /\
+             blum_evict_elem tl i = S.index (blum_evict_seq tl) j /\
+             evict_seq_map tl i = j})
+  (decreases (length tl)) = 
+  let n = length tl in
+  let tl' = prefix tl (n - 1) in
+  let s' = blum_evict_seq tl' in
+  if j = S.length s' then
+    n - 1
+  else
+    evict_seq_inv_map_aux tl' j
 
 let evict_seq_inv_map (#vcfg:_) (tl: verifiable_log vcfg) (j: SA.seq_index (blum_evict_seq tl)):
   (i: seq_index tl{is_evict_to_blum (index tl i) /\
              blum_evict_elem tl i = S.index (blum_evict_seq tl) j /\
-             evict_seq_map tl i = j}) = admit()
+             evict_seq_map tl i = j}) = evict_seq_inv_map_aux tl j
+
+let rec lemma_evict_seq_inv_aux (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
+  Lemma (ensures (evict_seq_inv_map tl (evict_seq_map tl i) = i))
+        (decreases (length tl)) =
+  let n = length tl in
+  let tl' = prefix tl (n - 1) in
+  if i = n - 1 then ()
+  else
+    lemma_evict_seq_inv_aux tl' i
 
 let lemma_evict_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
-  Lemma (ensures (evict_seq_inv_map tl (evict_seq_map tl i) = i)) = admit()
+  Lemma (ensures (evict_seq_inv_map tl (evict_seq_map tl i) = i)) = lemma_evict_seq_inv_aux tl i
 
 let lemma_blum_evict_elem_prefix (#vcfg:_) (tl: verifiable_log vcfg) (i: nat{i <= length tl}) 
   (j: nat{j < i && is_evict_to_blum (index tl j)}):
-  Lemma (blum_evict_elem tl j = blum_evict_elem (prefix tl i) j) = admit()
+  Lemma (blum_evict_elem tl j = blum_evict_elem (prefix tl i) j) = ()
 
 let lemma_add_clock (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
   Lemma (timestamp_of (blum_add_elem (index tl i)) `ts_lt`  clock tl i) = admit()
