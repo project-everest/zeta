@@ -139,7 +139,7 @@ let rec blum_evict_seq_aux #vcfg (tl: verifiable_log vcfg):
     else s'
   )
 
-let blum_evict_seq (#vcfg:_) (tl: verifiable_log vcfg): S.seq ms_hashfn_dom = blum_add_seq_aux tl
+let blum_evict_seq (#vcfg:_) (tl: verifiable_log vcfg): S.seq ms_hashfn_dom = blum_evict_seq_aux tl
 
 let hevict_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
   Valid?.hevict (state_at tl i)
@@ -159,78 +159,33 @@ module Spec = Veritas.Verifier
 
 let lemma_hevict_change #vcfg (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
   Lemma (hevict_at tl (i + 1) = ms_hashfn_upd (blum_evict_elem tl i) (hevict_at tl i)) = 
-  admit()
+  lemma_state_transition tl i;  
+  lemma_thread_id_state (prefix tl i)
 
-(*
-  lemma_state_transition tl i;
-  let h' = hevict_at tl (i + 1) in
-  let h = hevict_at tl i in
-  let vs' = state_at tl (i + 1) in
-  assert(h' = Valid?.hevict vs');
-  let vs = state_at tl i in
-  assert(h = Valid?.hevict vs);
-  assert(vs' == IntV.verify_step vs (index tl i));
-  let be = blum_evict_elem tl i in
-  let (tid, _) = tl in
-  assert(be = IntV.blum_evict_elem vs (index tl i) tid);
-  lemma_thread_id_state (prefix tl i);  
-  let e = index tl i in
-  match e with
-  | EvictB_S s t -> 
-    assert(vs' == vevictb s t vs);
-    let st = thread_store vs in
-    let k = stored_key st s in
-    let v = stored_value st s in
-    assert(h' = ms_hashfn_upd (MHDom (k,v) t tid) h);
-    assert(be = MHDom (k,v) t tid);
-    ()
-  | EvictBM_S s s' t ->
-    assert(vs' == vevictbm s s' t vs);
-    let st = thread_store vs in
-    assert(sat_evictb_checks s t vs);
-    assert(add_method_of st s = Veritas.Verifier.MAdd);
-    if not (sat_evictb_checks s t vs) || add_method_of st s <> Spec.MAdd then ()
-    else if empty_slot st s' then ()
+let rec lemma_hevict_correct_aux #vcfg (tl: verifiable_log vcfg):
+  Lemma (ensures (hevict tl = ms_hashfn (blum_evict_seq tl)))
+        (decreases (length tl)) = 
+  let n = length tl in
+  if n = 0 then 
+    lemma_hashfn_empty()
+  else (
+    let tl' = prefix tl (n - 1) in
+    let s' = blum_evict_seq tl' in
+    let s = blum_evict_seq tl in
+    let e = index tl (n - 1) in
+    let h' = hevict tl' in
+    let h = hevict tl in
+    lemma_hevict_correct_aux tl';  
+    if is_evict_to_blum e then (    
+      lemma_hashfn_app s' (blum_evict_elem tl (n - 1));
+      lemma_hevict_change tl (n - 1)
+    )
     else
-      let k = stored_key st s in
-      let k' = stored_key st s' in
-      let v' = stored_value st s' in
-      (* check k is a proper desc of k' *)
-      if not (is_proper_desc k k') then ()
-      else
-        let v' = to_merkle_value v' in
-        let d = desc_dir k k' in
-        let dh' = desc_hash_dir v' d in
-        match dh' with
-        | Empty -> ()
-        | Desc k2 h2 b2 -> 
-               if k2 <> k || b2 then ()
-               (* if s' does not point to s in direction d then Fail *)
-               else if not (points_to_dir st s' d s) then ()
-               else
-                 (* update the evict hash and the clock *)
-                 let vs_upd = vevictb_update_hash_clock s t vs in
-                 // assert(thread_store vs == thread_store vs_upd);
-    
-                 (* update the hash at k' *)
-                 let v'_upd = Spec.update_merkle_value v' d k h2 true in
-                 let st_upd = update_value st s' (MVal v'_upd) in
-  
-                 (* evict s' from store *)
-                 let st_upd = mevict_from_store st_upd s s' d in
-                 let vs'c = update_thread_store vs st_upd in
-                 assert(vs' == vs'c);
-                 assert(Valid?.hevict vs' = h');
-                 //assert(Valid?.hevict vs_upd = h');
-                 admit()
-      
-    // assert(h' = Valid?.hevict (vevictb_update_hash_clock s t vs));
-    // assert(h' = ms_hashfn_upd (MHDom (k,v) t tid) h);
-    //admit()
-*)
+      lemma_hevict_unchanged tl (n - 1)   
+  )
 
 let lemma_hevict_correct (#vcfg:_) (tl: verifiable_log vcfg):
-  Lemma (hevict tl = ms_hashfn (blum_evict_seq tl)) = admit()
+  Lemma (hevict tl = ms_hashfn (blum_evict_seq tl)) = lemma_hevict_correct_aux tl
 
 let evict_seq_map (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
   (j: SA.seq_index (blum_evict_seq tl) {S.index (blum_evict_seq tl) j = 
