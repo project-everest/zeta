@@ -225,6 +225,54 @@ let rec lemma_uniq_prop_counts (#a:eqtype) (s: seq a) (x: a):
     )
   )
 
+module MH = Veritas.MultiSetHash
+
+let rec lemma_evict_elem_tids #vcfg (gl: verifiable_log vcfg) (i: SA.seq_index (evict_seq gl))
+  : Lemma (ensures (let es = evict_seq gl in
+                    MH.thread_id_of (S.index es i) < S.length gl))
+          (decreases (S.length gl)) = 
+  let p = S.length gl in
+  let es = evict_seq gl in
+  if p = 0 then ()
+  else
+    let gl' = SA.prefix gl (p - 1) in
+    let es' = evict_seq gl' in
+    if i < S.length es' then
+      lemma_evict_elem_tids gl' i
+    else      
+      IntT.lemma_evict_elem_tid (thread_log gl (p - 1))
+
+let rec lemma_evict_elem_unique_aux #vcfg (gl: verifiable_log vcfg) (i1 i2: SA.seq_index (evict_seq gl))
+  : Lemma (requires (i1 < i2))
+          (ensures (diff_elem (evict_seq gl) i1 i2))
+          (decreases (S.length gl)) = 
+  let p = S.length gl in
+  let es = evict_seq gl in
+  if p = 0 then ()
+  else
+    let gl' = SA.prefix gl (p - 1) in
+    let es' = evict_seq gl' in
+    let tl = thread_log gl (p - 1) in
+    let et = IntT.blum_evict_seq tl in
+    if i1 < S.length es' then
+      if i2 < S.length es' then
+        lemma_evict_elem_unique_aux gl' i1 i2
+      else (
+        lemma_evict_elem_tids gl' i1; 
+        IntT.lemma_evict_elem_tid tl
+      )
+    else
+      IntT.lemma_evict_elem_unique tl (i1 - S.length es') (i2 - S.length es')
+
+let lemma_evict_elem_unique #vcfg (gl: verifiable_log vcfg) (i1 i2: SA.seq_index (evict_seq gl))
+  : Lemma (requires (i1 <> i2))
+          (ensures (diff_elem (evict_seq gl) i1 i2))
+          [SMTPat (diff_elem (evict_seq gl) i1 i2)] = 
+  if i1 < i2 then
+    lemma_evict_elem_unique_aux gl i1 i2
+  else
+    lemma_evict_elem_unique_aux gl i2 i1
+
 (* the global evict set is a set (not a multiset) *)
 let evict_set_is_set (#vcfg:_) (gl: verifiable_log vcfg): 
   Lemma (ensures (is_set (evict_set gl))) = admit()
