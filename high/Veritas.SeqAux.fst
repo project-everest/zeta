@@ -441,24 +441,12 @@ let lemma_filter_update_index_eq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_inde
           (ensures (index (filter f (upd s i v)) (filter_index_inv_map f s i) = v))
   = lemma_filter_update_index_eq_aux f s i v
 
-#push-options "--z3rlimit_factor 4"
-let rec lemma_filter_update_index_neq_aux (#a:eqtype) (f:a -> bool) (s: seq a) (i:seq_index s) (v:a) (j:seq_index (filter f s))
-  : Lemma (requires (f v = f (index s i) /\ filter_index_map f s j <> i))
-          (ensures (index (filter f s) j = index (filter f (upd s i v)) j))
-          (decreases (length s))
-  = let n = length s in
-    if n > 0 && i < n - 1 
-    then (
-      let sp = prefix s (n - 1) in
-      if j < length (filter f sp)
-      then lemma_filter_update_index_neq_aux f sp i v j
-    )
-#pop-options
-
+(*
 let lemma_filter_update_index_neq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a) (j:seq_index (filter f s))
   : Lemma (requires (f v = f (index s i) /\ filter_index_map f s j <> i))
           (ensures (index (filter f s) j = index (filter f (upd s i v)) j))
   = lemma_filter_update_index_neq_aux f s i v j
+*)
 
 let rec lemma_filter_extensionality_aux (#a:eqtype) (f1 f2:a -> bool) (s:seq a):
   Lemma (requires (ext_pred f1 f2))

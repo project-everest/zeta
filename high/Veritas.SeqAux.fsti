@@ -209,9 +209,11 @@ val lemma_filter_update_index_eq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_inde
   : Lemma (requires (f v /\ f (index s i)))
           (ensures (index (filter f (upd s i v)) (filter_index_inv_map f s i) = v))
 
+(*
 val lemma_filter_update_index_neq (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s) (v:a) (j:seq_index (filter f s))
   : Lemma (requires (f v = f (index s i) /\ filter_index_map f s j <> i))
           (ensures (index (filter f s) j = index (filter f (upd s i v)) j))
+*)
 
 let ext_pred (#a:eqtype) (f1 f2:a -> bool) =
   forall x. f1 x = f2 x
