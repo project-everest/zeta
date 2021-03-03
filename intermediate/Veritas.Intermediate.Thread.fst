@@ -1,10 +1,25 @@
 module Veritas.Intermediate.Thread
 
 let lemma_init_store_ismap (vcfg:verifier_config) (tid:thread_id)
-  : Lemma (ensures (is_map (init_store vcfg tid))) = admit()
-
+  : Lemma (ensures (is_map (init_store vcfg tid))) = 
+  let st = empty_store vcfg in
+  lemma_empty_store_is_map #vcfg;  
+  lemma_empty_contains_nokey #vcfg Root;
+  if tid = 0 then
+    lemma_madd_to_store_is_map st 0 (init_value Root)    
+  else ()
+    
 let lemma_init_store_slot_points_to_is_merkle_points_to (vcfg:verifier_config) (tid:thread_id)
-  : Lemma (ensures (slot_points_to_is_merkle_points_to (init_store vcfg tid))) = admit()
+  : Lemma (ensures (slot_points_to_is_merkle_points_to (init_store vcfg tid))) = 
+  let st = init_store vcfg tid in
+  let aux (s1 s2: slot_id vcfg) (d: bin_tree_dir):
+    Lemma (ensures (not (points_to_dir st s1 d s2))) 
+          [SMTPat (slot_points_to_is_merkle_points_to_local st s1 s2 d)] = 
+    if tid = 0 then   
+      ()
+    else ()
+  in
+  ()
 
 let rec verifiable_implies_prefix_verifiable_aux
   (#vcfg:_) (tl:verifiable_log vcfg) (i:nat{i <= length tl}):

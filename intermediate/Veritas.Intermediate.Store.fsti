@@ -302,6 +302,11 @@ val pointing_slot (#vcfg:_)
  : Tot (s':inuse_slot_id st{points_to st s' s})
 
 
+(* an empty store contains no key *)
+val lemma_empty_contains_nokey (#vcfg:_) (k:key):
+  Lemma (ensures (let st = empty_store vcfg in
+                  not (store_contains_key st k)))
+
 (*** Store Invariants ***)
 
 (* In our correctness proof, we will want to maintain two invariants over stores:
@@ -338,17 +343,18 @@ val lemma_ismap_correct (#vcfg:_) (st:ismap_vstore vcfg) (s1 s2: inuse_slot_id s
   : Lemma (requires (stored_key st s1 = stored_key st s2))
           (ensures (s1 = s2))
 
-(*
+val lemma_empty_store_is_map (#vcfg:_):
+  Lemma (ensures (is_map (empty_store vcfg)))
+
 (* is_map is preserved when adding a new key *)
-val lemma_add_to_store_is_map1
+val lemma_madd_to_store_is_map
       (#vcfg:_)
-      (st:ismap_vstore vcfg) 
+      (st:ismap_vstore vcfg{not (store_contains_key st Root)}) 
       (s:empty_slot_id st) 
-      (k:key{not (store_contains_key st k)}) 
-      (v:value_type_of k) 
-      (am:add_method)
-  : Lemma (ensures (is_map (add_to_store st s k v am)))
-          [SMTPat (is_map (add_to_store st s k v am))]
+      (v:value_type_of Root) 
+  : Lemma (ensures (is_map (madd_to_store_root st s v)))
+
+(*
 
 (* is_map is violated when adding a duplicate key *)
 val lemma_add_to_store_is_map2
@@ -477,3 +483,4 @@ let slot_points_to_is_merkle_points_to_local
 
 let slot_points_to_is_merkle_points_to (#vcfg:_) (st: vstore vcfg) = 
   forall (s1 s2: slot_id _). forall d. slot_points_to_is_merkle_points_to_local st s1 s2 d
+

@@ -667,6 +667,9 @@ let pointing_slot (#vcfg:_)
                 (s:inuse_slot_id st{Root <> stored_key st s /\ add_method_of st s = Spec.MAdd})
  : Tot (s':inuse_slot_id st{points_to st s' s}) = admit()
 
+let lemma_empty_contains_nokey (#vcfg:_) (k:key):
+  Lemma (ensures (let st = empty_store vcfg in
+                  not (store_contains_key st k))) = admit()
 
 let lemma_ismap_update_value
       (#vcfg:_)
@@ -680,7 +683,17 @@ let lemma_ismap_correct (#vcfg:_) (st:ismap_vstore vcfg) (s1 s2: inuse_slot_id s
   : Lemma (requires (stored_key st s1 = stored_key st s2))
           (ensures (s1 = s2))
   = admit()
-  
+
+let lemma_empty_store_is_map (#vcfg:_):
+  Lemma (ensures (is_map (empty_store vcfg))) = admit()
+
+let lemma_madd_to_store_is_map
+      (#vcfg:_)
+      (st:ismap_vstore vcfg{not (store_contains_key st Root)}) 
+      (s:empty_slot_id st) 
+      (v:value_type_of Root) 
+  : Lemma (ensures (is_map (madd_to_store_root st s v))) = admit()
+
 let as_map (#vcfg:_) (st:ismap_vstore vcfg) : Spec.vstore = admit()
 
 let lemma_as_map_empty (vcfg:_)
