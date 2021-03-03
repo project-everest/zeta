@@ -257,16 +257,16 @@ let vevictbm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (t:timestamp) (vs:vtls vcf
           else if not (points_to_dir st s' d s) then Failed          
           else
             (* update the evict hash and the clock *)
-            let vs_upd = vevictb_update_hash_clock s t vs in
+            let vs = vevictb_update_hash_clock s t vs in
             // assert(thread_store vs == thread_store vs_upd);
 
             (* update the hash at k' *)
             let v'_upd = Spec.update_merkle_value v' d k h2 true in
-            let st_upd = update_value st s' (MVal v'_upd) in
+            let st = update_value st s' (MVal v'_upd) in
 
             (* evict s' from store *)
-            let st_upd = mevict_from_store st_upd s s' d in
-            update_thread_store vs st_upd
+            let st = mevict_from_store st s s' d in
+            update_thread_store vs st
 
 let verify_step #vcfg (vs:vtls vcfg) (e:logS_entry vcfg): vtls vcfg =
   match vs with

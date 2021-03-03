@@ -296,7 +296,7 @@ let evict_set_is_set (#vcfg:_) (gl: verifiable_log vcfg):
   in
   ()
 
-#push-options "--z3rlimit_factor 6"
+#push-options "--z3rlimit_factor 8"
 
 let rec evict_seq_map_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   Tot (j: SA.seq_index (evict_seq gl) {S.index (evict_seq gl) j = blum_evict_elem gl ii})

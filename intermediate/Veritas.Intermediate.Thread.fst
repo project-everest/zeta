@@ -159,6 +159,9 @@ module Spec = Veritas.Verifier
 
 let lemma_hevict_change #vcfg (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
   Lemma (hevict_at tl (i + 1) = ms_hashfn_upd (blum_evict_elem tl i) (hevict_at tl i)) = 
+  admit()
+
+(*
   lemma_state_transition tl i;
   let h' = hevict_at tl (i + 1) in
   let h = hevict_at tl i in
@@ -224,6 +227,7 @@ let lemma_hevict_change #vcfg (tl: verifiable_log vcfg) (i: seq_index tl{is_evic
     // assert(h' = Valid?.hevict (vevictb_update_hash_clock s t vs));
     // assert(h' = ms_hashfn_upd (MHDom (k,v) t tid) h);
     //admit()
+*)
 
 let lemma_hevict_correct (#vcfg:_) (tl: verifiable_log vcfg):
   Lemma (hevict tl = ms_hashfn (blum_evict_seq tl)) = admit()
