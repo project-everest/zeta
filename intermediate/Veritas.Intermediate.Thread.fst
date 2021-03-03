@@ -238,13 +238,148 @@ let lemma_blum_evict_elem_prefix (#vcfg:_) (tl: verifiable_log vcfg) (i: nat{i <
   Lemma (blum_evict_elem tl j = blum_evict_elem (prefix tl i) j) = ()
 
 let lemma_add_clock (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
-  Lemma (timestamp_of (blum_add_elem (index tl i)) `ts_lt`  clock tl i) = admit()
+  Lemma (timestamp_of (blum_add_elem (index tl i)) `ts_lt`  clock tl i) = 
+  let e = index tl i in
+  lemma_state_transition tl i;
+  let si = state_at tl i in
+  let si' = state_at tl (i + 1) in
+  match e with
+  | AddB_S s r t j ->
+    assert(Valid?.clock si' = Spec.max (Valid?.clock si) (next t));
+    ()
 
 let lemma_evict_clock (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
-  Lemma (timestamp_of (blum_evict_elem tl i) = clock tl i)  = admit()
+  Lemma (timestamp_of (blum_evict_elem tl i) = clock tl i)  = 
+  let e = index tl i in
+  lemma_state_transition tl i;
+  let si = state_at tl i in
+  let si' = state_at tl (i + 1) in
+  match e with
+  | EvictB_S s t ->
+    ()
+  | EvictBM_S s s' t -> ()
 
+module MH = Veritas.MultiSetHash
+
+let rec lemma_evict_elem_tid_aux #vcfg (tl:verifiable_log vcfg) (i: SA.seq_index (blum_evict_seq tl)):
+  Lemma (ensures (MH.thread_id_of (S.index (blum_evict_seq tl) i) = (thread_id_of tl))) 
+        (decreases (length tl))
+        [SMTPat (is_of_thread_id (thread_id_of tl) (S.index (blum_evict_seq tl) i))] = 
+  let es = blum_evict_seq tl in
+  let tid = thread_id_of tl in
+  let n = length tl in
+  if n = 0 then ()
+  else
+    let tl' = prefix tl (n - 1) in
+    let es' = blum_evict_seq tl' in
+    let e = index tl (n - 1) in
+    if is_evict_to_blum e then
+      if i = S.length es - 1 then
+        ()
+      else
+        lemma_evict_elem_tid_aux tl' i    
+    else
+      lemma_evict_elem_tid_aux tl' i    
+  
 let lemma_evict_elem_tid (#vcfg:_) (tl:verifiable_log vcfg):
-  Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq tl)) = admit()
+  Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq tl)) = ()
+
+let clock_pre #vcfg (tl:verifiable_log vcfg) (i:seq_index tl): timestamp = 
+  Valid?.clock (state_at tl i)
+
+let lemma_evict_clock_strictly_increasing #vcfg (tl: verifiable_log vcfg) (i: seq_index tl {is_evict_to_blum (index tl i)}):
+  Lemma (ts_lt (clock_pre tl i) (clock tl i)) = ()
+
+let lemma_evict_timestamp_is_clock #vcfg (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
+  Lemma (timestamp_of (blum_evict_elem tl i) = clock tl i) = 
+  ()
+
+let final_clock #vcfg (tl:verifiable_log vcfg): timestamp =
+  Valid?.clock (verify tl)
+
+#push-options "--z3rlimit_factor 4"
+(* the clock of a verifier is monotonic *)
+let rec lemma_clock_monotonic_aux #vcfg (tl:verifiable_log vcfg) (i:seq_index tl):
+  Lemma (ensures (clock tl i `ts_leq` clock tl (length tl - 1)))
+  (decreases (length tl))
+        =
+  let n = length tl in
+  if n = 0 then ()
+  else if i = n - 1 then ()
+  else
+    let tl' = prefix tl (n - 1) in
+    lemma_clock_monotonic_aux tl' i
+#pop-options
+
+let lemma_clock_monotonic #vcfg (tl: verifiable_log vcfg) (i:seq_index tl) (j:seq_index tl{j >= i}):
+  Lemma (clock tl i `ts_leq` clock tl j) =
+  let tlj = prefix tl (j + 1) in
+  lemma_clock_monotonic_aux tlj i
+
+let lemma_final_clock_monotonic #vcfg (tl: verifiable_log vcfg) (i:seq_index tl):
+  Lemma (ts_leq (final_clock (prefix tl i)) (final_clock tl)) = 
+  if i = 0 then ()
+  else
+    lemma_clock_monotonic tl (i - 1) (length tl - 1)
+
+let rec lemma_evict_clock_leq_final_clock #vcfg (tl:verifiable_log vcfg) (i: SA.seq_index (blum_evict_seq tl)):
+  Lemma (ensures (ts_leq (timestamp_of (S.index (blum_evict_seq tl) i)) (final_clock tl)))
+        (decreases (length tl)) = 
+  let n = length tl in
+  let es = blum_evict_seq tl in
+  let be = S.index es i in
+  let t = timestamp_of be in
+  let c = final_clock tl in
+  if n = 0 then ()
+  else (
+    let tl' = prefix tl (n - 1) in
+    let es' = blum_evict_seq tl' in
+    let c' = final_clock tl' in
+    
+    lemma_final_clock_monotonic tl (n - 1);
+    assert(ts_leq c' c);
+    
+    if i < S.length es' then 
+      lemma_evict_clock_leq_final_clock tl' i    
+    else 
+      lemma_evict_timestamp_is_clock tl (n - 1)
+  )
+
+let rec lemma_evict_seq_clock_strictly_monotonic #vcfg (tl: verifiable_log vcfg) (i1 i2: SA.seq_index (blum_evict_seq tl)):
+  Lemma (requires (i1 < i2))
+        (ensures (ts_lt (timestamp_of (S.index (blum_evict_seq tl) i1)) 
+                        (timestamp_of (S.index (blum_evict_seq tl) i2)))) 
+        (decreases (length tl)) =
+  let n = length tl in
+  let es = blum_evict_seq tl in
+  if n = 0 then ()
+  else (
+    let tl' = prefix tl (n - 1) in
+    let es' = blum_evict_seq tl' in
+    if i2 < S.length es' then
+      lemma_evict_seq_clock_strictly_monotonic tl' i1 i2
+    else (
+      let e = index tl (n - 1) in
+      //assert(is_evict_to_blum e);
+      //assert(timestamp_of (S.index (blum_evict_seq tl) i2) = timestamp_of (blum_evict_elem tl (n - 1)));
+             
+      lemma_evict_timestamp_is_clock tl (n - 1);
+      //assert(timestamp_of (blum_evict_elem tl (n - 1)) =  clock tl (n - 1));
+             
+      lemma_evict_clock_strictly_increasing tl (n - 1);             
+      //assert(ts_lt (clock_pre tl (n - 1)) (clock tl (n - 1)));
+      //assert(i1 < S.length es');
+      //assert(S.index es i1 = S.index es' i1);
+      lemma_evict_clock_leq_final_clock tl' i1;
+      ()
+    )
+  )
 
 let lemma_evict_elem_unique (#vcfg:_) (tl: verifiable_log vcfg) (i1 i2: SA.seq_index (blum_evict_seq tl)):
-  Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2) = admit()
+  Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2) = 
+  if i1 = i2 then ()
+  else if i1 < i2 then
+    lemma_evict_seq_clock_strictly_monotonic tl i1 i2
+  else 
+    lemma_evict_seq_clock_strictly_monotonic tl i2 i1
+ 
