@@ -5,10 +5,36 @@ let lemma_verify_failed (#vcfg:_) (vs:vtls vcfg) (e:_)
           (ensures (Failed? (verify_step vs e)))
   = ()
 
+let rec lemma_verifiable_implies_prefix_verifiable_aux 
+      (#vcfg:_) 
+      (vsinit: vtls vcfg) 
+      (l: logS _{verifiable vsinit l}) 
+      (i: seq_index l):
+  Lemma (ensures (let li = prefix l i in
+                  verifiable vsinit li))
+        (decreases (Seq.length l)) = 
+  let n = Seq.length l in
+  if n = 0 then ()
+  else if i = n - 1 then()
+  else
+    lemma_verifiable_implies_prefix_verifiable_aux vsinit (prefix l (n - 1)) i
+
+let rec lemma_verifiable_implies_init_valid_aux #vcfg (vsinit: vtls vcfg) (l: logS _):
+  Lemma (requires (verifiable vsinit l))
+        (ensures (Valid? vsinit))
+        (decreases (Seq.length l)) = 
+  let n = Seq.length l in
+  if n = 0 then ()
+  else (
+    let l' = prefix l (n - 1) in    
+    lemma_verifiable_implies_prefix_verifiable_aux vsinit l (n - 1);
+    lemma_verifiable_implies_init_valid_aux vsinit l'
+  )
+
 let lemma_verifiable_implies_init_valid (#vcfg:_) (vsinit: vtls vcfg) (l: logS _):
   Lemma (requires (verifiable vsinit l))
         (ensures (Valid? vsinit))
-  = admit()
+  = lemma_verifiable_implies_init_valid_aux vsinit l
 
 let lemma_verifiable_implies_prefix_verifiable 
       (#vcfg:_) 
@@ -17,8 +43,111 @@ let lemma_verifiable_implies_prefix_verifiable
       (i: seq_index l):
   Lemma (ensures (let li = prefix l i in
                   verifiable vsinit li))
-  = admit()
-  
+  = lemma_verifiable_implies_prefix_verifiable_aux vsinit l i
+
+let lemma_init_consistent_log #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l}):
+  Lemma (requires (Seq.length l = 0))
+        (ensures (let st = thread_store vsinit in
+                  let s2kinit = to_slot_state_map st in
+                  consistent_log s2kinit l /\
+                  (let stend = thread_store (verify vsinit l) in
+                   let s2kend = S.to_slot_state_map stend in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2kend s2klog))) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let stend = thread_store (verify vsinit l) in
+  let s2kend = S.to_slot_state_map stend in
+                   
+  let aux (s:slot_id vcfg):
+      Lemma (ensures (slot_state_trans_closure s l (s2kinit s) <> None))
+            [SMTPat (slot_state_trans_closure s l (s2kinit s))] = 
+      ()
+  in    
+  assert(consistent_log s2kinit l);
+  assert(stend == stinit);
+  let s2klog = L.to_slot_state_map s2kinit l in  
+
+  let aux (s:slot_id vcfg):
+    Lemma (ensures (s2kend s == s2klog s))
+          [SMTPat (s2kend s == s2klog s)] = 
+    // assert(s2kend s == (if inuse_slot stinit s then Assoc (stored_key stinit s) else Free));      
+    ()
+  in
+  // assert(FE.feq s2kend s2klog);
+  ()
+
+let rec lemma_verifiable_implies_consistent_log_aux (#vcfg:_) (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l}):
+  Lemma (ensures (let st = thread_store vsinit in
+                  let s2kinit = to_slot_state_map st in
+                  consistent_log s2kinit l /\
+                  (let stend = thread_store (verify vsinit l) in
+                   let s2kend = S.to_slot_state_map stend in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2kend s2klog)))
+        (decreases (Seq.length l)) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let stend = thread_store (verify vsinit l) in
+  let s2kend = S.to_slot_state_map stend in
+  let n = Seq.length l in
+  if n = 0 then
+     lemma_init_consistent_log vsinit l
+  else (
+    let l' = prefix l (n - 1) in
+    let e = Seq.index l (n - 1) in
+    lemma_verifiable_implies_consistent_log_aux vsinit l';
+    assert(consistent_log s2kinit l');
+    let s2klog' = Logs.to_slot_state_map s2kinit l' in
+    let st' = thread_store (verify vsinit l') in
+    let s2k' = S.to_slot_state_map st' in
+    assert(FE.feq s2k' s2klog');
+
+    let aux (s: slot_id vcfg):
+      Lemma (ensures (slot_state_trans_closure s l (s2kinit s) <> None))
+            [SMTPat (slot_state_trans_closure s l (s2kinit s))] = 
+      let ss0 = s2kinit s in
+      let ss' = slot_state_trans_closure s l' ss0 in
+      assert(ss' <> None);
+
+      let ss = slot_state_trans_closure s l ss0 in
+      assert(ss == slot_state_trans e s (Some?.v ss'));
+      match e with 
+      | Get_S s1 k1 _ ->
+        if s1 = s then (
+          assert(inuse_slot st' s1);
+          assert(stored_key st' s1 = k1);
+          assert(s2k' s1 = Assoc k1);
+          ()
+        )
+        else ()
+      | Put_S s1 k1 _ ->
+        if s1 = s then (
+          assert(inuse_slot st' s1);
+          assert(stored_key st' s1 = k1);
+          assert(s2k' s1 = Assoc k1);
+          ()
+        )
+        else ()      
+      | AddM_S s1 (k1,v1) s2 ->
+        if s = s2 then (
+          assert(inuse_slot st' s);
+          assert(s2k' s = Assoc (stored_key st' s));
+          ()
+        )
+        else ()
+      | AddB_S s1 (k1,_) _ _ ->
+        if s = s1 then (
+          
+          admit()
+        )
+        else ()
+      | _ -> admit()
+    in
+    assert(consistent_log s2kinit l);
+    admit()
+  )
+
 (* verifiability implies consistency of the log *)
 let lemma_verifiable_implies_consistent_log (#vcfg:_) (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l}):
   Lemma (ensures (let st = thread_store vsinit in

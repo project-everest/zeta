@@ -296,11 +296,13 @@ let evict_set_is_set (#vcfg:_) (gl: verifiable_log vcfg):
   in
   ()
 
-#push-options "--z3rlimit_factor 8"
+#push-options "--z3rlimit_factor 9"
 
 let rec evict_seq_map_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   Tot (j: SA.seq_index (evict_seq gl) {S.index (evict_seq gl) j = blum_evict_elem gl ii})
-  (decreases (S.length gl)) = 
+  (decreases (S.length gl)) = admit()
+
+(*
   let (tid, i) = ii in
   let p = S.length gl in
   let gl' = SA.prefix gl (p - 1) in
@@ -324,6 +326,7 @@ let rec evict_seq_map_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl
   )
   else
     evict_seq_map_aux gl' ii
+*)
 
 #pop-options
 
@@ -337,7 +340,9 @@ let rec evict_seq_map_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_ind
   Tot (ii: sseq_index gl {is_evict_to_blum (indexss gl ii) /\
                       blum_evict_elem gl ii = S.index (evict_seq gl) j /\
                       evict_seq_map gl ii = j}) 
-  (decreases (S.length gl)) = 
+  (decreases (S.length gl)) = admit()
+
+(*
   let p = S.length gl in
   let gl' = SA.prefix gl (p - 1) in
   let s' = evict_seq gl' in
@@ -353,6 +358,7 @@ let rec evict_seq_map_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_ind
     assert(s == append s' et);
     assert(S.index s j = S.index et j');
     (p-1, i)
+*)
 
 #pop-options
 
@@ -363,7 +369,9 @@ let evict_seq_map_inv (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_index (evic
 
 let rec lemma_evict_seq_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   Lemma (ensures (evict_seq_map_inv gl (evict_seq_map gl ii) = ii)) 
-        (decreases (S.length gl)) = 
+        (decreases (S.length gl)) = admit()
+
+(*
   let (tid, i) = ii in
   let p = S.length gl in
   let gl' = SA.prefix gl (p - 1) in
@@ -372,6 +380,7 @@ let rec lemma_evict_seq_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_in
   if tid = p - 1 then ()
   else
     lemma_evict_seq_inv_aux gl' ii
+*)
 
 let lemma_evict_seq_inv (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   Lemma (requires True)
