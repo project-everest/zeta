@@ -1,4 +1,5 @@
 module Veritas.Intermediate.Global
+#push-options "--max_fuel 1 --max_ifuel 0"
 
 let verifiable_implies_prefix_verifiable
   (#vcfg:_) (gl:verifiable_log vcfg) (i:nat{i <= S.length gl}):
@@ -51,9 +52,6 @@ let lemma_g_hadd_correct (#vcfg:_) (gl: verifiable_log vcfg):
   Lemma (ensures (hadd gl = ms_hashfn (add_seq gl))) = 
   lemma_g_hadd_correct_aux gl
 
-
-#push-options "--z3rlimit_factor 3"
-
 let rec add_set_map_aux #vcfg (gl: verifiable_log vcfg) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
   Tot (j: SA.seq_index (add_seq gl){S.index (add_seq gl) j = blum_add_elem (indexss gl ii)})
   (decreases (S.length gl))  
@@ -68,8 +66,6 @@ let rec add_set_map_aux #vcfg (gl: verifiable_log vcfg) (ii: sseq_index gl {is_b
     S.length s' + (IntT.add_seq_map tl i)
   else
     add_set_map_aux gl' ii  
-
-#pop-options
 
 (* mapping from blum_add entries in verifier log to the index in add seq *)
 let add_set_map (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
@@ -296,13 +292,10 @@ let evict_set_is_set (#vcfg:_) (gl: verifiable_log vcfg):
   in
   ()
 
-#push-options "--z3rlimit_factor 9"
 
 let rec evict_seq_map_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   Tot (j: SA.seq_index (evict_seq gl) {S.index (evict_seq gl) j = blum_evict_elem gl ii})
-  (decreases (S.length gl)) = admit()
-
-(*
+  (decreases (S.length gl)) =
   let (tid, i) = ii in
   let p = S.length gl in
   let gl' = SA.prefix gl (p - 1) in
@@ -326,23 +319,18 @@ let rec evict_seq_map_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl
   )
   else
     evict_seq_map_aux gl' ii
-*)
-
-#pop-options
 
 let evict_seq_map (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   (j: SA.seq_index (evict_seq gl) {S.index (evict_seq gl) j = 
                                  blum_evict_elem gl ii}) = evict_seq_map_aux gl ii
 
-#push-options "--z3rlimit_factor 3"
+//#push-options "--z3rlimit_factor 3"
 
 let rec evict_seq_map_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_index (evict_seq gl)):
   Tot (ii: sseq_index gl {is_evict_to_blum (indexss gl ii) /\
                       blum_evict_elem gl ii = S.index (evict_seq gl) j /\
                       evict_seq_map gl ii = j}) 
-  (decreases (S.length gl)) = admit()
-
-(*
+  (decreases (S.length gl)) =
   let p = S.length gl in
   let gl' = SA.prefix gl (p - 1) in
   let s' = evict_seq gl' in
@@ -358,20 +346,16 @@ let rec evict_seq_map_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_ind
     assert(s == append s' et);
     assert(S.index s j = S.index et j');
     (p-1, i)
-*)
 
-#pop-options
 
 let evict_seq_map_inv (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_index (evict_seq gl)):
   (ii: sseq_index gl {is_evict_to_blum (indexss gl ii) /\
                       blum_evict_elem gl ii = S.index (evict_seq gl) j /\
                       evict_seq_map gl ii = j}) = evict_seq_map_inv_aux gl j
-
+#push-options "--z3rlimit_factor 2"
 let rec lemma_evict_seq_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   Lemma (ensures (evict_seq_map_inv gl (evict_seq_map gl ii) = ii)) 
-        (decreases (S.length gl)) = admit()
-
-(*
+        (decreases (S.length gl)) = 
   let (tid, i) = ii in
   let p = S.length gl in
   let gl' = SA.prefix gl (p - 1) in
@@ -380,7 +364,7 @@ let rec lemma_evict_seq_inv_aux (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_in
   if tid = p - 1 then ()
   else
     lemma_evict_seq_inv_aux gl' ii
-*)
+#pop-options
 
 let lemma_evict_seq_inv (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   Lemma (requires True)
