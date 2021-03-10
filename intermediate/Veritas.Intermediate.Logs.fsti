@@ -117,7 +117,7 @@ let slot_state_trans #vcfg (e:logS_entry vcfg) (s:slot_id vcfg) (sst: slot_state
   | AddM_S s1 (k1,_) s2 -> 
     if s = s1 then 
       if Free? sst then Some (Assoc k1)
-      else Some sst
+      else None
     else if s = s2 then
       if Assoc? sst then Some sst
       else None

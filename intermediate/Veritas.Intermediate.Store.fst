@@ -1,4 +1,4 @@
-module Veritas.Intermediate.Store
+            module Veritas.Intermediate.Store
 open FStar.Classical
 
 let update_slot #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) (e:vstore_entry vcfg)
@@ -626,7 +626,7 @@ let mevict_from_store
 
                           // nothing changes in slot s', except it points to none in directoin d
                           inuse_slot st' s' /\
-                          stored_key st' s' = stored_key st s /\
+                          stored_key st' s' = stored_key st s' /\
                           stored_value st' s' = stored_value st s' /\
                           add_method_of st' s' = add_method_of st s' /\
                           points_to_info st' s' od = points_to_info st s' od /\

@@ -1,4 +1,5 @@
 module Veritas.Intermediate.Verify
+open FStar.Classical
 
 let lemma_verify_failed (#vcfg:_) (vs:vtls vcfg) (e:_)
   : Lemma (requires (Failed? vs))
@@ -45,6 +46,96 @@ let lemma_verifiable_implies_prefix_verifiable
                   verifiable vsinit li))
   = lemma_verifiable_implies_prefix_verifiable_aux vsinit l i
 
+let lemma_addm_props (#vcfg:_)
+                     (vs:vtls vcfg{Valid? vs})
+                     (e:logS_entry _{AddM_S? e}):
+  Lemma (requires (Valid? (verify_step vs e)))
+        (ensures (let AddM_S s (k,v) s' = e in
+                  let st' = thread_store vs in
+                  inuse_slot st' s' /\
+                  (let k' = stored_key st' s' in
+                   is_proper_desc k k' /\
+                   is_merkle_key k' /\
+                   (let mv' = to_merkle_value (stored_value st' s') in
+                    let d = desc_dir k k' in
+                    (mv_points_to_none mv' d || 
+                     is_desc (mv_pointed_key mv' d) k))))) = 
+  let AddM_S s (k, v) s' = e in
+  let st' = thread_store vs in
+  // assert(inuse_slot st s');
+  
+  let k' = stored_key st' s' in
+  assert(is_proper_desc k k');
+  assert(is_merkle_key k');
+  let mv' = to_merkle_value (stored_value st' s') in
+  let d = desc_dir k k' in
+  let dh' = desc_hash_dir mv' d in
+  match dh' with
+  | Empty -> ()
+  | Desc k2 _ _  -> 
+    if k2 = k then lemma_desc_reflexive k
+    else ()
+
+let lemma_addm_propsB #vcfg (vs':vtls vcfg{Valid? vs'}) (e: logS_entry _ {AddM_S? e}):
+  Lemma (requires (Valid? (verify_step vs' e)))
+        (ensures (let st' = thread_store vs' in
+                  let vs = verify_step vs' e in
+                  let st = thread_store vs in
+                  let AddM_S s (k,v) s' = e in
+
+                  empty_slot st' s /\
+                  inuse_slot st s /\
+                  identical_except2 st' st s' s /\
+                  (let VStoreE k2 _ am2 _ _ = get_inuse_slot st s in
+                   k2 = k /\ am2 = Spec.MAdd))) = 
+   let vs = verify_step vs' e in
+   let st = thread_store vs in
+   let st' = thread_store vs' in
+   match e with
+   | AddM_S s (k, v) s' ->
+     assert(empty_slot st' s);
+
+     let k' = stored_key st' s' in
+     let mv' = to_merkle_value (stored_value st' s') in
+     let d = desc_dir k k' in
+     let dh' = desc_hash_dir mv' d in
+     match dh' with
+     | Empty -> ()
+     | Desc _ _ _ -> ()
+
+let lemma_addm_propsC #vcfg (vs':vtls vcfg{Valid? vs'}) (e: logS_entry _ {AddM_S? e}):
+  Lemma (requires (Valid? (verify_step vs' e)))
+        (ensures (let st' = thread_store vs' in
+                  let vs = verify_step vs' e in
+                  let st = thread_store vs in
+                  let AddM_S s (k,v) s' = e in
+                  inuse_slot st' s' /\
+                  inuse_slot st s' /\
+                  stored_key st' s' = stored_key st s')) =   
+   ()
+
+let lemma_evictm_props #vcfg (vs':vtls vcfg{Valid? vs'}) (e: logS_entry _ {EvictM_S? e}):
+  Lemma (requires (Valid? (verify_step vs' e)))
+        (ensures (let st' = thread_store vs' in
+                  let vs = verify_step vs' e in
+                  let st = thread_store vs in
+                  let EvictM_S s s' = e in
+                  inuse_slot st' s /\ inuse_slot st' s' /\
+                  empty_slot st s /\ inuse_slot st s' /\
+                  stored_key st s' = stored_key st' s' /\
+                  identical_except2 st st' s s')) =  ()
+
+let lemma_evictbm_props #vcfg (vs':vtls vcfg{Valid? vs'}) (e: logS_entry _ {EvictBM_S? e}):
+  Lemma (requires (Valid? (verify_step vs' e)))
+        (ensures (let st' = thread_store vs' in
+                  let vs = verify_step vs' e in
+                  let st = thread_store vs in
+                  let EvictBM_S s s' _ = e in
+                  inuse_slot st' s /\ inuse_slot st' s' /\
+                  empty_slot st s /\ inuse_slot st s' /\
+                  stored_key st s' = stored_key st' s' /\
+                  identical_except2 st st' s s')) = ()
+
 let lemma_init_consistent_log #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l}):
   Lemma (requires (Seq.length l = 0))
         (ensures (let st = thread_store vsinit in
@@ -77,6 +168,639 @@ let lemma_init_consistent_log #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vs
   // assert(FE.feq s2kend s2klog);
   ()
 
+let lemma_verifiable_implies_consistent_log_feq_get #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
+  Lemma (requires (let n = Seq.length l in
+                   let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let l' = prefix l (n - 1) in
+                   let st' = thread_store (verify vsinit l') in
+                   let s2k' = S.to_slot_state_map st' in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let e = Seq.index l (n - 1) in
+                   Get_S? e /\
+                   consistent_log s2kinit l' /\
+                   consistent_log s2kinit l /\
+                   (let s2klog' = L.to_slot_state_map s2kinit l' in
+                    FE.feq s2k' s2klog')))
+         (ensures (let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2k s2klog)) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let vs = verify vsinit l in
+  let st = thread_store vs in
+  let s2k = S.to_slot_state_map st in
+  let s2klog = L.to_slot_state_map s2kinit l in
+  
+  let n = Seq.length l in
+  let e = Seq.index l (n - 1) in  
+  
+  let l' = prefix l (n - 1) in
+  let s2klog' = Logs.to_slot_state_map s2kinit l' in
+  let vs' = verify vsinit l' in
+  let st' = thread_store vs' in
+  let s2k' = S.to_slot_state_map st' in
+
+  match e with
+  | Get_S s1 k1 v1 ->
+    let aux2 (s:slot_id vcfg):
+      Lemma (ensures (s2k s == s2klog s)) = 
+      let ss0 = s2kinit s in
+      let ss' = slot_state_trans_closure s l' ss0 in
+      assert(ss' <> None);
+
+      let ss = slot_state_trans_closure s l ss0 in
+      assert(ss == slot_state_trans e s (Some?.v ss'));
+      assert(s2klog s = Some?.v ss);
+      assert(s2k' s = s2klog' s);
+      
+      if s1 = s then (
+        assert(inuse_slot st' s);
+        assert(stored_key st' s = stored_key st s);
+        assert(s2k' s = s2k s);
+        assert(s2klog' s = s2klog s);
+        ()
+      )
+      else (
+        assert(s2klog' s = s2klog s);
+        assert(vs == vget s1 k1 v1 vs');
+        assert(identical_except st st' s1);
+          assert(get_slot st s = get_slot st' s);
+          assert(inuse_slot st s = inuse_slot st' s);
+          
+          if inuse_slot st s then (
+            assert(stored_key st s = stored_key st' s);
+            assert(s2k s = s2k' s);
+            ()
+          )
+          else ()        
+      )
+    in
+    forall_intro aux2;
+    assert(FE.feq s2k s2klog);
+    ()
+
+let lemma_verifiable_implies_consistent_log_feq_put #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
+  Lemma (requires (let n = Seq.length l in
+                   let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let l' = prefix l (n - 1) in
+                   let st' = thread_store (verify vsinit l') in
+                   let s2k' = S.to_slot_state_map st' in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let e = Seq.index l (n - 1) in
+                   Put_S? e /\
+                   consistent_log s2kinit l' /\
+                   consistent_log s2kinit l /\
+                   (let s2klog' = L.to_slot_state_map s2kinit l' in
+                    FE.feq s2k' s2klog')))
+         (ensures (let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2k s2klog)) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let vs = verify vsinit l in
+  let st = thread_store vs in
+  let s2k = S.to_slot_state_map st in
+  let s2klog = L.to_slot_state_map s2kinit l in
+  
+  let n = Seq.length l in
+  let e = Seq.index l (n - 1) in  
+  
+  let l' = prefix l (n - 1) in
+  let s2klog' = Logs.to_slot_state_map s2kinit l' in
+  let vs' = verify vsinit l' in
+  let st' = thread_store vs' in
+  let s2k' = S.to_slot_state_map st' in
+
+  match e with
+  | Put_S s1 k1 v1 ->
+    let aux2 (s:slot_id vcfg):
+      Lemma (ensures (s2k s == s2klog s)) = 
+      let ss0 = s2kinit s in
+      let ss' = slot_state_trans_closure s l' ss0 in
+      assert(ss' <> None);
+
+      let ss = slot_state_trans_closure s l ss0 in
+      assert(ss == slot_state_trans e s (Some?.v ss'));
+      assert(s2klog s = Some?.v ss);
+      assert(s2k' s = s2klog' s);
+      
+      if s1 = s then (
+        assert(inuse_slot st' s);
+        assert(stored_key st' s = stored_key st s);
+        assert(s2k' s = s2k s);
+        assert(s2klog' s = s2klog s);
+        ()
+      )
+      else (
+        assert(s2klog' s = s2klog s);
+        assert(vs == vput s1 k1 v1 vs');
+        assert(identical_except st st' s1);
+          assert(get_slot st s = get_slot st' s);
+          assert(inuse_slot st s = inuse_slot st' s);
+          
+          if inuse_slot st s then (
+            assert(stored_key st s = stored_key st' s);
+            assert(s2k s = s2k' s);
+            ()
+          )
+          else ()        
+      )
+    in
+    forall_intro aux2;
+    assert(FE.feq s2k s2klog);
+    ()
+
+let lemma_verifiable_implies_consistent_log_feq_addm #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
+  Lemma (requires (let n = Seq.length l in
+                   let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let l' = prefix l (n - 1) in
+                   let st' = thread_store (verify vsinit l') in
+                   let s2k' = S.to_slot_state_map st' in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let e = Seq.index l (n - 1) in
+                   AddM_S? e /\
+                   consistent_log s2kinit l' /\
+                   consistent_log s2kinit l /\
+                   (let s2klog' = L.to_slot_state_map s2kinit l' in
+                    FE.feq s2k' s2klog')))
+         (ensures (let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2k s2klog)) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let vs = verify vsinit l in
+  let st = thread_store vs in
+  let s2k = S.to_slot_state_map st in
+  let s2klog = L.to_slot_state_map s2kinit l in
+  
+  let n = Seq.length l in
+  let e = Seq.index l (n - 1) in  
+  
+  let l' = prefix l (n - 1) in
+  let s2klog' = Logs.to_slot_state_map s2kinit l' in
+  let vs' = verify vsinit l' in
+  let st' = thread_store vs' in
+  let s2k' = S.to_slot_state_map st' in
+
+  lemma_addm_propsB vs' e;
+
+  match e with
+  | AddM_S s1 (k1,_) s2 ->
+    let aux (s:slot_id vcfg):
+      Lemma (ensures (s2k s == s2klog s)) = 
+      let ss0 = s2kinit s in
+      let ss' = slot_state_trans_closure s l' ss0 in
+      assert(ss' <> None);
+
+      let ss = slot_state_trans_closure s l ss0 in
+      assert(ss == slot_state_trans e s (Some?.v ss'));
+      assert(s2klog s = Some?.v ss);
+      assert(s2k' s = s2klog' s);
+
+      if s1 = s then (
+        assert(s2klog s = Assoc k1);
+        assert(s2k s = Assoc k1);
+        ()
+      )
+      else if s2 = s then (
+        assert(inuse_slot st' s);
+        assert(ss = ss');
+        assert(s2klog s = s2klog' s);
+        lemma_addm_propsC vs' e;
+        assert(s2k s = s2k' s);
+        ()
+      )
+      else (     
+        assert(ss = ss');
+        assert(s2klog s = s2klog' s);
+        assert(identical_except2 st st' s1 s2);        
+        assert(get_slot st s = get_slot st' s);
+        assert(s2k s = s2k' s);
+        ()
+      )
+    in
+    forall_intro aux;
+    assert(FE.feq s2k s2klog);
+    ()
+
+let lemma_verifiable_implies_consistent_log_feq_addb #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
+  Lemma (requires (let n = Seq.length l in
+                   let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let l' = prefix l (n - 1) in
+                   let st' = thread_store (verify vsinit l') in
+                   let s2k' = S.to_slot_state_map st' in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let e = Seq.index l (n - 1) in
+                   AddB_S? e /\
+                   consistent_log s2kinit l' /\
+                   consistent_log s2kinit l /\
+                   (let s2klog' = L.to_slot_state_map s2kinit l' in
+                    FE.feq s2k' s2klog')))
+         (ensures (let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2k s2klog)) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let vs = verify vsinit l in
+  let st = thread_store vs in
+  let s2k = S.to_slot_state_map st in
+  let s2klog = L.to_slot_state_map s2kinit l in
+  
+  let n = Seq.length l in
+  let e = Seq.index l (n - 1) in  
+  
+  let l' = prefix l (n - 1) in
+  let s2klog' = Logs.to_slot_state_map s2kinit l' in
+  let vs' = verify vsinit l' in
+  let st' = thread_store vs' in
+  let s2k' = S.to_slot_state_map st' in
+
+  match e with
+  | AddB_S s1 (k1,_) _ _ ->
+    let aux (s:slot_id vcfg):
+      Lemma (ensures (s2k s == s2klog s)) = 
+      let ss0 = s2kinit s in
+      let ss' = slot_state_trans_closure s l' ss0 in
+      assert(ss' <> None);
+
+      let ss = slot_state_trans_closure s l ss0 in
+      assert(ss == slot_state_trans e s (Some?.v ss'));
+      assert(s2klog s = Some?.v ss);
+      assert(s2k' s = s2klog' s);
+      if s1 = s then (
+        assert(s2klog s = Assoc k1);
+        assert(s2k s = Assoc k1);
+        ()
+      )
+      else (
+        assert(ss' = ss);
+        assert(s2klog s = s2klog' s);
+        assert(s2k s = s2k' s);
+        ()
+      )
+    in
+    forall_intro aux;
+    assert(FE.feq s2k s2klog);
+    ()
+
+let lemma_verifiable_implies_consistent_log_feq_evictm #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
+  Lemma (requires (let n = Seq.length l in
+                   let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let l' = prefix l (n - 1) in
+                   let st' = thread_store (verify vsinit l') in
+                   let s2k' = S.to_slot_state_map st' in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let e = Seq.index l (n - 1) in
+                   EvictM_S? e /\
+                   consistent_log s2kinit l' /\
+                   consistent_log s2kinit l /\
+                   (let s2klog' = L.to_slot_state_map s2kinit l' in
+                    FE.feq s2k' s2klog')))
+         (ensures (let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2k s2klog)) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let vs = verify vsinit l in
+  let st = thread_store vs in
+  let s2k = S.to_slot_state_map st in
+  let s2klog = L.to_slot_state_map s2kinit l in
+  
+  let n = Seq.length l in
+  let e = Seq.index l (n - 1) in  
+  
+  let l' = prefix l (n - 1) in
+  let s2klog' = Logs.to_slot_state_map s2kinit l' in
+  let vs' = verify vsinit l' in
+  let st' = thread_store vs' in
+  let s2k' = S.to_slot_state_map st' in
+  match e with
+  | EvictM_S s1 s2 ->
+    let aux (s:slot_id vcfg):
+      Lemma (ensures (s2k s == s2klog s)) = 
+      let ss0 = s2kinit s in
+      let ss' = slot_state_trans_closure s l' ss0 in
+      assert(ss' <> None);
+
+      let ss = slot_state_trans_closure s l ss0 in
+      assert(ss == slot_state_trans e s (Some?.v ss'));
+      assert(s2klog s = Some?.v ss);
+      assert(s2k' s = s2klog' s);
+      lemma_evictm_props vs' e;
+      
+      if s1 = s then (
+        assert(empty_slot st s);
+        assert(s2k s = Free);
+        assert(s2klog s = Free);
+        ()
+      )
+      else if s2 = s then (
+        assert(s2klog s = s2klog' s);
+        assert(s2k s = s2k' s);
+        ()
+      )
+      else (
+        assert(ss = ss');      
+        assert(s2klog s = s2klog' s);                
+        assert(identical_except2 st st' s1 s2);
+        assert(get_slot st s = get_slot st' s);
+        assert(s2k s = s2k' s);        
+        ()
+      )
+    in
+    forall_intro aux;
+    assert(FE.feq s2k s2klog);    
+    ()
+
+let lemma_verifiable_implies_consistent_log_feq_evictb #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
+  Lemma (requires (let n = Seq.length l in
+                   let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let l' = prefix l (n - 1) in
+                   let st' = thread_store (verify vsinit l') in
+                   let s2k' = S.to_slot_state_map st' in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let e = Seq.index l (n - 1) in
+                   EvictB_S? e /\
+                   consistent_log s2kinit l' /\
+                   consistent_log s2kinit l /\
+                   (let s2klog' = L.to_slot_state_map s2kinit l' in
+                    FE.feq s2k' s2klog')))
+         (ensures (let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2k s2klog)) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let vs = verify vsinit l in
+  let st = thread_store vs in
+  let s2k = S.to_slot_state_map st in
+  let s2klog = L.to_slot_state_map s2kinit l in
+  
+  let n = Seq.length l in
+  let e = Seq.index l (n - 1) in  
+  
+  let l' = prefix l (n - 1) in
+  let s2klog' = Logs.to_slot_state_map s2kinit l' in
+  let vs' = verify vsinit l' in
+  let st' = thread_store vs' in
+  let s2k' = S.to_slot_state_map st' in
+
+  match e with
+  | EvictB_S s1 _ ->
+    let aux (s:slot_id vcfg):
+      Lemma (ensures (s2k s == s2klog s)) = 
+      let ss0 = s2kinit s in
+      let ss' = slot_state_trans_closure s l' ss0 in
+      assert(ss' <> None);
+
+      let ss = slot_state_trans_closure s l ss0 in
+      assert(ss == slot_state_trans e s (Some?.v ss'));
+      assert(s2klog s = Some?.v ss);
+      assert(s2k' s = s2klog' s);
+
+      if s1 = s then (
+        assert(empty_slot st s);
+        assert(s2k s = Free);
+        assert(s2klog s = Free);
+        ()
+      )
+      else (
+        assert(ss = ss');
+        assert(s2klog s = s2klog' s);
+        assert(identical_except st st' s1);
+        assert(s2k s = s2k' s);
+        ()
+      )
+    in
+    forall_intro aux;
+    assert(FE.feq s2k s2klog);
+    ()
+
+let lemma_verifiable_implies_consistent_log_feq_evictbm #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
+  Lemma (requires (let n = Seq.length l in
+                   let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let l' = prefix l (n - 1) in
+                   let st' = thread_store (verify vsinit l') in
+                   let s2k' = S.to_slot_state_map st' in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let e = Seq.index l (n - 1) in
+                   EvictBM_S? e /\
+                   consistent_log s2kinit l' /\
+                   consistent_log s2kinit l /\
+                   (let s2klog' = L.to_slot_state_map s2kinit l' in
+                    FE.feq s2k' s2klog')))
+         (ensures (let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2k s2klog)) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let vs = verify vsinit l in
+  let st = thread_store vs in
+  let s2k = S.to_slot_state_map st in
+  let s2klog = L.to_slot_state_map s2kinit l in
+  
+  let n = Seq.length l in
+  let e = Seq.index l (n - 1) in  
+  
+  let l' = prefix l (n - 1) in
+  let s2klog' = Logs.to_slot_state_map s2kinit l' in
+  let vs' = verify vsinit l' in
+  let st' = thread_store vs' in
+  let s2k' = S.to_slot_state_map st' in
+  lemma_evictbm_props vs' e;
+
+  match e with
+  | EvictBM_S s1 s2 _ ->
+    let aux (s:slot_id vcfg):
+      Lemma (ensures (s2k s == s2klog s)) = 
+      let ss0 = s2kinit s in
+      let ss' = slot_state_trans_closure s l' ss0 in
+      assert(ss' <> None);
+
+      let ss = slot_state_trans_closure s l ss0 in
+      assert(ss == slot_state_trans e s (Some?.v ss'));
+      assert(s2klog s = Some?.v ss);
+      assert(s2k' s = s2klog' s);
+      if s1 = s then (
+        assert(empty_slot st s);
+        assert(s2k s = Free);
+        assert(s2klog s = Free);
+        ()
+      )
+      else if s2 = s then (
+        assert(s2klog s = s2klog' s);
+        assert(s2k s = s2k' s);
+        ()
+      )
+      else (
+        assert(ss = ss');      
+        assert(s2klog s = s2klog' s);                
+        assert(identical_except2 st st' s1 s2);
+        assert(get_slot st s = get_slot st' s);
+        assert(s2k s = s2k' s);        
+        ()      
+      )
+    in
+    forall_intro aux;
+    assert(FE.feq s2k s2klog);
+    ()
+
+let lemma_verifiable_implies_consistent_log_feq #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
+  Lemma (requires (let n = Seq.length l in
+                   let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let l' = prefix l (n - 1) in
+                   let st' = thread_store (verify vsinit l') in
+                   let s2k' = S.to_slot_state_map st' in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   consistent_log s2kinit l' /\
+                   consistent_log s2kinit l /\
+                   (let s2klog' = L.to_slot_state_map s2kinit l' in
+                    FE.feq s2k' s2klog')))
+         (ensures (let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let st = thread_store (verify vsinit l) in
+                   let s2k = S.to_slot_state_map st in
+                   let s2klog = L.to_slot_state_map s2kinit l in
+                   FE.feq s2k s2klog)) = 
+  let n = Seq.length l in
+  let e = Seq.index l (n - 1) in  
+  match e with
+  | Get_S _ _ _ -> lemma_verifiable_implies_consistent_log_feq_get vsinit l
+  | Put_S _ _ _ -> lemma_verifiable_implies_consistent_log_feq_put vsinit l
+  | AddM_S _ _ _ -> lemma_verifiable_implies_consistent_log_feq_addm vsinit l
+  | EvictM_S _ _ -> lemma_verifiable_implies_consistent_log_feq_evictm vsinit l
+  | AddB_S _ _ _ _ -> lemma_verifiable_implies_consistent_log_feq_addb vsinit l
+  | EvictB_S _ _ -> lemma_verifiable_implies_consistent_log_feq_evictb vsinit l
+  | EvictBM_S _ _ _ -> lemma_verifiable_implies_consistent_log_feq_evictbm vsinit l
+
+let lemma_verifiable_implies_consistent_extend #vcfg (vsinit: vtls vcfg) (l: logS _{Seq.length l > 0 /\ verifiable vsinit l}):
+  Lemma (requires (let n = Seq.length l in
+                   let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                   let l' = prefix l (n - 1) in
+                   consistent_log s2kinit l' /\
+                   (let st' = thread_store (verify vsinit l') in
+                    let s2k' = S.to_slot_state_map st' in
+                    let s2klog' = L.to_slot_state_map s2kinit l' in
+                    FE.feq s2k' s2klog')))
+         (ensures (let stinit = thread_store vsinit in
+                   let s2kinit = to_slot_state_map stinit in
+                  consistent_log s2kinit l)) = 
+  let stinit = thread_store vsinit in
+  let s2kinit = to_slot_state_map stinit in
+  let vs = verify vsinit l in
+  let st = thread_store vs in
+  let s2k = S.to_slot_state_map st in
+  let n = Seq.length l in  
+  let l' = prefix l (n - 1) in
+  let e = Seq.index l (n - 1) in
+  let s2klog' = Logs.to_slot_state_map s2kinit l' in
+  let vs' = verify vsinit l' in
+  let st' = thread_store vs' in
+  let s2k' = S.to_slot_state_map st' in
+                  
+  let aux (s: slot_id vcfg):
+    Lemma (ensures (slot_state_trans_closure s l (s2kinit s) <> None))
+          [SMTPat (slot_state_trans_closure s l (s2kinit s))] = 
+    let ss0 = s2kinit s in
+    let ss' = slot_state_trans_closure s l' ss0 in
+    assert(ss' <> None);
+
+    let ss = slot_state_trans_closure s l ss0 in
+    assert(ss == slot_state_trans e s (Some?.v ss'));
+    match e with
+    | Get_S s1 k1 _ ->
+      if s1 = s then (
+         assert(inuse_slot st' s1);
+         assert(stored_key st' s1 = k1);
+         assert(s2k' s1 = Assoc k1);
+         ()
+      )
+      else ()
+    | Put_S s1 k1 _ ->
+      if s1 = s then (
+         assert(inuse_slot st' s1);
+         assert(stored_key st' s1 = k1);
+         assert(s2k' s1 = Assoc k1);
+         ()
+      )
+      else ()      
+    | AddM_S s1 (k1,v1) s2 ->
+      if s1 = s then (
+         assert(empty_slot st' s1);
+         assert(s2k' s1 = Free);
+         ()
+      )
+      else if s2 = s then (
+        assert(inuse_slot st' s);
+        assert(Assoc? (s2k' s));
+        ()
+      ) 
+      else ()    
+    | AddB_S s1 (k1,_) _ _ ->
+      if s1 = s then (
+         assert(empty_slot st' s);
+         assert(s2k' s = Free);
+         ()
+      )
+      else ()
+    | EvictM_S s1 s2 ->
+      assert(inuse_slot st' s1);
+      assert(inuse_slot st' s2);
+      assert(Assoc? (s2k' s1));
+      assert(Assoc? (s2k' s2));
+      ()
+    | EvictB_S s1 _ ->
+      assert(inuse_slot st' s1);
+      assert(Assoc? (s2k' s1));
+      ()
+
+    | EvictBM_S s1 s2 _ ->
+      assert(inuse_slot st' s1);
+      assert(inuse_slot st' s2);
+      assert(Assoc? (s2k' s1));
+      assert(Assoc? (s2k' s2));
+      ()    
+  in
+  assert(consistent_log s2kinit l);      
+  ()
+
 let rec lemma_verifiable_implies_consistent_log_aux (#vcfg:_) (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l}):
   Lemma (ensures (let st = thread_store vsinit in
                   let s2kinit = to_slot_state_map st in
@@ -88,8 +812,9 @@ let rec lemma_verifiable_implies_consistent_log_aux (#vcfg:_) (vsinit: vtls vcfg
         (decreases (Seq.length l)) = 
   let stinit = thread_store vsinit in
   let s2kinit = to_slot_state_map stinit in
-  let stend = thread_store (verify vsinit l) in
-  let s2kend = S.to_slot_state_map stend in
+  let vs = verify vsinit l in
+  let st = thread_store vs in
+  let s2k = S.to_slot_state_map st in
   let n = Seq.length l in
   if n = 0 then
      lemma_init_consistent_log vsinit l
@@ -98,54 +823,9 @@ let rec lemma_verifiable_implies_consistent_log_aux (#vcfg:_) (vsinit: vtls vcfg
     let e = Seq.index l (n - 1) in
     lemma_verifiable_implies_consistent_log_aux vsinit l';
     assert(consistent_log s2kinit l');
-    let s2klog' = Logs.to_slot_state_map s2kinit l' in
-    let st' = thread_store (verify vsinit l') in
-    let s2k' = S.to_slot_state_map st' in
-    assert(FE.feq s2k' s2klog');
-
-    let aux (s: slot_id vcfg):
-      Lemma (ensures (slot_state_trans_closure s l (s2kinit s) <> None))
-            [SMTPat (slot_state_trans_closure s l (s2kinit s))] = 
-      let ss0 = s2kinit s in
-      let ss' = slot_state_trans_closure s l' ss0 in
-      assert(ss' <> None);
-
-      let ss = slot_state_trans_closure s l ss0 in
-      assert(ss == slot_state_trans e s (Some?.v ss'));
-      match e with 
-      | Get_S s1 k1 _ ->
-        if s1 = s then (
-          assert(inuse_slot st' s1);
-          assert(stored_key st' s1 = k1);
-          assert(s2k' s1 = Assoc k1);
-          ()
-        )
-        else ()
-      | Put_S s1 k1 _ ->
-        if s1 = s then (
-          assert(inuse_slot st' s1);
-          assert(stored_key st' s1 = k1);
-          assert(s2k' s1 = Assoc k1);
-          ()
-        )
-        else ()      
-      | AddM_S s1 (k1,v1) s2 ->
-        if s = s2 then (
-          assert(inuse_slot st' s);
-          assert(s2k' s = Assoc (stored_key st' s));
-          ()
-        )
-        else ()
-      | AddB_S s1 (k1,_) _ _ ->
-        if s = s1 then (
-          
-          admit()
-        )
-        else ()
-      | _ -> admit()
-    in
-    assert(consistent_log s2kinit l);
-    admit()
+    lemma_verifiable_implies_consistent_extend vsinit l;
+    assert(consistent_log s2kinit l);    
+    lemma_verifiable_implies_consistent_log_feq vsinit l
   )
 
 (* verifiability implies consistency of the log *)
@@ -153,7 +833,7 @@ let lemma_verifiable_implies_consistent_log (#vcfg:_) (vsinit: vtls vcfg) (l: lo
   Lemma (ensures (let st = thread_store vsinit in
                   let s2k = to_slot_state_map st in
                   consistent_log s2k l))
-  = admit()
+  = lemma_verifiable_implies_consistent_log_aux vsinit l
 
 (* the association of slot -> keys in store is what is mandated by the log *)
 let lemma_s2k_store_eq_s2k_log (#vcfg:_) (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l}):
@@ -163,7 +843,7 @@ let lemma_s2k_store_eq_s2k_log (#vcfg:_) (vsinit: vtls vcfg) (l: logS _{verifiab
                   let s2kend = S.to_slot_state_map stend in
                   let s2klog = L.to_slot_state_map s2kinit l in
                   FE.feq s2kend s2klog))
-   = admit()
+   = lemma_verifiable_implies_consistent_log_aux vsinit l
 
 let lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_) 
                                                       (vs:vtls vcfg)
@@ -232,36 +912,6 @@ let lemma_vaddm_preserves_ismap_new_key
                      not (store_contains_key st k)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
    = admit()
-
-let lemma_addm_props (#vcfg:_)
-                     (vs:vtls vcfg{Valid? vs})
-                     (e:logS_entry _{AddM_S? e}):
-  Lemma (requires (Valid? (verify_step vs e)))
-        (ensures (let AddM_S s (k,v) s' = e in
-                  let st = thread_store vs in
-                  inuse_slot st s' /\
-                  (let k' = stored_key st s' in
-                   is_proper_desc k k' /\
-                   is_merkle_key k' /\
-                   (let mv' = to_merkle_value (stored_value st s') in
-                    let d = desc_dir k k' in
-                    (mv_points_to_none mv' d || 
-                     is_desc (mv_pointed_key mv' d) k))))) = 
-  let AddM_S s (k, v) s' = e in
-  let st = thread_store vs in
-  // assert(inuse_slot st s');
-  
-  let k' = stored_key st s' in
-  assert(is_proper_desc k k');
-  assert(is_merkle_key k');
-  let mv' = to_merkle_value (stored_value st s') in
-  let d = desc_dir k k' in
-  let dh' = desc_hash_dir mv' d in
-  match dh' with
-  | Empty -> ()
-  | Desc k2 _ _  -> 
-    if k2 = k then lemma_desc_reflexive k
-    else ()
 
 (* addb preserves spec relationship if the kew is not in store *)
 let lemma_vaddb_preserves_spec_new_key
