@@ -473,7 +473,7 @@ let slot_points_to_is_merkle_points_to_local
   (#vcfg:_) 
   (st: vstore vcfg)
   (s1 s2: slot_id vcfg)
-  (d: bin_tree_dir{points_to_dir st s1 d s2}) =  
+  (d: bin_tree_dir) =  
     points_to_dir st s1 d s2 ==> 
     (let k1 = stored_key st s1 in
      let k2 = stored_key st s2 in

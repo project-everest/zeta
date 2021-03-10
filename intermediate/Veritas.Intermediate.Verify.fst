@@ -845,23 +845,94 @@ let lemma_s2k_store_eq_s2k_log (#vcfg:_) (vsinit: vtls vcfg) (l: logS _{verifiab
                   FE.feq s2kend s2klog))
    = lemma_verifiable_implies_consistent_log_aux vsinit l
 
+let lemma_verifiable_implies_slot_is_merkle_points_to_get (#vcfg:_) 
+                                                      (vs:vtls vcfg)
+                                                      (e: logS_entry _{Get_S? e}):
+  Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
+                   Valid? (verify_step vs e)))
+        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) =           
+  ()
+
+let lemma_verifiable_implies_slot_is_merkle_points_to_put (#vcfg:_) 
+                                                      (vs:vtls vcfg)
+                                                      (e: logS_entry _{Put_S? e}):
+  Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
+                   Valid? (verify_step vs e)))
+        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
+  let st = thread_store vs in
+  let vs1 = verify_step vs e in
+  let st1 = thread_store vs1 in
+
+  (*
+  let aux (s1 s2: slot_id _) (d: bin_tree_dir):
+    Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 d) = admit()
+  *)
+  // in
+  admit()
+
+let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_) 
+                                                      (vs:vtls vcfg)
+                                                      (e: logS_entry _{AddM_S? e}):
+  Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
+                   Valid? (verify_step vs e)))
+        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
+  admit()
+
+let lemma_verifiable_implies_slot_is_merkle_points_to_evictm (#vcfg:_) 
+                                                      (vs:vtls vcfg)
+                                                      (e: logS_entry _{EvictM_S? e}):
+  Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
+                   Valid? (verify_step vs e)))
+        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
+  admit()
+
+let lemma_verifiable_implies_slot_is_merkle_points_to_addb (#vcfg:_) 
+                                                      (vs:vtls vcfg)
+                                                      (e: logS_entry _{AddB_S? e}):
+  Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
+                   Valid? (verify_step vs e)))
+        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
+  admit()
+
+let lemma_verifiable_implies_slot_is_merkle_points_to_evictb (#vcfg:_) 
+                                                      (vs:vtls vcfg)
+                                                      (e: logS_entry _{EvictB_S? e}):
+  Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
+                   Valid? (verify_step vs e)))
+        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
+  admit()
+
+let lemma_verifiable_implies_slot_is_merkle_points_to_evictbm (#vcfg:_) 
+                                                      (vs:vtls vcfg)
+                                                      (e: logS_entry _{EvictBM_S? e}):
+  Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
+                   Valid? (verify_step vs e)))
+        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
+  admit()
+
+
+(* if there are no verification failures, slot_points to implies merkle points to property is 
+ * propagates *)
 let lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_) 
                                                       (vs:vtls vcfg)
                                                       (e: logS_entry _):
   Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
                    Valid? (verify_step vs e)))
-        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = admit()
+        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
+  match e with
+  | Get_S s k v -> lemma_verifiable_implies_slot_is_merkle_points_to_get vs e
+  | _ -> admit()
 
 let lemma_vget_simulates_spec 
       (#vcfg:_)
-      (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)      
+      (vss:vtls vcfg{Valid? vss})
+      (vsk:Spec.vtls)      
       (e:logS_entry vcfg{Get_S? e})
-  : Lemma (requires (vtls_rel vs vs' /\                     
-                     valid_logS_entry vs e))
-          (ensures (let ek = to_logK_entry vs e in          
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek))) = admit()
-   
+  : Lemma (requires (vtls_rel vss vsk /\                     
+                     valid_logS_entry vss e))
+          (ensures (let ek = to_logK_entry vss e in          
+                    vtls_rel (verify_step vss e) (Spec.t_verify_step vsk ek))) = ()
+
 let lemma_vget_preserves_ismap
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
@@ -878,7 +949,7 @@ let lemma_vput_simulates_spec
   : Lemma (requires (vtls_rel vs vs' /\                     
                      valid_logS_entry vs e))
           (ensures (let ek = to_logK_entry vs e in          
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek))) = admit()
+                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek))) = ()
 
 let lemma_vput_preserves_ismap
       (#vcfg:_)
@@ -891,16 +962,51 @@ let lemma_vput_preserves_ismap
 (* adding a key not in store to vaddm preserves the spec relationship *)
 let lemma_vaddm_preserves_spec_new_key
       (#vcfg:_)
-      (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)
+      (vss:vtls vcfg{Valid? vss})
+      (vsk:Spec.vtls)
       (e:logS_entry _{AddM_S? e})
-  : Lemma (requires (let st = thread_store vs in
+  : Lemma (requires (let sts = thread_store vss in
                      let AddM_S _ (k,_) _ = e in
-                     vtls_rel vs vs' /\
-                     valid_logS_entry vs e /\
-                     not (store_contains_key st k)))
-          (ensures (let ek = to_logK_entry vs e in
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek))) = admit()
+                     vtls_rel vss vsk /\
+                     valid_logS_entry vss e /\
+                     not (store_contains_key sts k)))
+          (ensures (let ek = to_logK_entry vss e in
+                    vtls_rel (verify_step vss e) (Spec.t_verify_step vsk ek))) = 
+  let sts = thread_store vss in
+  let stk = Spec.thread_store vsk in
+  let s2k = S.to_slot_state_map sts in
+  let ek = to_logK_entry vss e in
+  match e with
+  | AddM_S s (k,v) s' ->
+    (* otherwise e would not be a valid log entry *)
+    assert(empty_slot sts s && inuse_slot sts s');
+
+    let k' = stored_key sts s' in
+    assert(ek = Spec.AddM (k,v) k');
+
+    (* both intermediate and spec fail if k is not a desc of k' *)
+    if not (is_proper_desc k k') then ()
+
+    (* if the value is not compatible both int/spec fail *)
+    else if not (is_value_of k v) then ()
+
+    else (
+      (* because sts and stk are related, the value associated with k' in slot s' correspond *)
+      assert(stored_value sts s' = Spec.stored_value stk k');
+
+      let v' = to_merkle_value (stored_value sts s') in
+      let d = desc_dir k k' in
+      let dh' = desc_hash_dir v' d in
+      match dh' with
+      | Empty -> 
+        (* both fail *)
+        if v <> init_value k then ()
+        
+        else 
+          admit()
+      | _ ->
+      admit()
+    )
 
 (* if the key is not present in store and store is a map, then store remains a map after add *)
 let lemma_vaddm_preserves_ismap_new_key

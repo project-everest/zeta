@@ -166,6 +166,9 @@ let inductive_step_addm_caseA #vcfg
       Some (lemma_non_eac_addm_implies_hash_collision ilk_i1)
     )    
 
+
+#push-options "--z3rlimit_factor 3"
+
 let inductive_step_addm_caseB #vcfg 
                               (ils: IntTS.hash_verifiable_log vcfg)                               
                               (i:I.seq_index ils)
@@ -200,9 +203,10 @@ let inductive_step_addm_caseB #vcfg
     let sts = IntV.thread_store vss_i in
     let stk = SpecV.thread_store vsk_i in
     let d_anc = if points_to_dir sts sk_anc Left sk then Left else Right in
-    
-    (* we have the invariant that merkle value stored in sk_anc points to sk *)
+
+    assert(slot_points_to_is_merkle_points_to sts);
     assert(slot_points_to_is_merkle_points_to_local sts sk_anc sk d_anc);
+    assert(points_to_dir sts sk_anc d_anc sk);
     
     let mv_anc = to_merkle_value (stored_value sts sk_anc) in
     // assert(mv_points_to mv_anc d_anc k);
@@ -215,6 +219,8 @@ let inductive_step_addm_caseB #vcfg
     lemma_ismap_correct sts sk s';
     // assert(s' = sk_anc);
     None
+    
+#pop-options
 
 let proving_ancestor #vcfg
                      (ils: IntTS.hash_verifiable_log vcfg)
