@@ -167,7 +167,8 @@ let inductive_step_addm_caseA #vcfg
     )    
 
 
-#push-options "--z3rlimit_factor 3"
+//#push-options "--z3rlimit_factor 3"
+#push-options "--max_fuel 1 --max_ifuel 0"
 
 let inductive_step_addm_caseB #vcfg 
                               (ils: IntTS.hash_verifiable_log vcfg)                               
