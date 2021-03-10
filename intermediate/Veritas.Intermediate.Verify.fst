@@ -863,12 +863,13 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_put (#vcfg:_)
   let vs1 = verify_step vs e in
   let st1 = thread_store vs1 in
 
-  (*
   let aux (s1 s2: slot_id _) (d: bin_tree_dir):
-    Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 d) = admit()
-  *)
-  // in
-  admit()
+    Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 d) = 
+    assert(slot_points_to_is_merkle_points_to_local st s1 s2 d);
+    ()  
+  in
+  forall_intro_3 aux;
+  ()
 
 let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_) 
                                                       (vs:vtls vcfg)
@@ -876,8 +877,43 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
   Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
                    Valid? (verify_step vs e)))
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
-  admit()
+  let st = thread_store vs in
+  let vs1 = verify_step vs e in
+  let st1 = thread_store vs1 in
+  match e with
+  | AddM_S s (k,v) s' ->
+    lemma_addm_propsB vs e;
+    lemma_addm_propsC vs e;
+    assert(identical_except2 st st1 s' s);
+    
+    let k' = stored_key st s' in
+    let d = desc_dir k k' in
+    let v' = to_merkle_value (stored_value st s') in
+    let dh' = desc_hash_dir v' d in
+    
+    let aux (s1 s2: slot_id _) (d: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 d) = 
+      assert(slot_points_to_is_merkle_points_to_local st s1 s2 d);
 
+      if not (points_to_dir st1 s1 d s2) then ()
+      else if s1 = s then (
+        assert(dh' <> Empty);
+        match dh' with 
+        | Desc k2 h2 b2 ->
+          assert(k2 <> k);
+          admit()
+      )
+      else if s1 = s' then admit()
+      else (
+        assert(get_slot st s1 = get_slot st1 s1);
+        assert(points_to_dir st s1 d s2);
+        ()
+      )
+    
+    in
+    forall_intro_3 aux;
+    ()
+  
 let lemma_verifiable_implies_slot_is_merkle_points_to_evictm (#vcfg:_) 
                                                       (vs:vtls vcfg)
                                                       (e: logS_entry _{EvictM_S? e}):
