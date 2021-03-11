@@ -884,7 +884,7 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
   lemma_addm_propsB vs e;
   match e with
   | AddM_S s r s' ->
-  
+    let a = AMP s r s' vs in
     let st = thread_store vs in
     
     assert(identical_except2 st st1 s' s);
@@ -896,9 +896,22 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
 
       if not (points_to_dir st1 s1 dx s2) then ()
       else if s1 = s then (
-         admit()          
+         // assert(addm_slot_postcond a st1);
+         // assert(dx = addm_desc_dir a);
+         // assert(addm_anc_points_to_desc a);
+         // let k1 = stored_key st1 s1 in
+         // assert(k1 = addm_key a);
+         assert(points_to_dir st s' (addm_dir a) s2);
+         assert(slot_points_to_is_merkle_points_to_local st (addm_anc_slot a) s2 (addm_dir a));
+         // assert(s2 <> s);
+         // assert(s2 <> s');
+         assert(get_slot st s2 = get_slot st1 s2);
+         ()          
       )
-      else if s1 = s' then admit()
+      else if s1 = s' then (
+        // assert(s2 <> s);
+        admit()
+      )
       else (
         assert(get_slot st s1 = get_slot st1 s1);
         assert(points_to_dir st s1 dx s2);
