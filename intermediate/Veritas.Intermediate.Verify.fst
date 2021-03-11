@@ -871,26 +871,153 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_put (#vcfg:_)
   forall_intro_3 aux;
   ()
 
+noeq type sam (#vcfg: verifier_config)  =
+  | SAM: vs': vtls vcfg {Valid? vs'} ->
+         e: logS_entry _ {AddM_S? e /\ Valid? (verify_step vs' e)} -> sam #vcfg
+
+let am_key #vcfg (a: sam #vcfg) = 
+  match a with
+  | SAM vs' (AddM_S _ (k,_) _) -> k
+
+let am_slot #vcfg (a: sam #vcfg) =
+  match a with
+  | SAM vs' (AddM_S s _ _) -> s
+
+let am_anc_slot #vcfg (a: sam #vcfg) = 
+  match a with
+  | SAM vs' (AddM_S _ _ s') -> s'
+
+let am_store_pre #vcfg (a: sam #vcfg) = 
+  match a with
+  | SAM vs' _ -> thread_store vs'
+
+let am_store_post #vcfg (a: sam #vcfg) =
+  match a with
+  | SAM vs' e -> thread_store (verify_step vs' e)
+
+let am_anc_key #vcfg (a: sam #vcfg): Tot (k':key {is_proper_desc (am_key a) k'}) = 
+  match a with
+  | SAM vs' e ->
+    lemma_addm_props vs' e;
+    let st' = am_store_pre a in
+    stored_key st' (am_anc_slot a)
+
+let am_anc_val_pre #vcfg (a: sam #vcfg) =   
+  let st' = am_store_pre a in  
+  let s' = am_anc_slot a in
+  to_merkle_value (stored_value st' s')
+
+let am_dir #vcfg (a: sam #vcfg): bin_tree_dir = 
+  let k = am_key a in
+  let k' = am_anc_key a in
+  desc_dir k k'
+
+let lemma_addm_anc_pre #vcfg (a: sam #vcfg):
+  Lemma (ensures (let mv' = am_anc_val_pre a in
+                  let d = am_dir a in
+                  let k = am_key a in
+                  mv_points_to_none mv' d ||
+                  is_desc (mv_pointed_key mv' d) k)) =
+  match a with
+  | SAM vs' e ->
+    lemma_addm_props vs' e;    
+    ()
+
+let is_anc_empty #vcfg (a: sam #vcfg) = 
+  let mv' = am_anc_val_pre a in
+  let d = am_dir a in
+  mv_points_to_none mv' d
+
+let am_val_pre #vcfg (a: sam #vcfg): value_type_of (am_key a) = 
+  match a with
+  | SAM vs' (AddM_S _ (_,v) _) -> v
+
+let am_val_post #vcfg (a: sam #vcfg): value_type_of (am_key a) = 
+  let st = am_store_post a in
+  let s = am_slot a in
+  stored_value st s
+
+let lemma_anc_empty #vcfg (a: sam #vcfg{is_anc_empty a}):
+  Lemma (ensures (let v = am_val_pre a in
+                  let k = am_key a in
+                  let st = am_store_post a in
+                  let s = am_slot a in
+                  v = init_value k /\
+                  v = am_val_post a /\
+                  points_to_none st s Left /\
+                  points_to_none st s Right)) = ()
+
+let am_anc_val_post #vcfg (a: sam #vcfg): merkle_value =
+  let st = am_store_post a in
+  let s' = am_anc_slot a in
+  to_merkle_value (stored_value st s')
+
+let lemma_anc_empty2 #vcfg (a: sam #vcfg{is_anc_empty a}):
+  Lemma (ensures (let st = am_store_post a in
+                  let d = am_dir a in
+                  let mv = am_anc_val_post a in
+                  let k = am_key a in
+                  let s' = am_anc_slot a in
+                  let s = am_slot a in
+                  mv_points_to mv d k /\
+                  points_to_dir st s' d s)) = ()
+
+let direct_anc #vcfg (a: sam #vcfg): bool =
+  let mv' = am_anc_val_pre a in
+  let d = am_dir a in
+  let k = am_key a in
+  mv_points_to_some mv' d && mv_pointed_key mv' d = k
+
+let lemma_anc_dir #vcfg (a: sam #vcfg{direct_anc a}):
+  Lemma (ensures (let s = am_slot a in
+                  let st = am_store_post a in
+                  am_val_pre a = am_val_post a /\
+                  points_to_none st s Left /\
+                  points_to_none st s Right)) = ()
+
+let lemma_addm_propsD #vcfg (vs': vtls vcfg) (e: logS_entry _{AddM_S? e}):
+  Lemma (requires (Valid? vs' /\ Valid? (verify_step vs' e)))
+        (ensures (lemma_addm_props vs' e;
+                  let AddM_S s (k,v) s' = e in
+                  let st' = thread_store vs' in
+                  let k' = stored_key st' s' in
+                  let d = desc_dir k k' in
+                  let od = other_dir d in
+                  let vs = verify_step vs' e in
+                  let st = thread_store vs in
+
+                  points_to_none st s od /\
+                  points_to_info st s d = points_to_info st' s' d
+                  )) = 
+  admit()
+                  
 let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_) 
                                                       (vs:vtls vcfg)
                                                       (e: logS_entry _{AddM_S? e}):
   Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
                    Valid? (verify_step vs e)))
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
-  let st = thread_store vs in
+  admit()
+
+(*
   let vs1 = verify_step vs e in
   let st1 = thread_store vs1 in
+    // lemma_addm_propsB vs e;
+    // lemma_addm_propsC vs e;
+
   match e with
-  | AddM_S s (k,v) s' ->
-    lemma_addm_propsB vs e;
-    lemma_addm_propsC vs e;
+  | AddM_S s r s' ->
+    let st = thread_store vs in
+
+
     assert(identical_except2 st st1 s' s);
+    assert(vs1 == vaddm s r s' vs);
     
     let k' = stored_key st s' in
     let d = desc_dir k k' in
     let v' = to_merkle_value (stored_value st s') in
     let dh' = desc_hash_dir v' d in
-    
+    let h = hashfn v in
     let aux (s1 s2: slot_id _) (d: bin_tree_dir):
       Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 d) = 
       assert(slot_points_to_is_merkle_points_to_local st s1 s2 d);
@@ -901,7 +1028,20 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
         match dh' with 
         | Desc k2 h2 b2 ->
           assert(k2 <> k);
+          assert(is_proper_desc k2 k);
+          let d2 = desc_dir k2 k in
+          let mv = to_merkle_value v in
+          let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
+          let v'_upd = Spec.update_merkle_value v' d k h false in
+                      let st_upd =  if points_to_some_slot st s' d then 
+                            madd_to_store_split st s k v s' d d2
+                          else
+                            madd_to_store st s k (MVal mv_upd) s' d in
+            let st_upd = update_value st_upd s' (MVal v'_upd) in
+            let vs1c =  update_thread_store vs st_upd in
+          //assert(vs1c == vs1);
           admit()
+          
       )
       else if s1 = s' then admit()
       else (
@@ -913,7 +1053,9 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
     in
     forall_intro_3 aux;
     ()
-  
+*)
+
+
 let lemma_verifiable_implies_slot_is_merkle_points_to_evictm (#vcfg:_) 
                                                       (vs:vtls vcfg)
                                                       (e: logS_entry _{EvictM_S? e}):
@@ -2282,3 +2424,4 @@ let lemma_forall_vtls_rel_implies_spec_hash_verifiable #vcfg (il:il_hash_verifia
     hadd_hevict_equal_aux gl gl'
 
 *)
+
