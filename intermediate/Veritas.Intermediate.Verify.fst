@@ -870,71 +870,46 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_put (#vcfg:_)
   in
   forall_intro_3 aux;
   ()
-                  
+
+// #push-options "--max_fuel 1 --max_ifuel 0"
+
 let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_) 
                                                       (vs:vtls vcfg)
                                                       (e: logS_entry _{AddM_S? e}):
   Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
                    Valid? (verify_step vs e)))
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
-  admit()
-
-(*
   let vs1 = verify_step vs e in
-  let st1 = thread_store vs1 in
-    // lemma_addm_propsB vs e;
-    // lemma_addm_propsC vs e;
-
+  let st1 = thread_store vs1 in        
+  lemma_addm_propsB vs e;
   match e with
   | AddM_S s r s' ->
+  
     let st = thread_store vs in
-
-
+    
     assert(identical_except2 st st1 s' s);
     assert(vs1 == vaddm s r s' vs);
     
-    let k' = stored_key st s' in
-    let d = desc_dir k k' in
-    let v' = to_merkle_value (stored_value st s') in
-    let dh' = desc_hash_dir v' d in
-    let h = hashfn v in
-    let aux (s1 s2: slot_id _) (d: bin_tree_dir):
-      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 d) = 
-      assert(slot_points_to_is_merkle_points_to_local st s1 s2 d);
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx) = 
+      assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
 
-      if not (points_to_dir st1 s1 d s2) then ()
+      if not (points_to_dir st1 s1 dx s2) then ()
       else if s1 = s then (
-        assert(dh' <> Empty);
-        match dh' with 
-        | Desc k2 h2 b2 ->
-          assert(k2 <> k);
-          assert(is_proper_desc k2 k);
-          let d2 = desc_dir k2 k in
-          let mv = to_merkle_value v in
-          let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
-          let v'_upd = Spec.update_merkle_value v' d k h false in
-                      let st_upd =  if points_to_some_slot st s' d then 
-                            madd_to_store_split st s k v s' d d2
-                          else
-                            madd_to_store st s k (MVal mv_upd) s' d in
-            let st_upd = update_value st_upd s' (MVal v'_upd) in
-            let vs1c =  update_thread_store vs st_upd in
-          //assert(vs1c == vs1);
-          admit()
-          
+         admit()          
       )
       else if s1 = s' then admit()
       else (
         assert(get_slot st s1 = get_slot st1 s1);
-        assert(points_to_dir st s1 d s2);
+        assert(points_to_dir st s1 dx s2);
         ()
       )
     
     in
     forall_intro_3 aux;
-    ()
-*)
+    () 
 
+//#pop-options
 
 let lemma_verifiable_implies_slot_is_merkle_points_to_evictm (#vcfg:_) 
                                                       (vs:vtls vcfg)
