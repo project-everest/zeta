@@ -690,7 +690,7 @@ let inductive_step_addb_caseA #vcfg
     else
       Some (inductive_step_addb_neac ils i)
 
-#push-options "--z3rlimit_factor 6"
+#push-options "--max_fuel 1 --max_ifuel 0 --z3rlimit_factor 2"
 
 // TODO: extremely unstable proof - debug
 let inductive_step_addb_caseB #vcfg 

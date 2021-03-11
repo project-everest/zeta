@@ -90,7 +90,173 @@ let vput #vcfg (s:slot_id vcfg) (k:data_key) (v:data_value) (vs: vtls vcfg {Vali
        if k <> k' then Failed
        else update_thread_store vs (update_value st s (DVal v))
 
-let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): vtls vcfg =
+(* addm params *)
+noeq type addm_param (vcfg: verifier_config) =
+  | AMP: s: slot_id vcfg ->
+         r: record ->
+         s': slot_id vcfg ->
+         vs': vtls vcfg{Valid? vs'} -> addm_param vcfg
+         
+let addm_key #vcfg (a: addm_param vcfg) = 
+  match a with
+  | AMP _ (k,_) _ _ -> k  
+
+let addm_slot #vcfg (a: addm_param vcfg) =
+  match a with
+  | AMP s _ _ _ -> s
+
+let addm_anc_slot #vcfg (a: addm_param vcfg) = 
+  match a with
+  | AMP _ _ s' _ -> s'
+
+let addm_store_pre #vcfg (a: addm_param vcfg) =
+  match a with
+  | AMP _ _ _ vs' -> thread_store vs'
+
+let addm_precond1 #vcfg (a: addm_param vcfg) =
+  let st' = addm_store_pre a in  
+  match a with
+  | AMP s (k,v) s' _ ->
+  inuse_slot st' s' /\ 
+  empty_slot st' s /\
+  is_value_of k v /\
+  (let k' = stored_key st' s' in   
+   is_proper_desc k k')
+
+let addm_value_pre #vcfg (a: addm_param vcfg {addm_precond1 a}): value_type_of (addm_key a) =
+  match a with
+  | AMP _ (k,v) _ _ -> v
+  
+let addm_hash_val_pre #vcfg (a: addm_param vcfg {addm_precond1 a}) = 
+  hashfn (addm_value_pre a)
+
+let addm_anc_key #vcfg (a: addm_param vcfg {addm_precond1 a}): merkle_key =
+  stored_key (addm_store_pre a) (addm_anc_slot a)
+
+let addm_anc_val_pre #vcfg (a: addm_param vcfg {addm_precond1 a}) = 
+  let st' = addm_store_pre a in
+  let s' = addm_anc_slot a in
+  to_merkle_value (stored_value st' s')
+
+let addm_dir #vcfg (a: addm_param vcfg {addm_precond1 a}):bin_tree_dir = 
+  desc_dir (addm_key a) (addm_anc_key a)
+
+let addm_precond2 #vcfg (a: addm_param vcfg) = 
+  addm_precond1 a /\
+  (let mv' = addm_anc_val_pre a in
+   let d = addm_dir a in
+   mv_points_to_none mv' d \/                          // case A: ancestor points to nothing along d
+   mv_points_to mv' d (addm_key a) \/                  // case B: ancestor points to key being added
+   is_proper_desc (mv_pointed_key mv' d) (addm_key a)) // case C: ancestor points to some key below key being added
+
+// case A:
+let addm_anc_points_null #vcfg (a: addm_param vcfg{addm_precond2 a}) = 
+  mv_points_to_none (addm_anc_val_pre a) (addm_dir a)
+
+// case B:
+let addm_anc_points_to_key #vcfg (a: addm_param vcfg{addm_precond2 a}) = 
+  mv_points_to (addm_anc_val_pre a) (addm_dir a) (addm_key a)
+
+// desc hash at ancestor along addm direction
+let addm_desc_hash_dir #vcfg (a: addm_param vcfg{addm_precond2 a /\ addm_anc_points_to_key a}) = 
+  desc_hash_dir (addm_anc_val_pre a) (addm_dir a)
+
+// case C:
+let addm_anc_points_to_desc #vcfg (a: addm_param vcfg{addm_precond2 a}) =
+  let mv' = addm_anc_val_pre a in
+  let d = addm_dir a in
+  mv_points_to_some mv' d /\
+  is_proper_desc (mv_pointed_key mv' d) (addm_key a)
+
+// desc key for case C:
+let addm_desc #vcfg (a:addm_param vcfg{addm_precond2 a /\ addm_anc_points_to_desc a}): (k2:key {is_proper_desc k2 (addm_key a)}) =
+  mv_pointed_key (addm_anc_val_pre a) (addm_dir a)
+
+let addm_desc_dir #vcfg (a: addm_param vcfg{addm_precond2 a /\ addm_anc_points_to_desc a}): bin_tree_dir = 
+  desc_dir (addm_desc a) (addm_key a)
+
+let addm_precond #vcfg (a: addm_param vcfg) = 
+  let st = addm_store_pre a in
+  let s' = addm_anc_slot a in
+  addm_precond2 a /\  
+  (let d = addm_dir a in
+   (addm_anc_points_null a ==> (addm_value_pre a = init_value (addm_key a) /\
+                              points_to_none st s' d)) /\
+   (addm_anc_points_to_key a ==> (addm_desc_hash_dir a = Desc (addm_key a) (addm_hash_val_pre a) false) /\
+                                points_to_none st s' d) /\
+   (addm_anc_points_to_desc a ==> (addm_value_pre a = init_value (addm_key a))))
+
+let addm_value_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (v: value_type_of (addm_key a)) = 
+  (addm_anc_points_null a /\ (v = addm_value_pre a)) \/
+  (addm_anc_points_to_key a /\ (v = addm_value_pre a)) \/
+  (addm_anc_points_to_desc a /\ 
+    (let dd = addm_desc_dir a in
+     let odd = other_dir dd in
+     let mv = to_merkle_value v in
+     desc_hash_dir mv dd = desc_hash_dir (addm_anc_val_pre a) (addm_dir a) /\
+     desc_hash_dir mv odd = Empty))
+
+let addm_slot_points_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) = 
+  let s = addm_slot a in
+  let st' = addm_store_pre a in
+  let s' = addm_anc_slot a in
+  let d = addm_dir a in
+  inuse_slot st s /\
+  ((addm_anc_points_null a /\ points_to_none st s Left /\ points_to_none st s Right) \/
+   (addm_anc_points_to_key a /\ points_to_none st s Left /\ points_to_none st s Right) \/
+   (addm_anc_points_to_desc a /\ (points_to_info st s (addm_desc_dir a) = points_to_info st' s' d) /\
+                                 points_to_none st s (other_dir (addm_desc_dir a))))
+
+(* post-condition on addm slot *)
+let addm_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) = 
+  let s = addm_slot a in
+  inuse_slot st s  /\                          // in use
+  stored_key st s = addm_key a   /\            // stores key k
+  add_method_of st s = Spec.MAdd /\            // stores the correct add method  
+  addm_value_postcond a (stored_value st s) /\ // value postcond 
+  addm_slot_points_postcond a st
+
+let addm_anc_val_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (mv: merkle_value) = 
+  let mv' = addm_anc_val_pre a in
+  let d = addm_dir a in
+  let od = other_dir d in
+  desc_hash_dir mv od = desc_hash_dir mv' od /\               // merkle value unchanged in other direction
+  mv_points_to mv d (addm_key a) /\                           // merkle value points to k in addm direction
+  mv_evicted_to_blum mv d = false 
+
+let addm_anc_slot_points_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) = 
+  let st' = addm_store_pre a in
+  let s' = addm_anc_slot a in
+  let d = addm_dir a in
+  let od = other_dir d in
+  inuse_slot st s' /\
+  points_to_info st s' od = points_to_info st' s' od /\        // points to does not change in other dir
+  points_to_dir st s' d (addm_slot a)
+
+let addm_anc_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) = 
+  let s' = addm_anc_slot a in  
+  let st' = addm_store_pre a in
+  inuse_slot st s' /\
+  stored_key st s' = addm_anc_key a /\
+  add_method_of st s' = add_method_of st' s' /\
+  addm_anc_val_postcond a (to_merkle_value (stored_value st s')) /\
+  addm_anc_slot_points_postcond a st
+
+let addm_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (vs: vtls vcfg) = 
+  (* if the precond holds then addm succeeds *)
+  Valid? vs /\ 
+  (let Valid id st clk ha he = vs in
+   let Valid id' st' clk' ha' he' = AMP?.vs' a in
+   id = id' /\ clk = clk' /\ ha = ha' /\ he = he' /\               // everything except store is unchanged   
+   identical_except2 st st' (addm_slot a) (addm_anc_slot a) /\     // all entries in store except two slots are unchanged
+   addm_slot_postcond a st /\                                      // postcond on slot s
+   addm_anc_slot_postcond a st)                                    // postcond on slot s'
+
+let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): 
+  (vs': vtls vcfg {let a = AMP s r s' vs in
+                   addm_precond a /\ addm_postcond a vs' \/
+                   ~(addm_precond a) /\ Failed? vs'}) = 
+  let a = AMP s r s' vs in                   
   let st = thread_store vs in
   let (k,v) = r in
   (* check slot s' is not empty *)
@@ -103,7 +269,7 @@ let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Va
     (* check slot s is empty *)
     else if inuse_slot st s then Failed
     (* check type of v is consistent with k *)
-    else if not (is_value_of k v) then Failed
+    else if not (is_value_of k v) then Failed    
     else
       let v' = to_merkle_value v' in
       let d = desc_dir k k' in
@@ -111,19 +277,18 @@ let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Va
       let h = hashfn v in
       match dh' with
       | Empty -> (* k' has no child in direction d *)
-        if v <> init_value k then Failed
-        else if points_to_some_slot st s' d then Failed
+        if v <> init_value k then Failed       
+        else if points_to_some_slot st s' d then Failed        
         else
           let st_upd = madd_to_store st s k v s' d in
           let v'_upd = Spec.update_merkle_value v' d k h false in
           let st_upd = update_value st_upd s' (MVal v'_upd) in
-          update_thread_store vs st_upd
-      | Desc k2 h2 b2 ->
+          update_thread_store vs st_upd        
+      | Desc k2 h2 b2 -> 
         if k2 = k then (* k is a child of k' *)
-          (* check hashes match and k was not evicted to blum *)
           if not (h2 = h && b2 = false) then Failed
           (* check slot s' does not contain a desc along direction d *)
-          else if points_to_some_slot st s' d then Failed
+          else if points_to_some_slot st s' d then Failed          
           else
             let st_upd = madd_to_store st s k v s' d in
             update_thread_store vs st_upd
@@ -131,14 +296,14 @@ let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Va
           (* first add must be init value *)
           if v <> init_value k then Failed
           (* check k2 is a proper desc of k *)
-          else if not (is_proper_desc k2 k) then Failed
+          else if not (is_proper_desc k2 k) then Failed          
           else
             let d2 = desc_dir k2 k in
             let mv = to_merkle_value v in
             let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
             let v'_upd = Spec.update_merkle_value v' d k h false in
             let st_upd =  if points_to_some_slot st s' d then 
-                            madd_to_store_split st s k v s' d d2
+                            madd_to_store_split st s k (MVal mv_upd) s' d d2
                           else
                             madd_to_store st s k (MVal mv_upd) s' d in
             let st_upd = update_value st_upd s' (MVal v'_upd) in
