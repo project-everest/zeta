@@ -871,7 +871,7 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_put (#vcfg:_)
   forall_intro_3 aux;
   ()
 
-// #push-options "--max_fuel 1 --max_ifuel 0"
+#push-options "--max_fuel 1 --max_ifuel 0 --z3rlimit_factor 2"
 
 let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_) 
                                                       (vs:vtls vcfg)
@@ -896,11 +896,6 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
 
       if not (points_to_dir st1 s1 dx s2) then ()
       else if s1 = s then (
-         // assert(addm_slot_postcond a st1);
-         // assert(dx = addm_desc_dir a);
-         // assert(addm_anc_points_to_desc a);
-         // let k1 = stored_key st1 s1 in
-         // assert(k1 = addm_key a);
          assert(points_to_dir st s' (addm_dir a) s2);
          assert(slot_points_to_is_merkle_points_to_local st (addm_anc_slot a) s2 (addm_dir a));
          // assert(s2 <> s);
@@ -909,8 +904,39 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
          ()          
       )
       else if s1 = s' then (
-        // assert(s2 <> s);
-        admit()
+        if s2 = s then (
+          let mv1' = to_merkle_value (stored_value st1 s') in
+          let d = addm_dir a in
+          assert(addm_anc_val_postcond a mv1');
+
+          if d = dx then ()
+          else (         
+            // let mv' = to_merkle_value (stored_value st s') in
+            // assert(desc_hash_dir mv1' dx = desc_hash_dir mv' dx);
+            assert(addm_anc_slot_points_postcond a st1);
+            assert(points_to_info st1 s' dx = points_to_info st s' dx);
+            assert(points_to_dir st1 s' dx s2);
+            assert(points_to_dir st s' dx s2);
+            ()
+          )
+        )
+        else (
+          assert(s2 <> s);
+          if s2 = s' then (
+            assert(slot_points_to_is_merkle_points_to_local st s' s' dx);            
+            ()
+          )
+          else (
+            assert(get_slot st s2 = get_slot st1 s2);
+            assert(addm_anc_slot_points_postcond a st1);
+            assert(dx = other_dir (addm_dir a));
+            assert(s1 = addm_anc_slot a);            
+            assert(points_to_info st1 s' dx = points_to_info st s' dx);
+            assert(points_to_dir st s' dx s2);
+            assert(stored_key st s' = stored_key st1 s');
+            ()
+          )
+        )
       )
       else (
         assert(get_slot st s1 = get_slot st1 s1);
@@ -922,7 +948,7 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
     forall_intro_3 aux;
     () 
 
-//#pop-options
+#pop-options
 
 let lemma_verifiable_implies_slot_is_merkle_points_to_evictm (#vcfg:_) 
                                                       (vs:vtls vcfg)
