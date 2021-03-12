@@ -1162,34 +1162,54 @@ let lemma_vaddm_preserves_spec_new_key
   let ek = to_logK_entry vss e in
   match e with
   | AddM_S s (k,v) s' ->
-    (* otherwise e would not be a valid log entry *)
-    assert(empty_slot sts s && inuse_slot sts s');
+    
+    let a = AMP s (k,v) s' vss in
 
+    (* otherwise e would not be a valid log entry *)
+    assert(inuse_slot sts s');
     let k' = stored_key sts s' in
     assert(ek = Spec.AddM (k,v) k');
+    
+    let vss1 = verify_step vss e in
+    let vsk1 = Spec.t_verify_step vsk ek in
 
-    (* both intermediate and spec fail if k is not a desc of k' *)
-    if not (is_proper_desc k k') then ()
-
-    (* if the value is not compatible both int/spec fail *)
-    else if not (is_value_of k v) then ()
-
-    else (
-      (* because sts and stk are related, the value associated with k' in slot s' correspond *)
-      assert(stored_value sts s' = Spec.stored_value stk k');
-
-      let v' = to_merkle_value (stored_value sts s') in
-      let d = desc_dir k k' in
-      let dh' = desc_hash_dir v' d in
-      match dh' with
-      | Empty -> 
-        (* both fail *)
-        if v <> init_value k then ()
-        
-        else 
-          admit()
-      | _ ->
+    if Valid? vss1 then
       admit()
+    else (
+      (* some precondition was not satisfied to cause the failure *)
+      assert(~(addm_precond a));
+
+      (* otherwise e would not be a valid log entry *)
+      assert(empty_slot sts s);
+
+      (* spec would fail as well *)
+      if not (is_value_of k v) then ()
+
+      (* spec would fail *)
+      else if not (is_proper_desc k k') then ()
+
+      else (
+        
+        assert(addm_precond1 a);
+
+        (* ancestor merkle value in intermediate *)
+        let mvs' = addm_anc_val_pre a in
+        let d = addm_dir a in
+
+        (* and it should be the same in spec *)
+        assert(Spec.stored_value stk k' = MVal mvs');
+
+        if mv_points_to_none mvs' d then (
+          assert(addm_precond2 a /\ addm_anc_points_null a);
+
+          (* since a does not satisfy precond, one of these should hold *)
+          assert(addm_value_pre a <> init_value (addm_key a) \/ 
+                 points_to_some_slot sts s' (addm_dir a));
+
+          admit()
+        )
+        else admit()
+      )
     )
 
 (* if the key is not present in store and store is a map, then store remains a map after add *)
