@@ -956,7 +956,40 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_evictm (#vcfg:_)
   Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
                    Valid? (verify_step vs e)))
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
-  admit()
+  let vs1 = verify_step vs e in
+  let st1 = thread_store vs1 in          
+  let st = thread_store vs in
+  match e with
+  | EvictM_S s s' ->
+    assert(empty_slot st1 s);
+    assert(identical_except2 st st1 s s');
+    let k = stored_key st s in
+    let k' = stored_key st s' in
+    assert(is_proper_desc k k');
+    let d = desc_dir k k' in
+    
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx) = 
+
+      if not (points_to_dir st1 s1 dx s2) then ()
+      else (
+        assert(s1 <> s);
+
+        if s1 = s' then (
+          assert(dx = other_dir d);
+          assert(points_to_info st s' dx = points_to_info st1 s' dx);
+          ()
+        )
+        else (
+          assert(get_slot st s1 = get_slot st1 s1);
+          assert(points_to_dir st s1 dx s2);
+          assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+          ()
+        )
+      )
+    in
+    forall_intro_3 aux;
+    ()     
 
 let lemma_verifiable_implies_slot_is_merkle_points_to_addb (#vcfg:_) 
                                                       (vs:vtls vcfg)
@@ -964,7 +997,26 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addb (#vcfg:_)
   Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
                    Valid? (verify_step vs e)))
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
-  admit()
+  let vs1 = verify_step vs e in
+  let st1 = thread_store vs1 in          
+  let st = thread_store vs in
+  
+  match e with
+  | AddB_S s (k,v) _ _  ->
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx) = 
+      if not (points_to_dir st1 s1 dx s2) then ()
+      else (
+        (* s points to nothing after addb *)
+        assert(s1 <> s);
+        assert(get_slot st s1 = get_slot st1 s1);
+        assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+        assert(points_to_dir st s1 dx s2);
+        ()
+      )
+    in
+    forall_intro_3 aux;
+    ()
 
 let lemma_verifiable_implies_slot_is_merkle_points_to_evictb (#vcfg:_) 
                                                       (vs:vtls vcfg)
@@ -972,7 +1024,28 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_evictb (#vcfg:_)
   Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
                    Valid? (verify_step vs e)))
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
-  admit()
+  let vs1 = verify_step vs e in
+  let st1 = thread_store vs1 in          
+  let st = thread_store vs in
+  
+  match e with
+  | EvictB_S s  _  ->
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx) = 
+      
+      if not (points_to_dir st1 s1 dx s2) then ()
+      else (
+        assert(s <> s1);
+        assert(get_slot st s1 = get_slot st1 s1);
+        assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+        assert(points_to_dir st s1 dx s2);
+        ()       
+      )
+    in
+    forall_intro_3 aux
+
+
+#push-options "--z3rlimit_factor 2"
 
 let lemma_verifiable_implies_slot_is_merkle_points_to_evictbm (#vcfg:_) 
                                                       (vs:vtls vcfg)
@@ -980,8 +1053,42 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_evictbm (#vcfg:_)
   Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
                    Valid? (verify_step vs e)))
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
-  admit()
 
+  let vs1 = verify_step vs e in
+  let st1 = thread_store vs1 in          
+  let st = thread_store vs in
+  
+  match e with
+  | EvictBM_S s s'  _  ->
+    assert(identical_except2 st1 st s s');
+    let k = stored_key st s in
+    let k' = stored_key st s' in
+    assert(is_proper_desc k k');
+    let d = desc_dir k k' in
+    
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx) = 
+      
+      if not (points_to_dir st1 s1 dx s2) then ()
+      else (
+        assert(s <> s1);
+        if s1 = s' then (
+          assert(dx = other_dir d);
+          assert(points_to_info st s' dx = points_to_info st1 s' dx);
+          assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+          ()
+        )
+        else (
+          assert(get_slot st s1 = get_slot st1 s1);
+          assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+          assert(points_to_dir st s1 dx s2);
+          () 
+        )
+      )
+    in
+    forall_intro_3 aux
+
+#pop-options
 
 (* if there are no verification failures, slot_points to implies merkle points to property is 
  * propagates *)
@@ -993,7 +1100,12 @@ let lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_)
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) = 
   match e with
   | Get_S s k v -> lemma_verifiable_implies_slot_is_merkle_points_to_get vs e
-  | _ -> admit()
+  | Put_S _ _ _ -> lemma_verifiable_implies_slot_is_merkle_points_to_put vs e
+  | AddM_S _ _ _ -> lemma_verifiable_implies_slot_is_merkle_points_to_addm vs e
+  | EvictM_S _ _ -> lemma_verifiable_implies_slot_is_merkle_points_to_evictm vs e
+  | AddB_S _ _ _ _ -> lemma_verifiable_implies_slot_is_merkle_points_to_addb vs e
+  | EvictB_S _ _ -> lemma_verifiable_implies_slot_is_merkle_points_to_evictb vs e
+  | EvictBM_S _ _ _ -> lemma_verifiable_implies_slot_is_merkle_points_to_evictbm vs e
 
 let lemma_vget_simulates_spec 
       (#vcfg:_)
