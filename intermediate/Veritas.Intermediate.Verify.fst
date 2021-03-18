@@ -1,6 +1,67 @@
 module Veritas.Intermediate.Verify
 open FStar.Classical
 
+#push-options "--z3rlimit_factor 2"
+
+let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): 
+  (vs': vtls vcfg {let a = AMP s r s' vs in
+                   addm_precond a /\ addm_postcond a vs' \/
+                   ~(addm_precond a) /\ Failed? vs'}) = 
+  let a = AMP s r s' vs in                   
+  let st = thread_store vs in
+  let (k,v) = r in
+  (* check slot s' is not empty *)
+  if empty_slot st s' then Failed
+  else
+    let k' = stored_key st s' in
+    let v' = stored_value st s' in
+    (* check k is a proper desc of k' *)
+    if not (is_proper_desc k k') then Failed
+    (* check slot s is empty *)
+    else if inuse_slot st s then Failed
+    (* check type of v is consistent with k *)
+    else if not (is_value_of k v) then Failed    
+    else
+      let v' = to_merkle_value v' in
+      let d = desc_dir k k' in
+      let dh' = desc_hash_dir v' d in
+      let h = hashfn v in
+      match dh' with
+      | Empty -> (* k' has no child in direction d *)
+        if v <> init_value k then Failed       
+        else if points_to_some_slot st s' d then Failed        
+        else
+          let st_upd = madd_to_store st s k v s' d in
+          let v'_upd = Spec.update_merkle_value v' d k h false in
+          let st_upd = update_value st_upd s' (MVal v'_upd) in
+          update_thread_store vs st_upd        
+      | Desc k2 h2 b2 -> 
+        if k2 = k then (* k is a child of k' *)
+          if not (h2 = h && b2 = false) then Failed
+          (* check slot s' does not contain a desc along direction d *)
+          else if points_to_some_slot st s' d then Failed          
+          else
+            let st_upd = madd_to_store st s k v s' d in
+            update_thread_store vs st_upd
+        else (* otherwise, k is not a child of k' *)
+          (* first add must be init value *)
+          if v <> init_value k then Failed
+          (* check k2 is a proper desc of k *)
+          else if not (is_proper_desc k2 k) then Failed          
+          else
+            let d2 = desc_dir k2 k in
+            let mv = to_merkle_value v in
+            let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
+            let v'_upd = Spec.update_merkle_value v' d k h false in
+            let st_upd =  if points_to_some_slot st s' d then 
+                            madd_to_store_split st s k (MVal mv_upd) s' d d2
+                          else
+                            madd_to_store st s k (MVal mv_upd) s' d in
+            let st_upd = update_value st_upd s' (MVal v'_upd) in
+            update_thread_store vs st_upd            
+
+#pop-options
+
 let lemma_verify_failed (#vcfg:_) (vs:vtls vcfg) (e:_)
   : Lemma (requires (Failed? vs))
           (ensures (Failed? (verify_step vs e)))
@@ -1125,16 +1186,6 @@ let lemma_vget_preserves_ismap
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
   = ()
 
-let lemma_vput_simulates_spec 
-      (#vcfg:_)
-      (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)      
-      (e:logS_entry vcfg{Put_S? e})
-  : Lemma (requires (vtls_rel vs vs' /\                     
-                     valid_logS_entry vs e))
-          (ensures (let ek = to_logK_entry vs e in          
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek))) = ()
-
 let lemma_vput_preserves_ismap
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
@@ -1142,6 +1193,330 @@ let lemma_vput_preserves_ismap
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
   = ()
+
+let lemma_vput_simulates_spec 
+      (#vcfg:_)
+      (vss:vtls vcfg{Valid? vss})
+      (vsk:Spec.vtls)      
+      (e:logS_entry vcfg{Put_S? e})
+  : Lemma (requires (vtls_rel vss vsk /\                     
+                     valid_logS_entry vss e))
+          (ensures (let ek = to_logK_entry vss e in          
+                    vtls_rel (verify_step vss e) (Spec.t_verify_step vsk ek))) = 
+   let sts = thread_store vss in
+   let sts_map = as_map sts in
+   let stk = Spec.thread_store vsk in
+   
+   match e with
+   | Put_S s k v ->
+
+     let ek = to_logK_entry vss e in
+     assert(ek = Spec.Put k v);
+
+     let vss1 = verify_step vss e in
+     let vsk1 = Spec.t_verify_step vsk ek in
+
+     (* otherwise valid_logS_entry e would be false *)
+     assert(not (empty_slot sts s) /\ stored_key sts s = k);
+
+     (* no more reason for the put operation to fail *)
+     assert(Valid? vss1 /\ Spec.Valid? vsk1);
+
+     let sts1 = thread_store vss1 in
+     let sts1_map = as_map sts1 in
+     let stk1 = Spec.thread_store vsk1 in    
+
+     let aux (kx: key)
+       : Lemma (ensures (stk1 kx = sts1_map kx))
+               [SMTPat (stk1 kx)] = 
+       if store_contains_key sts kx then (
+         if kx = k then (
+           // assert(stored_key sts1 s = kx);
+           ()
+         )
+         else (
+           let sx = slot_of_key sts kx in
+           assert(get_slot sts1 sx = get_slot sts sx);
+           ()
+         )
+       )
+       else
+         if Spec.store_contains sts1_map kx then (
+           let sx = slot_of_key sts1 kx in
+           // assert(sx <> s);
+           assert(get_slot sts1 sx = get_slot sts sx);           
+           ()
+         )
+         else ()                
+     in
+     // assert(FE.feq sts1_map stk1)
+     ()
+
+(* if the key is not present in store and store is a map, then store remains a map after add *)
+let lemma_vaddm_preserves_ismap_new_key
+      (#vcfg:_)
+      (vs':vtls vcfg{Valid? vs'})
+      (e:logS_entry _{AddM_S? e})
+  : Lemma (requires (let st' = thread_store vs' in
+                     let AddM_S _ (k,_) _ = e in
+                     is_map st' /\ not (store_contains_key st' k)))
+          (ensures (Valid? (verify_step vs' e) ==> S.is_map (thread_store (verify_step vs' e)))) = ()
+
+let lemma_vaddm_preserves_spec_unrelatedkey #vcfg
+  (vss: vtls vcfg {Valid? vss})
+  (vsk: Spec.vtls)
+  (e: logS_entry _ {AddM_S? e})
+  (k2: key)
+  : Lemma (requires (let sts = thread_store vss in
+                     let AddM_S _ (k,_) s' = e in
+                     vtls_rel vss vsk /\
+                     valid_logS_entry vss e /\                    
+                     not (store_contains_key sts k) /\
+                     Valid? (verify_step vss e) /\
+                     Spec.Valid? (Spec.t_verify_step vsk (to_logK_entry vss e)) /\
+                     k2 <> k /\
+                     k2 <> stored_key sts s'))
+          (ensures (let ek = to_logK_entry vss e in
+                    let vss1 = verify_step vss e in
+                    let sts1 = thread_store vss1 in
+                    let vsk1 = Spec.t_verify_step vsk ek in
+                    let stk1 = Spec.thread_store vsk1 in                    
+                    lemma_vaddm_preserves_ismap_new_key vss e;
+                    let sts1_map = as_map sts1 in
+                    stk1 k2 = sts1_map k2)) =
+  let sts = thread_store vss in
+  let sts_map = as_map sts in
+  let stk = Spec.thread_store vsk in
+  let s2k = S.to_slot_state_map sts in
+  let ek = to_logK_entry vss e in
+
+  match e with
+  | AddM_S s (k,v) s' ->
+    let a = AMP s (k,v) s' vss in
+    (* otherwise e would not be a valid log entry *)
+    assert(inuse_slot sts s');
+    let k' = stored_key sts s' in
+    assert(ek = Spec.AddM (k,v) k');
+
+    assert(Spec.store_contains stk k');
+    assert(Spec.stored_value stk k' = stored_value sts s');
+
+    assert(is_proper_desc k k');
+    let d = desc_dir k k' in
+
+    let vss1 = verify_step vss e in
+    let sts1 = thread_store vss1 in
+    lemma_vaddm_preserves_ismap_new_key vss e;    
+    let sts1_map = as_map sts1 in
+    let vsk1 = Spec.t_verify_step vsk ek in
+    let stk1 = Spec.thread_store vsk1 in
+
+    (* precond - k2 is an unrelated key *)
+    assert(k2 <> k /\ k2 <> k');
+    (* k2 is in the store prior to add *)
+    if Spec.store_contains stk k2 then ( 
+      assert(Spec.store_contains sts_map k2);
+
+      (* let s2 be the slot that contains k2 *)
+      
+      let s2 = slot_of_key sts k2 in
+      assert(stored_key sts s2 = k2);
+
+      (* this implies s2 is neither s or s' since they contain different keys *)
+      assert(s2 <> s && s2 <> s');
+
+      (* since all slots except s and s' are unchanged, s2 remains unchanged by the addm *)
+      assert(get_slot sts s2 = get_slot sts1 s2);
+      assert(stored_key sts1 s2 = k2);
+      assert(stored_value sts1 s2 = stored_value sts s2);
+      
+      lemma_as_map_slot_key_equiv sts1 s2;
+      assert(Spec.store_contains sts1_map k2);
+      assert(Spec.store_contains stk1 k2);
+
+      ()
+    )
+    else (
+      assert(not (Spec.store_contains sts_map k2));
+      assert(not (store_contains_key sts k2));
+      assert(not (Spec.store_contains stk k2));
+      
+      (* and we have sufficient info to prove that k2 is not in spec store after the addm *)
+      assert(not (Spec.store_contains stk1 k2));
+
+      if Spec.store_contains sts1_map k2 then (
+        let s2 = slot_of_key sts1 k2 in
+        assert(s2 <> s && s2 <> s');
+
+        assert(get_slot sts s2 = get_slot sts1 s2);
+        ()
+      )
+      else ()
+    )
+
+let lemma_vaddm_preserves_spec_key #vcfg
+  (vss: vtls vcfg {Valid? vss})
+  (vsk: Spec.vtls)
+  (e: logS_entry _ {AddM_S? e})
+  : Lemma (requires (let sts = thread_store vss in
+                     let AddM_S _ (k,_) s' = e in
+                     vtls_rel vss vsk /\
+                     valid_logS_entry vss e /\ 
+                     not (store_contains_key sts k) /\
+                     Valid? (verify_step vss e) /\
+                     Spec.Valid? (Spec.t_verify_step vsk (to_logK_entry vss e))))
+          (ensures (let ek = to_logK_entry vss e in
+                    let vss1 = verify_step vss e in
+                    let sts1 = thread_store vss1 in
+                    let vsk1 = Spec.t_verify_step vsk ek in
+                    let stk1 = Spec.thread_store vsk1 in                    
+                    let AddM_S _ (k,_) s' = e in
+                    lemma_vaddm_preserves_ismap_new_key vss e;
+                    let sts1_map = as_map sts1 in
+                    stk1 k = sts1_map k)) =
+  let sts = thread_store vss in
+  let sts_map = as_map sts in
+  let stk = Spec.thread_store vsk in
+  let s2k = S.to_slot_state_map sts in
+  let ek = to_logK_entry vss e in
+
+  match e with
+  | AddM_S s (k,v) s' ->
+    let a = AMP s (k,v) s' vss in
+    (* otherwise e would not be a valid log entry *)
+    assert(inuse_slot sts s');
+    let k' = stored_key sts s' in
+    assert(ek = Spec.AddM (k,v) k');
+
+    assert(Spec.store_contains stk k');
+    assert(Spec.stored_value stk k' = stored_value sts s');
+
+    assert(is_proper_desc k k');
+    let d = desc_dir k k' in
+    
+    let vss1 = verify_step vss e in
+    let sts1 = thread_store vss1 in
+    lemma_vaddm_preserves_ismap_new_key vss e;    
+    let sts1_map = as_map sts1 in
+    let vsk1 = Spec.t_verify_step vsk ek in
+    let stk1 = Spec.thread_store vsk1 in   
+    
+    assert(stored_key sts1 s = k);
+    let v = stored_value sts1 s in
+    assert(v = Spec.stored_value sts1_map k);
+    ()
+    
+let lemma_vaddm_preserves_spec_anc_key #vcfg
+  (vss: vtls vcfg {Valid? vss})
+  (vsk: Spec.vtls)
+  (e: logS_entry _ {AddM_S? e})
+  : Lemma (requires (let sts = thread_store vss in
+                     let AddM_S _ (k,_) s' = e in
+                     vtls_rel vss vsk /\
+                     valid_logS_entry vss e /\ 
+                     not (store_contains_key sts k) /\
+                     Valid? (verify_step vss e) /\
+                     Spec.Valid? (Spec.t_verify_step vsk (to_logK_entry vss e))))
+          (ensures (let sts = thread_store vss in
+                    let ek = to_logK_entry vss e in
+                    let vss1 = verify_step vss e in
+                    let sts1 = thread_store vss1 in
+                    let vsk1 = Spec.t_verify_step vsk ek in
+                    let stk1 = Spec.thread_store vsk1 in                    
+                    let AddM_S _ _ s' = e in
+                    let k' = stored_key sts s' in
+                    lemma_vaddm_preserves_ismap_new_key vss e;
+                    let sts1_map = as_map sts1 in
+                    stk1 k' = sts1_map k')) = ()
+
+(*
+  let sts = thread_store vss in
+  let sts_map = as_map sts in
+  let stk = Spec.thread_store vsk in
+  let s2k = S.to_slot_state_map sts in
+  let ek = to_logK_entry vss e in
+
+  match e with
+  | AddM_S s (k,v) s' ->
+    let a = AMP s (k,v) s' vss in
+    let k' = stored_key sts s' in
+    assert(ek = Spec.AddM (k,v) k');
+
+    assert(Spec.store_contains stk k');
+    assert(Spec.stored_value stk k' = stored_value sts s');
+
+    assert(is_proper_desc k k');
+    let d = desc_dir k k' in
+
+    let vss1 = verify_step vss e in
+    let sts1 = thread_store vss1 in
+    lemma_vaddm_preserves_ismap_new_key vss e;    
+    let sts1_map = as_map sts1 in
+    let vsk1 = Spec.t_verify_step vsk ek in
+    let stk1 = Spec.thread_store vsk1 in
+
+    
+
+    ()                    
+*)
+
+let lemma_vaddm_preserves_spec_new_key_caseValid
+      (#vcfg:_)
+      (vss:vtls vcfg{Valid? vss})
+      (vsk:Spec.vtls)
+      (e:logS_entry _{AddM_S? e})
+  : Lemma (requires (let sts = thread_store vss in
+                     let AddM_S _ (k,_) _ = e in
+                     vtls_rel vss vsk /\
+                     valid_logS_entry vss e /\
+                     not (store_contains_key sts k) /\
+                     slot_points_to_is_merkle_points_to sts) /\
+                     Valid? (verify_step vss e))
+          (ensures (let ek = to_logK_entry vss e in
+                    vtls_rel (verify_step vss e) (Spec.t_verify_step vsk ek))) = 
+  let sts = thread_store vss in
+  let stk = Spec.thread_store vsk in
+  let s2k = S.to_slot_state_map sts in
+  let ek = to_logK_entry vss e in
+  
+  match e with
+  | AddM_S s (k,v) s' ->
+    
+    let a = AMP s (k,v) s' vss in
+    (* otherwise e would not be a valid log entry *)
+    assert(inuse_slot sts s');
+    let k' = stored_key sts s' in
+    assert(ek = Spec.AddM (k,v) k');
+
+    assert(Spec.store_contains stk k');
+    assert(Spec.stored_value stk k' = stored_value sts s');
+
+    assert(is_proper_desc k k');    
+    let d = desc_dir k k' in
+
+    let vss1 = verify_step vss e in
+    let vsk1 = Spec.t_verify_step vsk ek in                    
+
+    assert(thread_clock vss1 = Spec.thread_clock vsk1);
+    assert(thread_hadd vss1 = Spec.thread_hadd vsk1);
+    assert(thread_hevict vss1 = Spec.thread_hevict vsk1);
+    assert(Valid?.id vss1 = Spec.Valid?.id vsk1);
+    
+    let sts1 = thread_store vss1 in
+    lemma_vaddm_preserves_ismap_new_key vss e;    
+    assert(is_map sts1);
+    let sts1_map = as_map sts1 in
+    let stk1 = Spec.thread_store vsk1 in
+
+    let aux (k2: key):
+      Lemma (ensures (sts1_map k2 == stk1 k2)) = 
+      if k2 = k then lemma_vaddm_preserves_spec_key vss vsk e
+      else if k2 = k' then lemma_vaddm_preserves_spec_anc_key vss vsk e        
+      else lemma_vaddm_preserves_spec_unrelatedkey vss vsk e k2
+    in
+    forall_intro aux;
+    assert(FE.feq stk1 sts1_map);
+    ()
 
 (* adding a key not in store to vaddm preserves the spec relationship *)
 let lemma_vaddm_preserves_spec_new_key
@@ -1153,7 +1528,8 @@ let lemma_vaddm_preserves_spec_new_key
                      let AddM_S _ (k,_) _ = e in
                      vtls_rel vss vsk /\
                      valid_logS_entry vss e /\
-                     not (store_contains_key sts k)))
+                     not (store_contains_key sts k) /\
+                     slot_points_to_is_merkle_points_to sts))
           (ensures (let ek = to_logK_entry vss e in
                     vtls_rel (verify_step vss e) (Spec.t_verify_step vsk ek))) = 
   let sts = thread_store vss in
@@ -1164,7 +1540,6 @@ let lemma_vaddm_preserves_spec_new_key
   | AddM_S s (k,v) s' ->
     
     let a = AMP s (k,v) s' vss in
-
     (* otherwise e would not be a valid log entry *)
     assert(inuse_slot sts s');
     let k' = stored_key sts s' in
@@ -1173,8 +1548,8 @@ let lemma_vaddm_preserves_spec_new_key
     let vss1 = verify_step vss e in
     let vsk1 = Spec.t_verify_step vsk ek in
 
-    if Valid? vss1 then
-      admit()
+    if Valid? vss1 then 
+      lemma_vaddm_preserves_spec_new_key_caseValid vss vsk e
     else (
       (* some precondition was not satisfied to cause the failure *)
       assert(~(addm_precond a));
@@ -1203,25 +1578,52 @@ let lemma_vaddm_preserves_spec_new_key
           assert(addm_precond2 a /\ addm_anc_points_null a);
 
           (* since a does not satisfy precond, one of these should hold *)
-          assert(addm_value_pre a <> init_value (addm_key a) \/ 
+          assert(v <> init_value k \/ 
                  points_to_some_slot sts s' (addm_dir a));
 
-          admit()
-        )
-        else admit()
-      )
-    )
+          (* spec fails as well *)
+          if v <> init_value k then ()
+          
+          else (
+            (* intermediate fails because s' points to some slot along addm direction *)
+            assert(points_to_some_slot sts s' (addm_dir a));
 
-(* if the key is not present in store and store is a map, then store remains a map after add *)
-let lemma_vaddm_preserves_ismap_new_key
-      (#vcfg:_)
-      (vs:vtls vcfg{Valid? vs})
-      (e:logS_entry _{AddM_S? e})
-  : Lemma (requires (let st = thread_store vs in
-                     let AddM_S _ (k,_) _ = e in
-                     not (store_contains_key st k)))
-          (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
-   = admit()
+            let s2 = pointed_slot sts s' (addm_dir a) in
+            assert(slot_points_to_is_merkle_points_to_local sts s' s2 (addm_dir a));
+
+            (* which produces a contradiction since we have mv_points_none mvs' d *)
+            assert(False);
+            ()
+          )
+        )
+        else if mv_points_to mvs' d k then (
+          assert(addm_precond2 a /\ addm_anc_points_to_key a);
+
+          assert(desc_hash_dir mvs' d <> Desc k (hashfn v) false \/
+                 points_to_some_slot sts s' d);
+
+          if desc_hash_dir mvs' d <> Desc k (hashfn v) false then ()
+          else (            
+            (* if s' points to a slot s2, then from our invariant, s2 should contain key k
+             * which produces a contradiction since we assumed k is not in the store *)
+            let s2 = pointed_slot sts s' d in
+
+            assert(slot_points_to_is_merkle_points_to_local sts s' s2 d);
+            assert(stored_key sts s2 = k);
+
+            ()
+          )
+        )
+        else if is_proper_desc (mv_pointed_key mvs' d) k then (
+          assert(addm_precond2 a /\ addm_anc_points_to_desc a);
+
+          assert(addm_value_pre a <> init_value (addm_key a));
+
+          ()
+        )
+        else ()
+      )
+    )     
 
 (* addb preserves spec relationship if the kew is not in store *)
 let lemma_vaddb_preserves_spec_new_key
@@ -1244,7 +1646,7 @@ let lemma_vaddb_preserves_ismap_new_key
       (e:logS_entry _{AddB_S? e})
   : Lemma (requires (let st = thread_store vs in
                      let AddB_S _ (k,_) _ _ = e in
-                     not (store_contains_key st k)))
+                     is_map st /\ not (store_contains_key st k)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
   = admit()
 

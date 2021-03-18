@@ -248,7 +248,9 @@ let proving_ancestor #vcfg
 
   let k = stored_key sts s in
   SpecM.proving_ancestor ilk_i k
-                 
+
+#push-options "--max_fuel 1 --max_ifuel 0"
+
 let inductive_step_addm_caseD #vcfg 
                               (ils: IntTS.hash_verifiable_log vcfg)                               
                               (i:I.seq_index ils)
@@ -279,7 +281,7 @@ let inductive_step_addm_caseD #vcfg
   let ek = I.index ilk i in
 
   match es with
-  | AddM_S s (k,v) s' ->
+  | AddM_S s (k,v) s' -> 
     let sts = IntV.thread_store vss_i in
     let stk = SpecV.thread_store vsk_i in     
 
@@ -288,11 +290,12 @@ let inductive_step_addm_caseD #vcfg
     let v' = to_merkle_value (stored_value sts s') in
     let d = desc_dir k k' in
 
-    // assert (SpecV.store_contains stk k);
-    // assert (SpecV.add_method_of stk k = BAdd);
+    assert (SpecV.store_contains stk k);
+    assert (SpecV.add_method_of stk k = BAdd);
+
     SpecTS.lemma_instore_implies_eac_state_instore ilk_i k tid;
     SpecTS.lemma_eac_stored_addm ilk_i k;
-    // assert (E.add_method_of (SpecTS.eac_state_of_key ilk_i k) = SpecTS.stored_add_method ilk_i k);
+    assert (E.add_method_of (SpecTS.eac_state_of_key ilk_i k) = SpecTS.stored_add_method ilk_i k);
 
     let aux():
       Lemma (SpecTS.stored_tid ilk_i k = tid) = 
@@ -302,13 +305,17 @@ let inductive_step_addm_caseD #vcfg
         SpecTS.lemma_key_in_unique_store2 ilk_i k tid tid'
     in
     aux();
-    // assert (E.add_method_of (SpecTS.eac_state_of_key ilk_i k) = BAdd);
-    SpecM.lemma_proving_ancestor_blum_bit ilk_i k;
+    assert (E.add_method_of (SpecTS.eac_state_of_key ilk_i k) = BAdd);
 
+    SpecM.lemma_proving_ancestor_blum_bit ilk_i k;
     assert(SpecV.store_contains stk k');
-    SpecTS.lemma_eac_value_is_stored_value ilk_i k' tid;
-    assert(mv_evicted_to_blum v' d);
-    None
+    SpecTS.lemma_eac_value_is_stored_value ilk_i k' tid;    
+    assert(mv_evicted_to_blum v' d);    
+    
+    assert(induction_props ils_i1);
+    None        
+
+#pop-options
 
 let inductive_step_addm_caseE #vcfg 
                               (ils: IntTS.hash_verifiable_log vcfg)                               

@@ -252,62 +252,10 @@ let addm_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (vs: vtls vcfg) =
    addm_slot_postcond a st /\                                      // postcond on slot s
    addm_anc_slot_postcond a st)                                    // postcond on slot s'
 
-let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): 
+val vaddm (#vcfg:verifier_config) (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): 
   (vs': vtls vcfg {let a = AMP s r s' vs in
                    addm_precond a /\ addm_postcond a vs' \/
-                   ~(addm_precond a) /\ Failed? vs'}) = 
-  let a = AMP s r s' vs in                   
-  let st = thread_store vs in
-  let (k,v) = r in
-  (* check slot s' is not empty *)
-  if empty_slot st s' then Failed
-  else
-    let k' = stored_key st s' in
-    let v' = stored_value st s' in
-    (* check k is a proper desc of k' *)
-    if not (is_proper_desc k k') then Failed
-    (* check slot s is empty *)
-    else if inuse_slot st s then Failed
-    (* check type of v is consistent with k *)
-    else if not (is_value_of k v) then Failed    
-    else
-      let v' = to_merkle_value v' in
-      let d = desc_dir k k' in
-      let dh' = desc_hash_dir v' d in
-      let h = hashfn v in
-      match dh' with
-      | Empty -> (* k' has no child in direction d *)
-        if v <> init_value k then Failed       
-        else if points_to_some_slot st s' d then Failed        
-        else
-          let st_upd = madd_to_store st s k v s' d in
-          let v'_upd = Spec.update_merkle_value v' d k h false in
-          let st_upd = update_value st_upd s' (MVal v'_upd) in
-          update_thread_store vs st_upd        
-      | Desc k2 h2 b2 -> 
-        if k2 = k then (* k is a child of k' *)
-          if not (h2 = h && b2 = false) then Failed
-          (* check slot s' does not contain a desc along direction d *)
-          else if points_to_some_slot st s' d then Failed          
-          else
-            let st_upd = madd_to_store st s k v s' d in
-            update_thread_store vs st_upd
-        else (* otherwise, k is not a child of k' *)
-          (* first add must be init value *)
-          if v <> init_value k then Failed
-          (* check k2 is a proper desc of k *)
-          else if not (is_proper_desc k2 k) then Failed          
-          else
-            let d2 = desc_dir k2 k in
-            let mv = to_merkle_value v in
-            let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
-            let v'_upd = Spec.update_merkle_value v' d k h false in
-            let st_upd =  if points_to_some_slot st s' d then 
-                            madd_to_store_split st s k (MVal mv_upd) s' d d2
-                          else
-                            madd_to_store st s k (MVal mv_upd) s' d in
-            let st_upd = update_value st_upd s' (MVal v'_upd) in
-            update_thread_store vs st_upd            
+                   ~(addm_precond a) /\ Failed? vs'})
 
 let vevictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): vtls vcfg = 
   let st = thread_store vs in
@@ -564,6 +512,14 @@ val lemma_vget_preserves_ismap
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
 
+val lemma_vput_preserves_ismap
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+      (e:logS_entry _{Put_S? e})
+  : Lemma (requires (S.is_map (thread_store vs)))
+          (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
+          [SMTPat (verify_step vs e)]
+
 val lemma_vput_simulates_spec 
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
@@ -574,11 +530,14 @@ val lemma_vput_simulates_spec
           (ensures (let ek = to_logK_entry vs e in          
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 
-val lemma_vput_preserves_ismap
+(* if the key is not present in store and store is a map, then store remains a map after add *)
+val lemma_vaddm_preserves_ismap_new_key
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
-      (e:logS_entry _{Put_S? e})
-  : Lemma (requires (S.is_map (thread_store vs)))
+      (e:logS_entry _{AddM_S? e})
+  : Lemma (requires (let st = thread_store vs in
+                     let AddM_S _ (k,_) _ = e in
+                     is_map st /\ not (store_contains_key st k)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
 
 (* adding a key not in store to vaddm preserves the spec relationship *)
@@ -591,19 +550,10 @@ val lemma_vaddm_preserves_spec_new_key
                      let AddM_S _ (k,_) _ = e in
                      vtls_rel vs vs' /\
                      valid_logS_entry vs e /\
-                     not (store_contains_key st k)))
+                     not (store_contains_key st k) /\
+                     slot_points_to_is_merkle_points_to st))
           (ensures (let ek = to_logK_entry vs e in
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
-
-(* if the key is not present in store and store is a map, then store remains a map after add *)
-val lemma_vaddm_preserves_ismap_new_key
-      (#vcfg:_)
-      (vs:vtls vcfg{Valid? vs})
-      (e:logS_entry _{AddM_S? e})
-  : Lemma (requires (let st = thread_store vs in
-                     let AddM_S _ (k,_) _ = e in
-                     not (store_contains_key st k)))
-          (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
 
 (* addb preserves spec relationship if the kew is not in store *)
 val lemma_vaddb_preserves_spec_new_key
@@ -626,7 +576,7 @@ val lemma_vaddb_preserves_ismap_new_key
       (e:logS_entry _{AddB_S? e})
   : Lemma (requires (let st = thread_store vs in
                      let AddB_S _ (k,_) _ _ = e in
-                     not (store_contains_key st k)))
+                     is_map st /\ not (store_contains_key st k)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
 
 val lemma_evictb_simulates_spec 

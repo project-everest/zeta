@@ -6,7 +6,7 @@ let lemma_init_store_ismap (vcfg:verifier_config) (tid:thread_id)
   lemma_empty_store_is_map #vcfg;  
   lemma_empty_contains_nokey #vcfg Root;
   if tid = 0 then
-    lemma_madd_to_store_is_map st 0 (init_value Root)    
+    lemma_madd_root_to_store_is_map st 0 (init_value Root)    
   else ()
     
 let lemma_init_store_slot_points_to_is_merkle_points_to (vcfg:verifier_config) (tid:thread_id)

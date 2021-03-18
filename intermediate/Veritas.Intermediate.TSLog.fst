@@ -14,7 +14,10 @@ let lemma_slot_is_merkle_points_to (#vcfg:_) (ils: its_log vcfg) (i: I.seq_index
 let rec to_logk_aux #vcfg (il:its_log vcfg) 
   : Tot (sil:SpecTS.il_vlog { same_shape il sil })
         (decreases (I.IL?.prf il))
-  = let IL s ss prf = il in
+  = admit()
+
+(*
+  let IL s ss prf = il in
     match prf with
     | IntEmpty -> 
       IL _ _ IntEmpty
@@ -45,6 +48,7 @@ let rec to_logk_aux #vcfg (il:its_log vcfg)
       let IL _ ss0k prfk = to_logk_aux il' in 
       let res = I.IntExtend _ _ prfk ek i in
       IL _ _ res      
+*)
 
 let to_logk (#vcfg:_) (il:its_log vcfg) 
   : Tot (sil:SpecTS.il_vlog { same_shape il sil }) = 
