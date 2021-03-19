@@ -39,7 +39,7 @@ let thread_store #vcfg (vs: vtls vcfg {Valid? vs}): vstore _ =
   Valid?.st vs
 
 
-let thread_id_of #vcfg (vs:vtls vcfg{Valid? vs}): thread_id = 
+let thread_id_of #vcfg (vs:vtls vcfg{Valid? vs}): thread_id =
   Valid?.id vs
 
 let thread_store_size #vcfg (vs: vtls vcfg {Valid? vs}): nat =
@@ -49,24 +49,24 @@ let update_thread_store #vcfg (vs:vtls vcfg {Valid? vs}) (st:vstore vcfg) : vtls
   match vs with
   | Valid id _ clock hadd hevict -> Valid id st clock hadd hevict
 
-let thread_clock #vcfg (vs:vtls vcfg {Valid? vs}) = 
+let thread_clock #vcfg (vs:vtls vcfg {Valid? vs}) =
   Valid?.clock vs
 
-let update_thread_clock #vcfg (vs:vtls vcfg {Valid? vs}) (clock:timestamp): vtls _ = 
+let update_thread_clock #vcfg (vs:vtls vcfg {Valid? vs}) (clock:timestamp): vtls _ =
   match vs with
   | Valid id st _ hadd hevict -> Valid id st clock hadd hevict
 
-let thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) = 
+let thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) =
   Valid?.hadd vs
 
-let thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) = 
+let thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) =
   Valid?.hevict vs
 
-let update_thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) (hadd: ms_hash_value): vtls _ = 
+let update_thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) (hadd: ms_hash_value): vtls _ =
   match vs with
   | Valid id st clock _ hevict -> Valid id st clock hadd hevict
 
-let update_thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) (hevict:ms_hash_value): vtls _ = 
+let update_thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) (hevict:ms_hash_value): vtls _ =
   match vs with
   | Valid id st clock hadd _ -> Valid id st clock hadd hevict
 
@@ -96,16 +96,16 @@ noeq type addm_param (vcfg: verifier_config) =
          r: record ->
          s': slot_id vcfg ->
          vs': vtls vcfg{Valid? vs'} -> addm_param vcfg
-         
-let addm_key #vcfg (a: addm_param vcfg) = 
+
+let addm_key #vcfg (a: addm_param vcfg) =
   match a with
-  | AMP _ (k,_) _ _ -> k  
+  | AMP _ (k,_) _ _ -> k
 
 let addm_slot #vcfg (a: addm_param vcfg) =
   match a with
   | AMP s _ _ _ -> s
 
-let addm_anc_slot #vcfg (a: addm_param vcfg) = 
+let addm_anc_slot #vcfg (a: addm_param vcfg) =
   match a with
   | AMP _ _ s' _ -> s'
 
@@ -114,34 +114,34 @@ let addm_store_pre #vcfg (a: addm_param vcfg) =
   | AMP _ _ _ vs' -> thread_store vs'
 
 let addm_precond1 #vcfg (a: addm_param vcfg) =
-  let st' = addm_store_pre a in  
+  let st' = addm_store_pre a in
   match a with
   | AMP s (k,v) s' _ ->
-  inuse_slot st' s' /\ 
+  inuse_slot st' s' /\
   empty_slot st' s /\
   is_value_of k v /\
-  (let k' = stored_key st' s' in   
+  (let k' = stored_key st' s' in
    is_proper_desc k k')
 
 let addm_value_pre #vcfg (a: addm_param vcfg {addm_precond1 a}): value_type_of (addm_key a) =
   match a with
   | AMP _ (k,v) _ _ -> v
-  
-let addm_hash_val_pre #vcfg (a: addm_param vcfg {addm_precond1 a}) = 
+
+let addm_hash_val_pre #vcfg (a: addm_param vcfg {addm_precond1 a}) =
   hashfn (addm_value_pre a)
 
 let addm_anc_key #vcfg (a: addm_param vcfg {addm_precond1 a}): merkle_key =
   stored_key (addm_store_pre a) (addm_anc_slot a)
 
-let addm_anc_val_pre #vcfg (a: addm_param vcfg {addm_precond1 a}) = 
+let addm_anc_val_pre #vcfg (a: addm_param vcfg {addm_precond1 a}) =
   let st' = addm_store_pre a in
   let s' = addm_anc_slot a in
   to_merkle_value (stored_value st' s')
 
-let addm_dir #vcfg (a: addm_param vcfg {addm_precond1 a}):bin_tree_dir = 
+let addm_dir #vcfg (a: addm_param vcfg {addm_precond1 a}):bin_tree_dir =
   desc_dir (addm_key a) (addm_anc_key a)
 
-let addm_precond2 #vcfg (a: addm_param vcfg) = 
+let addm_precond2 #vcfg (a: addm_param vcfg) =
   addm_precond1 a /\
   (let mv' = addm_anc_val_pre a in
    let d = addm_dir a in
@@ -150,15 +150,15 @@ let addm_precond2 #vcfg (a: addm_param vcfg) =
    is_proper_desc (mv_pointed_key mv' d) (addm_key a)) // case C: ancestor points to some key below key being added
 
 // case A:
-let addm_anc_points_null #vcfg (a: addm_param vcfg{addm_precond2 a}) = 
+let addm_anc_points_null #vcfg (a: addm_param vcfg{addm_precond2 a}) =
   mv_points_to_none (addm_anc_val_pre a) (addm_dir a)
 
 // case B:
-let addm_anc_points_to_key #vcfg (a: addm_param vcfg{addm_precond2 a}) = 
+let addm_anc_points_to_key #vcfg (a: addm_param vcfg{addm_precond2 a}) =
   mv_points_to (addm_anc_val_pre a) (addm_dir a) (addm_key a)
 
 // desc hash at ancestor along addm direction
-let addm_desc_hash_dir #vcfg (a: addm_param vcfg{addm_precond2 a /\ addm_anc_points_to_key a}) = 
+let addm_desc_hash_dir #vcfg (a: addm_param vcfg{addm_precond2 a /\ addm_anc_points_to_key a}) =
   desc_hash_dir (addm_anc_val_pre a) (addm_dir a)
 
 // case C:
@@ -172,13 +172,13 @@ let addm_anc_points_to_desc #vcfg (a: addm_param vcfg{addm_precond2 a}) =
 let addm_desc #vcfg (a:addm_param vcfg{addm_precond2 a /\ addm_anc_points_to_desc a}): (k2:key {is_proper_desc k2 (addm_key a)}) =
   mv_pointed_key (addm_anc_val_pre a) (addm_dir a)
 
-let addm_desc_dir #vcfg (a: addm_param vcfg{addm_precond2 a /\ addm_anc_points_to_desc a}): bin_tree_dir = 
+let addm_desc_dir #vcfg (a: addm_param vcfg{addm_precond2 a /\ addm_anc_points_to_desc a}): bin_tree_dir =
   desc_dir (addm_desc a) (addm_key a)
 
-let addm_precond #vcfg (a: addm_param vcfg) = 
+let addm_precond #vcfg (a: addm_param vcfg) =
   let st = addm_store_pre a in
   let s' = addm_anc_slot a in
-  addm_precond2 a /\  
+  addm_precond2 a /\
   (let d = addm_dir a in
    (addm_anc_points_null a ==> (addm_value_pre a = init_value (addm_key a) /\
                               points_to_none st s' d)) /\
@@ -186,17 +186,17 @@ let addm_precond #vcfg (a: addm_param vcfg) =
                                 points_to_none st s' d) /\
    (addm_anc_points_to_desc a ==> (addm_value_pre a = init_value (addm_key a))))
 
-let addm_value_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (v: value_type_of (addm_key a)) = 
+let addm_value_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (v: value_type_of (addm_key a)) =
   (addm_anc_points_null a /\ (v = addm_value_pre a)) \/
   (addm_anc_points_to_key a /\ (v = addm_value_pre a)) \/
-  (addm_anc_points_to_desc a /\ 
+  (addm_anc_points_to_desc a /\
     (let dd = addm_desc_dir a in
      let odd = other_dir dd in
      let mv = to_merkle_value v in
      desc_hash_dir mv dd = desc_hash_dir (addm_anc_val_pre a) (addm_dir a) /\
      desc_hash_dir mv odd = Empty))
 
-let addm_slot_points_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) = 
+let addm_slot_points_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) =
   let s = addm_slot a in
   let st' = addm_store_pre a in
   let s' = addm_anc_slot a in
@@ -208,23 +208,23 @@ let addm_slot_points_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vs
                                  points_to_none st s (other_dir (addm_desc_dir a))))
 
 (* post-condition on addm slot *)
-let addm_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) = 
+let addm_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) =
   let s = addm_slot a in
   inuse_slot st s  /\                          // in use
   stored_key st s = addm_key a   /\            // stores key k
-  add_method_of st s = Spec.MAdd /\            // stores the correct add method  
-  addm_value_postcond a (stored_value st s) /\ // value postcond 
+  add_method_of st s = Spec.MAdd /\            // stores the correct add method
+  addm_value_postcond a (stored_value st s) /\ // value postcond
   addm_slot_points_postcond a st
 
-let addm_anc_val_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (mv: merkle_value) = 
+let addm_anc_val_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (mv: merkle_value) =
   let mv' = addm_anc_val_pre a in
   let d = addm_dir a in
   let od = other_dir d in
   desc_hash_dir mv od = desc_hash_dir mv' od /\               // merkle value unchanged in other direction
   mv_points_to mv d (addm_key a) /\                           // merkle value points to k in addm direction
-  mv_evicted_to_blum mv d = false 
+  mv_evicted_to_blum mv d = false
 
-let addm_anc_slot_points_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) = 
+let addm_anc_slot_points_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) =
   let st' = addm_store_pre a in
   let s' = addm_anc_slot a in
   let d = addm_dir a in
@@ -233,8 +233,8 @@ let addm_anc_slot_points_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st
   points_to_info st s' od = points_to_info st' s' od /\        // points to does not change in other dir
   points_to_dir st s' d (addm_slot a)
 
-let addm_anc_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) = 
-  let s' = addm_anc_slot a in  
+let addm_anc_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) =
+  let s' = addm_anc_slot a in
   let st' = addm_store_pre a in
   inuse_slot st s' /\
   stored_key st s' = addm_anc_key a /\
@@ -242,26 +242,26 @@ let addm_anc_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstor
   addm_anc_val_postcond a (to_merkle_value (stored_value st s')) /\
   addm_anc_slot_points_postcond a st
 
-let addm_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (vs: vtls vcfg) = 
+let addm_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (vs: vtls vcfg) =
   (* if the precond holds then addm succeeds *)
-  Valid? vs /\ 
+  Valid? vs /\
   (let Valid id st clk ha he = vs in
    let Valid id' st' clk' ha' he' = AMP?.vs' a in
-   id = id' /\ clk = clk' /\ ha = ha' /\ he = he' /\               // everything except store is unchanged   
+   id = id' /\ clk = clk' /\ ha = ha' /\ he = he' /\               // everything except store is unchanged
    identical_except2 st st' (addm_slot a) (addm_anc_slot a) /\     // all entries in store except two slots are unchanged
    addm_slot_postcond a st /\                                      // postcond on slot s
    addm_anc_slot_postcond a st)                                    // postcond on slot s'
 
-val vaddm (#vcfg:verifier_config) (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): 
+val vaddm (#vcfg:verifier_config) (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}):
   (vs': vtls vcfg {let a = AMP s r s' vs in
                    addm_precond a /\ addm_postcond a vs' \/
                    ~(addm_precond a) /\ Failed? vs'})
 
-let vevictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): vtls vcfg = 
+let vevictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): vtls vcfg =
   let st = thread_store vs in
   (* check store contains s and s' *)
-  if empty_slot st s || empty_slot st s' then Failed 
-  else 
+  if empty_slot st s || empty_slot st s' then Failed
+  else
     let k = stored_key st s in
     let v = stored_value st s in
     let k' = stored_key st s' in
@@ -277,24 +277,24 @@ let vevictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs})
       let h = hashfn v in
       match dh' with
       | Empty -> Failed
-      | Desc k2 h2 b2 -> 
+      | Desc k2 h2 b2 ->
           if k2 <> k then Failed
           (* if s' does not point to s in direction d then Fail *)
           else if not (points_to_dir st s' d s) then Failed
           else
             let v'_upd = Spec.update_merkle_value v' d k h false in
-            let st_upd = update_value st s' (MVal v'_upd) in 
+            let st_upd = update_value st s' (MVal v'_upd) in
             let st_upd = mevict_from_store st_upd s s' d in
-            update_thread_store vs st_upd 
+            update_thread_store vs st_upd
 
-let vaddb #vcfg (s:slot_id vcfg) (r:record) (t:timestamp) (j:thread_id) (vs:vtls _ {Valid? vs}): vtls _ = 
-  let st = thread_store vs in 
+let vaddb #vcfg (s:slot_id vcfg) (r:record) (t:timestamp) (j:thread_id) (vs:vtls _ {Valid? vs}): vtls _ =
+  let st = thread_store vs in
   let (k,v) = r in
   (* check value type consistent with key k *)
   if not (is_value_of k v) then Failed
   (* check store contains slot s *)
   else if inuse_slot st s then Failed
-  else 
+  else
     (* update add hash *)
     let h = thread_hadd vs in
     let h_upd = ms_hashfn_upd (MHDom (k,v) t j) h in
@@ -307,10 +307,10 @@ let vaddb #vcfg (s:slot_id vcfg) (r:record) (t:timestamp) (j:thread_id) (vs:vtls
     let st_upd = badd_to_store st s k v in
     update_thread_store vs_upd2 st_upd
 
-let sat_evictb_checks #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs}): bool = 
+let sat_evictb_checks #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs}): bool =
   let st = thread_store vs in
   inuse_slot st s &&
-  (  
+  (
     let k = stored_key st s in
     let v = stored_value st s in
     let clock = thread_clock vs in
@@ -322,10 +322,10 @@ let sat_evictb_checks #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs
     clock `ts_lt` t &&
 
     (* check k has no (merkle) children n the store *)
-    points_to_none st s Left && points_to_none st s Right 
+    points_to_none st s Left && points_to_none st s Right
   )
 
-let vevictb_update_hash_clock #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs /\ sat_evictb_checks s t vs}): (vs':vtls _ {Valid? vs'}) = 
+let vevictb_update_hash_clock #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs /\ sat_evictb_checks s t vs}): (vs':vtls _ {Valid? vs'}) =
   let st = thread_store vs in
   let k = stored_key st s in
   let v = stored_value st s in
@@ -338,19 +338,19 @@ let vevictb_update_hash_clock #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {V
   (* update clock and return *)
   update_thread_clock vs_upd t
 
-let vevictb #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs}): vtls _ = 
+let vevictb #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs}): vtls _ =
   let st = thread_store vs in
-  if not (sat_evictb_checks s t vs) || add_method_of st s <> Spec.BAdd then Failed 
-  else         
+  if not (sat_evictb_checks s t vs) || add_method_of st s <> Spec.BAdd then Failed
+  else
     let k = stored_key st s in
-    let v = stored_value st s in      
+    let v = stored_value st s in
     let vs = vevictb_update_hash_clock s t vs in
     let st_upd = bevict_from_store st s in
     update_thread_store vs st_upd
 
-let vevictbm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (t:timestamp) (vs:vtls vcfg {Valid? vs}): vtls vcfg = 
+let vevictbm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (t:timestamp) (vs:vtls vcfg {Valid? vs}): vtls vcfg =
   let st = thread_store vs in
-  if not (sat_evictb_checks s t vs) || add_method_of st s <> Spec.MAdd then Failed 
+  if not (sat_evictb_checks s t vs) || add_method_of st s <> Spec.MAdd then Failed
   else if empty_slot st s' then Failed
   else
     let k = stored_key st s in
@@ -364,10 +364,10 @@ let vevictbm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (t:timestamp) (vs:vtls vcf
       let dh' = desc_hash_dir v' d in
       match dh' with
       | Empty -> Failed
-      | Desc k2 h2 b2 -> 
+      | Desc k2 h2 b2 ->
           if k2 <> k || b2 then Failed
           (* if s' does not point to s in direction d then Fail *)
-          else if not (points_to_dir st s' d s) then Failed          
+          else if not (points_to_dir st s' d s) then Failed
           else
             (* update the evict hash and the clock *)
             let vs = vevictb_update_hash_clock s t vs in
@@ -409,9 +409,9 @@ let rec verify #vcfg (vsinit:vtls vcfg) (l:logS vcfg): Tot (vtls vcfg)
     let e = Seq.index l (n - 1) in
     verify_step vsp e
 
-let verifiable #vcfg (vsinit:vtls vcfg) (l:logS _) = 
+let verifiable #vcfg (vsinit:vtls vcfg) (l:logS _) =
   Valid? (verify vsinit l)
-  
+
 (* if a log is verifiable with some initial state, then that state should be valid *)
 val lemma_verifiable_implies_init_valid (#vcfg:_) (vsinit: vtls vcfg) (l: logS _):
   Lemma (requires (verifiable vsinit l))
@@ -419,10 +419,10 @@ val lemma_verifiable_implies_init_valid (#vcfg:_) (vsinit: vtls vcfg) (l: logS _
         [SMTPat (verifiable vsinit l)]
 
 (* if a log is verifiable then the prefix of the log is verifiable *)
-val lemma_verifiable_implies_prefix_verifiable 
-      (#vcfg:_) 
-      (vsinit: vtls vcfg) 
-      (l: logS _{verifiable vsinit l}) 
+val lemma_verifiable_implies_prefix_verifiable
+      (#vcfg:_)
+      (vsinit: vtls vcfg)
+      (l: logS _{verifiable vsinit l})
       (i: seq_index l):
   Lemma (ensures (let li = prefix l i in
                   verifiable vsinit li))
@@ -440,7 +440,7 @@ val lemma_addm_props (#vcfg:_)
                    is_merkle_key k' /\
                    (let mv' = to_merkle_value (stored_value st' s') in
                     let d = desc_dir k k' in
-                    (mv_points_to_none mv' d || 
+                    (mv_points_to_none mv' d ||
                      is_desc (mv_pointed_key mv' d) k)))))
 
 (* verifiability implies consistency of the log *)
@@ -454,7 +454,7 @@ val lemma_verifiable_implies_consistent_log (#vcfg:_) (vsinit: vtls vcfg) (l: lo
 (* TODO: do we really need this *)
 val lemma_s2k_store_eq_s2k_log (#vcfg:_) (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l}):
   Lemma (ensures (let stinit = thread_store vsinit in
-                  let s2kinit = S.to_slot_state_map stinit in 
+                  let s2kinit = S.to_slot_state_map stinit in
                   let stend = thread_store (verify vsinit l) in
                   let s2kend = S.to_slot_state_map stend in
                   let s2klog = L.to_slot_state_map s2kinit l in
@@ -468,16 +468,16 @@ let valid_logS_entry (#vcfg:_)
   let s2k = S.to_slot_state_map st in
   L.valid_logS_entry s2k e
 
-let to_logK_entry (#vcfg:_) 
-                  (vs: vtls vcfg{Valid? vs}) 
-                  (e: logS_entry _{valid_logS_entry vs e}) = 
+let to_logK_entry (#vcfg:_)
+                  (vs: vtls vcfg{Valid? vs})
+                  (e: logS_entry _{valid_logS_entry vs e}) =
   let st = thread_store vs in
   let s2k = S.to_slot_state_map st in
-  L.to_logK_entry s2k e 
+  L.to_logK_entry s2k e
 
-(* if there are no verification failures, slot_points to implies merkle points to property is 
+(* if there are no verification failures, slot_points to implies merkle points to property is
  * propagates *)
-val lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_) 
+val lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_)
                                                       (vs:vtls vcfg)
                                                       (e: logS_entry _):
   Lemma (requires (Valid? vs /\ slot_points_to_is_merkle_points_to (thread_store vs) /\
@@ -495,14 +495,14 @@ let vtls_rel #vcfg (vs:vtls vcfg) (vs':Spec.vtls) : Type =
     let Spec.Valid id' st' clk' _ ha' he' = vs' in
     store_rel st st' /\ id = id' /\ clk = clk' /\ ha = ha' /\ he = he'))
 
-val lemma_vget_simulates_spec 
+val lemma_vget_simulates_spec
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)      
+      (vs':Spec.vtls)
       (e:logS_entry vcfg{Get_S? e})
-  : Lemma (requires (vtls_rel vs vs' /\                     
+  : Lemma (requires (vtls_rel vs vs' /\
                      valid_logS_entry vs e))
-          (ensures (let ek = to_logK_entry vs e in          
+          (ensures (let ek = to_logK_entry vs e in
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 
 val lemma_vget_preserves_ismap
@@ -520,14 +520,14 @@ val lemma_vput_preserves_ismap
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
           [SMTPat (verify_step vs e)]
 
-val lemma_vput_simulates_spec 
+val lemma_vput_simulates_spec
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)      
+      (vs':Spec.vtls)
       (e:logS_entry vcfg{Put_S? e})
-  : Lemma (requires (vtls_rel vs vs' /\                     
+  : Lemma (requires (vtls_rel vs vs' /\
                      valid_logS_entry vs e))
-          (ensures (let ek = to_logK_entry vs e in          
+          (ensures (let ek = to_logK_entry vs e in
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 
 (* if the key is not present in store and store is a map, then store remains a map after add *)
@@ -555,20 +555,6 @@ val lemma_vaddm_preserves_spec_new_key
           (ensures (let ek = to_logK_entry vs e in
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 
-(* addb preserves spec relationship if the kew is not in store *)
-val lemma_vaddb_preserves_spec_new_key
-      (#vcfg:_)
-      (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)      
-      (e:logS_entry _{AddB_S? e})
-  : Lemma (requires (let st = thread_store vs in
-                     let AddB_S _ (k,_) _ _ = e in
-                     vtls_rel vs vs' /\
-                     valid_logS_entry vs e /\
-                     not (store_contains_key st k)))
-          (ensures (let ek = to_logK_entry vs e in
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
-
 (* if the key is not present in store and store is a map, then store remains a map after add *)
 val lemma_vaddb_preserves_ismap_new_key
       (#vcfg:_)
@@ -579,14 +565,18 @@ val lemma_vaddb_preserves_ismap_new_key
                      is_map st /\ not (store_contains_key st k)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
 
-val lemma_evictb_simulates_spec 
+(* addb preserves spec relationship if the kew is not in store *)
+val lemma_vaddb_preserves_spec_new_key
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)      
-      (e:logS_entry vcfg{EvictB_S? e})
-  : Lemma (requires (vtls_rel vs vs' /\                     
-                     valid_logS_entry vs e))
-          (ensures (let ek = to_logK_entry vs e in          
+      (vs':Spec.vtls)
+      (e:logS_entry _{AddB_S? e})
+  : Lemma (requires (let st = thread_store vs in
+                     let AddB_S _ (k,_) _ _ = e in
+                     vtls_rel vs vs' /\
+                     valid_logS_entry vs e /\
+                     not (store_contains_key st k)))
+          (ensures (let ek = to_logK_entry vs e in
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 
 val lemma_evictb_preserves_ismap
@@ -595,18 +585,18 @@ val lemma_evictb_preserves_ismap
       (e:logS_entry _{EvictB_S? e})
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
-  
-val lemma_evictm_simulates_spec
+
+val lemma_evictb_simulates_spec
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)      
-      (e:logS_entry vcfg{EvictM_S? e})
+      (vs':Spec.vtls)
+      (e:logS_entry vcfg{EvictB_S? e})
   : Lemma (requires (let st = thread_store vs in
-                     vtls_rel vs vs' /\                     
+                     vtls_rel vs vs' /\
                      valid_logS_entry vs e /\
                      slot_points_to_is_merkle_points_to st))
-          (ensures (let ek = to_logK_entry vs e in          
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))  
+          (ensures (let ek = to_logK_entry vs e in
+                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 
 val lemma_evictm_preserves_ismap
       (#vcfg:_)
@@ -615,17 +605,17 @@ val lemma_evictm_preserves_ismap
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
 
-val lemma_evictbm_simulates_spec
+val lemma_evictm_simulates_spec
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)      
-      (e:logS_entry vcfg{EvictBM_S? e})
+      (vs':Spec.vtls)
+      (e:logS_entry vcfg{EvictM_S? e})
   : Lemma (requires (let st = thread_store vs in
-                     vtls_rel vs vs' /\                     
+                     vtls_rel vs vs' /\
                      valid_logS_entry vs e /\
                      slot_points_to_is_merkle_points_to st))
-          (ensures (let ek = to_logK_entry vs e in          
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))  
+          (ensures (let ek = to_logK_entry vs e in
+                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 
 val lemma_evictbm_preserves_ismap
       (#vcfg:_)
@@ -634,15 +624,28 @@ val lemma_evictbm_preserves_ismap
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
 
-let init_thread_state #vcfg (tid:thread_id) (st:vstore _): vtls vcfg = 
+val lemma_evictbm_simulates_spec
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+      (vs':Spec.vtls)
+      (e:logS_entry vcfg{EvictBM_S? e})
+  : Lemma (requires (let st = thread_store vs in
+                     vtls_rel vs vs' /\
+                     valid_logS_entry vs e /\
+                     slot_points_to_is_merkle_points_to st))
+          (ensures (let ek = to_logK_entry vs e in
+                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
+
+
+let init_thread_state #vcfg (tid:thread_id) (st:vstore _): vtls vcfg =
   Valid tid st (MkTimestamp 0 0) empty_hash_value empty_hash_value
 
-let blum_evict_elem #vcfg (vs:vtls vcfg{Valid? vs}) 
-                    (e:logS_entry _ {is_evict_to_blum e /\ Valid? (verify_step vs e)}) 
-                    (tid: thread_id): ms_hashfn_dom = 
+let blum_evict_elem #vcfg (vs:vtls vcfg{Valid? vs})
+                    (e:logS_entry _ {is_evict_to_blum e /\ Valid? (verify_step vs e)})
+                    (tid: thread_id): ms_hashfn_dom =
   let st = thread_store vs in
   match e with
-  | EvictB_S s t ->    
+  | EvictB_S s t ->
     let k = stored_key st s in
     let v = stored_value st s in
     MHDom (k,v) t tid
@@ -669,30 +672,30 @@ let t_verify_step #vcfg (vs:vtls vcfg) (e:logS_entry vcfg): vtls vcfg =
     | EvictBM_S s s' t -> vevictbm s s' t vs
 
 (* Convert slot-based log entry e to a key-based log entry, given verifier state vs.
-   This is basically a "light" version of the vfun functions that reconstructs the log. 
+   This is basically a "light" version of the vfun functions that reconstructs the log.
    We could have the vfun functions return logK entries instead, but this seems cleaner. *)
 let logS_to_logK_entry #vcfg (vs:vtls vcfg {Valid? vs}) (e:logS_entry vcfg) : option logK_entry =
   let st = thread_store vs in
   match e with
-  | Get_S s k v -> 
+  | Get_S s k v ->
       if inuse_slot st s && k = stored_key st s
       then Some (Spec.Get k v) else None
-  | Put_S s k v -> 
+  | Put_S s k v ->
       if inuse_slot st s && k = stored_key st s
       then Some (Spec.Put k v) else None
-  | AddM_S _ r s' -> 
-      if inuse_slot st s' && is_merkle_key (stored_key st s') 
+  | AddM_S _ r s' ->
+      if inuse_slot st s' && is_merkle_key (stored_key st s')
       then Some (Spec.AddM r (stored_key st s')) else None
-  | EvictM_S s s' -> 
-      if inuse_slot st s && inuse_slot st s' && is_merkle_key (stored_key st s') 
+  | EvictM_S s s' ->
+      if inuse_slot st s && inuse_slot st s' && is_merkle_key (stored_key st s')
       then Some (Spec.EvictM (stored_key st s) (stored_key st s')) else None
-  | AddB_S _ r t j -> 
+  | AddB_S _ r t j ->
       Some (Spec.AddB r t j)
-  | EvictB_S s t -> 
+  | EvictB_S s t ->
       if inuse_slot st s
       then Some (Spec.EvictB (stored_key st s) t) else None
   | EvictBM_S s s' t ->
-      if inuse_slot st s && inuse_slot st s' && is_merkle_key (stored_key st s') 
+      if inuse_slot st s && inuse_slot st s' && is_merkle_key (stored_key st s')
       then Some (Spec.EvictBM (stored_key st s) (stored_key st s') t) else None
 
 (* Add the logK_entry equivalent of e to log l, given current state vs. *)
@@ -720,26 +723,26 @@ val lemma_t_verify_aux_valid_implies_log_exists (#vcfg:_) (vs:vtls vcfg) (l:logS
           (decreases (Seq.length l))
           [SMTPat (Some? (snd (t_verify_aux vs l)))]
 
-let init_thread_state #vcfg (id:thread_id): vtls vcfg = 
-  let vs = Valid id (empty_store vcfg) (MkTimestamp 0 0) empty_hash_value empty_hash_value in  
+let init_thread_state #vcfg (id:thread_id): vtls vcfg =
+  let vs = Valid id (empty_store vcfg) (MkTimestamp 0 0) empty_hash_value empty_hash_value in
   if id = 0 then
     let st0 = thread_store vs in
     let st0_upd = madd_to_store_root st0 0 (init_value Root) in
-    update_thread_store vs st0_upd    
+    update_thread_store vs st0_upd
   else vs
 
-let init_thread_state2 #vcfg (id:thread_id): vtls vcfg = 
-  let vs = Valid id (empty_store vcfg) (MkTimestamp 0 0) empty_hash_value empty_hash_value in  
+let init_thread_state2 #vcfg (id:thread_id): vtls vcfg =
+  let vs = Valid id (empty_store vcfg) (MkTimestamp 0 0) empty_hash_value empty_hash_value in
   if id = 0 then
     let st0 = thread_store vs in
     let st0_upd = madd_to_store_root st0 0 (init_value Root) in
-    update_thread_store vs st0_upd    
+    update_thread_store vs st0_upd
   else vs
 
 
 (* Main thread-level verify function *)
-let t_verify #vcfg (id:thread_id) (l:logS vcfg): vtls vcfg = 
-  fst (t_verify_aux (init_thread_state id) l) 
+let t_verify #vcfg (id:thread_id) (l:logS vcfg): vtls vcfg =
+  fst (t_verify_aux (init_thread_state id) l)
 
 let logS_to_logK #vcfg (id:thread_id) (l:logS vcfg{Valid? (t_verify id l)}) : logK =
   Some?.v (snd (t_verify_aux (init_thread_state #vcfg id) l))
@@ -760,7 +763,7 @@ let tl_verify #vcfg (tl:thread_id_logS vcfg) (i:tl_idx tl): vtls _ =
   verify (tl_prefix tl (i + 1))
 
 (* Utilities for running all verifier threads and comparing aggregate add/evict hashes.
-   Follows the definitions in Veritas.Verifier.Global. *) 
+   Follows the definitions in Veritas.Verifier.Global. *)
 
 
 
@@ -781,20 +784,20 @@ let hevict #vcfg (gl: gl_verifiable_log vcfg): ms_hash_value = hevict_aux gl
 
 let gl_hash_verifiable_log vcfg = gl:gl_verifiable_log vcfg{gl_hash_verifiable gl}
 
-let gl_clock #vcfg (gl:gl_verifiable_log vcfg) (i:I.sseq_index gl): timestamp = 
-  let (tid, idx) = i in  
+let gl_clock #vcfg (gl:gl_verifiable_log vcfg) (i:I.sseq_index gl): timestamp =
+  let (tid, idx) = i in
   let tl = thread_log gl tid in
   tl_clock tl idx
 
 let gl_verify #vcfg (gl:g_logS vcfg) (i:I.sseq_index gl): vtls _ =
-  let (tid, idx) = i in  
+  let (tid, idx) = i in
   let tl = thread_log gl tid in
   tl_verify tl idx
 
 (* Utilities for verifying the global, interleaved log shared among all threads.
-   Follows the definitions in Veritas.Verifier.TSLog. *) 
+   Follows the definitions in Veritas.Verifier.TSLog. *)
 
-let il_verifiable #vcfg (il: il_logS vcfg) = 
+let il_verifiable #vcfg (il: il_logS vcfg) =
   gl_verifiable (g_logS_of il)
 
 let il_clock #vcfg (il: il_logS vcfg{il_verifiable il}) (i: I.seq_index il): timestamp =
