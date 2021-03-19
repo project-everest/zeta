@@ -1747,10 +1747,40 @@ let lemma_evictb_simulates_spec
 
       ()
     )
-    else (
-      assert(sat_evictb_checks s t vss);
-      admit()
-    )
+    else
+      let vss1 = verify_step vss e in
+      let vsk1 = Spec.t_verify_step vsk ek in
+      if add_method_of sts s <> Spec.BAdd then ()
+      else (
+        assert(Valid? vss1);
+        assert(ts_lt (Spec.Valid?.clk vsk) t);
+        assert(Spec.store_contains stk k);
+        assert(Spec.add_method_of stk k = Spec.BAdd);
+
+        if Spec.has_instore_merkle_desc stk k then (
+          let mv = to_merkle_value (Spec.stored_value stk k) in
+          assert(mv = to_merkle_value (stored_value sts s));
+
+          let ld = desc_hash_dir mv Left in
+          let rd = desc_hash_dir mv Right in
+
+          assert(Desc? ld && Spec.is_instore_madd stk (Desc?.k ld) ||
+                 Desc? rd && Spec.is_instore_madd stk (Desc?.k rd));
+
+          if Desc? ld && Spec.is_instore_madd stk (Desc?.k ld) then (
+            let lk = Desc?.k ld in
+            assert(Spec.store_contains stk lk);
+            assert(Spec.store_contains sts_map lk);
+            let slk = slot_of_key sts lk in
+
+            admit()
+          )
+          else admit()
+        )
+        else
+          admit()
+      )
+
 
 let lemma_evictm_preserves_ismap
       (#vcfg:_)

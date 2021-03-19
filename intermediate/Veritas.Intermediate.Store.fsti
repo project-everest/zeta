@@ -413,3 +413,18 @@ let slot_points_to_is_merkle_points_to_local
 
 let slot_points_to_is_merkle_points_to (#vcfg:_) (st: vstore vcfg) =
   forall (s1 s2: slot_id _). forall d. slot_points_to_is_merkle_points_to_local st s1 s2 d
+
+let mv_points_to_in_some_dir (v:merkle_value) (k:key): bool =
+  mv_points_to v Left k ||
+  mv_points_to v Right k
+
+let merkle_points_to_uniq_local (#vcfg: _) (st: vstore vcfg) (s1 s2: slot_id vcfg) (k: key): bool =
+  s1 = s2 ||
+  empty_slot st s1 || not (is_merkle_key (stored_key st s1)) ||
+  empty_slot st s2 || not (is_merkle_key (stored_key st s2)) ||
+  (let mv1 = to_merkle_value (stored_value st s1) in
+   let mv2 = to_merkle_value (stored_value st s2) in
+   not (mv_points_to_in_some_dir mv1 k && mv_points_to_in_some_dir mv2 k))
+
+let merkle_points_to_uniq (#vcfg: _) (st: vstore vcfg) =
+  forall s1. forall s2. forall k. {:pattern merkle_points_to_uniq_local st s1 s2 k} merkle_points_to_uniq_local st s1 s2 k
