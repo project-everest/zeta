@@ -437,3 +437,23 @@ let merkle_points_to_desc_local (#vcfg:_) (st: vstore vcfg) (s: slot_id vcfg) (d
 
 let merkle_points_to_desc (#vcfg:_) (st: vstore vcfg) =
   forall s. forall d. {:pattern merkle_points_to_desc_local st s d} merkle_points_to_desc_local st s d
+
+val lemma_not_contains_after_mevict
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  (s':inuse_slot_id st)
+  (d:bin_tree_dir{points_to_dir st s' d s}):
+  Lemma (ensures (let st' = mevict_from_store st s s' d in
+                  let k = stored_key st s in
+                  is_map st' /\
+                  not (store_contains_key st' k)))
+
+val lemma_not_contains_after_bevict
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  : Lemma (ensures (let st' = bevict_from_store st s in
+                    let k = stored_key st s in
+                    is_map st' /\
+                    not (store_contains_key st' k)))

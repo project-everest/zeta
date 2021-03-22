@@ -719,6 +719,27 @@ let slot_of_key (#vcfg:_) (st:ismap_vstore vcfg) (k: key{let stk = as_map st in
                               stored_value st s = Spec.stored_value stk k /\
                               add_method_of st s = Spec.add_method_of stk k}) = admit()
 
+let lemma_not_contains_after_mevict
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  (s':inuse_slot_id st)
+  (d:bin_tree_dir{points_to_dir st s' d s}):
+  Lemma (ensures (let st' = mevict_from_store st s s' d in
+                  let k = stored_key st s in
+                  is_map st' /\
+                  not (store_contains_key st' k))) = admit()
+
+let lemma_not_contains_after_bevict
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  : Lemma (ensures (let st' = bevict_from_store st s in
+                    let k = stored_key st s in
+                    is_map st' /\
+                    not (store_contains_key st' k))) = admit()
+
+
 (*
 (* update the data value of a data key *)
 let update_data_value
