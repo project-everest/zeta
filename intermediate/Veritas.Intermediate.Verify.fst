@@ -1713,7 +1713,9 @@ let lemma_evictb_simulates_spec
   : Lemma (requires (let sts = thread_store vss in
                      vtls_rel vss vsk /\
                      valid_logS_entry vss e /\
-                     slot_points_to_is_merkle_points_to sts))
+                     slot_points_to_is_merkle_points_to sts /\
+                     merkle_points_to_uniq sts /\
+                     merkle_points_to_desc sts))
           (ensures (let ek = to_logK_entry vss e in
                     vtls_rel (verify_step vss e) (Spec.t_verify_step vsk ek))) =
   let sts = thread_store vss in
@@ -1767,20 +1769,33 @@ let lemma_evictb_simulates_spec
           assert(Desc? ld && Spec.is_instore_madd stk (Desc?.k ld) ||
                  Desc? rd && Spec.is_instore_madd stk (Desc?.k rd));
 
-          if Desc? ld && Spec.is_instore_madd stk (Desc?.k ld) then (
-            let lk = Desc?.k ld in
-            assert(Spec.store_contains stk lk);
-            assert(Spec.store_contains sts_map lk);
-            let slk = slot_of_key sts lk in
+          let d = if Desc? ld && Spec.is_instore_madd stk (Desc?.k ld) then Left else Right in
+          let kd = mv_pointed_key mv d in
 
-            admit()
-          )
-          else admit()
+          assert(Spec.store_contains stk kd /\ Spec.add_method_of stk kd = Spec.MAdd);
+          let sd = slot_of_key sts kd in
+          assert(stored_key sts sd = kd /\ add_method_of sts sd = Spec.MAdd);
+          assert(merkle_points_to_desc_local sts s d);
+
+          assert(kd <> Root);
+          let s2 = pointing_slot sts sd in
+          assert(points_to sts s2 sd);
+
+          let d2 = if points_to_dir sts s2 Left sd then Left else Right in
+          assert(points_to_dir sts s2 d2 sd);
+          assert(slot_points_to_is_merkle_points_to_local sts s2 sd d2);
+          let mv2 = to_merkle_value (stored_value sts s2) in
+
+          assert(mv_points_to mv2 d2 kd);
+          assert(mv_points_to mv d kd);
+          assert(s2 <> s);
+          assert(merkle_points_to_uniq_local sts s s2 kd);
+          assert(False);
+          ()
         )
         else
           admit()
       )
-
 
 let lemma_evictm_preserves_ismap
       (#vcfg:_)

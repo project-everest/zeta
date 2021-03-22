@@ -594,7 +594,9 @@ val lemma_evictb_simulates_spec
   : Lemma (requires (let st = thread_store vs in
                      vtls_rel vs vs' /\
                      valid_logS_entry vs e /\
-                     slot_points_to_is_merkle_points_to st))
+                     slot_points_to_is_merkle_points_to st /\
+                     merkle_points_to_uniq st /\
+                     merkle_points_to_desc st))
           (ensures (let ek = to_logK_entry vs e in
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 

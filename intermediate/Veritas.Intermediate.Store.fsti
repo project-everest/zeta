@@ -428,3 +428,12 @@ let merkle_points_to_uniq_local (#vcfg: _) (st: vstore vcfg) (s1 s2: slot_id vcf
 
 let merkle_points_to_uniq (#vcfg: _) (st: vstore vcfg) =
   forall s1. forall s2. forall k. {:pattern merkle_points_to_uniq_local st s1 s2 k} merkle_points_to_uniq_local st s1 s2 k
+
+let merkle_points_to_desc_local (#vcfg:_) (st: vstore vcfg) (s: slot_id vcfg) (d: bin_tree_dir): bool =
+  empty_slot st s || not (is_merkle_key (stored_key st s)) ||
+  (let mv = to_merkle_value (stored_value st s) in
+   mv_points_to_none mv d ||
+   is_proper_desc (mv_pointed_key mv d) (stored_key st s))
+
+let merkle_points_to_desc (#vcfg:_) (st: vstore vcfg) =
+  forall s. forall d. {:pattern merkle_points_to_desc_local st s d} merkle_points_to_desc_local st s d

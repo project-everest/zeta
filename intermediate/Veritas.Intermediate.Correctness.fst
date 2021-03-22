@@ -781,6 +781,38 @@ let inductive_step_addb #vcfg
     else
       inductive_step_addb_caseA ils i
 
+let induction_props_implies_merkle_points_to_desc #vcfg
+  (ils: IntTS.hash_verifiable_log vcfg)
+  (i: I.seq_index ils {let ils_i = I.prefix ils i in
+                       induction_props ils_i}):
+  Lemma (ensures (let vss = thread_state_pre ils i in
+                  let sts = IntV.thread_store vss in
+                  merkle_points_to_desc sts)) =
+  let tid = IntTS.thread_id_of ils i in
+  let vss = thread_state_pre ils i in
+  let sts = IntV.thread_store vss in
+  let ilk = to_logk ils in
+  let ilk_i = I.prefix ilk i in
+  let vsk = SpecTS.thread_state_pre ilk i in
+  let stk = SpecV.thread_store vsk in
+  assert(store_rel sts stk);
+  let aux (s: _) (d: _)
+    : Lemma (ensures (merkle_points_to_desc_local sts s d))
+            [SMTPat (merkle_points_to_desc_local sts s d)] =
+    if merkle_points_to_desc_local sts s d then ()
+    else
+      let mv1 = to_merkle_value (stored_value sts s) in
+      let k = stored_key sts s in
+      let kd = mv_pointed_key mv1 d in
+
+      assert(SpecV.store_contains stk k);
+      assert(SpecV.stored_value stk k = stored_value sts s);
+      SpecTS.lemma_eac_value_is_stored_value ilk_i k tid;
+      SpecM.lemma_mv_points_to_dir_correct ilk_i k d;
+      ()
+  in
+  ()
+
 let induction_props_implies_proving_ancestor #vcfg
   (ils: IntTS.hash_verifiable_log vcfg)
   (i: I.seq_index ils{let ils_i = I.prefix ils i in
@@ -853,6 +885,8 @@ let inductive_step_evictb #vcfg
 
   match es with
   | EvictB_S s t ->
+    induction_props_implies_proving_ancestor ils i;
+    induction_props_implies_merkle_points_to_desc ils i;
     lemma_evictb_simulates_spec vss_i vsk_i es;
     lemma_forall_vtls_rel_extend ils i;
     lemma_evictb_preserves_ismap vss_i es;
