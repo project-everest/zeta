@@ -280,7 +280,7 @@ let vevictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs})
       | Desc k2 h2 b2 ->
           if k2 <> k then Failed
           (* if s' does not point to s in direction d then Fail *)
-          else if not (points_to_dir st s' d s) then Failed
+          else if points_to_some_slot st s' d && pointed_slot st s' d <> s then Failed
           else
             let v'_upd = Spec.update_merkle_value v' d k h false in
             let st_upd = update_value st s' (MVal v'_upd) in
@@ -615,7 +615,9 @@ val lemma_evictm_simulates_spec
   : Lemma (requires (let st = thread_store vs in
                      vtls_rel vs vs' /\
                      valid_logS_entry vs e /\
-                     slot_points_to_is_merkle_points_to st))
+                     slot_points_to_is_merkle_points_to st /\
+                     merkle_points_to_uniq st /\
+                     merkle_points_to_desc st))
           (ensures (let ek = to_logK_entry vs e in
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 
@@ -634,7 +636,9 @@ val lemma_evictbm_simulates_spec
   : Lemma (requires (let st = thread_store vs in
                      vtls_rel vs vs' /\
                      valid_logS_entry vs e /\
-                     slot_points_to_is_merkle_points_to st))
+                     slot_points_to_is_merkle_points_to st /\
+                     merkle_points_to_uniq st /\
+                     merkle_points_to_desc st))
           (ensures (let ek = to_logK_entry vs e in
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 

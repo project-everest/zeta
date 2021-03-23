@@ -1674,6 +1674,83 @@ let lemma_evictb_preserves_ismap
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
   = ()
 
+let lemma_points_to_some_implies_has_instore_merkle_desc
+  (#vcfg:_)
+  (sts: vstore vcfg)
+  (stk: Spec.vstore)
+  (s: inuse_slot_id sts)
+  : Lemma (requires (store_rel sts stk /\
+                     slot_points_to_is_merkle_points_to sts /\
+                     merkle_points_to_uniq sts /\
+                     merkle_points_to_desc sts /\
+                     (points_to_some_slot sts s Left || points_to_some_slot sts s Right)))
+          (ensures (let k = stored_key sts s in
+                    Spec.has_instore_merkle_desc stk k)) =
+  let k = stored_key sts s in
+  let d = if points_to_some_slot sts s Left then Left else Right in
+  let sd = pointed_slot sts s d in
+  assert(slot_points_to_is_merkle_points_to_local sts s sd d);
+  assert(points_to_dir sts s d sd);
+  assert(inuse_slot sts sd);
+
+  let mv = to_merkle_value (stored_value sts s) in
+  let kd = stored_key sts sd in
+  assert(mv_points_to mv d kd);
+  assert(Spec.store_contains stk kd);
+  assert(mv = to_merkle_value (Spec.stored_value stk k));
+  assert(add_method_of sts sd = Spec.MAdd);
+  ()
+
+let lemma_has_instore_merkle_desc_implies_slot_points_to
+  (#vcfg:_)
+  (sts: vstore vcfg)
+  (stk: Spec.vstore)
+  (s: inuse_slot_id sts)
+  : Lemma (requires (let k = stored_key sts s in
+                     store_rel sts stk /\
+                     slot_points_to_is_merkle_points_to sts /\
+                     merkle_points_to_uniq sts /\
+                     merkle_points_to_desc sts /\
+                     Spec.store_contains stk k /\
+                     Spec.has_instore_merkle_desc stk k))
+          (ensures (points_to_some_slot sts s Left || points_to_some_slot sts s Right )) =
+  let k = stored_key sts s in
+  assert(Spec.has_instore_merkle_desc stk k);
+  assert(is_merkle_key k);
+  let mv = to_merkle_value (Spec.stored_value stk k) in
+  assert(mv = to_merkle_value (stored_value sts s));
+  let ld = desc_hash_dir mv Left in
+  let rd = desc_hash_dir mv Right in
+
+  assert(Desc? ld && Spec.is_instore_madd stk (Desc?.k ld) ||
+    Desc? rd && Spec.is_instore_madd stk (Desc?.k rd));
+
+  let d = if Desc? ld && Spec.is_instore_madd stk (Desc?.k ld) then Left else Right in
+  let kd = mv_pointed_key mv d in
+
+  assert(Spec.store_contains stk kd /\ Spec.add_method_of stk kd = Spec.MAdd);
+  let sd = slot_of_key sts kd in
+  assert(stored_key sts sd = kd /\ add_method_of sts sd = Spec.MAdd);
+  assert(merkle_points_to_desc_local sts s d);
+
+  assert(kd <> Root);
+  let s2 = pointing_slot sts sd in
+  assert(points_to sts s2 sd);
+
+  let d2 = if points_to_dir sts s2 Left sd then Left else Right in
+  assert(points_to_dir sts s2 d2 sd);
+  assert(slot_points_to_is_merkle_points_to_local sts s2 sd d2);
+  let mv2 = to_merkle_value (stored_value sts s2) in
+
+  assert(mv_points_to mv2 d2 kd);
+  assert(mv_points_to mv d kd);
+
+  if s2 = s then ()
+  else (
+    assert(merkle_points_to_uniq_local sts s s2 kd);
+    ()
+  )
+
 let lemma_evictb_simulates_spec
       (#vcfg:_)
       (vss:vtls vcfg{Valid? vss})
@@ -1702,22 +1779,8 @@ let lemma_evictb_simulates_spec
 
     if k = Root then ()
     else if not (clk `ts_lt` t) then ()
-    else if points_to_some_slot sts s Left || points_to_some_slot sts s Right then (
-      let d = if points_to_some_slot sts s Left then Left else Right in
-      let sd = pointed_slot sts s d in
-      assert(slot_points_to_is_merkle_points_to_local sts s sd d);
-      assert(points_to_dir sts s d sd);
-      assert(inuse_slot sts sd);
-
-      let mv = to_merkle_value (stored_value sts s) in
-      let kd = stored_key sts sd in
-      assert(mv_points_to mv d kd);
-      assert(Spec.store_contains stk kd);
-      assert(mv = to_merkle_value (Spec.stored_value stk k));
-      assert(add_method_of sts sd = Spec.MAdd);
-
-      ()
-    )
+    else if points_to_some_slot sts s Left || points_to_some_slot sts s Right then
+      lemma_points_to_some_implies_has_instore_merkle_desc sts stk s
     else
       let vss1 = verify_step vss e in
       let vsk1 = Spec.t_verify_step vsk ek in
@@ -1728,40 +1791,8 @@ let lemma_evictb_simulates_spec
         assert(Spec.store_contains stk k);
         assert(Spec.add_method_of stk k = Spec.BAdd);
 
-        if Spec.has_instore_merkle_desc stk k then (
-          let mv = to_merkle_value (Spec.stored_value stk k) in
-          assert(mv = to_merkle_value (stored_value sts s));
-
-          let ld = desc_hash_dir mv Left in
-          let rd = desc_hash_dir mv Right in
-
-          assert(Desc? ld && Spec.is_instore_madd stk (Desc?.k ld) ||
-                 Desc? rd && Spec.is_instore_madd stk (Desc?.k rd));
-
-          let d = if Desc? ld && Spec.is_instore_madd stk (Desc?.k ld) then Left else Right in
-          let kd = mv_pointed_key mv d in
-
-          assert(Spec.store_contains stk kd /\ Spec.add_method_of stk kd = Spec.MAdd);
-          let sd = slot_of_key sts kd in
-          assert(stored_key sts sd = kd /\ add_method_of sts sd = Spec.MAdd);
-          assert(merkle_points_to_desc_local sts s d);
-
-          assert(kd <> Root);
-          let s2 = pointing_slot sts sd in
-          assert(points_to sts s2 sd);
-
-          let d2 = if points_to_dir sts s2 Left sd then Left else Right in
-          assert(points_to_dir sts s2 d2 sd);
-          assert(slot_points_to_is_merkle_points_to_local sts s2 sd d2);
-          let mv2 = to_merkle_value (stored_value sts s2) in
-
-          assert(mv_points_to mv2 d2 kd);
-          assert(mv_points_to mv d kd);
-          assert(s2 <> s);
-          assert(merkle_points_to_uniq_local sts s s2 kd);
-          assert(False);
-          ()
-        )
+        if Spec.has_instore_merkle_desc stk k then
+          lemma_has_instore_merkle_desc_implies_slot_points_to sts stk s
         else (
           assert(Spec.Valid? vsk1);
           let sts1 = thread_store vss1  in
@@ -1803,16 +1834,94 @@ let lemma_evictm_preserves_ismap
 
 let lemma_evictm_simulates_spec
       (#vcfg:_)
-      (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)
+      (vss:vtls vcfg{Valid? vss})
+      (vsk:Spec.vtls)
       (e:logS_entry vcfg{EvictM_S? e})
-  : Lemma (requires (let st = thread_store vs in
-                     vtls_rel vs vs' /\
-                     valid_logS_entry vs e /\
-                     slot_points_to_is_merkle_points_to st))
-          (ensures (let ek = to_logK_entry vs e in
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
-   = admit()
+  : Lemma (requires (let st = thread_store vss in
+                     vtls_rel vss vsk /\
+                     valid_logS_entry vss e /\
+                     slot_points_to_is_merkle_points_to st /\
+                     merkle_points_to_uniq st /\
+                     merkle_points_to_desc st))
+          (ensures (let ek = to_logK_entry vss e in
+                    vtls_rel (verify_step vss e) (Spec.t_verify_step vsk ek))) =
+  let sts = thread_store vss in
+  let sts_map = as_map sts in
+  let stk = Spec.thread_store vsk in
+  let vss1 = verify_step vss e in
+  let ek = to_logK_entry vss e in
+  let vsk1 = Spec.t_verify_step vsk ek in
+  match e with
+  | EvictM_S s s' ->
+    (* valid log entry e implies s and s' are inuse slots *)
+    assert(inuse_slot sts s /\ inuse_slot sts s');
+
+    let k = stored_key sts s in
+    let k' = stored_key sts s' in
+
+    assert(ek = Spec.EvictM k k');
+
+    (* both spec and intermediate fail *)
+    if not (is_proper_desc k k') then ()
+    else if points_to_some_slot sts s Left || points_to_some_slot sts s Right then
+      lemma_points_to_some_implies_has_instore_merkle_desc sts stk s
+    else
+      let d = desc_dir k k' in
+      let v' = to_merkle_value (stored_value sts s') in
+      let dh' = desc_hash_dir v' d in
+      match dh' with
+      | Empty -> ()
+      | Desc k2 h2 b2 ->
+        if k2 <> k then ()
+        else if points_to_some_slot sts s' d && pointed_slot sts s' d <> s then (
+          let s2 = pointed_slot sts s' d in
+          assert(points_to_inuse_local sts s' s2);
+          assert(inuse_slot sts s2);
+          let k3 = stored_key sts s2 in
+          assert(slot_points_to_is_merkle_points_to_local sts s' s2 d);
+          assert(k3 = k);
+          ()
+        )
+        else if Spec.has_instore_merkle_desc stk k then
+          lemma_has_instore_merkle_desc_implies_slot_points_to sts stk s
+
+        else (
+          assert(Valid? vss1);
+          assert(Spec.Valid? vsk1);
+
+          let sts1 = thread_store vss1  in
+          lemma_evictm_preserves_ismap vss e;
+          let sts1_map = as_map sts1 in
+          let stk1 = Spec.thread_store vsk1 in
+          let h = hashfn (stored_value sts s) in
+          let v'_upd = Spec.update_merkle_value v' d k h false in
+          let st_upd = update_value sts s' (MVal v'_upd) in
+          assert(sts1 == mevict_from_store st_upd s s' d);
+          let aux (k2: key):
+            Lemma (ensures (sts1_map k2 = stk1 k2)) =
+            if k2 = k then
+              lemma_not_contains_after_mevict st_upd s s' d
+            else if k2 = k' then
+              ()
+            else if Spec.store_contains stk1 k2 then (
+              assert(stk1 k2 = stk k2);
+              let s2 = slot_of_key sts k2 in
+              assert(s2 <> s /\ s2 <> s');
+              assert(get_slot sts s2 = get_slot sts1 s2);
+              assert(stored_key sts1 s2 = k2);
+              lemma_as_map_slot_key_equiv sts1 s2;
+              assert(Spec.store_contains sts1_map k2);
+              ()
+            )
+            else if Spec.store_contains sts1_map k2 then (
+              let s2 = slot_of_key sts1 k2 in
+              assert(get_slot sts s2 = get_slot sts1 s2);
+              assert(stored_key sts s2 = k2);
+              ()
+            )
+            else () in
+          forall_intro aux
+        )
 
 let lemma_evictbm_preserves_ismap
       (#vcfg:_)
@@ -1820,19 +1929,30 @@ let lemma_evictbm_preserves_ismap
       (e:logS_entry _{EvictBM_S? e})
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
-  = admit()
+  = ()
 
 let lemma_evictbm_simulates_spec
       (#vcfg:_)
-      (vs:vtls vcfg{Valid? vs})
-      (vs':Spec.vtls)
+      (vss:vtls vcfg{Valid? vss})
+      (vsk:Spec.vtls)
       (e:logS_entry vcfg{EvictBM_S? e})
-  : Lemma (requires (let st = thread_store vs in
-                     vtls_rel vs vs' /\
-                     valid_logS_entry vs e /\
-                     slot_points_to_is_merkle_points_to st))
-          (ensures (let st = thread_store vs in
-                    let s2k = S.to_slot_state_map st in
-                    let ek = to_logK_entry vs e in
-                    vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
-  = admit()
+  : Lemma (requires (let sts = thread_store vss in
+                     vtls_rel vss vsk /\
+                     valid_logS_entry vss e /\
+                     slot_points_to_is_merkle_points_to sts /\
+                     merkle_points_to_uniq sts /\
+                     merkle_points_to_desc sts))
+          (ensures (let sts = thread_store vss in
+                    let ek = to_logK_entry vss e in
+                    vtls_rel (verify_step vss e) (Spec.t_verify_step vsk ek)))
+  =
+  let sts = thread_store vss in
+  let sts_map = as_map sts in
+  let stk = Spec.thread_store vsk in
+  let vss1 = verify_step vss e in
+  let ek = to_logK_entry vss e in
+  let vsk1 = Spec.t_verify_step vsk ek in
+  match e with
+  | EvictBM_S s s' t ->
+
+    admit()

@@ -253,7 +253,7 @@ val mevict_from_store
   (st:vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
   (s':inuse_slot_id st)
-  (d:bin_tree_dir{points_to_dir st s' d s})
+  (d:bin_tree_dir{points_to_some_slot st s' d ==> points_to_dir st s' d s})
   : Tot (st':vstore vcfg {let od = other_dir d in
 
                           // st and st' identical except at s, s'
@@ -443,7 +443,7 @@ val lemma_not_contains_after_mevict
   (st:vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
   (s':inuse_slot_id st)
-  (d:bin_tree_dir{points_to_dir st s' d s}):
+  (d:bin_tree_dir{points_to_some_slot st s' d ==> points_to_dir st s' d s}):
   Lemma (ensures (let st' = mevict_from_store st s s' d in
                   let k = stored_key st s in
                   is_map st' /\

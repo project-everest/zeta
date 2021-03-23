@@ -429,6 +429,90 @@ let inductive_step_addm #vcfg
     else
       inductive_step_addm_caseA ils i
 
+let induction_props_implies_merkle_points_to_desc #vcfg
+  (ils: IntTS.hash_verifiable_log vcfg)
+  (i: I.seq_index ils {let ils_i = I.prefix ils i in
+                       induction_props ils_i}):
+  Lemma (ensures (let vss = thread_state_pre ils i in
+                  let sts = IntV.thread_store vss in
+                  merkle_points_to_desc sts)) =
+  let tid = IntTS.thread_id_of ils i in
+  let vss = thread_state_pre ils i in
+  let sts = IntV.thread_store vss in
+  let ilk = to_logk ils in
+  let ilk_i = I.prefix ilk i in
+  let vsk = SpecTS.thread_state_pre ilk i in
+  let stk = SpecV.thread_store vsk in
+  assert(store_rel sts stk);
+  let aux (s: _) (d: _)
+    : Lemma (ensures (merkle_points_to_desc_local sts s d))
+            [SMTPat (merkle_points_to_desc_local sts s d)] =
+    if merkle_points_to_desc_local sts s d then ()
+    else
+      let mv1 = to_merkle_value (stored_value sts s) in
+      let k = stored_key sts s in
+      let kd = mv_pointed_key mv1 d in
+
+      assert(SpecV.store_contains stk k);
+      assert(SpecV.stored_value stk k = stored_value sts s);
+      SpecTS.lemma_eac_value_is_stored_value ilk_i k tid;
+      SpecM.lemma_mv_points_to_dir_correct ilk_i k d;
+      ()
+  in
+  ()
+
+let induction_props_implies_proving_ancestor #vcfg
+  (ils: IntTS.hash_verifiable_log vcfg)
+  (i: I.seq_index ils{let ils_i = I.prefix ils i in
+                      induction_props ils_i}):
+  Lemma (ensures (let vss = thread_state_pre ils i in
+                  let sts = IntV.thread_store vss in
+                  merkle_points_to_uniq sts)) =
+  let tid = IntTS.thread_id_of ils i in
+  let vss = thread_state_pre ils i in
+  let sts = IntV.thread_store vss in
+  let ilk = to_logk ils in
+  let ilk_i = I.prefix ilk i in
+  let vsk = SpecTS.thread_state_pre ilk i in
+  let stk = SpecV.thread_store vsk in
+  assert(store_rel sts stk);
+
+  let aux (s1 s2: _) (k: _)
+    : Lemma (ensures (merkle_points_to_uniq_local sts s1 s2 k))
+            [SMTPat (merkle_points_to_uniq_local sts s1 s2 k)] =
+    if merkle_points_to_uniq_local sts s1 s2 k then ()
+    else (
+      let mv1 = to_merkle_value (stored_value sts s1) in
+      let k1 = stored_key sts s1 in
+      let d1 = if mv_points_to mv1 Left k then Left else Right in
+      let mv2 = to_merkle_value (stored_value sts s2) in
+      let d2 = if mv_points_to mv2 Left k then Left else Right in
+      let k2 = stored_key sts s2 in
+      assert(mv_points_to mv1 d1 k);
+      assert(mv_points_to mv2 d2 k);
+
+      (* sts is a map store, so all keys are distinct *)
+      assert(k1 <> k2);
+
+      (* stk contains both keys k1 and k2 *)
+      assert(SpecV.store_contains stk k1);
+      assert(SpecV.store_contains stk k2);
+
+      assert(SpecV.stored_value stk k1 = stored_value sts s1);
+      assert(SpecV.stored_value stk k2 = stored_value sts s2);
+
+      SpecTS.lemma_eac_value_is_stored_value ilk_i k1 tid;
+      SpecTS.lemma_eac_value_is_stored_value ilk_i k2 tid;
+
+      SpecM.lemma_points_to_implies_proving_ancestor ilk_i k k1 d1;
+      SpecM.lemma_points_to_implies_proving_ancestor ilk_i k k2 d2;
+
+      ()
+    )
+  in
+  ()
+
+
 let inductive_step_evictm #vcfg
                        (ils: IntTS.hash_verifiable_log vcfg)
                        (i:I.seq_index ils{let ils_i = I.prefix ils i in
@@ -450,6 +534,8 @@ let inductive_step_evictm #vcfg
 
   match es with
   | EvictM_S s s' ->
+    induction_props_implies_proving_ancestor ils i;
+    induction_props_implies_merkle_points_to_desc ils i;
     lemma_evictm_simulates_spec vss_i vsk_i es;
     lemma_forall_vtls_rel_extend ils i;
     lemma_evictm_preserves_ismap vss_i es;
@@ -781,89 +867,6 @@ let inductive_step_addb #vcfg
     else
       inductive_step_addb_caseA ils i
 
-let induction_props_implies_merkle_points_to_desc #vcfg
-  (ils: IntTS.hash_verifiable_log vcfg)
-  (i: I.seq_index ils {let ils_i = I.prefix ils i in
-                       induction_props ils_i}):
-  Lemma (ensures (let vss = thread_state_pre ils i in
-                  let sts = IntV.thread_store vss in
-                  merkle_points_to_desc sts)) =
-  let tid = IntTS.thread_id_of ils i in
-  let vss = thread_state_pre ils i in
-  let sts = IntV.thread_store vss in
-  let ilk = to_logk ils in
-  let ilk_i = I.prefix ilk i in
-  let vsk = SpecTS.thread_state_pre ilk i in
-  let stk = SpecV.thread_store vsk in
-  assert(store_rel sts stk);
-  let aux (s: _) (d: _)
-    : Lemma (ensures (merkle_points_to_desc_local sts s d))
-            [SMTPat (merkle_points_to_desc_local sts s d)] =
-    if merkle_points_to_desc_local sts s d then ()
-    else
-      let mv1 = to_merkle_value (stored_value sts s) in
-      let k = stored_key sts s in
-      let kd = mv_pointed_key mv1 d in
-
-      assert(SpecV.store_contains stk k);
-      assert(SpecV.stored_value stk k = stored_value sts s);
-      SpecTS.lemma_eac_value_is_stored_value ilk_i k tid;
-      SpecM.lemma_mv_points_to_dir_correct ilk_i k d;
-      ()
-  in
-  ()
-
-let induction_props_implies_proving_ancestor #vcfg
-  (ils: IntTS.hash_verifiable_log vcfg)
-  (i: I.seq_index ils{let ils_i = I.prefix ils i in
-                      induction_props ils_i}):
-  Lemma (ensures (let vss = thread_state_pre ils i in
-                  let sts = IntV.thread_store vss in
-                  merkle_points_to_uniq sts)) =
-  let tid = IntTS.thread_id_of ils i in
-  let vss = thread_state_pre ils i in
-  let sts = IntV.thread_store vss in
-  let ilk = to_logk ils in
-  let ilk_i = I.prefix ilk i in
-  let vsk = SpecTS.thread_state_pre ilk i in
-  let stk = SpecV.thread_store vsk in
-  assert(store_rel sts stk);
-
-  let aux (s1 s2: _) (k: _)
-    : Lemma (ensures (merkle_points_to_uniq_local sts s1 s2 k))
-            [SMTPat (merkle_points_to_uniq_local sts s1 s2 k)] =
-    if merkle_points_to_uniq_local sts s1 s2 k then ()
-    else (
-      let mv1 = to_merkle_value (stored_value sts s1) in
-      let k1 = stored_key sts s1 in
-      let d1 = if mv_points_to mv1 Left k then Left else Right in
-      let mv2 = to_merkle_value (stored_value sts s2) in
-      let d2 = if mv_points_to mv2 Left k then Left else Right in
-      let k2 = stored_key sts s2 in
-      assert(mv_points_to mv1 d1 k);
-      assert(mv_points_to mv2 d2 k);
-
-      (* sts is a map store, so all keys are distinct *)
-      assert(k1 <> k2);
-
-      (* stk contains both keys k1 and k2 *)
-      assert(SpecV.store_contains stk k1);
-      assert(SpecV.store_contains stk k2);
-
-      assert(SpecV.stored_value stk k1 = stored_value sts s1);
-      assert(SpecV.stored_value stk k2 = stored_value sts s2);
-
-      SpecTS.lemma_eac_value_is_stored_value ilk_i k1 tid;
-      SpecTS.lemma_eac_value_is_stored_value ilk_i k2 tid;
-
-      SpecM.lemma_points_to_implies_proving_ancestor ilk_i k k1 d1;
-      SpecM.lemma_points_to_implies_proving_ancestor ilk_i k k2 d2;
-
-      ()
-    )
-  in
-  ()
-
 let inductive_step_evictb #vcfg
                        (ils: IntTS.hash_verifiable_log vcfg)
                        (i:I.seq_index ils{let ils_i = I.prefix ils i in
@@ -920,6 +923,8 @@ let inductive_step_evictbm #vcfg
 
   match es with
   | EvictBM_S s s' t ->
+    induction_props_implies_proving_ancestor ils i;
+    induction_props_implies_merkle_points_to_desc ils i;
     lemma_evictbm_simulates_spec vss_i vsk_i es;
     lemma_forall_vtls_rel_extend ils i;
     lemma_evictbm_preserves_ismap vss_i es;
