@@ -433,7 +433,8 @@ let merkle_points_to_desc_local (#vcfg:_) (st: vstore vcfg) (s: slot_id vcfg) (d
   empty_slot st s || not (is_merkle_key (stored_key st s)) ||
   (let mv = to_merkle_value (stored_value st s) in
    mv_points_to_none mv d ||
-   is_proper_desc (mv_pointed_key mv d) (stored_key st s))
+   (is_proper_desc (mv_pointed_key mv d) (stored_key st s) &&
+    d = desc_dir (mv_pointed_key mv d) (stored_key st s)))
 
 let merkle_points_to_desc (#vcfg:_) (st: vstore vcfg) =
   forall s. forall d. {:pattern merkle_points_to_desc_local st s d} merkle_points_to_desc_local st s d
