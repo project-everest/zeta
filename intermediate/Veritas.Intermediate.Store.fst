@@ -953,6 +953,128 @@ let madd_to_store_split
                           points_to_dir st' s d2 s2})
   = madd_to_store_split_raw st s k v s' d d2
 
+noeq type madd_root_param (vcfg: verifier_config) =
+  | MSR: st: vstore vcfg ->
+         s: empty_slot_id st ->
+         v: value_type_of Root ->
+         madd_root_param vcfg
+
+let madd_to_store_root_raw #vcfg (msr: madd_root_param vcfg): vstore_raw vcfg =
+  match msr with
+  | MSR st s v ->
+    let e = VStoreE Root v Spec.MAdd None None in
+    update_slot st s e
+
+let msr_store_pre #vcfg (msr: madd_root_param vcfg) =
+  MSR?.st msr
+
+let msr_store_post #vcfg msr =
+  madd_to_store_root_raw #vcfg msr
+
+let msr_slot #vcfg msr: slot_id vcfg =
+  match msr with
+  | MSR _ s _ -> s
+
+let msr_value #vcfg (msr: madd_root_param vcfg): value_type_of Root =
+  match msr with
+  | MSR _ _ v -> v
+
+let msr_edges_identical #vcfg (msr: madd_root_param vcfg) (e: sds vcfg):
+  Lemma (ensures (is_edge (msr_store_pre msr) e =
+                  is_edge (msr_store_post msr) e)) = ()
+
+let msr_identical_except #vcfg msr:
+  Lemma (ensures (identical_except (msr_store_pre msr) (msr_store_post msr) (msr_slot msr)))
+        [SMTPat (madd_to_store_root_raw #vcfg msr)] =
+  ()
+
+let lemma_madd_to_store_root_points_inuse_local #vcfg msr:
+  Lemma (ensures (points_to_inuse (msr_store_post msr)))
+        [SMTPat (madd_to_store_root_raw #vcfg msr)] =
+
+  let stn = msr_store_post msr in
+  let stp = msr_store_pre msr in
+
+  let aux s1 s2
+    : Lemma (ensures (points_to_inuse_local stn s1 s2))
+            [SMTPat (points_to_inuse_local stn s1 s2)] =
+    assert(points_to_inuse_local stp s1 s2);
+    if not (points_to stn s1 s2) then ()
+    else
+      let d12 = pointed_dir stn s1 s2 in
+
+      (* since edges are identical, s1->s2 in an edge in store prev *)
+      let e = s1,d12,s2 in
+      msr_edges_identical msr e;
+      assert(is_edge stp e);
+
+      ()
+  in
+  ()
+
+let lemma_madd_to_store_root_points_to_uniq #vcfg msr:
+  Lemma (ensures (points_to_uniq (msr_store_post msr)))
+        [SMTPat (madd_to_store_root_raw #vcfg msr)] =
+  let stn = msr_store_post msr in
+  let stp = msr_store_pre msr in
+
+  let aux s1 s2 s3:
+    Lemma (ensures (points_to_uniq_local stn s1 s2 s3))
+          [SMTPat (points_to_uniq_local stn s1 s2 s3)] =
+    if points_to_uniq_local stn s1 s2 s3 then ()
+    else
+      let e13 = s1, pointed_dir stn s1 s3, s3 in
+      let e23 = s2, pointed_dir stn s2 s3, s3 in
+      msr_edges_identical msr e13;
+      msr_edges_identical msr e23;
+      assert(points_to_uniq_local stp s1 s2 s3);
+      ()
+  in
+  ()
+
+let lemma_madd_to_store_root_pointed_to_inv #vcfg msr:
+  Lemma (ensures (pointed_to_inv (msr_store_post msr)))
+        [SMTPat (madd_to_store_root_raw #vcfg msr)] =
+  let stn = msr_store_post msr in
+  let stp = msr_store_pre msr in
+
+  let aux s:
+    Lemma (ensures (pointed_to_inv_local stn s))
+          [SMTPat (pointed_to_inv_local stn s)] =
+    if empty_slot stn s || stored_key stn s = Root || add_method_of stn s <> Spec.MAdd then ()
+    else (
+      (* s is not the added slot since the added slot contains Root *)
+      assert(s <> msr_slot msr);
+
+      let s',d = pointed_to_inv_local_find stp s in
+      let e = s',d,s in
+      assert(is_edge stp e);
+      msr_edges_identical msr e;
+      assert(is_edge stn e);
+      ()
+    )
+ in
+ ()
+
+let lemma_madd_to_store_root_no_self_edges #vcfg msr:
+  Lemma (ensures (no_self_edge (msr_store_post msr)))
+        [SMTPat (madd_to_store_root_raw #vcfg msr)] =
+  let stn = msr_store_post msr in
+  let stp = msr_store_pre msr in
+
+  let aux s:
+    Lemma (ensures (no_self_edge_local stn s))
+          [SMTPat (no_self_edge_local stn s)] =
+    if not (points_to stn s s) then ()
+    else
+      let e = s,pointed_dir stn s s,s in
+      msr_edges_identical msr e;
+      assert(is_edge stp e);
+      assert(no_self_edge_local stp s);
+      ()
+  in
+  ()
+
 let madd_to_store_root
   (#vcfg: verifier_config)
   (st:vstore vcfg)
@@ -964,7 +1086,7 @@ let madd_to_store_root
                          // slot s contains (Root, v, MAdd) and points to none
                          inuse_slot st' s /\
                          get_inuse_slot st' s = VStoreE Root v Spec.MAdd None None})
-  = admit()
+  = madd_to_store_root_raw (MSR st s v)
 
 let badd_to_store
       (#vcfg:verifier_config)
