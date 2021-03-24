@@ -556,6 +556,284 @@ let lemma_madd_to_store_split_points_to_inuse
   in
   ()
 
+noeq type madd_split_param (vcfg: verifier_config) =
+  | MSP: st: vstore vcfg ->
+         s: empty_slot_id st ->
+         k: key ->
+         v: value_type_of k ->
+         s':merkle_slot_id st ->
+         d:bin_tree_dir {points_to_some_slot st s' d} ->
+         d2:bin_tree_dir -> madd_split_param vcfg
+
+(* dummy function to make patterns work *)
+let msp_facts #vcfg (msp: madd_split_param vcfg): unit = ()
+
+let msp_store_pre #vcfg (msp: madd_split_param vcfg) =
+  MSP?.st msp
+
+let msp_store_post #vcfg (msp: madd_split_param vcfg) =
+  let MSP st s k v s' d d2 = msp in
+  madd_to_store_split_raw st s k v s' d d2
+
+let msp_anc_slot #vcfg (msp: madd_split_param vcfg) =
+  MSP?.s' msp
+
+let msp_slot #vcfg (msp: madd_split_param vcfg) =
+  MSP?.s msp
+
+let msp_dir #vcfg (msp: madd_split_param vcfg) =
+  MSP?.d msp
+
+let msp_dir2 #vcfg (msp: madd_split_param vcfg) =
+  MSP?.d2 msp
+
+let msp_desc_slot #vcfg (msp: madd_split_param vcfg) =
+  let st = msp_store_pre msp in
+  let s' = msp_anc_slot msp in
+  let d = msp_dir msp in
+  pointed_slot st s' d
+
+let sds vcfg = slot_id vcfg & bin_tree_dir & slot_id vcfg
+
+let is_edge #vcfg st (e:sds vcfg) =
+  let s1,d,s2 = e in
+  inuse_slot st s1 && points_to_dir st s1 d s2
+
+let is_nonedge #vcfg st (e: sds vcfg) =
+  not (is_edge st e)
+
+let msp_edge_post1 #vcfg msp: (e:sds vcfg {is_edge (msp_store_post msp) e}) =
+  match msp with
+  | MSP _ s _ _ s' d _ -> s',d,s
+
+let msp_edge_post2 #vcfg msp: (e: sds vcfg {is_edge (msp_store_post msp) e}) =
+  let MSP _ s _ _ _ _ d2 = msp in
+  s,d2, (msp_desc_slot msp)
+
+let msp_edge_pre1 #vcfg msp: (e: sds vcfg {is_edge (msp_store_pre msp) e}) =
+  msp_anc_slot msp, msp_dir msp, msp_desc_slot msp
+
+(* any edge in pre that is not pre1, is an edge in post *)
+let msp_edge_in_pre_is_edge_in_post #vcfg msp e:
+  Lemma (requires (let st' = msp_store_pre msp in
+                   is_edge st' e /\ e <> msp_edge_pre1 #vcfg msp))
+        (ensures (let st = msp_store_post msp in
+                  is_edge st e)) = ()
+
+let msp_edge_in_post_is_edge_pre #vcfg msp e:
+  Lemma (requires (let st = msp_store_post msp in
+                   is_edge st e /\ e <> msp_edge_post1 #vcfg msp /\ e <> msp_edge_post2 msp))
+        (ensures (let st' = msp_store_pre msp in
+                  is_edge st' e)) = ()
+
+let msp_edge_pre1_not_edge_post #vcfg msp:
+  Lemma (ensures (is_nonedge (msp_store_post msp) (msp_edge_pre1 #vcfg msp))) = ()
+
+let msp_edge_post12_not_edge_pre #vcfg msp:
+  Lemma (ensures (is_nonedge (msp_store_pre msp) (msp_edge_post1 #vcfg msp) /\
+                  is_nonedge (msp_store_pre msp) (msp_edge_post2 msp))) = ()
+
+(* added slot never equals to descendant slot *)
+let msp_desc_slot_not_added_slot #vcfg msp:
+  Lemma (ensures (msp_slot #vcfg msp <> msp_desc_slot msp))
+        [SMTPat (msp_facts msp)]
+  =
+  let s = msp_slot msp in
+  let s2 = msp_desc_slot msp in
+  let s' = msp_anc_slot msp in
+  assert(points_to_inuse_local (msp_store_pre msp)  s' s2);
+  ()
+
+let msp_anc_slot_not_added_slot #vcfg msp:
+  Lemma (ensures (msp_slot #vcfg msp <> msp_anc_slot msp)) =
+  ()
+
+(* before the add, nothing points to the added slot *)
+let msp_nothing_points_to_added_slot #vcfg msp s d:
+  Lemma (ensures (is_nonedge (msp_store_pre msp) (s, d, (msp_slot #vcfg msp)))) =
+  assert(points_to_inuse_local (msp_store_pre msp) s (msp_slot msp));
+  ()
+
+let msp_points_to_added_slot #vcfg msp s1 d1:
+  Lemma (ensures (let st = msp_store_post msp in
+                  let s = msp_slot msp in
+                  let e = s1,d1,s in
+                  is_edge st e ==> e = msp_edge_post1 #vcfg msp)) =
+  let st = msp_store_post msp in
+  let s = msp_slot msp in
+  let e = s1,d1,s in
+  let e1 = msp_edge_post1 msp in
+  let e2 = msp_edge_post2 msp in
+  msp_desc_slot_not_added_slot msp;
+  assert(e <> e2);
+  if not (is_edge st e) then ()
+  else if e1 = e then ()
+  else (
+    (* (s1,d,s) is an edge before add *)
+    msp_edge_in_post_is_edge_pre msp e;
+    (* which contradicts, that nothing points to s in pre *)
+    msp_nothing_points_to_added_slot msp s1 d1
+  )
+
+let msp_added_slot_points_to #vcfg msp s1 d1:
+  Lemma (ensures (let st = msp_store_post msp in
+                  let s = msp_slot msp in
+                  let e = s,d1,s1 in
+                  is_edge st e ==> e = msp_edge_post2 #vcfg msp)) = ()
+
+let lemma_madd_to_store_split_points_to_unique
+  #vcfg
+  (st: vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Lemma (ensures (let st' = madd_to_store_split_raw st s k v s' d d2 in
+                    points_to_uniq st'))
+          [SMTPat (madd_to_store_split_raw st s k v s' d d2)] =
+  let msp = MSP st s k v s' d d2 in
+  let st' = madd_to_store_split_raw st s k v s' d d2 in
+  let aux (s1 s2 s3:_):
+    Lemma (ensures (points_to_uniq_local st' s1 s2 s3))
+          [SMTPat (points_to_uniq_local st' s1 s2 s3)] =
+    let od = other_dir d in
+    if points_to_uniq_local st' s1 s2 s3 then ()
+    else if s3 = s then (
+      let d1 = pointed_dir st' s1 s in
+      let d2 = pointed_dir st' s2 s in
+
+      msp_points_to_added_slot msp s1 d1;
+      msp_points_to_added_slot msp s2 d2;
+
+      assert(s1 = s2 /\ d1 = d2);
+      assert(points_to_dir st' s1 Left s && points_to_dir st' s1 Right s);
+      if d1 = Left then
+        msp_points_to_added_slot msp s1 Right
+      else
+        msp_points_to_added_slot msp s1 Left
+    )
+    else if s3 = s' then (
+      let d13 = pointed_dir st' s1 s3 in
+      let d23 = pointed_dir st' s2 s3 in
+      let e13 = s1,d13,s3 in
+      let e23 = s2,d23,s3 in
+      assert(is_edge st' e13 /\ is_edge st' e23);
+      assert(e13 <> msp_edge_post1 msp);
+      assert(e23 <> msp_edge_post1 msp);
+
+
+
+      admit()
+    )
+    else
+      admit()
+
+
+  in
+  ()
+
+
+
+
+    (*
+      let d13 = pointed_dir st' s1 s3 in
+      let d23 = pointed_dir st' s2 s3 in
+
+      if s1 = s then admit() (*
+
+        (* s only points along direction d2 *)
+        assert(d13 = d2);
+
+        (* this implies s' pointed to s3 along direction d *)
+        assert(s3 = pointed_slot st s' d);
+
+        (* since s' pointed to s3 in st, it implies that s3 was in use => s3 <> s which we know is empty in st *)
+        assert(points_to_inuse_local st s' s3);
+        assert(s3 <> s);
+
+        if s2 = s' then (
+
+          (* s2 = s' points to s <> s3 along direction d; so d <> d23 *)
+          assert(d <> d23);
+
+          (* this implies that in st, s' points to s3 in both d and d23 - two different directions *)
+          assert(points_to_dir st s' d23 s3);
+          assert(points_to_dir st s' d s3);
+
+          (* which our invariant does not allow *)
+          assert(points_to_uniq_local st s' s' s3);
+          ()
+        )
+        else if s2 = s then ()
+        else (
+          (* s2 is neither s or s', so s2 is unchanged from st to st' *)
+          assert(get_slot st s2 = get_slot st' s2);
+          assert(points_to_dir st s2 d23 s3);
+          (* which gives a contradiction since in st, s' and s2 both point to s3 *)
+          assert(points_to_uniq_local st s' s2 s3);
+          ()
+        )
+      *)
+      else if s2 = s then admit() (*
+        (* s only points along direction d2 *)
+        assert(d23 = d2);
+
+        (* this implies s' pointed to s3 along direction d *)
+        assert(s3 = pointed_slot st s' d);
+
+        (* since s' pointed to s3 in st, it implies that s3 was in use => s3 <> s which we know is empty in st *)
+        assert(points_to_inuse_local st s' s3);
+        assert(s3 <> s);
+
+        if s1 = s' then (
+
+          (* s1 = s' points to s <> s3 along direction d; so d <> d13 *)
+          assert(d <> d13);
+
+          (* this implies that in st, s' points to s3 in both d and d13 - two different directions *)
+          assert(points_to_dir st s' d13 s3);
+          assert(points_to_dir st s' d s3);
+
+          (* which our invariant does not allow *)
+          assert(points_to_uniq_local st s' s' s3);
+          ()
+        )
+        else if s1 = s then ()
+        else (
+          (* s1 is neither s or s', so s2 is unchanged from st to st' *)
+          assert(get_slot st s1 = get_slot st' s1);
+          assert(points_to_dir st s1 d13 s3);
+
+          (* which gives a contradiction since in st, s' and s2 both point to s3 *)
+          assert(points_to_uniq_local st s' s1 s3);
+          ()
+        )
+      *)
+      else if s1 = s' then (
+
+        if s3 = s then (
+          assert(points_to_dir st' s' d13 s);
+          assert(points_to_dir st' s' d s);
+          assert(points_to_info st' s' od = points_to_info st s' od);
+
+          if d = d13 then (
+
+            admit()
+          )
+          else (
+            assert(od = d13);
+            assert(points_to_dir st' s' d13 s = points_to_dir st s' d13 s);
+            assert(points_to_inuse_local st s' s);
+            ()
+          )
+        )
+        else
+          admit()
+      )
+      else admit()
+    *)
+
 let madd_to_store_split
   (#vcfg: verifier_config)
   (st:vstore vcfg)
