@@ -837,6 +837,92 @@ let lemma_madd_to_store_split_points_to_unique
   in
   ()
 
+let madd_to_store_split_pointed_to_inv_local
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  (s2: slot_id vcfg)
+  : Lemma (ensures (let st' = madd_to_store_split_raw st s k v s' d d2 in
+                    pointed_to_inv_local st' s2))
+          [SMTPat (pointed_to_inv_local (madd_to_store_split_raw st s k v s' d d2) s2)]
+  =
+  let msp = MSP st s k v s' d d2 in
+  let st' = madd_to_store_split_raw st s k v s' d d2 in
+  if empty_slot st' s2 || stored_key st' s2 = Root || add_method_of st' s2 <> Spec.MAdd then ()
+  else
+    if s2 = s then (
+      assert(points_to_dir st' s' d s);
+      ()
+    )
+    else if s2 = msp_desc_slot msp then (
+      assert(points_to_dir st' s d2 s2);
+      ()
+    )
+    else (
+      assert(empty_slot st s2 = empty_slot st' s2);
+      assert(stored_key st s2 = stored_key st' s2);
+      assert(add_method_of st s2 = add_method_of st' s2);
+
+      let (s2',d2) = pointed_to_inv_local_find st s2 in
+
+      (* s2' is inuse in st, so it cannot be s *)
+      assert(s2' <> s);
+
+      (* otherwise s2 = s, a case we have ruled out in this else branch *)
+      assert(s2' <> s' \/ d2 <> d);
+
+      assert(points_to_some_slot st' s2' d2);
+      assert(pointed_slot st' s2' d2 = s2);
+      ()
+    )
+
+let madd_to_store_split_pointed_to_inv
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Lemma (ensures (let st' = madd_to_store_split_raw st s k v s' d d2 in
+                    pointed_to_inv st'))
+          [SMTPat (madd_to_store_split_raw st s k v s' d d2)] =
+  ()
+
+let madd_to_store_split_no_self_edges
+  (#vcfg: verifier_config)
+  (st:vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Lemma (ensures (let st' = madd_to_store_split_raw st s k v s' d d2 in
+                    no_self_edge st'))
+          [SMTPat (madd_to_store_split_raw st s k v s' d d2)] =
+  let msp = MSP st s k v s' d d2 in
+  let st' = madd_to_store_split_raw st s k v s' d d2 in
+  assert(s <> s');
+  let aux s2
+    : Lemma (ensures (no_self_edge_local st' s2))
+            [SMTPat (no_self_edge_local st' s2)] =
+    if not (points_to st' s2 s2) then ()
+    else
+      let d2 = pointed_dir st' s2 s2 in
+      if s2 = s then
+        msp_desc_slot_not_added_slot msp
+      else (
+        assert(points_to_info st' s2 d2 = points_to_info st s2 d2);
+        assert(no_self_edge_local st s2);
+        ()
+      )
+  in
+  ()
+
 let madd_to_store_split
   (#vcfg: verifier_config)
   (st:vstore vcfg)
@@ -865,7 +951,7 @@ let madd_to_store_split
                           stored_key st' s = k /\ stored_value st' s = v /\ add_method_of st' s = Spec.MAdd /\
                           points_to_none st' s od2 /\
                           points_to_dir st' s d2 s2})
-  = admit()
+  = madd_to_store_split_raw st s k v s' d d2
 
 let madd_to_store_root
   (#vcfg: verifier_config)
