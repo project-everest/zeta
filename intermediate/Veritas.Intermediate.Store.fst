@@ -1088,6 +1088,126 @@ let madd_to_store_root
                          get_inuse_slot st' s = VStoreE Root v Spec.MAdd None None})
   = madd_to_store_root_raw (MSR st s v)
 
+noeq type badd_param (vcfg: verifier_config)  =
+  | BAS: st: vstore vcfg ->
+         s: empty_slot_id st ->
+         k: key ->
+         v: value_type_of k -> badd_param vcfg
+
+let apply_bas #vcfg (bas: badd_param vcfg) =
+  match bas with
+  | BAS st s k v ->
+    let e = VStoreE k v Spec.BAdd None None in
+    update_slot st s e
+
+let bas_store_pre #vcfg (bas: badd_param vcfg) =
+  BAS?.st bas
+
+let bas_store_post #vcfg bas =
+  apply_bas #vcfg bas
+
+let bas_key #vcfg (bas: badd_param vcfg) =
+  BAS?.k bas
+
+let bas_value #vcfg (bas: badd_param vcfg) =
+  BAS?.v bas
+
+let bas_slot #vcfg (bas: badd_param vcfg) =
+  BAS?.s bas
+
+let bas_edges_identical #vcfg bas e
+  : Lemma (ensures (is_edge (bas_store_pre #vcfg bas) e =
+                    is_edge (bas_store_post bas) e)) = ()
+
+let bas_identical_except #vcfg bas
+  : Lemma (ensures (identical_except (bas_store_pre bas) (bas_store_post bas) (bas_slot bas)))
+          [SMTPat (apply_bas #vcfg bas)] = ()
+
+let lemma_bas_points_to_inuse #vcfg bas
+  : Lemma (ensures (points_to_inuse (bas_store_post bas)))
+          [SMTPat (apply_bas #vcfg bas)] =
+  let stp = bas_store_pre bas in
+  let stn = bas_store_post bas in
+
+  let aux s1 s2
+    : Lemma (ensures (points_to_inuse_local stn s1 s2))
+            [SMTPat (points_to_inuse_local stn s1 s2)] =
+    if not (points_to stn s1 s2) then ()
+    else
+      let d12 = pointed_dir stn s1 s2 in
+
+      (* since edges are identical, s1->s2 in an edge in store prev *)
+      let e = s1,d12,s2 in
+      bas_edges_identical bas e;
+      assert(is_edge stp e);
+
+      ()
+ in
+ ()
+
+let lemma_bas_points_to_uniq #vcfg bas:
+  Lemma (ensures (points_to_uniq (bas_store_post bas)))
+        [SMTPat (apply_bas #vcfg bas)] =
+  let stn = bas_store_post bas in
+  let stp = bas_store_pre bas in
+
+  let aux s1 s2 s3:
+    Lemma (ensures (points_to_uniq_local stn s1 s2 s3))
+          [SMTPat (points_to_uniq_local stn s1 s2 s3)] =
+    if points_to_uniq_local stn s1 s2 s3 then ()
+    else
+      let e13 = s1, pointed_dir stn s1 s3, s3 in
+      let e23 = s2, pointed_dir stn s2 s3, s3 in
+      bas_edges_identical bas e13;
+      bas_edges_identical bas e23;
+      assert(points_to_uniq_local stp s1 s2 s3);
+      ()
+  in
+  ()
+
+let lemma_bas_pointed_to_inv #vcfg bas:
+  Lemma (ensures (pointed_to_inv (bas_store_post bas)))
+        [SMTPat (apply_bas #vcfg bas)] =
+  let stn = bas_store_post bas in
+  let stp = bas_store_pre bas in
+
+  let aux s:
+    Lemma (ensures (pointed_to_inv_local stn s))
+          [SMTPat (pointed_to_inv_local stn s)] =
+    if empty_slot stn s || stored_key stn s = Root || add_method_of stn s <> Spec.MAdd then ()
+    else (
+      (* s is not the added slot since the added slot contains Root *)
+      assert(s <> bas_slot bas);
+
+      let s',d = pointed_to_inv_local_find stp s in
+      let e = s',d,s in
+      assert(is_edge stp e);
+      bas_edges_identical bas e;
+      assert(is_edge stn e);
+      ()
+    )
+ in
+ ()
+
+let lemma_bas_no_self_edges #vcfg bas:
+  Lemma (ensures (no_self_edge (bas_store_post bas)))
+        [SMTPat (apply_bas #vcfg bas)] =
+  let stn = bas_store_post bas in
+  let stp = bas_store_pre bas in
+
+  let aux s:
+    Lemma (ensures (no_self_edge_local stn s))
+          [SMTPat (no_self_edge_local stn s)] =
+    if not (points_to stn s s) then ()
+    else
+      let e = s,pointed_dir stn s s,s in
+      bas_edges_identical bas e;
+      assert(is_edge stp e);
+      assert(no_self_edge_local stp s);
+      ()
+  in
+  ()
+
 let badd_to_store
       (#vcfg:verifier_config)
       (st:vstore vcfg)
@@ -1098,7 +1218,61 @@ let badd_to_store
                           identical_except st st' s /\
                           inuse_slot st' s /\
                           get_inuse_slot st' s = VStoreE k v Spec.BAdd None None})
-  = admit()
+  =
+  let bas = BAS st s k v in
+  apply_bas bas
+
+noeq type mevict_param (vcfg: verifier_config) =
+  | MEV: st:vstore vcfg ->
+         s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right} ->
+         s':inuse_slot_id st ->
+         d:bin_tree_dir{points_to_some_slot st s' d ==> points_to_dir st s' d s} ->
+         mevict_param vcfg
+
+let apply_mev #vcfg (mev: mevict_param vcfg) =
+  match mev with
+  | MEV st s s' d ->
+    let VStoreE k' v' am' ld' rd' = get_inuse_slot st s' in
+    let e' = if d = Left
+             then VStoreE k' v' am' None rd'
+             else VStoreE k' v' am' ld' None in
+    let st = update_slot st s' e' in
+    Seq.upd st s None
+
+let mev_store_pre #vcfg (mev: mevict_param vcfg) =
+  MEV?.st mev
+
+let mev_store_post #vcfg mev =
+  apply_mev #vcfg mev
+
+let mev_slot #vcfg (mev: mevict_param vcfg) =
+  MEV?.s mev
+
+let mev_anc_slot #vcfg (mev: mevict_param vcfg) =
+  MEV?.s' mev
+
+let mev_dir #vcfg (mev: mevict_param vcfg) =
+  MEV?.d mev
+
+let mev_deletes_edge #vcfg mev =
+  points_to_some_slot (mev_store_pre mev) (mev_anc_slot mev) (mev_dir #vcfg mev)
+
+let mev_deleted_edge #vcfg (mev: mevict_param vcfg {mev_deletes_edge mev}): sds vcfg =
+  (mev_anc_slot mev), (mev_dir mev), (mev_slot mev)
+
+let mev_deleted_edge_in_pre_not_in_post #vcfg (mev: mevict_param vcfg {mev_deletes_edge mev})
+  : Lemma (ensures (let e = mev_deleted_edge mev in
+                    is_edge (mev_store_pre mev) e /\
+                    is_nonedge (mev_store_post mev) e))
+          [SMTPat (apply_mev mev)] = ()
+
+let mev_edge_in_post_in_pre #vcfg mev e
+  : Lemma (ensures (is_edge (mev_store_post #vcfg mev) e ==>
+                    is_edge (mev_store_pre mev) e)) = ()
+
+let mev_del_slot_empty #vcfg mev
+  : Lemma (ensures (empty_slot (mev_store_post mev) (mev_slot mev)))
+          [SMTPat (apply_mev #vcfg mev)]  = ()
 
 let mevict_from_store
   (#vcfg: verifier_config)
