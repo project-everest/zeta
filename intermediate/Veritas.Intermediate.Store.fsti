@@ -124,8 +124,14 @@ let pointed_to_inv_local #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) =
 let pointed_to_inv #vcfg (st:vstore_raw vcfg) =
   forall (s: slot_id vcfg). {:pattern pointed_to_inv_local st s} pointed_to_inv_local st s
 
+let no_self_edge_local #vcfg (st: vstore_raw vcfg) (s: slot_id vcfg) =
+  not (points_to st s s)
+
+let no_self_edge #vcfg (st:vstore_raw vcfg) =
+  forall s. {:pattern no_self_edge_local st s} no_self_edge_local st s
+
 (* vstore is a raw store that satisfies the points_to invariant *)
-let vstore vcfg = st:vstore_raw vcfg{points_to_inuse st /\  points_to_uniq st /\ pointed_to_inv st}
+let vstore vcfg = st:vstore_raw vcfg{points_to_inuse st /\  points_to_uniq st /\ pointed_to_inv st /\ no_self_edge st}
 
 let empty_store vcfg:vstore vcfg = Seq.create (store_size vcfg) None
 
