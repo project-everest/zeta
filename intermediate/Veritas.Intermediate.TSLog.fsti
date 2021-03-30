@@ -43,15 +43,16 @@ let clock_sorted (#vcfg:_) (il: il_logS vcfg {verifiable il}) =
 
 let its_log vcfg = il:il_logS vcfg{verifiable il /\ clock_sorted il}
 
+val lemma_prefix_verifiable (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}):
+  Lemma (ensures (verifiable (I.prefix itsl i) /\ clock_sorted (I.prefix itsl i)))
+        [SMTPat (I.prefix itsl i)]
+
 val create (#vcfg:_) (gl: verifiable_log vcfg): (itsl:its_log vcfg{g_logS_of itsl == gl})
 
 let hash_verifiable #vcfg (itsl: its_log vcfg) = IntG.hash_verifiable (g_logS_of itsl)
 
 let hash_verifiable_log vcfg = itsl: its_log vcfg{hash_verifiable itsl}
 
-val lemma_prefix_verifiable (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}):
-  Lemma (ensures (verifiable (I.prefix itsl i) /\ clock_sorted (I.prefix itsl i)))
-        [SMTPat (I.prefix itsl i)]
 
 let thread_id_of #vcfg (il: its_log vcfg) (i: I.seq_index il): valid_tid il =
   fst (I.i2s_map il i)

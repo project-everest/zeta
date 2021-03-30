@@ -131,6 +131,15 @@ val i2s_map_int_add (#a:_) (il:interleaving a)
   : Lemma 
     (ensures (forall (i:seq_index il).{:pattern (i2s_map il i)} i2s_map il i == i2s_map (IL _ _ (IntAdd _ _ (IL?.prf il))) i))
 
+val i2s_map_int_extend (#a:eqtype) (s:seq a) (ss: sseq a) (prf:interleave s ss) (x:a) (i:SA.seq_index ss) (j:nat)
+  : Lemma 
+    (ensures (let il = IL _ _ (IntExtend _ _ prf x i) in
+              if j = length il - 1
+              then i2s_map il j == (i, Seq.length (Seq.index ss i))
+              else if j < length il - 1
+              then i2s_map il j == i2s_map (IL _ _ prf) j
+              else True))
+
 let hprefix (#a:eqtype) (il:interleaving a {length il > 0}): interleaving a =
   prefix il (length il - 1)
 
