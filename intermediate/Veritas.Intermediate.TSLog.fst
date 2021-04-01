@@ -150,10 +150,56 @@ let lemma_to_logk_thread_count (#vcfg:_) (il:its_log vcfg)
   = ()
 
 #push-options "--ifuel 1,1 --fuel 1,1"
+let rec lemma_to_logk_prefix_commute_aux (#vcfg:_) (il:its_log vcfg) (i:nat{i <= I.length il})
+  : Lemma 
+    (ensures to_logk (I.prefix il i) == I.prefix (to_logk il) i)
+    (decreases (IL?.prf il))
+  =  let IL s ss prf = il in
+     match prf with
+     | IntEmpty -> 
+        I.prefix_identity il;
+        I.prefix_identity (to_logk il)
 
-let lemma_to_logk_prefix_commute_aux (#vcfg:_) (il:its_log vcfg) (i:nat{i <= I.length il})
+     | IntAdd _ _ prf' ->
+        let il' = int_add_sub_log il in
+        calc 
+        (==) {
+          to_logk (I.prefix il i);
+        (==){ I.prefix_int_add il i }
+          IL _ _ (IntAdd _ _ (IL?.prf (to_logk (I.prefix il' i))));
+        (==){ lemma_to_logk_prefix_commute_aux il' i }
+          IL _ _ (IntAdd _ _ (IL?.prf (I.prefix (to_logk il') i)));
+        (==){ I.prefix_int_add (to_logk il) i }
+          I.prefix (to_logk il) i;
+        }
+        
+     | IntExtend s' ss' prf' x j ->
+        I.prefix_int_extend il i;
+        lemma_to_logk_length il;
+        if i <= Seq.length s'
+        then (
+          let il' = int_extend_sub_log il in
+          lemma_to_logk_prefix_commute_aux il' i;
+          assert (to_logk (I.prefix il' i) == I.prefix (to_logk il') i);
+          assert (I.prefix il i == I.prefix il' i);
+          I.prefix_int_extend (to_logk il) i
+        )
+        else (
+          calc 
+          (==) {
+            to_logk (I.prefix il i);
+          (==) {}
+            to_logk il;
+          (==) { lemma_to_logk_length il;
+                 I.prefix_identity (to_logk il) }
+            I.prefix (to_logk il) i;
+          }
+        )
+
+
+let lemma_to_logk_prefix_commute (#vcfg:_) (il:its_log vcfg) (i:nat{i <= I.length il})
   : Lemma (to_logk (I.prefix il i) == I.prefix (to_logk il) i)
-  = admit()
+  = lemma_to_logk_prefix_commute_aux il i
 
 let rec lemma_to_logk_thread_id_of_aux (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (ensures thread_id_of il i == SpecTS.thread_id_of (to_logk il) i)
@@ -182,14 +228,15 @@ let rec lemma_to_logk_thread_id_of_aux (#vcfg:_) (il:its_log vcfg) (i:I.seq_inde
       )
       else (
         lemma_to_logk_thread_id_of_aux il' i;
-        lemma_to_logk_prefix_commute_aux il (I.length il - 1);
+        lemma_to_logk_prefix_commute il (I.length il - 1);
         I.lemma_i2s_map_prefix il (I.length il - 1) i;
         I.lemma_i2s_map_prefix (to_logk il) (I.length il - 1) i
       )
+#pop-options
 
-let lemma_to_logk_prefix_commute (#vcfg:_) (il:its_log vcfg) (i:nat{i <= I.length il})
-  : Lemma (to_logk (I.prefix il i) == I.prefix (to_logk il) i)
-  = admit()
+let rec lemma_to_logk_thread_id_of (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
+  : Lemma (ensures thread_id_of il i == SpecTS.thread_id_of (to_logk il) i)
+  = lemma_to_logk_thread_id_of_aux il i
 
 let lemma_to_logk_state_ops (#vcfg:_) (ils:its_log vcfg)
   : Lemma (ensures (let ilk = to_logk ils in

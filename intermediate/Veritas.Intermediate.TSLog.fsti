@@ -109,13 +109,13 @@ val lemma_to_logk_thread_count (#vcfg:_) (il:its_log vcfg)
   : Lemma (ensures thread_count il = SpecTS.thread_count (to_logk il))
           [SMTPat (to_logk il)]
 
-val lemma_to_logk_thread_id_of (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
-  : Lemma (ensures thread_id_of il i == SpecTS.thread_id_of (to_logk il) i)
-          [SMTPat (thread_id_of il i)]
-
 val lemma_to_logk_prefix_commute (#vcfg:_) (il:its_log vcfg) (i:nat{i <= I.length il})
   : Lemma (to_logk (I.prefix il i) == I.prefix (to_logk il) i)
           [SMTPat (I.prefix il i)]
+
+val lemma_to_logk_thread_id_of (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
+  : Lemma (ensures thread_id_of il i == SpecTS.thread_id_of (to_logk il) i)
+          [SMTPat (thread_id_of il i)]
 
 val lemma_to_logk_state_ops (#vcfg:_) (ils:its_log vcfg)
   : Lemma (ensures (let ilk = to_logk ils in

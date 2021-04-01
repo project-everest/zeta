@@ -550,6 +550,22 @@ let prefix_identity (#a:eqtype) (il:interleaving a)
     in
     aux il
 
+
+let prefix_int_add (#a:eqtype) (i:interleaving a { IntAdd? (IL?.prf i) }) (n:nat{n <= length i})
+  : Lemma 
+    (let IL _ _ (IntAdd _ _ prf) = i in
+     prefix i n == 
+     IL _ _ (IntAdd _ _ (IL?.prf (prefix (IL _ _ prf) n))))
+  = ()
+  
+let prefix_int_extend (#a:eqtype) (i:interleaving a { IntExtend? (IL?.prf i) }) (n:nat{n <= length i})
+  : Lemma
+    (let IL _ _ (IntExtend s ss prf x j) = i in
+     (if n <= Seq.length s
+      then prefix i n == prefix (IL s ss prf) n
+      else prefix i n == i))
+  = prefix_identity i
+  
 let hprefix_extend (#a:eqtype) (s:seq a) (ss:sseq a)
                     (il:interleave s ss)
                     (x:a)
