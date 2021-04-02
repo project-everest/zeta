@@ -453,6 +453,9 @@ let filter_map (#a:eqtype) #b
    : seq b
    = map f (filter_refine filter s)
 
+val filter_map_emp (#a:eqtype) (#b:Type) (filter: a -> bool) (f:refine filter -> b) 
+  : Lemma (filter_map filter f Seq.empty `Seq.equal` Seq.empty)
+  
 let filter_map_snoc (#a:eqtype) (#b:Type)
                     (filter: a -> bool)
                     (f:refine filter -> b)

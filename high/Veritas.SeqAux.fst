@@ -947,6 +947,11 @@ let filter_snoc (#a:eqtype) (f:a -> bool) (s:seq a) (x:a)
            else filter f (Seq.snoc s x) `Seq.equal` filter f s)
   = assert (Seq.equal (prefix (Seq.snoc s x) (Seq.length s)) s)
 
+
+let filter_map_emp (#a:eqtype) (#b:Type) (filter: a -> bool) (f:refine filter -> b) 
+  : Lemma (filter_map filter f Seq.empty `Seq.equal` Seq.empty)
+  = ()
+
 let map_upd (#a #b:Type) (f:a -> b) (s:seq a) (i:seq_index s) (x:a)
   : Lemma (map f (Seq.upd s i x) `Seq.equal` Seq.upd (map f s) i (f x))
   = ()

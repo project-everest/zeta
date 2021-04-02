@@ -232,28 +232,131 @@ let rec lemma_to_logk_thread_id_of_aux (#vcfg:_) (il:its_log vcfg) (i:I.seq_inde
         I.lemma_i2s_map_prefix il (I.length il - 1) i;
         I.lemma_i2s_map_prefix (to_logk il) (I.length il - 1) i
       )
-#pop-options
+
 
 let rec lemma_to_logk_thread_id_of (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (ensures thread_id_of il i == SpecTS.thread_id_of (to_logk il) i)
   = lemma_to_logk_thread_id_of_aux il i
 
-let lemma_to_logk_state_ops (#vcfg:_) (ils:its_log vcfg)
-  : Lemma (ensures (let ilk = to_logk ils in
-                    to_state_ops ils = SpecTS.state_ops ilk))
-  = admit()
+let rec lemma_to_logk_state_ops_aux (#vcfg:_) (il:its_log vcfg)
+  : Lemma (ensures (to_state_ops il == SpecTS.state_ops (to_logk il)))
+          (decreases (IL?.prf il))
+  = let IL s ss prf = il in
+    match prf with
+    | IntEmpty -> 
+      filter_map_emp (is_state_op #vcfg) (to_state_op #vcfg);
+      filter_map_emp (Veritas.EAC.is_state_op) (Veritas.EAC.to_state_op)
 
+    | IntAdd s' ss' prf' ->
+      let il' = int_add_sub_log il in
+      lemma_to_logk_state_ops_aux il'
+
+    | IntExtend s0 ss0 prf x j ->
+      let il' = int_extend_sub_log il in
+      lemma_to_logk_state_ops_aux il';
+      assert (I.i_seq il == Seq.snoc (I.i_seq il') x);
+      filter_map_snoc (is_state_op #vcfg) (to_state_op #vcfg) (I.i_seq il') x;
+      filter_map_snoc (Veritas.EAC.is_state_op) (Veritas.EAC.to_state_op) (I.i_seq (to_logk il')) (int_extend_logK_entry il)
+
+let lemma_to_logk_state_ops (#vcfg:_) (il:its_log vcfg)
+  : Lemma (ensures (to_state_ops il == SpecTS.state_ops (to_logk il)))
+  = lemma_to_logk_state_ops_aux il
+  
 let lemma_its_log_valid_step (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (ensures Valid? (IntV.verify_step (thread_state_pre il i) (I.index il i)))
-  = admit()
+  = ()
 
 let lemma_valid_logs_entry (#vcfg:_) (il: its_log vcfg) (i:I.seq_index il)
   : Lemma (ensures (IntV.valid_logS_entry (thread_state_pre il i) (I.index il i)))
-  = admit()
+  = ()
 
+let thread_state_int_add (#vcfg:_) (il:its_log vcfg{IntAdd? (IL?.prf il)}) (tid:valid_tid il { tid < Seq.length (I.s_seq il) - 1})
+  : Lemma (thread_state il tid == thread_state (int_add_sub_log il) tid)
+  = ()
+
+let rec lemma_to_logk_last (#vcfg:_) (ils:its_log vcfg { I.length ils > 0 }) 
+  : Lemma (ensures (I.index (to_logk ils) (I.length ils - 1) == to_logK_entry ils (I.length ils - 1)))
+          (decreases (IL?.prf ils))
+  = let n = I.length ils - 1 in
+    let lhs = I.index (to_logk ils) n in
+    let IL _ _ prf = ils in
+    match prf with
+    | IntEmpty -> ()
+    | IntExtend _ _ prf' x j ->
+      assert (lhs == int_extend_logK_entry ils)
+    | IntAdd _ _ prf' -> 
+      let ils' = int_add_sub_log ils in
+      lemma_to_logk_last ils';
+      I.prefix_int_add ils n;
+      let tid = thread_id_of ils n in
+      I.i2s_map_int_add ils';
+      thread_state_int_add (I.prefix ils n) tid;      
+      calc 
+      (==) {
+        I.index (to_logk ils) n;
+      (==) {}
+        I.index (to_logk ils') n;
+      (==) { lemma_to_logk_last ils' }
+        to_logK_entry ils' n;
+      (==) { }
+        IntV.to_logK_entry (thread_state_pre ils' n) (I.index ils' n);
+      (==) { }        
+        IntV.to_logK_entry (thread_state_pre ils' n) (I.index ils n);
+      (==) {  calc 
+              (==) {
+                thread_state_pre ils' n;
+              (==) { }
+                thread_state (I.prefix ils' n) (thread_id_of ils' n);
+              (==) { }
+                thread_state (I.prefix ils' n) (thread_id_of ils n);              
+              (==) { }
+                thread_state (I.prefix ils n) (thread_id_of ils n); 
+              (==) { }
+                thread_state_pre ils n;
+              }
+           }
+        IntV.to_logK_entry (thread_state_pre ils n) (I.index ils n);      
+      (==) { }        
+        to_logK_entry ils n;        
+      }
+
+module T = FStar.Tactics
+#push-options "--fuel 0 --ifuel 0"
 let lemma_to_logk_index (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils)
   : Lemma (ensures (I.index (to_logk ils) i == to_logK_entry ils i))
-  = admit()
+  = calc 
+    (==) {
+     I.index (to_logk ils) i;
+    (==) { I.lemma_prefix_index (to_logk ils) (i + 1) i}
+     I.index (I.prefix (to_logk ils) (i + 1)) i;
+    (==) { lemma_to_logk_prefix_commute ils (i + 1) }
+     I.index (to_logk (I.prefix ils (i + 1))) i;
+    };
+    lemma_to_logk_last (I.prefix ils (i + 1));
+    assert (I.index (to_logk (I.prefix ils (i + 1))) i ==
+            to_logK_entry (I.prefix ils (i + 1)) i);
+    let ils_i = I.prefix ils (i + 1) in   
+    calc
+    (==) {
+      to_logK_entry ils_i i;
+    (==) { }
+      IntV.to_logK_entry (thread_state_pre ils_i i) (I.index ils_i i);
+    (==) { I.lemma_prefix_index ils (i + 1) i }
+      IntV.to_logK_entry (thread_state_pre ils_i i) (I.index ils i);
+    (==) { 
+             calc
+             (==) {
+               thread_state_pre ils_i i;
+             (==) { 
+                    I.lemma_i2s_map_prefix ils (i + 1) i; 
+                    I.lemma_prefix_prefix ils (i + 1) i 
+                  }
+               thread_state_pre ils i;             
+             }
+         }
+      IntV.to_logK_entry (thread_state_pre ils i) (I.index ils i);    
+    }
+#pop-options
 
 let lemma_forall_store_ismap_extend (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (requires (forall_store_ismap (I.prefix il i) /\ 
