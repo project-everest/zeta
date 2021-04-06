@@ -319,8 +319,6 @@ let lemma_madd_to_store_identical_except
     in
   ()
 
-#push-options "--z3rlimit_factor 3"
-
 let lemma_madd_to_store_points_to_inuse
   (#vcfg: verifier_config)
   (st:vstore vcfg)
@@ -336,11 +334,17 @@ let lemma_madd_to_store_points_to_inuse
     : Lemma (ensures (points_to_inuse_local st' s1 s2))
             [SMTPat (points_to_inuse_local st' s1 s2)] =
     assert(points_to_inuse_local st s1 s2);
-    ()
+    if not (points_to st' s1 s2) then ()
+    else (
+      let d2 = pointed_dir st' s1 s2 in
+      assert(points_to_dir st' s1 d2 s2);
+      (* s does not point to anything *)
+      assert(s1 <> s);
+      if s1 = s' then ()
+      else ()
+    )
   in
   ()
-
-#pop-options
 
 let lemma_madd_to_store_points_to_uniq
   (#vcfg: verifier_config)
@@ -486,6 +490,12 @@ let lemma_madd_to_store_no_self_edges
     else
       let d2 = pointed_dir st' s2 s2 in
       if s2 = s then ()
+      else if s2 = s' then (
+        assert(d2 <> d);
+        assert(points_to_info st' s2 d2 = points_to_info st s2 d2);
+        assert(no_self_edge_local st s2);
+        ()
+      )
       else (
         assert(points_to_info st' s2 d2 = points_to_info st s2 d2);
         assert(no_self_edge_local st s2);
@@ -561,42 +571,6 @@ let lemma_madd_to_store_split_identical_except
     else if s2 = s' then ()
     else ()
   in ()
-
-let lemma_madd_to_store_split_points_to_inuse
-  #vcfg
-  (st: vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_some_slot st s' d})
-  (d2:bin_tree_dir)
-  : Lemma (ensures (let st' = madd_to_store_split_raw st s k v s' d d2 in
-                    points_to_inuse st'))
-          [SMTPat (madd_to_store_split_raw st s k v s' d d2)] =
-  let st' = madd_to_store_split_raw st s k v s' d d2 in
-  let aux (s1 s2: slot_id _)
-    : Lemma (ensures (points_to_inuse_local st' s1 s2))
-            [SMTPat (points_to_inuse_local st' s1 s2)] =
-    assert(points_to_inuse_local st s1 s2);
-    if not (points_to st' s1 s2) then ()
-    else (
-      let d12 = pointed_dir st' s1 s2 in
-      if s1 = s then (
-        if d12 = d2 then (
-          assert(points_to_inuse_local st s' s2);
-          ()
-        )
-        else ()
-      )
-      else if s1 = s' then ()
-      else (
-        // assert(points_to_dir st s1 d12 s2);
-        // assert(inuse_slot st s2);
-        ()
-      )
-    )
-  in
-  ()
 
 noeq type madd_split_param (vcfg: verifier_config) =
   | MSP: st: vstore vcfg ->
@@ -758,6 +732,45 @@ let msp_points_to_desc_slot #vcfg msp s1 d1:
     assert(points_to_uniq_local st' s' s1 sd);
     ()
   )
+
+let lemma_madd_to_store_split_points_to_inuse
+  #vcfg
+  (st: vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Lemma (ensures (let st' = madd_to_store_split_raw st s k v s' d d2 in
+                    points_to_inuse st'))
+          [SMTPat (madd_to_store_split_raw st s k v s' d d2)] =
+  let msp = MSP st s k v s' d d2 in
+  let st' = madd_to_store_split_raw st s k v s' d d2 in
+  let aux (s1 s2: slot_id _)
+    : Lemma (ensures (points_to_inuse_local st' s1 s2))
+            [SMTPat (points_to_inuse_local st' s1 s2)] =
+    assert(points_to_inuse_local st s1 s2);
+    if not (points_to st' s1 s2) then ()
+    else (
+      let d12 = pointed_dir st' s1 s2 in
+      if s1 = s then (
+        if d12 = d2 then (
+          assert(points_to_inuse_local st s' s2);
+          msp_added_slot_points_to msp s2 d2;
+          assert(no_self_edge_local st s');
+          ()
+        )
+        else ()
+      )
+      else if s1 = s' then ()
+      else (
+        assert(points_to_dir st s1 d12 s2);
+        assert(inuse_slot st s2);
+        ()
+      )
+    )
+  in
+  ()
 
 let lemma_madd_to_store_split_points_to_unique
   #vcfg
@@ -981,7 +994,10 @@ let msr_value #vcfg (msr: madd_root_param vcfg): value_type_of Root =
 
 let msr_edges_identical #vcfg (msr: madd_root_param vcfg) (e: sds vcfg):
   Lemma (ensures (is_edge (msr_store_pre msr) e =
-                  is_edge (msr_store_post msr) e)) = ()
+                  is_edge (msr_store_post msr) e)) =
+  let s1,d,s2 = e in
+  if s1 = msr_slot msr then ()
+  else ()
 
 let msr_identical_except #vcfg msr:
   Lemma (ensures (identical_except (msr_store_pre msr) (msr_store_post msr) (msr_slot msr)))
@@ -1043,6 +1059,8 @@ let lemma_madd_to_store_root_pointed_to_inv #vcfg msr:
           [SMTPat (pointed_to_inv_local stn s)] =
     if empty_slot stn s || stored_key stn s = Root || add_method_of stn s <> Spec.MAdd then ()
     else (
+      assert(stored_key stn s <> Root);
+      assert(stored_key stn (msr_slot msr) = Root);
       (* s is not the added slot since the added slot contains Root *)
       assert(s <> msr_slot msr);
 
@@ -1117,7 +1135,10 @@ let bas_slot #vcfg (bas: badd_param vcfg) =
 
 let bas_edges_identical #vcfg bas e
   : Lemma (ensures (is_edge (bas_store_pre #vcfg bas) e =
-                    is_edge (bas_store_post bas) e)) = ()
+                    is_edge (bas_store_post bas) e)) =
+  let s1,d,s2 = e in
+  if s1 = bas_slot bas then ()
+  else ()
 
 let bas_identical_except #vcfg bas
   : Lemma (ensures (identical_except (bas_store_pre bas) (bas_store_post bas) (bas_slot bas)))
