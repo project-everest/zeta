@@ -1,7 +1,7 @@
 module Veritas.Intermediate.Verify
 open FStar.Classical
 
-#push-options "--z3rlimit_factor 2"
+#push-options "--z3rlimit_factor 3"
 
 let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}):
   (vs': vtls vcfg {let a = AMP s r s' vs in

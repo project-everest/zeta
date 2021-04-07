@@ -121,7 +121,10 @@ let parent_props #vcfg (st: vstore_raw vcfg) =
 
 (* a pointed slot is inuse *)
 let points_to_inuse_local #vcfg (st:vstore_raw vcfg) (s1 s2: slot_id _) =
-  points_to st s1 s2 ==> (inuse_slot st s2 /\ add_method_of st s2 = Spec.MAdd)
+  (points_to_dir st s1 Left s2 ==> (inuse_slot st s2 /\ add_method_of st s2 = Spec.MAdd /\
+                                  has_parent st s2 /\ parent_slot st s2 = s1 /\ parent_dir st s2 = Left)) /\
+  (points_to_dir st s1 Right s2 ==> (inuse_slot st s2 /\ add_method_of st s2 = Spec.MAdd /\
+                                    has_parent st s2 /\ parent_slot st s2 = s1 /\ parent_dir st s2 = Right))
 
 let points_to_inuse #vcfg (st:vstore_raw vcfg) =
   forall (s1 s2: slot_id _). {:pattern (points_to_inuse_local st s1 s2) \/ (points_to st s1 s2)} points_to_inuse_local st s1 s2
@@ -222,7 +225,7 @@ val madd_to_store_split
                           let od2 = other_dir d2 in
 
                           // st and st' identical except at s, s'
-                          identical_except2 st st' s s' /\
+                          identical_except3 st st' s s' s2 /\
 
                           // nothing changes in slot s', except it now points to s in direction d
                           inuse_slot st' s' /\
