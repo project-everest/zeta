@@ -1291,9 +1291,60 @@ let mev_edge_in_post_in_pre #vcfg mev e
   : Lemma (ensures (is_edge (mev_store_post #vcfg mev) e ==>
                     is_edge (mev_store_pre mev) e)) = ()
 
+let mev_edge_in_pre_in_post #vcfg mev e
+  : Lemma (requires (is_edge (mev_store_pre #vcfg mev) e /\
+                     (mev_deletes_edge mev ==> e <> mev_deleted_edge mev)))
+          (ensures (is_edge (mev_store_post mev) e)) =
+  let s1,d2,s2 = e in
+  if s1 = mev_anc_slot mev then (
+    assert(d2 <> mev_dir mev);
+    ()
+  )
+  else (
+    assert(s1 <> mev_slot mev);
+    ()
+  )
+
 let mev_del_slot_empty #vcfg mev
   : Lemma (ensures (empty_slot (mev_store_post mev) (mev_slot mev)))
           [SMTPat (apply_mev #vcfg mev)]  = ()
+
+let lemma_mev_points_to_inuse #vcfg mev
+  : Lemma (ensures (points_to_inuse (mev_store_post mev)))
+          [SMTPat (apply_mev #vcfg mev)] =
+  let stp = mev_store_pre mev in
+  let stn = mev_store_post mev in
+
+  let aux s1 s2
+    : Lemma (ensures (points_to_inuse_local stn s1 s2))
+            [SMTPat (points_to_inuse_local stn s1 s2)] =
+    if not (points_to stn s1 s2) then ()
+    else (
+      let d12 = pointed_dir stn s1 s2 in
+      let e = s1,d12,s2 in
+
+      (* every edge in post is an edge in pre *)
+      mev_edge_in_post_in_pre mev e;
+      assert(is_edge stp e);
+      assert(points_to_inuse_local stp s1 s2);
+
+      assert(s1 <> mev_slot mev);
+      if s1 = mev_anc_slot mev then admit()
+      else (
+
+        assert(get_slot stp s1 = get_slot stn s1);
+        if s2 = mev_slot mev then (
+          assert(points_to stp s1 s2);
+          //assert(points_to stp (mev_anc_slot mev) s2);
+          admit()
+        )
+        else
+
+        admit()
+      )
+    )
+  in
+  ()
 
 let mevict_from_store
   (#vcfg: verifier_config)
@@ -1319,10 +1370,16 @@ let mevict_from_store
                           })
   = admit()
 
+(*
+noeq type bevict_param (vcfg: verifier_config) =
+  | BEV: st: vstore vcfg ->
+         s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right} ->
+*)
+
 let bevict_from_store
   (#vcfg: verifier_config)
   (st:vstore vcfg)
-  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right /\ add_method_of st s = Spec.BAdd})
   : Tot (st':vstore vcfg {// st and st' are identical except at slot s
                           identical_except st st' s /\
 
@@ -1417,7 +1474,7 @@ let lemma_not_contains_after_mevict
 let lemma_not_contains_after_bevict
   (#vcfg: verifier_config)
   (st:vstore vcfg)
-  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right /\ add_method_of st s = Spec.BAdd})
   : Lemma (ensures (let st' = bevict_from_store st s in
                     let k = stored_key st s in
                     is_map st' /\
