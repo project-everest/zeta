@@ -311,7 +311,10 @@ let msp_desc_slot_inuse #vcfg (msp: madd_split_param vcfg)
 
 let apply_msp #vcfg (msp: madd_split_param vcfg) =
   match msp with
-  | MSP st s k v s' d d2 ->
+  | MSP _ _ k v _ d d2 ->
+    let st = msp_store_pre msp in
+    let s =  msp_slot msp in
+    let s' =  msp_anc_slot msp in
     let s2 = msp_desc_slot msp in
     let VStoreE k' v' am' l' r' p' = get_inuse_slot st s' in
     let p = s',d in
@@ -319,18 +322,22 @@ let apply_msp #vcfg (msp: madd_split_param vcfg) =
                VStoreE k v Spec.MAdd (Some s2) None (Some p)
              else
                VStoreE k v Spec.MAdd None (Some s2) (Some p)) in
-    let st = update_slot st s e in
 
     let e' = (if d = Left then
                 VStoreE k' v' am' (Some s) r' p'
               else
                 VStoreE k' v' am' l' (Some s) p') in
+    // msp_desc_slot_inuse msp;
+    // let (VStoreE k2 v2 am2 l2 r2 p2) = get_inuse_slot st s2 in
+    let st = update_slot st s e in
     let st = update_slot st s' e' in
-    msp_desc_slot_inuse msp;
-    let VStoreE k2 v2 am2 l2 r2 p2 = get_inuse_slot st s2 in
-    let p2new = s,d2 in
-    let e2 = VStoreE k2 v2 am2 l2 r2 (Some p2new) in
-    update_slot st s2 e2
+    match get_slot st s2 with
+    | None -> st
+    | Some (VStoreE k2 v2 am2 l2 r2 p2) ->
+      let p2new = s,d2 in
+      let e2 = VStoreE k2 v2 am2 l2 r2 (Some p2new) in
+      update_slot st s2 e2
+
 
 let msp_store_post #vcfg (msp: madd_split_param vcfg) =
   apply_msp msp
@@ -338,56 +345,8 @@ let msp_store_post #vcfg (msp: madd_split_param vcfg) =
 let lemma_madd_to_store_split_identical_except #vcfg msp
   : Lemma (ensures (identical_except3 (msp_store_pre msp) (msp_store_post msp)
                                       (msp_slot msp) (msp_anc_slot msp) (msp_desc_slot msp)))
-          [SMTPat (apply_msp #vcfg msp)] =
-  let stp = msp_store_pre msp in
-  let stn = msp_store_post msp in
-  let aux s1: Lemma (ensures (s1 <> msp_slot msp ==>
-                              s1 <> msp_anc_slot msp ==>
-                              s1 <> msp_desc_slot msp ==>
-                              get_slot stp s1 = get_slot stn s1)) =
+          [SMTPat (apply_msp #vcfg msp)] = ()
 
-    if s1 = msp_slot msp then ()
-    else if s1 = msp_anc_slot msp then ()
-    else if s1 = msp_desc_slot msp then ()
-    else (
-      (* TODO: Ugly hack!!
-       * this is a cut-n-paste of the definition of apply_msp
-       * for some reason the proof fails without the cut-n-paste and the assert
-       * that follow. Might be something to do with definition expansion???
-       * seq.upd needs to be expanded three times - everything works fine when we only
-       * change 2 slots *)
-       // BEGIN cut-n-paste
-     match msp with
-     | MSP st s k v s' d d2 ->
-       let s2 = msp_desc_slot msp in
-        let stinit = st in
-      let VStoreE k' v' am' l' r' p' = get_inuse_slot st s' in
-      let p = s',d in
-      let e = (if d2 = Left then
-               VStoreE k v Spec.MAdd (Some s2) None (Some p)
-             else
-               VStoreE k v Spec.MAdd None (Some s2) (Some p)) in
-        let st = update_slot st s e in
-
-      let e' = (if d = Left then
-                VStoreE k' v' am' (Some s) r' p'
-              else
-                VStoreE k' v' am' l' (Some s) p') in
-        let st = update_slot st s' e' in
-      msp_desc_slot_inuse msp;
-      let VStoreE k2 v2 am2 l2 r2 p2 = get_inuse_slot st s2 in
-      let p2new = s,d2 in
-      let e2 = VStoreE k2 v2 am2 l2 r2 (Some p2new) in
-      let st = update_slot st s2 e2 in
-      // end cut-n-paste
-      assert(st == stn);
-      assert(stinit == stp);
-      assert(get_slot stp s1 = get_slot stn s1);
-      ()
-    )
-  in
-  forall_intro aux;
-  ()
 
 let is_nonedge #vcfg st (e: sds vcfg) =
   not (is_edge st e)
