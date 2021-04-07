@@ -24,6 +24,7 @@ type vstore_entry (vcfg:verifier_config) =
              am:add_method ->
              l_in_store : option (slot_id vcfg) ->
              r_in_store : option (slot_id vcfg) ->
+             p: option (slot_id vcfg & bin_tree_dir) ->                     (* parent slot *)
              vstore_entry vcfg
 
 (* vstore_raw: the raw version of the vstore; the actual vstore
@@ -97,6 +98,27 @@ let lemma_points_to_dir_implies_points_to #vcfg (st:vstore_raw vcfg) (s1: slot_i
         (ensures (points_to st s1 s2))
         [SMTPat (points_to_dir st s1 d s2)] = ()
 
+(* does the slot s have a parent pointing to it *)
+let has_parent #vcfg st s =
+  Some? (VStoreE?.p (get_inuse_slot #vcfg st s))
+
+(* parent of slot s *)
+let parent_slot #vcfg (st: vstore_raw vcfg) (s: inuse_slot_id st{has_parent st s}): slot_id vcfg =
+  fst (Some?.v (VStoreE?.p (get_inuse_slot #vcfg st s)))
+
+let parent_dir #vcfg (st: vstore_raw vcfg) (s: inuse_slot_id st{has_parent st s}): bin_tree_dir =
+  snd (Some?.v (VStoreE?.p (get_inuse_slot #vcfg st s)))
+
+(* if I have a parent, I should have been added with MAdd and the parent points to me *)
+let parent_props_local #vcfg (st: vstore_raw vcfg) (s: slot_id vcfg) =
+  inuse_slot st s ==>
+  has_parent st s ==>
+  (add_method_of st s = Spec.MAdd /\ points_to_dir st (parent_slot st s) (parent_dir st s) s)
+
+(* parent implies madd holds for all slots in the store *)
+let parent_props #vcfg (st: vstore_raw vcfg) =
+  forall (s: slot_id vcfg). {:pattern parent_props_local st s} parent_props_local st s
+
 (* a pointed slot is inuse *)
 let points_to_inuse_local #vcfg (st:vstore_raw vcfg) (s1 s2: slot_id _) =
   points_to st s1 s2 ==> (inuse_slot st s2 /\ add_method_of st s2 = Spec.MAdd)
@@ -104,40 +126,29 @@ let points_to_inuse_local #vcfg (st:vstore_raw vcfg) (s1 s2: slot_id _) =
 let points_to_inuse #vcfg (st:vstore_raw vcfg) =
   forall (s1 s2: slot_id _). {:pattern (points_to_inuse_local st s1 s2) \/ (points_to st s1 s2)} points_to_inuse_local st s1 s2
 
-(* a node is pointed to by at most one node *)
-let points_to_uniq_local #vcfg (st:vstore_raw vcfg) (s1 s2 s: slot_id vcfg) =
-  (s1 = s2 && (not (points_to_dir st s1 Left s) ||
-               not (points_to_dir st s1 Right s)))
-  || not (points_to st s1 s) || not (points_to st s2 s)
-
-let points_to_uniq #vcfg (st:vstore_raw vcfg) =
-  forall (s1 s2 s: slot_id vcfg). {:pattern points_to_uniq_local st s1 s2 s} points_to_uniq_local st s1 s2 s
-
-let pointed_to_inv_local #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) =
-  inuse_slot st s ==>
-  stored_key st s <> Root ==>
-  add_method_of st s = Spec.MAdd ==>
-  (exists (s': inuse_slot_id st). exists (d:bin_tree_dir).
-     points_to_some_slot st s' d /\
-     pointed_slot st s' d = s)
-
-let pointed_to_inv #vcfg (st:vstore_raw vcfg) =
-  forall (s: slot_id vcfg). {:pattern pointed_to_inv_local st s} pointed_to_inv_local st s
-
 let no_self_edge_local #vcfg (st: vstore_raw vcfg) (s: slot_id vcfg) =
   not (points_to st s s)
 
 let no_self_edge #vcfg (st:vstore_raw vcfg) =
   forall s. {:pattern no_self_edge_local st s} no_self_edge_local st s
 
+let madd_props_local #vcfg (st: vstore_raw vcfg) (s: slot_id vcfg) =
+  inuse_slot st s ==>
+  add_method_of st s = Spec.MAdd ==>
+  stored_key st s <> Root ==>
+  has_parent st s
+
+let madd_props #vcfg (st: vstore_raw vcfg) =
+  forall s. {:pattern madd_props_local st s} madd_props_local st s
+
 (* vstore is a raw store that satisfies the points_to invariant *)
-let vstore vcfg = st:vstore_raw vcfg{points_to_inuse st /\  points_to_uniq st /\ pointed_to_inv st /\ no_self_edge st}
+let vstore vcfg = st:vstore_raw vcfg{points_to_inuse st /\  parent_props st /\ madd_props st /\ no_self_edge st}
 
 let empty_store vcfg:vstore vcfg = Seq.create (store_size vcfg) None
 
 let has_key #vcfg (k:key) (e:option (vstore_entry vcfg)) : bool
   = match e with
-    | Some (VStoreE k' _ _ _ _) -> k = k'
+    | Some (VStoreE k' _ _ _ _ _) -> k = k'
     | None -> false
 
 (** vstore update methods **)
@@ -161,9 +172,9 @@ val update_value
   : Tot (st':vstore vcfg {identical_except st st' s /\
                           inuse_slot st' s /\
                           v = stored_value st' s /\
-                          (let VStoreE k1 _ am1 ld1 rd1 = get_inuse_slot st s in
-                           let VStoreE k2 _ am2 ld2 rd2 = get_inuse_slot st' s in
-                           k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2)})
+                          (let VStoreE k1 _ am1 ld1 rd1 p1 = get_inuse_slot st s in
+                           let VStoreE k2 _ am2 ld2 rd2 p2 = get_inuse_slot st' s in
+                           k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2 /\ p1 = p2)})
 
 (*
  * add a new record to store with add method madd to slot s.
@@ -190,7 +201,7 @@ val madd_to_store
 
                          // slot s contains (k, v, MAdd) and points to nothing
                          inuse_slot st' s /\
-                         get_inuse_slot st' s = VStoreE k v Spec.MAdd None None
+                         get_inuse_slot st' s = VStoreE k v Spec.MAdd None None (Some (s',d))
                          })
 
 (*
@@ -225,7 +236,15 @@ val madd_to_store_split
                           inuse_slot st' s /\
                           stored_key st' s = k /\ stored_value st' s = v /\ add_method_of st' s = Spec.MAdd /\
                           points_to_none st' s od2 /\
-                          points_to_dir st' s d2 s2})
+                          points_to_dir st' s d2 s2 /\
+                          has_parent st' s /\
+                          parent_slot st' s = s' /\
+                          parent_dir st' s = d /\
+
+                          has_parent st' s2 /\
+                          parent_slot st' s2 = s /\
+                          parent_dir st' s2 = d2
+                          })
 
 val madd_to_store_root
   (#vcfg: verifier_config)
@@ -237,7 +256,7 @@ val madd_to_store_root
 
                          // slot s contains (Root, v, MAdd) and points to none
                          inuse_slot st' s /\
-                         get_inuse_slot st' s = VStoreE Root v Spec.MAdd None None})
+                         get_inuse_slot st' s = VStoreE Root v Spec.MAdd None None None})
 
 (* add a new entry (k,v) to the store at en empty slot s; *)
 val badd_to_store
@@ -249,7 +268,7 @@ val badd_to_store
   : Tot (st':vstore vcfg {// st and st' identical except for s
                           identical_except st st' s /\
                           inuse_slot st' s /\
-                          get_inuse_slot st' s = VStoreE k v Spec.BAdd None None})
+                          get_inuse_slot st' s = VStoreE k v Spec.BAdd None None None})
 
 (*
  * evict the current entry from a store slot s; the entry should have been added using MAdd. From the

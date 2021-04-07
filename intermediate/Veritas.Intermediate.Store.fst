@@ -5,263 +5,98 @@ let update_slot #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg) (e:vstore_entry vcfg
   : vstore_raw _
   = Seq.upd st s (Some e)
 
-let points_to_unchanged_slot #vcfg (st1 st2: vstore_raw vcfg) (s: slot_id vcfg) =
-  inuse_slot st1 s = inuse_slot st2 s /\
-  (inuse_slot st1 s ==> points_to_info st1 s Left = points_to_info st2 s Left /\
-                       points_to_info st1 s Right = points_to_info st2 s Right)
+let sds vcfg = slot_id vcfg & bin_tree_dir & slot_id vcfg
 
-let points_to_unchanged #vcfg (st1 st2: vstore_raw vcfg) =
-  forall (s: slot_id vcfg). {:pattern points_to_unchanged_slot st1 st2 s}
-                       points_to_unchanged_slot st1 st2 s
+let is_edge #vcfg st (e:sds vcfg) =
+  let s1,d,s2 = e in
+  inuse_slot st s1 && points_to_dir st s1 d s2
 
-/// Two stores have the same slot or the slot is empty for a given slot s
+noeq type update_val_param (vcfg: verifier_config) =
+  | UVP: st: vstore vcfg ->
+         s: inuse_slot_id st ->
+         v: value_type_of (stored_key st s) -> update_val_param vcfg
+
+let uvp_slot #vcfg (uvp: update_val_param vcfg): slot_id vcfg =
+  UVP?.s uvp
+
+let uvp_val #vcfg (uvp: update_val_param vcfg) =
+  UVP?.v uvp
+
+let apply_update_val #vcfg (uvp: update_val_param vcfg) =
+  match uvp with
+  | UVP st s v ->
+    let VStoreE k v' am lp rp p = get_inuse_slot st s in
+    let e' = VStoreE k v am lp rp p in
+    update_slot st s e'
+
+let uvp_store_pre #vcfg (uvp: update_val_param vcfg) =
+  UVP?.st uvp
+
+let uvp_store_post #vcfg (uvp: update_val_param vcfg) =
+  apply_update_val uvp
+
+///  The edges are unchanged after update value
 ///
-let add_method_unchanged_slot #vcfg (st1 st2: vstore_raw vcfg) (s: slot_id vcfg) =
-  inuse_slot st1 s = inuse_slot st2 s /\
-  (inuse_slot st1 s ==> add_method_of st1 s = add_method_of st2 s)
+let uvp_edges_unchanged #vcfg uvp e
+  : Lemma (is_edge (uvp_store_pre #vcfg uvp) e =
+           is_edge (uvp_store_post uvp) e) = ()
 
-/// Two stores have the same empty slots and the same add methods for non-empty slots
+///  Each slot except the updated slot remains unchanged
 ///
-let add_method_unchanged #vcfg (st1 st2: vstore_raw vcfg) =
-  forall (s: slot_id vcfg). {:pattern add_method_unchanged_slot st1 st2 s} add_method_unchanged_slot st1 st2 s
+let uvp_identical_except #vcfg uvp
+  : Lemma (ensures (identical_except (uvp_store_pre uvp) (uvp_store_post uvp) (uvp_slot uvp)))
+          [SMTPat (apply_update_val #vcfg uvp)]
+  = ()
 
-let lemma_points_to_unchanged_implies_points_to_inuse #vcfg (st1 st2: vstore_raw vcfg)
-  : Lemma (requires (points_to_unchanged st1 st2 /\ points_to_inuse st1 /\ add_method_unchanged st1 st2))
-          (ensures (points_to_inuse st2))
-          [SMTPat (points_to_unchanged st1 st2)] =
-  let aux (s1 s2: slot_id vcfg):
-    Lemma (ensures (points_to_inuse_local st2 s1 s2))
-          [SMTPat (points_to_inuse_local st2 s1 s2)] =
-    assert(points_to_unchanged_slot st1 st2 s1);
-    assert(points_to_unchanged_slot st1 st2 s2);
-    assert(points_to_inuse_local st1 s1 s2);
-    assert(add_method_unchanged_slot st1 st2 s2);
+let lemma_points_to_inuse_update_val #vcfg uvp
+  : Lemma (ensures (points_to_inuse (uvp_store_post uvp)))
+          [SMTPat (apply_update_val #vcfg uvp)] =
+  let stp = uvp_store_pre uvp in
+  let stn = uvp_store_post uvp in
+  let aux s1 s2
+    : Lemma (ensures (points_to_inuse_local stn s1 s2))
+            [SMTPat (points_to_inuse_local stn s1 s2)] =
+    assert(points_to_inuse_local stp s1 s2);
     ()
   in
   ()
 
-let slot_dir vcfg = (slot_id vcfg) & bin_tree_dir
-
-let pointed_dir #vcfg (st: vstore_raw vcfg) (s1: slot_id vcfg) (s2: slot_id _{points_to st s1 s2}):
-  (d:bin_tree_dir{points_to_dir st s1 d s2}) =
-  if points_to_dir st s1 Left s2 then Left
-  else Right
-
-/// Computational version of pointed_to_inv_local
-///
-let rec pointed_to_inv_local_find_aux #vcfg (st: vstore_raw vcfg)
-                                        (s: slot_id vcfg{pointed_to_inv_local st s /\
-                                                         inuse_slot st s /\
-                                                         stored_key st s <> Root /\
-                                                         add_method_of st s = Spec.MAdd})
-                                        (sl: nat{sl <= store_size vcfg})     // slot limit
-  : (r:option (slot_dir vcfg){r = None /\
-                              (forall (s1:slot_id vcfg{s1 < sl}). forall (d:bin_tree_dir).
-                                empty_slot st s1 \/
-                                points_to_none st s1 d \/
-                                pointed_slot st s1 d <> s) \/
-                              Some? r /\ (let (s1,d) = Some?.v r in
-                                          inuse_slot st s1 /\
-                                          points_to_some_slot st s1 d /\
-                                          pointed_slot st s1 d = s)})
-  =
-  if sl = 0 then None
-  else
-    let sl' = sl - 1 in
-    let r' = pointed_to_inv_local_find_aux st s sl' in
-    if Some? r' then
-      Some (Some?.v r')
-    else
-      if inuse_slot st sl' && points_to st sl' s then
-        let d = pointed_dir st sl' s in
-        Some (sl', d)
-      else
-        let aux(d:bin_tree_dir)
-          : Lemma (forall (s1:slot_id vcfg{s1 < sl}).
-                     empty_slot st s1 \/ points_to_none st s1 d \/ pointed_slot st s1 d <> s)
-          =
-          let aux2 (s1:slot_id vcfg{s1 < sl})
-            : Lemma (empty_slot st s1 \/ points_to_none st s1 d \/ pointed_slot st s1 d <> s)
-            =
-            if s1 = sl' then ()
-            else
-              ()
-
-          in
-          forall_intro aux2
-        in
-        forall_intro aux;
-        None
-
-/// For a slot s added with Merkle, use the invariant to find another slot pointing to s
-///
-let pointed_to_inv_local_find #vcfg (st: vstore_raw vcfg)
-                                    (s: slot_id vcfg{pointed_to_inv_local st s /\
-                                                         inuse_slot st s /\
-                                                         stored_key st s <> Root /\
-                                                         add_method_of st s = Spec.MAdd})
-  : (sd: (slot_dir vcfg){let (s1,d) = sd in
-                         inuse_slot st s1 /\
-                         points_to_some_slot st s1 d /\
-                         pointed_slot st s1 d = s})
-  =
-  let r = pointed_to_inv_local_find_aux st s (store_size vcfg) in
-  if r = None then (
-    assert(pointed_to_inv_local st s);
-    let aux (d:bin_tree_dir)
-      : Lemma (ensures (forall (s':inuse_slot_id st). ~ (points_to_some_slot st s' d /\ pointed_slot st s' d = s)))
-      =
-      let aux2 (s':inuse_slot_id st):
-        Lemma (ensures (~ (points_to_some_slot st s' d /\ pointed_slot st s' d = s)))
-        =
-        assert(empty_slot st s' \/
-               points_to_none st s' d \/
-               pointed_slot st s' d <> s);
-        ()
-      in
-      forall_intro aux2
-    in
-    forall_intro aux;
-    // assert (forall (s':inuse_slot_id st) (d:bin_tree_dir). ~ (points_to_some_slot st s' d /\ pointed_slot st s' d = s));
-    // assert(False);
-    (0,Left)
-  )
-  else Some?.v r
-
-/// Two stores have the the same key or the slot is empty for a given slot s
-///
-let keys_unchanged_slot #vcfg (st1 st2: vstore_raw vcfg) (s: slot_id vcfg) =
-  inuse_slot st1 s = inuse_slot st2 s /\
-  (inuse_slot st1 s ==> stored_key st1 s = stored_key st2 s)
-
-/// Two stores have the same empty slots and the same keys in non-empty slots
-///
-let keys_unchanged #vcfg (st1 st2: vstore_raw vcfg) =
-  forall (s: slot_id vcfg). {:pattern keys_unchanged_slot st1 st2 s}
-                       keys_unchanged_slot st1 st2 s
-
-let lemma_points_to_unchanged_implies_pointed_to_inv_local #vcfg (st1 st2: vstore_raw vcfg) (s:slot_id vcfg)
-  : Lemma (requires (points_to_unchanged st1 st2 /\ keys_unchanged st1 st2 /\ add_method_unchanged st1 st2 /\ pointed_to_inv_local st1 s))
-          (ensures (pointed_to_inv_local st2 s)) =
-  if empty_slot st1 s then
-    assert(points_to_unchanged_slot st1 st2 s)
-  else if stored_key st1 s = Root then
-    assert(keys_unchanged_slot st1 st2 s)
-  else if add_method_of st1 s <> Spec.MAdd then
-    assert(add_method_unchanged_slot st1 st2 s)
-  else (
-    let (s',d) = pointed_to_inv_local_find st1 s in
-    assert(points_to_unchanged_slot st1 st2 s');
-
-    let aux (d1: bin_tree_dir):Type0 = points_to_dir st2 s' d1 s in
-    exists_intro aux d;
-    assert(exists d1. points_to_dir st2 s' d1 s);
-
-    let aux (s1: inuse_slot_id st2) = exists d1. points_to_dir st2 s1 d1 s in
-    exists_intro aux s';
-
-    // assert (exists (s1: inuse_slot_id st2). exists (d1: bin_tree_dir). points_to_dir st2 s1 d1 s);
-
-    ()
-  )
-
-let lemma_points_to_unchanged_implies_pointed_to_inv #vcfg (st1 st2: vstore_raw vcfg)
-  : Lemma (requires (points_to_unchanged st1 st2 /\ keys_unchanged st1 st2 /\ add_method_unchanged st1 st2 /\ pointed_to_inv st1))
-          (ensures (pointed_to_inv st2))
-          [SMTPat (points_to_unchanged st1 st2)] =
-  let aux (s: slot_id vcfg)
-    : Lemma (ensures (pointed_to_inv_local st2 s))
-            [SMTPat (pointed_to_inv_local st2 s)]
-    = lemma_points_to_unchanged_implies_pointed_to_inv_local st1 st2 s
-  in
-  ()
-
-let lemma_points_to_unchanged_implies_points_to_uniq #vcfg (st1 st2: vstore_raw vcfg)
-  : Lemma (requires (points_to_unchanged st1 st2 /\ points_to_uniq st1))
-          (ensures (points_to_uniq st2))
-          [SMTPat (points_to_unchanged st1 st2)] =
-  let aux (s1 s2 s: slot_id vcfg)
-    : Lemma (ensures (points_to_uniq_local st2 s1 s2 s))
-            [SMTPat (points_to_uniq_local st2 s1 s2 s)] =
-    assert(points_to_uniq_local st1 s1 s2 s);
-    assert(points_to_unchanged_slot st1 st2 s1);
-    assert(points_to_unchanged_slot st1 st2 s2);
+let lemma_parent_props_update_val #vcfg uvp
+  : Lemma (ensures (parent_props (uvp_store_post uvp)))
+          [SMTPat (apply_update_val #vcfg uvp)] =
+  let stp = uvp_store_pre uvp in
+  let stn = uvp_store_post uvp in
+  let aux s1
+    : Lemma (ensures (parent_props_local stn s1))
+            [SMTPat (parent_props_local stn s1)] =
+    assert(parent_props_local stp s1);
     ()
   in
   ()
 
-let update_value_raw #vcfg (st:vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
-  : vstore_raw vcfg =
-  let VStoreE k v' am lp rp = get_inuse_slot st s in
-  let e' = VStoreE k v am lp rp in
-  update_slot st s e'
-
-let lemma_update_value_identical_except
-  #vcfg (st:vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
-  : Lemma (ensures (let st' = update_value_raw st s v in
-                    identical_except st st' s))
-          [SMTPat (update_value_raw st s v)] =
-  let st' = update_value_raw st s v in
-  let aux (s': slot_id vcfg)
-    : Lemma (ensures (s' <> s ==> get_slot st s' = get_slot st' s'))
-            [SMTPat (get_slot st s' = get_slot st' s')]
-    =
+let lemma_madd_props_update_val #vcfg uvp
+  : Lemma (ensures (madd_props (uvp_store_post uvp)))
+          [SMTPat (apply_update_val #vcfg uvp)] =
+  let stp = uvp_store_pre uvp in
+  let stn = uvp_store_post uvp in
+  let aux s1
+    : Lemma (ensures (madd_props_local stn s1))
+            [SMTPat (madd_props_local stn s1)] =
+    assert(madd_props_local stp s1);
     ()
   in
   ()
 
-let lemma_update_value_keys_unchanged
-  #vcfg (st:vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
-  : Lemma (ensures (let st' = update_value_raw st s v in
-                    keys_unchanged st st'))
-          [SMTPat (update_value_raw st s v)] =
-  let st' = update_value_raw st s v in
-  let aux(s2: slot_id vcfg)
-    : Lemma (ensures (keys_unchanged_slot st st' s2))
-            [SMTPat (keys_unchanged_slot st st' s2)] =
+let lemma_no_self_edge_update_val #vcfg uvp
+  : Lemma (ensures (no_self_edge (uvp_store_post uvp)))
+          [SMTPat (apply_update_val #vcfg uvp)] =
+  let stp = uvp_store_pre uvp in
+  let stn = uvp_store_post uvp in
+  let aux s1
+    : Lemma (ensures (no_self_edge_local stn s1))
+            [SMTPat (no_self_edge_local stn s1)] =
+    assert(no_self_edge_local stp s1);
     ()
-  in
-  ()
-
-let lemma_update_value_add_method_unchaged
-  #vcfg (st:vstore vcfg) (s:inuse_slot_id st) (v:value_type_of (stored_key st s))
-  : Lemma (ensures (let st' = update_value_raw st s v in
-                    add_method_unchanged st st'))
-          [SMTPat (update_value_raw st s v)] =
-  let st' = update_value_raw st s v in
-  let aux (s2: slot_id vcfg)
-    : Lemma (ensures (add_method_unchanged_slot st st' s2))
-            [SMTPat (add_method_unchanged_slot st st' s2)] =
-    ()
-  in
-  ()
-
-let lemma_update_value_points_to_unchanged
-  #vcfg (st:vstore vcfg) (s:inuse_slot_id st) (v: value_type_of (stored_key st s))
-  : Lemma (ensures (let st' = update_value_raw st s v in
-                    points_to_unchanged st st'))
-          [SMTPat (update_value_raw st s v)] =
-  let st' = update_value_raw st s v in
-  let aux (s2: slot_id vcfg)
-    : Lemma (ensures (points_to_unchanged_slot st st' s2))
-            [SMTPat (points_to_unchanged_slot st st' s2)] =
-    ()
-  in
-  ()
-
-let lemma_points_to_unchanged_implies_no_self_edge #vcfg (st1 st2: vstore_raw vcfg)
-  : Lemma (requires (points_to_unchanged st1 st2 /\ no_self_edge st1))
-          (ensures (no_self_edge st2))
-          [SMTPat (points_to_unchanged st1 st2)] =
-  let aux (s: slot_id vcfg)
-    : Lemma (ensures (no_self_edge_local st2 s))
-            [SMTPat (no_self_edge_local st2 s)] =
-    if points_to st2 s s then (
-      assert(points_to_unchanged_slot st1 st2 s);
-      assert(no_self_edge_local st1 s);
-      ()
-    )
-    else ()
   in
   ()
 
@@ -273,10 +108,11 @@ let update_value
   : Tot (st':vstore vcfg {identical_except st st' s /\
                           inuse_slot st' s /\
                           v = stored_value st' s /\
-                          (let VStoreE k1 _ am1 ld1 rd1 = get_inuse_slot st s in
-                           let VStoreE k2 _ am2 ld2 rd2 = get_inuse_slot st' s in
-                           k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2)}) =
-  update_value_raw st s v
+                          (let VStoreE k1 _ am1 ld1 rd1 p1 = get_inuse_slot st s in
+                           let VStoreE k2 _ am2 ld2 rd2 p2 = get_inuse_slot st' s in
+                           k1 = k2 /\ am1 = am2 /\ ld1 = ld2 /\ rd1 = rd2 /\ p1 = p2)}) =
+  let uvp = UVP st s v in
+  apply_update_val uvp
 
 /// The "raw" version of madd_to_store on which we prove properties
 ///
@@ -609,11 +445,6 @@ let msp_desc_slot #vcfg (msp: madd_split_param vcfg) =
   let d = msp_dir msp in
   pointed_slot st s' d
 
-let sds vcfg = slot_id vcfg & bin_tree_dir & slot_id vcfg
-
-let is_edge #vcfg st (e:sds vcfg) =
-  let s1,d,s2 = e in
-  inuse_slot st s1 && points_to_dir st s1 d s2
 
 let is_nonedge #vcfg st (e: sds vcfg) =
   not (is_edge st e)

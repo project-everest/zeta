@@ -147,7 +147,7 @@ let lemma_addm_propsB #vcfg (vs':vtls vcfg{Valid? vs'}) (e: logS_entry _ {AddM_S
                   empty_slot st' s /\
                   inuse_slot st s /\
                   identical_except2 st' st s' s /\
-                  (let VStoreE k2 _ am2 _ _ = get_inuse_slot st s in
+                  (let VStoreE k2 _ am2 _ _ _ = get_inuse_slot st s in
                    k2 = k /\ am2 = Spec.MAdd))) =
    let vs = verify_step vs' e in
    let st = thread_store vs in
@@ -1931,7 +1931,7 @@ let lemma_evictbm_preserves_ismap
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
   = ()
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--z3rlimit_factor 4"
 
 let lemma_evictbm_simulates_spec
       (#vcfg:_)
