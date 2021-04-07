@@ -114,199 +114,110 @@ let update_value
   let uvp = UVP st s v in
   apply_update_val uvp
 
-/// The "raw" version of madd_to_store on which we prove properties
+noeq type madd_param (vcfg: verifier_config) =
+  | MAP:   st: vstore vcfg ->
+           s:empty_slot_id st ->
+           k:key -> v:value_type_of k ->
+           s':merkle_slot_id st ->
+           d:bin_tree_dir {points_to_none st s' d} -> madd_param vcfg
+
+let map_slot #vcfg (map: madd_param vcfg) =
+  MAP?.s map
+
+let map_key #vcfg (map: madd_param vcfg) =
+  MAP?.k map
+
+let map_val #vcfg (map: madd_param vcfg) =
+  MAP?.v map
+
+let map_dir #vcfg (map: madd_param vcfg) =
+  MAP?.d map
+
+let map_anc_slot #vcfg (map: madd_param vcfg) =
+  MAP?.s' map
+
+let apply_map #vcfg (map: madd_param vcfg) =
+  match map with
+  | MAP st s k v s' d ->
+    let e = VStoreE k v Spec.MAdd None None None in
+    let st = update_slot st s e in
+    let VStoreE k' v' am' l' r' p' = get_inuse_slot st s' in
+    assert(None == (if d = Left then l' else r'));
+
+    if d = Left then
+      update_slot st s' (VStoreE k' v' am' (Some s) r' p')
+    else
+      update_slot st s' (VStoreE k' v' am' l' (Some s) p')
+
+let map_store_pre #vcfg (map: madd_param vcfg) =
+  MAP?.st map
+
+let map_store_post #vcfg map =
+  apply_map #vcfg map
+
+///  The new edge added by the map
 ///
-let madd_to_store_raw
-  (#vcfg: verifier_config)
-  (st: vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_none st s' d})
-  : Tot (vstore_raw vcfg) =
-  let e = VStoreE k v Spec.MAdd None None in
-  let st = update_slot st s e in
-  let VStoreE k' v' am' l' r' = get_inuse_slot st s' in
-  assert(None == (if d = Left then l' else r'));
+let map_new_edge #vcfg (map: madd_param vcfg): sds vcfg =
+  (map_anc_slot map), (map_dir map), (map_slot map)
 
-  if d = Left then
-    update_slot st s' (VStoreE k' v' am' (Some s) r')
-  else
-    update_slot st s' (VStoreE k' v' am' l' (Some s))
+///  All slots except the two referenced slot in madd are unaffected by the operation
+///
+let map_identical_except #vcfg map
+  : Lemma (ensures (identical_except2 (map_store_pre map) (map_store_post map)
+                                      (map_slot map) (map_anc_slot map)))
+          [SMTPat (apply_map #vcfg map)] = ()
 
-let lemma_madd_to_store_identical_except
-  (#vcfg: verifier_config)
-  (st:vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_none st s' d})
-  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
-                    identical_except2 st st' s s'))
-          [SMTPat (madd_to_store_raw st s k v s' d)] =
-  let st' = madd_to_store_raw st s k v s' d in
-  let aux (s2: slot_id _)
-    : Lemma (ensures (s2 <> s ==> s2 <> s' ==> get_slot st s2 = get_slot st' s2))
-            [SMTPat (get_slot st s2 = get_slot st' s2)] =
-      if s2 = s then ()
-      else if s2 = s' then ()
-      else
-       ()
-    in
-  ()
+///  Every edge in the store before madd is in the store after
+///
+let map_pre_edges_in_post #vcfg map e
+  : Lemma (requires (is_edge (map_store_pre #vcfg map) e))
+          (ensures (is_edge (map_store_post map) e)) = ()
 
-let lemma_madd_to_store_points_to_inuse
-  (#vcfg: verifier_config)
-  (st:vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_none st s' d})
-  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
-                    points_to_inuse st'))
-          [SMTPat (madd_to_store_raw st s k v s' d)] =
-  let st' = madd_to_store_raw st s k v s' d in
-  let aux (s1 s2: slot_id _)
-    : Lemma (ensures (points_to_inuse_local st' s1 s2))
-            [SMTPat (points_to_inuse_local st' s1 s2)] =
-    assert(points_to_inuse_local st s1 s2);
-    if not (points_to st' s1 s2) then ()
+///  Every edge in post except for the new edge is in pre
+///
+let map_post_edge_in_pre #vcfg map e
+  : Lemma (requires (e <> map_new_edge #vcfg map /\
+                     is_edge (map_store_post map) e))
+          (ensures (is_edge (map_store_pre map) e)) = ()
+
+let pointed_dir #vcfg (st: vstore_raw vcfg) s1 (s2: slot_id vcfg { points_to st s1 s2}) =
+  if points_to_dir st s1 Left s2 then Left else Right
+
+let lemma_madd_to_store_points_to_inuse #vcfg map
+  : Lemma (ensures (points_to_inuse (map_store_post map)))
+          [SMTPat (apply_map #vcfg map)] =
+  let stp = map_store_pre map in
+  let stn = map_store_post map in
+
+  let aux s1 s2
+    : Lemma (ensures (points_to_inuse_local stn s1 s2))
+            [SMTPat (points_to_inuse_local stn s1 s2)] =
+    assert(points_to_inuse_local stp s1 s2);
+    if not (points_to stn s1 s2) then ()
     else (
-      let d2 = pointed_dir st' s1 s2 in
-      assert(points_to_dir st' s1 d2 s2);
-      (* s does not point to anything *)
-      assert(s1 <> s);
-      if s1 = s' then ()
+      let d2 = pointed_dir stn s1 s2 in
+      assert(points_to_dir stn s1 d2 s2);
+      (* added slot does not point to anything *)
+      assert(s1 <> map_slot map);
+      if s1 = map_anc_slot map then ()
       else ()
     )
   in
   ()
 
-let lemma_madd_to_store_points_to_uniq
-  (#vcfg: verifier_config)
-  (st:vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_none st s' d})
-  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
-                    points_to_uniq st'))
-          [SMTPat (madd_to_store_raw st s k v s' d)] =
-  let st' = madd_to_store_raw st s k v s' d in
-  let aux (s1 s2 s3: _):
-    Lemma (ensures (points_to_uniq_local st' s1 s2 s3))
-          [SMTPat (points_to_uniq_local st' s1 s2 s3)] =
-    assert(points_to_uniq_local st s1 s2 s3);
-    if points_to_uniq_local st' s1 s2 s3 then ()
-    else (
-      assert(points_to st' s1 s3 && points_to st' s2 s3);
-      assert(s1 <> s);
-      assert(s2 <> s);
+let lemma_madd_to_store_parent_props #vcfg map
+  : Lemma (ensures (parent_props (map_store_post map)))
+          [SMTPat (apply_map #vcfg map)] =
+  let stp = map_store_pre map in
+  let stn = map_store_post map in
 
-      if not (points_to st s1 s3) then (
-        (* we have s1 -> s3 in st' and not (s1 -> s3) in st' *)
-        if s1 = s' then
-          if s3 = s then (
-            assert(s1 <> s2);
-            assert(get_slot st s2 = get_slot st' s2);
-            assert(points_to st s2 s);
-            assert(points_to_inuse_local st s2 s2);
-            ()
-          )
-          else (
-            let od = pointed_dir st' s1 s3 in
-            assert(od <> d);
-            ()
-          )
-        else ()
-      )
-      else (
-        assert(not (points_to st s2 s3));
-        (* we have s2 -> s3 in st' and not (s2 -> s3) in st' *)
-        if s2 = s' then (
-          if s3 = s then (
-            assert(s1 <> s2);
-            assert(get_slot st s1 = get_slot st' s1);
-            assert(points_to st s1 s);
-            assert(points_to_inuse_local st s1 s);
-            ()
-          )
-          else (
-            let od = pointed_dir st' s2 s3 in
-            assert(od <> d);
-            ()
-          )
-        )
-        else ()
-          //assert(get_slot st s2 = get_slot st' s2);
-      )
-    )
+  let aux s1 : Lemma (ensures (parent_props_local stn s1)) [SMTPat (parent_props_local stn s1)] =
+    assert(parent_props_local stp s1);
+    if empty_slot stn s1 || not (has_parent stn s1) then ()
+    else if s1 = map_slot map then ()
+    else ()
   in
   ()
-
-
-let exists_intro_helper #vcfg
-  (st: vstore_raw vcfg)
-  (s': inuse_slot_id st)
-  (d: bin_tree_dir)
-  : Lemma (requires (points_to_some_slot st s' d))
-          (ensures (let s = pointed_slot st s' d in
-                    exists (s2:inuse_slot_id st). exists (d2:bin_tree_dir).
-                      points_to_some_slot st s2 d2 /\
-                      pointed_slot st s2 d2 = s))
-          [SMTPat (pointed_slot st s' d)] =
-  let s = pointed_slot st s' d in
-  let aux(d1: bin_tree_dir): Type0 = points_to_dir st s' d1 s in
-  exists_intro aux d;
-  let aux(s1:inuse_slot_id st) = exists d1. points_to_dir st s1 d1 s in
-  exists_intro aux s'
-
-let lemma_madd_to_store_pointed_to_inverse_local
-  (#vcfg: verifier_config)
-  (st: vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_none st s' d})
-  (s2: slot_id vcfg)
-  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
-                    pointed_to_inv_local st' s2))
-          [SMTPat (pointed_to_inv_local (madd_to_store_raw st s k v s' d) s2)]
-  = let st' = madd_to_store_raw st s k v s' d in
-    if empty_slot st' s2 || stored_key st' s2 = Root || add_method_of st' s2 <> Spec.MAdd then ()
-    else (
-      if s2 = s then (
-        assert(points_to_dir st' s' d s);
-        ()
-      )
-      else (
-        assert(empty_slot st s2 = empty_slot st' s2);
-        assert(stored_key st s2 = stored_key st' s2);
-        assert(add_method_of st s2 = add_method_of st' s2);
-
-        let (s2',d2) = pointed_to_inv_local_find st s2 in
-
-        (* s2' is inuse in st, so it cannot be s *)
-        assert(s2' <> s);
-        (* otherwise s2 = s, a case we have ruled out in this else branch *)
-        assert(s2' <> s' \/ d2 <> d);
-
-        // assert(points_to_some_slot st' s2' d2);
-        assert(pointed_slot st' s2' d2 = s2);
-        ()
-      )
-    )
-
-let lemma_madd_to_store_pointed_to_inverse
-  (#vcfg: verifier_config)
-  (st: vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_none st s' d})
-  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
-                    pointed_to_inv st'))
-          [SMTPat (madd_to_store_raw st s k v s' d)] = ()
 
 let lemma_madd_to_store_no_self_edges
   (#vcfg: verifier_config)
