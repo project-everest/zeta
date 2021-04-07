@@ -199,7 +199,8 @@ val lemma_empty_implies_spec_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
   : Lemma (spec_rel ils)
 
 val lemma_spec_rel_implies_prefix_spec_rel (#vcfg:_) (ils:its_log vcfg) (i:nat{i <= I.length ils})
- : Lemma (ensures (let ils' = I.prefix ils i in
+ : Lemma (requires spec_rel ils)
+         (ensures (let ils' = I.prefix ils i in
                    spec_rel ils'))
 
 ///  If the i'th position in the interleaved log is an evict to blum (EvictB/EvictBM) return the

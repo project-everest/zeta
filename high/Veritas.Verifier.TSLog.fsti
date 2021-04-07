@@ -331,9 +331,24 @@ let lemma_verifier_boundary_thread_state (itsl: neac_log):
         [SMTPat (eac_boundary itsl)] =
   lemma_verifier_thread_state_extend itsl (eac_boundary itsl)
 
+
+val lemma_thread_id_of_prefix (il:il_vlog) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
+  : Lemma (thread_id_of il i == thread_id_of (I.prefix il j) i)
+
+val lemma_thread_state_pre_prefix (il:il_vlog) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
+  : Lemma (thread_state_pre il i == thread_state_pre (I.prefix il j) i)
+
+val lemma_thread_state_post_prefix (il:il_vlog) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
+  : Lemma (thread_state_post il i == thread_state_post (I.prefix il j) i)
+
 (* If the i'th entry does not go to thread tid, then its state remains unchanged when processing 
  * the i'th entry *)
-val lemma_verifier_thread_state_extend2 (itsl: its_log) (i: I.seq_index itsl) (tid: valid_tid itsl):
+val lemma_verifier_thread_state_frame (il: il_vlog { I.length il > 0 })
+                                      (tid: valid_tid il)
+  : Lemma (requires (tid <> thread_id_of il (I.length il - 1)))
+          (ensures (thread_state il tid == thread_state (I.hprefix il) tid))
+ 
+val lemma_verifier_thread_state_extend2 (itsl: il_vlog) (i: I.seq_index itsl) (tid: valid_tid itsl):
   Lemma (requires (tid <> thread_id_of itsl i))
         (ensures (thread_state (I.prefix itsl (i + 1)) tid == 
                   thread_state (I.prefix itsl i) tid))

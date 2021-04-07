@@ -745,21 +745,59 @@ let lemma_eac_boundary_state_transition (itsl: neac_log):
     ()
 
 
-#push-options "--fuel 1,1"
-let lemma_verifier_thread_state_extend2 (itsl: its_log) (i: I.seq_index itsl) (tid: valid_tid itsl)
+let lemma_thread_id_of_prefix (il:il_vlog) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
+  : Lemma (thread_id_of il i == thread_id_of (I.prefix il j) i)
+  = I.lemma_i2s_map_prefix il j i
+
+let lemma_thread_state_pre_prefix (il:il_vlog) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
+  : Lemma (thread_state_pre il i == thread_state_pre (I.prefix il j) i)
+  = calc
+    (==) {
+       thread_state_pre il i;    
+    (==) {}
+      thread_state (I.prefix il i) (thread_id_of il i);
+    (==) { I.lemma_prefix_prefix il j i }
+      thread_state (I.prefix (I.prefix il j) i) (thread_id_of il i);    
+    (==) { lemma_thread_id_of_prefix il j i }
+      thread_state (I.prefix (I.prefix il j) i) (thread_id_of (I.prefix il j) i); 
+    (==) {}
+      thread_state_pre (I.prefix il j) i;
+    }
+
+let lemma_thread_state_post_prefix (il:il_vlog) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
+  : Lemma (thread_state_post il i == thread_state_post (I.prefix il j) i)
+  = calc 
+    (==) {
+      thread_state_post il i;
+    (==) { lemma_verifier_thread_state_extend il i }
+      t_verify_step (thread_state_pre il i) (I.index il i);    
+    (==) { lemma_thread_state_pre_prefix il j i }
+      t_verify_step (thread_state_pre (I.prefix il j) i) (I.index il i);        
+    (==) { I.lemma_prefix_index il j i }
+      t_verify_step (thread_state_pre (I.prefix il j) i) (I.index (I.prefix il j) i);           
+    (==) { lemma_verifier_thread_state_extend (I.prefix il j) i }
+      thread_state_post (I.prefix il j) i;
+    }
+
+let lemma_verifier_thread_state_frame (il: il_vlog { I.length il > 0 })
+                                      (tid: valid_tid il)
+  : Lemma (requires (tid <> thread_id_of il (I.length il - 1)))
+          (ensures (thread_state il tid == thread_state (I.hprefix il) tid))
+  = let last = I.length il - 1 in
+    I.lemma_prefix_snoc il last;
+    I.prefix_identity il
+
+let lemma_verifier_thread_state_extend2 (itsl: il_vlog) (i: I.seq_index itsl) (tid: valid_tid itsl)
   : Lemma (requires (tid <> thread_id_of itsl i))
           (ensures (thread_state (I.prefix itsl (i + 1)) tid ==
                     thread_state (I.prefix itsl i) tid))
-  = let itsl_i = I.prefix itsl (i + 1) in
+  = I.lemma_prefix_prefix itsl (i + 1) i;
+    let itsl_i = I.prefix itsl (i + 1) in
     let itsl_i' = I.prefix itsl_i i in
-    I.lemma_prefix_prefix itsl (i + 1) i;
-    assert (itsl_i' == I.prefix itsl i);
     I.lemma_i2s_map_prefix itsl (i + 1) i;
     assert (thread_id_of itsl i == thread_id_of itsl_i i);
-    run_monitor_step itsl_i Root;
-    assert (thread_log (I.s_seq itsl_i) tid ==
-            thread_log (I.s_seq itsl_i') tid)
-#pop-options
+    lemma_verifier_thread_state_frame (I.prefix itsl (i + 1)) tid
+
 
 (* when the eac state of a key is "instore" then there is always a previous add *)
 let lemma_eac_state_active_implies_prev_add (itsl: eac_log) (k:key{is_eac_state_active itsl k})

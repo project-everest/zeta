@@ -409,6 +409,38 @@ let lemma_forall_store_ismap_extend (#vcfg:_) (il:its_log vcfg) (i:I.seq_index i
     lemma_thread_state_post_prefix il (i + 1) i;
     lemma_forall_store_ismap_extend_hprefix (I.prefix il_i' (i + 1))
 
+let lemma_forall_vtls_rel_extend_hprefix (#vcfg:_) (ils:its_log vcfg{ I.length ils > 0 })
+  : Lemma (requires (let i = I.length ils - 1 in
+                     let ils_i = I.hprefix ils in
+                     let ilk = to_logk ils in
+                     let ilk_i = I.hprefix ilk in                     
+                     forall_vtls_rel ils_i /\
+                     vtls_rel (thread_state_post ils i) 
+                              (SpecTS.thread_state_post ilk i)))
+          (ensures (forall_vtls_rel ils))
+  = let i = I.length ils - 1 in
+    let ils_i = I.hprefix ils in
+    let ilk = to_logk ils in
+    let ilk_i = I.hprefix ilk in                     
+    let aux (tid:valid_tid ils)
+      : Lemma (vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid))
+              [SMTPat (SpecTS.thread_state ilk tid)]
+      = let tid_i = thread_id_of ils i in
+        assert (SpecTS.thread_id_of ilk i == tid_i);
+        if tid_i = tid
+        then ( 
+          I.prefix_identity ils;
+          I.prefix_identity ilk;
+          assert (thread_state ils tid == thread_state_post ils i);
+          assert (SpecTS.thread_state ilk tid == SpecTS.thread_state_post ilk i)
+        )
+        else (
+          lemma_verifier_thread_state_frame ils tid;
+          SpecTS.lemma_verifier_thread_state_frame ilk tid
+        )
+    in
+    ()
+
 let lemma_forall_vtls_rel_extend (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils)
   : Lemma (requires (let ils_i = I.prefix ils i in
                      let ilk = to_logk ils in
@@ -416,11 +448,23 @@ let lemma_forall_vtls_rel_extend (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils
                      forall_vtls_rel ils_i /\
                      vtls_rel (thread_state_post ils i) 
                               (SpecTS.thread_state_post ilk i)))
-          (ensures (let ilk = to_logk ils in
-                    let ils_i1 = I.prefix ils (i + 1) in
+          (ensures (let ils_i1 = I.prefix ils (i + 1) in
                     forall_vtls_rel ils_i1)) 
-  = admit()
+  = let ilk = to_logk ils in
+    I.lemma_prefix_prefix ils (i + 1) i;
+    lemma_thread_state_post_prefix ils (i + 1) i;
+    lemma_to_logk_prefix_commute ils (i + 1);
+    calc
+    (==) {
+      to_logk (I.prefix ils (i + 1));
+    (==) {     lemma_to_logk_prefix_commute ils (i + 1) }
+      I.prefix (to_logk ils) (i + 1);
+    };
+    assert (SpecTS.thread_state_post ilk i == 
+            SpecTS.thread_state_post (I.prefix (to_logk ils)) (i + 1));
+    lemma_forall_vtls_rel_extend_hprefix (I.prefix ils (i + 1))
 
+#push-options "--z3rlimit_factor 3"
 let lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (ils:its_log vcfg)
   : Lemma (requires (forall_vtls_rel ils))
           (ensures (let ilk = to_logk ils in
@@ -443,7 +487,8 @@ let lemma_empty_implies_spec_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
   : Lemma (spec_rel ils) = admit()
 
 let lemma_spec_rel_implies_prefix_spec_rel (#vcfg:_) (ils:its_log vcfg) (i:nat{i <= I.length ils})
- : Lemma (ensures (let ils' = I.prefix ils i in
+ : Lemma (requires spec_rel ils)
+         (ensures (let ils' = I.prefix ils i in
                    spec_rel ils')) = admit()
 
 let lemma_blum_evict_def (#vcfg:_) 
