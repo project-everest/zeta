@@ -139,7 +139,8 @@ let map_anc_slot #vcfg (map: madd_param vcfg) =
 let apply_map #vcfg (map: madd_param vcfg) =
   match map with
   | MAP st s k v s' d ->
-    let e = VStoreE k v Spec.MAdd None None None in
+    let p = (map_anc_slot map), (map_dir map) in
+    let e = VStoreE k v Spec.MAdd None None (Some p) in
     let st = update_slot st s e in
     let VStoreE k' v' am' l' r' p' = get_inuse_slot st s' in
     assert(None == (if d = Left then l' else r'));
@@ -219,36 +220,32 @@ let lemma_madd_to_store_parent_props #vcfg map
   in
   ()
 
-let lemma_madd_to_store_no_self_edges
-  (#vcfg: verifier_config)
-  (st: vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_none st s' d})
-  : Lemma (ensures (let st' = madd_to_store_raw st s k v s' d in
-                    no_self_edge st'))
-          [SMTPat (madd_to_store_raw st s k v s' d)] =
-  let st' = madd_to_store_raw st s k v s' d in
-  assert(s <> s');
-  let aux s2: Lemma (ensures (no_self_edge_local st' s2))
-                   [SMTPat (no_self_edge_local st' s2)] =
-    if not (points_to st' s2 s2) then ()
-    else
-      let d2 = pointed_dir st' s2 s2 in
-      if s2 = s then ()
-      else if s2 = s' then (
-        assert(d2 <> d);
-        assert(points_to_info st' s2 d2 = points_to_info st s2 d2);
-        assert(no_self_edge_local st s2);
-        ()
-      )
-      else (
-        assert(points_to_info st' s2 d2 = points_to_info st s2 d2);
-        assert(no_self_edge_local st s2);
-        ()
-      )
-    in
+let lemma_madd_to_store_no_self_edge #vcfg map
+  : Lemma (ensures (no_self_edge (map_store_post map)))
+          [SMTPat (apply_map #vcfg map)] =
+  let stp = map_store_pre map in
+  let stn = map_store_post map in
+
+  let aux s1 : Lemma (ensures (no_self_edge_local stn s1)) [SMTPat (no_self_edge_local stn s1)] =
+    assert(no_self_edge_local stp s1);
+    if not (points_to stn s1 s1) then ()
+    else if s1 = map_anc_slot map then
+      ()
+    else ()
+  in
+  ()
+
+let lemma_madd_to_store_madd_props #vcfg map
+  : Lemma (ensures (madd_props (map_store_post map)))
+          [SMTPat (apply_map #vcfg map)] =
+  let stp = map_store_pre map in
+  let stn = map_store_post map in
+  let aux s1 : Lemma (ensures (madd_props_local stn s1)) [SMTPat (madd_props_local stn s1)] =
+    assert(madd_props_local stp s1);
+    if s1 = map_slot map then
+      ()
+    else ()
+  in
   ()
 
 let madd_to_store
@@ -271,53 +268,10 @@ let madd_to_store
 
                          // slot s contains (k, v, MAdd) and points to nothing
                          inuse_slot st' s /\
-                         get_inuse_slot st' s = VStoreE k v Spec.MAdd None None
-                         })
-  = madd_to_store_raw st s k v s' d
-
-let madd_to_store_split_raw
-  (#vcfg: verifier_config)
-  (st:vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_some_slot st s' d})
-  (d2:bin_tree_dir)
-  : vstore_raw  vcfg =
-
-  let s2 = pointed_slot st s' d in
-  let VStoreE k' v' am' l' r' = get_inuse_slot st s' in
-  let e = (if d2 = Left then
-             VStoreE k v Spec.MAdd (Some s2) None
-           else
-             VStoreE k v Spec.MAdd None (Some s2))
-          in
-  let st = update_slot st s e in
-  let e' = (if d = Left then
-              VStoreE k' v' am' (Some s) r'
-            else
-              VStoreE k' v' am' l' (Some s)) in
-  update_slot st s' e'
-
-let lemma_madd_to_store_split_identical_except
-  #vcfg
-  (st: vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_some_slot st s' d})
-  (d2:bin_tree_dir)
-  : Lemma (ensures (let st' = madd_to_store_split_raw st s k v s' d d2 in
-                    identical_except2 st st' s s'))
-          [SMTPat (madd_to_store_split_raw st s k v s' d d2)] =
-  let st' = madd_to_store_split_raw st s k v s' d d2 in
-  let aux (s2: slot_id _)
-    : Lemma (ensures (s2 <> s ==> s2 <> s' ==> get_slot st s2 = get_slot st' s2))
-            [SMTPat (get_slot st s2 = get_slot st' s2)] =
-    if s2 = s then ()
-    else if s2 = s' then ()
-    else ()
-  in ()
+                         get_inuse_slot st' s = VStoreE k v Spec.MAdd None None (Some (s',d))
+                         }) =
+  let map = MAP st s k v s' d in
+  apply_map map
 
 noeq type madd_split_param (vcfg: verifier_config) =
   | MSP: st: vstore vcfg ->
@@ -328,15 +282,8 @@ noeq type madd_split_param (vcfg: verifier_config) =
          d:bin_tree_dir {points_to_some_slot st s' d} ->
          d2:bin_tree_dir -> madd_split_param vcfg
 
-(* dummy function to make patterns work *)
-let msp_facts #vcfg (msp: madd_split_param vcfg): unit = ()
-
 let msp_store_pre #vcfg (msp: madd_split_param vcfg) =
   MSP?.st msp
-
-let msp_store_post #vcfg (msp: madd_split_param vcfg) =
-  let MSP st s k v s' d d2 = msp in
-  madd_to_store_split_raw st s k v s' d d2
 
 let msp_anc_slot #vcfg (msp: madd_split_param vcfg) =
   MSP?.s' msp
@@ -356,13 +303,103 @@ let msp_desc_slot #vcfg (msp: madd_split_param vcfg) =
   let d = msp_dir msp in
   pointed_slot st s' d
 
+let msp_desc_slot_inuse #vcfg (msp: madd_split_param vcfg)
+  : Lemma (ensures (inuse_slot (msp_store_pre msp) (msp_desc_slot msp))) =
+  assert(points_to (msp_store_pre msp) (msp_anc_slot msp) (msp_desc_slot msp));
+  assert(points_to_inuse_local (msp_store_pre msp) (msp_anc_slot msp) (msp_desc_slot msp));
+  ()
+
+let apply_msp #vcfg (msp: madd_split_param vcfg) =
+  match msp with
+  | MSP st s k v s' d d2 ->
+    let s2 = msp_desc_slot msp in
+    let VStoreE k' v' am' l' r' p' = get_inuse_slot st s' in
+    let p = s',d in
+    let e = (if d2 = Left then
+               VStoreE k v Spec.MAdd (Some s2) None (Some p)
+             else
+               VStoreE k v Spec.MAdd None (Some s2) (Some p)) in
+    let st = update_slot st s e in
+
+    let e' = (if d = Left then
+                VStoreE k' v' am' (Some s) r' p'
+              else
+                VStoreE k' v' am' l' (Some s) p') in
+    let st = update_slot st s' e' in
+    msp_desc_slot_inuse msp;
+    let VStoreE k2 v2 am2 l2 r2 p2 = get_inuse_slot st s2 in
+    let p2new = s,d2 in
+    let e2 = VStoreE k2 v2 am2 l2 r2 (Some p2new) in
+    update_slot st s2 e2
+
+let msp_store_post #vcfg (msp: madd_split_param vcfg) =
+  apply_msp msp
+
+let lemma_madd_to_store_split_identical_except #vcfg msp
+  : Lemma (ensures (identical_except3 (msp_store_pre msp) (msp_store_post msp)
+                                      (msp_slot msp) (msp_anc_slot msp) (msp_desc_slot msp)))
+          [SMTPat (apply_msp #vcfg msp)] =
+  let stp = msp_store_pre msp in
+  let stn = msp_store_post msp in
+  let aux s1: Lemma (ensures (s1 <> msp_slot msp ==>
+                              s1 <> msp_anc_slot msp ==>
+                              s1 <> msp_desc_slot msp ==>
+                              get_slot stp s1 = get_slot stn s1)) =
+
+    if s1 = msp_slot msp then ()
+    else if s1 = msp_anc_slot msp then ()
+    else if s1 = msp_desc_slot msp then ()
+    else (
+      (* TODO: Ugly hack!!
+       * this is a cut-n-paste of the definition of apply_msp
+       * for some reason the proof fails without the cut-n-paste and the assert
+       * that follow. Might be something to do with definition expansion???
+       * seq.upd needs to be expanded three times - everything works fine when we only
+       * change 2 slots *)
+       // BEGIN cut-n-paste
+     match msp with
+     | MSP st s k v s' d d2 ->
+       let s2 = msp_desc_slot msp in
+        let stinit = st in
+      let VStoreE k' v' am' l' r' p' = get_inuse_slot st s' in
+      let p = s',d in
+      let e = (if d2 = Left then
+               VStoreE k v Spec.MAdd (Some s2) None (Some p)
+             else
+               VStoreE k v Spec.MAdd None (Some s2) (Some p)) in
+        let st = update_slot st s e in
+
+      let e' = (if d = Left then
+                VStoreE k' v' am' (Some s) r' p'
+              else
+                VStoreE k' v' am' l' (Some s) p') in
+        let st = update_slot st s' e' in
+      msp_desc_slot_inuse msp;
+      let VStoreE k2 v2 am2 l2 r2 p2 = get_inuse_slot st s2 in
+      let p2new = s,d2 in
+      let e2 = VStoreE k2 v2 am2 l2 r2 (Some p2new) in
+      let st = update_slot st s2 e2 in
+      // end cut-n-paste
+      assert(st == stn);
+      assert(stinit == stp);
+      assert(get_slot stp s1 = get_slot stn s1);
+      ()
+    )
+  in
+  forall_intro aux;
+  ()
 
 let is_nonedge #vcfg st (e: sds vcfg) =
   not (is_edge st e)
 
+//#push-options "--z3rlimit_factor 3"
+#push-options "--max_fuel 5 --max_ifuel 5 --z3rlimit_factor 5"
+
 let msp_edge_post1 #vcfg msp: (e:sds vcfg {is_edge (msp_store_post msp) e}) =
   match msp with
   | MSP _ s _ _ s' d _ -> s',d,s
+
+#pop-options
 
 let msp_edge_post2 #vcfg msp: (e: sds vcfg {is_edge (msp_store_post msp) e}) =
   let MSP _ s _ _ _ _ d2 = msp in
