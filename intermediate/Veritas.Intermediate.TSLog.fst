@@ -664,11 +664,52 @@ let lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vc
     }
 
 
+#push-options "--fuel 1"
 
+let lemma_empty_forall_store_ismap (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
+  : Lemma (forall_store_ismap ils)
+  = admit()
+
+let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
+  : Lemma (forall_vtls_rel ils)
+  = let ilk = to_logk ils in
+    lemma_empty_forall_store_ismap ils;
+    assert (I.length ilk = 0);
+    let aux (tid:valid_tid ils)
+      : Lemma (vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid))
+              [SMTPat (thread_state ils tid)]
+      = assume (Seq.index (I.s_seq ils) tid `Seq.equal` Seq.empty);
+        assume (Seq.index (I.s_seq ilk) tid `Seq.equal` Seq.empty);
+        let tl = IntG.thread_log (I.s_seq ils) tid in
+        assert (snd tl == Seq.empty);
+        let ts = IntT.verify tl in
+        assert (ts == IntV.init_thread_state tid (VT.init_store vcfg tid));
+        let tl' = (VVG.thread_log (I.s_seq ilk) tid) in
+        assert (snd tl' == Seq.empty);
+        let ts' = VVT.verify (VVG.thread_log (I.s_seq ilk) tid) in
+        assert (ts' == (Spec.init_thread_state tid));
+        SpecTS.reveal_thread_state ilk tid;
+        match ts, ts' with
+        | Valid id st clk ha he, Spec.Valid id' st' clk' _ ha' he' ->
+          assert (is_map st);
+          Veritas.Intermediate.Store.lemma_as_map_empty vcfg;
+          if tid = 0 
+          then ( 
+            assert (st' == Spec.(add_to_store empty_store Veritas.BinTree.Root (Veritas.Record.init_value Veritas.BinTree.Root) MAdd));
+            assert (st == Veritas.Intermediate.Store.(madd_to_store_root (empty_store _) 0 (Veritas.Record.init_value Veritas.BinTree.Root)));
+            admit()
+          )
+          // else (
+          //   assert (st' == Spec.empty_store);
+          //   assert (FStar.FunctionalExtensionality.feq st' (as_map st))
+          // )
+      in
+    ()
 
 let lemma_empty_implies_spec_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
   : Lemma (spec_rel ils) 
-  = admit()
+  = lemma_empty_forall_vtls_rel ils;
+    lemma_empty_forall_store_ismap ils
 
 let lemma_spec_rel_implies_prefix_spec_rel (#vcfg:_) (ils:its_log vcfg) (i:nat{i <= I.length ils})
  : Lemma (requires spec_rel ils)
