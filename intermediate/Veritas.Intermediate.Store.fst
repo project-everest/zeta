@@ -1370,3 +1370,67 @@ let lemma_not_contains_after_bevict
     ()
   )
   else ()
+
+let is_map_slot_range #vcfg (st: vstore vcfg) (s1: slot_id vcfg) (s2: slot_id vcfg) =
+  forall (s:inuse_slot_id st{s <= s1})
+    (s':inuse_slot_id st{s' <> s /\ s' <= s2}).
+    {:pattern (stored_key st s); (stored_key st s')}
+    stored_key st s <> stored_key st s'
+
+let is_map_range_full #vcfg (st: vstore vcfg)
+  : Lemma (requires (let max_slot_id = (store_size vcfg) - 1 in
+                     is_map_slot_range st max_slot_id max_slot_id))
+          (ensures (is_map st)) =
+  ()
+
+let rec is_map_compute_aux #vcfg (st: vstore vcfg) (s1: slot_id vcfg) (s2: slot_id vcfg):
+  Tot (b: bool {b <==> (is_map_slot_range st s1 s2)})
+  (decreases (s1 + s2)) =
+  if inuse_slot st s1 && inuse_slot st s2 && stored_key st s1 = stored_key st s2 && s1 <> s2 then
+    false
+  else
+    (if s1 > 0 then is_map_compute_aux st (s1 - 1) s2 else true) &&
+    (if s2 > 0 then is_map_compute_aux st s1 (s2 - 1) else true)
+
+let is_map_compute #vcfg (st: vstore vcfg): (b:bool {b <==> is_map st}) =
+  let max_slot_id = (store_size vcfg) - 1 in
+  is_map_compute_aux st max_slot_id max_slot_id
+
+let store_contains_compute #vcfg (st: ismap_vstore vcfg) (k: key): (b: bool {b <==> store_contains_key st k}) =
+  Some? (find st k)
+
+let madd_to_store_root_as_map (#vcfg:_) (st:vstore vcfg) (s:empty_slot_id st) (v:value_type_of Root)
+  : Lemma (is_map st /\ ~ (store_contains_key st Root) ==>
+                  is_map (madd_to_store_root st s v) /\
+                  FE.feq (as_map (madd_to_store_root st s v))
+                         (Spec.add_to_store (as_map st) Root v Spec.MAdd)) =
+  if not (is_map_compute st) then ()
+  else if store_contains_compute st Root then ()
+  else (
+    assert(is_map st);
+    let st1 = madd_to_store_root st s v in
+    lemma_madd_root_to_store_is_map st s v;
+    assert(is_map st1);
+    let stk = as_map st in
+    let stk1 = Spec.add_to_store stk Root v Spec.MAdd in
+    let stk1' = as_map st1 in
+    let aux k: Lemma (ensures (stk1' k = stk1 k)) [SMTPat (stk1' k); SMTPat (stk1 k)] =
+      if k = Root then ()
+      else if Spec.store_contains stk1' k then (
+        assert(store_contains_key st1 k);
+        let sk = slot_of_key st1 k in
+        assert(sk <> s);
+        assert(stored_key st sk = k);
+        ()
+      )
+      else if Spec.store_contains stk1 k then (
+        assert(Spec.store_contains stk k);
+        let sk = slot_of_key st k in
+        assert(stored_key st1 sk = k);
+        ()
+      )
+      else
+        ()
+    in
+    ()
+  )

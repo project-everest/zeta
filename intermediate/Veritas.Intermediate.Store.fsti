@@ -494,3 +494,9 @@ val lemma_not_contains_after_bevict
                     let k = stored_key st s in
                     is_map st' /\
                     not (store_contains_key st' k)))
+
+val madd_to_store_root_as_map (#vcfg:_) (st:vstore vcfg) (s:empty_slot_id st) (v:value_type_of Root)
+  : Lemma (is_map st /\ ~ (store_contains_key st Root) ==>
+                  is_map (madd_to_store_root st s v) /\
+                  FE.feq (as_map (madd_to_store_root st s v))
+                         (Spec.add_to_store (as_map st) Root v Spec.MAdd))
