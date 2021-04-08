@@ -65,7 +65,23 @@ val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
         (ensures (verifiable (I.prefix itsl i) /\ clock_sorted (I.prefix itsl i)))
         [SMTPat (I.prefix itsl i)]
 
-(* create a ts log *)
+noeq
+type clock_gen #a (vl:sseq a) = {
+   clock:(j:sseq_index vl ->  timestamp);
+   monotone: (a:sseq_index vl -> b:sseq_index vl{fst a == fst b /\ snd a <= snd b} -> Lemma (clock a `ts_leq` clock b))
+}
+
+let clock_sorted_gen (#a:eqtype) (il:I.interleaving a) (c:clock_gen (I.s_seq il)) =
+    forall (i j:I.seq_index il). {:pattern (i2s_map il i); (i2s_map il j)}
+      i <= j ==>
+        (let i' = i2s_map il i in
+         let j' = i2s_map il j in      
+         c.clock i' `ts_leq` c.clock j') 
+
+(* create a ts log, generically, given a clock function *)
+val create_gen (#a:eqtype) (vl: sseq a) (c:clock_gen vl)
+  : (itsl:I.interleaving a{I.s_seq itsl == vl /\ clock_sorted_gen itsl c})
+
 val create (gl: VG.verifiable_log): (itsl:its_log{g_vlog_of itsl == gl})
 
 let state_ops (itsl: il_vlog): seq (state_op) =

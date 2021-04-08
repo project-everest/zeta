@@ -150,6 +150,9 @@ val lemma_evict_clock (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_ev
 val lemma_evict_elem_tid (#vcfg:_) (tl:verifiable_log vcfg):
   Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq tl))
 
+val lemma_clock_monotonic (#vcfg:_) (tl: verifiable_log vcfg) (i:seq_index tl) (j:seq_index tl{j >= i}):
+  Lemma (clock tl i `ts_leq` clock tl j)
+
 val lemma_evict_elem_unique (#vcfg:_) (tl: verifiable_log vcfg) (i1 i2: SA.seq_index (blum_evict_seq tl)):
   Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2)
 

@@ -58,9 +58,21 @@ let lemma_prefix_verifiable #vcfg (itsl: its_log vcfg) (i:nat{i <= I.length itsl
     in
     lemma_prefix_clock_sorted itsl i
 
+let mk_clock_gen #vcfg (vl:VG.verifiable_log vcfg)
+  : SpecTS.clock_gen vl
+  = let lem (a:sseq_index vl) (b:sseq_index vl{fst a == fst b /\ snd a <= snd b})
+      : Lemma (IntG.clock vl a `ts_leq` IntG.clock vl b)
+      =  IntT.lemma_clock_monotonic (VG.thread_log vl (fst a)) (snd a) (snd b)
+    in
+    let c = {
+      SpecTS.clock = IntG.clock vl;
+      SpecTS.monotone = lem;
+    } in
+    c
+
 let create (#vcfg:_) (gl: verifiable_log vcfg)
   : itsl:its_log vcfg{g_logS_of itsl == gl}
-  = admit()
+  = SpecTS.create_gen gl (mk_clock_gen gl)
 
 #push-options "--max_fuel 1"
 let lemma_verifier_thread_state_extend (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl)
