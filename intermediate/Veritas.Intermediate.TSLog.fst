@@ -373,10 +373,17 @@ let lemma_verifier_thread_state_frame #vcfg (il: its_log vcfg { I.length il > 0 
     I.lemma_prefix_snoc il last;
     I.prefix_identity il
 
-let lemma_forall_store_ismap_extend_hprefix (#vcfg:_) (il:its_log vcfg{I.length il > 0})
+let forall_store_ismap (#vcfg:_) (ils:its_log vcfg) =
+  forall_store_ismap_0 ils /\
+  (forall (i:nat{i < I.length ils}). {:pattern (I.prefix ils i)}
+     forall_store_ismap_0 (I.prefix ils i))
+
+let elim_forall_store_ismap (#vcfg:_) (ils:its_log vcfg) = ()
+
+let lemma_forall_store_ismap_extend_hprefix_0 (#vcfg:_) (il:its_log vcfg{I.length il > 0})
   : Lemma (requires (forall_store_ismap (I.hprefix il) /\ 
                      is_map (thread_store (thread_state_post il (length il - 1)))))
-          (ensures (forall_store_ismap il))
+          (ensures (forall_store_ismap_0 il))
   = let il' = I.hprefix il in
     let last = length il - 1 in
     let last_tid = thread_id_of il last in
@@ -400,6 +407,17 @@ let lemma_forall_store_ismap_extend_hprefix (#vcfg:_) (il:its_log vcfg{I.length 
     in
     ()
 
+let lemma_forall_store_ismap_extend_hprefix (#vcfg:_) (il:its_log vcfg{I.length il > 0})
+  : Lemma (requires (forall_store_ismap (I.hprefix il) /\ 
+                     forall_store_ismap_0 il))
+          (ensures (forall_store_ismap il))
+  = let aux (i:nat{i < I.length il})
+      : Lemma (forall_store_ismap_0 (I.prefix il i))
+              [SMTPat (I.prefix il i)]
+      = I.lemma_prefix_prefix il (I.length il - 1) i
+    in
+    ()
+
 let lemma_forall_store_ismap_extend (#vcfg:_) (il:its_log vcfg) (i:I.seq_index il)
   : Lemma (requires (forall_store_ismap (I.prefix il i) /\ 
                      is_map (thread_store (thread_state_post il i))))
@@ -407,8 +425,8 @@ let lemma_forall_store_ismap_extend (#vcfg:_) (il:its_log vcfg) (i:I.seq_index i
   = I.lemma_prefix_prefix il (i + 1) i;
     let il_i' = I.prefix il (i + 1) in
     lemma_thread_state_post_prefix il (i + 1) i;
+    lemma_forall_store_ismap_extend_hprefix_0 (I.prefix il_i' (i + 1));
     lemma_forall_store_ismap_extend_hprefix (I.prefix il_i' (i + 1))
-
 
 let forall_vtls_rel #vcfg ils =      
     forall_vtls_rel_0 ils /\
@@ -546,6 +564,22 @@ let lemma_clock_thread_state (#vcfg:_) (ils:its_log vcfg { forall_vtls_rel ils }
     lemma_thread_log_prefix ils i;
     assert (IntG.thread_log (I.s_seq ils_i) tid ==
             IntT.prefix tl (snd is + 1))
+
+let lemma_thread_state_spec (ilk:SpecTS.il_vlog) (i:I.seq_index ilk)
+  : Lemma (let ix = i2s_map ilk i in           
+           let tid = fst ix in
+           let tl = VVG.thread_log (I.s_seq ilk) tid in
+           let ts = SpecTS.thread_state (I.prefix ilk (i + 1)) tid in
+           let ts' = VVT.verify (VVT.prefix tl (snd ix + 1)) in
+           ts == ts')
+  = let ix = i2s_map ilk i in
+    let tid = fst ix in
+    let ilk_i = I.prefix ilk (i + 1) in
+    let ts = SpecTS.thread_state ilk_i tid in
+    SpecTS.lemma_thread_state_post_prefix ilk (i + 1) i;
+    let tl = VVG.thread_log (I.s_seq ilk) tid in
+    SpecTS.reveal_thread_state ilk_i tid;
+    I.interleave_sseq_index_next ilk i
   
 let lemma_clock_thread_state_spec (#vcfg:_) (ils:its_log vcfg { forall_vtls_rel ils }) (i:I.seq_index ils)
   : Lemma (let tid = thread_id_of ils i in
@@ -564,29 +598,7 @@ let lemma_clock_thread_state_spec (#vcfg:_) (ils:its_log vcfg { forall_vtls_rel 
     lemma_to_logk_prefix_commute ils (i + 1);
     assert (vtls_rel (thread_state ils_i tid) ts);
     assert (Spec.Valid? ts);
-    let ix = (i2s_map ilk i) in
-    let tl = (VVG.thread_log (I.s_seq ilk) tid) in
-    calc
-    (==) {
-      SpecTS.clock ilk i;
-    (==) {} 
-      VVG.clock (I.s_seq ilk) ix;
-    (==) {}
-      VVT.clock tl (snd ix);
-    (==) { }
-      Valid?.clk (VVT.verify (VVT.prefix tl (snd ix + 1)));
-    };
-    let ilk_i = (to_logk ils_i) in
-    calc
-    (==) {
-      SpecTS.thread_state ilk_i tid;
-    (==) { SpecTS.reveal_thread_state ilk_i tid }
-      VVT.verify (VVG.thread_log (I.s_seq ilk_i) tid);
-    };
-    lemma_to_logk_prefix_commute ils (i + 1);
-    I.interleave_sseq_index_next ilk i;    
-    assert (VVG.thread_log (I.s_seq ilk_i) tid ==
-            VVT.prefix tl (snd ix + 1))
+    lemma_thread_state_spec ilk i
 
 let lemma_spec_clock (#vcfg:_) (ils:its_log vcfg { forall_vtls_rel ils }) (i:I.seq_index ils)
   : Lemma (let ilk = to_logk ils in
@@ -627,15 +639,41 @@ let lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vc
   : Lemma (requires (forall_vtls_rel ils))
           (ensures (let ilk = to_logk ils in
                     SpecTS.hash_verifiable ilk))
-  = admit()
+  = let ilk = to_logk ils in
+    calc
+    (==) {
+      SpecTS.hash_verifiable ilk;
+    (==) { }
+      VVG.hash_verifiable (I.s_seq ilk);
+    (==) { }
+      (VVG.hadd (I.s_seq ilk) = VVG.hevict (I.s_seq ilk));
+    };
+    admit();
+    calc
+    (==) {
+      VVG.hadd (I.s_seq ilk);
+    (==) { }
+      IntG.hadd (I.s_seq ils);
+    };
+
+    calc
+    (==) {
+      VVG.hevict (I.s_seq ilk);
+    (==) { }
+      IntG.hevict (I.s_seq ils);
+    }
+
+
+
 
 let lemma_empty_implies_spec_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
-  : Lemma (spec_rel ils) = admit()
+  : Lemma (spec_rel ils) 
+  = admit()
 
 let lemma_spec_rel_implies_prefix_spec_rel (#vcfg:_) (ils:its_log vcfg) (i:nat{i <= I.length ils})
  : Lemma (requires spec_rel ils)
          (ensures (let ils' = I.prefix ils i in
-                   spec_rel ils')) = admit()
+                   spec_rel ils')) = I.prefix_identity ils
 
 let lemma_blum_evict_def (#vcfg:_) 
                          (ils: its_log vcfg) 
@@ -654,6 +692,11 @@ let lemma_blum_evict_def (#vcfg:_)
                      | EvictBM_S _ _ t -> be = MHDom (k,v) t tid
                     ))) = admit()
                          
-let lemma_clock_ordering (#vcfg:_) (itsl: its_log vcfg) (i1 i2: I.seq_index itsl):
-  Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
-        (ensures (i1 < i2)) = admit()
+let lemma_clock_ordering (#vcfg:_) (itsl: its_log vcfg) (i1 i2: I.seq_index itsl)
+  : Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
+          (ensures (i1 < i2)) 
+  = assert (verifiable itsl);
+    assert (clock_sorted itsl);
+    if i2 <= i1
+    then  assert (clock itsl i2 `ts_leq` clock itsl i1)
+

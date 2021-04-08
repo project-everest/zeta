@@ -136,13 +136,19 @@ let to_logK_entry #vcfg (il:its_log vcfg) (i:I.seq_index il) =
 val lemma_to_logk_index (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils)
   : Lemma (ensures (I.index (to_logk ils) i == to_logK_entry ils i))
           [SMTPat (I.index ils i)]
-            
+
 (* after processing il, the thread store of every verifier thread is a map *)
-let forall_store_ismap #vcfg (il:its_log vcfg)
+let forall_store_ismap_0 #vcfg (il:its_log vcfg)
   = forall (tid:valid_tid il). 
     {:pattern (thread_store (thread_state il tid))}
       is_map (thread_store (thread_state il tid))
 
+val forall_store_ismap (#vcfg:_) (ils:its_log vcfg) : prop
+
+val elim_forall_store_ismap (#vcfg:_) (ils:its_log vcfg)
+  : Lemma (requires forall_store_ismap ils)
+          (ensures  forall_store_ismap_0 ils)
+          [SMTPat (forall_store_ismap ils)]
 (* 
  * if all the stores are maps before entry i and the store after processing entry i step is a map, then 
  * all stores are maps after entry i 

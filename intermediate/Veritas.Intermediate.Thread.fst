@@ -316,7 +316,7 @@ let lemma_evict_timestamp_is_clock #vcfg (tl: verifiable_log vcfg) (i: seq_index
 let final_clock #vcfg (tl:verifiable_log vcfg): timestamp =
   Valid?.clock (verify tl)
 
-#push-options "--z3rlimit_factor 4"
+#push-options "--z3rlimit_factor 8"
 (* the clock of a verifier is monotonic *)
 let rec lemma_clock_monotonic_aux #vcfg (tl:verifiable_log vcfg) (i:seq_index tl):
   Lemma (ensures (clock tl i `ts_leq` clock tl (length tl - 1)))
