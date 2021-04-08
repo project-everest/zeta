@@ -80,27 +80,27 @@ let sseq_append #a (ss0:sseq a) (ss1:sseq a{Seq.length ss0 == Seq.length ss1})
   : sseq a
   = SA.mapi ss0 (fun i -> Seq.append (Seq.index ss0 i) (Seq.index ss1 i))
 
-let ts_sorted_seq (s:seq (vlog_entry & timestamp)) =
+let ts_sorted_seq (s:seq ('a & timestamp)) =
   forall (i j:seq_index s).
     i <= j ==>
     snd (Seq.index s i) `ts_leq` snd (Seq.index s j)
 
-let ts_sseq =
-    s:sseq (vlog_entry & timestamp) {
+let ts_sseq 'a =
+    s:sseq ('a & timestamp) {
       forall (i:seq_index s). ts_sorted_seq (Seq.index s i)
     }
 
-let is_min_clock_up_to (s:ts_sseq) (i:nat{ i <= Seq.length s }) (min:sseq_index s)
+let is_min_clock_up_to (s:ts_sseq 'a) (i:nat{ i <= Seq.length s }) (min:sseq_index s)
   =  snd min == 0 /\
      (forall (j:sseq_index s).
        fst j < i ==> snd (indexss s min) `ts_leq` snd (indexss s j))
 
-let min_clock_up_to (s:ts_sseq) (i:nat{ i <= Seq.length s }) =
+let min_clock_up_to (s:ts_sseq 'a) (i:nat{ i <= Seq.length s }) =
     min:sseq_index s { is_min_clock_up_to s i min }
 
 let min_clock s = min_clock_up_to s (Seq.length s)
 
-let rec pick_min (s:ts_sseq)
+let rec pick_min (s:ts_sseq 'a)
                  (i:nat{i <= Seq.length s})
                  (min:min_clock_up_to s i)
   : Tot (min_clock s)
@@ -130,7 +130,7 @@ let rec pick_min (s:ts_sseq)
 let is_empty_sseq #a (s:sseq a) =
     forall (i:seq_index s). Seq.index s i `Seq.equal` empty #a
 
-let rec min_sseq_index(s:ts_sseq)
+let rec min_sseq_index(s:ts_sseq 'a)
   : Tot (o:option (sseq_index s) {
         match o with
         | None -> is_empty_sseq s
@@ -157,10 +157,10 @@ let flat_length_single #a (s:seq a)
     lemma_flat_length_app1 empty s;
     lemma_flat_length_empty #a
 
-let split_ts_sseq (s:ts_sseq)
+let split_ts_sseq (s:ts_sseq 'a)
   : o:option (i:min_clock s &
-              e:(vlog_entry & timestamp){e == indexss s i} &
-              s':ts_sseq {
+              e:('a & timestamp){e == indexss s i} &
+              s':ts_sseq 'a{
                 Seq.length s = Seq.length s' /\
                 s `Seq.equal` Seq.upd s (fst i)
                               (Seq.cons e (Seq.index s' (fst i))) /\
@@ -200,16 +200,16 @@ let split_ts_sseq (s:ts_sseq)
       assert (flat_length s' < flat_length s);
       Some (| j, e, s' |)
 #pop-options
-let ts_seq = s:seq (vlog_entry & timestamp){ ts_sorted_seq s }
+let ts_seq 'a = s:seq ('a & timestamp){ ts_sorted_seq s }
 
-let get_min_clock (s:ts_sseq { ~(is_empty_sseq s) })
+let get_min_clock (s:ts_sseq 'a { ~(is_empty_sseq s) })
   : ts:timestamp {
       forall (i:sseq_index s). ts `ts_leq` snd (indexss s i)
     }
   = let Some (| _, e, _|) = split_ts_sseq s in
     snd e
 
-let clock_exceeds (s0:ts_seq) (ts:timestamp) =
+let clock_exceeds (s0:ts_seq 'a) (ts:timestamp) =
   forall (i:seq_index s0). snd (Seq.index s0 i) `ts_leq` ts
 
 module I = Veritas.Interleave
@@ -220,9 +220,10 @@ let coerce_interleave (#a:eqtype) (s:seq a) (s0 s1:sseq a) (i:interleave s s0 { 
 
 #push-options "--z3rlimit_factor 4"
 let rec interleave_ts_sseq
-         (s0:ts_seq)
-         (ss0:ts_sseq)
-         (ss1:ts_sseq {
+         (#a:eqtype)
+         (s0:ts_seq a)
+         (ss0:ts_sseq a)
+         (ss1:ts_sseq a{
            (Seq.length ss0 == Seq.length ss1) /\
            (is_empty_sseq ss1 \/
             (clock_exceeds s0 (get_min_clock ss1) /\
@@ -230,7 +231,7 @@ let rec interleave_ts_sseq
                clock_exceeds (Seq.index ss0 i) (get_min_clock ss1))))
           })
          (prefix:interleave s0 ss0)
-   : Tot (s:ts_seq &
+   : Tot (s:ts_seq a &
           interleave s
                      (ss0 `sseq_append` ss1))
          (decreases (flat_length ss1))
@@ -244,7 +245,7 @@ let rec interleave_ts_sseq
        (| s0, prefix |)
 
      | Some (| i, e, ss1' |) ->
-       let s0' : ts_seq = append1 s0 e in
+       let s0' : ts_seq a = append1 s0 e in
        let prefix' : interleave (append1 s0 e) (sseq_extend ss0 e (fst i))
          = I.IntExtend s0 ss0 prefix e (fst i)
        in
@@ -311,8 +312,8 @@ let rec interleave_ts_sseq
        (| s, coerce_interleave s _ _ p |)
 #pop-options
 
-let create_tsseq_interleaving (ss:ts_sseq)
-  : (s:ts_seq & interleave s ss)
+let create_tsseq_interleaving (#a:eqtype) (ss:ts_sseq a)
+  : (s:ts_seq a & interleave s ss)
   = let (| s, i |) = interleave_ts_sseq empty (create (Seq.length ss) empty) ss (interleave_empty_n _) in
     assert (forall (i:seq_index ss).
            Seq.index ((create (Seq.length ss) empty) `sseq_append` ss) i
@@ -321,36 +322,58 @@ let create_tsseq_interleaving (ss:ts_sseq)
     assert (((create (Seq.length ss) empty) `sseq_append` ss) `Seq.equal` ss);
     (| s, coerce_interleave _ _ _ i |)
 
-let with_clock_i (vl:VG.verifiable_log) (i:seq_index vl)
-  : s:ts_seq {
+noeq
+type clock_gen #a (vl:sseq a) = {
+   clock:(j:sseq_index vl ->  timestamp);
+   monotone: (a:sseq_index vl -> b:sseq_index vl{fst a == fst b /\ snd a <= snd b} -> Lemma (clock a `ts_leq` clock b))
+}
+
+let with_clock_i_gen (vl:sseq 'a) (i:seq_index vl) 
+                     (c:clock_gen vl)
+  : s:ts_seq 'a {
       Seq.length s = Seq.length (Seq.index vl i) /\
-      (forall (j:seq_index s). (indexss vl (i,j), VG.clock vl (i,j)) == Seq.index s j)
+      (forall (j:seq_index s). (indexss vl (i,j), c.clock (i,j)) == Seq.index s j)
     }
   = let vl_i = Seq.index vl i in
-    let s = mapi vl_i (fun j -> Seq.index vl_i j, VG.clock vl (i, j)) in
+    let s = mapi vl_i (fun j -> Seq.index vl_i j, c.clock (i, j)) in
     let aux (a b:seq_index s)
       : Lemma
         (requires a <= b)
         (ensures snd (Seq.index s a) `ts_leq` snd (Seq.index s b))
         [SMTPat (Seq.index s a);
          SMTPat (Seq.index s b)]
-      = VT.lemma_clock_monotonic (VG.thread_log vl i) a b
+      = c.monotone (i, a) (i, b)
     in
     s
 
+let with_clock_i (vl:VG.verifiable_log) (i:seq_index vl)
+  : s:ts_seq vlog_entry {
+      Seq.length s = Seq.length (Seq.index vl i) /\
+      (forall (j:seq_index s). (indexss vl (i,j), VG.clock vl (i,j)) == Seq.index s j)
+    }
+  = let lem (a:sseq_index vl) (b:sseq_index vl{fst a == fst b /\ snd a <= snd b})
+      : Lemma (VG.clock vl a `ts_leq` VG.clock vl b)
+      =      VT.lemma_clock_monotonic (VG.thread_log vl (fst a)) (snd a) (snd b)
+    in
+    let c = {
+      clock = VG.clock vl;
+      monotone = lem;
+    } in
+    with_clock_i_gen vl i c
+
 let ts_seq_of_g_vlog (vl:VG.verifiable_log)
-  : s:ts_sseq {
+  : s:ts_sseq vlog_entry {
       sseq_same_shape vl s /\
       (forall (i:sseq_index s).
          indexss s i == (indexss vl i, VG.clock vl i))
     }
   = mapi vl (with_clock_i vl)
 
-let map_tsseq (f:(vlog_entry & timestamp) -> 'a) (x:ts_sseq)
-  : sseq 'a
+let map_tsseq (f:('a & timestamp) -> 'b) (x:ts_sseq 'a)
+  : sseq 'b
   = map (map f) x
 
-let g_vlog_of_ts_sseq (x:ts_sseq)
+let g_vlog_of_ts_sseq (x:ts_sseq vlog_entry)
   : g_vlog
   = map_tsseq fst x
 
