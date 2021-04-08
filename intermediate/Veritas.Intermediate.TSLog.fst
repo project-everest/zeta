@@ -687,12 +687,6 @@ let lemma_empty_forall_store_ismap (#vcfg:_) (ils:its_log vcfg{I.length ils = 0}
 module VB = Veritas.BinTree
 module VIS = Veritas.Intermediate.Store
 module VR = Veritas.Record
-let madd_to_store_root_as_map (#vcfg:_) (st:vstore vcfg) (s:VIS.empty_slot_id st) (v:VR.value_type_of VB.Root)
-  : Lemma (is_map st ==>
-                  is_map (madd_to_store_root st s v) /\
-                  as_map (madd_to_store_root st s v) ==
-                  Spec.add_to_store (as_map st) VB.Root v MAdd)
-  = admit()
   
 let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
   : Lemma (forall_vtls_rel ils)
@@ -727,7 +721,7 @@ let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
           then ( 
             assert (st' == Spec.(add_to_store empty_store Veritas.BinTree.Root (Veritas.Record.init_value Veritas.BinTree.Root) MAdd));
             assert (st == Veritas.Intermediate.Store.(madd_to_store_root (empty_store _) 0 (Veritas.Record.init_value Veritas.BinTree.Root)));
-            madd_to_store_root_as_map (VIS.empty_store vcfg) 0 (Veritas.Record.init_value Veritas.BinTree.Root)
+            VIS.madd_to_store_root_as_map (VIS.empty_store vcfg) 0 (Veritas.Record.init_value Veritas.BinTree.Root)
           )
       in
     ()
