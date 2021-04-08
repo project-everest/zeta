@@ -1907,6 +1907,32 @@ let lemma_evictm_simulates_spec
           assert(k3 = k);
           ()
         )
+        else if has_parent sts s && (parent_slot sts s <> s' || parent_dir sts s <> d) then (
+          assert(parent_props_local sts s);
+          if parent_slot sts s <> s' then (
+            let sp = parent_slot sts s in
+            let dp = parent_dir sts s in
+            assert(points_to_dir sts sp dp s);
+            let kp = stored_key sts sp in
+            assert(kp <> k');
+            assert(slot_points_to_is_merkle_points_to_local sts sp s dp);
+            let vp = to_merkle_value (stored_value sts sp) in
+            assert(mv_points_to vp dp k);
+            assert(slot_points_to_is_merkle_points_to_local sts s' s d);
+            assert(mv_points_to v' d k);
+            assert(merkle_points_to_uniq_local sts sp s' k);
+            ()
+          )
+          else (
+            let od = parent_dir sts s in
+            assert(points_to_dir sts s' od s);
+            assert(slot_points_to_is_merkle_points_to_local sts s' s od);
+            assert(mv_points_to v' od k);
+            assert(merkle_points_to_desc_local sts s' od);
+            //assert(False);
+            ()
+          )
+        )
         else if Spec.has_instore_merkle_desc stk k then
           lemma_has_instore_merkle_desc_implies_slot_points_to sts stk s
 
