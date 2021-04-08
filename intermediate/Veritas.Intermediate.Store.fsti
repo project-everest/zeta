@@ -286,8 +286,9 @@ val mevict_from_store
   (#vcfg: verifier_config)
   (st:vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
-  (s':inuse_slot_id st)
-  (d:bin_tree_dir{points_to_some_slot st s' d ==> points_to_dir st s' d s})
+  (s':inuse_slot_id st{s <> s'})
+  (d:bin_tree_dir{not (has_parent st s) /\ points_to_none st s' d \/
+                  has_parent st s /\ parent_slot st s = s' /\ parent_dir st s = d})
   : Tot (st':vstore vcfg {let od = other_dir d in
 
                           // st and st' identical except at s, s'
@@ -477,8 +478,9 @@ val lemma_not_contains_after_mevict
   (#vcfg: verifier_config)
   (st:vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
-  (s':inuse_slot_id st)
-  (d:bin_tree_dir{points_to_some_slot st s' d ==> points_to_dir st s' d s}):
+  (s':inuse_slot_id st{s <> s'})
+  (d:bin_tree_dir{not (has_parent st s) /\ points_to_none st s' d \/
+                  has_parent st s /\ parent_slot st s = s' /\ parent_dir st s = d}):
   Lemma (ensures (let st' = mevict_from_store st s s' d in
                   let k = stored_key st s in
                   is_map st' /\

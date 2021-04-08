@@ -304,10 +304,13 @@ let vevictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs})
       | Empty -> Failed
       | Desc k2 h2 b2 ->
           if k2 <> k then Failed
-          (* if s' does not point to s in direction d then Fail *)
-          else if points_to_some_slot st s' d && pointed_slot st s' d <> s then Failed
+          (* TODO: explain the following "spurious checks" *)
           (* if s has a parent that is different from s' then Fail *)
           else if has_parent st s && (parent_slot st s <> s' || parent_dir st s <> d) then Failed
+          (* if s has no parent, but s' points to something then Fail *)
+          else if not (has_parent st s) && (points_to_some_slot st s' d) then Failed
+          (* s and s' cannot be the same *)
+          else if s = s' then Failed
           else
             let v'_upd = Spec.update_merkle_value v' d k h false in
             let st_upd = update_value st s' (MVal v'_upd) in
@@ -393,8 +396,6 @@ let vevictbm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (t:timestamp) (vs:vtls vcf
       | Empty -> Failed
       | Desc k2 h2 b2 ->
           if k2 <> k || b2 then Failed
-          (* if s' does not point to s in direction d then Fail *)
-          else if not (points_to_dir st s' d s) then Failed
           else if not (has_parent st s) || parent_slot st s <> s' || parent_dir st s <> d then Failed
           else
             (* update the evict hash and the clock *)

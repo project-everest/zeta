@@ -857,8 +857,9 @@ let badd_to_store
 noeq type mevict_param (vcfg: verifier_config) =
   | MEV: st:vstore vcfg ->
          s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right} ->
-         s':inuse_slot_id st ->
-         d:bin_tree_dir{points_to_some_slot st s' d ==> points_to_dir st s' d s} ->
+         s':inuse_slot_id st{s <> s'} ->
+         d:bin_tree_dir{not (has_parent st s) /\ points_to_none st s' d \/
+                  has_parent st s /\ parent_slot st s = s' /\ parent_dir st s = d} ->
          mevict_param vcfg
 
 let apply_mev #vcfg (mev: mevict_param vcfg) =
@@ -887,7 +888,12 @@ let mev_dir #vcfg (mev: mevict_param vcfg) =
   MEV?.d mev
 
 let mev_deletes_edge #vcfg mev =
-  points_to_some_slot (mev_store_pre mev) (mev_anc_slot mev) (mev_dir #vcfg mev)
+  has_parent (mev_store_pre #vcfg mev) (mev_slot mev)
+
+let mev_deletes_edge_imply_parent_points #vcfg (mev: mevict_param vcfg)
+  : Lemma (ensures (mev_deletes_edge mev = points_to_dir (mev_store_pre mev) (mev_anc_slot mev) (mev_dir mev) (mev_slot mev))) =
+  assert(parent_props_local (mev_store_pre mev) (mev_slot mev));
+  ()
 
 let mev_deleted_edge #vcfg (mev: mevict_param vcfg {mev_deletes_edge mev}): sds vcfg =
   (mev_anc_slot mev), (mev_dir mev), (mev_slot mev)
@@ -896,7 +902,9 @@ let mev_deleted_edge_in_pre_not_in_post #vcfg (mev: mevict_param vcfg {mev_delet
   : Lemma (ensures (let e = mev_deleted_edge mev in
                     is_edge (mev_store_pre mev) e /\
                     is_nonedge (mev_store_post mev) e))
-          [SMTPat (apply_mev mev)] = ()
+          [SMTPat (apply_mev mev)] =
+  let e = mev_deleted_edge mev in
+  mev_deletes_edge_imply_parent_points mev
 
 let mev_edge_in_post_in_pre #vcfg mev e
   : Lemma (ensures (is_edge (mev_store_post #vcfg mev) e ==>
@@ -907,9 +915,13 @@ let mev_edge_in_pre_in_post #vcfg mev e
                      (mev_deletes_edge mev ==> e <> mev_deleted_edge mev)))
           (ensures (is_edge (mev_store_post mev) e)) =
   let s1,d2,s2 = e in
+  mev_deletes_edge_imply_parent_points mev;
   if s1 = mev_anc_slot mev then (
-    assert(d2 <> mev_dir mev);
-    ()
+    if mev_deletes_edge mev then (
+      assert(d2 <> mev_dir mev);
+      ()
+    )
+    else ()
   )
   else (
     assert(s1 <> mev_slot mev);
@@ -925,7 +937,7 @@ let lemma_mev_points_to_inuse #vcfg mev
           [SMTPat (apply_mev #vcfg mev)] =
   let stp = mev_store_pre mev in
   let stn = mev_store_post mev in
-
+  let d = mev_dir mev in
   let aux s1 s2
     : Lemma (ensures (points_to_inuse_local stn s1 s2))
             [SMTPat (points_to_inuse_local stn s1 s2)] =
@@ -940,19 +952,78 @@ let lemma_mev_points_to_inuse #vcfg mev
       assert(points_to_inuse_local stp s1 s2);
 
       assert(s1 <> mev_slot mev);
-      if s1 = mev_anc_slot mev then admit()
+      if s1 = mev_anc_slot mev then (
+        assert(d12 <> d);
+        ()
+      )
       else (
 
         assert(get_slot stp s1 = get_slot stn s1);
+
         if s2 = mev_slot mev then (
           assert(points_to stp s1 s2);
-          //assert(points_to stp (mev_anc_slot mev) s2);
-          admit()
+          assert(points_to_inuse_local stp s1 s2);
+          assert(has_parent stp s2)
         )
+        else if s2 = mev_anc_slot mev then ()
         else
-
-        admit()
+          assert(get_slot stp s2 = get_slot stn s2)
       )
+    )
+  in
+  ()
+
+let lemma_mev_parent_props #vcfg mev
+  : Lemma (ensures (parent_props (mev_store_post mev)))
+          [SMTPat (apply_mev #vcfg mev)] =
+  let stp = mev_store_pre mev in
+  let stn = mev_store_post mev in
+  let aux s
+    : Lemma (ensures (parent_props_local stn s)) [SMTPat (parent_props_local stn s)] =
+    assert(parent_props_local stp s);
+    if empty_slot stn s || not (has_parent stn s) then ()
+    else if s = mev_anc_slot mev then ()
+    else (
+      assert(s <> mev_slot mev);
+      assert(get_slot stp s = get_slot stn s);
+      ()
+    )
+  in
+  ()
+
+let lemma_mev_madd_props #vcfg mev
+  : Lemma (ensures (madd_props (mev_store_post mev)))
+          [SMTPat (apply_mev #vcfg mev)] =
+  let stp = mev_store_pre mev in
+  let stn = mev_store_post mev in
+  let aux s
+    : Lemma (ensures (madd_props_local stn s)) [SMTPat (madd_props_local stn s)] =
+    assert(madd_props_local stp s);
+    if empty_slot stn s || add_method_of stn s <> Spec.MAdd || stored_key stn s = Root then ()
+    else if s = mev_anc_slot mev then ()
+    else (
+      assert(s <> mev_slot mev);
+      assert(get_slot stp s = get_slot stn s);
+      ()
+    )
+  in
+  ()
+
+let lemma_mev_no_self_edges #vcfg mev
+  : Lemma (ensures (no_self_edge (mev_store_post mev)))
+          [SMTPat (apply_mev #vcfg mev)] =
+  let stp = mev_store_pre mev in
+  let stn = mev_store_post mev in
+  let aux s
+    : Lemma (ensures (no_self_edge_local stn s)) [SMTPat (no_self_edge_local stn s)] =
+    assert(no_self_edge_local stp s);
+    if not (points_to stn s s) then ()
+    else (
+      assert(s <> mev_slot mev);
+      let d = pointed_dir stn s s in
+      if s = mev_anc_slot mev then ()
+      else
+        ()
     )
   in
   ()
@@ -961,8 +1032,9 @@ let mevict_from_store
   (#vcfg: verifier_config)
   (st:vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
-  (s':inuse_slot_id st)
-  (d:bin_tree_dir{points_to_some_slot st s' d ==> points_to_dir st s' d s})
+  (s':inuse_slot_id st{s <> s'})
+  (d:bin_tree_dir{not (has_parent st s) /\ points_to_none st s' d \/
+                  has_parent st s /\ parent_slot st s = s' /\ parent_dir st s = d})
   : Tot (st':vstore vcfg {let od = other_dir d in
 
                           // st and st' identical except at s, s'
@@ -978,14 +1050,14 @@ let mevict_from_store
                           add_method_of st' s' = add_method_of st s' /\
                           points_to_info st' s' od = points_to_info st s' od /\
                           points_to_none st' s' d
-                          })
-  = admit()
+                          }) =
+  let mev = MEV st s s' d in
+  apply_mev mev
 
-(*
 noeq type bevict_param (vcfg: verifier_config) =
   | BEV: st: vstore vcfg ->
          s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right} ->
-*)
+
 
 let bevict_from_store
   (#vcfg: verifier_config)
@@ -1075,8 +1147,9 @@ let lemma_not_contains_after_mevict
   (#vcfg: verifier_config)
   (st:vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
-  (s':inuse_slot_id st)
-  (d:bin_tree_dir{points_to_some_slot st s' d ==> points_to_dir st s' d s}):
+  (s':inuse_slot_id st{s <> s'})
+  (d:bin_tree_dir{not (has_parent st s) /\ points_to_none st s' d \/
+                  has_parent st s /\ parent_slot st s = s' /\ parent_dir st s = d}):
   Lemma (ensures (let st' = mevict_from_store st s s' d in
                   let k = stored_key st s in
                   is_map st' /\

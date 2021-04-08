@@ -476,10 +476,11 @@ let lemma_verifiable_implies_consistent_log_feq_addm #vcfg (vsinit: vtls vcfg) (
       else (
         assert(ss = ss');
         assert(s2klog s = s2klog' s);
+        lemma_addm_identical_except2 vs' e s;
         //assert(identical_except2 st st' s1 s2);
         //assert(get_slot st s = get_slot st' s);
-        //assert(s2k s = s2k' s);
-        admit()
+        assert(s2k s = s2k' s);
+        ()
       )
     in
     forall_intro aux;
@@ -1898,15 +1899,6 @@ let lemma_evictm_simulates_spec
       | Empty -> ()
       | Desc k2 h2 b2 ->
         if k2 <> k then ()
-        else if points_to_some_slot sts s' d && pointed_slot sts s' d <> s then (
-          let s2 = pointed_slot sts s' d in
-          assert(points_to_inuse_local sts s' s2);
-          assert(inuse_slot sts s2);
-          let k3 = stored_key sts s2 in
-          assert(slot_points_to_is_merkle_points_to_local sts s' s2 d);
-          assert(k3 = k);
-          ()
-        )
         else if has_parent sts s && (parent_slot sts s <> s' || parent_dir sts s <> d) then (
           assert(parent_props_local sts s);
           if parent_slot sts s <> s' then (
@@ -1930,6 +1922,17 @@ let lemma_evictm_simulates_spec
             assert(mv_points_to v' od k);
             assert(merkle_points_to_desc_local sts s' od);
             //assert(False);
+            ()
+          )
+        )
+        else if not (has_parent sts s) && (points_to_some_slot sts s' d) then (
+          let s2 = pointed_slot sts s' d in
+          if s2 = s then assert(points_to_inuse_local sts s' s)
+          else (
+            assert(slot_points_to_is_merkle_points_to_local sts s' s2 d);
+            assert(mv_points_to v' d (stored_key sts s2));
+            assert(mv_points_to v' d k);
+            assert(k = stored_key sts s2);
             ()
           )
         )
