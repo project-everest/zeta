@@ -186,6 +186,20 @@ let addm_precond #vcfg (a: addm_param vcfg) =
                                 points_to_none st s' d) /\
    (addm_anc_points_to_desc a ==> (addm_value_pre a = init_value (addm_key a))))
 
+(* does the ancestor point to the descendant slot *)
+let addm_has_desc_slot #vcfg (a: addm_param vcfg{addm_precond a}) =
+  addm_anc_points_to_desc a /\
+  (let s' = addm_anc_slot a in
+   let st' = addm_store_pre a in
+   let d = addm_dir a in
+   points_to_some_slot st' s' d)
+
+let addm_desc_slot #vcfg (a: addm_param vcfg{addm_precond a /\ addm_has_desc_slot a}) =
+  let s' = addm_anc_slot a in
+  let st' = addm_store_pre a in
+  let d = addm_dir a in
+  pointed_slot st' s' d
+
 let addm_value_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (v: value_type_of (addm_key a)) =
   (addm_anc_points_null a /\ (v = addm_value_pre a)) \/
   (addm_anc_points_to_key a /\ (v = addm_value_pre a)) \/
@@ -242,13 +256,24 @@ let addm_anc_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstor
   addm_anc_val_postcond a (to_merkle_value (stored_value st s')) /\
   addm_anc_slot_points_postcond a st
 
+let addm_desc_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a /\ addm_has_desc_slot a}) (st: vstore vcfg) =
+  let sd = addm_desc_slot a in
+  let st' = addm_store_pre a in
+  inuse_slot st sd /\ inuse_slot st' sd /\
+  stored_key st sd = stored_key st' sd /\
+  stored_value st sd = stored_value st' sd /\
+  add_method_of st sd = add_method_of st' sd
+
 let addm_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (vs: vtls vcfg) =
   (* if the precond holds then addm succeeds *)
   Valid? vs /\
   (let Valid id st clk ha he = vs in
    let Valid id' st' clk' ha' he' = AMP?.vs' a in
    id = id' /\ clk = clk' /\ ha = ha' /\ he = he' /\               // everything except store is unchanged
-   identical_except2 st st' (addm_slot a) (addm_anc_slot a) /\     // all entries in store except two slots are unchanged
+   (addm_has_desc_slot a /\ identical_except3 st st' (addm_slot a) (addm_anc_slot a) (addm_desc_slot a) /\
+    addm_desc_slot_postcond a st
+    \/
+    ~ (addm_has_desc_slot a) /\ identical_except2 st st' (addm_slot a) (addm_anc_slot a)) /\
    addm_slot_postcond a st /\                                      // postcond on slot s
    addm_anc_slot_postcond a st)                                    // postcond on slot s'
 

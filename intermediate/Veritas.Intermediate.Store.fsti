@@ -246,7 +246,11 @@ val madd_to_store_split
 
                           has_parent st' s2 /\
                           parent_slot st' s2 = s /\
-                          parent_dir st' s2 = d2
+                          parent_dir st' s2 = d2 /\
+                          inuse_slot st' s2 /\ inuse_slot st s2 /\
+                          (let VStoreE k2' v2' am2' l2' r2' _  = get_inuse_slot st' s2 in
+                           let VStoreE k2 v2 am2 l2 r2 _ = get_inuse_slot st s2 in
+                           k2 = k2' /\ v2 = v2' /\ am2 = am2' /\ l2 = l2' /\ r2 = r2')
                           })
 
 val madd_to_store_root
