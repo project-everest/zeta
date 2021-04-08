@@ -1056,8 +1056,76 @@ let mevict_from_store
 
 noeq type bevict_param (vcfg: verifier_config) =
   | BEV: st: vstore vcfg ->
-         s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right} ->
+         s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right /\ add_method_of st s = Spec.BAdd} ->
+         bevict_param vcfg
 
+let apply_bev #vcfg (bev: bevict_param vcfg) =
+  match bev with
+  | BEV st s ->
+    Seq.upd st s None
+
+let bev_store_post #vcfg bev = apply_bev #vcfg bev
+
+let bev_store_pre #vcfg (bev: bevict_param vcfg): vstore vcfg =
+  match bev with
+  | BEV st _ -> st
+
+let bev_slot #vcfg (bev: bevict_param vcfg): slot_id vcfg =
+  match bev with
+  | BEV _ s -> s
+
+let lemma_bev_points_to_inuse #vcfg bev
+  : Lemma (ensures (points_to_inuse (bev_store_post bev)))
+          [SMTPat (apply_bev #vcfg bev)] =
+  let stp = bev_store_pre bev in
+  let stn = bev_store_post bev in
+
+  let aux s1 s2
+    : Lemma (ensures (points_to_inuse_local stn s1 s2)) [SMTPat (points_to_inuse_local stn s1 s2)] =
+    assert(points_to_inuse_local stp s1 s2);
+    if not (points_to stn s1  s2) then ()
+    else ()
+  in
+  ()
+
+let lemma_bev_parent_props #vcfg bev
+  : Lemma (ensures (parent_props (bev_store_post bev)))
+          [SMTPat (apply_bev #vcfg bev)] =
+  let stp = bev_store_pre bev in
+  let stn = bev_store_post bev in
+
+  let aux s
+    : Lemma (ensures (parent_props_local stn s)) [SMTPat (parent_props_local stn s)] =
+    assert(parent_props_local stp s);
+    ()
+  in
+  ()
+
+let lemma_bev_madd_props #vcfg bev
+  : Lemma (ensures (madd_props (bev_store_post bev)))
+          [SMTPat (apply_bev #vcfg bev)] =
+  let stp = bev_store_pre bev in
+  let stn = bev_store_post bev in
+
+  let aux s
+    : Lemma (ensures (madd_props_local stn s)) [SMTPat (madd_props_local stn s)] =
+    assert(madd_props_local stp s);
+    ()
+  in
+  ()
+
+let lemma_bev_no_self_edges #vcfg bev
+  : Lemma (ensures (no_self_edge (bev_store_post bev)))
+          [SMTPat (apply_bev #vcfg bev)] =
+  let stp = bev_store_pre bev in
+  let stn = bev_store_post bev in
+
+  let aux s
+    : Lemma (ensures (no_self_edge_local stn s)) [SMTPat (no_self_edge_local stn s)] =
+    assert(no_self_edge_local stp s);
+    ()
+  in
+  ()
 
 let bevict_from_store
   (#vcfg: verifier_config)
@@ -1068,22 +1136,56 @@ let bevict_from_store
 
                           // slot s is empty after the update
                           empty_slot st' s})
-  = admit()
+  = apply_bev (BEV st s)
 
 let pointing_slot (#vcfg:_)
                 (st:vstore vcfg)
                 (s:inuse_slot_id st{Root <> stored_key st s /\ add_method_of st s = Spec.MAdd})
- : Tot (s':inuse_slot_id st{points_to st s' s}) = admit()
+ : Tot (s':inuse_slot_id st{points_to st s' s}) =
+ assert(parent_props_local st s);
+ assert(madd_props_local st s);
+ parent_slot st s
 
-let as_map (#vcfg:_) (st:ismap_vstore vcfg) : Spec.vstore = admit()
+let rec find #vcfg (st: Seq.seq (option (vstore_entry vcfg))) (k: key)
+  : Tot (option (Spec.vstore_entry k))
+    (decreases (Seq.length st)) =
+  if Seq.length st = 0 then None
+  else
+    match Seq.head st with
+    | None -> find (Seq.tail st) k
+    | Some (VStoreE k1 v1 am1 _ _ _) ->
+      if k1 = k then Some (Spec.VStore v1 am1)
+      else find (Seq.tail st) k
+
+let as_map #vcfg (st:ismap_vstore vcfg) : Spec.vstore =
+  find st
 
 let lemma_ismap_update_value
       (#vcfg:_)
       (st:ismap_vstore vcfg)
       (s:inuse_slot_id st)
       (v:value_type_of (stored_key st s))
-  : Lemma (ensures (is_map (update_value st s v)))
-  = admit()
+  : Lemma (ensures (is_map (update_value st s v))) =
+  let st1 = update_value st s v in
+  let aux s1 s2: Lemma (requires (s1 <> s2))
+                       (ensures (stored_key st1 s1 <> stored_key st1 s2))
+                       [SMTPat (stored_key st1 s1 <> stored_key st1 s2)] =
+    ()
+  in
+  ()
+
+let rec seq_contains_key #vcfg (st: Seq.seq (option (vstore_entry vcfg))) (i: seq_index st)
+  : Lemma (requires (Some? (Seq.index st i)))
+          (ensures (let k = VStoreE?.k (Some?.v (Seq.index st i)) in
+                    Spec.store_contains (find st) k))
+          (decreases (Seq.length st)) =
+  if i = 0 then ()
+  else
+    seq_contains_key (Seq.tail st) (i - 1)
+
+let store_contains_inuse_slot_keys #vcfg (st: ismap_vstore vcfg) (s: inuse_slot_id st)
+  : Lemma (ensures (store_contains_key st (stored_key st s))) =
+  seq_contains_key st s
 
 let lemma_ismap_madd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
   (s:empty_slot_id st)
@@ -1092,7 +1194,16 @@ let lemma_ismap_madd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
   (d:bin_tree_dir {points_to_none st s' d})
   : Lemma (requires (not (store_contains_key st k)))
           (ensures (is_map (madd_to_store st s k v s' d)))
-  = admit()
+  =
+  let st1 = madd_to_store st s k v s' d in
+  let aux (s1: inuse_slot_id st1) (s2: inuse_slot_id st1{s2 <> s1}):
+    Lemma (ensures (stored_key st1 s1 <> stored_key st1 s2)) = admit()
+
+  in
+  forall_intro_2 aux;
+  assert(forall (s1: inuse_slot_id st1) (s2: inuse_slot_id st1{s2 <> s1}). stored_key st1 s1 <> stored_key st1 s2);
+  //assert(is_map st1);
+  admit()
 
 let lemma_ismap_madd_to_store_split
   (#vcfg: verifier_config)
@@ -1493,20 +1604,6 @@ let lemma_slot_key_equiv_update_value
           (ensures (slot_key_equiv (update_value st s' v) s k))
   = ()
 
-let rec as_map_aux (l:vstore)
-  : Tot Spec.vstore (decreases (Seq.length l)) =
-  let n = Seq.length l in
-  if n = 0 then Spec.empty_store
-  else
-    let l' = prefix l (n - 1) in
-    let f' = as_map_aux l' in
-    match Seq.index l (n - 1) with
-    | None -> f'
-    | Some (VStoreE k v a _ _) ->
-      Spec.add_to_store f' k v a
-
-let as_map (st:vstore{is_map st}) : Spec.vstore =
-  as_map_aux st
 
 let rec lemma_as_map_empty (n:nat)
   : Lemma (ensures (let st = empty_store n in
