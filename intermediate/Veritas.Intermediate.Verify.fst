@@ -10,8 +10,9 @@ let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Va
   let a = AMP s r s' vs in
   let st = thread_store vs in
   let (k,v) = r in
+  if s = s' then Failed
   (* check slot s' is not empty *)
-  if empty_slot st s' then Failed
+  else if empty_slot st s' then Failed
   else
     let k' = stored_key st s' in
     let v' = stored_value st s' in
@@ -137,32 +138,61 @@ let lemma_addm_props (#vcfg:_)
     if k2 = k then lemma_desc_reflexive k
     else ()
 
-let lemma_addm_propsB #vcfg (vs':vtls vcfg{Valid? vs'}) (e: logS_entry _ {AddM_S? e}):
-  Lemma (requires (Valid? (verify_step vs' e)))
+let lemma_addm_identical_except2 #vcfg (vs':vtls vcfg{Valid? vs'}) (e: logS_entry _ {AddM_S? e}) s1:
+  Lemma (requires (let AddM_S s (k,v) s' = e in
+                  s1 <> s /\ s1 <> s' /\
+                  Valid? (verify_step vs' e)))
         (ensures (let st' = thread_store vs' in
                   let vs = verify_step vs' e in
                   let st = thread_store vs in
-                  let AddM_S s (k,v) s' = e in
+                  empty_slot st' s1 = empty_slot st s1 /\            // empty-ness unchanged
+                  (inuse_slot st' s1 ==>
+                   stored_key st' s1 = stored_key st s1 /\
+                   stored_value st' s1 = stored_value st s1 /\
+                   add_method_of st' s1 = add_method_of st s1))) =
+  match e with
+  | AddM_S s (k,v) s' ->
+    let amp = AMP s (k,v) s' vs' in
+    let vs = verify_step vs' e in
 
-                  empty_slot st' s /\
-                  inuse_slot st s /\
-                  identical_except2 st' st s' s /\
-                  (let VStoreE k2 _ am2 _ _ = get_inuse_slot st s in
-                   k2 = k /\ am2 = Spec.MAdd))) =
-   let vs = verify_step vs' e in
-   let st = thread_store vs in
-   let st' = thread_store vs' in
-   match e with
-   | AddM_S s (k, v) s' ->
-     assert(empty_slot st' s);
+    (* precond is satisfied since verify_step succeeds *)
+    assert(addm_precond amp);
 
-     let k' = stored_key st' s' in
-     let mv' = to_merkle_value (stored_value st' s') in
-     let d = desc_dir k k' in
-     let dh' = desc_hash_dir mv' d in
-     match dh' with
-     | Empty -> ()
-     | Desc _ _ _ -> ()
+    let st' = addm_store_pre amp in
+    let st = thread_store vs in
+    let d = addm_dir amp in
+    let mv' = addm_anc_val_pre amp in
+
+    if mv_points_to_some mv' d then (
+      if mv_points_to mv' d k then (
+        assert(identical_except2 st' st s s');
+        assert(get_slot st' s1 = get_slot st s1);
+        ()
+      )
+      else (
+        assert(addm_anc_points_to_desc amp);
+        if points_to_some_slot st' s' d then  (
+          assert(addm_has_desc_slot amp);
+          let sd = addm_desc_slot amp in
+          assert(identical_except3 st' st s s' sd);
+          if sd = s1 then (
+            ()
+          )
+          else
+            assert(get_slot st' s1 = get_slot st s1)
+        )
+        else (
+          assert(identical_except2 st' st s s');
+          assert(get_slot st' s1 = get_slot st s1);
+          ()
+        )
+      )
+    )
+    else (
+      assert(identical_except2 st' st s s');
+      assert(get_slot st' s1 = get_slot st s1);
+      ()
+    )
 
 let lemma_addm_propsC #vcfg (vs':vtls vcfg{Valid? vs'}) (e: logS_entry _ {AddM_S? e}):
   Lemma (requires (Valid? (verify_step vs' e)))
@@ -418,8 +448,6 @@ let lemma_verifiable_implies_consistent_log_feq_addm #vcfg (vsinit: vtls vcfg) (
   let st' = thread_store vs' in
   let s2k' = S.to_slot_state_map st' in
 
-  lemma_addm_propsB vs' e;
-
   match e with
   | AddM_S s1 (k1,_) s2 ->
     let aux (s:slot_id vcfg):
@@ -449,8 +477,9 @@ let lemma_verifiable_implies_consistent_log_feq_addm #vcfg (vsinit: vtls vcfg) (
       else (
         assert(ss = ss');
         assert(s2klog s = s2klog' s);
-        assert(identical_except2 st st' s1 s2);
-        assert(get_slot st s = get_slot st' s);
+        lemma_addm_identical_except2 vs' e s;
+        //assert(identical_except2 st st' s1 s2);
+        //assert(get_slot st s = get_slot st' s);
         assert(s2k s = s2k' s);
         ()
       )
@@ -942,13 +971,14 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e)))) =
   let vs1 = verify_step vs e in
   let st1 = thread_store vs1 in
-  lemma_addm_propsB vs e;
+
+  //lemma_addm_propsB vs e;
   match e with
   | AddM_S s r s' ->
     let a = AMP s r s' vs in
     let st = thread_store vs in
 
-    assert(identical_except2 st st1 s' s);
+    //assert(identical_except2 st st1 s' s);
     assert(vs1 == vaddm s r s' vs);
 
     let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
@@ -959,10 +989,9 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
       else if s1 = s then (
          assert(points_to_dir st s' (addm_dir a) s2);
          assert(slot_points_to_is_merkle_points_to_local st (addm_anc_slot a) s2 (addm_dir a));
-         // assert(s2 <> s);
-         // assert(s2 <> s');
-         assert(get_slot st s2 = get_slot st1 s2);
-         ()
+         assert(s2 <> s);
+         assert(s2 <> s');
+         lemma_addm_identical_except2 vs e s2
       )
       else if s1 = s' then (
         if s2 = s then (
@@ -999,12 +1028,8 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_addm (#vcfg:_)
           )
         )
       )
-      else (
-        assert(get_slot st s1 = get_slot st1 s1);
-        assert(points_to_dir st s1 dx s2);
-        ()
-      )
-
+      else
+        lemma_addm_identical_except2 vs e s1
     in
     forall_intro_3 aux;
     ()
@@ -1326,7 +1351,9 @@ let lemma_vaddm_preserves_spec_unrelatedkey #vcfg
       assert(s2 <> s && s2 <> s');
 
       (* since all slots except s and s' are unchanged, s2 remains unchanged by the addm *)
-      assert(get_slot sts s2 = get_slot sts1 s2);
+      lemma_addm_identical_except2 vss e s2;
+
+      //assert(get_slot sts s2 = get_slot sts1 s2);
       assert(stored_key sts1 s2 = k2);
       assert(stored_value sts1 s2 = stored_value sts s2);
 
@@ -1873,14 +1900,42 @@ let lemma_evictm_simulates_spec
       | Empty -> ()
       | Desc k2 h2 b2 ->
         if k2 <> k then ()
-        else if points_to_some_slot sts s' d && pointed_slot sts s' d <> s then (
+        else if has_parent sts s && (parent_slot sts s <> s' || parent_dir sts s <> d) then (
+          assert(parent_props_local sts s);
+          if parent_slot sts s <> s' then (
+            let sp = parent_slot sts s in
+            let dp = parent_dir sts s in
+            assert(points_to_dir sts sp dp s);
+            let kp = stored_key sts sp in
+            assert(kp <> k');
+            assert(slot_points_to_is_merkle_points_to_local sts sp s dp);
+            let vp = to_merkle_value (stored_value sts sp) in
+            assert(mv_points_to vp dp k);
+            assert(slot_points_to_is_merkle_points_to_local sts s' s d);
+            assert(mv_points_to v' d k);
+            assert(merkle_points_to_uniq_local sts sp s' k);
+            ()
+          )
+          else (
+            let od = parent_dir sts s in
+            assert(points_to_dir sts s' od s);
+            assert(slot_points_to_is_merkle_points_to_local sts s' s od);
+            assert(mv_points_to v' od k);
+            assert(merkle_points_to_desc_local sts s' od);
+            //assert(False);
+            ()
+          )
+        )
+        else if not (has_parent sts s) && (points_to_some_slot sts s' d) then (
           let s2 = pointed_slot sts s' d in
-          assert(points_to_inuse_local sts s' s2);
-          assert(inuse_slot sts s2);
-          let k3 = stored_key sts s2 in
-          assert(slot_points_to_is_merkle_points_to_local sts s' s2 d);
-          assert(k3 = k);
-          ()
+          if s2 = s then assert(points_to_inuse_local sts s' s)
+          else (
+            assert(slot_points_to_is_merkle_points_to_local sts s' s2 d);
+            assert(mv_points_to v' d (stored_key sts s2));
+            assert(mv_points_to v' d k);
+            assert(k = stored_key sts s2);
+            ()
+          )
         )
         else if Spec.has_instore_merkle_desc stk k then
           lemma_has_instore_merkle_desc_implies_slot_points_to sts stk s
@@ -1931,7 +1986,7 @@ let lemma_evictbm_preserves_ismap
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
   = ()
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--z3rlimit_factor 4"
 
 let lemma_evictbm_simulates_spec
       (#vcfg:_)

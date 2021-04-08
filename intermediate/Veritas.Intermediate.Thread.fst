@@ -159,8 +159,13 @@ let blum_evict_seq (#vcfg:_) (tl: verifiable_log vcfg): S.seq ms_hashfn_dom = bl
 let hevict_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
   Valid?.hevict (state_at tl i)
 
+
+#push-options "--z3rlimit_factor 2"
+
 let lemma_hevict_unchanged #vcfg (tl:verifiable_log vcfg) (i:seq_index tl{not (is_evict_to_blum (index tl i))}):
   Lemma (hevict_at tl i = hevict_at tl (i + 1)) = ()
+
+#pop-options
 
 let rec lemma_thread_id_state #vcfg (tl: verifiable_log vcfg):
   Lemma (ensures (IntV.thread_id_of (verify tl) = thread_id_of tl))
