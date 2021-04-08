@@ -10,8 +10,9 @@ let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Va
   let a = AMP s r s' vs in
   let st = thread_store vs in
   let (k,v) = r in
+  if s = s' then Failed
   (* check slot s' is not empty *)
-  if empty_slot st s' then Failed
+  else if empty_slot st s' then Failed
   else
     let k' = stored_key st s' in
     let v' = stored_value st s' in
