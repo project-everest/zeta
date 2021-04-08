@@ -1187,36 +1187,6 @@ let store_contains_inuse_slot_keys #vcfg (st: ismap_vstore vcfg) (s: inuse_slot_
   : Lemma (ensures (store_contains_key st (stored_key st s))) =
   seq_contains_key st s
 
-let lemma_ismap_madd_to_store1 (#vcfg:_) (st:ismap_vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_none st s' d})
-  : Lemma (requires (not (store_contains_key st k)))
-          (ensures (is_map (madd_to_store st s k v s' d))) =
-  let stn: vstore vcfg = madd_to_store st s k v s' d in
-  let aux (s: inuse_slot_id stn) (s': inuse_slot_id stn{s' <> s})
-    : Lemma (ensures (stored_key stn s <> stored_key stn s'))
-            [SMTPat (stored_key stn s <> stored_key stn s')] = admit()
-  in
-  admit()
-
-let lemma_ismap_madd_to_store2 (#vcfg:_) (st:ismap_vstore vcfg)
-  (s:empty_slot_id st)
-  (k:key) (v:value_type_of k)
-  (s':merkle_slot_id st)
-  (d:bin_tree_dir {points_to_none st s' d})
-  : Lemma (requires (not (store_contains_key st k)))
-          (ensures (is_map (madd_to_store st s k v s' d))) =
-  let stn:vstore vcfg = madd_to_store st s k v s' d in
-  let aux (s: inuse_slot_id stn) (s': inuse_slot_id stn{s' <> s})
-    : Lemma (ensures (stored_key stn s <> stored_key stn s')) = admit()
-  in
-  forall_intro_2 aux;
-  // assert fails
-  //assert(is_map stn);
-  admit()
-
 let lemma_ismap_madd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
   (s:empty_slot_id st)
   (k:key) (v:value_type_of k)
@@ -1227,7 +1197,9 @@ let lemma_ismap_madd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
   =
   let st1: vstore vcfg = madd_to_store st s k v s' d in
   let aux (s1: inuse_slot_id st1) (s2: inuse_slot_id st1{s2 <> s1}):
-    Lemma (ensures (stored_key st1 s1 <> stored_key st1 s2)) =
+    Lemma (ensures (stored_key st1 s1 <> stored_key st1 s2))
+          [SMTPat (stored_key st1 s1); SMTPat (stored_key st1 s2)]
+    =
     if stored_key st1 s1 <> stored_key st1 s2 then ()
     else if s1 = s then
       store_contains_inuse_slot_keys st s2
@@ -1236,10 +1208,7 @@ let lemma_ismap_madd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
     else
       ()
   in
-  forall_intro_2 aux;
-  assert(forall (s1: inuse_slot_id st1) (s2: inuse_slot_id st1{s2 <> s1}). stored_key st1 s1 <> stored_key st1 s2);
-  //assert(is_map st1);
-  admit()
+  ()
 
 let lemma_ismap_madd_to_store_split
   (#vcfg: verifier_config)
@@ -1255,7 +1224,7 @@ let lemma_ismap_madd_to_store_split
   let st1: vstore vcfg = madd_to_store_split st s k v s' d d2 in
   let aux (s1: inuse_slot_id st1) (s2: inuse_slot_id st1{s2 <> s1}):
     Lemma (ensures (stored_key st1 s1 <> stored_key st1 s2))
-          [SMTPat (stored_key st1 s1 <> stored_key st1 s2)] =
+          [SMTPat (stored_key st1 s1); SMTPat (stored_key st1 s2)] =
     if stored_key st1 s1 <> stored_key st1 s2 then ()
     else if s1 = s then
       store_contains_inuse_slot_keys st s2
@@ -1264,7 +1233,7 @@ let lemma_ismap_madd_to_store_split
     else
       ()
   in
-  admit()
+  ()
 
 let lemma_ismap_correct (#vcfg:_) (st:ismap_vstore vcfg) (s1 s2: inuse_slot_id st)
   : Lemma (requires (stored_key st s1 = stored_key st s2))
@@ -1306,7 +1275,7 @@ let lemma_madd_root_to_store_is_map
   let st1: vstore vcfg = madd_to_store_root st s v in
   let aux (s1: inuse_slot_id st1) (s2: inuse_slot_id st1{s2 <> s1}):
     Lemma (ensures (stored_key st1 s1 <> stored_key st1 s2))
-          [SMTPat (stored_key st1 s1 <> stored_key st1 s2)] =
+          [SMTPat (stored_key st1 s1); SMTPat (stored_key st1 s2)] =
     if stored_key st1 s1 <> stored_key st1 s2 then ()
     else if s1 = s then
       store_contains_inuse_slot_keys st s2
@@ -1315,7 +1284,7 @@ let lemma_madd_root_to_store_is_map
     else
       ()
   in
-  admit()
+  ()
 
 let lemma_as_map_empty (vcfg:_)
   : Lemma (ensures (let st = empty_store vcfg in
@@ -1349,7 +1318,7 @@ let slot_of_key (#vcfg:_) (st:ismap_vstore vcfg) (k: key{let stk = as_map st in
 
 let lemma_not_contains_after_mevict
   (#vcfg: verifier_config)
-  (st:vstore vcfg)
+  (st:ismap_vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
   (s':inuse_slot_id st{s <> s'})
   (d:bin_tree_dir{not (has_parent st s) /\ points_to_none st s' d \/
@@ -1362,20 +1331,42 @@ let lemma_not_contains_after_mevict
   let k = stored_key st s in
   let aux (s1: inuse_slot_id st1) (s2: inuse_slot_id st1{s2 <> s1}):
     Lemma (ensures (stored_key st1 s1 <> stored_key st1 s2))
-          [SMTPat (stored_key st1 s1 <> stored_key st1 s2)] =
+          [SMTPat (stored_key st1 s1); SMTPat (stored_key st1 s2)] =
     assert(s1 <> s /\ s2 <> s);
     if stored_key st1 s1 <> stored_key st1 s2 then ()
-    else (
-      admit()
-    )
+    else ()
   in
-  admit()
+  assert(is_map st1);
+  if store_contains_key st1 k then (
+    let s1 = index_of_found st1 k in
+    assert(s1 <> s);
+    assert(stored_key st s1 = k);
+    ()
+  )
+  else ()
 
 let lemma_not_contains_after_bevict
   (#vcfg: verifier_config)
-  (st:vstore vcfg)
+  (st:ismap_vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right /\ add_method_of st s = Spec.BAdd})
   : Lemma (ensures (let st' = bevict_from_store st s in
                     let k = stored_key st s in
                     is_map st' /\
-                    not (store_contains_key st' k))) = admit()
+                    not (store_contains_key st' k))) =
+  let st1 = bevict_from_store st s in
+  let k = stored_key st s in
+  let aux (s1: inuse_slot_id st1) (s2: inuse_slot_id st1{s2 <> s1}):
+    Lemma (ensures (stored_key st1 s1 <> stored_key st1 s2))
+          [SMTPat (stored_key st1 s1); SMTPat (stored_key st1 s2)] =
+    assert(s1 <> s /\ s2 <> s);
+    if stored_key st1 s1 <> stored_key st1 s2 then ()
+    else ()
+  in
+  assert(is_map st1);
+  if store_contains_key st1 k then (
+    let s1 = index_of_found st1 k in
+    assert(s1 <> s);
+    assert(stored_key st s1 = k);
+    ()
+  )
+  else ()

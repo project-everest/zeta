@@ -476,7 +476,7 @@ let merkle_points_to_desc (#vcfg:_) (st: vstore vcfg) =
 
 val lemma_not_contains_after_mevict
   (#vcfg: verifier_config)
-  (st:vstore vcfg)
+  (st:ismap_vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
   (s':inuse_slot_id st{s <> s'})
   (d:bin_tree_dir{not (has_parent st s) /\ points_to_none st s' d \/
@@ -488,7 +488,7 @@ val lemma_not_contains_after_mevict
 
 val lemma_not_contains_after_bevict
   (#vcfg: verifier_config)
-  (st:vstore vcfg)
+  (st:ismap_vstore vcfg)
   (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right /\ add_method_of st s = Spec.BAdd})
   : Lemma (ensures (let st' = bevict_from_store st s in
                     let k = stored_key st s in
