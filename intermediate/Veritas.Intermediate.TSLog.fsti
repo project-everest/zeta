@@ -156,12 +156,18 @@ val lemma_forall_store_ismap_extend (#vcfg:_) (il:its_log vcfg) (i:I.seq_index i
  * the property that for an its_log ils, ils and (to_logk ils) are vts_rel 
  * for every thread 
  *)
-let forall_vtls_rel #vcfg (ils:its_log vcfg)
-  = let ilk = to_logk ils in    
-    (forall (tid:valid_tid ils). 
-      {:pattern vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid)}
-       vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid))
+let forall_vtls_rel_0 #vcfg (ils:its_log vcfg)
+  =  let ilk = to_logk ils in    
+       (forall (tid:valid_tid ils). {:pattern vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid)}
+         vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid))
 
+val forall_vtls_rel (#vcfg:_) (ils:its_log vcfg) : prop
+
+val elim_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg) 
+  : Lemma (requires forall_vtls_rel ils)
+          (ensures forall_vtls_rel_0 ils)
+          [SMTPat (forall_vtls_rel ils)]
+     
 val lemma_forall_vtls_rel_extend (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils)
   : Lemma (requires (let ils_i = I.prefix ils i in
                      let ilk = to_logk ils in

@@ -245,3 +245,10 @@ val interleave_sseq_index (#a:eqtype) (il:interleaving a) (i:seq_index il)
     let tid, j = i2s_map il i in
     Seq.index (s_seq il_i) tid `Seq.equal`
     SA.prefix (Seq.index (s_seq il) tid) j)
+
+val interleave_sseq_index_next (#a:eqtype) (il:interleaving a) (i:seq_index il)
+  : Lemma (ensures  (
+    let il_i = prefix il (i + 1) in
+    let tid, j = i2s_map il i in
+    Seq.index (s_seq il_i) tid `Seq.equal`
+    SA.prefix (Seq.index (s_seq il) tid) (j + 1)))
