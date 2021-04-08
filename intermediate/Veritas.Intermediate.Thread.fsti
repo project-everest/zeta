@@ -93,6 +93,17 @@ val lemma_add_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_bl
 let hadd #vcfg (tl: verifiable_log vcfg): ms_hash_value = 
   Valid?.hadd (verify tl)
 
+
+(* the verifier state after processing i entries *)
+let state_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): st:vtls _{Valid? st} =
+  (verify (prefix tl i))
+
+val lemma_state_transition (#vcfg:_)
+                           (tl: verifiable_log vcfg)
+                           (i: tl_idx tl): 
+  Lemma (state_at tl (i + 1) == 
+         verify_step (state_at tl i) (index tl i))
+
 val lemma_hadd_correct (#vcfg:_) (tl: verifiable_log vcfg):
   Lemma (ensures (hadd tl = ms_hashfn (blum_add_seq tl)))
         [SMTPat (verifiable tl)]
@@ -141,3 +152,4 @@ val lemma_evict_elem_tid (#vcfg:_) (tl:verifiable_log vcfg):
 
 val lemma_evict_elem_unique (#vcfg:_) (tl: verifiable_log vcfg) (i1 i2: SA.seq_index (blum_evict_seq tl)):
   Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2)
+

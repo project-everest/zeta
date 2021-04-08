@@ -730,6 +730,7 @@ let lemma_spec_rel_implies_prefix_spec_rel (#vcfg:_) (ils:its_log vcfg) (i:nat{i
          (ensures (let ils' = I.prefix ils i in
                    spec_rel ils')) = I.prefix_identity ils
 
+#push-options "--ifuel 1"
 let lemma_blum_evict_def (#vcfg:_) 
                          (ils: its_log vcfg) 
                          (i:I.seq_index ils {is_evict_to_blum (I.index ils i)})
@@ -745,8 +746,17 @@ let lemma_blum_evict_def (#vcfg:_)
                      match e with
                      | EvictB_S _ t -> be = MHDom (k,v) t tid
                      | EvictBM_S _ _ t -> be = MHDom (k,v) t tid
-                    ))) = admit()
-                         
+                    ))) 
+  = let gl = I.s_seq ils in
+    let ii = i2s_map ils i in
+    let (tid,j) = ii in
+    let tl = VG.thread_log gl tid in
+    assert (verifiable ils);
+    IntT.verifiable_implies_prefix_verifiable tl (j + 1);
+    IntT.lemma_state_transition tl j;
+    I.interleave_sseq_index ils i
+#pop-options
+
 let lemma_clock_ordering (#vcfg:_) (itsl: its_log vcfg) (i1 i2: I.seq_index itsl)
   : Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
           (ensures (i1 < i2)) 

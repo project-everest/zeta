@@ -104,10 +104,6 @@ let rec lemma_add_seq_inv_aux (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index 
 let lemma_add_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
   Lemma (ensures (add_seq_inv_map tl (add_seq_map tl i) = i)) = lemma_add_seq_inv_aux tl i
 
-(* the verifier state after processing i entries *)
-let state_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): st:vtls _{Valid? st} =
-  (verify (prefix tl i))
-
 let hadd_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
   Valid?.hadd (state_at tl i)
 
