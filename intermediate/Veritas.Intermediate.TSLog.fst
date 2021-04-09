@@ -3,7 +3,7 @@ open FStar.Calc
 module VG = Veritas.Intermediate.Global
 module VT = Veritas.Intermediate.Thread
 
-#push-options "--query_stats --max_fuel 0 --max_ifuel 0 --z3rlimit_factor 4"
+#push-options "--max_fuel 0 --max_ifuel 0 --z3rlimit_factor 4"
 let lemma_prefix_clock_sorted #vcfg 
                               (itsl: its_log vcfg) 
                               (i:nat{i <= I.length itsl})
