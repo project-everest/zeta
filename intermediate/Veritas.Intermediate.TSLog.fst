@@ -89,9 +89,135 @@ let lemma_verifier_thread_state_extend (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_
     ()
 #pop-options
 
-let lemma_slot_is_merkle_points_to (#vcfg:_) (ils: its_log vcfg) (i: I.seq_index ils)
+#push-options "--fuel 0 --ifuel 0"
+let lemma_thread_id_of_prefix (#vcfg:_) (il:its_log vcfg) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
+  : Lemma (thread_id_of il i == thread_id_of (I.prefix il j) i)
+  = I.lemma_i2s_map_prefix il j i
+
+let lemma_thread_state_pre_prefix (#vcfg:_) (il:its_log vcfg) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
+  : Lemma (thread_state_pre il i == thread_state_pre (I.prefix il j) i)
+  = calc
+    (==) {
+       thread_state_pre il i;    
+    (==) {}
+      thread_state (I.prefix il i) (thread_id_of il i);
+    (==) { I.lemma_prefix_prefix il j i }
+      thread_state (I.prefix (I.prefix il j) i) (thread_id_of il i);    
+    (==) { lemma_thread_id_of_prefix il j i }
+      thread_state (I.prefix (I.prefix il j) i) (thread_id_of (I.prefix il j) i); 
+    (==) {}
+      thread_state_pre (I.prefix il j) i;
+    }
+
+let lemma_thread_state_post_prefix (#vcfg:_) (il:its_log vcfg) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
+  : Lemma (thread_state_post il i == thread_state_post (I.prefix il j) i)
+  = lemma_thread_state_pre_prefix il j i;
+    I.lemma_prefix_index il j i
+
+let lemma_thread_log_prefix (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils)
+  : Lemma (let tid = thread_id_of ils i in
+           let ix = i2s_map ils i in
+           IntG.thread_log (I.s_seq (I.prefix ils (i + 1))) tid ==
+           IntT.prefix (IntG.thread_log (I.s_seq ils) tid) (snd ix + 1))
+  = let tid = thread_id_of ils i in
+    let ix = i2s_map ils i in
+    assert (fst (IntG.thread_log (I.s_seq (I.prefix ils (i + 1))) tid) ==
+            fst (IntT.prefix (IntG.thread_log (I.s_seq ils) tid) (snd ix + 1)));
+    calc 
+    (==) {
+      snd (IntG.thread_log (I.s_seq (I.prefix ils (i + 1))) tid);
+    (==) {} 
+      Seq.index (I.s_seq (I.prefix ils (i + 1))) tid;
+    (==) { I.interleave_sseq_index_next ils i }
+      SA.prefix (Seq.index (I.s_seq ils) tid) (snd ix + 1);
+    }
+
+let lemma_slot_is_merkle_points_to_aux_0 (#vcfg:_) (ils: its_log vcfg) (tid:valid_tid ils)
+    : Lemma (ensures (slot_points_to_is_merkle_points_to (IntT.init_store vcfg tid)))
+    = ()
+
+#push-options "--fuel 1"
+let thread_state_pre_revert (#vcfg:_) (ils: its_log vcfg) (i: I.seq_index ils)
+  : Tot (o:option (I.seq_index ils){ 
+            let tid = thread_id_of ils i in
+            match o with
+            | None ->
+              thread_state_pre ils i == IntV.init_thread_state tid (IntT.init_store vcfg tid)
+            | Some j -> 
+               j < i /\
+               (thread_state_pre ils i ==
+                IntV.verify_step (thread_state_pre ils j) (I.index ils j))
+         })
+  = let ix = i2s_map ils i in
+    let ils_i = I.prefix ils i in
+    let tid = fst ix in
+    let tl : IntT.verifiable_log vcfg = (IntG.thread_log (I.s_seq ils_i) tid) in
+    let n = IntT.length tl in
+    if n = 0
+    then (SA.lemma_prefix0_empty (snd tl); None)
+    else (
+      let m : IntT.tl_idx tl  = n - 1 in
+      calc 
+      (==) {
+        thread_state_pre ils i;
+      (==) {}
+        thread_state ils_i tid;
+      (==) { }
+        IntT.verify tl;
+      (==) { assert (Seq.equal (snd tl) (snd ((IntG.thread_log (I.s_seq ils_i) tid)))) }
+        IntT.verify (IntT.prefix tl (IntT.length tl));
+      (==) { }
+        IntT.state_at tl n;
+      };
+      calc 
+      (==) {
+           IntT.state_at tl n <: vtls vcfg;
+      (==) { IntT.lemma_state_transition tl m }
+           verify_step (IntT.state_at tl m) (IntT.index tl m);
+      };
+      let j = s2i_map ils_i (tid, m) in
+      let tl_j = IntG.thread_log (I.s_seq (I.prefix ils j)) tid in
+      calc 
+      (==) {
+        thread_state_pre ils j;
+      (==) { lemma_thread_state_pre_prefix ils i j }
+        thread_state_pre ils_i j;
+      (==) {}
+        thread_state (I.prefix ils_i j) tid;
+      (==) { I.lemma_prefix_prefix ils i j }
+        thread_state (I.prefix ils j) tid;    
+      (==) { }
+        IntT.verify tl_j;
+      };
+      calc
+      (==) {
+        IntT.state_at tl m;
+      (==) {}
+        IntT.verify (IntT.prefix tl m);
+      };
+      calc
+      (==) {
+        IntT.prefix tl m;
+      (==) { }
+        IntT.prefix (IntG.thread_log (I.s_seq ils_i) tid) m;
+      (==) { I.interleave_sseq_index ils_i j }
+        tl_j;
+      };
+      Some j
+    )
+#pop-options  
+
+let rec lemma_slot_is_merkle_points_to (#vcfg:_) (ils: its_log vcfg) (i: I.seq_index ils)
   : Lemma (ensures (slot_points_to_is_merkle_points_to (IntV.thread_store (thread_state_pre ils i))))
-  = admit()
+          (decreases i)
+  =  let jopt = thread_state_pre_revert ils i in
+     match jopt with
+     | None -> lemma_slot_is_merkle_points_to_aux_0 ils (thread_id_of ils i)
+     | Some j -> 
+        lemma_slot_is_merkle_points_to ils j;
+        assert (slot_points_to_is_merkle_points_to (IntV.thread_store (thread_state_pre ils j)));
+        Veritas.Intermediate.Verify.lemma_verifiable_implies_slot_is_merkle_points_to (thread_state_pre ils j)
+                                                                                      (I.index ils j)
 
 #push-options "--max_fuel 2 --max_ifuel 1 --z3rlimit_factor 4"
 let int_add_sub_log #vcfg (il:its_log vcfg { IntAdd? (IL?.prf il) })
@@ -352,31 +478,6 @@ let lemma_to_logk_index (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils)
     }
 #pop-options
 
-#push-options "--fuel 0 --ifuel 0"
-let lemma_thread_id_of_prefix (#vcfg:_) (il:its_log vcfg) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
-  : Lemma (thread_id_of il i == thread_id_of (I.prefix il j) i)
-  = I.lemma_i2s_map_prefix il j i
-
-let lemma_thread_state_pre_prefix (#vcfg:_) (il:its_log vcfg) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
-  : Lemma (thread_state_pre il i == thread_state_pre (I.prefix il j) i)
-  = calc
-    (==) {
-       thread_state_pre il i;    
-    (==) {}
-      thread_state (I.prefix il i) (thread_id_of il i);
-    (==) { I.lemma_prefix_prefix il j i }
-      thread_state (I.prefix (I.prefix il j) i) (thread_id_of il i);    
-    (==) { lemma_thread_id_of_prefix il j i }
-      thread_state (I.prefix (I.prefix il j) i) (thread_id_of (I.prefix il j) i); 
-    (==) {}
-      thread_state_pre (I.prefix il j) i;
-    }
-
-let lemma_thread_state_post_prefix (#vcfg:_) (il:its_log vcfg) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
-  : Lemma (thread_state_post il i == thread_state_post (I.prefix il j) i)
-  = lemma_thread_state_pre_prefix il j i;
-    I.lemma_prefix_index il j i
-
 let lemma_verifier_thread_state_frame #vcfg (il: its_log vcfg { I.length il > 0 })
                                             (tid: valid_tid il)
   : Lemma (requires (tid <> thread_id_of il (I.length il - 1)))
@@ -531,24 +632,6 @@ let lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (ils:its_log vcfg)
         SpecTS.reveal_thread_state ilk tid
     in
     ()
-
-let lemma_thread_log_prefix (#vcfg:_) (ils:its_log vcfg) (i:I.seq_index ils)
-  : Lemma (let tid = thread_id_of ils i in
-           let ix = i2s_map ils i in
-           IntG.thread_log (I.s_seq (I.prefix ils (i + 1))) tid ==
-           IntT.prefix (IntG.thread_log (I.s_seq ils) tid) (snd ix + 1))
-  = let tid = thread_id_of ils i in
-    let ix = i2s_map ils i in
-    assert (fst (IntG.thread_log (I.s_seq (I.prefix ils (i + 1))) tid) ==
-            fst (IntT.prefix (IntG.thread_log (I.s_seq ils) tid) (snd ix + 1)));
-    calc 
-    (==) {
-      snd (IntG.thread_log (I.s_seq (I.prefix ils (i + 1))) tid);
-    (==) {} 
-      Seq.index (I.s_seq (I.prefix ils (i + 1))) tid;
-    (==) { I.interleave_sseq_index_next ils i }
-      SA.prefix (Seq.index (I.s_seq ils) tid) (snd ix + 1);
-    }
     
 let lemma_clock_thread_state (#vcfg:_) (ils:its_log vcfg { forall_vtls_rel ils }) (i:I.seq_index ils)
   : Lemma (let tid = thread_id_of ils i in
@@ -647,6 +730,126 @@ let lemma_vtls_rel_implies_spec_clock_sorted (#vcfg:_) (ils:its_log vcfg)
     in
     ()
 
+
+let int_hadds #vcfg (ils:its_log vcfg) : Seq.seq ms_hash_value =
+    let n = Seq.length (I.s_seq ils) in
+    Seq.init n (fun i -> Valid?.hadd (thread_state ils i))
+
+let int_hevicts #vcfg (ils:its_log vcfg) : Seq.seq ms_hash_value =
+    let n = Seq.length (I.s_seq ils) in
+    Seq.init n (fun i -> Valid?.hevict (thread_state ils i))
+
+let spec_hadds (ilk:SpecTS.its_log) : Seq.seq ms_hash_value =
+  let n = Seq.length (I.s_seq ilk) in
+  Seq.init n (fun i -> Spec.Valid?.hadd (SpecTS.thread_state ilk i))    
+
+let spec_hevicts (ilk:SpecTS.its_log) : Seq.seq ms_hash_value =
+  let n = Seq.length (I.s_seq ilk) in
+  Seq.init n (fun i -> Spec.Valid?.hevict (SpecTS.thread_state ilk i))
+
+
+let rec hash_seq (l:Seq.seq ms_hash_value) 
+  : Tot ms_hash_value
+        (decreases (Seq.length l))
+  = let p = Seq.length l in 
+    if p = 0 then empty_hash_value
+    else let h1 = hash_seq (SA.prefix l (p - 1)) in
+          ms_hashfn_agg h1 (Seq.index l (p - 1))
+
+let spec_hadd_equiv (ilk:SpecTS.its_log)
+   : Lemma (VVG.hadd (I.s_seq ilk) == hash_seq (spec_hadds ilk))
+   = let rec aux (vals:Seq.seq ms_hash_value) 
+                 (tls:VVG.verifiable_log)
+       : Lemma 
+         (requires vals `prefix_of` spec_hadds ilk /\
+                   tls `prefix_of` I.s_seq ilk /\
+                   Seq.length vals == Seq.length tls)
+         (ensures VVG.hadd_aux tls == hash_seq vals)
+         (decreases (Seq.length vals))
+       = let n = Seq.length vals in
+         if n = 0 then ()
+         else (
+           aux (prefix vals (n - 1))
+               (prefix tls (n - 1));
+           calc 
+           (==) {
+             Seq.index vals (n - 1);
+           (==) {}
+             Spec.Valid?.hadd (SpecTS.thread_state ilk (n - 1));
+           (==) { SpecTS.reveal_thread_state ilk (n - 1) }
+             VVT.hadd (VVG.thread_log tls (n - 1));
+           }
+         )
+     in
+     aux (spec_hadds ilk) (I.s_seq ilk)
+     
+
+let spec_hevict_equiv (ilk:SpecTS.its_log)
+   : Lemma (VVG.hevict (I.s_seq ilk) == hash_seq (spec_hevicts ilk))
+   = let rec aux (vals:Seq.seq ms_hash_value) 
+                 (tls:VVG.verifiable_log)
+       : Lemma 
+         (requires vals `prefix_of` spec_hevicts ilk /\
+                   tls `prefix_of` I.s_seq ilk /\
+                   Seq.length vals == Seq.length tls)
+         (ensures VVG.hevict_aux tls == hash_seq vals)
+         (decreases (Seq.length vals))
+       = let n = Seq.length vals in
+         if n = 0 then ()
+         else (
+           aux (prefix vals (n - 1))
+               (prefix tls (n - 1));
+           calc 
+           (==) {
+             Seq.index vals (n - 1);
+           (==) {}
+             Spec.Valid?.hevict (SpecTS.thread_state ilk (n - 1));
+           (==) { SpecTS.reveal_thread_state ilk (n - 1) }
+             VVT.hevict (VVG.thread_log tls (n - 1));
+           }
+         )
+     in
+     aux (spec_hevicts ilk) (I.s_seq ilk)
+
+let int_hadd_equiv #vcfg (ils:its_log vcfg)
+   : Lemma (IntG.hadd (I.s_seq ils) == hash_seq (int_hadds ils))
+   = let rec aux (vals:Seq.seq ms_hash_value) 
+                 (tls:verifiable_log vcfg)
+       : Lemma 
+         (requires vals `prefix_of` int_hadds ils /\
+                   tls `prefix_of` I.s_seq ils /\
+                   Seq.length vals == Seq.length tls)
+         (ensures IntG.hadd_aux tls == hash_seq vals)
+         (decreases (Seq.length vals))
+       = let n = Seq.length vals in
+         if n = 0 then ()
+         else (
+           aux (prefix vals (n - 1))
+               (prefix tls (n - 1))
+         )
+     in
+     aux (int_hadds ils) (I.s_seq ils)
+
+
+let int_hevict_equiv #vcfg (ils:its_log vcfg)
+   : Lemma (IntG.hevict (I.s_seq ils) == hash_seq (int_hevicts ils))
+   = let rec aux (vals:Seq.seq ms_hash_value) 
+                 (tls:verifiable_log vcfg)
+       : Lemma 
+         (requires vals `prefix_of` int_hevicts ils /\
+                   tls `prefix_of` I.s_seq ils /\
+                   Seq.length vals == Seq.length tls)
+         (ensures IntG.hevict_aux tls == hash_seq vals)
+         (decreases (Seq.length vals))
+       = let n = Seq.length vals in
+         if n = 0 then ()
+         else (
+           aux (prefix vals (n - 1))
+               (prefix tls (n - 1))
+         )
+     in
+     aux (int_hevicts ils) (I.s_seq ils)
+
 let lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vcfg)
   : Lemma (requires (forall_vtls_rel ils))
           (ensures (let ilk = to_logk ils in
@@ -660,21 +863,13 @@ let lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vc
     (==) { }
       (VVG.hadd (I.s_seq ilk) = VVG.hevict (I.s_seq ilk));
     };
-    admit();
-    calc
-    (==) {
-      VVG.hadd (I.s_seq ilk);
-    (==) { }
-      IntG.hadd (I.s_seq ils);
-    };
-
-    calc
-    (==) {
-      VVG.hevict (I.s_seq ilk);
-    (==) { }
-      IntG.hevict (I.s_seq ils);
-    }
-
+    assert (forall tid. vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid));
+    assert (Seq.equal (int_hadds ils) (spec_hadds ilk));
+    assert (Seq.equal (int_hevicts ils) (spec_hevicts ilk));
+    spec_hadd_equiv ilk;
+    spec_hevict_equiv ilk;    
+    int_hadd_equiv ils;
+    int_hevict_equiv ils
 
 #push-options "--fuel 1"
 

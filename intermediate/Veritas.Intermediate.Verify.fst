@@ -411,6 +411,7 @@ let lemma_verifiable_implies_consistent_log_feq_put #vcfg (vsinit: vtls vcfg) (l
     assert(FE.feq s2k s2klog);
     ()
 
+#push-options "--query_stats --z3rlimit_factor 4"
 let lemma_verifiable_implies_consistent_log_feq_addm #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
   Lemma (requires (let n = Seq.length l in
                    let stinit = thread_store vsinit in
@@ -487,6 +488,7 @@ let lemma_verifiable_implies_consistent_log_feq_addm #vcfg (vsinit: vtls vcfg) (
     forall_intro aux;
     assert(FE.feq s2k s2klog);
     ()
+#pop-options
 
 let lemma_verifiable_implies_consistent_log_feq_addb #vcfg (vsinit: vtls vcfg) (l: logS _{verifiable vsinit l /\ Seq.length l > 0}):
   Lemma (requires (let n = Seq.length l in
