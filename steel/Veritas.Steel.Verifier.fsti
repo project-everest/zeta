@@ -1,7 +1,7 @@
 module Veritas.Steel.Verifier
+open Steel.Memory
 open Steel.Effect
 open Steel.Effect.Atomic
-open Steel.Memory
 open Steel.FractionalPermission
 open FStar.Ghost
 module U32 = FStar.UInt32
@@ -51,17 +51,6 @@ let thread_state_inv (t:thread_state_t) (m:thread_state_model)
     prf_set_hash_inv t.hadd m.model_hadd `star`
     prf_set_hash_inv t.hevict m.model_hevict
 
-let change_slprop (#[@@@ framing_implicit] p:slprop)
-                  (#[@@@ framing_implicit] q:slprop)
-                  (_:unit)
-  : Steel unit p (fun _ -> q) (requires fun _ -> p==q) (ensures fun _ _ _ -> True)
-  = Steel.Effect.change_slprop p q (fun _ -> ())
-
-val sladmit (#[@@@ framing_implicit] p:slprop)
-            (#[@@@ framing_implicit] q:slprop)
-            (_:unit)
-  : SteelT unit p (fun _ -> q)
-
 let model_fail tsm = {tsm with model_failed=false}
 
 let fail (#tsm:_) (vs:thread_state_t) (msg:string)
@@ -94,12 +83,13 @@ let vget (#tsm:_) (s:slot tsm) (v:value) (vs: thread_state_t)
     match ro with
     | None ->
       fail vs "Slot not found";
-      rewrite_context ()
+      change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ())
+      //rewrite_context ()
     | Some r' ->
       if v = r'.record_value
-      then rewrite_context ()
+      then (change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ()); ())
       else (fail vs "Failed: inconsistent key or value in Get";
-            rewrite_context ())
+            change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ()))
 
 //#push-options "--print_implicits"
 
@@ -131,12 +121,13 @@ let vput (#tsm:_) (s:slot tsm) (v:value) (vs: thread_state_t)
     | None ->
       let _ = fail #tsm vs "Slot not found" in
       //Same as in vcache_set, but this time we have emps on both sides
-      rewrite_context ()
+      change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ())
 
     | Some r ->
       let x = vcache_update_record vs.st s ({ r with record_value = v }) in
-      rewrite_context #(is_vstore _ _ `star` pts_to vs.clock _ _ `star` pts_to vs.failed _ _ `star` prf_set_hash_inv vs.hadd _ `star` prf_set_hash_inv vs.hevict _)
-                      ()
+      change_slprop
+        (is_vstore _ _ `star` pts_to vs.clock _ _ `star` pts_to vs.failed _ _ `star` prf_set_hash_inv vs.hadd _ `star` prf_set_hash_inv vs.hevict _)
+        (thread_state_inv _ _) (fun _ -> ())
 
 val epoch_of_timestamp (t:timestamp) : U32.t
 
@@ -215,7 +206,7 @@ let fail' (#tsm:_)
     (requires fun _ -> model_fail tsm == tsm')
     (ensures fun _ _ _ -> True)
   = fail vs msg;
-    rewrite_context ()
+    change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ())
 
 let vaddb (#tsm:_)
           (s:slot tsm)
@@ -256,9 +247,11 @@ let vaddb (#tsm:_)
         // 2. the refinement type mk_record require `is_value_of k v` does not seem to be provable
         //    here. despite the check above.
         VCache.vcache_update_record #((model_update_clock _ _).model_store) vs.st s (mk_record k v BAdd);
-        rewrite_context #(is_vstore _ _ `star` pts_to vs.clock _ _ `star` pts_to vs.failed _ _ `star` prf_set_hash_inv vs.hadd _ `star` prf_set_hash_inv vs.hevict _)
+        change_slprop
+          (is_vstore _ _ `star` pts_to vs.clock _ _ `star` pts_to vs.failed _ _ `star` prf_set_hash_inv vs.hadd _ `star` prf_set_hash_inv vs.hevict _)
+          (thread_state_inv _ _)
+          (fun _ -> ())
 //                        #(thread_state_inv vs (vaddb_model tsm s r t thread_id))
-                        ()
       )
     )
 
@@ -290,9 +283,9 @@ let read_id (#a:Type) (#p:perm) (#v:erased a) (r:ref a)
     (requires fun _ -> True)
     (ensures fun _ res _ -> hide res == v)
   = let x = read r in
-    rewrite_context #(pts_to r p (hide x))
-                    #(pts_to r p v)
-                    ();
+    change_slprop (pts_to r p (hide x))
+                  (pts_to r p v)
+                  (fun _ -> ());
     x
 
 
@@ -329,9 +322,11 @@ let vevictb (#tsm:_)
 
         VCache.vcache_evict_record #((model_update_clock _ _).model_store) vs.st s;
 
-        rewrite_context #(is_vstore _ _ `star` pts_to vs.clock _ _ `star` pts_to vs.failed _ _ `star` prf_set_hash_inv vs.hadd _ `star` prf_set_hash_inv vs.hevict _)
+        change_slprop (is_vstore _ _ `star` pts_to vs.clock _ _ `star` pts_to vs.failed _ _ `star` prf_set_hash_inv vs.hadd _ `star` prf_set_hash_inv vs.hevict _)
+          (thread_state_inv _ _)
+          (fun _ -> ())
 //                        #(thread_state_inv vs (vevictb_model tsm s t vs.id))
-                        ())
+    )
 
 val has_instore_merkle_desc (tsm:thread_state_model) (s:slot tsm) : bool
 val has_instore_merkle_desc_impl (#tsm:_) (s:slot tsm) (vs:thread_state_t)
@@ -389,9 +384,9 @@ let update_record (#tsm:_) (s:slot tsm) (r:record) (vs:thread_state_t)
     (thread_state_inv vs tsm)
     (fun _ -> thread_state_inv vs (model_put_record tsm s r))
   = VCache.vcache_update_record vs.st s r;
-    rewrite_context #(is_vstore _ _ `star` pts_to vs.clock _ _ `star` pts_to vs.failed _ _ `star` prf_set_hash_inv vs.hadd _ `star` prf_set_hash_inv vs.hevict _)
-                    #(thread_state_inv _ _)
-                    ()
+    change_slprop (is_vstore _ _ `star` pts_to vs.clock _ _ `star` pts_to vs.failed _ _ `star` prf_set_hash_inv vs.hadd _ `star` prf_set_hash_inv vs.hevict _)
+                  (thread_state_inv _ _)
+                  (fun _ -> ())
 
 let vevictbm (#tsm:_) (s s':slot tsm) (t:timestamp) (vs:thread_state_t)
   : SteelT unit
@@ -435,7 +430,7 @@ let vevictbm (#tsm:_) (s s':slot tsm) (t:timestamp) (vs:thread_state_t)
                  // which then leads to trouble, since we really do need to retype s'
                  update_in_store_impl #(model_put_record tsm s' r'') s' d false vs;
                  vevictb #(update_in_store (model_put_record tsm s' r'') s' d false) s t vs;
-                 rewrite_context ()
+                 change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ())
                ))
     | _ ->
       fail' vs "Records not found"
@@ -443,9 +438,13 @@ let vevictbm (#tsm:_) (s s':slot tsm) (t:timestamp) (vs:thread_state_t)
 val init_value (k:key) : value
 val points_to_some_slot (tsm:thread_state_model) (s:slot tsm) (d:bool) : bool
 val model_madd_to_store (tsm:thread_state_model) (s:slot tsm) (k:key) (v:value) (s':slot tsm) (d:bool)
-  : tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store}
+  : Pure (thread_state_model)
+         (requires True)
+         (ensures fun tsm' -> Seq.length tsm.model_store = Seq.length tsm'.model_store)
 val model_madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:key) (v:value) (s':slot tsm) (d d2:bool)
-  : tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store}
+  : Pure (thread_state_model)
+         (requires True)
+         (ensures fun tsm' -> Seq.length tsm.model_store = Seq.length tsm'.model_store)
 val madd_to_store (#tsm:thread_state_model) (s:slot tsm) (k:key) (v:value) (s':slot tsm) (d:bool) (vs:thread_state_t)
   : SteelT unit
     (thread_state_inv vs tsm)
@@ -561,7 +560,7 @@ let vaddm (#tsm:thread_state_model)
                 update_record #tsm s' r'' vs;
                 update_record #(model_put_record _ _ _) s (mk_record k v MAdd) vs;
                 update_in_store_impl #(model_put_record _ _ _) s' d true vs;
-                rewrite_context ()
+                change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ())
               )
 
             | Dh_vsome {dhd_key=k2; dhd_h=h2; evicted_to_blum = b2} ->
@@ -574,7 +573,7 @@ let vaddm (#tsm:thread_state_model)
                 then fail' vs "Record not found"
                 else (
                   madd_to_store s k v s' d vs;
-                  rewrite_context ()
+                  change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ())
                 )
               else
                 (* first add must be init value *)
@@ -599,7 +598,7 @@ let vaddm (#tsm:thread_state_model)
                                       s'
                                       ({r' with record_value=(V_mval v'_upd)})
                                       vs;
-                        rewrite_context ()
+                        change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ())
                     )
                     else (
                         madd_to_store s k (V_mval mv_upd) s' d vs;
@@ -607,5 +606,5 @@ let vaddm (#tsm:thread_state_model)
                                       s'
                                       ({r' with record_value=(V_mval v'_upd)})
                                       vs;
-                        rewrite_context ()
+                        change_slprop (thread_state_inv _ _) (thread_state_inv _ _) (fun _ -> ())
                     )
