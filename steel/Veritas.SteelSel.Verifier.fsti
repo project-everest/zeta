@@ -61,10 +61,8 @@ val vstore_get_record (#vcfg:_) (st:vstore_t vcfg) (s:slot_t vcfg)
       (option (S.vstore_entry vcfg))
       (is_vstore st)
       (fun _ -> is_vstore st)
-      (requires fun h -> U32.v s < length (v_st st h))
+      (requires fun h -> True)
       (ensures fun h0 res h1 ->
-        // AF: Need to repeat the precondition for now, will be fixed in Steel
-        U32.v s < length (v_st st h0) /\
         // Framing
         v_st st h0 == v_st st h1 /\
         // Functional correctness
@@ -74,12 +72,10 @@ val vstore_update_record (#vcfg:_) (st:vstore_t vcfg) (s:slot_t vcfg) (r:data_va
   : SteelSel unit
       (is_vstore st)
       (fun _ -> is_vstore st)
-      (requires fun h0 -> U32.v s < length (v_st st h0) /\
+      (requires fun h0 ->
         S.inuse_slot (v_st st h0) (U32.v s) /\
         K.is_data_key (S.stored_key (v_st st h0) (U32.v s)))
       (ensures fun h0 _ h1 ->
-        // AF: Need to repeat the precondition for now, will be fixed in Steel
-        U32.v s < length (v_st st h0) /\
         S.inuse_slot (v_st st h0) (U32.v s) /\
         K.is_data_key (S.stored_key (v_st st h0) (U32.v s)) /\
         // Functional correctness
@@ -165,7 +161,6 @@ let vget (#vcfg:_) (s:slot_t vcfg) (k:data_key_t) (v:data_value_t) (vs:thread_st
              (thread_state_inv vs)
              (fun _ -> thread_state_inv vs)
              (requires fun h0 ->
-               U32.v s < length (v_st vs.st h0) /\
                V.Valid? (v_thread vs h0))
              (ensures fun h0 _ h1 ->
                V.Valid? (v_thread vs h0) /\
@@ -193,12 +188,11 @@ let vput (#vcfg:_) (s:slot_t vcfg) (k:data_key_t) (v:data_value_t) (vs:thread_st
              (thread_state_inv vs)
              (fun _ -> thread_state_inv vs)
              (requires fun h0 ->
-               U32.v s < length (v_st vs.st h0) /\
                V.Valid? (v_thread vs h0))
              (ensures fun h0 _ h1 ->
                V.Valid? (v_thread vs h0) /\
                v_thread vs h1 == V.vput (U32.v s) (key_v k) (value_v v) (v_thread vs h0)
-             )
+               )
   = // AF: Still unclear why this is needed
     let h = get () in
     assert (V.Valid? (v_thread vs h));
