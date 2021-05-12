@@ -324,7 +324,7 @@ let create_tsseq_interleaving (#a:eqtype) (ss:ts_sseq a)
 
 let with_clock_i_gen (vl:sseq 'a)
                      (c:clock_gen vl)
-                     (i:seq_index vl) 
+                     (i:seq_index vl)
   : s:ts_seq 'a {
       Seq.length s = Seq.length (Seq.index vl i) /\
       (forall (j:seq_index s). (indexss vl (i,j), c.clock (i,j)) == Seq.index s j)
@@ -352,7 +352,7 @@ let mk_clock_gen (vl:VG.verifiable_log)
       monotone = lem;
     } in
     c
-  
+
 let map_tsseq (f:('a & timestamp) -> 'b) (x:ts_sseq 'a)
   : sseq 'b
   = map (map f) x
@@ -775,28 +775,28 @@ let lemma_thread_state_pre_prefix (il:il_vlog) (j:nat{ j <= I.length il}) (i:I.s
   : Lemma (thread_state_pre il i == thread_state_pre (I.prefix il j) i)
   = calc
     (==) {
-       thread_state_pre il i;    
+       thread_state_pre il i;
     (==) {}
       thread_state (I.prefix il i) (thread_id_of il i);
     (==) { I.lemma_prefix_prefix il j i }
-      thread_state (I.prefix (I.prefix il j) i) (thread_id_of il i);    
+      thread_state (I.prefix (I.prefix il j) i) (thread_id_of il i);
     (==) { lemma_thread_id_of_prefix il j i }
-      thread_state (I.prefix (I.prefix il j) i) (thread_id_of (I.prefix il j) i); 
+      thread_state (I.prefix (I.prefix il j) i) (thread_id_of (I.prefix il j) i);
     (==) {}
       thread_state_pre (I.prefix il j) i;
     }
 
 let lemma_thread_state_post_prefix (il:il_vlog) (j:nat{ j <= I.length il}) (i:I.seq_index il { i < j })
   : Lemma (thread_state_post il i == thread_state_post (I.prefix il j) i)
-  = calc 
+  = calc
     (==) {
       thread_state_post il i;
     (==) { lemma_verifier_thread_state_extend il i }
-      t_verify_step (thread_state_pre il i) (I.index il i);    
+      t_verify_step (thread_state_pre il i) (I.index il i);
     (==) { lemma_thread_state_pre_prefix il j i }
-      t_verify_step (thread_state_pre (I.prefix il j) i) (I.index il i);        
+      t_verify_step (thread_state_pre (I.prefix il j) i) (I.index il i);
     (==) { I.lemma_prefix_index il j i }
-      t_verify_step (thread_state_pre (I.prefix il j) i) (I.index (I.prefix il j) i);           
+      t_verify_step (thread_state_pre (I.prefix il j) i) (I.index (I.prefix il j) i);
     (==) { lemma_verifier_thread_state_extend (I.prefix il j) i }
       thread_state_post (I.prefix il j) i;
     }
@@ -966,10 +966,12 @@ let lemma_eac_value_correct_type (itsl: eac_log) (k:key)
 #push-options "--ifuel 1,1 --fuel 1,1"
 (* we never see operations on Root so its eac state is always init *)
 let lemma_eac_state_of_root_init (itsl: eac_log)
-  : Lemma (is_eac_state_init itsl Root)
+  : Lemma (ensures (let es = eac_state_of_key itsl Root in
+                    es = EACInit || es = EACRoot))
   = let rec aux (itsl:eac_log)
                 (m:monitored_state itsl)
-      : Lemma (ensures  is_eac_state_init itsl Root)
+      : Lemma (ensures (let es = eac_state_of_key itsl Root in
+                        es = EACInit || es = EACRoot))
               (decreases (I.length itsl))
       = if I.length itsl = 0
         then run_monitor_empty itsl Root
@@ -985,6 +987,30 @@ let lemma_eac_state_of_root_init (itsl: eac_log)
     aux itsl (run_monitor itsl)
 #pop-options
 #push-options "--ifuel 0,0 --fuel 1,1 --z3rlimit_factor 4"
+
+let lemma_eac_state_root_implies_root (itsl: eac_log) (k: key):
+  Lemma (requires (eac_state_of_key itsl k = EACRoot))
+        (ensures (k = Root))
+  = let rec aux (itsl:eac_log)
+                (m: monitored_state itsl)
+      : Lemma (requires (eac_state_of_key itsl k = EACRoot))
+              (ensures (k = Root))
+              (decreases (I.length itsl))
+      = if I.length itsl = 0 then run_monitor_empty itsl k
+        else
+          let i = I.length itsl - 1 in
+          let itsl' = I.prefix itsl i in
+          let m' = run_monitor itsl' in
+          let ve = mk_vlog_entry_ext itsl i in
+          let v = I.index itsl i in
+
+          run_monitor_step itsl k;
+          if key_of v = k then
+            if m'.eacs k = EACRoot then aux itsl' m'
+            else ()
+          else aux itsl' m'
+     in
+     aux itsl (run_monitor itsl)
 
 (*
  * when the eac state of a key is Init (no operations on the key yet) no
@@ -1158,6 +1184,8 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
                 else lemma_eac_state_init_store (I.prefix itsl i) k tid0
               | NEvict (AddB _ _ _) ->
                 false_elim()
+              | NEvict NextEpoch -> ()
+              | NEvict VerifyEpoch -> ()
             )
           )
         )
@@ -1188,13 +1216,12 @@ let lemma_key_in_unique_store_step (itsl:eac_log{I.length itsl > 0})
             | NEvict (AddB _ _ _) ->
               //evicted, so nowhere initially
               ()
+            | NEvict NextEpoch -> ()
+            | NEvict VerifyEpoch -> ()
           )
         )
     in
     ()
-
-
-
 
 #push-options "--ifuel 1,1 --fuel 1,1 --z3rlimit_factor 6"
 (* when the eac state of a key is evicted then no thread contains the key in its store *)
@@ -1365,7 +1392,7 @@ let rec stored_tid_aux (itsl: eac_log)
              (if k=Root
               then (
                 tid == 0 /\
-                eac_state_of_key itsl k == EACInit
+                (eac_state_of_key itsl k == EACInit \/ eac_state_of_key itsl k = EACRoot)
               )
               else (
                is_eac_state_instore itsl k /\
@@ -1473,6 +1500,9 @@ let rec stored_tid_aux (itsl: eac_log)
           | Put _ _
           | AddM _ _
           | AddB _ _ _ -> None
+          | NextEpoch ->
+            Some 0
+          | VerifyEpoch -> Some 0
           | _ ->
             FStar.Classical.forall_intro (lemma_eac_state_evicted_store itsl k);
             None
@@ -1574,6 +1604,11 @@ let eac_value_aux (itsl: eac_log) (k:key)
     | EACInStore _ _ -> stored_value itsl k
     | EACEvictedBlum v _ _ -> v
     | EACEvictedMerkle v -> v
+    | EACRoot ->
+      let _ = stored_tid_aux itsl Root in
+      if thread_count itsl > 0 then
+        V.stored_value (Valid?.st (m.threads 0)) Root
+      else init_value Root
 
 #push-options "--ifuel 1,1 --fuel 0,0 --z3rlimit_factor 8"
 let lemma_eac_value_aux_typing (itsl:eac_log) (k:key)
@@ -1597,6 +1632,12 @@ let lemma_eac_value_aux_typing (itsl:eac_log) (k:key)
           | EACEvictedBlum _ _ _
           | EACEvictedMerkle _ -> ()
           | EACInStore _ _ -> ()
+          | EACRoot ->
+            lemma_eac_state_root_implies_root itsl k;
+            assert(k = Root);
+            assert (thread_count itsl > 0);
+            // let _ = stored_tid_aux itsl Root in
+            ()
           | EACInit ->
             assert (thread_count itsl > 0)
         )
@@ -1682,6 +1723,14 @@ let evict_is_evicted (itsl:eac_log{I.length itsl > 0})
     let v = I.index itsl i in
     run_monitor_step itsl (key_of v)
 
+#push-options "--ifuel 1,1 --fuel 1,1"
+let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl)
+  : Lemma (requires (is_evict (I.index itsl i)))
+          (ensures (V.key_of (I.index itsl i) <> Root))
+  = let itsl' = I.prefix itsl (i + 1) in
+    run_monitor_step itsl' Root
+#pop-options
+
 (* if an evict is not the last entry of a key, then there is a add subsequent to the
  * evict *)
 let lemma_evict_has_next_add (itsl: its_log)
@@ -1700,6 +1749,9 @@ let lemma_evict_has_next_add (itsl: its_log)
     lemma_eac_implies_prefix_eac itsl_j (i + 1);
     assert (is_eac itsl_i);
     let v = I.index itsl i in
+    lemma_root_never_evicted itsl i;
+    assert(key_of v <> Root);
+
     let is_eac_evicted = function
       | EACEvictedBlum _ _ _
       | EACEvictedMerkle _ -> true
@@ -1736,6 +1788,8 @@ let lemma_evict_has_next_add (itsl: its_log)
             | AddM _ _
             | AddB _ _ _ ->
               intro_has_next (is_add_of_key (key_of v)) (I.i_seq itsl) i k
+            | NextEpoch -> ()
+            | VerifyEpoch -> ()
             | _ ->
               assert (~(Valid? (m.threads tid)))
           )
@@ -1760,9 +1814,9 @@ let lemma_evict_has_next_add (itsl: its_log)
     aux (i + 1)
 
 #push-options "--ifuel 1,1 --fuel 1,1"
-let lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl)
-  : Lemma (requires (is_evict (I.index itsl i)))
-          (ensures (V.key_of (I.index itsl i) <> Root))
+let lemma_root_never_added (itsl: its_log) (i: I.seq_index itsl):
+  Lemma (requires (is_add (I.index itsl i)))
+        (ensures (V.key_of (I.index itsl i) <> Root))
   = let itsl' = I.prefix itsl (i + 1) in
     run_monitor_step itsl' Root
 #pop-options
@@ -1813,29 +1867,29 @@ let lemma_eac_value_root_init (itsl: eac_log {I.length itsl = 0}) (k:key{k = Roo
 
 let lemma_addm_ancestor_merkle (itsl: its_log) (i: I.seq_index itsl{is_merkle_add (I.index itsl i)}):
   Lemma (ensures (let AddM _ k' = I.index itsl i in
-                  is_merkle_key k')) = 
+                  is_merkle_key k')) =
   // let itsli = I.prefix itsl i in
   // let itsli' = I.prefix itsl (i + 1) in
   lemma_verifier_thread_state_extend itsl i;
   // let vs = thread_state_pre itsl i in
   // let vs' = thread_state_post itsl i in
-  
+
   // Oddly, enough the proof goes through only if we match e as below
-  let e = I.index itsl i in  
+  let e = I.index itsl i in
   match e with
   | AddM _ k' -> ()
-                      
+
 let lemma_evictm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{is_evict_to_merkle (I.index itsl i)}):
   Lemma (ensures (let EvictM _ k' = I.index itsl i in
-                  is_merkle_key k')) = 
+                  is_merkle_key k')) =
   // let itsli = I.prefix itsl i in
   // let itsli' = I.prefix itsl (i + 1) in
   lemma_verifier_thread_state_extend itsl i;
   // let vs = thread_state_pre itsl i in
   // let vs' = thread_state_post itsl i in
-  let e = I.index itsl i in  
+  let e = I.index itsl i in
   match e with
-  | EvictM _ k' -> ()                  
+  | EvictM _ k' -> ()
 
 
 let lemma_evictbm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{EvictBM? (I.index itsl i)}):
@@ -1846,69 +1900,70 @@ let lemma_evictbm_ancestor_merkle (itsl: its_log) (i:I.seq_index itsl{EvictBM? (
   lemma_verifier_thread_state_extend itsl i;
   // let vs = thread_state_pre itsl i in
   // let vs' = thread_state_post itsl i in
-  let e = I.index itsl i in  
+  let e = I.index itsl i in
   match e with
-  | EvictBM _ k' _ -> ()                  
+  | EvictBM _ k' _ -> ()
 
-let lemma_eac_boundary_inv (itsl: its_log) (i:I.seq_index itsl): 
+let lemma_eac_boundary_inv (itsl: its_log) (i:I.seq_index itsl):
   Lemma (requires (is_eac (I.prefix itsl i) /\
                    not (is_eac (I.prefix itsl (i + 1)))))
-        (ensures (eac_boundary itsl = i)) = 
+        (ensures (eac_boundary itsl = i)) =
   if is_eac itsl then
     lemma_eac_implies_prefix_eac itsl (i + 1)
   else
     let itsli = I.prefix itsl i in
     let i' = eac_boundary itsl in
     if i' = i then ()
-    else if i' < i then 
+    else if i' < i then
       lemma_eac_implies_prefix_eac itsli (i' + 1)
-    else 
+    else
       lemma_eac_implies_prefix_eac (I.prefix itsl i') (i + 1)
 
 let lemma_instore_implies_last_entry_non_evict (itsl: eac_log) (k:key) (tid:valid_tid itsl):
   Lemma (requires (store_contains (thread_store itsl tid) k))
-        (ensures (has_some_entry_of_key itsl k ==> 
-                  not (is_evict_to_blum (I.index itsl (last_idx_of_key itsl k))))) =      
+        (ensures (has_some_entry_of_key itsl k ==>
+                  not (is_evict_to_blum (I.index itsl (last_idx_of_key itsl k))))) =
   if k = Root then (
     lemma_eac_state_of_root_init itsl;
-    lemma_eac_state_init_no_entry itsl k
+    //lemma_eac_state_init_no_entry itsl k
+    admit()
   )
   else (
     lemma_instore_implies_eac_state_instore itsl k tid;
     let rec aux (itsl: eac_log)
-    : Lemma (ensures (is_eac_state_instore itsl k ==> has_some_entry_of_key itsl k ==> 
+    : Lemma (ensures (is_eac_state_instore itsl k ==> has_some_entry_of_key itsl k ==>
                   not (is_evict_to_blum (I.index itsl (last_idx_of_key itsl k)))))
-            (decreases (I.length itsl)) =                  
+            (decreases (I.length itsl)) =
     if I.length itsl = 0
     then run_monitor_empty itsl k
     else (
       let n = I.length itsl in
       let itsl' = I.prefix itsl (n - 1) in
       let m = run_monitor itsl in
-      let e = I.index itsl (n - 1) in 
+      let e = I.index itsl (n - 1) in
       aux itsl';
       run_monitor_step itsl k;
       match m.eacs k with
-      | EACInStore am v -> 
+      | EACInStore am v ->
         if key_of e = k then
-          SA.lemma_last_index_last_elem_sat (is_entry_of_key k) (I.i_seq itsl)        
-        else 
-          SA.lemma_last_index_opt_last_elem_nsat (is_entry_of_key k) (I.i_seq itsl)        
+          SA.lemma_last_index_last_elem_sat (is_entry_of_key k) (I.i_seq itsl)
+        else
+          SA.lemma_last_index_opt_last_elem_nsat (is_entry_of_key k) (I.i_seq itsl)
       | _ -> ()
     )
     in
-    aux itsl    
+    aux itsl
   )
 
 let lemma_empty_log_eac (itsl: its_log{I.length itsl = 0})
-  : Lemma (ensures (is_eac itsl)) = 
+  : Lemma (ensures (is_eac itsl)) =
   let el: seq vlog_entry_ext = vlog_ext_of_its_log itsl in
   lemma_empty_seq_valid_all eac_sm;
   lemma_empty el
 
 let lemma_blum_evict_def (itsl: its_log)
                          (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
-  Lemma (ensures (let tid = thread_id_of itsl i in 
+  Lemma (ensures (let tid = thread_id_of itsl i in
                   let e = I.index itsl i in
                   let k = key_of e in
                   let itsli = I.prefix itsl i in
@@ -1917,7 +1972,7 @@ let lemma_blum_evict_def (itsl: its_log)
                   (let v = V.stored_value st k in
                    match e with
                    | EvictB _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid
-                   | EvictBM _ _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid))) = 
+                   | EvictBM _ _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid))) =
   let gl = g_vlog_of itsl in
   let ii = i2s_map itsl i in
   let (tid,j) = ii in

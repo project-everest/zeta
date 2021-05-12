@@ -486,6 +486,10 @@ val lemma_ext_evict_val_is_stored_val (itsl: its_log) (i: I.seq_index itsl):
                   V.stored_value (thread_store (I.prefix itsl i) (thread_id_of itsl i)) (key_at itsl i) =
                   value_ext (vlog_entry_ext_at itsl i)))
 
+val lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl):
+  Lemma (requires (is_evict (I.index itsl i)))
+        (ensures (V.key_of (I.index itsl i) <> Root))
+
 (* if an evict is not the last entry of a key, then there is a add subsequent to the
  * evict *)
 val lemma_evict_has_next_add (itsl: its_log)
@@ -496,10 +500,6 @@ val lemma_evict_has_next_add (itsl: its_log)
                    exists_sat_elems (is_entry_of_key (key_of (I.index itsl i))) (I.i_seq itsl)) /\
                    i < last_idx_of_key itsl (key_of (I.index itsl i)))
         (ensures (has_next_add_of_key itsl i (key_of (I.index itsl i))))
-
-val lemma_root_never_evicted (itsl: its_log) (i:I.seq_index itsl):
-  Lemma (requires (is_evict (I.index itsl i)))
-        (ensures (V.key_of (I.index itsl i) <> Root))
 
 val lemma_root_never_added (itsl: its_log) (i: I.seq_index itsl):
   Lemma (requires (is_add (I.index itsl i)))
