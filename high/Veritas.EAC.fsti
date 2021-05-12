@@ -27,14 +27,15 @@ type eac_state =
   | EACInStore: m:add_method -> v:value -> eac_state
   | EACEvictedMerkle: v:value -> eac_state
   | EACEvictedBlum: v:value -> t:timestamp -> j:nat -> eac_state
+  | EACRoot: eac_state
 
-let is_eac_state_evicted (s: eac_state): bool = 
+let is_eac_state_evicted (s: eac_state): bool =
   match s with
   | EACEvictedMerkle _ -> true
   | EACEvictedBlum _ _ _ -> true
   | _ -> false
 
-let is_eac_state_instore (s: eac_state): bool = 
+let is_eac_state_instore (s: eac_state): bool =
   match s with
   | EACInStore _ _ -> true
   | _ -> false
@@ -46,6 +47,8 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
     match e with
     | NEvict (AddM (k,v) _) -> if v = init_value k then EACInStore MAdd v
                                else EACFail
+    | NEvict NextEpoch -> EACRoot
+    | NEvict VerifyEpoch -> EACRoot
     | _ -> EACFail
     )
 
@@ -56,7 +59,7 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
     | NEvict (Put _ v') -> if (DVal? v) then EACInStore m (DVal v')
                            else EACFail
     | EvictMerkle (EvictM _ _) v' -> if DVal? v && v' <> v then EACFail
-                                     else if MVal? v && not (MVal? v') then EACFail  
+                                     else if MVal? v && not (MVal? v') then EACFail
                                      else EACEvictedMerkle v'
     | EvictBlum (EvictBM k k' t) v' j -> if DVal? v && v' <> v || m <> MAdd then EACFail
                                          else if MVal? v && not (MVal? v') then EACFail
@@ -68,7 +71,7 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
     )
 
   | EACEvictedMerkle v -> (
-    match e with 
+    match e with
     | NEvict (AddM (_,v') _) -> if v' = v then EACInStore MAdd v
                                 else EACFail
     | _ -> EACFail
@@ -81,6 +84,13 @@ let eac_add (e: vlog_entry_ext) (s: eac_state) : eac_state =
     | _ -> EACFail
   )
 
+  | EACRoot -> (
+    match e with
+    | NEvict NextEpoch -> EACRoot
+    | NEvict VerifyEpoch -> EACRoot
+    | _ -> EACFail
+  )
+
 let eac_smk = SeqMachine EACInit EACFail eac_add
 
 let to_vlog_entry (ee:vlog_entry_ext): vlog_entry =
@@ -89,9 +99,9 @@ let to_vlog_entry (ee:vlog_entry_ext): vlog_entry =
   | EvictBlum e _ _ -> e
   | NEvict e -> e
 
-let vlog_entry_ext_key (e: vlog_entry_ext): key =  
+let vlog_entry_ext_key (e: vlog_entry_ext): key =
   V.key_of (to_vlog_entry e)
-  
+
 let eac_sm = PSM eac_smk vlog_entry_ext_key
 
 (* evict add consistency *)
@@ -100,10 +110,10 @@ let eac (l:vlog_ext) = valid_all eac_sm l
 (* refinement of evict add consistent logs *)
 type eac_log = l:vlog_ext{eac l}
 
-let is_eac_log (l:vlog_ext): (r:bool{r <==> eac l}) = 
+let is_eac_log (l:vlog_ext): (r:bool{r <==> eac l}) =
   valid_all_comp eac_sm l
 
-let max_eac_prefix (l:vlog_ext{not (is_eac_log l)}): 
+let max_eac_prefix (l:vlog_ext{not (is_eac_log l)}):
   (i:nat{i < length l /\
         is_eac_log (prefix l i) /\
         not (is_eac_log (prefix l (i + 1)))}) =
@@ -128,15 +138,16 @@ let to_state_op_vlog (l: vlog) =
 
 (* valid eac states *)
 let is_eac_state_active (st:eac_state): bool = st <> EACFail &&
-                                           st <> EACInit
+                                           st <> EACInit &&
+                                           st <> EACRoot
 
-let is_evict_ext (e:vlog_entry_ext): bool = 
+let is_evict_ext (e:vlog_entry_ext): bool =
   match e with
   | EvictMerkle _ _ -> true
   | EvictBlum _ _ _ -> true
-  | _ -> false 
+  | _ -> false
 
-let value_ext (e:vlog_entry_ext{is_evict_ext e}): value = 
+let value_ext (e:vlog_entry_ext{is_evict_ext e}): value =
   match e with
   | EvictMerkle _ v -> v
   | EvictBlum _ v _ -> v

@@ -39,6 +39,13 @@ type hash_collision_gen =
 let hash_collision_contra (_:unit{False}): hash_collision_gen =
   SingleHashCollision (Collision (DVal Null) (DVal Null))
 
+let lemma_non_eac_init_nonkey
+  (itsl: neac_log {
+    eac_boundary_state_pre itsl = EACInit /\
+    not (is_keyed_entry (eac_boundary_entry itsl))
+  }): hash_collision_gen =
+  hash_collision_contra()
+
 (* if an operation requires the key in store, it cannot be the first operation *)
 let lemma_non_eac_init_requires_key_in_store
   (itsl: neac_log {
@@ -140,10 +147,10 @@ let lemma_non_eac_init_addm
   let tid = thread_id_of itsl i in
   let ee = TL.vlog_entry_ext_at itsl i in
 
-  //assert(eac_add ee (eac_boundary_state_pre itsl) = EACFail);                 
+  //assert(eac_add ee (eac_boundary_state_pre itsl) = EACFail);
   match e with
   | AddM (k,v) k' ->
-    
+
     (* otherwise eac_add ee (boundary_state ...) <> EACFail *)
     // assert(v <> init_value k);
 
@@ -218,7 +225,7 @@ let lemma_non_eac_instore_get
         //assert(stored_value itsli k = v);
 
         (* this implies a contradiction *)
-        hash_collision_contra()        
+        hash_collision_contra()
       )
       else (
         (* since tid <> tid_stored, k is not in store of tid *)
@@ -269,8 +276,8 @@ let lemma_non_eac_instore_addb
     AddB? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let gl = g_vlog_of itsl in  
-  
+  let gl = g_vlog_of itsl in
+
   (* the maximum eac prefix of itsl *)
   let i = eac_boundary itsl in
   let itsli = I.prefix itsl i in
@@ -287,9 +294,9 @@ let lemma_non_eac_instore_addb
   //assert(MS.size (ts_add_set_key itsli k) = MS.size (ts_evict_set_key itsli k));
 
   (* the ith element is a blum add *)
-  //assert(is_blum_add e);  
+  //assert(is_blum_add e);
   assert(I.index itsl i = I.index itsli' i);
-  lemma_ts_add_set_key_extend itsli';  
+  lemma_ts_add_set_key_extend itsli';
   //assert(ts_add_set_key itsli' k == add_elem (ts_add_set_key itsli k) (blum_add_elem e));
 
   (* the ith element is not a blum evict *)
@@ -367,8 +374,8 @@ let lemma_non_eac_instore_addm
 
   (* if store already contains k, adding should cause verification failure *)
   if tid = tid_stored then
-    hash_collision_contra()  
-      
+    hash_collision_contra()
+
   else (
     match e with
     | AddM _ k' ->
@@ -399,7 +406,7 @@ let lemma_non_eac_instore_addm
         //assert(store_contains (TL.thread_store itsli tid_stored) k);
 
         (* this implies k' is in the store of ltid *)
-        lemma_store_contains_proving_ancestor itsli tid_stored k;    
+        lemma_store_contains_proving_ancestor itsli tid_stored k;
         //assert(store_contains (TL.thread_store itsli tid_stored) k');
 
         (* but k' cannot be in two stores *)
@@ -408,6 +415,24 @@ let lemma_non_eac_instore_addm
         hash_collision_contra()
       )
     )
+
+let lemma_non_eac_instore_nonkey
+  (itsl: neac_log {
+    EACInStore? (eac_boundary_state_pre itsl) /\
+    not (is_keyed_entry (eac_boundary_entry itsl))
+    }): hash_collision_gen =
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
+
+  // let e = I.index itsl i in
+  // assert(not (is_keyed_entry e));
+  // assert(V.key_of e = Root);
+
+  (* the state has to be EACInit or EACRoot, it cannot be EACInStore *)
+  lemma_eac_state_of_root_init itsli;
+  // assert(False);
+
+  hash_collision_contra()
 
 let lemma_non_eac_instore_evictm
   (itsl: neac_log {
@@ -449,7 +474,7 @@ let lemma_non_eac_instore_evictm
 
       (* for data keys, the value in EACInStore is identical to the stored value *)
       lemma_eac_stored_value itsli k;
-      
+
       (* ... which provides a contradiction *)
       hash_collision_contra()
     )
@@ -488,7 +513,7 @@ let lemma_non_eac_instore_evictb
           hash_collision_contra()
         )
       )
-      else (            
+      else (
       (* otherwise there won't be an eac failure *)
       assert(DVal? v && v' <> v || m <> BAdd);
 
@@ -519,7 +544,7 @@ let lemma_non_eac_instore_evictb
       lemma_ext_evict_val_is_stored_val itsl i;
       // assert(v' = stored_value itsli k);
 
-      hash_collision_contra()      
+      hash_collision_contra()
       )
   )
 
@@ -592,7 +617,7 @@ let lemma_non_eac_instore_evictbm
 
       hash_collision_contra()
       )
-  )  
+  )
 
 let lemma_non_eac_evicted_requires_key_in_store
   (itsl: neac_log {
@@ -649,7 +674,7 @@ let lemma_non_eac_evicted_merkle_addm
 
       (* k' is a proper ancestor, so k cannot be root *)
       // assert(k <> Root);
-      
+
       (* k' is the proving ancestor of k *)
       lemma_addm_ancestor_is_proving itsli';
       // assert(k' = proving_ancestor itsli k);
@@ -666,8 +691,8 @@ let lemma_non_eac_evicted_merkle_addm
       // assert(Desc?.h dh = hashfn v);
 
       (* invariant - the proving ancestors stores the hash of evicted value v_e *)
-      lemma_proving_ancestor_has_hash itsli k;      
-      lemma_eac_value_is_evicted_value itsli k;      
+      lemma_proving_ancestor_has_hash itsli k;
+      lemma_eac_value_is_evicted_value itsli k;
       // assert(Desc?.h dh = hashfn v_e);
 
       (* which gives us a hash collision *)
@@ -722,12 +747,12 @@ let lemma_non_eac_evicted_blum_addm
 
 let lemma_non_eac_evicted_merkle_addb
   (itsl: neac_log {
-    TL.hash_verifiable itsl /\  
+    TL.hash_verifiable itsl /\
     EACEvictedMerkle? (eac_boundary_state_pre itsl) /\
     AddB? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let gl = g_vlog_of itsl in  
+  let gl = g_vlog_of itsl in
   let st = eac_boundary_state_pre itsl in
 
   (* the maximum eac prefix of itsl *)
@@ -808,12 +833,12 @@ let lemma_non_eac_evicted_merkle_addb
 
 let lemma_non_eac_evicted_blum_addb
   (itsl: neac_log {
-    TL.hash_verifiable itsl /\  
+    TL.hash_verifiable itsl /\
     EACEvictedBlum? (eac_boundary_state_pre itsl) /\
     AddB? (eac_boundary_entry itsl)
    })
   : hash_collision_gen =
-  let gl = g_vlog_of itsl in  
+  let gl = g_vlog_of itsl in
   let st = eac_boundary_state_pre itsl in
 
   (* the maximum eac prefix of itsl *)
@@ -902,8 +927,50 @@ let lemma_non_eac_evicted_blum_addb
       lemma_g_hadd_correct gl;
 
       MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
-    )      
+    )
  )
+
+let lemma_non_eac_evicted_nonkey
+  (itsl: neac_log {
+    EC.is_eac_state_evicted (eac_boundary_state_pre itsl) /\
+    not (is_keyed_entry (eac_boundary_entry itsl))
+    }): hash_collision_gen =
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
+
+  // let e = I.index itsl i in
+  // assert(not (is_keyed_entry e));
+  // assert(V.key_of e = Root);
+
+  (* the state has to be EACInit or EACRoot, it cannot be EACInStore *)
+  lemma_eac_state_of_root_init itsli;
+  // assert(False);
+
+  hash_collision_contra()
+
+let lemma_non_eac_from_eac_root
+  (itsl: neac_log {eac_boundary_state_pre itsl = EACRoot}): hash_collision_gen =
+  let i = eac_boundary itsl in
+  let itsli = I.prefix itsl i in
+  let k = TL.key_at itsl i in
+  lemma_eac_state_root_implies_root itsli k;
+  assert(k = Root);
+  let e = I.index itsl i in
+
+  assert(not (Get? e));
+  assert(not (Put? e));
+
+  if is_evict e then (
+    lemma_root_never_evicted itsl i;
+    hash_collision_contra()
+  )
+  else if is_add e then (
+    lemma_root_never_added itsl i;
+    hash_collision_contra()
+  )
+  else
+    hash_collision_contra()
+
 
 let lemma_non_eac_time_seq_implies_hash_collision
   (itsl: neac_log {VG.hash_verifiable (g_vlog_of itsl)}): hash_collision_gen =
@@ -918,6 +985,8 @@ let lemma_non_eac_time_seq_implies_hash_collision
       | NEvict (Put _ _) -> lemma_non_eac_init_requires_key_in_store itsl
       | NEvict (AddB _ _ _) -> lemma_non_eac_init_addb itsl
       | NEvict (AddM (k,v) _) -> lemma_non_eac_init_addm itsl
+      | NEvict NextEpoch -> lemma_non_eac_init_nonkey itsl
+      | NEvict VerifyEpoch -> lemma_non_eac_init_nonkey itsl
       | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_init_evict itsl
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_init_evict itsl
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_init_evict itsl
@@ -925,35 +994,42 @@ let lemma_non_eac_time_seq_implies_hash_collision
   | EACInStore m v -> (
     match ee with
     | NEvict (Get _ _) -> lemma_non_eac_instore_get itsl
-    | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl    
-    | NEvict (AddB _ _ _) -> lemma_non_eac_instore_addb itsl    
-    | NEvict (AddM (k,v) _) -> lemma_non_eac_instore_addm itsl    
-    | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl    
-    | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_instore_evictb itsl      
-    | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_instore_evictbm itsl    
+    | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl
+    | NEvict (AddB _ _ _) -> lemma_non_eac_instore_addb itsl
+    | NEvict (AddM (k,v) _) -> lemma_non_eac_instore_addm itsl
+    | NEvict NextEpoch -> lemma_non_eac_instore_nonkey itsl
+    | NEvict VerifyEpoch -> lemma_non_eac_instore_nonkey itsl
+    | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl
+    | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_instore_evictb itsl
+    | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_instore_evictbm itsl
     )
   | EACEvictedMerkle v -> (
     match ee with
       | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
-      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl      
-      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_merkle_addm itsl      
-      | NEvict (AddB _ _ _) ->  lemma_non_eac_evicted_merkle_addb itsl      
+      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_merkle_addm itsl
+      | NEvict (AddB _ _ _) ->  lemma_non_eac_evicted_merkle_addb itsl
+      | NEvict NextEpoch -> lemma_non_eac_evicted_nonkey itsl
+      | NEvict VerifyEpoch -> lemma_non_eac_evicted_nonkey itsl
       | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
-      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl   
-      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl      
+      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
     )
   | EACEvictedBlum v t tid -> (
     match ee with
     | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
-      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl          
-      | NEvict (AddB _ _ _) ->  lemma_non_eac_evicted_blum_addb itsl      
-      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_blum_addm itsl      
+      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | NEvict (AddB _ _ _) ->  lemma_non_eac_evicted_blum_addb itsl
+      | NEvict (AddM (k,v) _) -> lemma_non_eac_evicted_blum_addm itsl
+      | NEvict NextEpoch -> lemma_non_eac_evicted_nonkey itsl
+      | NEvict VerifyEpoch -> lemma_non_eac_evicted_nonkey itsl
       | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
-      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl   
-      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl      
+      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
+      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
     )
+  | EACRoot -> lemma_non_eac_from_eac_root itsl
 
-(* Less general form of the statement above that doesn't require itsl to be hash_verifiable; 
+(* Less general form of the statement above that doesn't require itsl to be hash_verifiable;
    used in Veritas.Intermediate *)
 let lemma_non_eac_get_implies_hash_collision
   (itsl: neac_log {Get? (eac_boundary_entry itsl)}) : hash_collision_gen =
@@ -961,7 +1037,7 @@ let lemma_non_eac_get_implies_hash_collision
   let i = TL.eac_boundary itsl in
   let st:eac_state = TL.eac_boundary_state_pre itsl in
   let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in
-  
+
   match st with
   | EACInit -> (
       match ee with
@@ -979,10 +1055,11 @@ let lemma_non_eac_get_implies_hash_collision
       match ee with
       | NEvict (Get _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
     )
+  | EACRoot -> lemma_non_eac_from_eac_root itsl
 
 let lemma_non_eac_put_implies_hash_collision
   (itsl: neac_log {Put? (eac_boundary_entry itsl)}) : hash_collision_gen =
-  
+
   let i = TL.eac_boundary itsl in
   let st:eac_state = TL.eac_boundary_state_pre itsl in
   let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in
@@ -994,16 +1071,17 @@ let lemma_non_eac_put_implies_hash_collision
     )
   | EACInStore m v -> (
       match ee with
-      | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl    
+      | NEvict (Put _ _) -> lemma_non_eac_instore_put itsl
     )
   | EACEvictedMerkle v -> (
       match ee with
-      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl        
+      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
     )
   | EACEvictedBlum v t tid -> (
       match ee with
-      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl          
+      | NEvict (Put _ _) -> lemma_non_eac_evicted_requires_key_in_store itsl
     )
+  | EACRoot -> lemma_non_eac_from_eac_root itsl
 
 let lemma_non_eac_addm_implies_hash_collision
   (itsl: neac_log {AddM? (eac_boundary_entry itsl)}) : hash_collision_gen =
@@ -1011,7 +1089,7 @@ let lemma_non_eac_addm_implies_hash_collision
   let i = TL.eac_boundary itsl in
   let st:eac_state = TL.eac_boundary_state_pre itsl in
   let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in
-  
+
   match st with
   | EACInit -> (
       match ee with
@@ -1029,6 +1107,7 @@ let lemma_non_eac_addm_implies_hash_collision
       match ee with
       | NEvict (AddM _ _) -> lemma_non_eac_evicted_blum_addm itsl
     )
+  | EACRoot -> lemma_non_eac_from_eac_root itsl
 
 let lemma_non_eac_evictm_implies_hash_collision
   (itsl: neac_log {EvictM? (eac_boundary_entry itsl)}) : hash_collision_gen =
@@ -1036,7 +1115,7 @@ let lemma_non_eac_evictm_implies_hash_collision
   let i = TL.eac_boundary itsl in
   let st:eac_state = TL.eac_boundary_state_pre itsl in
   let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in
-  
+
   match st with
   | EACInit -> (
       match ee with
@@ -1044,7 +1123,7 @@ let lemma_non_eac_evictm_implies_hash_collision
     )
   | EACInStore m v -> (
       match ee with
-      | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl    
+      | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_instore_evictm itsl
     )
   | EACEvictedMerkle v -> (
       match ee with
@@ -1054,6 +1133,7 @@ let lemma_non_eac_evictm_implies_hash_collision
       match ee with
       | EvictMerkle (EvictM _ _) _ -> lemma_non_eac_evicted_requires_key_in_store itsl
     )
+  | EACRoot -> lemma_non_eac_from_eac_root itsl
 
 let lemma_non_eac_evictb_implies_hash_collision
   (itsl: neac_log {EvictB? (eac_boundary_entry itsl)}) : hash_collision_gen =
@@ -1061,7 +1141,7 @@ let lemma_non_eac_evictb_implies_hash_collision
   let i = TL.eac_boundary itsl in
   let st:eac_state = TL.eac_boundary_state_pre itsl in
   let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in
-  
+
   match st with
   | EACInit -> (
       match ee with
@@ -1069,7 +1149,7 @@ let lemma_non_eac_evictb_implies_hash_collision
     )
   | EACInStore m v -> (
       match ee with
-      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_instore_evictb itsl    
+      | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_instore_evictb itsl
     )
   | EACEvictedMerkle v -> (
       match ee with
@@ -1079,6 +1159,7 @@ let lemma_non_eac_evictb_implies_hash_collision
       match ee with
       | EvictBlum (EvictB _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
     )
+  | EACRoot -> lemma_non_eac_from_eac_root itsl
 
 let lemma_non_eac_evictbm_implies_hash_collision
   (itsl: neac_log {EvictBM? (eac_boundary_entry itsl)}) : hash_collision_gen =
@@ -1086,7 +1167,7 @@ let lemma_non_eac_evictbm_implies_hash_collision
   let i = TL.eac_boundary itsl in
   let st:eac_state = TL.eac_boundary_state_pre itsl in
   let ee:vlog_entry_ext = TL.vlog_entry_ext_at itsl i in
-  
+
   match st with
   | EACInit -> (
       match ee with
@@ -1094,7 +1175,7 @@ let lemma_non_eac_evictbm_implies_hash_collision
     )
   | EACInStore m v -> (
       match ee with
-      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_instore_evictbm itsl    
+      | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_instore_evictbm itsl
     )
   | EACEvictedMerkle v -> (
       match ee with
@@ -1104,3 +1185,4 @@ let lemma_non_eac_evictbm_implies_hash_collision
       match ee with
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
     )
+  | EACRoot -> lemma_non_eac_from_eac_root itsl

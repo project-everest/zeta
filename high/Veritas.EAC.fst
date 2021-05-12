@@ -264,8 +264,15 @@ let lemma_eac_add_closure1 (e:vlog_entry_ext) (st: eac_state):
 let lemma_eac_add_closure2 (e:vlog_entry_ext) (st: eac_state):
   Lemma (eac_closure_pred2 st ==> eac_closure_pred2 (eac_add e st)) = ()
 
+let eac_closure_pred3 (st: eac_state): bool =
+  EACFail = st || EACRoot = st
+
+let lemma_eac_add_closure3 (e: vlog_entry_ext) (st: eac_state):
+  Lemma (eac_closure_pred3 st ==> eac_closure_pred3 (eac_add e st)) = ()
+
 let lemma_value_type (le:vlog_ext {length le > 0}):
   Lemma (EACFail = seq_machine_run eac_smk le \/
+         EACRoot = seq_machine_run eac_smk le \/
          is_eac_state_active (seq_machine_run eac_smk (prefix le 1)) /\
          is_eac_state_active (seq_machine_run eac_smk le) /\
          DVal? (value_of (seq_machine_run eac_smk le)) =
@@ -275,17 +282,26 @@ let lemma_value_type (le:vlog_ext {length le > 0}):
   let st = seq_machine_run eac_smk le in
 
   if EACFail = st then ()
-
+  else if EACRoot = st then ()
   else (
+
     // st1 is valid (and not init)
     lemma_valid_prefix eac_smk le 1;
     lemma_notempty_implies_noninit eac_smk (prefix le 1);
     let st1 = seq_machine_run eac_smk (prefix le 1) in
-    //assert(is_eac_state_active st1);
 
     lemma_reduce_prefix EACInit eac_add le 1;
     //assert(st = reduce st1 eac_add (suffix le (n - 1)));
 
+    let aux ():
+      Lemma (st1 <> EACRoot) =
+      if st1 = EACRoot then
+        lemma_reduce_property_closure eac_closure_pred3 st1 eac_add (suffix le (n - 1))
+      else ()
+    in
+    aux();
+
+    //assert(is_eac_state_active st1);
     if DVal? (value_of st1) then
       lemma_reduce_property_closure eac_closure_pred1 st1 eac_add (suffix le (n - 1))
     else
@@ -293,14 +309,75 @@ let lemma_value_type (le:vlog_ext {length le > 0}):
   )
 
 let lemma_first_entry_is_madd (le:vlog_ext):
-  Lemma (requires (valid eac_smk le /\ length le > 0))
+  Lemma (requires (valid eac_smk le /\ length le > 0 /\ EACRoot <> seq_machine_run eac_smk le))
         (ensures (AddM? (to_vlog_entry (index le 0)))) =
+  let n = length le in
   let le1 = prefix le 1 in
   let st1 = seq_machine_run eac_smk le1 in
   lemma_valid_prefix eac_smk le 1;
   lemma_reduce_singleton EACInit eac_add le1;
-  //assert(st1 = eac_add (index le 0) EACInit);
-  ()
+  assert(st1 = eac_add (index le 0) EACInit);
+
+  if st1 = EACRoot then (
+    lemma_reduce_prefix EACInit eac_add le 1;
+    lemma_reduce_property_closure eac_closure_pred3 st1 eac_add (suffix le (n - 1));
+    ()
+  )
+  else ()
+
+let rec lemma_active_implies_prefix_active (le: vlog_ext) (i: nat{i <= length le /\ i > 0}):
+  Lemma (requires (let st = seq_machine_run eac_smk le in
+                   is_eac_state_active st))
+        (ensures (let lei = prefix le i in
+                  let sti = seq_machine_run eac_smk lei in
+                  is_eac_state_active sti))
+        (decreases (length le))
+        [SMTPat (prefix le i)] =
+  let n = length le in
+  if i = n then ()
+  else (
+    let le' = prefix le (n - 1) in
+    let st' = seq_machine_run eac_smk le' in
+    lemma_valid_prefix eac_smk le (n - 1);
+    // assert(st' <> EACFail);
+
+    lemma_reduce_append2 EACInit eac_add le;
+    // assert(st' <> EACRoot);
+    lemma_notempty_implies_noninit eac_smk le';
+    // assert(st' <> EACInit);
+    lemma_active_implies_prefix_active le' i
+  )
+
+let rec lemma_eacroot_implies_prefix_eacroot (le: vlog_ext) (i: nat{i <= length le}):
+  Lemma (requires (EACRoot = seq_machine_run eac_smk le))
+        (ensures (let lei = prefix le i in
+                  let sti = seq_machine_run eac_smk lei in
+                  i = 0 /\ sti = EACInit \/
+                  i > 0 /\ sti = EACRoot))
+        (decreases (length le))
+        [SMTPat (prefix le i)] =
+  let n = length le in
+  let st = seq_machine_run eac_smk le in
+  let lei = prefix le i in
+  let sti = seq_machine_run eac_smk lei in
+  if n = 0 then (
+    lemma_reduce_empty EACInit eac_add;
+    lemma_empty le;
+    ()
+  )
+  else if i = n then ()
+  else if i = 0 then (
+    lemma_reduce_empty EACInit eac_add;
+    lemma_empty lei
+  )
+  else (
+
+    let le' = prefix le (n - 1) in
+    let st' = seq_machine_run eac_smk le' in
+    lemma_reduce_append2 EACInit eac_add le;
+    lemma_notempty_implies_noninit eac_smk le';
+    lemma_eacroot_implies_prefix_eacroot le' i
+  )
 
 let rec lemma_data_val_state_implies_last_put (le:vlog_ext):
   Lemma (requires (is_eac_state_active (seq_machine_run eac_smk le) /\
@@ -320,6 +397,7 @@ let rec lemma_data_val_state_implies_last_put (le:vlog_ext):
   )
 
   else if n = 1 then (
+    assert(st <> EACRoot);
     lemma_first_entry_is_madd le;
     lemma_reduce_singleton EACInit eac_add le;
 
@@ -334,6 +412,7 @@ let rec lemma_data_val_state_implies_last_put (le:vlog_ext):
   )
 
   else (
+
     let le' = prefix le (n - 1) in
     let l' = prefix l (n - 1) in
     lemma_map_prefix to_vlog_entry le (n - 1);
@@ -380,6 +459,27 @@ let lemma_get_implies_data_val_state (le:vlog_ext) (i:seq_index le):
   lemma_valid_prefix eac_smk le (i + 1);
   lemma_reduce_append2 EACInit eac_add lei';
   ()
+
+let lemma_keyedentry_implies_nonroot (le: vlog_ext) (i:seq_index le):
+  Lemma (requires (valid eac_smk le /\ is_keyed_entry (to_vlog_entry (index le i))))
+        (ensures (let st = seq_machine_run eac_smk le in
+                  is_eac_state_active st))
+        [SMTPat (index le i)]
+
+                  =
+  let st = seq_machine_run eac_smk le in
+  lemma_notempty_implies_noninit eac_smk le;
+  assert(st <> EACFail && st <> EACInit);
+  if st = EACRoot then (
+    let lei = prefix le i in
+    let sti = seq_machine_run eac_smk lei in
+
+    let lei' = prefix le (i + 1) in
+    let sti' = seq_machine_run eac_smk lei' in
+    lemma_valid_prefix eac_smk le (i + 1);
+    lemma_reduce_append2 EACInit eac_add lei'
+  )
+  else ()
 
 let lemma_eac_k_implies_valid_get (le:vlog_ext) (i:seq_index le):
   Lemma (requires (valid eac_smk le /\ Get? (to_vlog_entry (index le i))))

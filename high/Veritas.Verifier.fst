@@ -34,9 +34,7 @@ let is_keyed_entry = function
   | VerifyEpoch -> false
   | _ -> true
 
-let keyed_vlog_entry = e:vlog_entry{is_keyed_entry e}
-
-let key_of (e:keyed_vlog_entry): key =
+let key_of (e:vlog_entry): key =
   match e with
   | Get k _ -> k
   | Put k _ -> k
@@ -45,8 +43,10 @@ let key_of (e:keyed_vlog_entry): key =
   | AddB (k,_) _ _ -> k
   | EvictB k _ -> k
   | EvictBM k _ _ -> k
+  | NextEpoch -> Root          (* dummy key *)
+  | VerifyEpoch -> Root        (* dummy key *)
 
-let is_of_key (e:keyed_vlog_entry) (k:key): bool =
+let is_of_key (e:vlog_entry) (k:key): bool =
   key_of e = k
 
 let is_add (e:vlog_entry): bool =
@@ -319,8 +319,9 @@ let vaddb (r:record)
   let e = MkTimestamp?.e t in
   let st = thread_store vs in
   let (k,v) = r in
+  if k = Root then Failed
   (* check value type consistent with key k *)
-  if not (is_value_of k v) then Failed
+  else if not (is_value_of k v) then Failed
   (* check store does not contain k *)
   else if store_contains st k then Failed
   else
