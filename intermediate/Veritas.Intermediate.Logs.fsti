@@ -31,6 +31,8 @@ type logS_entry (vcfg:verifier_config) =
   | AddB_S: s:slot_id vcfg -> r:record -> t:timestamp -> j:thread_id -> logS_entry vcfg
   | EvictB_S: s:slot_id vcfg -> t:timestamp -> logS_entry vcfg
   | EvictBM_S: s:slot_id vcfg -> s':slot_id vcfg -> t:timestamp -> logS_entry vcfg
+  | NextEpoch: logS_entry vcfg
+  | VerifyEpoch: logS_entry vcfg
 
 let logS vcfg = Seq.seq (logS_entry vcfg)
 
@@ -58,7 +60,13 @@ let is_evict_to_blum #vcfg (e:logS_entry vcfg): bool =
   | EvictBM_S _ _ _ -> true
   | _ -> false
 
-let slot_of #vcfg (e:logS_entry vcfg): slot_id _ =
+let is_keyed_entry #vcfg (e: logS_entry vcfg): bool =
+  match e with
+  | NextEpoch
+  | VerifyEpoch -> false
+  | _ -> true
+
+let slot_of #vcfg (e:logS_entry vcfg{is_keyed_entry e}): slot_id _ =
   match e with
   | Get_S s _ _ -> s
   | Put_S s _ _ -> s
@@ -90,6 +98,8 @@ let valid_logS_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg): bool
     is_assoc ssm s
   | EvictBM_S s s' _ ->
     is_assoc ssm s && is_assoc ssm s'
+  | VerifyEpoch
+  | NextEpoch -> true
 
 let to_logK_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg{valid_logS_entry ssm e}): logK_entry =
   match e with
@@ -100,6 +110,8 @@ let to_logK_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg{valid_log
   | EvictM_S s s' -> Spec.EvictM (assoc_key ssm s) (assoc_key ssm s')
   | EvictB_S s t -> Spec.EvictB (assoc_key ssm s) t
   | EvictBM_S s s' t -> Spec.EvictBM (assoc_key ssm s) (assoc_key ssm s') t
+  | VerifyEpoch -> Spec.VerifyEpoch
+  | NextEpoch -> Spec.NextEpoch
 
 (*
  * define a state machine over slot_states; to allow for "failures" where the log
@@ -148,6 +160,8 @@ let slot_state_trans #vcfg (e:logS_entry vcfg) (s:slot_id vcfg) (sst: slot_state
       if Assoc? sst then Some sst
       else None
     else Some sst
+  | NextEpoch
+  | VerifyEpoch -> Some sst
 
 let has_distinct_slots #vcfg (e: logS_entry vcfg): bool =
   match e with

@@ -124,7 +124,7 @@ noeq type vtls =
            lk:key ->
            hadd: ms_hash_value ->
            hevict: ms_hash_value ->
-           ve: nat -> (* next verify epoch *)
+           ve: epoch -> (* next verify epoch *)
            vtls
 
 (* does the store contain address a *)

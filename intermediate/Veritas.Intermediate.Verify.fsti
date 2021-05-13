@@ -17,6 +17,22 @@ module Spec = Veritas.Verifier
 module L = Veritas.Intermediate.Logs
 module S = Veritas.Intermediate.Store
 
+(* per-epoch aggregated hashes *)
+let epoch_hashes = epoch -> ms_hash_value
+
+(* initial epoch hashes - all hashes initialized to 0 (empty_hash_value) *)
+let init_epoch_hashes: epoch_hashes = fun e -> empty_hash_value
+
+(* update the hash of an epoch *)
+let upd_epoch_hash (ep2h: epoch_hashes) (ep: epoch) (e: ms_hashfn_dom): epoch_hashes =
+  (* previous hash of epoch ep *)
+  let h' = ep2h ep in
+  (* updated hash of epoch ep *)
+  let h = ms_hashfn_upd e h' in
+  fun ep' -> if ep = ep'
+          then h
+          else ep2h ep'
+
 (* Thread-local state
    id     : thread id
    st     : thread local store
@@ -30,14 +46,13 @@ type vtls vcfg =
     id : thread_id ->
     st : vstore vcfg ->
     clock : timestamp ->
-    hadd : ms_hash_value ->
-    hevict : ms_hash_value ->
+    hadd : epoch_hashes ->
+    hevict : epoch_hashes ->
     vtls vcfg
 
 (* get the store of a specified verifier thread *)
 let thread_store #vcfg (vs: vtls vcfg {Valid? vs}): vstore _ =
   Valid?.st vs
-
 
 let thread_id_of #vcfg (vs:vtls vcfg{Valid? vs}): thread_id =
   Valid?.id vs
@@ -56,19 +71,23 @@ let update_thread_clock #vcfg (vs:vtls vcfg {Valid? vs}) (clock:timestamp): vtls
   match vs with
   | Valid id st _ hadd hevict -> Valid id st clock hadd hevict
 
-let thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) =
-  Valid?.hadd vs
+let thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) (ep:epoch): ms_hash_value =
+  Valid?.hadd vs ep
 
-let thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) =
-  Valid?.hevict vs
+let thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) (ep: epoch): ms_hash_value =
+  Valid?.hevict vs ep
 
-let update_thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) (hadd: ms_hash_value): vtls _ =
+let update_thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) (ep: epoch) (e: ms_hashfn_dom): vtls _ =
   match vs with
-  | Valid id st clock _ hevict -> Valid id st clock hadd hevict
+  | Valid id st clock hadd hevict ->
+    let hadd = upd_epoch_hash hadd ep e in
+    Valid id st clock hadd hevict
 
-let update_thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) (hevict:ms_hash_value): vtls _ =
+let update_thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) (ep: epoch) (e: ms_hashfn_dom): vtls _ =
   match vs with
-  | Valid id st clock hadd _ -> Valid id st clock hadd hevict
+  | Valid id st clock hadd hevict ->
+    let hevict = upd_epoch_hash hevict ep e in
+    Valid id st clock hadd hevict
 
 let vget #vcfg (s:slot_id vcfg) (k:data_key) (v:data_value) (vs: vtls vcfg {Valid? vs}) : vtls vcfg =
   let st = thread_store vs in
@@ -270,7 +289,7 @@ let addm_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (vs: vtls vcfg) =
   Valid? vs /\
   (let Valid id st clk ha he = vs in
    let Valid id' st' clk' ha' he' = AMP?.vs' a in
-   id = id' /\ clk = clk' /\ ha = ha' /\ he = he' /\               // everything except store is unchanged
+   id = id' /\ clk = clk' /\ ha == ha' /\ he == he' /\               // everything except store is unchanged
    (addm_has_desc_slot a /\ identical_except3 st st' (addm_slot a) (addm_anc_slot a) (addm_desc_slot a) /\
     addm_desc_slot_postcond a st
     \/
@@ -327,17 +346,20 @@ let vaddb #vcfg (s:slot_id vcfg) (r:record) (t:timestamp) (j:thread_id) (vs:vtls
   (* check store contains slot s *)
   else if inuse_slot st s then Failed
   else
+    (* the record was previously evicted in epoch ep *)
+    let MkTimestamp ep c = t in
+
     (* update add hash *)
-    let h = thread_hadd vs in
-    let h_upd = ms_hashfn_upd (MHDom (k,v) t j) h in
-    let vs_upd = update_thread_hadd vs h_upd in
+    let vs_upd = update_thread_hadd vs ep (MHDom (k,v) t j) in
+
     (* update clock *)
     let clk = thread_clock vs in
     let clk_upd = Spec.max clk (next t) in
-    let vs_upd2 = update_thread_clock vs_upd clk_upd in
+    let vs_upd = update_thread_clock vs_upd clk_upd in
+
     (* add record to store *)
     let st_upd = badd_to_store st s k v in
-    update_thread_store vs_upd2 st_upd
+    update_thread_store vs_upd st_upd
 
 let sat_evictb_checks #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs}): bool =
   let st = thread_store vs in
@@ -357,16 +379,18 @@ let sat_evictb_checks #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs
     points_to_none st s Left && points_to_none st s Right
   )
 
-let vevictb_update_hash_clock #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs /\ sat_evictb_checks s t vs}): (vs':vtls _ {Valid? vs'}) =
+let vevictb_update_hash_clock #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs /\ sat_evictb_checks s t vs}):
+  (vs':vtls _ {Valid? vs'}) =
+
   let st = thread_store vs in
   let k = stored_key st s in
   let v = stored_value st s in
 
+  let MkTimestamp ep _ = t in
+
   (* update evict hash *)
-  let h = thread_hevict vs in
-  let h_upd = ms_hashfn_upd (MHDom (k,v) t (thread_id_of vs)) h in
-  (* update hash *)
-  let vs_upd = update_thread_hevict vs h_upd in
+  let vs_upd = update_thread_hevict vs ep (MHDom (k,v) t (thread_id_of vs))  in
+
   (* update clock and return *)
   update_thread_clock vs_upd t
 

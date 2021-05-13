@@ -16,9 +16,11 @@ let ms_hash_value = bv_t ms_hash_size
 (* Hash value of an empty set *)
 val empty_hash_value: ms_hash_value
 
+let epoch = nat
+
 (* timestamp for blum *)
 type timestamp =
-  | MkTimestamp: e: nat -> c: nat -> timestamp
+  | MkTimestamp: e: epoch -> c: nat -> timestamp
 
 let next (t: timestamp): timestamp =
   match t with
