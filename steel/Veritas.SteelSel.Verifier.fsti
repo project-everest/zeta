@@ -1,13 +1,13 @@
 module Veritas.SteelSel.Verifier
 
-open Steel.Memory
-open Steel.SelEffect
-open Steel.SelArray
 open FStar.Ghost
+open Steel.Memory
+open Steel.Effect.Atomic
+open Steel.Effect
+open Steel.Reference
+open Steel.Array
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
-// open Veritas.SteelSel.VCache
-// open Veritas.Steel.Types
 
 module K = Veritas.Key
 module R = Veritas.Record
@@ -57,7 +57,7 @@ let v_st (#p:vprop) (#vcfg:_) (st:vstore_t vcfg)
   = h (is_vstore st)
 
 val vstore_get_record (#vcfg:_) (st:vstore_t vcfg) (s:slot_t vcfg)
-  : SteelSel
+  : Steel
       (option (S.vstore_entry vcfg))
       (is_vstore st)
       (fun _ -> is_vstore st)
@@ -69,7 +69,7 @@ val vstore_get_record (#vcfg:_) (st:vstore_t vcfg) (s:slot_t vcfg)
         res == Seq.index (v_st st h1) (U32.v s))
 
 val vstore_update_record (#vcfg:_) (st:vstore_t vcfg) (s:slot_t vcfg) (r:data_value_t)
-  : SteelSel unit
+  : Steel unit
       (is_vstore st)
       (fun _ -> is_vstore st)
       (requires fun h0 ->
@@ -145,19 +145,20 @@ let v_thread (#p:vprop) (#vcfg:_) (t:thread_state_t vcfg)
 
 (* Updates the thread state to a Failed state *)
 let fail #vcfg (vs:thread_state_t vcfg) (msg:string)
-  // AF: We put it in SteelSelF to avoid simplify its use in branches because we currently
-  // cannot have SteelSel and SteelSelF branches at the same time, but it shouldn't be
-  : SteelSelF unit
+  // AF: We put it in SteelF to avoid simplify its use in branches because we currently
+  // cannot have Steel and SteelF branches at the same time, but it shouldn't be
+  : SteelF unit
              (thread_state_inv vs)
              (fun _ -> thread_state_inv vs)
              (requires fun _ -> True)
              (ensures fun _ _ h1 -> v_thread vs h1 == V.Failed)
   = // AF: Need trailing unit to trigger framing. Will be solved once we have framing subcomp
+    let _ = get () in
     write vs.failed false; ()
 
 (* An implementation of Veritas.Intermediate.Verify.vget *)
 let vget (#vcfg:_) (s:slot_t vcfg) (k:data_key_t) (v:data_value_t) (vs:thread_state_t vcfg)
-  : SteelSel unit
+  : Steel unit
              (thread_state_inv vs)
              (fun _ -> thread_state_inv vs)
              (requires fun h0 ->
@@ -178,13 +179,13 @@ let vget (#vcfg:_) (s:slot_t vcfg) (k:data_key_t) (v:data_value_t) (vs:thread_st
       let v' = S.VStoreE?.v r' in
       if key_v k <> k' then fail vs "VGet: Key mismatch"
       else if R.to_data_value v' <> value_v v then fail vs "VGet: Value mismatch"
-      // AF: Usual problem of Steel vs SteelSel difference in branches
+      // AF: Usual problem of Steel vs SteelF difference in branches
       else (noop (); ())
 
 
 (* An implementation of Veritas.Intermediate.Verify.vput *)
 let vput (#vcfg:_) (s:slot_t vcfg) (k:data_key_t) (v:data_value_t) (vs:thread_state_t vcfg)
-  : SteelSel unit
+  : Steel unit
              (thread_state_inv vs)
              (fun _ -> thread_state_inv vs)
              (requires fun h0 ->
@@ -203,6 +204,6 @@ let vput (#vcfg:_) (s:slot_t vcfg) (k:data_key_t) (v:data_value_t) (vs:thread_st
     | Some r' ->
       let k' = S.VStoreE?.k r' in
       if key_v k <> k' then fail vs "VPut: Key mismatch"
-      // AF: Need the trailing unit to put the body of the else branch into SteelSelF
+      // AF: Need the trailing unit to put the body of the else branch into SteelF
       // which is needed since both branches of an if/then/else currently need the same effect
       else (vstore_update_record vs.st s v; ())
