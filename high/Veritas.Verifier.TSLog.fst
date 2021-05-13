@@ -1925,8 +1925,14 @@ let lemma_instore_implies_last_entry_non_evict (itsl: eac_log) (k:key) (tid:vali
                   not (is_evict_to_blum (I.index itsl (last_idx_of_key itsl k))))) =
   if k = Root then (
     lemma_eac_state_of_root_init itsl;
-    //lemma_eac_state_init_no_entry itsl k
-    admit()
+
+    if has_some_entry_of_key itsl k then (
+      let i = last_idx_of_key itsl k in
+      if is_evict (I.index itsl i) then
+        lemma_root_never_evicted itsl i
+      else ()
+    )
+    else ()
   )
   else (
     lemma_instore_implies_eac_state_instore itsl k tid;
