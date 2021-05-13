@@ -548,6 +548,8 @@ let inductive_step_evictm #vcfg
       Some (lemma_non_eac_evictm_implies_hash_collision ilk_i1)
     )
 
+#push-options "--z3rlimit_factor 3"
+
 let inductive_step_addb_neac_caseA #vcfg
                        (ils: IntTS.hash_verifiable_log vcfg)
                        (i:I.seq_index ils{let ils_i = I.prefix ils i in
@@ -612,6 +614,8 @@ let inductive_step_addb_neac_caseA #vcfg
       not_eq (IntG.add_set gl) (IntG.evict_set gl) be;
       MultiHashCollision (MSCollision (IntG.add_seq gl) (IntG.evict_seq gl))
     )
+
+#pop-options
 
 let inductive_step_addb_neac_caseB #vcfg
                        (ils: IntTS.hash_verifiable_log vcfg)
@@ -747,6 +751,7 @@ let inductive_step_addb_neac #vcfg
       match ee with
       | E.NEvict (AddB _ _ _) -> inductive_step_addb_neac_caseD ils i
       )
+    | E.EACRoot -> admit()
 
 let inductive_step_addb_caseA #vcfg
                        (ils: IntTS.hash_verifiable_log vcfg)
@@ -954,6 +959,8 @@ let inductive_step #vcfg
   | AddB_S _ _ _ _ -> inductive_step_addb ils i
   | EvictB_S _ _ -> inductive_step_evictb ils i
   | EvictBM_S _ _ _  -> inductive_step_evictbm ils i
+  | NextEpoch -> admit()
+  | VerifyEpoch -> admit()
 
 let lemma_empty_implies_induction_props #vcfg (ils: its_log vcfg{I.length ils = 0})
   : Lemma (ensures (induction_props ils))
