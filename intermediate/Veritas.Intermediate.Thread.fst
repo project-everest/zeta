@@ -105,7 +105,10 @@ let lemma_add_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_bl
   Lemma (ensures (add_seq_inv_map tl (add_seq_map tl i) = i)) = lemma_add_seq_inv_aux tl i
 
 let hadd_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
-  Valid?.hadd (state_at tl i)
+  let vs = state_at tl i in
+  match vs with
+  | Valid _ _ (MkTimestamp ep _) ha _ ->
+    IntV.aggr_epoch_hashes_upto ha ep
 
 let lemma_state_transition #vcfg (tl: verifiable_log vcfg) (i: seq_index tl):
   Lemma (state_at tl (i + 1) ==
@@ -115,7 +118,7 @@ let lemma_state_transition #vcfg (tl: verifiable_log vcfg) (i: seq_index tl):
 let lemma_hadd_unchanged #vcfg (tl: verifiable_log _) (i: seq_index tl{not (is_blum_add (index tl i))}):
   Lemma (hadd_at tl i == hadd_at tl (i + 1)) =
   lemma_state_transition #vcfg tl i;
-  ()
+  admit()
 
 let rec lemma_hadd_correct_aux #vcfg (tl: verifiable_log vcfg):
   Lemma (ensures (hadd tl = ms_hashfn (blum_add_seq tl)))
@@ -154,7 +157,6 @@ let blum_evict_seq (#vcfg:_) (tl: verifiable_log vcfg): S.seq ms_hashfn_dom = bl
 
 let hevict_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
   Valid?.hevict (state_at tl i)
-
 
 #push-options "--z3rlimit_factor 2"
 

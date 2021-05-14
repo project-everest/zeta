@@ -891,6 +891,7 @@ module VB = Veritas.BinTree
 module VIS = Veritas.Intermediate.Store
 module VR = Veritas.Record
 
+
 let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
   : Lemma (forall_vtls_rel ils)
   = let ilk = to_logk ils in
@@ -902,6 +903,7 @@ let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
     assert (sk `Seq.equal` Seq.empty);
     I.interleave_empty prf;
     I.interleave_empty prf';
+
     let aux (tid:valid_tid ils)
       : Lemma (vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid))
               [SMTPat (thread_state ils tid)]
@@ -909,6 +911,9 @@ let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
         assert (Seq.index (I.s_seq ilk) tid `Seq.equal` Seq.empty);
         let tl = IntG.thread_log (I.s_seq ils) tid in
         assert (snd tl == Seq.empty);
+        lemma_init_epoch_aggr_empty 0;
+        assert(IntT.hadd tl = empty_hash_value);
+        assert(IntT.hevict tl = empty_hash_value);
         let ts = IntT.verify tl in
         assert (ts == IntV.init_thread_state tid (VT.init_store vcfg tid));
         let tl' = (VVG.thread_log (I.s_seq ilk) tid) in

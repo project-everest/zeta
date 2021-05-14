@@ -33,6 +33,9 @@ let all_epochs_empty_after ep2h ep =
 (* aggregate epoch hashes upto epoch ep *)
 val aggr_epoch_hashes_upto (ep2h: epoch_hashes) (ep: epoch): ms_hash_value
 
+val lemma_init_epoch_aggr_empty (ep: epoch)
+  : Lemma (ensures (aggr_epoch_hashes_upto init_epoch_hashes ep = empty_hash_value))
+
 (* Thread-local state
    id     : thread id
    st     : thread local store
