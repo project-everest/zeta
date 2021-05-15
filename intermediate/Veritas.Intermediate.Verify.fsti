@@ -21,14 +21,17 @@ module S = Veritas.Intermediate.Store
 let epoch_hashes = epoch -> ms_hash_value
 
 (* initial epoch hashes - all hashes initialized to 0 (empty_hash_value) *)
-val init_epoch_hashes: epoch_hashes
+let init_epoch_hashes: epoch_hashes = fun e -> empty_hash_value
 
 (* update the hash of the epoch ep *)
-val upd_epoch_hash (ep2h: epoch_hashes) (ep: epoch) (e: ms_hashfn_dom): epoch_hashes
-
-(* all epochs after a particular epoch have empty hash value *)
-let all_epochs_empty_after ep2h ep =
-  forall ep'. ep' > ep ==> ep2h ep' = empty_hash_value
+let upd_epoch_hash (ep2h: epoch_hashes) (ep: epoch) (e: ms_hashfn_dom): epoch_hashes =
+  (* previous hash of epoch ep *)
+  let h' = ep2h ep in
+  (* updated hash of epoch ep *)
+  let h = ms_hashfn_upd e h' in
+  fun ep' -> if ep = ep'
+          then h
+          else ep2h ep'
 
 (* aggregate epoch hashes upto epoch ep *)
 val aggr_epoch_hashes_upto (ep2h: epoch_hashes) (ep: epoch): ms_hash_value

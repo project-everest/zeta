@@ -32,6 +32,20 @@ let rec verifiable_implies_prefix_verifiable_aux
 
 let verifiable_implies_prefix_verifiable = verifiable_implies_prefix_verifiable_aux
 
+#push-options "--z3rlimit_factor 8"
+(* the clock of a verifier is monotonic *)
+let rec lemma_clock_monotonic_aux #vcfg (tl:verifiable_log vcfg) (i:seq_index tl):
+  Lemma (ensures (clock tl i `ts_leq` clock tl (length tl - 1)))
+  (decreases (length tl))
+        =
+  let n = length tl in
+  if n = 0 then ()
+  else if i = n - 1 then ()
+  else
+    let tl' = prefix tl (n - 1) in
+    lemma_clock_monotonic_aux tl' i
+#pop-options
+
 let rec blum_add_seq_aux (#vcfg:_) (tl: verifiable_log vcfg):
   Tot (S.seq ms_hashfn_dom)
   (decreases (length tl)) =
@@ -104,6 +118,15 @@ let rec lemma_add_seq_inv_aux (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index 
 let lemma_add_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
   Lemma (ensures (add_seq_inv_map tl (add_seq_map tl i) = i)) = lemma_add_seq_inv_aux tl i
 
+let epoch_of #vcfg (tl: verifiable_log vcfg) = IntV.epoch_of (verify tl)
+
+let lemma_epoch_monotonic #vcfg (tl: verifiable_log vcfg) (i: nat{i <= length tl})
+  : Lemma (ensures (let tli = prefix tl i in
+                    epoch_of tli <= epoch_of tl)) =
+  lemma_fullprefix_equal (logS_of tl);
+  if i = 0 then ()
+  else lemma_clock_monotonic_aux tl (i - 1)
+
 let hadd_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
   let vs = state_at tl i in
   match vs with
@@ -115,9 +138,40 @@ let lemma_state_transition #vcfg (tl: verifiable_log vcfg) (i: seq_index tl):
          verify_step (state_at tl i) (index tl i)) =
   ()
 
+let rec hashes_above_epoch_empty #vcfg (tl:verifiable_log vcfg) (epx: epoch):
+  Lemma (requires (epx > epoch_of tl))
+        (ensures (let vs = verify tl in
+                  let ha = Valid?.hadd vs in
+                  let he = Valid?.hevict vs in
+                  ha epx = empty_hash_value /\
+                  he epx = empty_hash_value))
+        (decreases (length tl)) =
+  let n = length tl in
+  let vs = verify tl in
+  let ep = epoch_of tl in
+  let ha = Valid?.hadd vs in
+  let he = Valid?.hevict vs in
+  if n = 0
+  then ()
+  else (
+    let tl' = prefix tl (n - 1) in
+    let ep' = epoch_of tl' in
+    let vs' = verify tl' in
+    let e = index tl (n - 1) in
+    let ha' = Valid?.hadd vs' in
+    let he' = Valid?.hevict vs' in
+    lemma_epoch_monotonic tl (n - 1);
+    hashes_above_epoch_empty tl' epx;
+    lemma_state_transition tl (n - 1)
+  )
+
 let lemma_hadd_unchanged #vcfg (tl: verifiable_log _) (i: seq_index tl{not (is_blum_add (index tl i))}):
   Lemma (hadd_at tl i == hadd_at tl (i + 1)) =
   lemma_state_transition #vcfg tl i;
+  let vsi = state_at tl i in
+  let vsi' = state_at tl (i+1) in
+  assert(vsi' == verify_step vsi (index tl i));
+  assert(Valid?.hadd vsi == Valid?.hadd vsi');
   admit()
 
 let rec lemma_hadd_correct_aux #vcfg (tl: verifiable_log vcfg):
@@ -318,20 +372,6 @@ let lemma_evict_timestamp_is_clock #vcfg (tl: verifiable_log vcfg) (i: seq_index
 
 let final_clock #vcfg (tl:verifiable_log vcfg): timestamp =
   Valid?.clock (verify tl)
-
-#push-options "--z3rlimit_factor 8"
-(* the clock of a verifier is monotonic *)
-let rec lemma_clock_monotonic_aux #vcfg (tl:verifiable_log vcfg) (i:seq_index tl):
-  Lemma (ensures (clock tl i `ts_leq` clock tl (length tl - 1)))
-  (decreases (length tl))
-        =
-  let n = length tl in
-  if n = 0 then ()
-  else if i = n - 1 then ()
-  else
-    let tl' = prefix tl (n - 1) in
-    lemma_clock_monotonic_aux tl' i
-#pop-options
 
 #push-options "--max_fuel 1 --max_ifuel 0"
 let lemma_clock_monotonic #vcfg (tl: verifiable_log vcfg) (i:seq_index tl) (j:seq_index tl{j >= i}):
