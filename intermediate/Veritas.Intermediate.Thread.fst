@@ -172,6 +172,8 @@ let lemma_hadd_unchanged #vcfg (tl: verifiable_log _) (i: seq_index tl{not (is_b
   let vsi' = state_at tl (i+1) in
   assert(vsi' == verify_step vsi (index tl i));
   assert(Valid?.hadd vsi == Valid?.hadd vsi');
+  assert(Valid?.hadd vsi == Valid?.hadd vsi');
+
   admit()
 
 let rec lemma_hadd_correct_aux #vcfg (tl: verifiable_log vcfg):
