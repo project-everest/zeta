@@ -142,7 +142,6 @@ let v_thread (#p:vprop) (#vcfg:_) (t:thread_state_t vcfg)
         (v_hash t.hevict (focus_rmem h (thread_state_inv t)))
     else V.Failed
 
-
 (* Updates the thread state to a Failed state *)
 let fail #vcfg (vs:thread_state_t vcfg) (msg:string)
   // AF: We put it in SteelF to avoid simplify its use in branches because we currently
@@ -153,8 +152,9 @@ let fail #vcfg (vs:thread_state_t vcfg) (msg:string)
              (requires fun _ -> True)
              (ensures fun _ _ h1 -> v_thread vs h1 == V.Failed)
   = // AF: Need trailing unit to trigger framing. Will be solved once we have framing subcomp
-    let _ = get () in
-    write vs.failed false; ()
+    let h = get () in
+    write vs.failed false;
+    ()
 
 (* An implementation of Veritas.Intermediate.Verify.vget *)
 let vget (#vcfg:_) (s:slot_t vcfg) (k:data_key_t) (v:data_value_t) (vs:thread_state_t vcfg)
