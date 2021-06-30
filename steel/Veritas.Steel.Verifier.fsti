@@ -21,6 +21,8 @@ module T = Veritas.Formats.Types
 
 #set-options "--ide_id_info_off"
 
+#push-options "--fuel 0 --ifuel 0"
+
 (** Definition of the low-level thread state datatype **)
 
 let data_key_t = T.key
@@ -57,6 +59,7 @@ let is_vstore' #vcfg (st:vstore_t vcfg) : vprop' =
     sel = vstore_sel st }
 unfold
 let is_vstore #vcfg (st:vstore_t vcfg) : vprop = VUnit (is_vstore' st)
+
 [@@ __steel_reduce__]
 let v_st (#p:vprop) (#vcfg:_) (st:vstore_t vcfg)
   (h:rmem p{FStar.Tactics.with_tactic selector_tactic (can_be_split p (is_vstore st) /\ True)})
@@ -73,10 +76,11 @@ let vstore_get_record (#vcfg:_) (st:vstore_t vcfg) (s:slot_t vcfg)
       (is_vstore st)
       (fun _ -> is_vstore st)
       (requires fun h -> True)
-      (ensures fun h0 res h1 -> True
+      (ensures fun h0 res h1 ->
         // Framing
-        // v_st st h0 == v_st st h1
+        v_st st h0 == v_st st h1 /\
         // Functional correctness
+        (None? res <==> None? (S.get_slot (v_st st h1) (U32.v s)))
         // res == (Seq.index (v_st st h1) (U32.v s))
       )
   =
@@ -86,6 +90,7 @@ let vstore_get_record (#vcfg:_) (st:vstore_t vcfg) (s:slot_t vcfg)
   assume (U32.v s < length (asel st h));
   let res = index st s in
   rewrite_slprop (varray st) (is_vstore st) (fun _ -> admit());
+  admit();
   return res
 
 let vstore_update_record (#vcfg:_) (st:vstore_t vcfg) (s:slot_t vcfg) (r:data_value_t)
@@ -158,6 +163,12 @@ let thread_state_inv #vcfg (t:thread_state_t vcfg) : vprop =
   prf_set_hash_inv t.hadd `star`
   prf_set_hash_inv t.hevict
 
+let do_vtls (#vcfg:_) (valid:bool)
+  (id:L.thread_id)
+  (st:S.vstore vcfg)
+  (clock:MS.timestamp)
+  (hadd hevict:MS.ms_hash_value) : V.vtls vcfg
+  = if valid then V.Valid id st clock hadd hevict else V.Failed
 
 (* An abstraction on top of the thread selector state to match with the intermediate
    thread state representation *)
@@ -166,14 +177,12 @@ unfold
 let v_thread (#p:vprop) (#vcfg:_) (t:thread_state_t vcfg)
   (h:rmem p{FStar.Tactics.with_tactic selector_tactic (can_be_split p (thread_state_inv t) /\ True)})
   : GTot (V.vtls vcfg)
-  = if sel t.failed (focus_rmem h (thread_state_inv t)) then
-      V.Valid
-        t.id
-        (v_st t.st (focus_rmem h (thread_state_inv t)))
-        (sel t.clock (focus_rmem h (thread_state_inv t)))
-        (v_hash t.hadd (focus_rmem h (thread_state_inv t)))
-        (v_hash t.hevict (focus_rmem h (thread_state_inv t)))
-    else V.Failed
+  = let valid = sel t.failed (focus_rmem h (thread_state_inv t)) in
+    let st = v_st t.st (focus_rmem h (thread_state_inv t)) in
+    let clock = sel t.clock (focus_rmem h (thread_state_inv t)) in
+    let hadd = v_hash t.hadd (focus_rmem h (thread_state_inv t)) in
+    let hevict = v_hash t.hevict (focus_rmem h (thread_state_inv t)) in
+    do_vtls valid t.id st clock hadd hevict
 
 (* Updates the thread state to a Failed state *)
 let fail #vcfg (vs:thread_state_t vcfg) (msg:string)
@@ -185,9 +194,10 @@ let fail #vcfg (vs:thread_state_t vcfg) (msg:string)
              (requires fun _ -> True)
              (ensures fun _ _ h1 -> v_thread vs h1 == V.Failed)
   = // AF: Need trailing unit to trigger framing. Will be solved once we have framing subcomp
-    let h = get () in
     write vs.failed false;
     ()
+
+#push-options "--ifuel 1 --z3rlimit 20"
 
 (* An implementation of Veritas.Intermediate.Verify.vget *)
 let vget (#vcfg:_) (s:slot_t vcfg) (k:data_key_t) (v:data_value_t) (vs:thread_state_t vcfg)
@@ -197,31 +207,37 @@ let vget (#vcfg:_) (s:slot_t vcfg) (k:data_key_t) (v:data_value_t) (vs:thread_st
              (requires fun h0 ->
                V.Valid? (v_thread vs h0))
              (ensures fun h0 _ h1 ->
-               V.Valid? (v_thread vs h0)
-               // v_thread vs h1 == V.vget (U32.v s) (key_v k) (value_v v) (v_thread vs h0)
+               V.Valid? (v_thread vs h0) /\
+               v_thread vs h1 == V.vget (U32.v s) (key_v k) (value_v v) (v_thread vs h0)
              )
-  = // AF: Still unclear why this is needed
-    let h = get () in
-    assert (V.Valid? (v_thread vs h));
+  = let h = get () in
+    // assert (V.Valid? (v_thread vs h));
+    assert (v_st vs.st h == V.thread_store (v_thread vs h));
+
 
     let r0 = vstore_get_record vs.st s in
+
+
     match r0 with
-    | None -> fail vs "VGet: Empty slot"
-    | Some r' ->
-      if r'.T.record_key <> k then (fail vs "VGet: Key mismatch")
-      else begin
-      match r'.T.record_value with
-        | T.V_mval _ -> fail vs "VGet: Expected a data value"
-        | T.V_dval dv ->
-          if dv <> v then fail vs "VGet: Value mismatch"
-          else (noop (); ())
-      end
-      // let k' = S.VStoreE?.k r' in
-      // let v' = S.VStoreE?.v r' in
-      // if key_v k <> k' then fail vs "VGet: Key mismatch"
-      // else if R.to_data_value v' <> value_v v then fail vs "VGet: Value mismatch"
-      // // AF: Usual problem of Steel vs SteelF difference in branches
-      // else (noop (); ())
+    | None ->
+      fail vs "VGet: Empty slot"
+    | Some r' -> sladmit ()
+    // AF: Need to relate the two datatypes better, to ensure that the condition
+    // below is equivalent to stored_key (v_st vs.st h) s <> (data_key_v k)
+    //   if r'.T.record_key <> k then (fail vs "VGet: Key mismatch")
+    //   else begin
+    //   match r'.T.record_value with
+    //     | T.V_mval _ -> fail vs "VGet: Expected a data value"
+    //     | T.V_dval dv ->
+    //       if dv <> v then fail vs "VGet: Value mismatch"
+    //       else (noop (); sladmit())
+    //   end
+    //   // let k' = S.VStoreE?.k r' in
+    //   // let v' = S.VStoreE?.v r' in
+    //   // if key_v k <> k' then fail vs "VGet: Key mismatch"
+    //   // else if R.to_data_value v' <> value_v v then fail vs "VGet: Value mismatch"
+    //   // // AF: Usual problem of Steel vs SteelF difference in branches
+    //   // else (noop (); ())
 
 
 (* An implementation of Veritas.Intermediate.Verify.vput *)
