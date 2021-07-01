@@ -52,3 +52,30 @@ let vcache_update_record (st:vstore) (s:slot_id) (r:T.record)
         U32.v s < length (asel st h0) /\
         asel st h1 == Seq.upd (asel st h0) (U32.v s) (Some r))
   = vcache_set st s (Some r)
+
+let vcache_add_record
+      (vst:vstore)
+      (s:slot_id)
+      (k:T.key)
+      (v:T.value{is_value_of k v})
+      (a:T.add_method)
+  : Steel unit
+      (is_vstore vst)
+      (fun _ -> is_vstore vst)
+      (requires fun h -> U32.v s < length (asel vst h))
+      (ensures fun h0 _ h1 ->
+        U32.v s < length (asel vst h0) /\
+        asel vst h1 == Seq.upd (asel vst h0) (U32.v s) (Some (mk_record k v a)))
+  = vcache_update_record vst s (mk_record k v a)
+
+let vcache_evict_record
+      (vst:vstore)
+      (s:slot_id)
+  : Steel unit
+      (is_vstore vst)
+      (fun _ -> is_vstore vst)
+      (requires fun h -> U32.v s < length (asel vst h))
+      (ensures fun h0 _ h1 ->
+        U32.v s < length (asel vst h0) /\
+        asel vst h1 == Seq.upd (asel vst h0) (U32.v s) None)
+  = vcache_set vst s None
