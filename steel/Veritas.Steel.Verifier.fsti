@@ -6,6 +6,7 @@ open Steel.Effect
 open Steel.Reference
 open Steel.Array
 open FStar.Ghost
+module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 
@@ -95,13 +96,13 @@ let fail (vs:thread_state_t) (msg:string)
 
 #push-options "--fuel 0 --ifuel 0"
 
-let vget (s:U32.t) (v:T.value) (vs: thread_state_t)
+let vget (s:U16.t) (v:T.value) (vs: thread_state_t)
   : Steel unit
           (thread_state_inv vs)
           (fun _ -> thread_state_inv vs)
-          (requires fun h -> U32.v s < length (v_thread vs h).model_store)
+          (requires fun h -> U16.v s < length (v_thread vs h).model_store)
           (ensures fun h0 _ h1 ->
-            U32.v s < length (v_thread vs h0).model_store /\
+            U16.v s < length (v_thread vs h0).model_store /\
             v_thread vs h1 == vget_model (v_thread vs h0) s v
           )
   = let ro = VCache.vcache_get_record vs.st s in
@@ -115,13 +116,13 @@ let vget (s:U32.t) (v:T.value) (vs: thread_state_t)
       else fail vs "Failed: inconsistent key or value in Get"
 
 (* verifier write operation *)
-let vput (s:U32.t) (v:T.value) (vs: thread_state_t)
+let vput (s:U16.t) (v:T.value) (vs: thread_state_t)
   : Steel unit
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
-    (requires fun h -> U32.v s < length (v_thread vs h).model_store)
+    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
     (ensures fun h0 _ h1 ->
-      U32.v s < length (v_thread vs h0).model_store /\
+      U16.v s < length (v_thread vs h0).model_store /\
       v_thread vs h1 == vput_model (v_thread vs h0) s v)
   = let ro = VCache.vcache_get_record vs.st s in
     match ro with
@@ -132,7 +133,7 @@ let vput (s:U32.t) (v:T.value) (vs: thread_state_t)
       vcache_update_record vs.st s ({ r with T.record_value = v });
       ()
 
-let vaddb (s:U32.t)
+let vaddb (s:U16.t)
           (r:T.record)
           (t:T.timestamp)
           (thread_id:thread_id)
@@ -140,14 +141,13 @@ let vaddb (s:U32.t)
   : Steel unit
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
-    (requires fun h -> U32.v s < length (v_thread vs h).model_store)
+    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
     (ensures fun h0 _ h1 ->
-      U32.v s < length (v_thread vs h0).model_store /\
+      U16.v s < length (v_thread vs h0).model_store /\
       v_thread vs h1 == vaddb_model (v_thread vs h0) s r t thread_id)
   = let h = get() in
-    assert (U32.v s < length (v_thread vs h).model_store);
-    (* epoch of timestamp of last evict *)
-    let e = epoch_of_timestamp t in
+    assert (U16.v s < length (v_thread vs h).model_store);
+
     let { T.record_key = k;
           T.record_value = v } = r in
     (* check value type consistent with key k *)
@@ -167,18 +167,19 @@ let vaddb (s:U32.t)
         VCache.vcache_add_record vs.st s k v T.BAdd)
     )
 
-let vevictb (s:U32.t)
+let vevictb (s:U16.t)
             (t:T.timestamp)
             (vs:thread_state_t)
   : Steel unit
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
-    (requires fun h -> U32.v s < length (v_thread vs h).model_store)
+    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
     (ensures  fun h0 _ h1 ->
-      U32.v s < length (v_thread vs h0).model_store /\
+      U16.v s < length (v_thread vs h0).model_store /\
       v_thread vs h1 == vevictb_model (v_thread vs h0) s t vs.id)
   = let h = get() in
-    assert (U32.v s < length (v_thread vs h).model_store);
+    assert (U16.v s < length (v_thread vs h).model_store);
+
     let clk = read vs.clock in
     if not (clk `timestamp_lt` t)
     then (

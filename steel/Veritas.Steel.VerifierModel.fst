@@ -10,7 +10,7 @@ module T = Veritas.Formats.Types
 
 let data_key = T.key
 let data_value = T.data_value
-let thread_id = U16.t
+let thread_id = T.thread_id
 
 let contents = Seq.seq (option T.record)
 let model_hash = erased MSH.mset_ms_hashfn_dom
@@ -27,18 +27,18 @@ type thread_state_model = {
 
 let model_fail tsm = {tsm with model_failed=false}
 
-let slot (tsm:thread_state_model) = i:U32.t{U32.v i < Seq.length tsm.model_store}
+let slot (tsm:thread_state_model) = i:T.slot_id{U16.v i < Seq.length tsm.model_store}
 
 let model_get_record (tsm:thread_state_model) (s:slot tsm) : GTot (option T.record)
-  = Seq.index tsm.model_store (U32.v s)
+  = Seq.index tsm.model_store (U16.v s)
 
 let model_put_record (tsm:thread_state_model) (s:slot tsm) (r:T.record)
   : thread_state_model
-  = {tsm with model_store=Seq.upd tsm.model_store (U32.v s) (Some r)}
+  = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) (Some r)}
 
 let model_evict_record (tsm:thread_state_model) (s:slot tsm)
   : thread_state_model
-  = {tsm with model_store=Seq.upd tsm.model_store (U32.v s) None }
+  = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) None }
 
 let vget_model (tsm:thread_state_model) (s:slot tsm) (v:T.value) : thread_state_model =
   match model_get_record tsm s with
