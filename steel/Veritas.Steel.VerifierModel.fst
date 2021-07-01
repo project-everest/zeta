@@ -53,11 +53,10 @@ let vput_model (tsm:thread_state_model) (s:slot tsm) (v:T.value) : thread_state_
     | Some r -> model_put_record tsm s ({r with T.record_value = v})
 
 assume
-val epoch_of_timestamp (t:T.timestamp) : U32.t
-assume
-val is_value_of (k:T.key) (v:T.value) : bool
-assume
 val is_data_key (k:T.key) : bool
+
+val is_value_of (k:T.key) (v:T.value) : bool
+let is_value_of k v = if is_data_key k then T.V_dval? v else T.V_mval? v
 
 let mk_record (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : T.record
   = {
@@ -74,6 +73,7 @@ let model_update_clock (tsm:thread_state_model) (ts:T.timestamp)
     then { tsm with model_clock = tsm.model_clock `U64.add` ts } //+1
     else model_fail tsm
 
+// AF: Should somewhat correspond to Veritas.MultiSetHash.ms_hashfn_upd
 assume
 val model_update_hash (h:model_hash) (r:T.record) (t:T.timestamp) (thread_id:thread_id)
   : model_hash
@@ -86,8 +86,7 @@ let model_update_hevict (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:thread_i
 
 let vaddb_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (t:T.timestamp) (thread_id:thread_id)
   : thread_state_model
-  = let e = epoch_of_timestamp t in
-    let { T.record_key = k;
+  = let { T.record_key = k;
           T.record_value = v } = r in
     (* check value type consistent with key k *)
     if not (is_value_of k v) then model_fail tsm
@@ -106,8 +105,7 @@ let timestamp_lt (t0 t1:T.timestamp) = t0 `U64.lt` t1
 
 let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp) (thread_id:thread_id)
   : GTot thread_state_model
-  = let e = epoch_of_timestamp t in
-    let clk = tsm.model_clock in
+  = let clk = tsm.model_clock in
     if not (clk `timestamp_lt` t)
     then model_fail tsm
     else begin
