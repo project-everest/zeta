@@ -8,6 +8,8 @@ module U64 = FStar.UInt64
 module MSH = Veritas.MultiSetHashDomain
 module T = Veritas.Formats.Types
 
+#set-options "--ide_id_info_off"
+
 let data_key = T.key
 let data_value = T.data_value
 let thread_id = T.thread_id
@@ -120,3 +122,119 @@ let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp) (thread_
         (* evict record *)
         model_evict_record tsm s
     end
+
+assume
+val is_proper_descendent (k0 k1:T.key) : bool
+assume
+val has_instore_merkle_desc (tsm:thread_state_model) (s:slot tsm) : bool
+assume
+val desc_dir (k0:T.key) (k1:T.key { k0 `is_proper_descendent` k1 }) : bool
+assume
+val to_merkle_value (v:T.value) : option T.mval_value
+assume
+val desc_hash_dir (v:T.mval_value) (d:bool) : T.descendent_hash
+assume
+val update_merkle_value (v:T.mval_value) (d:bool) (k:T.key) (h:T.hash_value) (b:bool) : T.mval_value
+assume
+val update_in_store (tsm:thread_state_model) (s:slot tsm) (d:bool) (b:bool) : tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store}
+assume
+val hashfn (v:T.value) : T.hash_value
+assume
+val init_value (k:T.key) : T.value
+assume
+val points_to_some_slot (tsm:thread_state_model) (s:slot tsm) (d:bool) : bool
+assume
+val model_madd_to_store (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d:bool)
+  : (tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store})
+assume
+val model_madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d d2:bool)
+  : (tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store})
+
+
+let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm) (thread_id:thread_id) : thread_state_model =
+    let k = r.T.record_key in
+    let v = r.T.record_value in
+    (* check store contains slot s' *)
+    match model_get_record tsm s' with
+    | None -> model_fail tsm
+    | Some r' ->
+      let k' = r'.T.record_key in
+      let v' = r'.T.record_value in
+      (* check k is a proper desc of k' *)
+      if not (is_proper_descendent k k') then model_fail tsm
+      (* check store does not contain slot s *)
+      else if Some? (model_get_record tsm s) then model_fail tsm
+      (* check type of v is consistent with k *)
+      else if not (is_value_of k v) then model_fail tsm
+      (* check v' is a merkle value *)
+      else match to_merkle_value v' with
+      | None -> model_fail tsm
+      | Some v' ->
+        let d = desc_dir k k' in
+        let dh' = desc_hash_dir v' d in
+        let h = hashfn v in
+        match dh' with
+        | T.Dh_vnone _ -> (* k' has no child in direction d *)
+            (* first add must be init value *)
+            if v <> init_value k then model_fail tsm
+            else
+              let tsm = model_put_record tsm s'
+                ({r' with T.record_value=(T.V_mval (update_merkle_value v' d k h false))}) in
+              let tsm = model_put_record tsm s (mk_record k v T.MAdd) in
+              update_in_store tsm s' d true
+
+        | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
+          if k2 = k then (* k is a child of k' *)
+            (* check hashes match and k was not evicted to blum *)
+            if not (h2 = h && b2 = T.Vfalse) then model_fail tsm
+            (* check slot s' does not contain a desc along direction d *)
+            else if points_to_some_slot tsm s' d then model_fail tsm
+            else model_madd_to_store tsm s k v s' d
+          else
+            (* first add must be init value *)
+            if v <> init_value k then model_fail tsm
+            (* check k2 is a proper desc of k *)
+            else if not (is_proper_descendent k2 k) then model_fail tsm
+            else
+              let d2 = desc_dir k2 k in
+              match to_merkle_value v with
+              | None -> model_fail tsm
+              | Some mv ->
+                let mv_upd = update_merkle_value mv d2 k2 h2 (b2=T.Vtrue) in
+                let v'_upd = update_merkle_value v' d k h false in
+                let tsm =
+                  if points_to_some_slot tsm s' d then
+                    model_madd_to_store_split tsm s k v s' d d2
+                  else (
+                    model_madd_to_store tsm s k (T.V_mval mv_upd) s' d
+                  )
+                in
+                model_put_record tsm s' ({r' with T.record_value=(T.V_mval v'_upd)})
+
+let vevictbm_model (tsm:thread_state_model)
+                   (s s':slot tsm)
+                   (t:T.timestamp)
+                   (thread_id:thread_id)
+  : thread_state_model
+  = match model_get_record tsm s, model_get_record tsm s' with
+    | Some r, Some r' ->
+      begin
+      if not (is_proper_descendent r.T.record_key r'.T.record_key) then model_fail tsm
+      else if has_instore_merkle_desc tsm s then model_fail tsm
+      else if r.T.record_add_method <> T.MAdd then model_fail tsm
+      else let d = desc_dir r.T.record_key r'.T.record_key in
+           match to_merkle_value r'.T.record_value with
+           | None -> model_fail tsm //should be impossible, since r' has a proper descendent
+           | Some v' ->
+             let dh' = desc_hash_dir v' d in
+             match dh' with
+             | T.Dh_vnone _ ->
+               model_fail tsm
+             | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
+               if (k2 <> r.T.record_key) `Prims.op_BarBar` (b2 = T.Vtrue)
+               then model_fail tsm
+               else let tsm = model_put_record tsm s' ({r' with T.record_value=(T.V_mval (update_merkle_value v' d r.T.record_key h2 true))}) in
+                    let tsm = update_in_store tsm s' d false in
+                    vevictb_model tsm s t thread_id
+      end
+    | _ -> model_fail tsm
