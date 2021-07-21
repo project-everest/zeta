@@ -257,6 +257,8 @@ let rec lemma_evict_elem_tids (gl: verifiable_log) (i: seq_index (g_evict_seq gl
     else
       VT.lemma_evict_elem_tid (thread_log gl (p - 1))
 
+#push-options "--z3rlimit_factor 2"
+
 let rec lemma_evict_elem_unique_aux (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq gl)):
   Lemma (requires (i1 < i2))
         (ensures (diff_elem  (g_evict_seq gl) i1 i2))
@@ -283,6 +285,7 @@ let rec lemma_evict_elem_unique_aux (gl: verifiable_log) (i1 i2: seq_index (g_ev
 
   )
 
+#pop-options
 
 let lemma_evict_elem_unique (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq gl)):
   Lemma (requires (i1 <> i2))
