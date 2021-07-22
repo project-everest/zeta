@@ -55,10 +55,10 @@ let clock_sorted (il: il_vlog{verifiable il}) =
 let its_log = il:il_vlog{verifiable il /\ clock_sorted il}
 
 (* hash verifiable upto epoch e *)
-let hash_verifiable (itsl: its_log) (ep: epoch) = VG.hash_verifiable (g_vlog_of itsl) ep
+let hash_verifiable (ep: epoch) (itsl: its_log) = VG.hash_verifiable ep (g_vlog_of itsl)
 
 let hash_verifiable_log ep =
-  itsl:its_log {hash_verifiable itsl ep}
+  itsl:its_log {hash_verifiable ep itsl}
 
 val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
   Lemma (requires True)
@@ -569,3 +569,11 @@ val lemma_blum_evict_def (itsl: its_log)
                    match e with
                    | EvictB _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid
                    | EvictBM _ _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid)))
+
+let epoch_of (itsl: its_log) (i: I.seq_index itsl) =
+  Veritas.MultiSetHash.epoch_of (clock itsl i)
+
+(* non-eac log where the non-eac'ness happens in or before epoch ep *)
+let neac_before_epoch (ep: epoch) =
+  itsl: neac_log {let i = eac_boundary itsl in
+                  epoch_of itsl i <= ep}

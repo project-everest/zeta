@@ -64,3 +64,7 @@ let is_of_thread_id (tid:nat) (e:ms_hashfn_dom): bool =
 let timestamp_of (e:ms_hashfn_dom): timestamp =
   match e with
   | MHDom _ t _ -> t
+
+let epoch_of e =
+  match e with
+  | MHDom _ (MkTimestamp e _) _ -> e

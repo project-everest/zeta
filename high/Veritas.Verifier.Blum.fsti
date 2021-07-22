@@ -22,19 +22,20 @@ module MH=Veritas.MultiSetHash
 module TL=Veritas.Verifier.TSLog
 module VG = Veritas.Verifier.Global
 
-(* sequence of blum adds in the time sequenced log *)
-val ts_add_seq (itsl: its_log): seq ms_hashfn_dom
+(* sequence of blum adds in the time sequenced log belonging to epoch ep *)
+val ts_add_seq (ep: epoch) (itsl: its_log): seq ms_hashfn_dom
 
 (* the addset in a time sequenced log *)
-let ts_add_set (itsl: its_log): mset_ms_hashfn_dom 
-  = seq2mset #_ #ms_hashfn_dom_cmp (ts_add_seq itsl)
+let ts_add_set (ep: epoch) (itsl: its_log): mset_ms_hashfn_dom
+  = seq2mset #_ #ms_hashfn_dom_cmp (ts_add_seq ep itsl)
 
 val lemma_add_elem_correct (itsl: its_log) (i: I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i)))
-        (ensures (ts_add_set itsl `contains` blum_add_elem (I.index itsl i)))
+        (ensures (let ep = TL.epoch_of itsl i in
+                  ts_add_set ep itsl `contains` blum_add_elem (I.index itsl i)))
 
-(* sequence of blum adds restricted to key k *)
-val ts_add_seq_key (itsl: its_log) (k:key): seq ms_hashfn_dom
+(* sequence of blum adds in epoch ep restricted to key k *)
+val ts_add_seq_key (ep: epoch) (itsl: its_log) (k:key): seq ms_hashfn_dom
 
 (* the addset restricted to key k *)
 let ts_add_set_key (itsl: its_log) (k:key): mset_ms_hashfn_dom

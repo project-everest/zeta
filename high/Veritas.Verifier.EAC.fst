@@ -83,8 +83,9 @@ let lemma_non_eac_init_evict
 
 (* the first operation for a key cannot be a blum add *)
 let lemma_non_eac_init_addb
-  (itsl: neac_log {
-    TL.hash_verifiable itsl /\
+  (epmax: epoch)
+  (itsl: neac_before_epoch epmax {
+    TL.hash_verifiable epmax itsl /\
     eac_boundary_state_pre itsl = EACInit /\
     is_blum_add (eac_boundary_entry itsl)}): hash_collision_gen =
 
@@ -99,6 +100,12 @@ let lemma_non_eac_init_addb
   let k = key_of e in
   let be = blum_add_elem (I.index itsl i) in
 
+  (* non-eac'ness happens before epoch epmax *)
+  let clk = TL.clock itsl i in
+  let ep = epoch_of clk in
+  assert(ep <= epmax);
+  admit()
+(*
   // since k is in init_state after processing i entries, there cannot
   // be a prior entry for k
   lemma_eac_state_init_no_entry itsli k;
@@ -129,6 +136,7 @@ let lemma_non_eac_init_addb
 
     MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
   )
+  *)
 
 let lemma_non_eac_init_addm
   (itsl: neac_log{

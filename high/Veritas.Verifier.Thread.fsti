@@ -101,37 +101,40 @@ val lemma_requires_key_in_store
   (i:idx tl{requires_key_in_store (index tl i)}):
   Lemma (store_contains (store_at tl i) (V.key_of (index tl i)))
 
-
 (* get the blum add element from an index *)
 let blum_add_elem (e:vlog_entry {is_blum_add e}):
   ms_hashfn_dom = 
   match e with
   | AddB r t j -> MHDom r t j
 
-val blum_add_seq (tl: verifiable_log): S.seq ms_hashfn_dom
+(* per-epoch add seq *)
+val blum_add_seq (ep: epoch) (tl: verifiable_log): S.seq ms_hashfn_dom
 
-(* add sequence filtered by an epoch *)
-val blum_add_seq_epoch (tl:verifiable_log) (ep: epoch): S.seq ms_hashfn_dom
-
+(* map a blum add to an index of the add sequence of the epoch of the add *)
 val add_seq_map (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
-  (j: SA.seq_index (blum_add_seq tl){S.index (blum_add_seq tl) j =
-                                     blum_add_elem (index tl i)})
+  (let be = blum_add_elem (index tl i) in
+   let ep = epoch_of be in
+   let add_seq = blum_add_seq ep tl in
 
-val add_seq_inv_map (tl: verifiable_log) (j: SA.seq_index (blum_add_seq tl)):
+   j: SA.seq_index add_seq{S.index add_seq j = be})
+
+val add_seq_inv_map (ep: epoch) (tl: verifiable_log) (j: SA.seq_index (blum_add_seq ep tl)):
   (i: idx tl {is_blum_add (index tl i) /\
-              blum_add_elem (index tl i) = S.index (blum_add_seq tl) j /\
+              blum_add_elem (index tl i) = S.index (blum_add_seq ep tl) j /\
+              epoch_of (blum_add_elem (index tl i)) = ep /\
               add_seq_map tl i = j})
 
 val lemma_add_seq_inv (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
-  Lemma (requires True)
-        (ensures (add_seq_inv_map tl (add_seq_map tl i) = i))
+  Lemma (ensures (let be = blum_add_elem (index tl i) in
+                  let ep = epoch_of be in
+                  add_seq_inv_map ep tl (add_seq_map tl i) = i))
         [SMTPat (add_seq_map tl i)]
 
 let hadd (tl: verifiable_log) e: ms_hash_value =
   Valid?.hadd (verify tl) e
 
-val lemma_hadd_correct (tl: verifiable_log) (e: epoch):
-  Lemma (hadd tl e = ms_hashfn (blum_add_seq_epoch tl e))
+val lemma_hadd_correct (ep: epoch) (tl: verifiable_log):
+  Lemma (hadd tl ep = ms_hashfn (blum_add_seq ep tl))
 
 let blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom = 
   let tli = prefix tl i in
@@ -140,36 +143,38 @@ let blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)
   let vs = verify tli in
   V.blum_evict_elem vs e (thread_id_of tl)
 
-val blum_evict_seq (tl: verifiable_log): S.seq ms_hashfn_dom
-
-(* evict sequence filtered by an epoch *)
-val blum_evict_seq_epoch (tl: verifiable_log) (ep: epoch): S.seq ms_hashfn_dom
+(* per-epoch evict seq *)
+val blum_evict_seq (ep: epoch) (tl: verifiable_log): S.seq ms_hashfn_dom
 
 let hevict (tl: verifiable_log) (e: epoch): ms_hash_value =
   Valid?.hevict (verify tl) e
 
-val lemma_hevict_correct (tl: verifiable_log) (ep: epoch):
-  Lemma (hevict tl ep = ms_hashfn (blum_evict_seq_epoch tl ep))
+val lemma_hevict_correct (ep: epoch) (tl: verifiable_log):
+  Lemma (hevict tl ep = ms_hashfn (blum_evict_seq ep tl))
 
 (* all elements of tl's blum_evict_seq contain tid of tl *)
-val lemma_evict_elem_tid (tl: verifiable_log):
-  Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq tl))
+val lemma_evict_elem_tid (ep: epoch) (tl: verifiable_log):
+  Lemma (all (is_of_thread_id (thread_id_of tl)) (blum_evict_seq ep tl))
   
-val lemma_evict_elem_unique (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evict_seq tl)):
-  Lemma (i1 <> i2 ==> S.index (blum_evict_seq tl) i1 <> S.index (blum_evict_seq tl) i2)
+val lemma_evict_elem_unique (ep: epoch) (tl: verifiable_log) (i1 i2: SA.seq_index (blum_evict_seq ep tl)):
+  Lemma (i1 <> i2 ==> S.index (blum_evict_seq ep tl) i1 <> S.index (blum_evict_seq ep tl) i2)
 
 val evict_seq_map (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
-  (j: SA.seq_index (blum_evict_seq tl) {S.index (blum_evict_seq tl) j = 
-                                        blum_evict_elem tl i})
+  (let be = blum_evict_elem tl i in
+   let ep = epoch_of be in
+   let evict_seq = blum_evict_seq ep tl in
+   j: SA.seq_index evict_seq {S.index evict_seq j = be})
 
-val evict_seq_inv_map (tl: verifiable_log) (j: SA.seq_index (blum_evict_seq tl)):
+val evict_seq_inv_map (ep: epoch) (tl: verifiable_log) (j: SA.seq_index (blum_evict_seq ep tl)):
   (i: idx tl{is_evict_to_blum (index tl i) /\
-             blum_evict_elem tl i = S.index (blum_evict_seq tl) j /\
+             blum_evict_elem tl i = S.index (blum_evict_seq ep tl) j /\
+             epoch_of (blum_evict_elem tl i) = ep /\
              evict_seq_map tl i = j})
 
 val lemma_evict_seq_inv (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
-  Lemma (requires True)
-        (ensures (evict_seq_inv_map tl (evict_seq_map tl i) = i))
+    Lemma (ensures (let be = blum_evict_elem tl i in
+                    let ep = epoch_of be in
+                    evict_seq_inv_map ep tl (evict_seq_map tl i) = i))
         [SMTPat (evict_seq_map tl i)]
 
 val lemma_blum_evict_elem_key (tl: verifiable_log) (i: idx tl{is_evict_to_blum (index tl i)}):
@@ -196,3 +201,18 @@ val lemma_evictm_ancestor_merkle (tl:verifiable_log) (i:idx tl{is_evict_to_merkl
 val lemma_evictbm_ancestor_merkle (tl:verifiable_log) (i:idx tl{EvictBM? (index tl i)}):
   Lemma (ensures (let EvictBM _ k' _ = index tl i in
                   is_merkle_key k'))
+
+(* Get the maximal prefix of log upto epoch "ep" *)
+val prefix_upto_epoch (ep: epoch) (tl: verifiable_log): verifiable_log
+
+val lemma_prefix_upto_epoch (ep: epoch) (tl: verifiable_log):
+  Lemma (ensures (let tl' = prefix_upto_epoch ep tl in
+                  let tid, l = tl in
+                  let tid', l' = tl' in
+                  let MkTimestamp ep' _ = Valid?.clk (verify tl') in
+                  tid = tid' /\
+                  SA.is_prefix l l' /\
+                  ep' <= ep /\
+                  (length tl' < length tl ==> (let MkTimestamp ep'' _ = clock tl (length tl') in
+                                               ep'' > ep))))
+        [SMTPat (prefix_upto_epoch ep tl)]

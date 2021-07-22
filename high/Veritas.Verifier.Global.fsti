@@ -67,12 +67,15 @@ let hevict (gl: verifiable_log) (ep: epoch): ms_hash_value =
 let hash_verifiable_epoch (gl: verifiable_log) (ep: epoch) =
   hadd gl ep = hevict gl ep
 
+let hash_verifiable_prop (gl: verifiable_log) (epmax: epoch) (ep: epoch) =
+  ep <= epmax ==> hash_verifiable_epoch gl ep
+
 (* a verifiable log is hash verifiable if add and evict set hashes are equal *)
-let hash_verifiable (gl: verifiable_log) (epmax: epoch) =
-  forall ep. ep < epmax ==> hash_verifiable_epoch gl ep
+let hash_verifiable (epmax: epoch) (gl: verifiable_log) =
+  forall ep. {:pattern hash_verifiable_prop gl epmax ep} hash_verifiable_prop gl epmax ep
 
 (* hash verifiable upto epoch ep *)
-let hash_verifiable_log (ep: epoch) = gl:verifiable_log{hash_verifiable gl ep}
+let hash_verifiable_log (ep: epoch) = gl:verifiable_log{hash_verifiable ep gl}
 
 (* 
  * return the clock of a particular log entry. the index i here 
@@ -87,23 +90,27 @@ let clock (gl: verifiable_log) (i: sseq_index gl): timestamp =
   let tl = thread_log gl tid in
   VT.clock tl idx
 
+let epoch_of (gl: verifiable_log) (i: sseq_index gl): epoch =
+  let (tid, idx) = i in
+  let tl = thread_log gl tid in
+  VT.epoch_of tl idx
 
 (* global add sequence *)
-val g_add_seq (gl: verifiable_log): seq (ms_hashfn_dom)
-
-val g_add_seq_epoch (gl: verifiable_log) (ep: epoch): seq (ms_hashfn_dom)
+val g_add_seq (ep: epoch) (gl: verifiable_log): seq (ms_hashfn_dom)
 
 (* multiset derived from all the blum adds in gl *)
-let g_add_set (gl: verifiable_log): mset_ms_hashfn_dom =
-  seq2mset #_ #ms_hashfn_dom_cmp (g_add_seq gl)
+let g_add_set (ep: epoch) (gl: verifiable_log): mset_ms_hashfn_dom =
+  seq2mset #_ #ms_hashfn_dom_cmp (g_add_seq ep gl)
 
 (* the hadd that the verifier computes is the multiset hash of all the adds *)
-val lemma_g_hadd_correct (gl: verifiable_log) (ep: epoch):
-  Lemma (hadd gl ep = ms_hashfn (g_add_seq_epoch gl ep))
+val lemma_g_hadd_correct (ep: epoch) (gl: verifiable_log):
+  Lemma (hadd gl ep = ms_hashfn (g_add_seq ep gl))
 
 (* mapping from blum_add entries in verifier log to the index in add seq *)
 val add_set_map (gl: verifiable_log) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
-  (j: seq_index (g_add_seq gl){index (g_add_seq gl) j = blum_add_elem (indexss gl ii)})
+  (
+
+  j: seq_index (g_add_seq gl){index (g_add_seq gl) j = blum_add_elem (indexss gl ii)})
 
 (* inverse mapping from add_seq to the blum add entries in the verifier logs *)
 val add_set_map_inv (gl: verifiable_log) (j: seq_index (g_add_seq gl)):

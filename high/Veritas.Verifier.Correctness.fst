@@ -28,9 +28,9 @@ module TL = Veritas.Verifier.TSLog
 //Allow the solver to invert inductive definitions at most once (ifuel)
 #push-options "--max_fuel 1 --max_ifuel 1 --initial_fuel 1 --initial_ifuel 1"
 
-(* state ops of all vlogs of all verifier threads *)
-let to_state_op_gvlog (gl: g_vlog) =
-  map to_state_op_vlog gl
+(* state ops of all vlogs of all verifier threads upto epoch ep *)
+let to_state_op_gvlog (gl: g_vlog) (ep: epoch) =
+  map to_state_op_vlog (map prefix_upto_epoch ep) gl
 
 let lemma_vlog_interleave_implies_state_ops_interleave (l: vlog) (gl: g_vlog{interleave #vlog_entry l gl})
   : Lemma (interleave #state_op (to_state_op_vlog l) (to_state_op_gvlog gl)) 
