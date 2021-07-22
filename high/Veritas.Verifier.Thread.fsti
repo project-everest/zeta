@@ -110,6 +110,9 @@ let blum_add_elem (e:vlog_entry {is_blum_add e}):
 
 val blum_add_seq (tl: verifiable_log): S.seq ms_hashfn_dom
 
+(* add sequence filtered by an epoch *)
+val blum_add_seq_epoch (tl:verifiable_log) (ep: epoch): S.seq ms_hashfn_dom
+
 val add_seq_map (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)}):
   (j: SA.seq_index (blum_add_seq tl){S.index (blum_add_seq tl) j =
                                      blum_add_elem (index tl i)})
@@ -124,11 +127,11 @@ val lemma_add_seq_inv (tl: verifiable_log) (i: idx tl{is_blum_add (index tl i)})
         (ensures (add_seq_inv_map tl (add_seq_map tl i) = i))
         [SMTPat (add_seq_map tl i)]
 
-let hadd (tl: verifiable_log): ms_hash_value = 
-  Valid?.hadd (verify tl)
+let hadd (tl: verifiable_log) e: ms_hash_value =
+  Valid?.hadd (verify tl) e
 
-val lemma_hadd_correct (tl: verifiable_log):
-  Lemma (hadd tl = ms_hashfn (blum_add_seq tl))
+val lemma_hadd_correct (tl: verifiable_log) (e: epoch):
+  Lemma (hadd tl e = ms_hashfn (blum_add_seq_epoch tl e))
 
 let blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)}): ms_hashfn_dom = 
   let tli = prefix tl i in
@@ -139,11 +142,14 @@ let blum_evict_elem (tl: verifiable_log) (i:idx tl{is_evict_to_blum (index tl i)
 
 val blum_evict_seq (tl: verifiable_log): S.seq ms_hashfn_dom
 
-let hevict (tl: verifiable_log): ms_hash_value = 
-  Valid?.hevict (verify tl)
+(* evict sequence filtered by an epoch *)
+val blum_evict_seq_epoch (tl: verifiable_log) (ep: epoch): S.seq ms_hashfn_dom
 
-val lemma_hevict_correct (tl: verifiable_log):
-  Lemma (hevict tl = ms_hashfn (blum_evict_seq tl))
+let hevict (tl: verifiable_log) (e: epoch): ms_hash_value =
+  Valid?.hevict (verify tl) e
+
+val lemma_hevict_correct (tl: verifiable_log) (ep: epoch):
+  Lemma (hevict tl ep = ms_hashfn (blum_evict_seq_epoch tl ep))
 
 (* all elements of tl's blum_evict_seq contain tid of tl *)
 val lemma_evict_elem_tid (tl: verifiable_log):

@@ -31,43 +31,48 @@ val lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl):
   Lemma (ensures (verifiable (prefix gl i)))
         [SMTPat (prefix gl i)]
 
-let rec hadd_aux (gl: verifiable_log): 
+let rec hadd_aux (gl: verifiable_log) (ep: epoch):
   Tot (ms_hash_value)
   (decreases (length gl)) = 
   let p = length gl in
   if p = 0 then empty_hash_value
   else  (
     let gl' = prefix gl (p - 1) in
-    let h1 = hadd_aux gl' in
-    let h2 = VT.hadd (thread_log gl (p - 1)) in
+    let h1 = hadd_aux gl' ep in
+    let h2 = VT.hadd (thread_log gl (p - 1)) ep in
     ms_hashfn_agg h1 h2
   )
 
 (* add-set hash over all verifier threads *)
-let hadd (gl: verifiable_log): ms_hash_value =
-  hadd_aux gl
+let hadd (gl: verifiable_log) (ep: epoch): ms_hash_value =
+  hadd_aux gl ep
 
-let rec hevict_aux (gl: verifiable_log): 
+let rec hevict_aux (gl: verifiable_log) (ep: epoch):
   Tot (ms_hash_value)
   (decreases (length gl)) = 
   let p = length gl in
   if p = 0 then empty_hash_value
   else  (
     let gl' = prefix gl (p - 1) in
-    let h1 = hevict_aux gl' in
-    let h2 = thread_hevict (VT.verify (thread_log gl (p - 1))) in
+    let h1 = hevict_aux gl' ep in
+    let h2 = thread_hevict (VT.verify (thread_log gl (p - 1))) ep in
     ms_hashfn_agg h1 h2
   )
 
 (* hash of evict set over all verifier threads *)
-let hevict (gl: verifiable_log): ms_hash_value =
-  hevict_aux gl
+let hevict (gl: verifiable_log) (ep: epoch): ms_hash_value =
+  hevict_aux gl ep
+
+(* add and evict sets are equal for a specified epoch *)
+let hash_verifiable_epoch (gl: verifiable_log) (ep: epoch) =
+  hadd gl ep = hevict gl ep
 
 (* a verifiable log is hash verifiable if add and evict set hashes are equal *)
-let hash_verifiable (gl: verifiable_log): bool = 
-  hadd gl = hevict gl
+let hash_verifiable (gl: verifiable_log) (epmax: epoch) =
+  forall ep. ep < epmax ==> hash_verifiable_epoch gl ep
 
-let hash_verifiable_log = gl:verifiable_log{hash_verifiable gl}
+(* hash verifiable upto epoch ep *)
+let hash_verifiable_log (ep: epoch) = gl:verifiable_log{hash_verifiable gl ep}
 
 (* 
  * return the clock of a particular log entry. the index i here 
@@ -86,13 +91,15 @@ let clock (gl: verifiable_log) (i: sseq_index gl): timestamp =
 (* global add sequence *)
 val g_add_seq (gl: verifiable_log): seq (ms_hashfn_dom)
 
+val g_add_seq_epoch (gl: verifiable_log) (ep: epoch): seq (ms_hashfn_dom)
+
 (* multiset derived from all the blum adds in gl *)
 let g_add_set (gl: verifiable_log): mset_ms_hashfn_dom =
   seq2mset #_ #ms_hashfn_dom_cmp (g_add_seq gl)
 
 (* the hadd that the verifier computes is the multiset hash of all the adds *)
-val lemma_g_hadd_correct (gl: verifiable_log):
-  Lemma (hadd gl = ms_hashfn (g_add_seq gl))
+val lemma_g_hadd_correct (gl: verifiable_log) (ep: epoch):
+  Lemma (hadd gl ep = ms_hashfn (g_add_seq_epoch gl ep))
 
 (* mapping from blum_add entries in verifier log to the index in add seq *)
 val add_set_map (gl: verifiable_log) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
@@ -111,11 +118,14 @@ val lemma_add_set_map_inv (gl: verifiable_log)(ii: sseq_index gl {is_blum_add (i
 (* a single sequence containing all the blum evicts *)
 val g_evict_seq (gl: verifiable_log): seq ms_hashfn_dom 
 
+(* sequence of blum evicts restricted to an epoch *)
+val g_evict_seq_epoch (gl: verifiable_log) (ep: epoch): seq ms_hashfn_dom
+
 let g_evict_set (gl: verifiable_log): mset_ms_hashfn_dom = 
   seq2mset #_ #ms_hashfn_dom_cmp (g_evict_seq gl)
 
-val lemma_ghevict_correct (gl: verifiable_log):
-  Lemma (hevict gl = ms_hashfn (g_evict_seq gl))
+val lemma_ghevict_correct (gl: verifiable_log) (ep: epoch):
+  Lemma (hevict gl ep = ms_hashfn (g_evict_seq_epoch gl ep))
 
 (* the global evict set is a set (not a multiset) *)
 val g_evict_set_is_set (gl: verifiable_log): 

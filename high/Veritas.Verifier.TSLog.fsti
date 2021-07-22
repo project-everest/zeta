@@ -52,13 +52,13 @@ let clock_sorted (il: il_vlog{verifiable il}) =
 let clock_sorted (il: il_vlog{verifiable il}) =
  forall (i j:I.seq_index il). i <= j ==> clock il i `ts_leq` clock il j
 
-(* TODO: add clock_sorted *)
 let its_log = il:il_vlog{verifiable il /\ clock_sorted il}
 
-let hash_verifiable (itsl: its_log) = VG.hash_verifiable (g_vlog_of itsl)
+(* hash verifiable upto epoch e *)
+let hash_verifiable (itsl: its_log) (ep: epoch) = VG.hash_verifiable (g_vlog_of itsl) ep
 
-let hash_verifiable_log =
-  itsl:its_log {hash_verifiable itsl}
+let hash_verifiable_log ep =
+  itsl:its_log {hash_verifiable itsl ep}
 
 val lemma_prefix_verifiable (itsl: its_log) (i:nat{i <= I.length itsl}):
   Lemma (requires True)
@@ -163,7 +163,7 @@ val lemma_verifier_thread_state_extend (itsl: il_vlog) (i: I.seq_index itsl):
 let mk_vlog_entry_ext (itsl:its_log) (i:I.seq_index itsl)
   : vlog_entry_ext
   =   let ts = thread_state_pre itsl i in
-      let Valid _ st clk _ _ _ _  = ts in
+      let Valid _ st clk _ _ _  = ts in
       let vle = Seq.index (i_seq itsl) i in
       lemma_verifier_thread_state_extend itsl i;
       match vle with
