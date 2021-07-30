@@ -571,7 +571,8 @@ val lemma_blum_evict_def (itsl: its_log)
                    | EvictBM _ _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid)))
 
 let epoch_of (itsl: its_log) (i: I.seq_index itsl) =
-  Veritas.MultiSetHash.epoch_of (clock itsl i)
+  let MkTimestamp e _ = clock itsl i in
+  e
 
 (* non-eac log where the non-eac'ness happens in or before epoch ep *)
 let neac_before_epoch (ep: epoch) =
