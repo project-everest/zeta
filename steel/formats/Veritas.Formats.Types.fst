@@ -63,8 +63,9 @@ type record = {
   record_key : key;
   record_value : value;
   record_add_method : add_method;
-  record_l_child_in_store : vbool;
-  record_r_child_in_store : vbool;
+  record_l_child_in_store : option slot_id;
+  record_r_child_in_store : option slot_id;
+  record_parent_slot : option (slot_id & bool);
 }
 
 type vlog_entry_kind =
@@ -78,6 +79,7 @@ type vlog_entry_kind =
 
 type vlog_entry_get_put = {
   vegp_s : slot_id;
+  vegp_k : key;
   vegp_v : data_value;
 }
 

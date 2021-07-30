@@ -8,26 +8,25 @@ module U64 = FStar.UInt64
 module MSH = Veritas.MultiSetHashDomain
 module T = Veritas.Formats.Types
 
-#set-options "--ide_id_info_off"
 
-let data_key = T.key
+let data_key = k:T.key{ U16.v k.T.significant_digits = 256 }
 let data_value = T.data_value
 let thread_id = T.thread_id
 
 let contents = Seq.seq (option T.record)
-let model_hash = erased MSH.mset_ms_hashfn_dom
+let model_hash = MSH.ms_hash_value
 
 [@@erasable]
 noeq
 type thread_state_model = {
   model_failed : bool;
   model_store : contents;
-  model_clock : erased U64.t;
+  model_clock : U64.t;
   model_hadd : model_hash;
   model_hevict : model_hash;
 }
 
-let model_fail tsm = {tsm with model_failed=false}
+let model_fail tsm = {tsm with model_failed=true}
 
 let slot (tsm:thread_state_model) = i:T.slot_id{U16.v i < Seq.length tsm.model_store}
 
@@ -42,17 +41,21 @@ let model_evict_record (tsm:thread_state_model) (s:slot tsm)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) None }
 
-let vget_model (tsm:thread_state_model) (s:slot tsm) (v:T.value) : thread_state_model =
+
+let vget_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model =
   match model_get_record tsm s with
   | None -> model_fail tsm
   | Some r ->
-      if r.T.record_value <> v then model_fail tsm
+      if r.T.record_key <> k then model_fail tsm
+      else if r.T.record_value <> v then model_fail tsm
       else tsm
 
-let vput_model (tsm:thread_state_model) (s:slot tsm) (v:T.value) : thread_state_model
+let vput_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model
   = match model_get_record tsm s with
     | None -> model_fail tsm
-    | Some r -> model_put_record tsm s ({r with T.record_value = v})
+    | Some r ->
+      if r.T.record_key <> k then model_fail tsm
+      else model_put_record tsm s ({r with T.record_value = v})
 
 assume
 val is_data_key (k:T.key) : bool
@@ -65,8 +68,9 @@ let mk_record (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : T.record
       T.record_key = k;
       T.record_value = v;
       T.record_add_method = a;
-      T.record_l_child_in_store = T.Vfalse;
-      T.record_r_child_in_store = T.Vfalse
+      T.record_l_child_in_store = None;
+      T.record_r_child_in_store = None;
+      T.record_parent_slot = None
     }
 
 let model_update_clock (tsm:thread_state_model) (ts:T.timestamp)
