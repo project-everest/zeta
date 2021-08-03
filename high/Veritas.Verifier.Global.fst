@@ -3,8 +3,7 @@ module Veritas.Verifier.Global
 module MS = Veritas.MultiSet
 
 let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl):
-  Lemma (requires True)
-        (ensures (verifiable (prefix gl i)))
+  Lemma (ensures (verifiable (prefix gl i)))
         [SMTPat (prefix gl i)] =
   let pgl = prefix gl i in
   let aux (tid:seq_index pgl):
@@ -16,8 +15,13 @@ let lemma_prefix_verifiable (gl: verifiable_log) (i:seq_index gl):
   in
   ()
 
+let hadd_hevict_equal (epmax: epoch) (gl: hash_verifiable_log epmax) (ep: epoch{ep <= epmax}):
+  Lemma (ensures (hadd gl ep = hevict gl ep)) =
+  assert(hash_verifiable_prop gl epmax ep);
+  ()
+
 (* global add sequence *)
-let rec g_add_seq_aux (gl: verifiable_log):
+let rec g_add_seq (ep: epoch) (gl: verifiable_log):
   Tot (seq (ms_hashfn_dom))
   (decreases (length gl)) =
   let p = length gl in
@@ -25,151 +29,131 @@ let rec g_add_seq_aux (gl: verifiable_log):
   else (
     let gl' = prefix gl (p - 1) in
     lemma_prefix_verifiable gl (p - 1);
-    append (g_add_seq_aux gl') (blum_add_seq (thread_log gl (p - 1)))
+    append (g_add_seq ep gl') (blum_add_seq ep (thread_log gl (p - 1)))
   )
 
-(* global add sequence *)
-let g_add_seq (gl: verifiable_log): seq (ms_hashfn_dom) = g_add_seq_aux gl
-
 (* the hadd that the verifier computes is the multiset hash of all the adds *)
-let rec lemma_g_hadd_correct_aux (gl: verifiable_log):
-  Lemma (requires True)
-        (ensures (hadd gl = ms_hashfn (g_add_seq gl)))
+let rec lemma_g_hadd_correct (ep: epoch) (gl: verifiable_log):
+  Lemma (ensures (hadd gl ep = ms_hashfn (g_add_seq ep gl)))
         (decreases (length gl)) =
   let p = length gl in
-  let s = g_add_seq gl in
-  let h = hadd gl in
+  let s = g_add_seq ep gl in
+  let h = hadd gl ep in
 
   if p = 0 then
     lemma_hashfn_empty()
 
   else (
     let gl' = prefix gl (p - 1) in
-    lemma_prefix_verifiable gl (p - 1);
-    let s' = g_add_seq gl' in
-    let h' = hadd gl' in
+    let s' = g_add_seq ep gl' in
+    let h' = hadd gl' ep in
 
-    lemma_g_hadd_correct_aux gl';
-    // assert(h' = ms_hashfn s');
+    lemma_g_hadd_correct ep gl';
+    assert(h' = ms_hashfn s');
 
     let tl = thread_log gl (p - 1) in
-    let st = blum_add_seq tl in
-    let ht = VT.hadd tl in
-    lemma_hadd_correct tl;
+    let st = blum_add_seq ep tl in
+    let ht = VT.hadd tl ep in
+    lemma_hadd_correct ep tl;
 
     lemma_hashfn_agg s' st
   )
 
-(* the hadd that the verifier computes is the multiset hash of all the adds *)
-let lemma_g_hadd_correct (gl: verifiable_log):
-  Lemma (hadd gl = ms_hashfn (g_add_seq gl)) =
-  lemma_g_hadd_correct_aux gl
-
-let rec add_set_map_aux (gl: verifiable_log) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
-  Tot (j: seq_index (g_add_seq gl){index (g_add_seq gl) j = blum_add_elem (indexss gl ii)})
+let rec add_set_map (gl: verifiable_log) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
+  Tot (let e = indexss gl ii in
+       let be = blum_add_elem e in
+       let ep = epoch_of be in
+       let add_seq = g_add_seq ep gl in
+       j: seq_index add_seq {index add_seq j = be})
   (decreases (length gl)) =
   let (tid,i) = ii in
+  let e = indexss gl ii in
+  let be = blum_add_elem e in
+  let ep = epoch_of be in
   let p = length gl in
   let gl' = prefix gl (p - 1) in
-  let s' = g_add_seq gl' in
+  let s' = g_add_seq ep gl' in
   let tl = thread_log gl (p - 1) in
 
   if tid = p - 1 then
     length s' + (VT.add_seq_map tl i)
   else
-    add_set_map_aux gl' ii
-
-let add_set_map (gl: verifiable_log) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
-  (j: seq_index (g_add_seq gl){index (g_add_seq gl) j = blum_add_elem (indexss gl ii)}) =
-  add_set_map_aux gl ii
+    add_set_map gl' ii
 
 (* inverse mapping from add_seq to the blum add entries in the verifier logs *)
-let rec add_set_map_inv_aux (gl: verifiable_log) (j: seq_index (g_add_seq gl)):
-  Tot (ii: sseq_index gl {is_blum_add (indexss gl ii) /\ add_set_map gl ii = j})
+let rec add_set_map_inv (ep: epoch) (gl: verifiable_log) (j: seq_index (g_add_seq ep gl)):
+  Tot (ii: sseq_index gl {let e = indexss gl ii in
+                      is_blum_add e /\
+                      (let be = blum_add_elem e in
+                       let add_seq = g_add_seq ep gl in
+                       be = index add_seq j /\
+                       add_set_map gl ii = j /\
+                       ep = epoch_of be)})
   (decreases (length gl)) =
   let p = length gl in
   let gl' = prefix gl (p - 1) in
-  let s' = g_add_seq gl' in
+  let s' = g_add_seq ep gl' in
   let tl = thread_log gl (p - 1) in
-  let s = g_add_seq gl in
-
+  let s = g_add_seq ep gl in
   if j < length s' then
-    add_set_map_inv_aux gl' j
+    add_set_map_inv ep gl' j
   else
     let j' = j - length s' in
-    let i = VT.add_seq_inv_map tl j' in
+    let i = VT.add_seq_inv_map ep tl j' in
     (p-1, i)
 
-(* inverse mapping from add_seq to the blum add entries in the verifier logs *)
-let add_set_map_inv (gl: verifiable_log) (j: seq_index (g_add_seq gl)):
-  (ii: sseq_index gl {is_blum_add (indexss gl ii) /\
-                      add_set_map gl ii = j}) =
-  add_set_map_inv_aux gl j
-
-let rec lemma_add_set_map_inv_aux (gl: verifiable_log)(ii: sseq_index gl {is_blum_add (indexss gl ii)}):
-  Lemma (requires True)
-        (ensures (add_set_map_inv gl (add_set_map gl ii) = ii))
+let rec lemma_add_set_map_inv (gl: verifiable_log)(ii: sseq_index gl {is_blum_add (indexss gl ii)}):
+  Lemma (ensures (let e = indexss gl ii in
+                  let be = blum_add_elem e in
+                  let ep = epoch_of be in
+                  let j = add_set_map gl ii in
+                  add_set_map_inv ep gl j = ii))
         (decreases (length gl)) =
   let (tid,i) = ii in
   let p = length gl in
   let gl' = prefix gl (p - 1) in
-  let s' = g_add_seq gl' in
+  let e = indexss gl ii in
+  let be = blum_add_elem e in
+  let ep = epoch_of be in
+  let s' = g_add_seq ep gl' in
   let tl = thread_log gl (p - 1) in
 
   if tid = p - 1 then ()
   else
-    lemma_add_set_map_inv_aux gl' ii
+    lemma_add_set_map_inv gl' ii
 
-let lemma_add_set_map_inv (gl: verifiable_log)(ii: sseq_index gl {is_blum_add (indexss gl ii)}):
-  Lemma (requires True)
-        (ensures (add_set_map_inv gl (add_set_map gl ii) = ii))
-        [SMTPat (add_set_map gl ii)] =
-  lemma_add_set_map_inv_aux gl ii
-
-let rec g_evict_seq_aux (gl: verifiable_log):
+let rec g_evict_seq (ep: epoch) (gl: verifiable_log):
   Tot (seq (ms_hashfn_dom))
   (decreases (length gl)) =
   let p = length gl in
   if p = 0 then empty #(ms_hashfn_dom)
-  else (
+  else
     let gl' = prefix gl (p - 1) in
-    lemma_prefix_verifiable gl (p - 1);
-    append (g_evict_seq_aux gl') (blum_evict_seq (thread_log gl (p - 1)))
-  )
+    append (g_evict_seq ep gl') (blum_evict_seq ep (thread_log gl (p - 1)))
 
-(* a single sequence containing all the blum evicts *)
-let g_evict_seq (gl: verifiable_log): seq ms_hashfn_dom  =
-  g_evict_seq_aux gl
-
-let rec lemma_ghevict_correct_aux (gl: verifiable_log):
-  Lemma (requires True)
-        (ensures (hevict gl = ms_hashfn (g_evict_seq gl)))
+let rec lemma_ghevict_correct (ep: epoch) (gl: verifiable_log):
+  Lemma (ensures (hevict gl ep = ms_hashfn (g_evict_seq ep gl)))
         (decreases (length gl)) =
   let p = length gl in
-  let s = g_evict_seq gl in
-  let h = hevict gl in
+  let s = g_evict_seq ep gl in
+  let h = hevict gl ep in
 
   if p = 0 then
     lemma_hashfn_empty()
   else (
     let gl' = prefix gl (p - 1) in
-    lemma_prefix_verifiable gl (p - 1);
-    let s' = g_evict_seq gl' in
-    let h' = hevict gl' in
+    let s' = g_evict_seq ep gl' in
+    let h' = hevict gl' ep in
 
-    lemma_ghevict_correct_aux gl';
+    lemma_ghevict_correct ep gl';
 
     let tl = thread_log gl (p - 1) in
-    let st = blum_evict_seq tl in
-    let ht = VT.hevict tl in
-    lemma_hevict_correct tl;
+    let st = blum_evict_seq ep tl in
+    let ht = VT.hevict tl ep in
+    lemma_hevict_correct ep tl;
 
     lemma_hashfn_agg s' st
   )
-
-let lemma_ghevict_correct (gl: verifiable_log):
-  Lemma (hevict gl = ms_hashfn (g_evict_seq gl)) =
-  lemma_ghevict_correct_aux gl
 
 (* two indexes of a sequence s are different *)
 let diff_elem (#a:eqtype) (s:seq a) (i1: seq_index s) (i2: seq_index s{i1 <> i2}) =
@@ -241,63 +225,62 @@ let rec lemma_uniq_prop_counts (#a:eqtype) (s: seq a) (x: a):
     )
   )
 
-let rec lemma_evict_elem_tids (gl: verifiable_log) (i: seq_index (g_evict_seq gl)):
-  Lemma (requires True)
-        (ensures (MH.thread_id_of (index (g_evict_seq gl) i) < length gl))
+let rec lemma_evict_elem_tids (ep: epoch) (gl: verifiable_log) (i: seq_index (g_evict_seq ep gl)):
+  Lemma (ensures (MH.thread_id_of (index (g_evict_seq ep gl) i) < length gl))
         (decreases (length gl)) =
   let p = length gl in
-  let es = g_evict_seq gl in
+  let es = g_evict_seq ep gl in
   if p = 0 then ()
   else
     let gl' = prefix gl (p - 1) in
-    let es' = g_evict_seq gl' in
+    let es' = g_evict_seq ep gl' in
 
     if i < length es' then
-      lemma_evict_elem_tids gl' i
+      lemma_evict_elem_tids ep gl' i
     else
-      VT.lemma_evict_elem_tid (thread_log gl (p - 1))
+      VT.lemma_evict_elem_tid ep (thread_log gl (p - 1))
 
 #push-options "--z3rlimit_factor 2"
 
-let rec lemma_evict_elem_unique_aux (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq gl)):
+let rec lemma_evict_elem_unique_aux (ep: epoch) (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq ep gl)):
   Lemma (requires (i1 < i2))
-        (ensures (diff_elem  (g_evict_seq gl) i1 i2))
+        (ensures (diff_elem  (g_evict_seq ep gl) i1 i2))
         (decreases (length gl)) =
   let p = length gl in
-  let es = g_evict_seq gl in
+  let es = g_evict_seq ep gl in
   if p = 0 then ()
   else (
     let gl' = prefix gl (p - 1) in
-    let es' = g_evict_seq gl' in
+    let es' = g_evict_seq ep gl' in
     let tl = thread_log gl (p - 1) in
-    let et = VT.blum_evict_seq tl in
+    let et = VT.blum_evict_seq ep tl in
     if i1 < length es' then (
       if i2 < length es' then
-        lemma_evict_elem_unique_aux gl' i1 i2
+        lemma_evict_elem_unique_aux ep gl' i1 i2
       else (
-        lemma_evict_elem_tids gl' i1;
+        lemma_evict_elem_tids ep gl' i1;
         //assert(MH.thread_id_of (index es i1) < (p - 1));
-        VT.lemma_evict_elem_tid tl
+        VT.lemma_evict_elem_tid ep tl
       )
     )
     else
-      lemma_evict_elem_unique tl (i1 - length es') (i2 - length es')
+      lemma_evict_elem_unique ep tl (i1 - length es') (i2 - length es')
 
   )
 
 #pop-options
 
-let lemma_evict_elem_unique (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq gl)):
+let lemma_evict_elem_unique (ep: epoch) (gl: verifiable_log) (i1 i2: seq_index (g_evict_seq ep gl)):
   Lemma (requires (i1 <> i2))
-        (ensures (diff_elem  (g_evict_seq gl) i1 i2))
-        [SMTPat (diff_elem (g_evict_seq gl) i1 i2)] =
+        (ensures (diff_elem  (g_evict_seq ep gl) i1 i2))
+        [SMTPat (diff_elem (g_evict_seq ep gl) i1 i2)] =
   if i1 < i2 then
-    lemma_evict_elem_unique_aux gl i1 i2
+    lemma_evict_elem_unique_aux ep gl i1 i2
   else
-    lemma_evict_elem_unique_aux gl i2 i1
+    lemma_evict_elem_unique_aux ep gl i2 i1
 
-let lemma_evict_elem_unique2 (gl: verifiable_log):
-  Lemma (uniq_prop (g_evict_seq gl)) =
+let lemma_evict_elem_unique2 (ep: epoch) (gl: verifiable_log):
+  Lemma (uniq_prop (g_evict_seq ep gl)) =
   ()
 
 

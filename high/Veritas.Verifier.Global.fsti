@@ -173,3 +173,5 @@ val lemma_evict_seq_inv (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blu
                   let j = evict_seq_map gl ii in
                   evict_seq_map_inv ep gl j = ii))
         [SMTPat (evict_seq_map gl ii)]
+
+val prefix_upto_epoch (ep: epoch) (gl: verifiable_log): verifiable_log

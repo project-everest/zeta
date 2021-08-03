@@ -574,7 +574,22 @@ let epoch_of (itsl: its_log) (i: I.seq_index itsl) =
   let MkTimestamp e _ = clock itsl i in
   e
 
+(* prefix of a clock sorted log truncated upto epoch ep *)
+val prefix_upto_epoch (ep: epoch) (itsl: its_log): its_log
+
+val lemma_prefix_upto_epoch (ep: epoch) (itsl: its_log):
+  Lemma (ensures (g_vlog_of (prefix_upto_epoch ep itsl) = VG.prefix_upto_epoch ep (g_vlog_of itsl)))
+        [SMTPat (prefix_upto_epoch ep itsl)]
+
+let is_neac_before_epoch (ep: epoch) (itsl: its_log) =
+  not (is_eac (prefix_upto_epoch ep itsl))
+
 (* non-eac log where the non-eac'ness happens in or before epoch ep *)
-let neac_before_epoch (ep: epoch) =
-  itsl: neac_log {let i = eac_boundary itsl in
-                  epoch_of itsl i <= ep}
+let neac_before_epoch (ep: epoch) = itsl: its_log { is_neac_before_epoch ep itsl}
+
+val lemma_neac_before_epoch (ep: epoch) (itsl: neac_before_epoch ep):
+  Lemma (ensures (not (is_eac itsl) /\
+                  (let i = eac_boundary itsl in
+                   let MkTimestamp e _ = clock itsl i in
+                   e <= ep)))
+        [SMTPat (is_neac_before_epoch ep itsl)]
