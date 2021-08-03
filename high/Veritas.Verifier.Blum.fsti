@@ -34,7 +34,7 @@ val lemma_add_elem_correct (itsl: its_log) (i: I.seq_index itsl):
         (ensures (let e = I.index itsl i in
                   let be = blum_add_elem e in
                   let ep = MH.epoch_of be in
-                  ts_add_set ep itsl `contains` be))
+                  ts_add_set ep itsl `MS.contains` be))
 
 (* sequence of blum adds in epoch ep restricted to key k *)
 val ts_add_seq_key (ep: epoch) (itsl: its_log) (k:key): seq ms_hashfn_dom
@@ -197,8 +197,11 @@ val eac_instore_addb_diff_elem (itsl: its_log)
                                                     (let k = key_of e in
                                                      TL.is_eac_state_instore itsli k)})
   : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
-                      let as = ts_add_set itsli' in
-                      let es = ts_evict_set itsli' in
+                      let e = I.index itsl i in
+                      let be = blum_add_elem e in
+                      let ep = MH.epoch_of be in
+                      let as = ts_add_set ep itsli' in
+                      let es = ts_evict_set ep itsli' in
                       MS.mem be as > MS.mem be es})
 
 val eac_evictedm_addb_diff_elem (itsl: its_log) 
@@ -209,8 +212,11 @@ val eac_evictedm_addb_diff_elem (itsl: its_log)
                                                     (let k = key_of e in
                                                      TL.is_eac_state_evicted_merkle itsli k)})
   : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
-                      let as = ts_add_set itsli' in
-                      let es = ts_evict_set itsli' in
+                      let e = I.index itsl i in
+                      let be = blum_add_elem e in
+                      let ep = MH.epoch_of be in
+                      let as = ts_add_set ep itsli' in
+                      let es = ts_evict_set ep itsli' in
                       MS.mem be as > MS.mem be es})
 
 val eac_evictedb_addb_diff_elem (itsl: its_log) 
@@ -223,47 +229,55 @@ val eac_evictedb_addb_diff_elem (itsl: its_log)
                                                     (let k = key_of e in
                                                      TL.is_eac_state_evicted_blum itsli k)})
   : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
-                      let as = ts_add_set itsli' in
-                      let es = ts_evict_set itsli' in
+                      let e = I.index itsl i in
+                      let be = blum_add_elem e in
+                      let ep = MH.epoch_of be in
+                      let as = ts_add_set ep itsli' in
+                      let es = ts_evict_set ep itsli' in
                       MS.mem be as > MS.mem be es}) 
 
 val eac_add_set_mem_atleast_evict_set_mem (itsl: TL.eac_log) (be: ms_hashfn_dom) (tid: valid_tid itsl):
   Lemma (requires (let k = MH.key_of be in
                    store_contains (TL.thread_store itsl tid) k))
-        (ensures (MS.mem be (ts_add_set itsl) >= MS.mem be (ts_evict_set itsl)))
+        (ensures (let ep = MH.epoch_of be in
+                  MS.mem be (ts_add_set ep itsl) >= MS.mem be (ts_evict_set ep itsl)))
 
-val lemma_add_seq_empty (itsl: its_log{I.length itsl = 0}):
-  Lemma (ensures (S.length (ts_add_seq itsl) = 0))
+val lemma_add_seq_empty (ep: epoch) (itsl: its_log{I.length itsl = 0}):
+  Lemma (ensures (S.length (ts_add_seq ep itsl) = 0))
 
-val lemma_evict_seq_empty (itsl: its_log{I.length itsl = 0}):
-  Lemma (ensures (S.length (ts_evict_seq itsl) = 0))
+val lemma_evict_seq_empty (ep: epoch) (itsl: its_log{I.length itsl = 0}):
+  Lemma (ensures (S.length (ts_evict_seq ep itsl) = 0))
 
 val lemma_add_seq_extend (itsl: its_log{I.length itsl > 0}):
   Lemma (requires (is_blum_add (I.telem itsl)))
         (ensures (let i = I.length itsl - 1 in
                   let itsl' = I.prefix itsl i in
                   let e = I.index itsl i in
-                  ts_add_seq itsl == 
-                  SA.append1 (ts_add_seq itsl') (blum_add_elem e)))
+                  let be = blum_add_elem e in
+                  let ep = MH.epoch_of be in
+                  ts_add_seq ep itsl ==
+                  SA.append1 (ts_add_seq ep itsl') be))
                                        
-val lemma_add_seq_extend2 (itsl: its_log{I.length itsl > 0}):
+val lemma_add_seq_extend2 (ep: epoch) (itsl: its_log{I.length itsl > 0}):
   Lemma (requires (not (is_blum_add (I.telem itsl))))
         (ensures (let i = I.length itsl - 1 in
                   let itsl' = I.prefix itsl i in
                   let e = I.index itsl i in
-                  ts_add_seq itsl == 
-                  ts_add_seq itsl'))
+                  ts_add_seq ep itsl ==
+                  ts_add_seq ep itsl'))
 
 val lemma_evict_seq_extend (itsl: its_log{I.length itsl > 0}):
   Lemma (requires (is_evict_to_blum (I.telem itsl)))
         (ensures (let i = I.length itsl - 1 in
                   let itsl' = I.prefix itsl i in
-                  ts_evict_seq itsl == 
-                  SA.append1 (ts_evict_seq itsl') (blum_evict_elem itsl i)))
+                  let be = blum_evict_elem itsl i in
+                  let ep = MH.epoch_of be in
+                  ts_evict_seq ep itsl ==
+                  SA.append1 (ts_evict_seq ep itsl') be))
                                        
-val lemma_evict_seq_extend2 (itsl: its_log{I.length itsl > 0}):
+val lemma_evict_seq_extend2 (ep: epoch) (itsl: its_log{I.length itsl > 0}):
   Lemma (requires (not (is_evict_to_blum (I.telem itsl))))
         (ensures (let i = I.length itsl - 1 in
                   let itsl' = I.prefix itsl i in
-                  ts_evict_seq itsl == 
-                  ts_evict_seq itsl'))
+                  ts_evict_seq ep itsl ==
+                  ts_evict_seq ep itsl'))

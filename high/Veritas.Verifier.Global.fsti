@@ -133,7 +133,7 @@ val g_evict_seq (ep: epoch) (gl: verifiable_log): seq ms_hashfn_dom
 let g_evict_set (ep: epoch) (gl: verifiable_log): mset_ms_hashfn_dom =
   seq2mset #_ #ms_hashfn_dom_cmp (g_evict_seq ep gl)
 
-val lemma_ghevict_correct (gl: verifiable_log) (ep: epoch):
+val lemma_ghevict_correct (ep: epoch) (gl: verifiable_log):
   Lemma (hevict gl ep = ms_hashfn (g_evict_seq ep gl))
 
 (* the global evict set is a set (not a multiset) *)

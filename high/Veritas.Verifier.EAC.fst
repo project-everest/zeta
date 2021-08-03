@@ -50,7 +50,7 @@ let lemma_non_eac_init_nonkey
 let lemma_non_eac_init_requires_key_in_store
   (itsl: neac_log {
     eac_boundary_state_pre itsl = EACInit /\
-    requires_key_in_store (eac_boundary_entry itsl) /\
+  requires_key_in_store (eac_boundary_entry itsl) /\
     Root <> key_of (eac_boundary_entry itsl)
   }):
   hash_collision_gen =
@@ -98,25 +98,21 @@ let lemma_non_eac_init_addb
   // the blum add element corresponding to the boundary
   let e = I.index itsl i in
   let k = key_of e in
-  let be = blum_add_elem (I.index itsl i) in
+  let be = blum_add_elem e in
 
-  (* non-eac'ness happens before epoch epmax *)
-  let clk = TL.clock itsl i in
-  let ep = epoch_of clk in
+  let ep = MH.epoch_of be in
   assert(ep <= epmax);
-  admit()
-(*
+
   // since k is in init_state after processing i entries, there cannot
   // be a prior entry for k
   lemma_eac_state_init_no_entry itsli k;
-  //assert(not (has_some_entry_of_key itsli k));
+  assert(not (has_some_entry_of_key itsli k));
 
-  if ts_evict_set itsl `MS.contains` be then (
+  if ts_evict_set ep itsl `MS.contains` be then (
     (* the evict that corresponds to blum add happens before i *)
-    let j = index_blum_evict itsl be in
+    let j = index_blum_evict ep itsl be in
     lemma_evict_before_add itsl i;
-    //assert(j < i);
-
+    assert(j < i);
     (* this emplies itsli contains an entry with key k *)
     (* a contradiction *)
     assert(index (I.i_seq itsli) j = I.index itsli j);
@@ -126,17 +122,19 @@ let lemma_non_eac_init_addb
   else (
     (* since be is in add set, but not in evict set they cannot be the same *)
     lemma_add_elem_correct itsl i;
-    lemma_ts_add_set_correct itsl;
-    lemma_ts_evict_set_correct itsl;
-    MS.not_eq (g_add_set gl) (g_evict_set gl) be;
-    //assert(~ (g_add_set gl == g_evict_set gl));
+    assert(ts_add_set ep itsl `MS.contains` be);
+    lemma_ts_add_set_correct ep itsl;
+    lemma_ts_evict_set_correct ep itsl;
+    MS.not_eq (g_add_set ep gl) (g_evict_set ep gl) be;
+    assert(~ (g_add_set ep gl == g_evict_set ep gl));
 
-    lemma_g_hadd_correct gl;
-    lemma_ghevict_correct gl;
-
-    MultiHashCollision (MSCollision (g_add_seq gl) (g_evict_seq gl))
+    lemma_g_hadd_correct ep gl;
+    lemma_ghevict_correct ep gl;
+    assert(VG.hash_verifiable_prop gl epmax ep);
+    assert(VG.hash_verifiable_epoch gl ep);
+    assert(VG.hadd gl ep = VG.hevict gl ep);
+    MultiHashCollision (MSCollision (g_add_seq ep gl) (g_evict_seq ep gl))
   )
-  *)
 
 let lemma_non_eac_init_addm
   (itsl: neac_log{
