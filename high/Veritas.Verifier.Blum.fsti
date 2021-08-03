@@ -47,6 +47,11 @@ let ts_add_set_key (ep: epoch) (itsl: its_log) (k:key): mset_ms_hashfn_dom
 val lemma_ts_add_set_correct (ep: epoch) (itsl: its_log):
   Lemma (ts_add_set ep itsl == g_add_set ep (g_vlog_of itsl))
 
+(* the epoch of every element in the add-set of an epoch ep is ep *)
+val lemma_ts_add_set_epoch_correct (ep: epoch) (itsl: its_log) (be: ms_hashfn_dom):
+  Lemma (requires (ts_add_set ep itsl `MS.contains` be))
+  (ensures (MH.epoch_of be = ep))
+
 (* if the tail element is a blum add, then the add set is obtained by adding that 
  * blum add to the prefix *)
 val lemma_ts_add_set_key_extend (itsl: its_log {I.length itsl > 0}):
@@ -94,6 +99,11 @@ let ts_evict_set_key (ep: epoch) (itsl: its_log) (k:key): mset_ms_hashfn_dom=
 (* the blum evicts in time sequenced log should be the same as global evict set *)
 val lemma_ts_evict_set_correct (ep: epoch) (itsl: its_log):
   Lemma (ts_evict_set ep itsl == g_evict_set ep (g_vlog_of itsl))
+
+(* the epoch of every element in the add-set of an epoch ep is ep *)
+val lemma_ts_evict_set_epoch_correct (ep: epoch) (itsl: its_log) (be: ms_hashfn_dom):
+  Lemma (requires (ts_evict_set ep itsl `MS.contains` be))
+  (ensures (MH.epoch_of be = ep))
 
 (* if the tail element is not an evict, the evict set is the same as the evict 
  * set of the length - 1 prefix 

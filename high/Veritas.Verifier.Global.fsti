@@ -77,6 +77,9 @@ let hash_verifiable (epmax: epoch) (gl: verifiable_log) =
 (* hash verifiable upto epoch ep *)
 let hash_verifiable_log (ep: epoch) = gl:verifiable_log{hash_verifiable ep gl}
 
+val hadd_hevict_equal (epmax: epoch) (gl: hash_verifiable_log epmax) (ep: epoch{ep <= epmax}):
+  Lemma (ensures (hadd gl ep = hevict gl ep))
+
 (* 
  * return the clock of a particular log entry. the index i here 
  * is a pair that identifies the verifier thread and an entry
