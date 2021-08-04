@@ -284,80 +284,110 @@ let lemma_evict_elem_unique2 (ep: epoch) (gl: verifiable_log):
   ()
 
 
-let lemma_evict_elem_count (gl: verifiable_log) (x: ms_hashfn_dom):
-  Lemma (count x (g_evict_seq gl) <= 1) =
-  lemma_evict_elem_unique2 gl;
-  lemma_uniq_prop_counts (g_evict_seq gl) x;
+let lemma_evict_elem_count (ep: epoch) (gl: verifiable_log) (x: ms_hashfn_dom):
+  Lemma (count x (g_evict_seq ep gl) <= 1) =
+  lemma_evict_elem_unique2 ep gl;
+  lemma_uniq_prop_counts (g_evict_seq ep gl) x;
   ()
 
 (* the global evict set is a set (not a multiset) *)
-let g_evict_set_is_set (gl: verifiable_log):
-  Lemma (is_set (g_evict_set gl)) =
-  let es = g_evict_set gl in
+let g_evict_set_is_set (ep: epoch) (gl: verifiable_log):
+  Lemma (is_set (g_evict_set ep gl)) =
+  let es = g_evict_set ep gl in
   let aux (x:ms_hashfn_dom):
     Lemma (requires True)
           (ensures (MS.mem x es <= 1))
           [SMTPat (MS.mem x es)] =
-    lemma_evict_elem_count gl x;
-    seq2mset_mem #_ #ms_hashfn_dom_cmp (g_evict_seq gl) x
+    lemma_evict_elem_count ep gl x;
+    seq2mset_mem #_ #ms_hashfn_dom_cmp (g_evict_seq ep gl) x
   in
   //assert(is_set es);
   ()
 
 #push-options "--z3rlimit_factor 3"
 
-let rec evict_seq_map_aux (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
-  Tot (j: seq_index (g_evict_seq gl) {index (g_evict_seq gl) j =
-                                      blum_evict_elem gl ii})
+let rec evict_seq_map (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
+  Tot (let e = indexss gl ii in
+   let be = blum_evict_elem gl ii in
+   let ep = epoch_of be in
+   let evict_seq = g_evict_seq ep gl in
+   j: seq_index evict_seq {index evict_seq j = be})
   (decreases (length gl)) =
   let (tid, i) = ii in
+  let be = blum_evict_elem gl ii in
+  let ep = epoch_of be in
   let p = length gl in
   let gl' = prefix gl (p - 1) in
-  let s' = g_evict_seq gl' in
+  let s' = g_evict_seq ep gl' in
   let tl = thread_log gl (p - 1) in
   if tid = p - 1 then
     length s' + VT.evict_seq_map tl i
   else
-    evict_seq_map_aux gl' ii
+    evict_seq_map gl' ii
 #pop-options
 
-let evict_seq_map = evict_seq_map_aux
-
 #push-options "--z3rlimit_factor 3"
-let rec evict_seq_map_inv_aux (gl: verifiable_log) (j: seq_index (g_evict_seq gl)):
-  Tot (ii: sseq_index gl {is_evict_to_blum (indexss gl ii) /\
-                          blum_evict_elem gl ii = index (g_evict_seq gl) j /\
-                          evict_seq_map gl ii = j})
+
+let rec evict_seq_map_inv (ep: epoch) (gl: verifiable_log) (j: seq_index (g_evict_seq ep gl)):
+  Tot (ii: sseq_index gl {let e = indexss gl ii in
+                      is_evict_to_blum e /\
+                      (let be = blum_evict_elem gl ii in
+                       let evict_seq = g_evict_seq ep gl in
+                       be = index evict_seq j /\
+                       evict_seq_map gl ii = j /\
+                       ep = epoch_of be)})
   (decreases (length gl)) =
   let p = length gl in
   let gl' = prefix gl (p - 1) in
-  let s' = g_evict_seq gl' in
+  let s' = g_evict_seq ep gl' in
   let tl = thread_log gl (p - 1) in
-  let s = g_evict_seq gl in
+  let s = g_evict_seq ep gl in
 
   if j < length s' then
-    evict_seq_map_inv_aux gl' j
+    evict_seq_map_inv ep gl' j
   else
     let j' = j - length s' in
-    let i = VT.evict_seq_inv_map tl j' in
+    let i = VT.evict_seq_inv_map ep tl j' in
     (p-1, i)
 #pop-options
 
-
-let evict_seq_map_inv = evict_seq_map_inv_aux
-
-let rec lemma_evict_seq_inv_aux (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
-  Lemma (requires True)
-        (ensures (evict_seq_map_inv gl (evict_seq_map gl ii) = ii))
+let rec lemma_evict_seq_inv (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
+  Lemma (ensures (let e = indexss gl ii in
+                  let be = blum_evict_elem gl ii in
+                  let ep = epoch_of be in
+                  let j = evict_seq_map gl ii in
+                  evict_seq_map_inv ep gl j = ii))
         (decreases (length gl)) =
   let (tid,i) = ii in
+  let e = indexss gl ii in
+  let be = blum_evict_elem gl ii in
+  let ep = epoch_of be in
   let p = length gl in
   let gl' = prefix gl (p - 1) in
-  let s' = g_evict_seq gl' in
+  let s' = g_evict_seq ep gl' in
   let tl = thread_log gl (p - 1) in
 
   if tid = p - 1 then ()
   else
-    lemma_evict_seq_inv_aux gl' ii
+    lemma_evict_seq_inv gl' ii
 
-let lemma_evict_seq_inv = lemma_evict_seq_inv_aux
+let rec prefix_upto_epoch (ep: epoch) (gl: verifiable_log):
+  Tot (gl':verifiable_log {length gl' = length gl})
+  (decreases (length gl)) =
+
+  let p = length gl in
+  if p = 0 then empty #(vlog)
+  else (
+    let gl' = prefix gl (p - 1) in
+    let pgl' = prefix_upto_epoch ep gl' in
+    let _, lep = VT.prefix_upto_epoch ep (thread_log gl (p - 1)) in
+    let pgl = append1 pgl' lep in
+    let aux (tid: seq_index pgl):
+      Lemma (ensures (VT.verifiable (thread_log pgl tid)))
+            [SMTPat (thread_log pgl tid)] =
+      if tid = p - 1 then ()
+      else
+        assert(thread_log pgl tid = thread_log pgl' tid)
+    in
+    pgl
+  )
