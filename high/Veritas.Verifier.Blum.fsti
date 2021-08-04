@@ -74,6 +74,12 @@ val lemma_ts_add_set_key_contains_only (ep: epoch) (itsl: its_log) (k:key) (be: 
   Lemma (requires (ts_add_set_key ep itsl k `MS.contains` be))
         (ensures (MH.key_of be = k))
 
+val lemma_ts_add_set_key_epoch_correct (ep: epoch) (itsl: its_log) (be: ms_hashfn_dom):
+  Lemma (requires (let k = MH.key_of be in
+                   ts_add_set_key ep itsl k `MS.contains` be))
+        (ensures (let k = MH.key_of be in
+                  MH.epoch_of be = ep))
+
 (* get the blum evict element from an index *)
 let blum_evict_elem (itsl: its_log) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}):
   (e:ms_hashfn_dom{MH.key_of e = key_of (I.index itsl i)}) = TL.blum_evict_elem itsl i
@@ -158,15 +164,18 @@ val lemma_evict_add_count_same_evictedm (ep: epoch) (itsl: TL.eac_log) (k:key):
   Lemma (requires (is_eac_state_evicted_merkle itsl k))
         (ensures (MS.size (ts_add_set_key ep itsl k) = MS.size (ts_evict_set_key ep itsl k)))
 
-val lemma_mem_key_add_set_same (ep: epoch) (itsl: its_log) (be: ms_hashfn_dom):
-  Lemma (mem be (ts_add_set ep itsl) = mem be (ts_add_set_key ep itsl (MH.key_of be)))
+val lemma_mem_key_add_set_same (itsl: its_log) (be: ms_hashfn_dom):
+  Lemma (let ep = MH.epoch_of be in
+         mem be (ts_add_set ep itsl) = mem be (ts_add_set_key ep itsl (MH.key_of be)))
 
-val lemma_mem_key_evict_set_same (ep: epoch) (itsl: its_log) (be: ms_hashfn_dom):
-  Lemma (mem be (ts_evict_set ep itsl) = mem be (ts_evict_set_key ep itsl (MH.key_of be)))
+val lemma_mem_key_evict_set_same (itsl: its_log) (be: ms_hashfn_dom):
+  Lemma (let ep = MH.epoch_of be in
+         mem be (ts_evict_set ep itsl) = mem be (ts_evict_set_key ep itsl (MH.key_of be)))
 
 (* the count of an element can only decrease in a prefix of itsl *)
-val lemma_mem_monotonic (ep: epoch) (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length itsl}):
-  Lemma (mem be (ts_evict_set ep itsl) >= mem be (ts_evict_set ep (I.prefix itsl i)) /\
+val lemma_mem_monotonic (be:ms_hashfn_dom) (itsl: its_log) (i:nat{i <= I.length itsl}):
+  Lemma (let ep = MH.epoch_of be in
+         mem be (ts_evict_set ep itsl) >= mem be (ts_evict_set ep (I.prefix itsl i)) /\
          mem be (ts_add_set ep itsl) >= mem be (ts_add_set ep (I.prefix itsl i)))
 
 (* the next add of a blum evict is a blum add of the same "element" *)
@@ -199,7 +208,7 @@ val lemma_add_set_mem (itsl: its_log) (i: I.seq_index itsl) (j:I.seq_index itsl{
                   let ep = MH.epoch_of be in
                   MS.mem (blum_add_elem (I.index itsl i)) (ts_add_set ep itsl) >= 2))
 
-val eac_instore_addb_diff_elem (itsl: its_log) 
+val eac_instore_addb_diff_elem (itsl: its_log)
                                (i: I.seq_index itsl{let itsli = I.prefix itsl i in
                                                     let e = I.index itsl i in
                                                     is_blum_add e /\
@@ -207,8 +216,6 @@ val eac_instore_addb_diff_elem (itsl: its_log)
                                                     (let k = key_of e in
                                                      TL.is_eac_state_instore itsli k)})
   : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
-                      let e = I.index itsl i in
-                      let be = blum_add_elem e in
                       let ep = MH.epoch_of be in
                       let as = ts_add_set ep itsli' in
                       let es = ts_evict_set ep itsli' in
@@ -222,8 +229,6 @@ val eac_evictedm_addb_diff_elem (itsl: its_log)
                                                     (let k = key_of e in
                                                      TL.is_eac_state_evicted_merkle itsli k)})
   : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
-                      let e = I.index itsl i in
-                      let be = blum_add_elem e in
                       let ep = MH.epoch_of be in
                       let as = ts_add_set ep itsli' in
                       let es = ts_evict_set ep itsli' in
@@ -239,8 +244,6 @@ val eac_evictedb_addb_diff_elem (itsl: its_log)
                                                     (let k = key_of e in
                                                      TL.is_eac_state_evicted_blum itsli k)})
   : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
-                      let e = I.index itsl i in
-                      let be = blum_add_elem e in
                       let ep = MH.epoch_of be in
                       let as = ts_add_set ep itsli' in
                       let es = ts_evict_set ep itsli' in

@@ -322,14 +322,14 @@ let lemma_non_eac_instore_addb
    * add multiset is > its membership in evict multiset *)
   let be = diff_elem (ts_add_set_key ep itsli' k) (ts_evict_set_key ep itsli' k) in
   // assert(MS.contains (ts_add_set_key ep itsli' k) be);
-
   lemma_ts_add_set_key_contains_only ep itsli' k be;
   // assert(MH.key_of be = k);
-  lemma_mem_key_add_set_same ep itsli' be;
-  lemma_mem_key_evict_set_same ep itsli' be;
+  lemma_ts_add_set_key_epoch_correct ep itsli' be;
+  // assert(MH.epoch_of be = ep);
+
+  lemma_mem_key_add_set_same itsli' be;
+  lemma_mem_key_evict_set_same itsli' be;
   // assert(MS.mem be (ts_add_set ep itsli') > MS.mem be (ts_evict_set ep itsli'));
-  lemma_ts_add_set_epoch_correct ep itsli' be;
-  // assert(ep = MH.epoch_of be);
 
   (* the index of be in the add set *)
   let i_be = some_add_elem_idx ep itsli' be in
@@ -342,8 +342,8 @@ let lemma_non_eac_instore_addb
   assert(MS.mem be (ts_evict_set ep itsl) = MS.mem be (ts_evict_set ep (I.prefix itsl i_be)));
 
   (* any set membership is monotonic *)
-  lemma_mem_monotonic ep be itsl (i + 1);
-  lemma_mem_monotonic ep be itsli' i_be;
+  lemma_mem_monotonic be itsl (i + 1);
+  lemma_mem_monotonic be itsli' i_be;
   assert(MS.mem be (ts_add_set ep itsl) >= MS.mem be (ts_add_set ep itsli'));
   assert(MS.mem be (ts_evict_set ep itsl) = MS.mem be (ts_evict_set ep itsli'));
 
@@ -815,12 +815,12 @@ let lemma_non_eac_evicted_merkle_addb
       let be = diff_elem (ts_add_set_key ep itsli' k) (ts_evict_set_key ep itsli' k) in
       lemma_ts_add_set_key_contains_only ep itsli' k be;
       // assert(MH.key_of be = k);
-
-      lemma_mem_key_add_set_same ep itsli' be;
-      lemma_mem_key_evict_set_same ep itsli' be;
-      assert(MS.mem be (ts_add_set ep itsli') > MS.mem be (ts_evict_set ep itsli'));
-      lemma_ts_add_set_epoch_correct ep itsli' be;
+      lemma_ts_add_set_key_epoch_correct ep itsli' be;
       assert(ep = MH.epoch_of be);
+
+      lemma_mem_key_add_set_same itsli' be;
+      lemma_mem_key_evict_set_same itsli' be;
+      assert(MS.mem be (ts_add_set ep itsli') > MS.mem be (ts_evict_set ep itsli'));
 
       (* the index of be in the add set *)
       let i_be = some_add_elem_idx ep itsli' be in
@@ -832,8 +832,8 @@ let lemma_non_eac_evicted_merkle_addb
              MS.mem be (ts_evict_set ep (I.prefix itsl i_be)));
 
       (* any set membership is monotonic *)
-      lemma_mem_monotonic ep be itsl (i + 1);
-      lemma_mem_monotonic ep be itsli' i_be;
+      lemma_mem_monotonic be itsl (i + 1);
+      lemma_mem_monotonic be itsli' i_be;
       assert(MS.mem be (ts_add_set ep itsl) >= MS.mem be (ts_add_set ep itsli'));
       assert(MS.mem be (ts_evict_set ep itsl) = MS.mem be (ts_evict_set ep itsli'));
 

@@ -1986,3 +1986,56 @@ let lemma_blum_evict_def (itsl: its_log)
   VT.lemma_verifiable_implies_prefix_verifiable tl (j + 1);
   VT.lemma_state_transition tl j;
   I.interleave_sseq_index itsl i
+
+let epoch_post (itsl: its_log) (i: I.seq_index itsl) =
+  let MkTimestamp e _ = clock itsl i in
+  e
+
+let epoch_pre (itsl: its_log) (i: nat{i <= I.length itsl}) =
+  if i = 0 then 0
+  else epoch_post itsl (i - 1)
+
+let rec max_epoch_index_search (ep: epoch) (itsl: its_log) (i: nat { i <= I.length itsl }):
+  Tot (j: nat { j <= i /\ epoch_pre itsl j <= ep /\
+              (j = i \/ epoch_post itsl j > ep)})
+  (decreases i) =
+  if epoch_pre itsl i <= ep then i
+  else
+    max_epoch_index_search ep itsl (i - 1)
+
+let prefix_upto_epoch (ep: epoch) (itsl: its_log) =
+  let i = max_epoch_index_search ep itsl (I.length itsl) in
+  I.prefix itsl i
+
+let lemma_prefix_upto_epoch (ep: epoch) (itsl: its_log):
+  Lemma (ensures (g_vlog_of (prefix_upto_epoch ep itsl) = VG.prefix_upto_epoch ep (g_vlog_of itsl))) = admit()
+
+let lemma_neac_before_epoch (ep: epoch) (itsl: neac_before_epoch ep):
+  Lemma (ensures (not (is_eac itsl) /\
+                  (let i = eac_boundary itsl in
+                   let MkTimestamp e _ = clock itsl i in
+                   e <= ep))) =
+  let j = max_epoch_index_search ep itsl (I.length itsl) in
+  let itsl_ep = prefix_upto_epoch ep itsl in
+  assert(itsl_ep == I.prefix itsl j);
+  let i = eac_boundary itsl in
+  let MkTimestamp e _ = clock itsl i in
+  assert(not (is_eac itsl_ep));
+
+  let aux(): Lemma (i < j) =
+    if i < j then ()
+    else (
+      let itsli = I.prefix itsl i in
+      assert(is_eac itsli);
+      lemma_eac_implies_prefix_eac itsli j;
+      ()
+    )
+  in
+  aux();
+  assert(i < j);
+
+  let clkj_pre = clock itsl (j - 1) in
+  let clki = clock itsl i in
+  assert(clki `ts_leq` clkj_pre);
+
+  ()

@@ -570,10 +570,6 @@ val lemma_blum_evict_def (itsl: its_log)
                    | EvictB _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid
                    | EvictBM _ _ t -> blum_evict_elem itsl i = MHDom (k,v) t tid)))
 
-let epoch_of (itsl: its_log) (i: I.seq_index itsl) =
-  let MkTimestamp e _ = clock itsl i in
-  e
-
 (* prefix of a clock sorted log truncated upto epoch ep *)
 val prefix_upto_epoch (ep: epoch) (itsl: its_log): its_log
 
