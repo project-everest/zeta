@@ -2007,8 +2007,57 @@ let prefix_upto_epoch (ep: epoch) (itsl: its_log) =
   let i = max_epoch_index_search ep itsl (I.length itsl) in
   I.prefix itsl i
 
+let lemma_prefix_upto_epoch_aux (ep: epoch) (itsl: its_log) (tid: valid_tid itsl):
+  Lemma (ensures (let gl = g_vlog_of itsl in
+                  let tl = VG.thread_log gl tid in
+                  let _, l_ep = VT.prefix_upto_epoch ep tl in
+                  let itsl_ep = prefix_upto_epoch ep itsl in
+                  let gl_ep = g_vlog_of itsl_ep in
+                  l_ep = S.index gl_ep tid)) =
+  let i = max_epoch_index_search ep itsl (I.length itsl) in
+  let itsl_ep = prefix_upto_epoch ep itsl in
+  assert(itsl_ep == I.prefix itsl i);
+  I.per_thread_prefix itsl i;
+
+  let gl = g_vlog_of itsl in
+  let l = S.index gl tid in
+
+  let gl_ep = g_vlog_of itsl_ep in
+  let l_ep = S.index gl_ep tid in
+  assert(l_ep `prefix_of` l);
+
+  admit()
+
+let lemma_global_prefix_upto_epoch (ep: epoch) (gl: VG.verifiable_log) (tid: seq_index gl):
+  Lemma (ensures (let tl = VG.thread_log gl tid in
+                  let _, l_ep = VT.prefix_upto_epoch ep tl in
+                  let gl_ep = VG.prefix_upto_epoch ep gl in
+                  l_ep = S.index gl_ep tid)) = admit()
+
+let lemma_prefix_upto_epoch_tid (ep: epoch) (itsl: its_log) (tid: valid_tid itsl):
+  Lemma (ensures (let gl = g_vlog_of itsl in
+                  let gl_ep = VG.prefix_upto_epoch ep gl in
+                  let itsl_ep = prefix_upto_epoch ep itsl in
+                  let gl_ep2 = g_vlog_of itsl_ep in
+                  S.index gl_ep tid == S.index gl_ep2 tid)) =
+  let gl = g_vlog_of itsl in
+  lemma_prefix_upto_epoch_aux ep itsl tid;
+  lemma_global_prefix_upto_epoch ep gl tid;
+  ()
+
 let lemma_prefix_upto_epoch (ep: epoch) (itsl: its_log):
-  Lemma (ensures (g_vlog_of (prefix_upto_epoch ep itsl) = VG.prefix_upto_epoch ep (g_vlog_of itsl))) = admit()
+  Lemma (ensures (g_vlog_of (prefix_upto_epoch ep itsl) = VG.prefix_upto_epoch ep (g_vlog_of itsl))) =
+  let gl = g_vlog_of itsl in
+  let itsl_ep = prefix_upto_epoch ep itsl in
+  let gl_ep1 = g_vlog_of itsl_ep in
+  let gl_ep2 = VG.prefix_upto_epoch ep gl in
+  assert(S.length gl_ep1 = S.length gl_ep2);
+  let aux(tid: seq_index gl_ep1):
+    Lemma (ensures (S.index gl_ep1 tid == S.index gl_ep2 tid)) =
+    lemma_prefix_upto_epoch_tid ep itsl tid
+  in
+  FStar.Classical.forall_intro aux;
+  lemma_eq_intro gl_ep1 gl_ep2
 
 let lemma_neac_before_epoch (ep: epoch) (itsl: neac_before_epoch ep):
   Lemma (ensures (not (is_eac itsl) /\
