@@ -392,9 +392,15 @@ let rec prefix_upto_epoch (ep: epoch) (gl: verifiable_log):
     pgl
   )
 
-let lemma_prefix_upto_epoch (ep: epoch) (gl: verifiable_log) (tid: seq_index gl):
+let rec lemma_prefix_upto_epoch (ep: epoch) (gl: verifiable_log) (tid: seq_index gl):
   Lemma (ensures (let tl = thread_log gl tid in
                   let _, l_ep = VT.prefix_upto_epoch ep tl in
                   let gl_ep = prefix_upto_epoch ep gl in
-                  l_ep = index gl_ep tid)) =
-  admit()
+                  l_ep = index gl_ep tid))
+  (decreases (length gl)) =
+  let n = length gl in
+  assert(n > 0);
+
+  if tid = n - 1 then ()
+  else
+    lemma_prefix_upto_epoch ep (prefix gl (n - 1)) tid
