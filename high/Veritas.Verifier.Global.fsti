@@ -175,3 +175,9 @@ val lemma_evict_seq_inv (gl: verifiable_log) (ii: sseq_index gl {is_evict_to_blu
         [SMTPat (evict_seq_map gl ii)]
 
 val prefix_upto_epoch (ep: epoch) (gl: verifiable_log): (gl': verifiable_log { length gl' = length gl })
+
+val lemma_prefix_upto_epoch (ep: epoch) (gl: verifiable_log) (tid: seq_index gl):
+  Lemma (ensures (let tl = thread_log gl tid in
+                  let _, l_ep = VT.prefix_upto_epoch ep tl in
+                  let gl_ep = prefix_upto_epoch ep gl in
+                  l_ep = index gl_ep tid))

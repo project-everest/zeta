@@ -218,7 +218,7 @@ let coerce_interleave (#a:eqtype) (s:seq a) (s0 s1:sseq a) (i:interleave s s0 { 
   : interleave s s1
   = i
 
-#push-options "--z3rlimit_factor 5"
+#push-options "--z3rlimit_factor 6"
 let rec interleave_ts_sseq
          (#a:eqtype)
          (s0:ts_seq a)
@@ -2021,18 +2021,61 @@ let lemma_prefix_upto_epoch_aux (ep: epoch) (itsl: its_log) (tid: valid_tid itsl
 
   let gl = g_vlog_of itsl in
   let l = S.index gl tid in
+  let tl = VG.thread_log gl tid in
+  let _, l_ep2 = VT.prefix_upto_epoch ep tl in
 
   let gl_ep = g_vlog_of itsl_ep in
-  let l_ep = S.index gl_ep tid in
-  assert(l_ep `prefix_of` l);
+  let l_ep1 = S.index gl_ep tid in
 
-  admit()
+  assert(l_ep1 `prefix_of` l);
+  assert(l_ep2 `prefix_of` l);
 
-let lemma_global_prefix_upto_epoch (ep: epoch) (gl: VG.verifiable_log) (tid: seq_index gl):
-  Lemma (ensures (let tl = VG.thread_log gl tid in
-                  let _, l_ep = VT.prefix_upto_epoch ep tl in
-                  let gl_ep = VG.prefix_upto_epoch ep gl in
-                  l_ep = S.index gl_ep tid)) = admit()
+  let i1 = S.length l_ep1 in
+  let i2 = S.length l_ep2 in
+
+  if i1 = i2 then ()
+  else if i1 < i2 then (
+
+    let i' = s2i_map itsl (tid, i1) in
+    let aux(): Lemma (i' >= i) =
+      if i' >= i then ()
+      else
+        lemma_i2s_map_prefix itsl i i'
+    in
+    aux();
+    assert(i' >= i);
+    // assert(i < I.length itsl);
+    // assert(i2s_map il i' = (tid, i1));
+    // assert(clock itsl i' = VT.clock tl i1);
+
+    // let MkTimestamp ep2 _ = VT.clock tl (i2 - 1) in
+    // assert(ep2 <= ep);
+
+    VT.lemma_clock_monotonic tl i1 (i2 - 1);
+    // let MkTimestamp ep1 _ = VT.clock tl i1 in
+    // assert(ep1 <= ep2);
+
+    // let MkTimestamp epi _ = clock itsl i in
+    // assert(epi > ep);
+
+    assert(clock itsl i `ts_leq` clock itsl i');
+    // assert(False);
+    ()
+  )
+  else (
+    let i' = s2i_map itsl_ep (tid, i2) in
+    //assert(i' < i);
+
+    //assert(i2 < S.length l);
+    //let MkTimestamp ep2 _ = VT.clock tl i2 in
+    // assert(ep2 > ep);
+
+    assert(clock itsl i' `ts_leq` clock itsl (i-1));
+    lemma_i2s_map_prefix itsl i i';
+    // assert(clock itsl i' = VT.clock tl i2);
+    //assert(False);
+    ()
+  )
 
 let lemma_prefix_upto_epoch_tid (ep: epoch) (itsl: its_log) (tid: valid_tid itsl):
   Lemma (ensures (let gl = g_vlog_of itsl in
@@ -2042,7 +2085,7 @@ let lemma_prefix_upto_epoch_tid (ep: epoch) (itsl: its_log) (tid: valid_tid itsl
                   S.index gl_ep tid == S.index gl_ep2 tid)) =
   let gl = g_vlog_of itsl in
   lemma_prefix_upto_epoch_aux ep itsl tid;
-  lemma_global_prefix_upto_epoch ep gl tid;
+  VG.lemma_prefix_upto_epoch ep gl tid;
   ()
 
 let lemma_prefix_upto_epoch (ep: epoch) (itsl: its_log):
