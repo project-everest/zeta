@@ -49,10 +49,9 @@ val lemma_prefix_verifiable (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length 
 
 val create (#vcfg:_) (gl: verifiable_log vcfg): (itsl:its_log vcfg{g_logS_of itsl == gl})
 
-let hash_verifiable #vcfg (itsl: its_log vcfg) = IntG.hash_verifiable (g_logS_of itsl)
+let hash_verifiable #vcfg (ep: epoch) (itsl: its_log vcfg) = IntG.hash_verifiable ep (g_logS_of itsl)
 
-let hash_verifiable_log vcfg = itsl: its_log vcfg{hash_verifiable itsl}
-
+let hash_verifiable_log vcfg ep = itsl: its_log vcfg{hash_verifiable ep itsl}
 
 let thread_id_of #vcfg (il: its_log vcfg) (i: I.seq_index il): valid_tid il =
   fst (I.i2s_map il i)
@@ -197,11 +196,10 @@ val lemma_vtls_rel_implies_spec_clock_sorted (#vcfg:_) (ils:its_log vcfg)
                     SpecTS.clock_sorted ilk))
           [SMTPat (forall_vtls_rel ils)]
 
-val lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vcfg)
+val lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ep: epoch) (ils:hash_verifiable_log vcfg ep)
   : Lemma (requires (forall_vtls_rel ils))
           (ensures (let ilk = to_logk ils in
-                    SpecTS.hash_verifiable ilk))
-          [SMTPat (forall_vtls_rel ils)]
+                    SpecTS.hash_verifiable ep ilk))
 
 let spec_rel #vcfg (ils: its_log vcfg) = 
   forall_store_ismap ils /\

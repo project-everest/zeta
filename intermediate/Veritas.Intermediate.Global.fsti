@@ -32,39 +32,45 @@ val verifiable_implies_prefix_verifiable
   Lemma (ensures (verifiable #vcfg (SA.prefix gl i)))
         [SMTPat (SA.prefix gl i)]
 
-let rec hadd_aux #vcfg (gl: verifiable_log vcfg): 
+let rec hadd_aux #vcfg (gl: verifiable_log vcfg) (ep: epoch):
   Tot (ms_hash_value)
   (decreases (S.length gl)) = 
   let p = S.length gl in
   if p = 0 then empty_hash_value
   else  (
     let gl' = SA.prefix gl (p - 1) in
-    let h1 = hadd_aux gl' in
-    let h2 = IntT.hadd (thread_log gl (p - 1)) in
+    let h1 = hadd_aux gl' ep in
+    let h2 = IntT.hadd (thread_log gl (p - 1)) ep in
     ms_hashfn_agg h1 h2
   )
 
-let hadd #vcfg (gl: verifiable_log vcfg): ms_hash_value = 
-  hadd_aux gl
+let hadd #vcfg (gl: verifiable_log vcfg) (ep: epoch): ms_hash_value =
+  hadd_aux gl ep
 
-let rec hevict_aux #vcfg (gl: verifiable_log vcfg): 
+let rec hevict_aux #vcfg (gl: verifiable_log vcfg) (ep: epoch):
   Tot (ms_hash_value)
   (decreases (S.length gl)) = 
   let p = S.length gl in
   if p = 0 then empty_hash_value
   else  (
     let gl' = SA.prefix gl (p - 1) in
-    let h1 = hevict_aux gl' in
-    let h2 = IntT.hevict (thread_log gl (p - 1)) in
+    let h1 = hevict_aux gl' ep in
+    let h2 = IntT.hevict (thread_log gl (p - 1)) ep in
     ms_hashfn_agg h1 h2
   )
 
-let hevict (#vcfg:_) (gl: verifiable_log vcfg): ms_hash_value = hevict_aux gl
+let hevict (#vcfg:_) (gl: verifiable_log vcfg) (ep: epoch): ms_hash_value = hevict_aux gl ep
 
-let hash_verifiable #vcfg (gl: verifiable_log vcfg): bool = 
-  hadd gl = hevict gl
+let hash_verifiable_epoch #vcfg (gl: verifiable_log vcfg) (ep: epoch) =
+  hadd gl ep = hevict gl ep
 
-let hash_verifiable_log vcfg = gl:verifiable_log vcfg{hash_verifiable gl}
+let hash_verifiable_prop #vcfg (gl: verifiable_log vcfg) (epmax: epoch) (ep: epoch) =
+  ep <= epmax ==> hash_verifiable_epoch gl ep
+
+let hash_verifiable #vcfg (epmax: epoch) (gl: verifiable_log vcfg) =
+  forall (ep: epoch). {:pattern hash_verifiable_prop gl epmax ep} hash_verifiable_prop gl epmax ep
+
+let hash_verifiable_log vcfg (ep: epoch) = gl:verifiable_log vcfg{hash_verifiable ep gl}
 
 /// the the clock of a specific log entry
 /// 
@@ -74,44 +80,54 @@ let clock #vcfg (gl: verifiable_log vcfg) (i: sseq_index gl): timestamp =
   IntT.clock tl idx
 
 (* global add sequence *)
-val add_seq (#vcfg:_) (gl: verifiable_log vcfg): seq (ms_hashfn_dom)
+val add_seq (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg): seq (ms_hashfn_dom)
 
 (* multiset derived from all the blum adds in gl *)
-let add_set (#vcfg) (gl: verifiable_log vcfg): mset_ms_hashfn_dom =
-  seq2mset #_ #ms_hashfn_dom_cmp (add_seq gl)
+let add_set (#vcfg) (ep: epoch) (gl: verifiable_log vcfg): mset_ms_hashfn_dom =
+  seq2mset #_ #ms_hashfn_dom_cmp (add_seq ep gl)
 
 ///  the hadd that the verifier computes is the multiset hash of all the adds
-val lemma_g_hadd_correct (#vcfg:_) (gl: verifiable_log vcfg):
-  Lemma (ensures (hadd gl = ms_hashfn (add_seq gl)))
-        [SMTPat (verifiable gl)]
+val lemma_g_hadd_correct (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg):
+  Lemma (ensures (hadd gl ep = ms_hashfn (add_seq ep gl)))
 
 (* mapping from blum_add entries in verifier log to the index in add seq *)
 val add_set_map (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
-  (j: SA.seq_index (add_seq gl){S.index (add_seq gl) j = blum_add_elem (indexss gl ii)})
+  (let e = indexss gl ii in
+   let be = blum_add_elem e in
+   let ep = epoch_of be in
+   let as = add_seq ep gl in
+   j: SA.seq_index as {S.index as j = be})
 
 (* inverse mapping from add_seq to the blum add entries in the verifier logs *)
-val add_set_map_inv (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_index (add_seq gl)):
-  (ii: sseq_index gl {is_blum_add (indexss gl ii) /\ 
-                      add_set_map gl ii = j})
+val add_set_map_inv (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg) (j: SA.seq_index (add_seq ep gl)):
+  (ii: sseq_index gl {let e = indexss gl ii in
+                      is_blum_add e /\
+                      (let be = blum_add_elem e in
+                       let as = add_seq ep gl in
+                       be = S.index as j /\
+                       add_set_map gl ii = j /\
+                       ep = epoch_of be)})
 
 val lemma_add_set_map_inv (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_blum_add (indexss gl ii)}):
-  Lemma (ensures (add_set_map_inv gl (add_set_map gl ii) = ii))
+  Lemma (ensures (let e = indexss gl ii in
+                  let be = blum_add_elem e in
+                  let ep = epoch_of be in
+                  let j = add_set_map gl ii in
+                  add_set_map_inv ep gl j = ii))
         [SMTPat (add_set_map gl ii)]
 
 (* a single sequence containing all the blum evicts *)
-val evict_seq (#vcfg:_) (gl: verifiable_log vcfg): seq ms_hashfn_dom 
+val evict_seq (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg): seq ms_hashfn_dom
 
-let evict_set (#vcfg:_) (gl: verifiable_log vcfg): mset_ms_hashfn_dom = 
-  seq2mset #_ #ms_hashfn_dom_cmp (evict_seq gl)
+let evict_set (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg): mset_ms_hashfn_dom =
+  seq2mset #_ #ms_hashfn_dom_cmp (evict_seq ep gl)
 
-val lemma_ghevict_correct (#vcfg:_) (gl: verifiable_log vcfg):
-  Lemma (ensures (hevict gl = ms_hashfn (evict_seq gl)))
-        [SMTPat (verifiable gl)]
+val lemma_ghevict_correct (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg):
+  Lemma (ensures (hevict gl ep = ms_hashfn (evict_seq ep gl)))
 
 (* the global evict set is a set (not a multiset) *)
-val evict_set_is_set (#vcfg:_) (gl: verifiable_log vcfg): 
-  Lemma (ensures (is_set (evict_set gl)))
-        [SMTPat (verifiable gl)]
+val evict_set_is_set (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg):
+  Lemma (ensures (is_set (evict_set ep gl)))
 
 let blum_evict_elem (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
   ms_hashfn_dom = 
@@ -120,15 +136,24 @@ let blum_evict_elem (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_e
   IntT.blum_evict_elem tl i
 
 val evict_seq_map (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
-  (j: SA.seq_index (evict_seq gl) {S.index (evict_seq gl) j = 
-                                  blum_evict_elem gl ii})
+  (let e = indexss gl ii in
+   let be = blum_evict_elem gl ii in
+   let ep = epoch_of be in
+   let es = evict_seq ep gl in
+   j: SA.seq_index es {S.index es j = be})
 
-val evict_seq_map_inv (#vcfg:_) (gl: verifiable_log vcfg) (j: SA.seq_index (evict_seq gl)):
-  (ii: sseq_index gl {is_evict_to_blum (indexss gl ii) /\
-                      blum_evict_elem gl ii = S.index (evict_seq gl) j /\
-                      evict_seq_map gl ii = j})
+val evict_seq_map_inv (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg) (j: SA.seq_index (evict_seq ep gl)):
+  (ii: sseq_index gl {let e = indexss gl ii in
+                      is_evict_to_blum e /\
+                      (let be = blum_evict_elem gl ii in
+                       let es = evict_seq ep gl in
+                       be = S.index es j /\
+                       ep = epoch_of be /\
+                       evict_seq_map gl ii = j)})
 
 val lemma_evict_seq_inv (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {is_evict_to_blum (indexss gl ii)}):
-  Lemma (requires True)
-        (ensures (evict_seq_map_inv gl (evict_seq_map gl ii) = ii))
-        [SMTPat (evict_seq_map gl ii)]
+  Lemma (ensures (let e = indexss gl ii in
+                  let be = blum_evict_elem gl ii in
+                  let ep = epoch_of be in
+                  let j = evict_seq_map gl ii in
+                  evict_seq_map_inv ep gl j = ii))

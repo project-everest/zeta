@@ -18,26 +18,10 @@ module L = Veritas.Intermediate.Logs
 module S = Veritas.Intermediate.Store
 
 (* per-epoch aggregated hashes *)
-let epoch_hashes = epoch -> ms_hash_value
+let epoch_hash = Spec.epoch_hash
 
 (* initial epoch hashes - all hashes initialized to 0 (empty_hash_value) *)
-let init_epoch_hashes: epoch_hashes = fun e -> empty_hash_value
-
-(* update the hash of the epoch ep *)
-let upd_epoch_hash (ep2h: epoch_hashes) (ep: epoch) (e: ms_hashfn_dom): epoch_hashes =
-  (* previous hash of epoch ep *)
-  let h' = ep2h ep in
-  (* updated hash of epoch ep *)
-  let h = ms_hashfn_upd e h' in
-  fun ep' -> if ep = ep'
-          then h
-          else ep2h ep'
-
-(* aggregate epoch hashes upto epoch ep *)
-val aggr_epoch_hashes_upto (ep2h: epoch_hashes) (ep: epoch): ms_hash_value
-
-val lemma_init_epoch_aggr_empty (ep: epoch)
-  : Lemma (ensures (aggr_epoch_hashes_upto init_epoch_hashes ep = empty_hash_value))
+let init_epoch_hash = Spec.init_epoch_hash
 
 (* Thread-local state
    id     : thread id
@@ -52,8 +36,8 @@ type vtls vcfg =
     id : thread_id ->
     st : vstore vcfg ->
     clock : timestamp ->
-    hadd : epoch_hashes ->
-    hevict : epoch_hashes ->
+    hadd : epoch_hash ->
+    hevict : epoch_hash ->
     vtls vcfg
 
 (* get the store of a specified verifier thread *)
@@ -83,19 +67,19 @@ let thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) (ep:epoch): ms_hash_value =
 let thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) (ep: epoch): ms_hash_value =
   Valid?.hevict vs ep
 
-let update_thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) (ep: epoch) (e: ms_hashfn_dom): vtls _ =
+let update_thread_hadd #vcfg (vs:vtls vcfg {Valid? vs}) (ep: epoch) (el: ms_hashfn_dom): vtls _ =
   match vs with
   | Valid id st clock hadd hevict ->
-    let hadd = upd_epoch_hash hadd ep e in
+    let hadd = Spec.add_elem_to_epoch hadd ep el in
     Valid id st clock hadd hevict
 
-let update_thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) (ep: epoch) (e: ms_hashfn_dom): vtls _ =
+let update_thread_hevict #vcfg (vs:vtls vcfg {Valid? vs}) (ep: epoch) (el: ms_hashfn_dom): vtls _ =
   match vs with
   | Valid id st clock hadd hevict ->
-    let hevict = upd_epoch_hash hevict ep e in
+    let hevict = Spec.add_elem_to_epoch hevict ep el in
     Valid id st clock hadd hevict
 
-let epoch_of #vcfg (vs: vtls vcfg {Valid? vs}): epoch =
+let thread_epoch #vcfg (vs: vtls vcfg {Valid? vs}): epoch =
   match vs with
   | Valid _ _ (MkTimestamp ep _) _ _ -> ep
 
@@ -349,6 +333,8 @@ let vevictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs})
             update_thread_store vs st_upd
 
 let vaddb #vcfg (s:slot_id vcfg) (r:record) (t:timestamp) (j:thread_id) (vs:vtls _ {Valid? vs}): vtls _ =
+  (* epoch of timestamp of last evict *)
+  let ep = MkTimestamp?.e t in
   let st = thread_store vs in
   let (k,v) = r in
   (* check value type consistent with key k *)
@@ -356,20 +342,18 @@ let vaddb #vcfg (s:slot_id vcfg) (r:record) (t:timestamp) (j:thread_id) (vs:vtls
   (* check store contains slot s *)
   else if inuse_slot st s then Failed
   else
-    (* the record was previously evicted in epoch ep *)
-    let MkTimestamp ep c = t in
-
+    (* new element added to the add-set *)
+    let el = MHDom r t j in
     (* update add hash *)
-    let vs_upd = update_thread_hadd vs ep (MHDom (k,v) t j) in
-
+    let vs = update_thread_hadd vs ep el in
     (* update clock *)
     let clk = thread_clock vs in
     let clk_upd = Spec.max clk (next t) in
-    let vs_upd = update_thread_clock vs_upd clk_upd in
+    let vs = update_thread_clock vs clk_upd in
 
     (* add record to store *)
     let st_upd = badd_to_store st s k v in
-    update_thread_store vs_upd st_upd
+    update_thread_store vs st_upd
 
 let sat_evictb_checks #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs}): bool =
   let st = thread_store vs in
@@ -391,18 +375,15 @@ let sat_evictb_checks #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs
 
 let vevictb_update_hash_clock #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs /\ sat_evictb_checks s t vs}):
   (vs':vtls _ {Valid? vs'}) =
-
+  let ep = MkTimestamp?.e t in
   let st = thread_store vs in
   let k = stored_key st s in
   let v = stored_value st s in
-
-  let MkTimestamp ep _ = t in
-
+  let el = (MHDom (k,v) t (thread_id_of vs)) in
   (* update evict hash *)
-  let vs_upd = update_thread_hevict vs ep (MHDom (k,v) t (thread_id_of vs))  in
-
+  let vs = update_thread_hevict vs ep el  in
   (* update clock and return *)
-  update_thread_clock vs_upd t
+  update_thread_clock vs t
 
 let vevictb #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls _ {Valid? vs}): vtls _ =
   let st = thread_store vs in
@@ -448,8 +429,8 @@ let vevictbm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (t:timestamp) (vs:vtls vcf
             update_thread_store vs st
 
 let vnext_epoch #vcfg (vs: vtls vcfg{Valid? vs}): vtls _ =
-  let MkTimestamp ep _ = thread_clock vs in
-  let clk = MkTimestamp (ep + 1) 0 in
+  let e = thread_epoch vs in
+  let clk = MkTimestamp (e + 1) 0 in
   update_thread_clock vs clk
 
 let verify_step #vcfg (vs:vtls vcfg) (e:logS_entry vcfg): vtls vcfg =
@@ -557,6 +538,9 @@ val lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_)
                    Valid? (verify_step vs e)))
         (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e))))
 
+let all_epoch_hashes_equal (h1 h2: epoch_hash) =
+  forall (ep: epoch). h1 ep = h2 ep
+
 (* Relation between thread-local states
    * either both states have Failed
    * or both are Valid with equal contents
@@ -565,11 +549,8 @@ let vtls_rel #vcfg (vs:vtls vcfg) (vs':Spec.vtls) : Type =
   (Failed? vs /\ Spec.Failed? vs') \/
   (Valid? vs /\ Spec.Valid? vs' /\
    (let Valid id st clk ha he = vs in
-    let Spec.Valid id' st' clk' _ ha' he' _ = vs' in
-    let MkTimestamp ep _ = clk in
-    let ha = aggr_epoch_hashes_upto ha ep in
-    let he = aggr_epoch_hashes_upto he ep in
-    store_rel st st' /\ id = id' /\ clk = clk' /\ ha = ha' /\ he = he'))
+    let Spec.Valid id' st' clk' _ ha' he' = vs' in
+    store_rel st st' /\ id = id' /\ clk = clk' /\ all_epoch_hashes_equal ha ha' /\ all_epoch_hashes_equal he he'))
 
 val lemma_vget_simulates_spec
       (#vcfg:_)
@@ -720,7 +701,7 @@ val lemma_evictbm_simulates_spec
 
 
 let init_thread_state #vcfg (tid:thread_id) (st:vstore _): vtls vcfg =
-  Valid tid st (MkTimestamp 0 0) init_epoch_hashes init_epoch_hashes
+  Valid tid st (MkTimestamp 0 0) Spec.init_epoch_hash Spec.init_epoch_hash
 
 let blum_evict_elem #vcfg (vs:vtls vcfg{Valid? vs})
                     (e:logS_entry _ {is_evict_to_blum e /\ Valid? (verify_step vs e)})
