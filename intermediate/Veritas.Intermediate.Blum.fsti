@@ -24,33 +24,35 @@ module IntT = Veritas.Intermediate.Thread
 module IntTS = Veritas.Intermediate.TSLog
 
 (* sequence of blum adds in the time sequenced log *)
-val add_seq (#vcfg:_) (ils: its_log vcfg): seq ms_hashfn_dom
+val add_seq (#vcfg:_) (ep: epoch) (ils: its_log vcfg): seq ms_hashfn_dom
 
 (* the addset in a time sequenced log *)
-let add_set #vcfg (ils: its_log vcfg): mset_ms_hashfn_dom 
-  = seq2mset #_ #ms_hashfn_dom_cmp (add_seq ils)
+let add_set #vcfg (ep: epoch) (ils: its_log vcfg): mset_ms_hashfn_dom
+  = seq2mset #_ #ms_hashfn_dom_cmp (add_seq ep ils)
 
 let blum_add_elem (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl {is_blum_add (I.index itsl i)}) = 
   IntT.blum_add_elem (I.index itsl i)
 
 val lemma_add_elem_correct (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i)))
-        (ensures (add_set itsl `contains` blum_add_elem itsl i))
+        (ensures (let be = blum_add_elem itsl i in
+                  let ep = epoch_of be in
+                  add_set ep itsl `MS.contains` be))
         [SMTPat (I.index itsl i)]
 
 (* the blum adds in the time sequenced log should be the same as global add set *)
-val lemma_add_set_correct (#vcfg:_) (itsl: its_log vcfg): 
-  Lemma (ensures (add_set itsl == IntG.add_set (g_logS_of itsl)))
-        [SMTPat (clock_sorted itsl)]
+val lemma_add_set_correct (#vcfg:_) (ep: epoch) (itsl: its_log vcfg):
+  Lemma (ensures (add_set ep itsl == IntG.add_set ep (g_logS_of itsl)))
 
 val lemma_add_set_extend  (#vcfg:_) (itsl: its_log vcfg {I.length itsl > 0}):
   Lemma (requires (is_blum_add (I.telem itsl)))
         (ensures (let i = I.length itsl - 1 in
                   let e = I.index itsl i in
                   let be = blum_add_elem itsl i in
+                  let ep = epoch_of be in
                   let itsl' = I.prefix itsl i in
-                  add_set itsl == 
-                  add_elem (add_set itsl') be))
+                  add_set ep itsl ==
+                  add_elem (add_set ep itsl') be))
 
 (* get the blum evict element from an index *)
 let blum_evict_elem (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i)}): ms_hashfn_dom  =
@@ -61,20 +63,21 @@ val lemma_blum_evict_elem (#vcfg:_) (ils: its_log vcfg) (i:nat{i <= I.length ils
           (ensures (blum_evict_elem ils j = blum_evict_elem (I.prefix ils i) j))
 
 (* sequence of evicts in time sequence log *)
-val evict_seq (#vcfg:_) (itsl: its_log vcfg): seq ms_hashfn_dom
+val evict_seq (#vcfg:_) (ep: epoch) (itsl: its_log vcfg): seq ms_hashfn_dom
 
 (* set of evicts in time sequence log *)
-let evict_set #vcfg (itsl: its_log vcfg): mset_ms_hashfn_dom = 
-  seq2mset #_ #ms_hashfn_dom_cmp (evict_seq itsl)
+let evict_set #vcfg (ep: epoch) (itsl: its_log vcfg): mset_ms_hashfn_dom =
+  seq2mset #_ #ms_hashfn_dom_cmp (evict_seq ep itsl)
 
 (* the blum evicts in time sequenced log should be the same as global evict set *)
-val evict_set_correct (#vcfg:_) (itsl: its_log vcfg):
-  Lemma (ensures (evict_set itsl == IntG.evict_set (g_logS_of itsl)))
-        [SMTPat (clock_sorted itsl)]
+val evict_set_correct (#vcfg:_) (ep: epoch) (itsl: its_log vcfg):
+  Lemma (ensures (evict_set ep itsl == IntG.evict_set ep (g_logS_of itsl)))
 
 val lemma_evict_elem_correct (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl):
   Lemma (requires (is_evict_to_blum (I.index itsl i)))
-        (ensures (evict_set itsl `contains` blum_evict_elem itsl i))
+        (ensures (let be = blum_evict_elem itsl i in
+                  let ep = epoch_of be in
+                  evict_set ep itsl `MS.contains` be))
 
 val lemma_evict_set_extend2 (#vcfg:_) (itsl: its_log vcfg{I.length itsl > 0}):
   Lemma (requires (let i = I.length itsl - 1 in  
