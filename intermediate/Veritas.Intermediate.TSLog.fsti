@@ -256,3 +256,18 @@ val lemma_clock_prefix (#vcfg:_) (ils: its_log vcfg) (i: nat{i <= I.length ils})
 val within_epoch_monotonic (#vcfg:_) (ep: epoch) (ils: its_log vcfg) (i1 i2: I.seq_index ils)
   : Lemma (requires (i1 <= i2))
           (ensures (within_epoch ep ils i2 ==> within_epoch ep ils i1))
+
+(* prefix of a clock sorted log truncated upto epoch ep *)
+val prefix_upto_epoch (#vcfg:_) (ep: epoch) (ils: its_log vcfg):
+  ilsp: its_log vcfg { let i = I.length ilsp in
+                       i <= I.length ils /\
+                       ilsp == I.prefix ils i /\
+                       (i > 0 ==> within_epoch ep ils (i-1))}
+
+val lemma_prefix_upto_epoch (#vcfg:_) (ep: epoch) (ils: its_log vcfg)
+  : Lemma (ensures (let ils_ep = prefix_upto_epoch ep ils in
+                    let gl_ep1 = g_logS_of ils_ep in
+                    let gl = g_logS_of ils in
+                    let gl_ep2 = IntG.prefix_upto_epoch ep gl in
+                    gl_ep1 = gl_ep2))
+          [SMTPat (prefix_upto_epoch ep ils)]

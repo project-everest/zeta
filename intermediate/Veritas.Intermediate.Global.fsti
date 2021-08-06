@@ -161,3 +161,6 @@ val lemma_evict_seq_inv (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {
 val hadd_hevict_equal (#vcfg:_) (epmax: epoch) (gl: hash_verifiable_log vcfg epmax) (ep: epoch{ep <= epmax}):
   Lemma (ensures (hadd gl ep = hevict gl ep /\
                   ms_hashfn (add_seq ep gl) = ms_hashfn (evict_seq ep gl)))
+
+val prefix_upto_epoch (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg)
+  : (gl': verifiable_log vcfg {S.length gl = S.length gl' })

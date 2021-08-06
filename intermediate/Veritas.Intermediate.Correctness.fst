@@ -1025,7 +1025,7 @@ let lemma_empty_implies_induction_props #vcfg (ils: its_log vcfg{I.length ils = 
   SpecTS.lemma_empty_log_eac (to_logk ils);
   ()
 
-let rec lemma_hash_verifiable_implies_induction_props_or_hash_collision_aux
+let rec lemma_hash_verifiable_implies_induction_props_or_hash_collision
         #vcfg
         (epmax: epoch)
         (ils: hash_verifiable_log vcfg epmax)
@@ -1046,7 +1046,7 @@ let rec lemma_hash_verifiable_implies_induction_props_or_hash_collision_aux
         IntTS.within_epoch_monotonic epmax ils (i-2) (i-1)
     in
     aux();
-    let hc_or_props = lemma_hash_verifiable_implies_induction_props_or_hash_collision_aux epmax ils (i - 1) in
+    let hc_or_props = lemma_hash_verifiable_implies_induction_props_or_hash_collision epmax ils (i - 1) in
     (* we found a hash collision - simply return the same *)
     if Some? hc_or_props then
       Some (Some?.v hc_or_props)
@@ -1059,10 +1059,39 @@ let lemma_hash_verifiable_implies_induction_props_or_hash_collision #vcfg (ils: 
   : induction_props_or_hash_collision ils =
   I.lemma_fullprefix_equal ils;
   lemma_hash_verifiable_implies_induction_props_or_hash_collision_aux ils (I.length ils)
+*)
 
 let lemma_time_seq_rw_consistent #vcfg
-                                 (ils: IntTS.hash_verifiable_log vcfg {~ (rw_consistent (IntTS.to_state_ops ils))})
+  (epmax: epoch)
+  (ils: IntTS.hash_verifiable_log vcfg epmax {
+    let ils_ep = IntTS.prefix_upto_epoch epmax ils in
+    let ts_ops = IntTS.to_state_ops ils_ep in
+    ~ (rw_consistent ts_ops)})
   : hash_collision_gen =
+  let ils_ep = IntTS.prefix_upto_epoch epmax ils in
+  let ts_ops = IntTS.to_state_ops ils_ep in
+
+  let i = I.length ils_ep in
+
+  let hc_or_props = lemma_hash_verifiable_implies_induction_props_or_hash_collision epmax ils i in
+
+  (* if hc_or_inv returns a hash collision, then we can return the same collision *)
+  if Some? hc_or_props
+    then Some?.v hc_or_props
+  else (
+    (* the induction properties establish that ilk upto epoch ep is evict-add-consistent *)
+    assert(induction_props ils_ep);
+    let ilk_ep = IntTS.to_logk ils_ep in
+    //assert(SpecTS.is_eac ilk_ep);
+
+    (* this yields a contradiction since evict-add-consistent implies state ops are rw_consistent *)
+    //assert(SpecTS.state_ops ilk_ep = ts_ops);
+    SpecTS.lemma_eac_implies_state_ops_rw_consistent ilk_ep;
+    assert(rw_consistent ts_ops);
+    hash_collision_contra()
+  )
+
+(*
   let ts_ops = IntTS.to_state_ops ils in
   let hc_or_props = lemma_hash_verifiable_implies_induction_props_or_hash_collision ils in
 
@@ -1080,25 +1109,37 @@ let lemma_time_seq_rw_consistent #vcfg
 let lemma_verifier_correct
   (#vcfg:_)
   (epmax: epoch)
-  (gl: IntG.hash_verifiable_log vcfg epmax { ~ (seq_consistent (IntG.to_state_ops gl))})
+  (gl: IntG.hash_verifiable_log vcfg epmax {
+    ~ (seq_consistent (IntG.to_state_ops (IntG.prefix_upto_epoch epmax gl)))
+  })
   : hash_collision_gen =
+
+  (* log entries upto epoch epmax *)
+  let gl_ep = IntG.prefix_upto_epoch epmax gl in
+
   (* sequences of per-thread put/get operations *)
-  let g_ops = IntG.to_state_ops gl in
+  let g_ops = IntG.to_state_ops gl_ep in
 
   (* sequence ordered by time of each log entry *)
   let il = IntTS.create gl in
   I.lemma_interleaving_correct il;
   assert(I.interleave (I.i_seq il) gl);
 
+  (* log entries upto epoch epmax *)
+  let il_ep = IntTS.prefix_upto_epoch epmax il in
+  I.lemma_interleaving_correct il_ep;
+  assert(gl_ep = IntTS.g_logS_of il_ep);
+  assert(I.interleave (I.i_seq il_ep) gl_ep);
+
   (* sequence of state ops induced by tmsl *)
-  let ts_ops = IntTS.to_state_ops il in
-  IntTS.lemma_logS_interleave_implies_state_ops_interleave (I.i_seq il) gl;
+  let ts_ops = IntTS.to_state_ops il_ep in
+  IntTS.lemma_logS_interleave_implies_state_ops_interleave (I.i_seq il_ep) gl_ep;
   assert(I.interleave ts_ops g_ops);
 
   let is_rw_consistent = valid_all_comp ssm ts_ops in
   lemma_state_sm_equiv_rw_consistent ts_ops;
 
-    if is_rw_consistent then (
+   if is_rw_consistent then (
       assert(valid_all ssm ts_ops);
       assert(rw_consistent ts_ops);
 
@@ -1109,4 +1150,4 @@ let lemma_verifier_correct
       SingleHashCollision (Collision (DVal Null) (DVal Null))
     )
     else
-      lemma_time_seq_rw_consistent il
+      lemma_time_seq_rw_consistent epmax il
