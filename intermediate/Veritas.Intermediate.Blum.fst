@@ -6,21 +6,19 @@ open Veritas.SeqAux
 module S = FStar.Seq
 module SA = Veritas.SeqAux
 
-let rec add_seq_aux #vcfg (ils: its_log vcfg):
+let rec add_seq #vcfg (ep: epoch) (ils: its_log vcfg):
   Tot (seq ms_hashfn_dom)
   (decreases (I.length ils)) =
   let n = I.length ils in
   if n = 0 then S.empty #ms_hashfn_dom
   else
     let ils' = I.prefix ils (n - 1) in
-    let s' = add_seq_aux ils' in
+    let s' = add_seq ep ils' in
     let e = I.index ils (n - 1) in
-    if is_blum_add e then
+    if is_blum_add e && ep = epoch_of (blum_add_elem e) then
       append1 s' (IntT.blum_add_elem e)
     else
       s'
-
-let add_seq = add_seq_aux
 
 #push-options "--z3rlimit_factor 3"
 
@@ -30,126 +28,125 @@ let rec add_seq_map
   #vcfg
   (itsl: its_log vcfg)
   (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
-  Tot (j:SA.seq_index (add_seq itsl){S.index (add_seq itsl) j =
-                                     blum_add_elem itsl i})
+  Tot (let be = blum_add_elem itsl i in
+       let ep = epoch_of be in
+       j:SA.seq_index (add_seq ep itsl){ S.index (add_seq ep itsl) j = be })
   (decreases (I.length itsl)) =
   let n = I.length itsl in
-  let s = add_seq itsl in
-  if n = 0
-  then 0
+  let be = blum_add_elem itsl i in
+  let ep = epoch_of be in
+
+  let itsl' = I.prefix itsl (n - 1) in
+  let s' = add_seq ep itsl' in
+  if i = n - 1 then S.length s'
   else
-    let itsl' = I.prefix itsl (n - 1) in
-    let s' = add_seq itsl' in
-    if i = n - 1 then S.length s'
-    else
-      //add_seq_map itsl' i
-      let e = I.index itsl (n - 1) in
-      if is_blum_add e then (
-        // assert(add_seq itsl == append1 s' (IntT.blum_add_elem e));
-        add_seq_map itsl' i
-      )
-      else
-        add_seq_map itsl' i
+    add_seq_map itsl' i
 
 #pop-options
 
 #push-options "--z3rlimit_factor 3"
 
-let rec add_seq_map_inv #vcfg (itsl: its_log vcfg) (j: SA.seq_index (add_seq itsl)):
-  Tot (i: I.seq_index itsl {is_blum_add (I.index itsl i) /\
-                            add_seq_map itsl i = j})
+let rec add_seq_map_inv #vcfg (ep: epoch) (itsl: its_log vcfg) (j: SA.seq_index (add_seq ep itsl)):
+  Tot (i: I.seq_index itsl {let e = I.index itsl i in
+                            is_blum_add e /\
+                            (let be = blum_add_elem itsl i in
+                             let add_seq = add_seq ep itsl in
+                             be = S.index add_seq j /\
+                             add_seq_map itsl i = j /\
+                             ep = epoch_of be)})
   (decreases (I.length itsl)) =
   let n = I.length itsl in
-  let s = add_seq itsl in
+  let s = add_seq ep itsl in
   if n = 0 then 0
   else (
     let itsl' = I.prefix itsl (n - 1) in
-    let s' = add_seq itsl' in
+    let s' = add_seq ep itsl' in
     let e = I.index itsl (n - 1) in
-    if is_blum_add e then (
-      assert(s == SA.append1 s' (IntT.blum_add_elem e));
+    if is_blum_add e && ep = epoch_of (blum_add_elem itsl (n-1)) then
       if j = S.length s' then n - 1
-      else add_seq_map_inv itsl' j
-    )
-    else add_seq_map_inv itsl' j
+      else add_seq_map_inv ep itsl' j
+    else add_seq_map_inv ep itsl' j
   )
 
 #pop-options
 
-#push-options "--max_fuel 1 --max_ifuel 0 --z3rlimit_factor 3"
+#push-options "--max_fuel 1 --max_ifuel 0 --z3rlimit_factor 5"
 
 let rec lemma_add_seq_map_inv #vcfg (itsl: its_log vcfg) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
-  Lemma (ensures (add_seq_map_inv itsl (add_seq_map itsl i) = i))
+  Lemma (ensures (let be = blum_add_elem itsl i in
+                  let ep = epoch_of be in
+                  let j = add_seq_map itsl i in
+                  add_seq_map_inv ep itsl j = i))
         (decreases (I.length itsl))
         [SMTPat (add_seq_map itsl i)] =
   let n = I.length itsl in
-  let s = add_seq itsl in
-  if n = 0 then ()
+  let itsl' = I.prefix itsl (n - 1) in
+  if i = n - 1 then ()
   else
-    let itsl' = I.prefix itsl (n - 1) in
-    let s' = add_seq itsl' in
-    if i = n - 1 then ()
-    else
-      lemma_add_seq_map_inv itsl' i
+    lemma_add_seq_map_inv itsl' i
 
 #pop-options
 
 let lemma_add_elem_correct (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i)))
-        (ensures (add_set itsl `contains` blum_add_elem itsl i)) =
-  let sa = add_seq itsl in
+        (ensures (let be = blum_add_elem itsl i in
+                  let ep = epoch_of be in
+                  add_set ep itsl `contains` be)) =
+  let be = blum_add_elem itsl i in
+  let ep = epoch_of be in
+  let add_seq = add_seq ep itsl in
   let j = add_seq_map itsl i in
   //assert(S.index sa j = blum_add_elem (I.index itsl i));
-  mset_contains_seq_element #_ #ms_hashfn_dom_cmp sa j
+  mset_contains_seq_element #_ #ms_hashfn_dom_cmp add_seq j
 
 /// into mapping from ts add seq to global add seq
-let global_to_ts_addset_map_aux #vcfg (itsl: its_log vcfg) (i: SA.seq_index (IntG.add_seq (g_logS_of itsl))):
-  Tot (j: SA.seq_index (add_seq itsl)
+let global_to_ts_addset_map_aux #vcfg (ep: epoch) (itsl: its_log vcfg)
+  (i: SA.seq_index (IntG.add_seq ep (g_logS_of itsl))):
+  Tot (j: SA.seq_index (add_seq ep itsl)
        {
-          S.index (IntG.add_seq (g_logS_of itsl)) i =
-          S.index (add_seq itsl) j
+          S.index (IntG.add_seq ep (g_logS_of itsl)) i =
+          S.index (add_seq ep itsl) j
        }) =
   let gl = g_logS_of itsl in
-  let gs = IntG.add_seq gl in
-  let ii = IntG.add_set_map_inv gl i in
-  let ts = add_seq itsl in
+  let gs = IntG.add_seq ep gl in
+  let ii = IntG.add_set_map_inv ep gl i in
+  let ts = add_seq ep itsl in
   let i' = s2i_map itsl ii in
   let j = add_seq_map itsl i' in
   j
 
 open FStar.Classical
 
-let lemma_global_to_ts_addset_map_into #vcfg (itsl: its_log vcfg):
-  Lemma (forall (i1: SA.seq_index (IntG.add_seq (g_logS_of itsl))).
-         forall (i2: SA.seq_index (IntG.add_seq (g_logS_of itsl))).
-         i1 <> i2 ==> global_to_ts_addset_map_aux itsl i1 <>
-                    global_to_ts_addset_map_aux itsl i2) =
+let lemma_global_to_ts_addset_map_into #vcfg (ep: epoch) (itsl: its_log vcfg):
+  Lemma (forall (i1: SA.seq_index (IntG.add_seq ep (g_logS_of itsl))).
+         forall (i2: SA.seq_index (IntG.add_seq ep (g_logS_of itsl))).
+         i1 <> i2 ==> global_to_ts_addset_map_aux ep itsl i1 <>
+                    global_to_ts_addset_map_aux ep itsl i2) =
   let gl = g_logS_of itsl in
-  let gs = IntG.add_seq gl in
+  let gs = IntG.add_seq ep gl in
 
   let aux (i1 i2: SA.seq_index gs):
-    Lemma (requires True)
-          (ensures (i1 <> i2 ==> global_to_ts_addset_map_aux itsl i1 <>
-                               global_to_ts_addset_map_aux itsl i2)) = ()
+    Lemma (ensures (i1 <> i2 ==> global_to_ts_addset_map_aux ep itsl i1 <>
+                               global_to_ts_addset_map_aux ep itsl i2)) = ()
   in
   forall_intro_2 aux
 
-let global_to_ts_addset_map #vcfg (itsl: its_log vcfg):
-  into_smap (IntG.add_seq (g_logS_of itsl))
-       (add_seq itsl) =
-  lemma_global_to_ts_addset_map_into itsl;
-  global_to_ts_addset_map_aux itsl
+let global_to_ts_addset_map #vcfg (ep: epoch) (itsl: its_log vcfg):
+  into_smap (IntG.add_seq ep (g_logS_of itsl))
+       (add_seq ep itsl) =
+  lemma_global_to_ts_addset_map_into ep itsl;
+  global_to_ts_addset_map_aux ep itsl
 
-let ts_to_global_addset_map_aux #vcfg (itsl: its_log vcfg) (j: SA.seq_index (add_seq itsl)):
-  Tot (i: SA.seq_index (IntG.add_seq (g_logS_of itsl))
+let ts_to_global_addset_map_aux #vcfg (ep: epoch) (itsl: its_log vcfg) (j: SA.seq_index (add_seq ep itsl)):
+  Tot (i: SA.seq_index (IntG.add_seq ep (g_logS_of itsl))
        {
-          S.index (IntG.add_seq (g_logS_of itsl)) i =
-          S.index (add_seq itsl) j
+          S.index (IntG.add_seq ep (g_logS_of itsl)) i =
+          S.index (add_seq ep itsl) j
        }) =
  let gl = g_logS_of itsl in
- let gs = IntG.add_seq gl in
- let ts = add_seq itsl in
- let i' = add_seq_map_inv itsl j in
+ let gs = IntG.add_seq ep gl in
+ let ts = add_seq ep itsl in
+ let i' = add_seq_map_inv ep itsl j in
  let ii = i2s_map itsl i' in
  let i = IntG.add_set_map gl ii in
  i
