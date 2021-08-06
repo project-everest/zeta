@@ -215,11 +215,13 @@ val eac_instore_addb_diff_elem (itsl: its_log)
                                                     TL.is_eac itsli /\
                                                     (let k = key_of e in
                                                      TL.is_eac_state_instore itsli k)})
-  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
-                      let ep = MH.epoch_of be in
-                      let as = ts_add_set ep itsli' in
-                      let es = ts_evict_set ep itsli' in
-                      MS.mem be as > MS.mem be es})
+  : (be':ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                       let ep = MH.epoch_of be' in
+                       let as = ts_add_set ep itsli' in
+                       let es = ts_evict_set ep itsli' in
+                       let be = blum_add_elem (I.index itsl i) in
+                       MS.mem be' as > MS.mem be' es /\
+                       epoch_of be = epoch_of be'})
 
 val eac_evictedm_addb_diff_elem (itsl: its_log) 
                                (i: I.seq_index itsl{let itsli = I.prefix itsl i in
@@ -228,11 +230,13 @@ val eac_evictedm_addb_diff_elem (itsl: its_log)
                                                     TL.is_eac itsli /\
                                                     (let k = key_of e in
                                                      TL.is_eac_state_evicted_merkle itsli k)})
-  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
-                      let ep = MH.epoch_of be in
-                      let as = ts_add_set ep itsli' in
-                      let es = ts_evict_set ep itsli' in
-                      MS.mem be as > MS.mem be es})
+  : (be':ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                       let ep = MH.epoch_of be' in
+                       let as = ts_add_set ep itsli' in
+                       let es = ts_evict_set ep itsli' in
+                       let be = blum_add_elem (I.index itsl i) in
+                       MS.mem be' as > MS.mem be' es /\
+                       epoch_of be = epoch_of be'})
 
 val eac_evictedb_addb_diff_elem (itsl: its_log) 
                                (i: I.seq_index itsl{let itsli = I.prefix itsl i in
@@ -243,11 +247,13 @@ val eac_evictedb_addb_diff_elem (itsl: its_log)
                                                     not (TL.is_eac itsli') /\
                                                     (let k = key_of e in
                                                      TL.is_eac_state_evicted_blum itsli k)})
-  : (be:ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
-                      let ep = MH.epoch_of be in
-                      let as = ts_add_set ep itsli' in
-                      let es = ts_evict_set ep itsli' in
-                      MS.mem be as > MS.mem be es}) 
+  : (be':ms_hashfn_dom{let itsli' = I.prefix itsl (i+1) in
+                       let ep = MH.epoch_of be' in
+                       let as = ts_add_set ep itsli' in
+                       let es = ts_evict_set ep itsli' in
+                       let be = blum_add_elem (I.index itsl i) in
+                       MS.mem be' as > MS.mem be' es /\
+                       epoch_of be = epoch_of be'})
 
 val eac_add_set_mem_atleast_evict_set_mem (itsl: TL.eac_log) (be: ms_hashfn_dom) (tid: valid_tid itsl):
   Lemma (requires (let k = MH.key_of be in

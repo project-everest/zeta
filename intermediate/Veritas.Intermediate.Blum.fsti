@@ -79,11 +79,12 @@ val lemma_evict_elem_correct (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl
                   let ep = epoch_of be in
                   evict_set ep itsl `MS.contains` be))
 
-val lemma_evict_set_extend2 (#vcfg:_) (itsl: its_log vcfg{I.length itsl > 0}):
+val lemma_evict_set_extend2 (#vcfg:_) (ep: epoch) (itsl: its_log vcfg{I.length itsl > 0}):
   Lemma (requires (let i = I.length itsl - 1 in  
-                   not (is_evict_to_blum (I.index itsl i))))
+                   is_evict_to_blum (I.index itsl i) ==>
+                   epoch_of (blum_evict_elem itsl i) <> ep))
         (ensures (let i = I.length itsl - 1 in  
-                  evict_set itsl == evict_set (I.prefix itsl i)))
+                  evict_set ep itsl == evict_set ep (I.prefix itsl i)))
 
 val lemma_spec_rel_implies_same_add_elem (#vcfg:_) 
                                          (ils: its_log vcfg{spec_rel ils}) 
@@ -92,10 +93,9 @@ val lemma_spec_rel_implies_same_add_elem (#vcfg:_)
                   SpecV.is_blum_add (I.index ilk i) /\
                   SpecT.blum_add_elem (I.index ilk i) = blum_add_elem ils i))
  
-val lemma_spec_rel_implies_same_add_seq (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
+val lemma_spec_rel_implies_same_add_seq (#vcfg:_) (ep: epoch) (ils: its_log vcfg{spec_rel ils})
   : Lemma (ensures (let ilk = to_logk ils in 
-                    add_seq ils = SpecB.ts_add_seq ilk))
-          [SMTPat (spec_rel ils)]
+                    add_seq ep ils = SpecB.ts_add_seq ep ilk))
 
 val lemma_spec_rel_implies_same_evict_elem (#vcfg:_) 
                                          (ils: its_log vcfg{spec_rel ils}) 
@@ -104,37 +104,47 @@ val lemma_spec_rel_implies_same_evict_elem (#vcfg:_)
                   SpecV.is_evict_to_blum (I.index ilk i) /\
                   SpecB.blum_evict_elem ilk i = blum_evict_elem ils i))
 
-val lemma_spec_rel_implies_same_evict_seq (#vcfg:_) (ils: its_log vcfg{spec_rel ils})
+val lemma_spec_rel_implies_same_evict_seq (#vcfg:_) (ep: epoch) (ils: its_log vcfg{spec_rel ils})
   : Lemma (ensures (let ilk = to_logk ils in 
-                    evict_seq ils = SpecB.ts_evict_seq ilk))
-          [SMTPat (spec_rel ils)]
+                    evict_seq ep ils = SpecB.ts_evict_seq ep ilk))
 
 (* since evict_set is a pure set (not a multiset) we can identify the unique index 
  * for each element of the set *)
-val index_blum_evict (#vcfg:_) (itsl: its_log vcfg) (e: ms_hashfn_dom {evict_set itsl `contains` e}):
+val index_blum_evict (#vcfg:_)
+  (ep: epoch)
+  (itsl: its_log vcfg)
+  (e: ms_hashfn_dom {evict_set ep itsl `MS.contains` e}):
   (i:I.seq_index itsl{is_evict_to_blum (I.index itsl i) /\ 
                       blum_evict_elem itsl i = e})
 
 (* if the blum add occurs in the blum evict set, its index is earlier *)
 val lemma_evict_before_add (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
-  Lemma (ensures (not (evict_set itsl `contains` blum_add_elem itsl i)) \/
-                  index_blum_evict itsl (blum_add_elem itsl i) < i)
+  Lemma (ensures (let be = blum_add_elem itsl i in
+                  let ep = epoch_of be in
+                  evict_set ep itsl `MS.contains` blum_add_elem itsl i ==>
+                  index_blum_evict ep itsl be < i))
 
 /// index of some add element given that the the add set contains the element
 /// 
-val some_add_elem_idx (#vcfg:_) (itsl: its_log vcfg) 
-                                (be: ms_hashfn_dom{add_set itsl `contains` be}):
+val some_add_elem_idx (#vcfg:_)
+    (ep: epoch)
+    (itsl: its_log vcfg)
+    (be: ms_hashfn_dom {add_set ep itsl `contains` be}):
    (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\ be = blum_add_elem itsl i})
 
 /// The membership of an element in a prefix addset <= membership in the full addset 
 val lemma_mem_monotonic_add_set (#vcfg:_) (be:ms_hashfn_dom) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}):
-  Lemma (mem be (add_set itsl) >= mem be (add_set (I.prefix itsl i)))
+  Lemma (let ep = epoch_of be in
+         mem be (add_set ep itsl) >= mem be (add_set ep (I.prefix itsl i)))
 
 ///  for any prefix of itsl, there exists an element be whose membership in add set > membership in evict set, then
 ///  the add and evict sets of the entire sequence cannot be equal.
 ///  The intuition is that a matching element of be in an evict set happens prior to that of add set meaning there 
 ///  cannot be element be in the suffix. This implies the add- and evict-sets cannot be equal.
+///
 val lemma_add_delta_implies_not_eq (#vcfg:_) (itsl: its_log vcfg) (i:nat{i <= I.length itsl}) (be:ms_hashfn_dom):
     Lemma (requires (let itsli = I.prefix itsl i in
-                     MS.mem be (add_set itsli) > MS.mem be (evict_set itsli)))
-          (ensures (~ ((add_set itsl) == (evict_set itsl))))
+                     let ep = epoch_of be in
+                     MS.mem be (add_set ep itsli) > MS.mem be (evict_set ep itsli)))
+          (ensures (let ep = epoch_of be in
+                    ~ ((add_set ep itsl) == (evict_set ep itsl))))

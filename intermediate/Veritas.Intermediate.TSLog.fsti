@@ -244,3 +244,15 @@ val lemma_blum_evict_def (#vcfg:_)
 val lemma_clock_ordering (#vcfg:_) (itsl: its_log vcfg) (i1 i2: I.seq_index itsl):
   Lemma (requires (clock itsl i1 `ts_lt` clock itsl i2))
         (ensures (i1 < i2))
+
+let within_epoch #vcfg (ep: epoch) (ils: its_log vcfg) (i: I.seq_index ils) =
+  let MkTimestamp e _ = clock ils i in
+  e <= ep
+
+val lemma_clock_prefix (#vcfg:_) (ils: its_log vcfg) (i: nat{i <= I.length ils}) (j:nat{j < i}):
+  Lemma (ensures (let ils_i = I.prefix ils i in
+                  clock ils j = clock ils_i j))
+
+val within_epoch_monotonic (#vcfg:_) (ep: epoch) (ils: its_log vcfg) (i1 i2: I.seq_index ils)
+  : Lemma (requires (i1 <= i2))
+          (ensures (within_epoch ep ils i2 ==> within_epoch ep ils i1))
