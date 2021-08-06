@@ -1057,24 +1057,39 @@ let inductive_step_next_epoch #vcfg
       None
     else (
       SpecTS.lemma_eac_boundary_inv ilk_i1 i;
-      //Some (lemma_non_eac_get_implies_hash_collision ilk_i1)
-      admit()
+      Some (lemma_non_eac_nonkey_implies_hash_collision ilk_i1)
     )
 
-(*
-  | Get_S s k v ->
-    lemma_vget_simulates_spec vss_i vsk_i es;
-    lemma_forall_vtls_rel_extend ils i;
-    lemma_vget_preserves_ismap vss_i es;
-    lemma_forall_store_ismap_extend ils i;
+let inductive_step_verifyepoch #vcfg
+                       (ils: its_log vcfg)
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                              induction_props ils_i /\
+                                              IntL.VerifyEpoch? (I.index ils i)})
+  : induction_props_or_hash_collision (I.prefix ils (i + 1)) =
+  let ilk = to_logk ils in
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in
 
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+
+  match es with
+  | VerifyEpoch ->
+    lemma_verifyepoch_simulates_spec vss_i vsk_i;
+    lemma_forall_vtls_rel_extend ils i;
+    lemma_verifyepoch_preserves_ismap vss_i;
+    lemma_forall_store_ismap_extend ils i;
     if SpecTS.is_eac ilk_i1 then
       None
     else (
       SpecTS.lemma_eac_boundary_inv ilk_i1 i;
-      Some (lemma_non_eac_get_implies_hash_collision ilk_i1)
+      Some (lemma_non_eac_nonkey_implies_hash_collision ilk_i1)
     )
-    *)
+
 (*
  * induction step: if all the induction properties hold for prefix of length i,
  * then the properties hold for prefix of length (i + 1) or we construct
@@ -1095,8 +1110,8 @@ let inductive_step #vcfg
   | AddB_S _ _ _ _ -> inductive_step_addb epmax ils i
   | EvictB_S _ _ -> inductive_step_evictb epmax ils i
   | EvictBM_S _ _ _  -> inductive_step_evictbm epmax ils i
-  | NextEpoch -> admit()
-  | VerifyEpoch -> admit()
+  | NextEpoch -> inductive_step_next_epoch ils i
+  | VerifyEpoch -> inductive_step_verifyepoch ils i
 
 let lemma_empty_implies_induction_props #vcfg (ils: its_log vcfg{I.length ils = 0})
   : Lemma (ensures (induction_props ils))

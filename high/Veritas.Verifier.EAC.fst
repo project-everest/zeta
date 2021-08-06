@@ -1211,3 +1211,18 @@ let lemma_non_eac_evictbm_implies_hash_collision
       | EvictBlum (EvictBM _ _ _) _ _ -> lemma_non_eac_evicted_requires_key_in_store itsl
     )
   | EACRoot -> lemma_non_eac_from_eac_root itsl
+
+let lemma_non_eac_nonkey_implies_hash_collision
+  (itsl: neac_log {not (is_keyed_entry (eac_boundary_entry itsl))}): hash_collision_gen =
+
+  let i = TL.eac_boundary itsl in
+  let st = TL.eac_boundary_state_pre itsl in
+  let ee = TL.vlog_entry_ext_at itsl i in
+  assert(ee = NEvict NextEpoch || ee = NEvict VerifyEpoch);
+
+  match st with
+  | EACInit -> lemma_non_eac_init_nonkey itsl
+  | EACInStore _ _ -> lemma_non_eac_instore_nonkey itsl
+  | EACEvictedMerkle _ -> lemma_non_eac_evicted_nonkey itsl
+  | EACEvictedBlum _ _ _ -> lemma_non_eac_evicted_nonkey itsl
+  | EACRoot -> lemma_non_eac_from_eac_root itsl
