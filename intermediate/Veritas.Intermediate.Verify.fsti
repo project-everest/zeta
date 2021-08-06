@@ -699,6 +699,35 @@ val lemma_evictbm_simulates_spec
           (ensures (let ek = to_logK_entry vs e in
                     vtls_rel (verify_step vs e) (Spec.t_verify_step vs' ek)))
 
+val lemma_nextepoch_simulates_spec
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+      (vs':Spec.vtls)
+  : Lemma (requires (vtls_rel vs vs' /\
+                     valid_logS_entry vs NextEpoch))
+          (ensures (let ek = to_logK_entry vs NextEpoch in
+                    vtls_rel (verify_step vs NextEpoch) (Spec.t_verify_step vs' ek)))
+
+val lemma_nextepoch_preserves_ismap
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+  : Lemma (requires (S.is_map (thread_store vs)))
+          (ensures (Valid? (verify_step vs NextEpoch) ==> S.is_map (thread_store (verify_step vs NextEpoch))))
+
+val lemma_verifyepoch_simulates_spec
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+      (vs':Spec.vtls)
+  : Lemma (requires (vtls_rel vs vs' /\
+                     valid_logS_entry vs VerifyEpoch))
+          (ensures (let ek = to_logK_entry vs VerifyEpoch in
+                    vtls_rel (verify_step vs VerifyEpoch) (Spec.t_verify_step vs' ek)))
+
+val lemma_verifyepoch_preserves_ismap
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+  : Lemma (requires (S.is_map (thread_store vs)))
+          (ensures (Valid? (verify_step vs VerifyEpoch) ==> S.is_map (thread_store (verify_step vs VerifyEpoch))))
 
 let init_thread_state #vcfg (tid:thread_id) (st:vstore _): vtls vcfg =
   Valid tid st (MkTimestamp 0 0) Spec.init_epoch_hash Spec.init_epoch_hash

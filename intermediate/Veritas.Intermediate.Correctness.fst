@@ -739,6 +739,41 @@ let inductive_step_addb_neac_caseD #vcfg
     IntG.hadd_hevict_equal epmax gl ep;
     MultiHashCollision (MSCollision (IntG.add_seq ep gl) (IntG.evict_seq ep gl))
 
+let inductive_step_addb_neac_caseE #vcfg
+                       (epmax: epoch)
+                       (ils: IntTS.hash_verifiable_log vcfg epmax)
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                          let ils_i1 = I.prefix ils (i + 1) in
+                                          let vss_i = IntTS.thread_state_pre ils i in
+                                          let sts = IntV.thread_store vss_i in
+                                          let ilk_i = to_logk ils_i in
+                                          let ilk_i1 = to_logk ils_i1 in
+                                          induction_props ils_i /\
+                                          spec_rel ils_i1 /\
+                                          AddB_S? (I.index ils i) /\
+                                          not (SpecTS.is_eac ilk_i1) /\
+                                          SpecTS.is_eac ilk_i /\
+                                          E.EACRoot = SpecTS.eac_state_pre ilk_i1 i /\
+                                          IntTS.within_epoch epmax ils i}): hash_collision_gen =
+  let gl = g_logS_of ils in
+  let ils_i = I.prefix ils i in
+  let ilk_i = to_logk ils_i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = to_logk ils_i1 in
+  SpecTS.lemma_eac_boundary_inv ilk_i1 i;
+  let es = I.index ils i in
+  IntTS.lemma_clock_prefix ils (i+1) i;
+  assert(IntTS.within_epoch epmax ils_i1 i);
+
+  match es with
+  | AddB_S s (k, v) t j ->
+    (* the only key that has EACRoot state is the root key *)
+    SpecTS.lemma_eac_state_root_implies_root ilk_i k;
+    assert(k = Root);
+
+    (* this is a contradiction since AddB with root causes the verifier to fail *)
+    hash_collision_contra()
+
 let inductive_step_addb_neac #vcfg
                        (epmax: epoch)
                        (ils: IntTS.hash_verifiable_log vcfg epmax)
@@ -788,7 +823,7 @@ let inductive_step_addb_neac #vcfg
       match ee with
       | E.NEvict (AddB _ _ _) -> inductive_step_addb_neac_caseD epmax ils i
       )
-    | E.EACRoot -> admit()
+    | E.EACRoot -> inductive_step_addb_neac_caseE epmax ils i
 
 let inductive_step_addb_caseA #vcfg
                        (epmax: epoch)
@@ -995,6 +1030,51 @@ let inductive_step_evictbm #vcfg
       Some (lemma_non_eac_evictbm_implies_hash_collision ilk_i1)
     )
 
+let inductive_step_next_epoch #vcfg
+                       (ils: its_log vcfg)
+                       (i:I.seq_index ils{let ils_i = I.prefix ils i in
+                                              induction_props ils_i /\
+                                              IntL.NextEpoch? (I.index ils i)})
+  : induction_props_or_hash_collision (I.prefix ils (i + 1)) =
+  let ilk = to_logk ils in
+  let ils_i = I.prefix ils i in
+  let ilk_i = I.prefix ilk i in
+  let ils_i1 = I.prefix ils (i + 1) in
+  let ilk_i1 = I.prefix ilk (i + 1) in
+
+  let vss_i = thread_state_pre ils i in
+  let vsk_i = SpecTS.thread_state_pre ilk i in
+  let es = I.index ils i in
+  SpecTS.lemma_verifier_thread_state_extend ilk i;
+
+  match es with
+  | NextEpoch ->
+    lemma_nextepoch_simulates_spec vss_i vsk_i;
+    lemma_forall_vtls_rel_extend ils i;
+    lemma_nextepoch_preserves_ismap vss_i;
+    lemma_forall_store_ismap_extend ils i;
+    if SpecTS.is_eac ilk_i1 then
+      None
+    else (
+      SpecTS.lemma_eac_boundary_inv ilk_i1 i;
+      //Some (lemma_non_eac_get_implies_hash_collision ilk_i1)
+      admit()
+    )
+
+(*
+  | Get_S s k v ->
+    lemma_vget_simulates_spec vss_i vsk_i es;
+    lemma_forall_vtls_rel_extend ils i;
+    lemma_vget_preserves_ismap vss_i es;
+    lemma_forall_store_ismap_extend ils i;
+
+    if SpecTS.is_eac ilk_i1 then
+      None
+    else (
+      SpecTS.lemma_eac_boundary_inv ilk_i1 i;
+      Some (lemma_non_eac_get_implies_hash_collision ilk_i1)
+    )
+    *)
 (*
  * induction step: if all the induction properties hold for prefix of length i,
  * then the properties hold for prefix of length (i + 1) or we construct
