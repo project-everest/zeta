@@ -164,3 +164,9 @@ val hadd_hevict_equal (#vcfg:_) (epmax: epoch) (gl: hash_verifiable_log vcfg epm
 
 val prefix_upto_epoch (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg)
   : (gl': verifiable_log vcfg {S.length gl = S.length gl' })
+
+val lemma_prefix_upto_epoch (#vcfg:_) (ep: epoch) (gl: verifiable_log vcfg) (tid: SA.seq_index gl):
+  Lemma (ensures (let tl = thread_log gl tid in
+                  let _, l_ep = IntT.prefix_upto_epoch ep tl in
+                  let gl_ep = prefix_upto_epoch ep gl in
+                  l_ep = S.index gl_ep tid))

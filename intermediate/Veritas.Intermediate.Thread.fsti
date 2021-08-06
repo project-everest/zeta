@@ -169,3 +169,18 @@ val lemma_evict_elem_unique (#vcfg:_)
   (tl: verifiable_log vcfg)
   (i1 i2: SA.seq_index (blum_evict_seq ep tl)):
   Lemma (i1 <> i2 ==> S.index (blum_evict_seq ep tl) i1 <> S.index (blum_evict_seq ep tl) i2)
+
+(* Get the maximal prefix of log upto epoch "ep" *)
+val prefix_upto_epoch (#vcfg:_) (ep: epoch) (tl: verifiable_log vcfg): verifiable_log vcfg
+
+val lemma_prefix_upto_epoch (#vcfg:_) (ep: epoch) (tl: verifiable_log vcfg):
+  Lemma (ensures (let tl' = prefix_upto_epoch ep tl in
+                  let tid, l = tl in
+                  let tid', l' = tl' in
+                  let MkTimestamp ep' _ = Valid?.clock (verify tl') in
+                  tid = tid' /\
+                  SA.is_prefix l l' /\
+                  ep' <= ep /\
+                  (length tl' < length tl ==> (let MkTimestamp ep'' _ = clock tl (length tl') in
+                                               ep'' > ep))))
+        [SMTPat (prefix_upto_epoch ep tl)]
