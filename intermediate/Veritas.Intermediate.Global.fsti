@@ -157,6 +157,7 @@ val lemma_evict_seq_inv (#vcfg:_) (gl: verifiable_log vcfg) (ii: sseq_index gl {
                   let ep = epoch_of be in
                   let j = evict_seq_map gl ii in
                   evict_seq_map_inv ep gl j = ii))
+        [SMTPat (evict_seq_map gl ii)]
 
 val hadd_hevict_equal (#vcfg:_) (epmax: epoch) (gl: hash_verifiable_log vcfg epmax) (ep: epoch{ep <= epmax}):
   Lemma (ensures (hadd gl ep = hevict gl ep /\

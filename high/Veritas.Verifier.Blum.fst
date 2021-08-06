@@ -1270,7 +1270,8 @@ let lemma_add_seq_extend (itsl: its_log{I.length itsl > 0}):
                   SA.append1 (ts_add_seq ep itsl') be)) = ()
 
 let lemma_add_seq_extend2 (ep: epoch) (itsl: its_log{I.length itsl > 0}):
-  Lemma (requires (not (is_blum_add (I.telem itsl))))
+  Lemma (requires (not (is_blum_add (I.telem itsl)) ||
+                   epoch_of (blum_add_elem (I.telem itsl)) <> ep))
         (ensures (let i = I.length itsl - 1 in
                   let itsl' = I.prefix itsl i in
                   let e = I.index itsl i in
@@ -1287,7 +1288,8 @@ let lemma_evict_seq_extend (itsl: its_log{I.length itsl > 0}):
                   SA.append1 (ts_evict_seq ep itsl') be)) = ()
 
 let lemma_evict_seq_extend2 (ep: epoch) (itsl: its_log{I.length itsl > 0}):
-  Lemma (requires (not (is_evict_to_blum (I.telem itsl))))
+  Lemma (requires (not (is_evict_to_blum (I.telem itsl)) ||
+                   epoch_of (blum_evict_elem itsl (I.length itsl - 1)) <> ep))
         (ensures (let i = I.length itsl - 1 in
                   let itsl' = I.prefix itsl i in
                   ts_evict_seq ep itsl ==
