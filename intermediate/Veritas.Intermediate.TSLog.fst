@@ -1000,12 +1000,32 @@ let lemma_clock_ordering (#vcfg:_) (itsl: its_log vcfg) (i1 i2: I.seq_index itsl
 let lemma_clock_prefix (#vcfg:_) (ils: its_log vcfg) (i: nat{i <= I.length ils}) (j:nat{j < i}):
   Lemma (ensures (let ils_i = I.prefix ils i in
                   clock ils j = clock ils_i j))
- = admit()
+ =
+ I.lemma_i2s_map_prefix ils i j;
+ I.per_thread_prefix ils i
 
 let within_epoch_monotonic (#vcfg:_) (ep: epoch) (ils: its_log vcfg) (i1 i2: I.seq_index ils)
   : Lemma (requires (i1 <= i2))
           (ensures (within_epoch ep ils i2 ==> within_epoch ep ils i1))
-  = admit()
+  =
+  assert(clock ils i1 `ts_leq` clock ils i2);
+  ()
+
+let epoch_post (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl) =
+  let MkTimestamp e _ = clock itsl i in
+  e
+
+let epoch_pre (#vcfg:_) (itsl: its_log vcfg) (i: nat{i <= I.length itsl}) =
+  if i = 0 then 0
+  else epoch_post itsl (i - 1)
+
+let rec max_epoch_index_search (#vcfg:_) (ep: epoch) (itsl: its_log vcfg) (i: nat { i <= I.length itsl }):
+  Tot (j: nat { j <= i /\ epoch_pre itsl j <= ep /\
+              (j = i \/ epoch_post itsl j > ep)})
+  (decreases i) =
+  if epoch_pre itsl i <= ep then i
+  else
+    max_epoch_index_search ep itsl (i - 1)
 
 (* prefix of a clock sorted log truncated upto epoch ep *)
 let prefix_upto_epoch (#vcfg:_) (ep: epoch) (ils: its_log vcfg):
@@ -1013,7 +1033,79 @@ let prefix_upto_epoch (#vcfg:_) (ep: epoch) (ils: its_log vcfg):
                        i <= I.length ils /\
                        ilsp == I.prefix ils i /\
                        (i > 0 ==> within_epoch ep ils (i-1))}
-  = admit()
+  =
+  let i = max_epoch_index_search ep ils (I.length ils) in
+  I.prefix ils i
+
+module S = FStar.Seq
+
+#push-options "--z3rlimit_factor 2"
+
+let lemma_prefix_upto_epoch_aux (#vcfg:_) (ep: epoch) (itsl: its_log vcfg) (tid: valid_tid itsl):
+  Lemma (ensures (let gl = g_logS_of itsl in
+                  let tl = IntG.thread_log gl tid in
+                  let _, l_ep = IntT.prefix_upto_epoch ep tl in
+                  let itsl_ep = prefix_upto_epoch ep itsl in
+                  let gl_ep = g_logS_of itsl_ep in
+                  l_ep = S.index gl_ep tid)) =
+
+  let i = max_epoch_index_search ep itsl (I.length itsl) in
+  let itsl_ep = prefix_upto_epoch ep itsl in
+  assert(itsl_ep == I.prefix itsl i);
+  I.per_thread_prefix itsl i;
+
+  let gl = g_logS_of itsl in
+  let l = S.index gl tid in
+  let tl = IntG.thread_log gl tid in
+  let _, l_ep2 = IntT.prefix_upto_epoch ep tl in
+  let gl_ep = g_logS_of itsl_ep in
+  let l_ep1 = S.index gl_ep tid in
+
+  assert(l_ep1 `prefix_of` l);
+  assert(l_ep2 `prefix_of` l);
+  let i1 = S.length l_ep1 in
+  let i2 = S.length l_ep2 in
+
+  if i1 = i2 then ()
+  else if i1 < i2 then (
+    let i' = s2i_map itsl (tid, i1) in
+    let aux(): Lemma (i' >= i) =
+      if i' >= i then ()
+      else
+        lemma_i2s_map_prefix itsl i i'
+    in
+    aux();
+    assert(i' >= i);
+    IntT.lemma_clock_monotonic tl i1 (i2 - 1);
+    assert(clock itsl i `ts_leq` clock itsl i');
+    ()
+  )
+  else (
+    let i' = s2i_map itsl_ep (tid, i2) in
+    assert(i' < i);
+    assert(i2 < S.length l);
+    let MkTimestamp ep2 _ = VT.clock tl i2 in
+    assert(ep2 > ep);
+
+    assert(clock itsl i' `ts_leq` clock itsl (i-1));
+    lemma_i2s_map_prefix itsl i i';
+    assert(clock itsl i' = VT.clock tl i2);
+    assert(False);
+    ()
+  )
+
+#pop-options
+
+let lemma_prefix_upto_epoch_tid (#vcfg:_) (ep: epoch) (itsl: its_log vcfg) (tid: valid_tid itsl):
+  Lemma (ensures (let gl = g_logS_of itsl in
+                  let gl_ep = IntG.prefix_upto_epoch ep gl in
+                  let itsl_ep = prefix_upto_epoch ep itsl in
+                  let gl_ep2 = g_logS_of itsl_ep in
+                  S.index gl_ep tid == S.index gl_ep2 tid)) =
+  let gl = g_logS_of itsl in
+  lemma_prefix_upto_epoch_aux ep itsl tid;
+  IntG.lemma_prefix_upto_epoch ep gl tid;
+  ()
 
 let lemma_prefix_upto_epoch (#vcfg:_) (ep: epoch) (ils: its_log vcfg)
   : Lemma (ensures (let ils_ep = prefix_upto_epoch ep ils in
@@ -1021,4 +1113,15 @@ let lemma_prefix_upto_epoch (#vcfg:_) (ep: epoch) (ils: its_log vcfg)
                     let gl = g_logS_of ils in
                     let gl_ep2 = IntG.prefix_upto_epoch ep gl in
                     gl_ep1 = gl_ep2))
-   = admit()
+   =
+  let gl = g_logS_of ils in
+  let ils_ep = prefix_upto_epoch ep ils in
+  let gl_ep1 = g_logS_of ils_ep in
+  let gl_ep2 = IntG.prefix_upto_epoch ep gl in
+  assert(S.length gl_ep1 = S.length gl_ep2);
+  let aux(tid: seq_index gl_ep1):
+    Lemma (ensures (S.index gl_ep1 tid == S.index gl_ep2 tid)) =
+    lemma_prefix_upto_epoch_tid ep ils tid
+  in
+  FStar.Classical.forall_intro aux;
+  S.lemma_eq_intro gl_ep1 gl_ep2
