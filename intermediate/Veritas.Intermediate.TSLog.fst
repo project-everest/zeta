@@ -857,29 +857,49 @@ let int_hevict_equiv #vcfg (ep: epoch) (ils:its_log vcfg)
      in
      aux (int_hevicts ep ils) (I.s_seq ils)
 
-let lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ep: epoch) (ils:hash_verifiable_log vcfg ep)
+(* hadd equal for int and spec for every epoch *)
+let lemma_vtls_rel_implies_hadd_equal (#vcfg:_) (epmax ep: epoch) (ils:hash_verifiable_log vcfg epmax)
   : Lemma (requires (forall_vtls_rel ils))
           (ensures (let ilk = to_logk ils in
-                    SpecTS.hash_verifiable ep ilk))
-  = admit()
- (*
+                    IntG.hadd (g_logS_of ils) ep =
+                    VVG.hadd (SpecTS.g_vlog_of ilk) ep)) =
   let ilk = to_logk ils in
-    calc
-    (==) {
-      SpecTS.hash_verifiable ep ilk;
-    (==) { }
-      VVG.hash_verifiable ep (I.s_seq ilk);
-    (==) { }
-      (VVG.hadd (I.s_seq ilk) ep = VVG.hevict (I.s_seq ilk) ep);
-    };
-    assert (forall tid. vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid));
-    assert (Seq.equal (int_hadds ils) (spec_hadds ilk));
-    assert (Seq.equal (int_hevicts ils) (spec_hevicts ilk));
-    spec_hadd_equiv ilk;
-    spec_hevict_equiv ilk;
-    int_hadd_equiv ils;
-    int_hevict_equiv ils
-*)
+  assert (forall tid. vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid));
+  assert(Seq.equal (int_hadds ep ils) (spec_hadds ep ilk));
+  int_hadd_equiv ep ils;
+  spec_hadd_equiv ep ilk
+
+let lemma_vtls_rel_implies_hevict_equal (#vcfg:_) (epmax ep: epoch) (ils:hash_verifiable_log vcfg epmax)
+  : Lemma (requires (forall_vtls_rel ils))
+          (ensures (let ilk = to_logk ils in
+                    IntG.hevict (g_logS_of ils) ep =
+                    VVG.hevict (SpecTS.g_vlog_of ilk) ep)) =
+  let ilk = to_logk ils in
+  assert (forall tid. vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid));
+  assert(Seq.equal (int_hevicts ep ils) (spec_hevicts ep ilk));
+  int_hevict_equiv ep ils;
+  spec_hevict_equiv ep ilk
+
+let lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (epmax: epoch) (ils:hash_verifiable_log vcfg epmax)
+  : Lemma (requires (forall_vtls_rel ils))
+          (ensures (let ilk = to_logk ils in
+                    SpecTS.hash_verifiable epmax ilk))
+  =
+  let ilk = to_logk ils in
+  let glk = SpecTS.g_vlog_of ilk in
+  let gls = g_logS_of ils in
+  let aux (ep: epoch)
+    : Lemma (ensures (VVG.hash_verifiable_prop glk epmax ep))
+            [SMTPat (VVG.hash_verifiable_prop glk epmax ep)]
+    = if ep > epmax then ()
+      else (
+        IntG.hadd_hevict_equal epmax gls ep;
+        assert(IntG.hadd gls ep = IntG.hevict gls ep);
+        lemma_vtls_rel_implies_hadd_equal epmax ep ils;
+        lemma_vtls_rel_implies_hevict_equal epmax ep ils
+      )
+  in
+  ()
 
 #push-options "--fuel 1"
 
@@ -912,9 +932,6 @@ let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
         assert (Seq.index (I.s_seq ilk) tid `Seq.equal` Seq.empty);
         let tl = IntG.thread_log (I.s_seq ils) tid in
         assert (snd tl == Seq.empty);
-        //lemma_init_epoch_aggr_empty 0;
-        assert(IntT.hadd tl = empty_hash_value);
-        assert(IntT.hevict tl = empty_hash_value);
         let ts = IntT.verify tl in
         assert (ts == IntV.init_thread_state tid (VT.init_store vcfg tid));
         let tl' = (VVG.thread_log (I.s_seq ilk) tid) in
