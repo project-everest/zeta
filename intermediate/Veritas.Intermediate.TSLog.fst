@@ -730,31 +730,31 @@ let lemma_vtls_rel_implies_spec_clock_sorted (#vcfg:_) (ils:its_log vcfg)
     in
     ()
 
-let thread_hadd #vcfg (ils: its_log vcfg) (tid: valid_tid ils): ms_hash_value =
+let thread_hadd #vcfg (ep: epoch) (ils: its_log vcfg) (tid: valid_tid ils): ms_hash_value =
   let gs = g_logS_of ils in
   let tl = IntG.thread_log gs tid in
-  VT.hadd tl
+  VT.hadd tl ep
 
-let thread_hevict #vcfg (ils: its_log vcfg) (tid: valid_tid ils): ms_hash_value =
+let thread_hevict #vcfg (ep: epoch) (ils: its_log vcfg) (tid: valid_tid ils): ms_hash_value =
   let gs = g_logS_of ils in
   let tl = IntG.thread_log gs tid in
-  VT.hevict tl
+  VT.hevict tl ep
 
-let int_hadds #vcfg (ils:its_log vcfg) : Seq.seq ms_hash_value =
+let int_hadds #vcfg (ep: epoch) (ils:its_log vcfg) : Seq.seq ms_hash_value =
     let n = Seq.length (I.s_seq ils) in
-    Seq.init n (fun i -> thread_hadd ils i)
+    Seq.init n (fun i -> thread_hadd ep ils i)
 
-let int_hevicts #vcfg (ils:its_log vcfg) : Seq.seq ms_hash_value =
+let int_hevicts #vcfg (ep: epoch) (ils:its_log vcfg) : Seq.seq ms_hash_value =
     let n = Seq.length (I.s_seq ils) in
-    Seq.init n (fun i -> thread_hevict ils i)
+    Seq.init n (fun i -> thread_hevict ep ils i)
 
-let spec_hadds (ilk:SpecTS.its_log) : Seq.seq ms_hash_value =
+let spec_hadds (ep: epoch) (ilk:SpecTS.its_log) : Seq.seq ms_hash_value =
   let n = Seq.length (I.s_seq ilk) in
-  Seq.init n (fun i -> Spec.Valid?.hadd (SpecTS.thread_state ilk i))
+  Seq.init n (fun i -> Spec.Valid?.hadd (SpecTS.thread_state ilk i) ep)
 
-let spec_hevicts (ilk:SpecTS.its_log) : Seq.seq ms_hash_value =
+let spec_hevicts (ep: epoch) (ilk:SpecTS.its_log) : Seq.seq ms_hash_value =
   let n = Seq.length (I.s_seq ilk) in
-  Seq.init n (fun i -> Spec.Valid?.hevict (SpecTS.thread_state ilk i))
+  Seq.init n (fun i -> Spec.Valid?.hevict (SpecTS.thread_state ilk i) ep)
 
 let rec hash_seq (l:Seq.seq ms_hash_value)
   : Tot ms_hash_value
@@ -764,15 +764,15 @@ let rec hash_seq (l:Seq.seq ms_hash_value)
     else let h1 = hash_seq (SA.prefix l (p - 1)) in
           ms_hashfn_agg h1 (Seq.index l (p - 1))
 
-let spec_hadd_equiv (ilk:SpecTS.its_log)
-   : Lemma (VVG.hadd (I.s_seq ilk) == hash_seq (spec_hadds ilk))
+let spec_hadd_equiv (ep: epoch) (ilk:SpecTS.its_log)
+   : Lemma (VVG.hadd (I.s_seq ilk) ep == hash_seq (spec_hadds ep ilk))
    = let rec aux (vals:Seq.seq ms_hash_value)
                  (tls:VVG.verifiable_log)
        : Lemma
-         (requires vals `prefix_of` spec_hadds ilk /\
+         (requires vals `prefix_of` spec_hadds ep ilk /\
                    tls `prefix_of` I.s_seq ilk /\
                    Seq.length vals == Seq.length tls)
-         (ensures VVG.hadd_aux tls == hash_seq vals)
+         (ensures VVG.hadd_aux tls ep == hash_seq vals)
          (decreases (Seq.length vals))
        = let n = Seq.length vals in
          if n = 0 then ()
@@ -783,24 +783,23 @@ let spec_hadd_equiv (ilk:SpecTS.its_log)
            (==) {
              Seq.index vals (n - 1);
            (==) {}
-             Spec.Valid?.hadd (SpecTS.thread_state ilk (n - 1));
+             Spec.Valid?.hadd (SpecTS.thread_state ilk (n - 1)) ep;
            (==) { SpecTS.reveal_thread_state ilk (n - 1) }
-             VVT.hadd (VVG.thread_log tls (n - 1));
+             VVT.hadd (VVG.thread_log tls (n - 1)) ep;
            }
          )
      in
-     aux (spec_hadds ilk) (I.s_seq ilk)
+     aux (spec_hadds ep ilk) (I.s_seq ilk)
 
-
-let spec_hevict_equiv (ilk:SpecTS.its_log)
-   : Lemma (VVG.hevict (I.s_seq ilk) == hash_seq (spec_hevicts ilk))
+let spec_hevict_equiv (ep: epoch) (ilk:SpecTS.its_log)
+   : Lemma (VVG.hevict (I.s_seq ilk) ep == hash_seq (spec_hevicts ep ilk))
    = let rec aux (vals:Seq.seq ms_hash_value)
                  (tls:VVG.verifiable_log)
        : Lemma
-         (requires vals `prefix_of` spec_hevicts ilk /\
+         (requires vals `prefix_of` spec_hevicts ep ilk /\
                    tls `prefix_of` I.s_seq ilk /\
                    Seq.length vals == Seq.length tls)
-         (ensures VVG.hevict_aux tls == hash_seq vals)
+         (ensures VVG.hevict_aux tls ep == hash_seq vals)
          (decreases (Seq.length vals))
        = let n = Seq.length vals in
          if n = 0 then ()
@@ -811,23 +810,23 @@ let spec_hevict_equiv (ilk:SpecTS.its_log)
            (==) {
              Seq.index vals (n - 1);
            (==) {}
-             Spec.Valid?.hevict (SpecTS.thread_state ilk (n - 1));
+             Spec.Valid?.hevict (SpecTS.thread_state ilk (n - 1)) ep;
            (==) { SpecTS.reveal_thread_state ilk (n - 1) }
-             VVT.hevict (VVG.thread_log tls (n - 1));
+             VVT.hevict (VVG.thread_log tls (n - 1)) ep;
            }
          )
      in
-     aux (spec_hevicts ilk) (I.s_seq ilk)
+     aux (spec_hevicts ep ilk) (I.s_seq ilk)
 
-let int_hadd_equiv #vcfg (ils:its_log vcfg)
-   : Lemma (IntG.hadd (I.s_seq ils) == hash_seq (int_hadds ils))
+let int_hadd_equiv #vcfg (ep: epoch) (ils:its_log vcfg)
+   : Lemma (IntG.hadd (I.s_seq ils) ep == hash_seq (int_hadds ep ils))
    = let rec aux (vals:Seq.seq ms_hash_value)
                  (tls:verifiable_log vcfg)
        : Lemma
-         (requires vals `prefix_of` int_hadds ils /\
+         (requires vals `prefix_of` int_hadds ep ils /\
                    tls `prefix_of` I.s_seq ils /\
                    Seq.length vals == Seq.length tls)
-         (ensures IntG.hadd_aux tls == hash_seq vals)
+         (ensures IntG.hadd_aux tls ep == hash_seq vals)
          (decreases (Seq.length vals))
        = let n = Seq.length vals in
          if n = 0 then ()
@@ -836,18 +835,18 @@ let int_hadd_equiv #vcfg (ils:its_log vcfg)
                (prefix tls (n - 1))
          )
      in
-     aux (int_hadds ils) (I.s_seq ils)
+     aux (int_hadds ep ils) (I.s_seq ils)
 
 
-let int_hevict_equiv #vcfg (ils:its_log vcfg)
-   : Lemma (IntG.hevict (I.s_seq ils) == hash_seq (int_hevicts ils))
+let int_hevict_equiv #vcfg (ep: epoch) (ils:its_log vcfg)
+   : Lemma (IntG.hevict (I.s_seq ils) ep == hash_seq (int_hevicts ep ils))
    = let rec aux (vals:Seq.seq ms_hash_value)
                  (tls:verifiable_log vcfg)
        : Lemma
-         (requires vals `prefix_of` int_hevicts ils /\
+         (requires vals `prefix_of` int_hevicts ep ils /\
                    tls `prefix_of` I.s_seq ils /\
                    Seq.length vals == Seq.length tls)
-         (ensures IntG.hevict_aux tls == hash_seq vals)
+         (ensures IntG.hevict_aux tls ep == hash_seq vals)
          (decreases (Seq.length vals))
        = let n = Seq.length vals in
          if n = 0 then ()
@@ -856,20 +855,22 @@ let int_hevict_equiv #vcfg (ils:its_log vcfg)
                (prefix tls (n - 1))
          )
      in
-     aux (int_hevicts ils) (I.s_seq ils)
+     aux (int_hevicts ep ils) (I.s_seq ils)
 
-let lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vcfg)
+let lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ep: epoch) (ils:hash_verifiable_log vcfg ep)
   : Lemma (requires (forall_vtls_rel ils))
           (ensures (let ilk = to_logk ils in
-                    SpecTS.hash_verifiable ilk))
-  = let ilk = to_logk ils in
+                    SpecTS.hash_verifiable ep ilk))
+  = admit()
+ (*
+  let ilk = to_logk ils in
     calc
     (==) {
-      SpecTS.hash_verifiable ilk;
+      SpecTS.hash_verifiable ep ilk;
     (==) { }
-      VVG.hash_verifiable (I.s_seq ilk);
+      VVG.hash_verifiable ep (I.s_seq ilk);
     (==) { }
-      (VVG.hadd (I.s_seq ilk) = VVG.hevict (I.s_seq ilk));
+      (VVG.hadd (I.s_seq ilk) ep = VVG.hevict (I.s_seq ilk) ep);
     };
     assert (forall tid. vtls_rel (thread_state ils tid) (SpecTS.thread_state ilk tid));
     assert (Seq.equal (int_hadds ils) (spec_hadds ilk));
@@ -878,6 +879,7 @@ let lemma_vtls_rel_implies_hash_verifiable (#vcfg:_) (ils:hash_verifiable_log vc
     spec_hevict_equiv ilk;
     int_hadd_equiv ils;
     int_hevict_equiv ils
+*)
 
 #push-options "--fuel 1"
 
@@ -890,7 +892,6 @@ let lemma_empty_forall_store_ismap (#vcfg:_) (ils:its_log vcfg{I.length ils = 0}
 module VB = Veritas.BinTree
 module VIS = Veritas.Intermediate.Store
 module VR = Veritas.Record
-
 
 let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
   : Lemma (forall_vtls_rel ils)
@@ -911,7 +912,7 @@ let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
         assert (Seq.index (I.s_seq ilk) tid `Seq.equal` Seq.empty);
         let tl = IntG.thread_log (I.s_seq ils) tid in
         assert (snd tl == Seq.empty);
-        lemma_init_epoch_aggr_empty 0;
+        //lemma_init_epoch_aggr_empty 0;
         assert(IntT.hadd tl = empty_hash_value);
         assert(IntT.hevict tl = empty_hash_value);
         let ts = IntT.verify tl in
@@ -922,7 +923,7 @@ let lemma_empty_forall_vtls_rel (#vcfg:_) (ils:its_log vcfg{I.length ils = 0})
         assert (ts' == (Spec.init_thread_state tid));
         SpecTS.reveal_thread_state ilk tid;
         match ts, ts' with
-        | Valid id st clk ha he, Spec.Valid id' st' clk' _ ha' he' _ ->
+        | Valid id st clk ha he, Spec.Valid id' st' clk' _ ha' he' ->
           assert (is_map st);
           Veritas.Intermediate.Store.lemma_as_map_empty vcfg;
           if tid = 0
@@ -978,3 +979,29 @@ let lemma_clock_ordering (#vcfg:_) (itsl: its_log vcfg) (i1 i2: I.seq_index itsl
     assert (clock_sorted itsl);
     if i2 <= i1
     then  assert (clock itsl i2 `ts_leq` clock itsl i1)
+
+let lemma_clock_prefix (#vcfg:_) (ils: its_log vcfg) (i: nat{i <= I.length ils}) (j:nat{j < i}):
+  Lemma (ensures (let ils_i = I.prefix ils i in
+                  clock ils j = clock ils_i j))
+ = admit()
+
+let within_epoch_monotonic (#vcfg:_) (ep: epoch) (ils: its_log vcfg) (i1 i2: I.seq_index ils)
+  : Lemma (requires (i1 <= i2))
+          (ensures (within_epoch ep ils i2 ==> within_epoch ep ils i1))
+  = admit()
+
+(* prefix of a clock sorted log truncated upto epoch ep *)
+let prefix_upto_epoch (#vcfg:_) (ep: epoch) (ils: its_log vcfg):
+  ilsp: its_log vcfg { let i = I.length ilsp in
+                       i <= I.length ils /\
+                       ilsp == I.prefix ils i /\
+                       (i > 0 ==> within_epoch ep ils (i-1))}
+  = admit()
+
+let lemma_prefix_upto_epoch (#vcfg:_) (ep: epoch) (ils: its_log vcfg)
+  : Lemma (ensures (let ils_ep = prefix_upto_epoch ep ils in
+                    let gl_ep1 = g_logS_of ils_ep in
+                    let gl = g_logS_of ils in
+                    let gl_ep2 = IntG.prefix_upto_epoch ep gl in
+                    gl_ep1 = gl_ep2))
+   = admit()
