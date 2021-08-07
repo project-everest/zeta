@@ -46,180 +46,120 @@ let rec lemma_clock_monotonic_aux #vcfg (tl:verifiable_log vcfg) (i:seq_index tl
     lemma_clock_monotonic_aux tl' i
 #pop-options
 
-let rec blum_add_seq_aux (#vcfg:_) (tl: verifiable_log vcfg):
+let rec blum_add_seq (#vcfg:_) (ep: epoch) (tl: verifiable_log vcfg):
   Tot (S.seq ms_hashfn_dom)
   (decreases (length tl)) =
   let n = length tl in
   if n = 0 then S.empty #ms_hashfn_dom
   else
     let tl' = prefix tl (n - 1) in
-    let s' = blum_add_seq_aux tl' in
+    let s' = blum_add_seq ep tl' in
     let e = index tl (n - 1) in
-    if is_blum_add e then SA.append1 s' (blum_add_elem e)
+    if is_blum_add e && epoch_of (blum_add_elem e) = ep  then SA.append1 s' (blum_add_elem e)
     else s'
 
-let blum_add_seq (#vcfg:_) (tl: verifiable_log vcfg): S.seq ms_hashfn_dom =
-  blum_add_seq_aux tl
-
-let rec add_seq_map_aux (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
-  Tot (j: SA.seq_index (blum_add_seq tl){S.index (blum_add_seq tl) j =
-                                     blum_add_elem (index tl i)})
+let rec add_seq_map (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
+  Tot (let be = blum_add_elem (index tl i) in
+   let ep = epoch_of be in
+   let add_seq = blum_add_seq ep tl in
+   j: SA.seq_index add_seq {S.index add_seq j = be})
   (decreases (length tl)) =
   let n = length tl in
-  if n = 0 then 0
+  let be = blum_add_elem (index tl i) in
+  let ep = epoch_of be in
+  let tl' = prefix tl (n - 1) in
+  let s' = blum_add_seq ep tl' in
+  if i = n - 1 then
+    S.length s'
   else
-    let tl' = prefix tl (n - 1) in
-    let s' = blum_add_seq tl' in
-    if i = n - 1 then
-      S.length s'
-    else
-      add_seq_map_aux tl' i
+    add_seq_map tl' i
 
-let add_seq_map (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
-  (j: SA.seq_index (blum_add_seq tl){S.index (blum_add_seq tl) j =
-                                     blum_add_elem (index tl i)}) = add_seq_map_aux tl i
-
-let rec add_seq_inv_map_aux (#vcfg:_) (tl: verifiable_log vcfg) (j: SA.seq_index (blum_add_seq tl)):
+let rec add_seq_inv_map (#vcfg:_) (ep: epoch) (tl: verifiable_log vcfg) (j: SA.seq_index (blum_add_seq ep tl)):
   Tot (i: seq_index tl {is_blum_add (index tl i) /\
-              blum_add_elem (index tl i) = S.index (blum_add_seq tl) j /\
-              add_seq_map tl i = j})
+                    blum_add_elem (index tl i) = S.index (blum_add_seq ep tl) j /\
+                    epoch_of (blum_add_elem (index tl i)) = ep /\
+                    add_seq_map tl i = j})
   (decreases (length tl)) =
   let n = length tl in
-  if n = 0 then 0
+  assert(n > 0);
+  let tl' = prefix tl (n - 1) in
+  let s' = blum_add_seq ep tl' in
+  let e = index tl (n - 1) in
+  if j = S.length s' then
+    n - 1
   else
-    let tl' = prefix tl (n - 1) in
-    let s' = blum_add_seq_aux tl' in
-    let e = index tl (n - 1) in
-    let s = blum_add_seq tl in
-    if j = S.length s' then
-      n - 1
-    else
-      add_seq_inv_map_aux tl' j
+    add_seq_inv_map ep tl' j
 
-let add_seq_inv_map (#vcfg:_) (tl: verifiable_log vcfg) (j: SA.seq_index (blum_add_seq tl)):
-  (i: seq_index tl {is_blum_add (index tl i) /\
-              blum_add_elem (index tl i) = S.index (blum_add_seq tl) j /\
-              add_seq_map tl i = j}) = add_seq_inv_map_aux tl j
-
-let rec lemma_add_seq_inv_aux (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
-  Lemma (ensures (add_seq_inv_map tl (add_seq_map tl i) = i))
+let rec lemma_add_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
+  Lemma (ensures (let be = blum_add_elem (index tl i) in
+                  let ep = epoch_of be in
+                  add_seq_inv_map ep tl (add_seq_map tl i) = i))
         (decreases (length tl)) =
   let n = length tl in
   assert (n > 0);
   let tl' = prefix tl (n - 1) in
-  let s' = blum_add_seq_aux tl' in
-  let e = index tl (n - 1) in
-  let s = blum_add_seq tl in
 
   if i = n - 1 then ()
   else
-    lemma_add_seq_inv_aux tl' i
-
-let lemma_add_seq_inv (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl{is_blum_add (index tl i)}):
-  Lemma (ensures (add_seq_inv_map tl (add_seq_map tl i) = i)) = lemma_add_seq_inv_aux tl i
-
-let epoch_of #vcfg (tl: verifiable_log vcfg) = IntV.epoch_of (verify tl)
-
-let lemma_epoch_monotonic #vcfg (tl: verifiable_log vcfg) (i: nat{i <= length tl})
-  : Lemma (ensures (let tli = prefix tl i in
-                    epoch_of tli <= epoch_of tl)) =
-  lemma_fullprefix_equal (logS_of tl);
-  if i = 0 then ()
-  else lemma_clock_monotonic_aux tl (i - 1)
-
-let hadd_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
-  let vs = state_at tl i in
-  match vs with
-  | Valid _ _ (MkTimestamp ep _) ha _ ->
-    IntV.aggr_epoch_hashes_upto ha ep
+    lemma_add_seq_inv tl' i
 
 let lemma_state_transition #vcfg (tl: verifiable_log vcfg) (i: seq_index tl):
   Lemma (state_at tl (i + 1) ==
          verify_step (state_at tl i) (index tl i)) =
   ()
 
-let rec hashes_above_epoch_empty #vcfg (tl:verifiable_log vcfg) (epx: epoch):
-  Lemma (requires (epx > epoch_of tl))
-        (ensures (let vs = verify tl in
-                  let ha = Valid?.hadd vs in
-                  let he = Valid?.hevict vs in
-                  ha epx = empty_hash_value /\
-                  he epx = empty_hash_value))
-        (decreases (length tl)) =
-  let n = length tl in
-  let vs = verify tl in
-  let ep = epoch_of tl in
-  let ha = Valid?.hadd vs in
-  let he = Valid?.hevict vs in
-  if n = 0
-  then ()
-  else (
-    let tl' = prefix tl (n - 1) in
-    let ep' = epoch_of tl' in
-    let vs' = verify tl' in
-    let e = index tl (n - 1) in
-    let ha' = Valid?.hadd vs' in
-    let he' = Valid?.hevict vs' in
-    lemma_epoch_monotonic tl (n - 1);
-    hashes_above_epoch_empty tl' epx;
-    lemma_state_transition tl (n - 1)
-  )
+let hadd_at #vcfg (ep: epoch) (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
+  Valid?.hadd (state_at tl i) ep
 
-let lemma_hadd_unchanged #vcfg (tl: verifiable_log _) (i: seq_index tl{not (is_blum_add (index tl i))}):
-  Lemma (hadd_at tl i == hadd_at tl (i + 1)) =
-  lemma_state_transition #vcfg tl i;
-  let vsi = state_at tl i in
-  let vsi' = state_at tl (i+1) in
-  assert(vsi' == verify_step vsi (index tl i));
-  assert(Valid?.hadd vsi == Valid?.hadd vsi');
-  assert(Valid?.hadd vsi == Valid?.hadd vsi');
+let lemma_hadd_unchanged
+  #vcfg
+  (ep: epoch)
+  (tl: verifiable_log vcfg)
+  (i: seq_index tl{ not (is_blum_add (index tl i)) \/ epoch_of (blum_add_elem (index tl i)) <> ep}):
+  Lemma (hadd_at ep tl i == hadd_at ep tl (i + 1)) =
+  lemma_state_transition tl i;
+  ()
 
-  admit()
-
-let rec lemma_hadd_correct_aux #vcfg (tl: verifiable_log vcfg):
-  Lemma (ensures (hadd tl = ms_hashfn (blum_add_seq tl)))
+let rec lemma_hadd_correct #vcfg (ep: epoch) (tl: verifiable_log vcfg):
+  Lemma (ensures (hadd tl ep = ms_hashfn (blum_add_seq ep tl)))
         (decreases (length tl)) =
   let n = length tl in
   if n = 0 then
     lemma_hashfn_empty()
   else (
     let tl' = prefix tl (n - 1) in
-    let s' = blum_add_seq tl' in
+    let s' = blum_add_seq ep tl' in
     let e = index tl (n - 1) in
     let h' = hadd tl' in
-    lemma_hadd_correct_aux tl';
-    if is_blum_add e then lemma_hashfn_app s' (blum_add_elem e)
-    else lemma_hadd_unchanged tl (n - 1)
+    lemma_hadd_correct ep tl';
+    if is_blum_add e && epoch_of (blum_add_elem e) = ep then lemma_hashfn_app s' (blum_add_elem e)
+    else lemma_hadd_unchanged ep tl (n - 1)
   )
 
-let lemma_hadd_correct (#vcfg:_) (tl: verifiable_log vcfg):
-  Lemma (ensures (hadd tl = ms_hashfn (blum_add_seq tl))) = lemma_hadd_correct_aux tl
-
-let rec blum_evict_seq_aux #vcfg (tl: verifiable_log vcfg):
+let rec blum_evict_seq #vcfg (ep: epoch) (tl: verifiable_log vcfg):
   Tot (S.seq ms_hashfn_dom)
   (decreases (length tl)) =
   let n = length tl in
   if n = 0 then S.empty #ms_hashfn_dom
   else (
     let tl' = prefix tl (n - 1) in
-    let s' = blum_evict_seq_aux tl' in
+    let s' = blum_evict_seq ep tl' in
     let e = index tl (n - 1) in
-    if is_evict_to_blum e then
+    if is_evict_to_blum e && epoch_of (blum_evict_elem tl (n-1)) = ep then
       SA.append1 s' (blum_evict_elem tl (n - 1))
     else s'
   )
 
-let blum_evict_seq (#vcfg:_) (tl: verifiable_log vcfg): S.seq ms_hashfn_dom = blum_evict_seq_aux tl
+let hevict_at #vcfg (ep: epoch) (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
+  Valid?.hevict (state_at tl i) ep
 
-let hevict_at #vcfg (tl: verifiable_log vcfg) (i:nat{i <= length tl}): ms_hash_value =
-  Valid?.hevict (state_at tl i)
-
-#push-options "--z3rlimit_factor 2"
-
-let lemma_hevict_unchanged #vcfg (tl:verifiable_log vcfg) (i:seq_index tl{not (is_evict_to_blum (index tl i))}):
-  Lemma (hevict_at tl i = hevict_at tl (i + 1)) = ()
-
-#pop-options
+let lemma_hevict_unchanged #vcfg
+  (ep: epoch)
+  (tl:verifiable_log vcfg)
+  (i:seq_index tl{not (is_evict_to_blum (index tl i)) \/ epoch_of (blum_evict_elem tl i) <> ep}):
+  Lemma (hevict_at ep tl i = hevict_at ep tl (i + 1)) =
+  lemma_state_transition tl i;
+  ()
 
 let rec lemma_thread_id_state #vcfg (tl: verifiable_log vcfg):
   Lemma (ensures (IntV.thread_id_of (verify tl) = thread_id_of tl))
@@ -231,8 +171,9 @@ let rec lemma_thread_id_state #vcfg (tl: verifiable_log vcfg):
 
 module Spec = Veritas.Verifier
 
-let lemma_hevict_change #vcfg (tl: verifiable_log vcfg) (i: seq_index tl{is_evict_to_blum (index tl i)}):
-  Lemma (hevict_at tl (i + 1) = ms_hashfn_upd (blum_evict_elem tl i) (hevict_at tl i)) =
+let lemma_hevict_change #vcfg (ep: epoch) (tl: verifiable_log vcfg)
+  (i: seq_index tl{is_evict_to_blum (index tl i) /\ epoch_of (blum_evict_elem tl i) = ep}):
+  Lemma (hevict_at ep tl (i + 1) = ms_hashfn_upd (blum_evict_elem tl i) (hevict_at ep tl i)) =
   lemma_state_transition tl i;
   lemma_thread_id_state (prefix tl i)
 
@@ -452,3 +393,17 @@ let lemma_evict_elem_unique (#vcfg:_) (tl: verifiable_log vcfg) (i1 i2: SA.seq_i
     lemma_evict_seq_clock_strictly_monotonic tl i1 i2
   else
     lemma_evict_seq_clock_strictly_monotonic tl i2 i1
+
+(* Get the maximal prefix of log upto epoch "ep" *)
+let prefix_upto_epoch (#vcfg:_) (ep: epoch) (tl: verifiable_log vcfg): verifiable_log vcfg = admit()
+
+let lemma_prefix_upto_epoch (#vcfg:_) (ep: epoch) (tl: verifiable_log vcfg):
+  Lemma (ensures (let tl' = prefix_upto_epoch ep tl in
+                  let tid, l = tl in
+                  let tid', l' = tl' in
+                  let MkTimestamp ep' _ = Valid?.clock (verify tl') in
+                  tid = tid' /\
+                  SA.is_prefix l l' /\
+                  ep' <= ep /\
+                  (length tl' < length tl ==> (let MkTimestamp ep'' _ = clock tl (length tl') in
+                                               ep'' > ep)))) = admit()
