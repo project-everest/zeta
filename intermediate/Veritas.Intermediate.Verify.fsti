@@ -337,8 +337,9 @@ let vaddb #vcfg (s:slot_id vcfg) (r:record) (t:timestamp) (j:thread_id) (vs:vtls
   let ep = MkTimestamp?.e t in
   let st = thread_store vs in
   let (k,v) = r in
+  if k = Root then Failed
   (* check value type consistent with key k *)
-  if not (is_value_of k v) then Failed
+  else if not (is_value_of k v) then Failed
   (* check store contains slot s *)
   else if inuse_slot st s then Failed
   else

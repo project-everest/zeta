@@ -800,6 +800,7 @@ let lemma_verifiable_implies_consistent_log_feq #vcfg (vsinit: vtls vcfg) (l: lo
   | AddB_S _ _ _ _ -> lemma_verifiable_implies_consistent_log_feq_addb vsinit l
   | EvictB_S _ _ -> lemma_verifiable_implies_consistent_log_feq_evictb vsinit l
   | EvictBM_S _ _ _ -> lemma_verifiable_implies_consistent_log_feq_evictbm vsinit l
+  | _ -> () (* e = NextEpoch \/ e = VerifyEpoch -> doesn not change the store *)
 
 let lemma_verifiable_implies_consistent_extend #vcfg (vsinit: vtls vcfg) (l: logS _{Seq.length l > 0 /\ verifiable vsinit l}):
   Lemma (requires (let n = Seq.length l in
@@ -889,6 +890,8 @@ let lemma_verifiable_implies_consistent_extend #vcfg (vsinit: vtls vcfg) (l: log
       assert(Assoc? (s2k' s1));
       assert(Assoc? (s2k' s2));
       ()
+    | NextEpoch -> ()
+    | VerifyEpoch -> ()
   in
   assert(consistent_log s2kinit l);
   ()
@@ -1194,6 +1197,7 @@ let lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_)
   | AddB_S _ _ _ _ -> lemma_verifiable_implies_slot_is_merkle_points_to_addb vs e
   | EvictB_S _ _ -> lemma_verifiable_implies_slot_is_merkle_points_to_evictb vs e
   | EvictBM_S _ _ _ -> lemma_verifiable_implies_slot_is_merkle_points_to_evictbm vs e
+  | _ -> ()
 
 let lemma_vget_simulates_spec
       (#vcfg:_)
@@ -1496,8 +1500,8 @@ let lemma_vaddm_preserves_spec_new_key_caseValid
     let vsk1 = Spec.t_verify_step vsk ek in
 
     assert(thread_clock vss1 = Spec.thread_clock vsk1);
-    assert(thread_hadd vss1 = Spec.thread_hadd vsk1);
-    assert(thread_hevict vss1 = Spec.thread_hevict vsk1);
+    //assert(thread_hadd vss1 = Spec.thread_hadd vsk1);
+    //assert(thread_hevict vss1 = Spec.thread_hevict vsk1);
     assert(Valid?.id vss1 = Spec.Valid?.id vsk1);
 
     let sts1 = thread_store vss1 in
@@ -1662,6 +1666,8 @@ let lemma_vaddb_preserves_spec_new_key
     (* incompatible value - both spec and int will fail *)
     if not (is_value_of k v) then ()
 
+    else if k = Root then ()
+
     else
       let vss1 = verify_step vss e in
       let sts1 = thread_store vss1 in
@@ -1670,7 +1676,6 @@ let lemma_vaddb_preserves_spec_new_key
 
       let vsk1 = Spec.t_verify_step vsk ek in
       let stk1 = Spec.thread_store vsk1 in
-
       let aux (k2: key):
         Lemma (ensures (sts1_map k2 = stk1 k2)) =
         if k2 = k then ()
@@ -2113,14 +2118,14 @@ let lemma_nextepoch_simulates_spec
                      valid_logS_entry vs NextEpoch))
           (ensures (let ek = to_logK_entry vs NextEpoch in
                     vtls_rel (verify_step vs NextEpoch) (Spec.t_verify_step vs' ek)))
-  = admit()
+  = ()
 
 let lemma_nextepoch_preserves_ismap
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs NextEpoch) ==> S.is_map (thread_store (verify_step vs NextEpoch))))
-  = admit()
+  = ()
 
 let lemma_verifyepoch_simulates_spec
       (#vcfg:_)
@@ -2130,11 +2135,11 @@ let lemma_verifyepoch_simulates_spec
                      valid_logS_entry vs VerifyEpoch))
           (ensures (let ek = to_logK_entry vs VerifyEpoch in
                     vtls_rel (verify_step vs VerifyEpoch) (Spec.t_verify_step vs' ek)))
-  = admit()
+  = ()
 
 let lemma_verifyepoch_preserves_ismap
       (#vcfg:_)
       (vs:vtls vcfg{Valid? vs})
   : Lemma (requires (S.is_map (thread_store vs)))
           (ensures (Valid? (verify_step vs VerifyEpoch) ==> S.is_map (thread_store (verify_step vs VerifyEpoch))))
-  = admit()
+  = ()
