@@ -28,12 +28,14 @@ let rec add_seq_map
   #vcfg
   (itsl: its_log vcfg)
   (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
-  Tot (let be = blum_add_elem itsl i in
+  Tot (let e = I.index itsl i in
+       let be = blum_add_elem e in
        let ep = epoch_of be in
        j:SA.seq_index (add_seq ep itsl){ S.index (add_seq ep itsl) j = be })
   (decreases (I.length itsl)) =
   let n = I.length itsl in
-  let be = blum_add_elem itsl i in
+  let e = I.index itsl i in
+  let be = blum_add_elem e in
   let ep = epoch_of be in
 
   let itsl' = I.prefix itsl (n - 1) in
@@ -49,7 +51,7 @@ let rec add_seq_map
 let rec add_seq_map_inv #vcfg (ep: epoch) (itsl: its_log vcfg) (j: SA.seq_index (add_seq ep itsl)):
   Tot (i: I.seq_index itsl {let e = I.index itsl i in
                             is_blum_add e /\
-                            (let be = blum_add_elem itsl i in
+                            (let be = blum_add_elem (I.index itsl i) in
                              let add_seq = add_seq ep itsl in
                              be = S.index add_seq j /\
                              add_seq_map itsl i = j /\
@@ -62,7 +64,7 @@ let rec add_seq_map_inv #vcfg (ep: epoch) (itsl: its_log vcfg) (j: SA.seq_index 
     let itsl' = I.prefix itsl (n - 1) in
     let s' = add_seq ep itsl' in
     let e = I.index itsl (n - 1) in
-    if is_blum_add e && ep = epoch_of (blum_add_elem itsl (n-1)) then
+    if is_blum_add e && ep = epoch_of (blum_add_elem (I.index itsl (n-1))) then
       if j = S.length s' then n - 1
       else add_seq_map_inv ep itsl' j
     else add_seq_map_inv ep itsl' j
@@ -70,15 +72,17 @@ let rec add_seq_map_inv #vcfg (ep: epoch) (itsl: its_log vcfg) (j: SA.seq_index 
 
 #pop-options
 
-#push-options "--max_fuel 1 --max_ifuel 0 --z3rlimit_factor 5"
+#push-options "--z3rlimit_factor 4"
 
 let rec lemma_add_seq_map_inv #vcfg (itsl: its_log vcfg) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
-  Lemma (ensures (let be = blum_add_elem itsl i in
+  Lemma (ensures (let e = I.index itsl i in
+                  let be = blum_add_elem e in
                   let ep = epoch_of be in
                   let j = add_seq_map itsl i in
                   add_seq_map_inv ep itsl j = i))
         (decreases (I.length itsl))
         [SMTPat (add_seq_map itsl i)] =
+
   let n = I.length itsl in
   let itsl' = I.prefix itsl (n - 1) in
   if i = n - 1 then ()
@@ -89,10 +93,12 @@ let rec lemma_add_seq_map_inv #vcfg (itsl: its_log vcfg) (i: I.seq_index itsl{is
 
 let lemma_add_elem_correct (#vcfg:_) (itsl: its_log vcfg) (i: I.seq_index itsl):
   Lemma (requires (is_blum_add (I.index itsl i)))
-        (ensures (let be = blum_add_elem itsl i in
+        (ensures (let e = I.index itsl i in
+                  let be = blum_add_elem e in
                   let ep = epoch_of be in
                   add_set ep itsl `contains` be)) =
-  let be = blum_add_elem itsl i in
+  let e = I.index itsl i in
+  let be = blum_add_elem e in
   let ep = epoch_of be in
   let add_seq = add_seq ep itsl in
   let j = add_seq_map itsl i in
@@ -187,14 +193,14 @@ let lemma_add_set_extend  (#vcfg:_) (itsl: its_log vcfg {I.length itsl > 0}):
   Lemma (requires (is_blum_add (I.telem itsl)))
         (ensures (let i = I.length itsl - 1 in
                   let e = I.index itsl i in
-                  let be = blum_add_elem itsl i in
+                  let be = blum_add_elem e in
                   let ep = epoch_of be in
                   let itsl' = I.prefix itsl i in
                   add_set ep itsl ==
                   add_elem (add_set ep itsl') be)) =
   let n = I.length itsl in
   let e = I.telem itsl in
-  let be = blum_add_elem itsl (n-1) in
+  let be = blum_add_elem e in
   let ep = epoch_of be in
   let itsl' = I.prefix itsl (n - 1) in
   let s' = add_seq ep itsl' in
@@ -271,7 +277,7 @@ let rec evict_seq_inv_map #vcfg (ep: epoch) (itsl: its_log vcfg) (j:SA.seq_index
     i
   )
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--z3rlimit_factor 6"
 
 let rec lemma_evict_seq_inv_map #vcfg (itsl: its_log vcfg) (i:I.seq_index itsl {is_evict_to_blum (I.index itsl i)}):
   Lemma (ensures (let be = blum_evict_elem itsl i in
@@ -392,7 +398,7 @@ let lemma_spec_rel_implies_same_add_elem (#vcfg:_)
                                          (i: I.seq_index ils{is_blum_add (I.index ils i)}):
   Lemma (ensures (let ilk = IntTS.to_logk ils in
                   SpecV.is_blum_add (I.index ilk i) /\
-                  SpecT.blum_add_elem (I.index ilk i) = blum_add_elem ils i)) =
+                  SpecT.blum_add_elem (I.index ilk i) = blum_add_elem (I.index ils i))) =
   ()
 
 let rec lemma_spec_rel_implies_same_add_seq_len #vcfg (ep: epoch) (ils: its_log vcfg{spec_rel ils})
@@ -416,7 +422,7 @@ let rec lemma_spec_rel_implies_same_add_seq_len #vcfg (ep: epoch) (ils: its_log 
     assert(spec_rel ils');
     lemma_spec_rel_implies_same_add_seq_len ep ils';
 
-    if is_blum_add es && epoch_of (blum_add_elem ils (n-1)) = ep then
+    if is_blum_add es && epoch_of (blum_add_elem (I.index ils (n-1))) = ep then
       SpecB.lemma_add_seq_extend ilk
     else
       SpecB.lemma_add_seq_extend2 ep ilk
@@ -445,7 +451,7 @@ let rec lemma_spec_rel_implies_same_add_seq(#vcfg:_) (ep: epoch) (ils: its_log v
     lemma_spec_rel_implies_prefix_spec_rel ils (n - 1);
     // assert(spec_rel ils');
     lemma_spec_rel_implies_same_add_seq ep ils';
-    if is_blum_add es && epoch_of (blum_add_elem ils (n-1)) = ep then
+    if is_blum_add es && epoch_of (blum_add_elem (I.index ils (n-1))) = ep then
       // assert(SpecV.is_blum_add ek);
       SpecB.lemma_add_seq_extend ilk
     else
@@ -545,7 +551,7 @@ let lemma_evict_clock  #vcfg (itsl: its_log vcfg) (i:I.seq_index itsl{is_evict_t
   IntT.lemma_evict_clock tl j
 
 let lemma_add_clock #vcfg (itsl: its_log vcfg) (i: I.seq_index itsl{is_blum_add (I.index itsl i)}):
-  Lemma (timestamp_of (blum_add_elem itsl i) `ts_lt` IntTS.clock itsl i) =
+  Lemma (timestamp_of (blum_add_elem (I.index itsl i)) `ts_lt` IntTS.clock itsl i) =
   let gl = g_logS_of itsl in
   let (tid,j) = i2s_map itsl i in
   let tl = thread_log gl tid in
@@ -553,11 +559,11 @@ let lemma_add_clock #vcfg (itsl: its_log vcfg) (i: I.seq_index itsl{is_blum_add 
 
 (* if the blum add occurs in the blum evict set, its index is earlier *)
 let lemma_evict_before_add (#vcfg:_) (itsl: its_log vcfg) (i:I.seq_index itsl{is_blum_add (I.index itsl i)}):
-  Lemma (ensures (let be = blum_add_elem itsl i in
+  Lemma (ensures (let be = blum_add_elem (I.index itsl i) in
                   let ep = epoch_of be in
-                  evict_set ep itsl `MS.contains` blum_add_elem itsl i ==>
+                  evict_set ep itsl `MS.contains` blum_add_elem (I.index itsl i) ==>
                   index_blum_evict ep itsl be < i)) =
-  let be = blum_add_elem itsl i in
+  let be = blum_add_elem (I.index itsl i) in
   let ep = epoch_of be in
   let evt_set = evict_set ep itsl in
   let add_set = add_set ep itsl in
@@ -575,7 +581,7 @@ let some_add_elem_idx (#vcfg:_)
     (ep: epoch)
     (itsl: its_log vcfg)
     (be: ms_hashfn_dom {add_set ep itsl `contains` be}):
-   (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\ be = blum_add_elem itsl i}) =
+   (i:(I.seq_index itsl){is_blum_add (I.index itsl i) /\ be = blum_add_elem (I.index itsl i)}) =
   let s = add_seq ep itsl in
   (* index of element be in s *)
   let j = index_of_mselem #_ #ms_hashfn_dom_cmp s be in
@@ -591,12 +597,12 @@ let rec lemma_prefix_add_seq #vcfg (ep: epoch) (itsl: its_log vcfg) (i: nat{ i <
     let s' = add_seq ep itsl' in
     let e = I.index itsl (n - 1) in
     if i = n - 1 then
-      if is_blum_add e && epoch_of (blum_add_elem itsl (n-1)) = ep then
+      if is_blum_add e && epoch_of (blum_add_elem (I.index itsl (n-1))) = ep then
         lemma_prefix1_append s' (IntT.blum_add_elem e)
       else ()
     else (
       lemma_prefix_add_seq ep itsl' i;
-      if is_blum_add e && epoch_of (blum_add_elem itsl (n-1)) = ep then
+      if is_blum_add e && epoch_of (blum_add_elem (I.index itsl (n-1))) = ep then
         lemma_prefix1_append s' (IntT.blum_add_elem e)
       else ()
     )

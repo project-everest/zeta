@@ -1434,3 +1434,10 @@ let madd_to_store_root_as_map (#vcfg:_) (st:vstore vcfg) (s:empty_slot_id st) (v
     in
     ()
   )
+
+let lemma_ismap_badd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  : Lemma (requires (not (store_contains_key st k)))
+          (ensures (is_map (badd_to_store st s k v)))
+  = admit()

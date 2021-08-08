@@ -1039,7 +1039,7 @@ let prefix_upto_epoch (#vcfg:_) (ep: epoch) (ils: its_log vcfg):
 
 module S = FStar.Seq
 
-#push-options "--z3rlimit_factor 2"
+#push-options "--z3rlimit_factor 5"
 
 let lemma_prefix_upto_epoch_aux (#vcfg:_) (ep: epoch) (itsl: its_log vcfg) (tid: valid_tid itsl):
   Lemma (ensures (let gl = g_logS_of itsl in
@@ -1048,7 +1048,6 @@ let lemma_prefix_upto_epoch_aux (#vcfg:_) (ep: epoch) (itsl: its_log vcfg) (tid:
                   let itsl_ep = prefix_upto_epoch ep itsl in
                   let gl_ep = g_logS_of itsl_ep in
                   l_ep = S.index gl_ep tid)) =
-
   let i = max_epoch_index_search ep itsl (I.length itsl) in
   let itsl_ep = prefix_upto_epoch ep itsl in
   assert(itsl_ep == I.prefix itsl i);

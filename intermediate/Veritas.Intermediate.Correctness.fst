@@ -589,7 +589,7 @@ let inductive_step_addb_neac_caseA #vcfg
     // assert(E.to_vlog_entry ee = ek);
     // assert(st = E.EACInit);
     // assert(ee = E.NEvict ek);
-    let be = IntB.blum_add_elem ils i in
+    let be = blum_add_elem (I.index ils i) in
     let ep = epoch_of be in
     // assert(ep <= epmax);
 
@@ -900,7 +900,7 @@ let inductive_step_addb_caseB #vcfg
     let sts = IntV.thread_store vss_i in
     let stk = SpecV.thread_store vsk_i in
     assert(SpecV.store_contains stk k);
-    let be = IntB.blum_add_elem ils i in
+    let be = blum_add_elem (I.index ils i) in
     let ep = epoch_of be in
     SpecB.eac_add_set_mem_atleast_evict_set_mem ilk_i be tid;
     lemma_spec_rel_implies_same_add_seq ep ils_i;

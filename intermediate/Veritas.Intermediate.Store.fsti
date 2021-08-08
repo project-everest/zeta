@@ -500,3 +500,9 @@ val madd_to_store_root_as_map (#vcfg:_) (st:vstore vcfg) (s:empty_slot_id st) (v
                   is_map (madd_to_store_root st s v) /\
                   FE.feq (as_map (madd_to_store_root st s v))
                          (Spec.add_to_store (as_map st) Root v Spec.MAdd))
+
+val lemma_ismap_badd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
+  (s:empty_slot_id st)
+  (k:key) (v:value_type_of k)
+  : Lemma (requires (not (store_contains_key st k)))
+          (ensures (is_map (badd_to_store st s k v)))

@@ -1636,7 +1636,13 @@ let lemma_vaddb_preserves_ismap_new_key
                      let AddB_S _ (k,_) _ _ = e in
                      is_map st /\ not (store_contains_key st k)))
           (ensures (Valid? (verify_step vs e) ==> S.is_map (thread_store (verify_step vs e))))
-  = ()
+  =
+  match e with
+  | AddB_S s (k,v) _ _ ->
+  if Valid? (verify_step vs e) then (
+    lemma_ismap_badd_to_store (thread_store vs) s k v
+  )
+  else ()
 
 (* addb preserves spec relationship if the kew is not in store *)
 let lemma_vaddb_preserves_spec_new_key
