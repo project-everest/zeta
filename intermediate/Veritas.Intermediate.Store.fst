@@ -1440,4 +1440,17 @@ let lemma_ismap_badd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
   (k:key) (v:value_type_of k)
   : Lemma (requires (not (store_contains_key st k)))
           (ensures (is_map (badd_to_store st s k v)))
-  = admit()
+  =
+  let st1 = badd_to_store st s k v in
+  let aux (s1: inuse_slot_id st1) (s2: inuse_slot_id st1{s2 <> s1}):
+    Lemma (ensures (stored_key st1 s1 <> stored_key st1 s2))
+          [SMTPat (stored_key st1 s1); SMTPat (stored_key st1 s2)] =
+    if stored_key st1 s1 <> stored_key st1 s2 then ()
+    else if s1 = s then
+      store_contains_inuse_slot_keys st s2
+    else if s2 = s then
+      store_contains_inuse_slot_keys st s1
+    else
+      ()
+  in
+  ()
