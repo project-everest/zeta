@@ -1,20 +1,6 @@
 module Veritas.Intermediate.Verify
 open FStar.Classical
 
-(* initial epoch hashes - all hashes initialized to 0 (empty_hash_value) *)
-let init_epoch_hashes: epoch_hashes = fun e -> empty_hash_value
-
-(* update the hash of an epoch *)
-let upd_epoch_hash (ep2h: epoch_hashes) (ep: epoch) (e: ms_hashfn_dom): epoch_hashes =
-  (* previous hash of epoch ep *)
-  let h' = ep2h ep in
-  (* updated hash of epoch ep *)
-  let h = ms_hashfn_upd e h' in
-  fun ep' -> if ep = ep'
-          then h
-          else ep2h ep'
-
-
 #push-options "--z3rlimit_factor 2"
 
 let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}):
@@ -2118,3 +2104,37 @@ let lemma_evictbm_simulates_spec
     )
 
 #pop-options
+
+let lemma_nextepoch_simulates_spec
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+      (vs':Spec.vtls)
+  : Lemma (requires (vtls_rel vs vs' /\
+                     valid_logS_entry vs NextEpoch))
+          (ensures (let ek = to_logK_entry vs NextEpoch in
+                    vtls_rel (verify_step vs NextEpoch) (Spec.t_verify_step vs' ek)))
+  = admit()
+
+let lemma_nextepoch_preserves_ismap
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+  : Lemma (requires (S.is_map (thread_store vs)))
+          (ensures (Valid? (verify_step vs NextEpoch) ==> S.is_map (thread_store (verify_step vs NextEpoch))))
+  = admit()
+
+let lemma_verifyepoch_simulates_spec
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+      (vs':Spec.vtls)
+  : Lemma (requires (vtls_rel vs vs' /\
+                     valid_logS_entry vs VerifyEpoch))
+          (ensures (let ek = to_logK_entry vs VerifyEpoch in
+                    vtls_rel (verify_step vs VerifyEpoch) (Spec.t_verify_step vs' ek)))
+  = admit()
+
+let lemma_verifyepoch_preserves_ismap
+      (#vcfg:_)
+      (vs:vtls vcfg{Valid? vs})
+  : Lemma (requires (S.is_map (thread_store vs)))
+          (ensures (Valid? (verify_step vs VerifyEpoch) ==> S.is_map (thread_store (verify_step vs VerifyEpoch))))
+  = admit()
