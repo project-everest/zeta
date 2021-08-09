@@ -1,9 +1,8 @@
-
-module Veritas.Record
+module Zeta.Record
 
 open FStar.BitVector
-open Veritas.BinTree
-open Veritas.Key
+open Zeta.BinTree
+open Zeta.Key
 
 (* data value - add a special value Null over an underlying type a*)
 type data_value = 

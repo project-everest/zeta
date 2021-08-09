@@ -1,4 +1,4 @@
-module Veritas.SeqAux
+module Zeta.SeqAux
 
 open FStar.Seq
 

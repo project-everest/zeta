@@ -1,4 +1,4 @@
-module Veritas.BinTree
+module Zeta.BinTree
 
 open FStar.BitVector
 
@@ -134,14 +134,11 @@ val lemma_two_related_desc_same_dir (d1: bin_tree_node)
         (ensures (desc_dir d1 a = desc_dir d2 a))
 
 (* map a bit vector to a binary tree node *)
-val bv_to_bin_tree_node (#n:pos) (b:bv_t n): Tot (t:bin_tree_node{depth t = n})
+val bv_to_bin_tree_node (#n:nat) (b:bv_t n): Tot (t:bin_tree_node{depth t = n})
 
 (* map a binary tree node to bit vector *)
-val bin_tree_node_to_bv (n:non_root_node): Tot (bv_t (depth n))
+val bin_tree_node_to_bv (n:bin_tree_node): Tot (v: bv_t (depth n) { bv_to_bin_tree_node v = n })
 
-val bv_to_bin_tree_consistent (#n:pos) (b:bv_t n):
-  Lemma (b = bin_tree_node_to_bv (bv_to_bin_tree_node b))
-
-val bin_tree_to_bv_consistent (n:non_root_node):
-  Lemma (n = bv_to_bin_tree_node (bin_tree_node_to_bv n))
-
+val bv_to_bin_tree_consistent (#n:nat) (b:bv_t n):
+  Lemma (ensures (b = bin_tree_node_to_bv (bv_to_bin_tree_node b)))
+        [SMTPat (bv_to_bin_tree_node b)]

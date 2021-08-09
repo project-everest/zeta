@@ -1,6 +1,6 @@
-module Veritas.Key
+module Zeta.Key
 
-open Veritas.BinTree
+open Zeta.BinTree
 
 (* the key space is 2^key_size *)
 let key_size = 256

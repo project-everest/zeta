@@ -1,8 +1,9 @@
-module Veritas.BinTree
+module Zeta.BinTree
 
 open FStar.BitVector
 open FStar.Classical
 open FStar.Seq
+open Zeta.SeqAux
 
 (* Inductive type that captures the descendant relationship *)
 type desc: bin_tree_node -> bin_tree_node -> Type = 
@@ -270,80 +271,44 @@ let lemma_two_related_desc_same_dir (d1: bin_tree_node)
     lemma_siblings_non_anc_desc a
   )
 
-(* Traverse down a binary tree from a start node (sn) based on a bit vector *)
-let rec traverse_bin_tree (#n:pos) (b:bv_t n) (sn:bin_tree_node): Tot bin_tree_node = 
-  if n = 1 
-  then if index b 0 then RightChild sn else LeftChild sn
-  else (
-    let tn' = traverse_bin_tree #(n-1) (slice b 0 (n-1)) sn in
-    if index b (n-1) then RightChild tn' else LeftChild tn'
-  )
-
-(* Traversing adds bit vector length to the depth *)
-let rec traverse_adds_size_to_depth (#n:pos) (b:bv_t n) (sn:bin_tree_node): 
-  Lemma (requires (True))
-        (ensures (depth (traverse_bin_tree b sn) = n + depth sn)) = 
-  if (n = 1) 
-  then () 
-  else traverse_adds_size_to_depth #(n-1) (slice b 0 (n-1)) sn
-
 (* Map a bit vector to a binary tree node by traversing from the root *)
-let bv_to_bin_tree_node (#n:pos) (b:bv_t n): Tot (t:bin_tree_node{depth t = n}) = 
-  traverse_adds_size_to_depth b Root; traverse_bin_tree b Root
+let rec bv_to_bin_tree_node (#n:nat) (b:bv_t n): Tot (t:bin_tree_node{depth t = n}) (decreases n) =
+  if n = 0 then Root
+  else
+    let b' = hprefix b in
+    let n' = bv_to_bin_tree_node #(n-1) b' in
+    if telem b then RightChild n' else LeftChild n'
 
 (* Given a binary tree node return the path from root as a binary vector *)
-let rec path_from_root (a:bin_tree_node{depth a > 0}): Tot (bv_t (depth a)) 
-  (decreases (depth a)) = 
-  if depth a = 1 
-  then (match a with
-       | LeftChild a' -> zero_vec #1
-       | RightChild a' -> ones_vec #1
-       )
-  else (match a with
-       | LeftChild a' -> (append (path_from_root a') (zero_vec #1))
-       | RightChild a' -> (append (path_from_root a') (ones_vec #1))
-       )
+let rec bin_tree_node_to_bv (a:bin_tree_node): Tot (v: bv_t (depth a) { bv_to_bin_tree_node v = a })
+  (decreases (depth a)) =
+  match a with
+  | Root -> FStar.Seq.empty #bool
+  | LeftChild a' ->
+    let v' = bin_tree_node_to_bv a' in
+    let v = append1 v' false in
+    lemma_prefix1_append v' false;
+    v
+  | RightChild a' ->
+    let v' = bin_tree_node_to_bv a' in
+    let v = append1 v' true in
+    lemma_prefix1_append v' true;
+    v
 
-(* map a binary tree node to bit vector *)
-let bin_tree_node_to_bv (n:non_root_node): (bv_t (depth n)) = path_from_root n
-
-(* path_from_root and bv_to_bin_tree_node are inverse operations *)
-let rec path_from_root_bv2bin_consistent_aux (#n:pos) (b:bv_t n) (i:nat{i < n}):
-  Lemma (index (path_from_root (bv_to_bin_tree_node b)) i = index b i)
-  = 
-  if n = 1 then ()  
-  else (
-    if i = n - 1 
-    then ()
-    else path_from_root_bv2bin_consistent_aux #(n-1) (slice b 0 (n-1)) i
-  )
-
-let bv_to_bin_tree_consistent (#n:pos) (b:bv_t n):
-  Lemma (b = bin_tree_node_to_bv (bv_to_bin_tree_node b)) = 
-  let b' = path_from_root (bv_to_bin_tree_node b) in
-  let aux (i:nat{i < n}): Lemma ((index b' i) = (index b i)) = 
-    path_from_root_bv2bin_consistent_aux b i  
-  in
-  forall_intro aux; lemma_eq_intro b b'
-
-(* path_from_root and bv_to_bin_tree_node are inverse operations - II *)
-let rec path_from_root_bv2bin_consistent2 (tn:bin_tree_node{depth tn > 0}):
-  Lemma (requires (True)) 
-        (ensures bv_to_bin_tree_node (path_from_root tn) = tn)
-  (decreases (depth tn)) =
-  let n = depth tn in
-  if n = 1 then ()
-  else match tn with 
-       | LeftChild tn' -> 
-           let p' = path_from_root tn' in
-           append_slices p' (zero_vec #1);
-           path_from_root_bv2bin_consistent2 tn'
-       | RightChild tn' -> 
-           let p' = path_from_root tn' in
-           append_slices p' (ones_vec #1);
-           path_from_root_bv2bin_consistent2 tn'
-
-let bin_tree_to_bv_consistent (n:non_root_node):
-  Lemma (n = bv_to_bin_tree_node (bin_tree_node_to_bv n)) = 
-  path_from_root_bv2bin_consistent2 n
-
+let rec bv_to_bin_tree_consistent (#n:nat) (b:bv_t n):
+  Lemma (ensures (let t = bv_to_bin_tree_node b in
+                  b = bin_tree_node_to_bv t))
+        (decreases n) =
+  let t = bv_to_bin_tree_node b in
+  let b2 = bin_tree_node_to_bv t in
+  if n = 0 then lemma_empty b
+  else
+    let b' = hprefix b in
+    let t' = bv_to_bin_tree_node #(n-1) b' in
+    bv_to_bin_tree_consistent #(n-1) b';
+    assert(bin_tree_node_to_bv t' = b');
+    let aux (i: nat{i < n}):
+      Lemma (ensures (index b2 i = index b i))
+            [SMTPat (index b2 i = index b i)] = ()
+    in
+    lemma_eq_intro b b2
