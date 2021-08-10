@@ -4,6 +4,8 @@ open Zeta.App
 open Zeta.Time
 open Zeta.Record
 
+module S = FStar.Seq
+
 (*
  * Verifier built-in methods
  *
@@ -79,26 +81,41 @@ type verifier_spec_base = {
              v:vtls_t{valid v && valid (impl b p v)} ->
              record;
 
+  (* application specification *)
   app: app_params;
+
+  (* initialize the thread state *)
+  init: thread_id -> v: vtls_t {valid v};
+
+  get_param_t: eqtype;
 }
 
 (* clock is monotonic property *)
-let clock_monotonic_prop (verifier: verifier_spec_base) =
-  forall (b: builtin). forall (p: verifier.param_t b). forall (vtls: verifier.vtls_t {verifier.valid vtls}).
-    {:pattern verifier.impl b p vtls }
-    let clock_pre = verifier.clock vtls in
-    let vtls_post = verifier.impl b p vtls in
-    verifier.valid vtls_post ==> (let clock_post = verifier.clock vtls_post in
+let clock_monotonic_prop (vspec: verifier_spec_base) =
+  forall (b: builtin). forall (p: vspec.param_t b). forall (vtls: vspec.vtls_t {vspec.valid vtls}).
+    {:pattern vspec.impl b p vtls }
+    let clock_pre = vspec.clock vtls in
+    let vtls_post = vspec.impl b p vtls in
+    vspec.valid vtls_post ==> (let clock_post = vspec.clock vtls_post in
                                   clock_pre `ts_leq` clock_post)
 
 (* thread_id is constant *)
-let thread_id_constant_prop (verifier: verifier_spec_base) =
-  forall (b: builtin). forall (p: verifier.param_t b). forall (vtls: verifier.vtls_t {verifier.valid vtls}).
-    {:pattern verifier.impl b p vtls }
-    let tid_pre = verifier.tid vtls in
-    let tid_post = verifier.tid (verifier.impl b p vtls) in
+let thread_id_constant_prop (vspec: verifier_spec_base) =
+  forall (b: builtin). forall (p: vspec.param_t b). forall (vtls: vspec.vtls_t {vspec.valid vtls}).
+    {:pattern vspec.impl b p vtls }
+    let tid_pre = vspec.tid vtls in
+    let tid_post = vspec.tid (vspec.impl b p vtls) in
     tid_pre = tid_post
 
-type verifier_log_entry (verifier: verifier_spec_base) =
-  | Builtin: b: builtin -> p: verifier.param_t b -> verifier_log_entry verifier
-  | App: f: appfn_id verifier.app -> p: appfn_arg f -> verifier_log_entry verifier
+type verifier_log_entry (vspec: verifier_spec_base) =
+  | Builtin: b: builtin -> p: vspec.param_t b -> verifier_log_entry vspec
+  | App: f: appfn_id vspec.app -> p: appfn_arg f -> verifier_log_entry vspec
+
+let verifier_log vspec = S.seq (verifier_log_entry vspec)
+
+let verify_step #vspec (vtls: vspec.vtls_t) (e: verifier_log_entry vspec) =
+  if not (vspec.valid vtls) then vtls
+  else
+  match e with
+  | Builtin b p -> vspec.impl b p vtls
+  | App f p -> admit()
