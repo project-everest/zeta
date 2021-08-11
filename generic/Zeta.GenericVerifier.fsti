@@ -71,40 +71,83 @@ type verifier_spec_base = {
 type verifier_log_entry (vspec: verifier_spec_base) =
   | AddM: r: record vspec.app -> s: vspec.slot_t -> s': vspec.slot_t -> verifier_log_entry vspec
   | AddB: r: record vspec.app -> s: vspec.slot_t -> t: timestamp -> tid: thread_id -> verifier_log_entry vspec
+  | EvictM: s: vspec.slot_t -> s': vspec.slot_t -> verifier_log_entry vspec
+  | EvictB: s: vspec.slot_t -> t: timestamp -> verifier_log_entry vspec
+  | EvictBM: s: vspec.slot_t -> s': vspec.slot_t -> t: timestamp -> verifier_log_entry vspec
+  | NextEpoch: verifier_log_entry vspec
+  | VerifyEpoch: verifier_log_entry vspec
+  | RunApp: f: appfn_id vspec.app ->
+            p: appfn_arg f ->
+            rs: S.seq (vspec.slot_t) ->
+            verifier_log_entry vspec
 
+val get_record_set (#vspec: verifier_spec_base) (ss: S.seq (vspec.slot_t)) (vtls: vspec.vtls_t {vspec.valid vtls}):
+  (let record_t = app_record vspec.app.adm in
+   ors: option (S.seq record_t) {Some? ors ==> (let rs = Some?.v ors in
+                                                S.length rs = S.length ss /\
+                                                distinct_keys #vspec.app.adm rs)})
 
-(*
+let get_record_set_succ #vspec
+  (ss: S.seq (vspec.slot_t))
+  (vtls: vspec.vtls_t{vspec.valid vtls /\ Some? (get_record_set ss vtls)})
+  = Some?.v (get_record_set ss vtls)
+
+val update_record_set (#vspec: verifier_spec_base)
+                      (ss: S.seq (vspec.slot_t))
+                      (vtls: vspec.vtls_t {vspec.valid vtls /\ Some? (get_record_set ss vtls)})
+                      (ws: S.seq (app_value_nullable vspec.app.adm) {let rs = get_record_set_succ ss vtls in
+                                                                     S.length ws = S.length rs}): vspec.vtls_t
+
+let verify_step (#vspec: verifier_spec_base)
+                (e: verifier_log_entry vspec)
+                (vtls: vspec.vtls_t): vspec.vtls_t =
+  if not (vspec.valid vtls) then vtls
+  else
+    match e with
+    | AddM r s s' -> vspec.addm r s s' vtls
+    | AddB r s t tid -> vspec.addb r s t tid vtls
+    | EvictM s s' -> vspec.evictm s s' vtls
+    | EvictB s t -> vspec.evictb s t vtls
+    | EvictBM s s' t -> vspec.evictbm s s' t vtls
+    | NextEpoch -> vspec.nextepoch vtls
+    | VerifyEpoch -> vspec.verifyepoch vtls
+    | RunApp f p ss ->
+      (* the app function to run *)
+      let fn = appfn f in
+      (* get the record set to run fn on from the log specification *)
+      let ors = get_record_set ss vtls in
+      (* failed to get the record set (e.g., duplicate keys) *)
+      if None = ors then vspec.fail vtls
+      (* fails arity requirement *)
+      else if S.length ss <> appfn_arity f then vspec.fail vtls
+      else
+        let rs = Some?.v ors in
+        (* run the app function *)
+        let rc, _, ws = fn p rs in
+        (* if app function returns failure, verifier goes to failed state *)
+        if rc = Fn_failure then vspec.fail vtls
+        (* update the verifier store with the writes of the function *)
+        else update_record_set ss vtls ws
+
+let verifier_failure_propagating (#vspec: _) (e: verifier_log_entry vspec) (vtls: vspec.vtls_t):
+  Lemma (requires (vspec.valid (verify_step e vtls)))
+        (ensures (vspec.valid vtls)) = ()
+
 (* clock is monotonic property *)
 let clock_monotonic_prop (vspec: verifier_spec_base) =
-  forall (b: builtin). forall (p: vspec.param_t b). forall (vtls: vspec.vtls_t {vspec.valid vtls}).
-    {:pattern vspec.impl b p vtls }
-    let clock_pre = vspec.clock vtls in
-    let vtls_post = vspec.impl b p vtls in
-    vspec.valid vtls_post ==> (let clock_post = vspec.clock vtls_post in
-                                  clock_pre `ts_leq` clock_post)
+  forall (e: verifier_log_entry vspec). forall (vtls: vspec.vtls_t).
+    {:pattern verify_step e vtls}
+    let vtls_post = verify_step e vtls in
+    vspec.valid vtls_post ==> (let clock_pre = vspec.clock vtls in
+                               let clock_post = vspec.clock vtls_post in
+                               clock_pre `ts_leq` clock_post)
 
 (* thread_id is constant *)
 let thread_id_constant_prop (vspec: verifier_spec_base) =
-  forall (b: builtin). forall (p: vspec.param_t b). forall (vtls: vspec.vtls_t {vspec.valid vtls}).
-    {:pattern vspec.impl b p vtls }
+  forall (e: verifier_log_entry vspec). forall (vtls: vspec.vtls_t).
+    {:pattern verify_step e vtls}
     let tid_pre = vspec.tid vtls in
-    let tid_post = vspec.tid (vspec.impl b p vtls) in
+    let tid_post = vspec.tid (verify_step e vtls) in
     tid_pre = tid_post
 
-
 let verifier_log vspec = S.seq (verifier_log_entry vspec)
-
-let verify_step #vspec (vtls: vspec.vtls_t) (e: verifier_log_entry vspec) =
-  if not (vspec.valid vtls) then vtls
-  else
-  match e with
-  | Builtin b p -> vspec.impl b p vtls
-
-  | App f p i ->
-    let inp = vspec.appfn_inout i vtls in
-    let fn = appfn f in
-    (* unable to construct input records: fail *)
-    if inp = None then vspec.fail vtls
-    else
-      admit()
-*)

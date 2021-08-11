@@ -3,6 +3,7 @@ module Zeta.App
 open FStar.Seq
 open Zeta.Hash
 open Zeta.Key
+open Zeta.SeqAux
 
 type u8 = FStar.UInt8.t
 type u16 = FStar.UInt16.t
@@ -73,9 +74,6 @@ type app_value_nullable (adm: app_data_model) =
 (* an application record is a key-value pair *)
 type app_record (adm: app_data_model) = app_key adm & app_value_nullable adm
 
-(* the application state *)
-let app_state (adm: app_data_model) = (k: app_key adm) -> app_value_nullable adm
-
 (*
  * fn_sig is the signature that each function id in the table is mapped to
  *
@@ -95,6 +93,13 @@ type fn_return_code =
   | Fn_success
   | Fn_failure
 
+
+(* every key in a sequence of records is distinct *)
+let distinct_keys #adm (sk: seq (app_record adm)) =
+  forall (i1 i2: seq_index sk). i1 <> i2 ==> (let k1,_ = index sk i1 in
+                                         let k2,_ = index sk i2 in
+                                         k1 <> k2)
+
 noeq
 type fn_sig (adm: app_data_model) = {
   (* code of the argument of the function *)
@@ -103,16 +108,19 @@ type fn_sig (adm: app_data_model) = {
   (* code encoding the result type of the function *)
   fres_t : code;
 
+  (* number of records touched by the function *)
+  arity: nat;
+
   (*
    * the actual function that takes in the argument, an input sequence
    * of records, and returns a succ/failure, a result, a new internal
    * state, and updated values for the input records.
    *)
   f : arg: interp_code adm farg_t ->
-      inp: seq (app_record adm) ->
+      inp: seq (app_record adm) {length inp = arity /\ distinct_keys inp} ->
       (fn_return_code &
        interp_code adm fres_t &
-       out:seq (app_value_nullable adm) {length inp = length out});
+       out:seq (app_value_nullable adm) {length out = arity});
 }
 
 (*
@@ -144,16 +152,34 @@ let appfn_res (#aprm: app_params) (fid: appfn_id aprm): eqtype =
   let fnsig = Map.sel aprm.tbl fid in
   interp_code aprm.adm fnsig.fres_t
 
+(* the arity of a function *)
+let appfn_arity (#aprm: app_params) (fid: appfn_id aprm): nat =
+  let fnsig = Map.sel aprm.tbl fid in
+  fnsig.arity
+
+(* the type of read-set of a function call *)
+let appfn_rs_t (#aprm: app_params) (fid: appfn_id aprm) =
+  let adm = aprm.adm in
+  let record_t = app_record adm in
+  let arity = appfn_arity fid in
+  (inp: seq (record_t) {length inp = arity /\ distinct_keys #adm inp})
+
+(* the type of writes of a function call *)
+let appfn_ws_t (#aprm: app_params) (fid: appfn_id aprm) =
+  let adm = aprm.adm in
+  let value_t = app_value_nullable adm in
+  let arity = appfn_arity fid in
+  out:seq (value_t){length out = arity}
+
 (* TODO: F* does not type check this without an explicit return type  *)
 let appfn (#aprm: app_params) (fid: appfn_id aprm):
   (let adm = aprm.adm in
    let arg_t = appfn_arg fid in
-   let record_t = app_record adm in
-   let value_t = app_value_nullable adm in
    let res_t = appfn_res fid in
+   let arity = appfn_arity fid in
 
-   arg_t -> inp: seq (record_t) ->
-   (fn_return_code & res_t & out:seq (value_t){length inp = length out})
+   arg_t -> appfn_rs_t fid  ->
+   (fn_return_code & res_t & appfn_ws_t fid)
   )
   =
   let fnsig = Map.sel aprm.tbl fid in
