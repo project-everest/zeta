@@ -1,11 +1,11 @@
-module Veritas.Interleave
+module Zeta.Interleave
 
 open FStar.Seq
 open FStar.Squash
-open Veritas.SeqAux
+open Zeta.SeqAux
 
 module S = FStar.Seq
-module SA = Veritas.SeqAux
+module SA = Zeta.SeqAux
 
 (* sequence of sequences *)
 type sseq (a:Type) = seq (seq a)

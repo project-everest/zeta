@@ -2,6 +2,7 @@ module Zeta.AppSimulate
 
 open Zeta.App
 
+module I = Zeta.Interleave
 module S = FStar.Seq
 module SA = Zeta.SeqAux
 
@@ -9,14 +10,34 @@ module SA = Zeta.SeqAux
 type appfn_call (aprm: app_params) = {
 
   (* id of the function *)
-  fid_call: appfn_id aprm;
+  fid_c: appfn_id aprm;
 
   (* arguments of the function *)
-  arg: appfn_arg fid_call;
+  arg_c: appfn_arg fid_c;
 
   (* the read records of the function call *)
-  inp: appfn_rs_t fid_call;
+  inp_c: appfn_rs_t fid_c;
 }
+
+(* a function call and a result *)
+type appfn_call_res (aprm: app_params) = {
+
+  (* id of the function *)
+  fid_cr: appfn_id aprm;
+
+  (* arguments of the function *)
+  arg_cr: appfn_arg fid_cr;
+
+  (* the read records of the function call *)
+  inp_cr: appfn_rs_t fid_cr;
+
+  (* the result of the call *)
+  res_cr: appfn_res fid_cr;
+}
+
+(* drop the result from a function call result *)
+let to_appfn_call #aprm (r: appfn_call_res aprm) =
+  {fid_c = r.fid_cr; arg_c = r.arg_cr; inp_c = r.inp_cr }
 
 (* the (full) application state  *)
 let app_state (adm: app_data_model) = (k: app_key adm) -> app_value_nullable adm
@@ -55,48 +76,19 @@ let rec update_seq #adm
 
 (* simulate a single step of an app state transition. return None on failure *)
 let simulate_step #aprm (fncall: appfn_call aprm) (st: app_state aprm.adm):
-  option ( app_state aprm.adm & appfn_res fncall.fid_call) =
-  let fn = appfn fncall.fid_call in
-  let rc,res,ws = fn fncall.arg fncall.inp in
+  option ( app_state aprm.adm & appfn_res fncall.fid_c) =
+  let fn = appfn fncall.fid_c in
+  let rc,res,ws = fn fncall.arg_c fncall.inp_c in
   if rc = Fn_failure then None
-  else Some (update_seq st fncall.inp ws, res)
-
-(* the result of a function. We need this type since the we cannot simply define a
- * seq (result), since the result type depends on the function id.
- *)
-type appfn_call_res (aprm: app_params) = {
-  fid_res: appfn_id aprm;
-  res: appfn_res fid_res;
-}
-(*  | FnRes: fid_res: appfn_id aprm -> res: appfn_res fid_res -> appfn_call_res aprm *)
+  else Some (update_seq st fncall.inp_c ws, res)
 
 (* initial state of the application *)
 let init_app_state (adm: app_data_model): app_state adm =
   fun _ -> Null
 
-(* a call sequence and a result sequence are consistent if they have the same function id at the
- * same positions of each sequence
- *)
-let consistent #aprm (call_seq: S.seq (appfn_call aprm)) (res_seq: S.seq (appfn_call_res aprm)) =
-  S.length call_seq = S.length res_seq /\
-  (forall (i: SA.seq_index call_seq).
-    {:pattern ((S.index call_seq i).fid_call = (S.index res_seq i).fid_res)}
-    (S.index call_seq i).fid_call = (S.index res_seq i).fid_res)
-
-(* if we have a consistent call and result sequence we can extend each with a new entry having
- * the same fid and the result sequences will be consistent *)
-val consistent_extend (#aprm: app_params)
-  (call_seq: S.seq (appfn_call aprm))
-  (res_seq: S.seq (appfn_call_res aprm){consistent call_seq res_seq})
-  (c: appfn_call aprm)
-  (r: appfn_call_res aprm)
-  : Lemma (requires (c.fid_call = r.fid_res))
-          (ensures (consistent (SA.append1 call_seq c) (SA.append1 res_seq r)))
-
+(* simulation of app transitions on a function call sequence using the entire app-state *)
 let rec simulate #aprm (fs: S.seq (appfn_call aprm)):
-  Tot (or: option (app_state aprm.adm & S.seq (appfn_call_res aprm))
-        {Some? or ==> (let _,rs = Some?.v or in
-                       consistent fs rs)})
+  Tot (option (app_state aprm.adm & S.seq (appfn_call_res aprm)))
   (decreases (S.length fs)) =
   let n = S.length fs in
   if n = 0 then
@@ -112,9 +104,21 @@ let rec simulate #aprm (fs: S.seq (appfn_call aprm)):
       if None? or then None
       else (
         let Some (st, r) = or in
-        let r = {fid_res = c.fid_call; res = r} in
+        let r = {fid_cr = c.fid_c; arg_cr = c.arg_c; inp_cr = c.inp_c; res_cr = r} in
         let rs = SA.append1 rs' r in
-        consistent_extend fs' rs' c r;
         SA.lemma_hprefix_append_telem fs;
         Some (st, rs)
       )
+
+(* a function-call-result sequence is valid if we get the result when run simulation on the call parameters *)
+let valid #aprm (rs: S.seq (appfn_call_res aprm)) =
+  let fs = SA.map to_appfn_call rs in
+  Some? (simulate fs) /\
+    (let Some (_,rs2) = simulate fs in
+     rs2 = rs)
+
+(* a sequence of sequence of function-call-result is sequentially consistent if there exists an
+ * interleaving that is valid per the definition above
+ *)
+let seq_consistent #aprm (sr: S.seq (S.seq (appfn_call_res aprm))) =
+  exists is. I.interleave #(appfn_call_res aprm) is sr /\ valid is

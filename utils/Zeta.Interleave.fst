@@ -1,6 +1,7 @@
-module Veritas.Interleave
+module Zeta.Interleave
 open FStar.Squash
-module SA = Veritas.SeqAux
+module SA = Zeta.SeqAux
+
 // let indexss (#a:Type) (ss: sseq a) (ij: sseq_index ss): Tot a = 
 //   let (i,j) = ij in
 //   index (index ss i) j
