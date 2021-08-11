@@ -5,6 +5,7 @@ open Zeta.Time
 open Zeta.Record
 
 module S = FStar.Seq
+module SA = Zeta.SeqAux
 
 (* identifier type for verifier threads *)
 type thread_id = nat
@@ -20,9 +21,6 @@ type verifier_spec_base = {
   (* is the verifier state valid, indicating no verification failures *)
   valid: vtls_t -> bool;
 
-  (* initialize the thread local state for a particular thread id *)
-  init: thread_id -> vtls: vtls_t { valid vtls };
-
   (* generate a invalid state *)
   fail: vtls_t -> vtls: vtls_t {not (valid vtls)};
 
@@ -31,6 +29,9 @@ type verifier_spec_base = {
 
   (* thread_id of the verifier thread; thread_id can be accessed even in a failed state *)
   tid: vtls_t -> thread_id;
+
+  (* initialize the thread local state for a particular thread id *)
+  init: t:thread_id -> vtls: vtls_t { valid vtls /\ tid vtls = t };
 
   (* type used to identify records (e.g., keys, slots) *)
   slot_t: eqtype;
@@ -151,3 +152,14 @@ let thread_id_constant_prop (vspec: verifier_spec_base) =
     tid_pre = tid_post
 
 let verifier_log vspec = S.seq (verifier_log_entry vspec)
+
+let rec verify #vspec (tid: thread_id) (l: verifier_log vspec):
+  Tot (vspec.vtls_t)
+  (decreases (S.length l)) =
+  let n = S.length l in
+  if n = 0 then vspec.init tid
+  else
+    let vtls' = verify tid (SA.prefix l (n-1)) in
+    verify_step (S.index l (n-1)) vtls'
+
+let verifier_spec = vspec:verifier_spec_base {clock_monotonic_prop vspec /\ thread_id_constant_prop vspec}
