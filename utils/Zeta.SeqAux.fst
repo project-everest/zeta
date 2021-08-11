@@ -44,6 +44,21 @@ let lemma_prefix_append (#a:Type) (s1 s2: seq a):
   assert(equal (prefix (append s1 s2) (length s1)) s1);
   ()
 
+let lemma_hprefix_append_telem (#a:Type) (s: seq a{length s > 0}):
+  Lemma (ensures (let s' = hprefix s in
+                  let e = telem s in
+                  s == append1 s' e)) =
+  let s' = hprefix s in
+  let e = telem s in
+  lemma_prefix1_append s' e;
+  let s2 = append1 s' e in
+  assert(length s = length s2);
+  let aux (i: seq_index s):
+    Lemma (ensures (index s i == index s2 i))
+          [SMTPat (index s i == index s2 i)] = ()
+  in
+  lemma_eq_intro s s2
+
 let lemma_prefix0_empty (#a:Type) (s: seq a):
   Lemma (prefix s 0 == empty #a) = ()
 
