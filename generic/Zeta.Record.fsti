@@ -1,19 +1,10 @@
 module Zeta.Record
 
 open FStar.BitVector
+open Zeta.App
 open Zeta.BinTree
+open Zeta.Hash
 open Zeta.Key
-
-(* data value - add a special value Null over an underlying type a*)
-type data_value = 
-  | Null: data_value
-  | DValue: v:int -> data_value
-
-(* size of a hash value *)
-let hash_size = 256
-
-(* hash value *)
-type hash_value = bv_t hash_size
 
 (* information about a desc stored in a merkle node *)
 type desc_hash = 
@@ -28,33 +19,10 @@ let desc_hash_dir (v:merkle_value) (d:bin_tree_dir) =
   match d with
   | Left -> MkValue?.l v
   | Right -> MkValue?.r v
-  
-(* value - union type of merkle and data values *)
-type value = 
-  | MVal: v:merkle_value -> value
-  | DVal: v:data_value -> value
 
-(* check merkle/data consistency of k and v *)
-let is_value_of (k:key) (v:value) = 
-  if is_data_key k then DVal? v
-  else MVal? v
+let merkle_record = merkle_key & merkle_value
 
-type value_type_of (k:key) = v:value{is_value_of k v}
-
-type key_type_of (v:value) = k:key{is_value_of k v}
-
-(* record - key-value pair *)
-type record = key * value
-
-let init_value (k:key): v:value{is_value_of k v} = 
-  if is_data_key k then DVal Null
-  else MVal (MkValue Empty Empty)
-
-let to_merkle_value (v:value{MVal? v}) = MVal?.v v
-
-let to_data_value (v:value{DVal? v}) = DVal?.v v
-
-let mv_points_to_none (v: merkle_value) (d:bin_tree_dir): bool = 
+let mv_points_to_none (v: merkle_value) (d:bin_tree_dir): bool =
   desc_hash_dir v d = Empty
 
 let mv_points_to_some (v:merkle_value) (d:bin_tree_dir): bool = 
@@ -71,3 +39,18 @@ let mv_points_to (v:merkle_value) (d:bin_tree_dir) (k:key): bool =
 
 let mv_evicted_to_blum (v:merkle_value) (d:bin_tree_dir {mv_points_to_some v d}): bool =
   Desc?.b (desc_hash_dir v d)
+
+(* a record is a union of merkle (internal) record and app record *)
+type record (aprm: app_params) =
+  | App: r: app_record aprm.adm -> record aprm
+  | Int: r: merkle_record -> record aprm
+
+let value_t (#aprm: app_params) (r: record aprm): eqtype =
+  match r with
+  | App _ -> app_value_nullable aprm.adm
+  | Int _ -> merkle_value
+
+let update (#aprm: app_params) (r: record aprm) (v: value_t r) =
+  match r with
+  | App (k,_) -> App (k,v)
+  | Int (k,_) -> Int (k,v)

@@ -1,4 +1,4 @@
-module Veritas.MultiSet
+module Zeta.MultiSet
 
 open FStar.List.Tot
 

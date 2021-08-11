@@ -1,5 +1,6 @@
 module Zeta.App
 
+open FStar.Seq
 open Zeta.Hash
 open Zeta.Key
 
@@ -28,20 +29,19 @@ type code =
   | TUInt16
   | TUInt32
   | TUInt64
-  //| TKey
+  | TKey
   | TValue
   | TPair : code -> code -> code
 
 (*
  * the application data model specifies the codes for key and data.
  * Currently, the keys are hard-coded to 256 bit vectors.
- * TODO: Generalize this to arbitrary keys.
  *)
 noeq type app_data_model =
-  | AppDataModel: value: eqtype -> app_data_model
+  | AppDataModel: key: eqtype -> value: eqtype -> app_data_model
 
 (* key type of the application *)
-let app_key (adm: app_data_model) =  key
+let app_key (adm: app_data_model) = AppDataModel?.key adm
 
 (* value type of the application *)
 let app_value (adm: app_data_model) = AppDataModel?.value adm
@@ -54,7 +54,7 @@ let rec interp_code (adm: app_data_model) (c:code) : eqtype =
   | TUInt16 -> u16
   | TUInt32 -> u32
   | TUInt64 -> u64
-  (* | TKey -> app_key adm *)
+  | TKey -> app_key adm
   | TValue -> app_value adm
   | TPair c1 c2 -> interp_code adm c1 & interp_code adm c2
 
@@ -96,7 +96,7 @@ type fn_return_code =
   | Fn_failure
 
 noeq
-type fn_sig (adm: app_data_model) (a:Type) = {
+type fn_sig (adm: app_data_model) = {
   (* code of the argument of the function *)
   farg_t : code;
 
@@ -104,31 +104,30 @@ type fn_sig (adm: app_data_model) (a:Type) = {
   fres_t : code;
 
   (*
-   * the actual function that takes in the argument, a list of records
-   * and returns a list of records, a succ/failure, a result, and
-   * new internal state a
+   * the actual function that takes in the argument, an input sequence
+   * of records, and returns a succ/failure, a result, a new internal
+   * state, and updated values for the input records.
    *)
-  f : arg:interp_code adm farg_t ->
-      list (app_record adm) ->
-      a ->
-      (fn_return_code & interp_code adm fres_t & a & list (app_record adm));
+  f : arg: interp_code adm farg_t ->
+      inp: seq (app_record adm) ->
+      (fn_return_code &
+       interp_code adm fres_t &
+       out:seq (app_value_nullable adm) {length inp = length out});
 }
 
 (*
  * Finally the function table is a map from functions ids to signatures
  *)
-type fn_tbl (adm: app_data_model) (a:Type) = Map.t fn_id (fn_sig adm a)
+type fn_tbl (adm: app_data_model) = Map.t fn_id (fn_sig adm)
 
 (*
  * The application parameters: an application specific state type and a function table
  *)
 noeq
 type app_params = {
-  app_int_state: Type;
-  ainit: app_int_state;
   adm: app_data_model;
-  tbl : fn_tbl adm app_int_state;
-  // keyhashfn: app_key adm -> data_key;
+  tbl : fn_tbl adm;
+  keyhashfn: app_key adm -> data_key;
   valuehashfn: app_value adm -> hash_value
 }
 
@@ -144,3 +143,18 @@ let appfn_arg (#aprm: app_params) (fid: appfn_id aprm): eqtype =
 let appfn_res (#aprm: app_params) (fid: appfn_id aprm): eqtype =
   let fnsig = Map.sel aprm.tbl fid in
   interp_code aprm.adm fnsig.fres_t
+
+(* TODO: F* does not type check this without an explicit return type  *)
+let appfn (#aprm: app_params) (fid: appfn_id aprm):
+  (let adm = aprm.adm in
+   let arg_t = appfn_arg fid in
+   let record_t = app_record adm in
+   let value_t = app_value_nullable adm in
+   let res_t = appfn_res fid in
+
+   arg_t -> inp: seq (record_t) ->
+   (fn_return_code & res_t & out:seq (value_t){length inp = length out})
+  )
+  =
+  let fnsig = Map.sel aprm.tbl fid in
+  fnsig.f

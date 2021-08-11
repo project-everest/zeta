@@ -1,6 +1,6 @@
-module Veritas.MultiSet
+module Zeta.MultiSet
 
-open Veritas.SeqAux
+open Zeta.SeqAux
 
 /// A multiset module
 ///

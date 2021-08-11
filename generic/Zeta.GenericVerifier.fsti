@@ -6,47 +6,6 @@ open Zeta.Record
 
 module S = FStar.Seq
 
-(*
- * Verifier built-in methods
- *
- * A verifier thread supports the following built-in methods that can be used
- * to (a) add records to its internal store (b) evict records from its internal
- * store; and (c) trigger epoch transitions.
- *
- * These are different from application methods that implement application-specific
- * state machine transitions.
- *)
-type builtin =
-  | AddM                    (* Add a record using Merkle verification *)
-  | EvictM                  (* Evict a record, while protecting it using Merkle *)
-  | AddB                    (* Add a record using Blum verification *)
-  | EvictB                  (* Evict a record using Blum protection *)
-  | EvictBM                 (* Evict a record added using Merkle using Blum protection *)
-  | NextEpoch               (* Transition the verifier thread clock to next epoch *)
-  | VerifyEpoch             (* *)
-
-(* subset of builtins that add a record *)
-let is_add m =
-  match m with
-  | AddM
-  | AddB -> true
-  | _ -> false
-
-(* subset of builtins that evict a record *)
-let is_evict m =
-  match m with
-  | EvictM
-  | EvictB
-  | EvictBM -> true
-  | _ -> false
-
-(* subset of builtins that manage epochs *)
-let is_epoch_bookkeeping m =
-  match m with
-  | NextEpoch
-  | VerifyEpoch -> true
-  | _ -> false
-
 (* identifier type for verifier threads *)
 type thread_id = nat
 
@@ -54,42 +13,67 @@ type thread_id = nat
  * satisfy additional properties as described below. *)
 noeq
 type verifier_spec_base = {
+
   (* type of the verifier thread local state *)
   vtls_t: Type0;
 
-  (* is the verifier state valid? verification failures take the verifier state to an invalid state. *)
+  (* is the verifier state valid, indicating no verification failures *)
   valid: vtls_t -> bool;
 
-  (* clock of a verifier thread. *)
-  clock: v:vtls_t{valid v} -> timestamp;
+  (* initialize the thread local state for a particular thread id *)
+  init: thread_id -> vtls: vtls_t { valid vtls };
 
-  (* thread_id of the verifier thread *)
+  (* generate a invalid state *)
+  fail: vtls_t -> vtls: vtls_t {not (valid vtls)};
+
+  (* clock of a verifier thread. *)
+  clock: vtls:vtls_t{valid vtls} -> timestamp;
+
+  (* thread_id of the verifier thread; thread_id can be accessed even in a failed state *)
   tid: vtls_t -> thread_id;
 
-  (* input parameter types of builtin methods *)
-  param_t: builtin -> eqtype;
-
-  (* implementations of the builtin methods *)
-  impl: b: builtin -> param_t b -> v:vtls_t{valid v} -> vtls_t;
-
-  (* for add-builtins, extract the added record from the parameters *)
-  add_rec: b: builtin {is_add b} -> param_t b -> record;
-
-  (* for evict builtins, extract the evicted record from the parameters and verifier state *)
-  evict_rec: b: builtin {is_evict b} ->
-             p: param_t b ->
-             v:vtls_t{valid v && valid (impl b p v)} ->
-             record;
+  (* type used to identify records (e.g., keys, slots) *)
+  slot_t: eqtype;
 
   (* application specification *)
   app: app_params;
 
-  (* initialize the thread state *)
-  init: thread_id -> v: vtls_t {valid v};
+  (* get a record from the store - this could fail and return None *)
+  get: slot_t -> vtls: vtls_t {valid vtls} -> option (record app);
 
-  get_param_t: eqtype;
+  (* update the record in a slot with a new value *)
+  put: s: slot_t -> vtls: vtls_t { valid vtls && Some? (get s vtls)} ->
+       v: (value_t (Some?.v (get s vtls))) ->
+       vtls': vtls_t { let r = Some?.v (get s vtls) in
+                       valid vtls' && Some? (get s vtls') &&
+                       Some?.v (get s vtls') = update r v };
+
+  (* implementation of merkle add *)
+  addm: record app -> slot_t -> slot_t -> vtls: vtls_t { valid vtls } -> vtls_t;
+
+  (* implementation of blum add *)
+  addb: record app -> slot_t -> timestamp -> thread_id -> vtls: vtls_t { valid vtls } -> vtls_t;
+
+  (* implementation of merkle evict *)
+  evictm: slot_t -> slot_t -> vtls: vtls_t { valid vtls } -> vtls_t;
+
+  (* implementation of blum evict *)
+  evictb: slot_t -> timestamp -> vtls: vtls_t { valid vtls } -> vtls_t;
+
+  (* implementation of blum evict for records added using merkle *)
+  evictbm: slot_t -> slot_t -> timestamp -> vtls: vtls_t { valid vtls } -> vtls_t;
+
+  nextepoch: vtls: vtls_t { valid vtls } -> vtls_t;
+
+  verifyepoch: vtls: vtls_t { valid vtls } -> vtls_t;
 }
 
+type verifier_log_entry (vspec: verifier_spec_base) =
+  | AddM: r: record vspec.app -> s: vspec.slot_t -> s': vspec.slot_t -> verifier_log_entry vspec
+  | AddB: r: record vspec.app -> s: vspec.slot_t -> t: timestamp -> tid: thread_id -> verifier_log_entry vspec
+
+
+(*
 (* clock is monotonic property *)
 let clock_monotonic_prop (vspec: verifier_spec_base) =
   forall (b: builtin). forall (p: vspec.param_t b). forall (vtls: vspec.vtls_t {vspec.valid vtls}).
@@ -107,9 +91,6 @@ let thread_id_constant_prop (vspec: verifier_spec_base) =
     let tid_post = vspec.tid (vspec.impl b p vtls) in
     tid_pre = tid_post
 
-type verifier_log_entry (vspec: verifier_spec_base) =
-  | Builtin: b: builtin -> p: vspec.param_t b -> verifier_log_entry vspec
-  | App: f: appfn_id vspec.app -> p: appfn_arg f -> verifier_log_entry vspec
 
 let verifier_log vspec = S.seq (verifier_log_entry vspec)
 
@@ -118,4 +99,12 @@ let verify_step #vspec (vtls: vspec.vtls_t) (e: verifier_log_entry vspec) =
   else
   match e with
   | Builtin b p -> vspec.impl b p vtls
-  | App f p -> admit()
+
+  | App f p i ->
+    let inp = vspec.appfn_inout i vtls in
+    let fn = appfn f in
+    (* unable to construct input records: fail *)
+    if inp = None then vspec.fail vtls
+    else
+      admit()
+*)
