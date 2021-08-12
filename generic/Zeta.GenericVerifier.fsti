@@ -6,6 +6,7 @@ open Zeta.Record
 
 module S = FStar.Seq
 module SA = Zeta.SeqAux
+module MSD = Zeta.MultiSetHashDomain
 
 (* identifier type for verifier threads *)
 let thread_id = Zeta.Thread.thread_id
@@ -81,6 +82,8 @@ type verifier_log_entry (vspec: verifier_spec_base) =
             p: appfn_arg f ->
             rs: S.seq (vspec.slot_t) ->
             verifier_log_entry vspec
+
+let is_blum_add #vspec (e: verifier_log_entry vspec) = AddB? e
 
 val get_record_set (#vspec: verifier_spec_base) (ss: S.seq (vspec.slot_t)) (vtls: vspec.vtls_t {vspec.valid vtls}):
   (let record_t = app_record vspec.app.adm in
@@ -163,3 +166,7 @@ let rec verify #vspec (tid: thread_id) (l: verifier_log vspec):
     verify_step (S.index l (n-1)) vtls'
 
 let verifier_spec = vspec:verifier_spec_base {clock_monotonic_prop vspec /\ thread_id_constant_prop vspec}
+
+let blum_add_elem #vspec (e:verifier_log_entry vspec {is_blum_add e}): MSD.ms_hashfn_dom _ =
+  match e with
+  | AddB r _ t j -> MSD.MHDom r t j

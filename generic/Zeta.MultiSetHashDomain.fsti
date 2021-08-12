@@ -16,6 +16,6 @@ val ms_hashfn_dom_cmp (aprm: app_params)
 
 type mset_ms_hashfn_dom (aprm: app_params) = mset (ms_hashfn_dom aprm) (ms_hashfn_dom_cmp aprm)
 
-let epoch #aprm (e: ms_hashfn_dom aprm) =
+let epoch_of #aprm (e: ms_hashfn_dom aprm) =
   let MkTimestamp e _ = e.t in
   e
