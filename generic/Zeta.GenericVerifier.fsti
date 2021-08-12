@@ -2,6 +2,7 @@ module Zeta.GenericVerifier
 
 open Zeta.App
 open Zeta.Time
+open Zeta.MultiSetHashDomain
 open Zeta.Record
 
 module S = FStar.Seq
@@ -85,6 +86,12 @@ type verifier_log_entry (vspec: verifier_spec_base) =
 
 let is_blum_add #vspec (e: verifier_log_entry vspec) = AddB? e
 
+let is_evict_to_blum #vspec (e: verifier_log_entry vspec) =
+  match e with
+  | EvictB _ _ -> true
+  | EvictBM _ _ _ -> true
+  | _ -> false
+
 val get_record_set (#vspec: verifier_spec_base) (ss: S.seq (vspec.slot_t)) (vtls: vspec.vtls_t {vspec.valid vtls}):
   (let record_t = app_record vspec.app.adm in
    ors: option (S.seq record_t) {Some? ors ==> (let rs = Some?.v ors in
@@ -167,6 +174,8 @@ let rec verify #vspec (tid: thread_id) (l: verifier_log vspec):
 
 let verifier_spec = vspec:verifier_spec_base {clock_monotonic_prop vspec /\ thread_id_constant_prop vspec}
 
-let blum_add_elem #vspec (e:verifier_log_entry vspec {is_blum_add e}): MSD.ms_hashfn_dom _ =
+let blum_add_elem #vspec (e:verifier_log_entry vspec {is_blum_add e}): ms_hashfn_dom _ =
   match e with
-  | AddB r _ t j -> MSD.MHDom r t j
+  | AddB r _ t j -> MHDom r t j
+
+val blum_evict_elem (#vspec:verifier_spec) (e: verifier_log_entry vspec {is_evict_to_blum e}): ms_hashfn_dom vspec.app

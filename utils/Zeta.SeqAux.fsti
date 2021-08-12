@@ -52,126 +52,126 @@ val lemma_hprefix_append_telem (#a:Type) (s: seq a{length s > 0}):
         [SMTPat (append1 (hprefix s) (telem s))]
 
 val lemma_prefix0_empty (#a:Type) (s: seq a):
-  Lemma (prefix s 0 == empty #a)
+Lemma (prefix s 0 == empty #a)
 
 val lemma_prefix_create (#a:Type) (n:nat) (v:a) (i:nat{i <= n}) 
-  : Lemma (prefix (create n v) i == create i v)
+: Lemma (prefix (create n v) i == create i v)
 
 (* is ps a prefix of s *)
 let is_prefix (#a:eqtype) (s:seq a) (ps: seq a): Tot bool =
-  length ps <= length s &&
-  ps = prefix s (length ps)
+length ps <= length s &&
+ps = prefix s (length ps)
 
 (* Suffix of a sequence *)
 val suffix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
 
 val lemma_suffix_index (#a:Type) (s:seq a) (i:nat{i <= length s}) (j:nat{j < i}):
-  Lemma (requires (True))
-        (ensures (index (suffix s i) j == index s (length s - i + j)))
-        [SMTPat (index (suffix s i) j)]
+Lemma (requires (True))
+      (ensures (index (suffix s i) j == index s (length s - i + j)))
+      [SMTPat (index (suffix s i) j)]
 
 (* projection - a subsequence of the original sequence *)
 val proj (#a:eqtype): seq a -> seq a -> Type0
 
 (* mapping from a subsequence index to the corresponding index in the base sequence *)
 val proj_index_map (#a:eqtype) (ss: seq a) (s: seq a) (prf: proj ss s) (i:seq_index ss):
-  Tot (j:seq_index s{index s j = index ss i})
+Tot (j:seq_index s{index s j = index ss i})
 
 let proj_index_map_exists (#a:eqtype) (ss: seq a) (s: seq a{proj ss s}) (i:seq_index ss)
-  : Lemma (exists (j:seq_index s). index s j = index ss i)
-  = let p : squash (proj ss s) = FStar.Squash.get_proof (proj ss s) in
-    let _ : squash (exists (j:seq_index s). index s j = index ss i) = 
-      FStar.Squash.bind_squash p (fun p -> 
-        let k = proj_index_map ss s p i in
-        assert (index s k == index ss i))
-    in
-    ()
+: Lemma (exists (j:seq_index s). index s j = index ss i)
+= let p : squash (proj ss s) = FStar.Squash.get_proof (proj ss s) in
+  let _ : squash (exists (j:seq_index s). index s j = index ss i) = 
+    FStar.Squash.bind_squash p (fun p -> 
+      let k = proj_index_map ss s p i in
+      assert (index s k == index ss i))
+  in
+  ()
 
 (* the mapping we construct above is monotonic *)
 val lemma_proj_monotonic (#a:eqtype) (ss s: seq a) (prf: proj ss s) (i1 i2: seq_index ss):
-  Lemma (requires (i1 < i2))
-        (ensures (proj_index_map ss s prf i1 < proj_index_map ss s prf i2))
+Lemma (requires (i1 < i2))
+      (ensures (proj_index_map ss s prf i1 < proj_index_map ss s prf i2))
 
 val lemma_proj_length (#a:eqtype) (ss: seq a) (s:seq a{proj ss s}):
-  Lemma (requires (True))
-        (ensures (length ss <= length s))
+Lemma (requires (True))
+      (ensures (length ss <= length s))
 
 (* subsequence of s obtained by applying a filter *)
 val filter (#a:eqtype) (f:a -> bool) (s:seq a): Tot (seq a)
 
 (* filter is a projection *)
 val lemma_filter_is_proj (#a:eqtype) (f:a -> bool) (s:seq a):
-  Lemma (proj (filter f s) s)
+Lemma (proj (filter f s) s)
 
 (* constructive version of the lemma_filter_is_proj *)
 val filter_is_proj_prf (#a:eqtype) (f:a -> bool) (s:seq a): Tot (proj (filter f s) s)
 
 (* every index in the filtered sequence satisfies the filter predicate *)
 val lemma_filter_correct1 (#a: eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
-  Lemma (requires (True))
-        (ensures (f (index (filter f s) i) = true))
-        [SMTPat (f (index (filter f s) i))]
+Lemma (requires (True))
+      (ensures (f (index (filter f s) i) = true))
+      [SMTPat (f (index (filter f s) i))]
 
 val lemma_filter_correct_all (#a:eqtype) (f:a -> bool) (s:seq a):
-  Lemma (requires (True))
-        (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true))
+Lemma (requires (True))
+      (ensures (forall (i:(seq_index (filter f s))). f (index (filter f s) i) = true))
 
 val lemma_filter_all_not (#a:eqtype) (f:a -> bool) (s:seq a):
-  Lemma (requires filter f s `equal` empty)
-        (ensures forall (i:seq_index s). not (f (index s i)))
+Lemma (requires filter f s `equal` empty)
+      (ensures forall (i:seq_index s). not (f (index s i)))
 
 val lemma_filter_all_not_inv (#a:eqtype) (f:a->bool) (s:seq a)
-  : Lemma (requires (forall (i:seq_index s). not (f (index s i))))
-          (ensures (equal (filter f s) empty))
+: Lemma (requires (forall (i:seq_index s). not (f (index s i))))
+        (ensures (equal (filter f s) empty))
 
 val lemma_filter_exists (#a:eqtype) (f:a -> bool) (s:seq a):
-  Lemma (requires (exists (i:seq_index s). f (index s i)))
-        (ensures (length (filter f s) > 0))
+Lemma (requires (exists (i:seq_index s). f (index s i)))
+      (ensures (length (filter f s) > 0))
 
 val lemma_filter_unique (#a:eqtype) (f:a->bool) (s: seq a) (i:seq_index s)
-  : Lemma (requires (f (index s i) /\ (forall j. j <> i ==> not (f (index s j)))))
-          (ensures (filter f s = create 1 (index s i)))
+: Lemma (requires (f (index s i) /\ (forall j. j <> i ==> not (f (index s j)))))
+        (ensures (filter f s = create 1 (index s i)))
 
 (* mapping from filtered subseq to satisfying indexes *)
 val filter_index_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index (filter f s)):
-  Tot (j:seq_index s{index s j = index (filter f s) i})
+Tot (j:seq_index s{index s j = index (filter f s) i})
 
 (* Mapping from original seq to filtered subseq for satisfying indexes *)
 val filter_index_inv_map (#a:eqtype) (f:a -> bool) (s:seq a) (i:seq_index s{f (index s i)}):
-  Tot (j:seq_index (filter f s){index s i = index (filter f s) j})
+Tot (j:seq_index (filter f s){index s i = index (filter f s) j})
 
 inline_for_extraction
 let refine #a (f:a -> bool) = x:a{f x}
 
 type all (#a:Type) (f:a -> bool) (s: seq a) =
-  forall (i:seq_index s). f (index s i)
+forall (i:seq_index s). f (index s i)
 
 (* if we know that every element of a seq satisfies f, then the same sequence is a sequence over
- * the refinement defined by f *)
+* the refinement defined by f *)
 val seq_refine (#a:Type) (f:a -> bool) (s:seq a{all f s}): Tot (seq (refine f))
 
 val lemma_seq_refine_len (#a:Type) (f:a->bool) (s:seq a{all f s}):
-  Lemma (requires True)
-        (ensures (length (seq_refine f s) = length s))
-        [SMTPat (seq_refine f s)]
+Lemma (requires True)
+      (ensures (length (seq_refine f s) = length s))
+      [SMTPat (seq_refine f s)]
 
 val lemma_seq_refine_equal (#a:Type) (f:a->bool) (s:seq a{all f s}) (i:seq_index s):
-  Lemma (requires True)
-        (ensures (index (seq_refine f s) i == index s i))
-        [SMTPat (index (seq_refine f s) i)]
+Lemma (requires True)
+      (ensures (index (seq_refine f s) i == index s i))
+      [SMTPat (index (seq_refine f s) i)]
 
 let filter_refine (#a:eqtype) (f:a -> bool) (s: seq a): Tot (seq (refine f)) =
-  let fs = filter f s in
-  seq_refine f fs
+let fs = filter f s in
+seq_refine f fs
 
 (* filter_index_map is injective *)
 val lemma_filter_index_map_monotonic (#a:eqtype) (f:a -> bool) (s:seq a)
-  (i:seq_index (filter f s))(j:seq_index (filter f s){j > i}):
-  Lemma (filter_index_map f s i < filter_index_map f s j)
+(i:seq_index (filter f s))(j:seq_index (filter f s){j > i}):
+Lemma (filter_index_map f s i < filter_index_map f s j)
 
 (* Inverse mapping is injective *)
 val lemma_filter_index_inv_map_monotonic (#a:eqtype) (f:a -> bool) (s: seq a)
-  (i:seq_index s) (j: seq_index s {j > i}):
+(i:seq_index s) (j: seq_index s {j > i}):
     Lemma (requires (f (index s i) /\ f (index s j)))
           (ensures (filter_index_inv_map f s i < filter_index_inv_map f s j))
 
@@ -483,3 +483,31 @@ let mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
     (forall (i:seq_index s). Seq.index t i == f i)
    }
   = Seq.init (Seq.length s) f
+
+val indexed_filter_map (#a #b:_) (s: seq a) (f:(seq_index s -> bool)) (m:(i:(seq_index s){f i} -> b))
+  : seq b
+
+val indexed_filter_map_map (#a #b:_)
+  (s: seq a)
+  (f:(seq_index s -> bool))
+  (m:(i:(seq_index s){f i} -> b))
+  (i: seq_index s {f i})
+  : j: (let fm = indexed_filter_map s f m in
+        seq_index fm) { let fm = indexed_filter_map s f m in
+                        index fm j == m i}
+
+val indexed_filter_map_invmap (#a #b:_)
+  (s: seq a)
+  (f:(seq_index s -> bool))
+  (m:(i:(seq_index s){f i} -> b))
+  (j: seq_index (indexed_filter_map s f m))
+  : i:(seq_index s){ f i /\ indexed_filter_map_map s f m i = j }
+
+val lemma_indexed_filter_map (#a #b:_)
+  (s: seq a)
+  (f:(seq_index s -> bool))
+  (m:(i:(seq_index s){f i} -> b))
+  (i: seq_index s {f i})
+  : Lemma (ensures (let j = indexed_filter_map_map s f m i in
+                    i = indexed_filter_map_invmap s f m j))
+          [SMTPat (indexed_filter_map_map s f m i)]

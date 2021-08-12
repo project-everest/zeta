@@ -970,3 +970,30 @@ let filter_map_emp (#a:eqtype) (#b:Type) (filter: a -> bool) (f:refine filter ->
 let map_upd (#a #b:Type) (f:a -> b) (s:seq a) (i:seq_index s) (x:a)
   : Lemma (map f (Seq.upd s i x) `Seq.equal` Seq.upd (map f s) i (f x))
   = ()
+
+let indexed_filter_map (#a #b:_) (s: seq a) (f:(seq_index s -> bool)) (m:(i:(seq_index s){f i} -> b))
+  : seq b = admit()
+
+let indexed_filter_map_map (#a #b:_)
+  (s: seq a)
+  (f:(seq_index s -> bool))
+  (m:(i:(seq_index s){f i} -> b))
+  (i: seq_index s {f i})
+  : j: (let fm = indexed_filter_map s f m in
+        seq_index fm) { let fm = indexed_filter_map s f m in
+                        index fm j == m i} = admit()
+
+let indexed_filter_map_invmap (#a #b:_)
+  (s: seq a)
+  (f:(seq_index s -> bool))
+  (m:(i:(seq_index s){f i} -> b))
+  (j: seq_index (indexed_filter_map s f m))
+  : i:(seq_index s){ f i /\ indexed_filter_map_map s f m i = j } = admit()
+
+let lemma_indexed_filter_map (#a #b:_)
+  (s: seq a)
+  (f:(seq_index s -> bool))
+  (m:(i:(seq_index s){f i} -> b))
+  (i: seq_index s {f i})
+  : Lemma (ensures (let j = indexed_filter_map_map s f m i in
+                    i = indexed_filter_map_invmap s f m j)) = admit()

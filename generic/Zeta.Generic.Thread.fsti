@@ -92,3 +92,5 @@ val lemma_add_seq_inv (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_
                   let ep = epoch_of be in
                   add_seq_inv_map ep tl (add_seq_map tl i) = i))
         [SMTPat (add_seq_map tl i)]
+
+val blum_evict_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec): S.seq (ms_hashfn_dom vspec.app)
