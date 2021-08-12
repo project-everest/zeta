@@ -8,7 +8,7 @@ module S = FStar.Seq
 module SA = Zeta.SeqAux
 
 (* identifier type for verifier threads *)
-type thread_id = nat
+let thread_id = Zeta.Thread.thread_id
 
 (* The basic "structure" of a verifier specification. We are interested in specifications that
  * satisfy additional properties as described below. *)

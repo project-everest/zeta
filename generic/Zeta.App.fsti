@@ -3,6 +3,7 @@ module Zeta.App
 open FStar.Seq
 open Zeta.Hash
 open Zeta.Key
+open Zeta.MultiSet
 open Zeta.SeqAux
 
 type u8 = FStar.UInt8.t
@@ -136,7 +137,9 @@ type app_params = {
   adm: app_data_model;
   tbl : fn_tbl adm;
   keyhashfn: app_key adm -> data_key;
-  valuehashfn: app_value adm -> hash_value
+  valuehashfn: app_value_nullable adm -> hash_value;
+  keycmp: cmp (app_key adm);
+  valcmp: cmp (app_value_nullable adm);
 }
 
 (* the type of valid function ids of an application *)
