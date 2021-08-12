@@ -26,6 +26,16 @@ let compare_key
     in
     f
 
+let compare_merkle_key
+  : cmp merkle_key
+  = let f = fun (k1 k2:merkle_key) ->
+        let open Zeta.BinTree in
+        if k1 = k2 then true
+        else if depth k1 = depth k2 then compare_nkey (depth k1) k1 k2
+        else depth k1 <= depth k2
+    in
+    f
+
 let rec compare_lseq' (#a:eqtype) (f:cmp a) (l:nat) (s1 s2:Seq.lseq a l)
   : Tot bool
   = if l = 0 then (assert (Seq.equal s1 s2); true)
@@ -115,45 +125,41 @@ let compare_merkle_value
     in
     f
 
-(*
-
-
-
-
-
-
-
-
-
-
-
-let compare_value
-  : cmp value
-  = let f = fun (v1 v2:value) ->
-        if v1 = v2 then true
-        else match v1, v2 with
-             | DVal _, MVal _ -> true
-             | MVal _, DVal _ -> false
-             | MVal m1, MVal m2 -> compare_merkle_value m1 m2
-             | DVal d1, DVal d2 -> compare_data_value d1 d2
-    in
-    f
-
-
-let compare_record
-  : cmp record
+let compare_merkle_record
+  : cmp merkle_record
   = let f = fun r1 r2 ->
-      let k1, v1 = r1 in
-      let k2, v2 = r2 in
-      if k1 = k2
-      then compare_value v1 v2
-      else compare_key k1 k2
+        let k1,v1 = r1 in
+        let k2,v2 = r2 in
+        if k1 = k2
+        then compare_merkle_value v1 v2
+        else compare_merkle_key k1 k2
     in
     f
 
+let compare_data_record (aprm: app_params)
+  : cmp (app_record aprm.adm)
+  = let f = fun (r1 r2: app_record aprm.adm) ->
+            let k1,v1 = r1 in
+            let k2,v2 = r2 in
+            if k1 = k2
+            then aprm.valcmp v1 v2
+            else aprm.keycmp k1 k2
+    in
+    f
 
-let ms_hashfn_dom_cmp
-  : cmp ms_hashfn_dom
+let compare_record (aprm: app_params)
+  : cmp (record aprm)
+  = let f = fun (r1 r2: record aprm) ->
+        match r1, r2 with
+        | App _, Int _ -> false
+        | Int _, App _ -> true
+        | App r1, App r2 -> compare_data_record aprm r1 r2
+        | Int r1, Int r2 -> compare_merkle_record r1 r2
+    in
+    f
+
+let ms_hashfn_dom_cmp (aprm: app_params)
+  : cmp (ms_hashfn_dom aprm)
   = let f = fun m1 m2 ->
       let MHDom r1 t1 i1 = m1 in
       let MHDom r2 t2 i2 = m2 in
@@ -161,7 +167,6 @@ let ms_hashfn_dom_cmp
       then if t1 = t2
            then i1 <= i2
            else t1 `ts_leq` t2
-      else compare_record r1 r2
+      else compare_record aprm r1 r2
     in
     f
-    *)
