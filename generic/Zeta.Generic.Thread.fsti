@@ -9,49 +9,35 @@ module SA = Zeta.SeqAux
 module MSD = Zeta.MultiSetHashDomain
 
 (* a verifier log attached to a thread id *)
-let tid_vlog (vspec: verifier_spec) = thread_id & verifier_log vspec
+let vlog (vspec: verifier_spec) = thread_id & verifier_log vspec
 
-let length #vspec (tl: tid_vlog vspec) =
+let length #vspec (tl: vlog vspec) =
   let _, l = tl in
   S.length l
 
-let seq_index #vspec (tl: tid_vlog vspec) = i:nat {i < length tl}
+let seq_index #vspec (tl: vlog vspec) = i:nat {i < length tl}
 
-let index #vspec (tl: tid_vlog vspec) (i: seq_index tl) =
+let index #vspec (tl: vlog vspec) (i: seq_index tl) =
   let _, l = tl in
   S.index l i
 
-let prefix #vspec (tl: tid_vlog vspec) (i: nat {i <= length tl}): tid_vlog _ =
+let prefix #vspec (tl: vlog vspec) (i: nat {i <= length tl}): vlog _ =
   let tid, l = tl in
   tid, SA.prefix l i
 
-let verify #vspec (tl: tid_vlog vspec): vspec.vtls_t =
+let verify #vspec (tl: vlog vspec): vspec.vtls_t =
   let tid, l = tl in
   Zeta.GenericVerifier.verify tid l
 
-let verifiable #vspec (tl: tid_vlog vspec) = vspec.valid (verify tl)
+let verifiable #vspec (tl: vlog vspec) = vspec.valid (verify tl)
 
-let verifiable_log vspec = tl: tid_vlog vspec { verifiable tl }
+let verifiable_log vspec = tl: vlog vspec { verifiable tl }
 
 (* if a thread log is verifiable, its prefix is verifiable *)
 val verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
   (tl:verifiable_log vspec) (i:nat{i <= length tl}):
   Lemma (ensures (verifiable (prefix tl i)))
         [SMTPat (prefix tl i)]
-
-(* clock after processing i entries of the log *)
-let clock #vspec (tl: verifiable_log vspec) (i: nat { i <= length tl }) =
-  vspec.clock (verify tl)
-
-(* clock is monotonic *)
-val lemma_clock_monotonic (#vspec:verifier_spec)
-  (tl: verifiable_log vspec) (i:nat) (j:nat {j >= i /\ j <= length tl}):
-  Lemma (clock tl i `ts_leq` clock tl j)
-
-(* the thread id in the state is always the one specified in the parameter *)
-val lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
-  Lemma (ensures (let tid, _ = tl in
-                  vspec.tid (verify tl) = tid))
 
 (* the verifier state after processing i entries *)
 let state_at #vspec (tl: verifiable_log vspec) (i:nat{i <= length tl}) =
@@ -63,6 +49,20 @@ val lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i:
   Lemma (ensures (state_at tl (i + 1) ==
                   verify_step (index tl i) (state_at tl i)))
         [SMTPat (verify_step (index tl i) (state_at tl i))]
+
+(* clock after processing i entries of the log *)
+let clock #vspec (tl: verifiable_log vspec) (i: seq_index tl) =
+  vspec.clock (verify (prefix tl (i+1)))
+
+(* clock is monotonic *)
+val lemma_clock_monotonic (#vspec:verifier_spec)
+  (tl: verifiable_log vspec) (i:nat) (j: seq_index tl {j >= i}):
+  Lemma (ensures (clock tl i `ts_leq` clock tl j))
+
+(* the thread id in the state is always the one specified in the parameter *)
+val lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
+  Lemma (ensures (let tid, _ = tl in
+                  vspec.tid (verify tl) = tid))
 
 val blum_add_seq (#vspec: verifier_spec) (ep: epoch) (tl: verifiable_log vspec):
   S.seq (ms_hashfn_dom vspec.app)
@@ -93,4 +93,3 @@ val lemma_add_seq_inv (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_
                   add_seq_inv_map ep tl (add_seq_map tl i) = i))
         [SMTPat (add_seq_map tl i)]
 
-val blum_evict_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec): S.seq (ms_hashfn_dom vspec.app)
