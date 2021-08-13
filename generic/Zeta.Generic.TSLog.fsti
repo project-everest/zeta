@@ -1,5 +1,6 @@
 module Zeta.Generic.TSLog
 
+open FStar.Seq
 open Zeta.SeqAux
 open Zeta.Interleave
 open Zeta.Time
