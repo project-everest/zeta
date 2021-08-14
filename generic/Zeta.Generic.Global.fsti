@@ -4,6 +4,7 @@ open FStar.Seq
 open Zeta.SeqAux
 open Zeta.Interleave
 open Zeta.Time
+open Zeta.MultiSetHashDomain
 open Zeta.GenericVerifier
 open Zeta.Generic.Thread
 
@@ -31,3 +32,33 @@ let clock #vspec (gl: verifiable_log vspec) (i: sseq_index gl) =
   let tid, i' = i in
   let tl = thread_log gl tid in
   T.clock tl i'
+
+(* blum add set elements for a given epoch*)
+val add_set
+  (#vspec: verifier_spec)
+  (ep: epoch)
+  (gl: verifiable_log vspec): mset_ms_hashfn_dom vspec.app
+
+(* blum evict set elements for a given epoch *)
+val evict_set
+  (#vspec: verifier_spec)
+  (ep: epoch)
+  (gl: verifiable_log vspec): mset_ms_hashfn_dom vspec.app
+
+(* verifiable log property that add- and evict sets are the same *)
+let aems_equal_for_epoch #vspec
+  (ep: epoch)
+  (gl: verifiable_log vspec) =
+  add_set ep gl == evict_set ep gl
+
+let aems_equal_for_epoch_prop #vspec
+  (ep: epoch)
+  (gl: verifiable_log vspec)
+  (epmax: epoch) =
+  ep <= epmax ==> aems_equal_for_epoch ep gl
+
+(* add and evict sets are equal for all epochs upto epmax *)
+let aems_equal_upto #vspec (epmax: epoch) (gl: verifiable_log vspec) =
+  forall (ep: epoch).
+  {:pattern aems_equal_for_epoch_prop ep gl epmax}
+  aems_equal_for_epoch_prop ep gl epmax
