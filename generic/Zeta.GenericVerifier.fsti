@@ -86,7 +86,7 @@ type verifier_log_entry (vspec: verifier_spec_base) =
 
 let is_blum_add #vspec (e: verifier_log_entry vspec) = AddB? e
 
-let is_evict_to_blum #vspec (e: verifier_log_entry vspec) =
+let is_blum_evict #vspec (e: verifier_log_entry vspec) =
   match e with
   | EvictB _ _ -> true
   | EvictBM _ _ _ -> true
@@ -173,9 +173,3 @@ let rec verify #vspec (tid: thread_id) (l: verifier_log vspec):
     verify_step (S.index l (n-1)) vtls'
 
 let verifier_spec = vspec:verifier_spec_base {clock_monotonic_prop vspec /\ thread_id_constant_prop vspec}
-
-let blum_add_elem #vspec (e:verifier_log_entry vspec {is_blum_add e}): ms_hashfn_dom _ =
-  match e with
-  | AddB r _ t j -> MHDom r t j
-
-val blum_evict_elem (#vspec:verifier_spec) (e: verifier_log_entry vspec {is_evict_to_blum e}): ms_hashfn_dom vspec.app

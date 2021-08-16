@@ -7,6 +7,7 @@ open Zeta.GenericVerifier
 module S = FStar.Seq
 module SA = Zeta.SeqAux
 module MSD = Zeta.MultiSetHashDomain
+module GV = Zeta.GenericVerifier
 
 (* a verifier log attached to a thread id *)
 let vlog (vspec: verifier_spec) = thread_id & verifier_log vspec
@@ -64,32 +65,21 @@ val lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
   Lemma (ensures (let tid, _ = tl in
                   vspec.tid (verify tl) = tid))
 
-val blum_add_seq (#vspec: verifier_spec) (ep: epoch) (tl: verifiable_log vspec):
-  S.seq (ms_hashfn_dom vspec.app)
+let is_blum_add #vspec (tl: verifiable_log vspec) (i: seq_index tl)
+  = GV.is_blum_add (index tl i)
 
-(* map a blum add to an index of the add sequence of the epoch of the add *)
-val add_seq_map
-  (#vspec: verifier_spec)
-  (tl: verifiable_log vspec)
-  (i: seq_index tl {is_blum_add (index tl i)}):
-  (let be = blum_add_elem (index tl i) in
-   let ep = epoch_of be in
-   let add_seq = blum_add_seq ep tl in
-   j: SA.seq_index add_seq{S.index add_seq j = be})
+val blum_add_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl { is_blum_add tl i }): ms_hashfn_dom vspec.app
 
-val add_seq_inv_map
-  (#vspec: verifier_spec)
-  (ep: epoch)
-  (tl: verifiable_log vspec)
-  (j: SA.seq_index (blum_add_seq ep tl)):
-  (i: seq_index tl {is_blum_add (index tl i) /\
-                    blum_add_elem (index tl i) = S.index (blum_add_seq ep tl) j /\
-                    epoch_of (blum_add_elem (index tl i)) = ep /\
-                    add_seq_map tl i = j})
+let is_blum_add_in_epoch #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
+  = is_blum_add tl i &&
+    epoch_of (blum_add_elem tl i) = ep
 
-val lemma_add_seq_inv (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add (index tl i)}):
-  Lemma (ensures (let be = blum_add_elem (index tl i) in
-                  let ep = epoch_of be in
-                  add_seq_inv_map ep tl (add_seq_map tl i) = i))
-        [SMTPat (add_seq_map tl i)]
+let is_blum_evict #vspec (tl: verifiable_log vspec) (i: seq_index tl)
+  = GV.is_blum_evict (index tl i)
 
+val blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl { is_blum_evict tl i }):
+  ms_hashfn_dom vspec.app
+
+let is_blum_evict_in_epoch #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
+  = is_blum_evict tl i &&
+    epoch_of (blum_evict_elem tl i) = ep
