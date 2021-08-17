@@ -278,10 +278,65 @@ let addm_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (vs: vtls vcfg) =
    addm_slot_postcond a st /\                                      // postcond on slot s
    addm_anc_slot_postcond a st)                                    // postcond on slot s'
 
-val vaddm (#vcfg:verifier_config) (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}):
+#push-options "--z3rlimit_factor 2"
+let vaddm #vcfg (s:slot_id vcfg) (r:record) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}):
   (vs': vtls vcfg {let a = AMP s r s' vs in
                    addm_precond a /\ addm_postcond a vs' \/
-                   ~(addm_precond a) /\ Failed? vs'})
+                   ~(addm_precond a) /\ Failed? vs'}) =
+  let a = AMP s r s' vs in
+  let st = thread_store vs in
+  let (k,v) = r in
+  if s = s' then Failed
+  (* check slot s' is not empty *)
+  else if empty_slot st s' then Failed
+  else
+    let k' = stored_key st s' in
+    let v' = stored_value st s' in
+    (* check k is a proper desc of k' *)
+    if not (is_proper_desc k k') then Failed
+    (* check slot s is empty *)
+    else if inuse_slot st s then Failed
+    (* check type of v is consistent with k *)
+    else if not (is_value_of k v) then Failed
+    else
+      let v' = to_merkle_value v' in
+      let d = desc_dir k k' in
+      let dh' = desc_hash_dir v' d in
+      let h = hashfn v in
+      match dh' with
+      | Empty -> (* k' has no child in direction d *)
+        if v <> init_value k then Failed
+        else if points_to_some_slot st s' d then Failed
+        else
+          let st_upd = madd_to_store st s k v s' d in
+          let v'_upd = Spec.update_merkle_value v' d k h false in
+          let st_upd = update_value st_upd s' (MVal v'_upd) in
+          update_thread_store vs st_upd
+      | Desc k2 h2 b2 ->
+        if k2 = k then (* k is a child of k' *)
+          if not (h2 = h && b2 = false) then Failed
+          (* check slot s' does not contain a desc along direction d *)
+          else if points_to_some_slot st s' d then Failed
+          else
+            let st_upd = madd_to_store st s k v s' d in
+            update_thread_store vs st_upd
+        else (* otherwise, k is not a child of k' *)
+          (* first add must be init value *)
+          if v <> init_value k then Failed
+          (* check k2 is a proper desc of k *)
+          else if not (is_proper_desc k2 k) then Failed
+          else
+            let d2 = desc_dir k2 k in
+            let mv = to_merkle_value v in
+            let mv_upd = Spec.update_merkle_value mv d2 k2 h2 b2 in
+            let v'_upd = Spec.update_merkle_value v' d k h false in
+            let st_upd =  if points_to_some_slot st s' d then
+                            madd_to_store_split st s k (MVal mv_upd) s' d d2
+                          else
+                            madd_to_store st s k (MVal mv_upd) s' d in
+            let st_upd = update_value st_upd s' (MVal v'_upd) in
+            update_thread_store vs st_upd
+#pop-options
 
 let vevictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls vcfg {Valid? vs}): vtls vcfg =
   let st = thread_store vs in

@@ -62,10 +62,6 @@ type add_method =
 type record = {
   record_key : key;
   record_value : value;
-  record_add_method : add_method;
-  record_l_child_in_store : option slot_id;
-  record_r_child_in_store : option slot_id;
-  record_parent_slot : option (slot_id & bool);
 }
 
 type vlog_entry_kind =

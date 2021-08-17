@@ -13,7 +13,16 @@ let data_key = k:T.key{ U16.v k.T.significant_digits = 256 }
 let data_value = T.data_value
 let thread_id = T.thread_id
 
-let contents = Seq.seq (option T.record)
+type record = {
+  record_key : T.key;
+  record_value : T.value;
+  record_add_method : T.add_method;
+  record_l_child_in_store : option T.slot_id;
+  record_r_child_in_store : option T.slot_id;
+  record_parent_slot : option (T.slot_id & bool);
+}
+
+let contents = Seq.seq (option record)
 let model_hash = MSH.ms_hash_value
 
 [@@erasable]
@@ -30,10 +39,10 @@ let model_fail tsm = {tsm with model_failed=true}
 
 let slot (tsm:thread_state_model) = i:T.slot_id{U16.v i < Seq.length tsm.model_store}
 
-let model_get_record (tsm:thread_state_model) (s:slot tsm) : GTot (option T.record)
+let model_get_record (tsm:thread_state_model) (s:slot tsm) : GTot (option record)
   = Seq.index tsm.model_store (U16.v s)
 
-let model_put_record (tsm:thread_state_model) (s:slot tsm) (r:T.record)
+let model_put_record (tsm:thread_state_model) (s:slot tsm) (r:record)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) (Some r)}
 
@@ -41,21 +50,20 @@ let model_evict_record (tsm:thread_state_model) (s:slot tsm)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) None }
 
-
 let vget_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model =
   match model_get_record tsm s with
   | None -> model_fail tsm
   | Some r ->
-      if r.T.record_key <> k then model_fail tsm
-      else if r.T.record_value <> v then model_fail tsm
+      if r.record_key <> k then model_fail tsm
+      else if r.record_value <> v then model_fail tsm
       else tsm
 
 let vput_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model
   = match model_get_record tsm s with
     | None -> model_fail tsm
     | Some r ->
-      if r.T.record_key <> k then model_fail tsm
-      else model_put_record tsm s ({r with T.record_value = v})
+      if r.record_key <> k then model_fail tsm
+      else model_put_record tsm s ({r with record_value = v})
 
 assume
 val is_data_key (k:T.key) : bool
@@ -63,14 +71,14 @@ val is_data_key (k:T.key) : bool
 val is_value_of (k:T.key) (v:T.value) : bool
 let is_value_of k v = if is_data_key k then T.V_dval? v else T.V_mval? v
 
-let mk_record (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : T.record
+let mk_record (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : record
   = {
-      T.record_key = k;
-      T.record_value = v;
-      T.record_add_method = a;
-      T.record_l_child_in_store = None;
-      T.record_r_child_in_store = None;
-      T.record_parent_slot = None
+      record_key = k;
+      record_value = v;
+      record_add_method = a;
+      record_l_child_in_store = None;
+      record_r_child_in_store = None;
+      record_parent_slot = None
     }
 
 let model_update_clock (tsm:thread_state_model) (ts:T.timestamp)
@@ -120,7 +128,7 @@ let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp) (thread_
       | None -> model_fail tsm
       | Some r ->
         (* update the evict hash *)
-        let tsm = model_update_hevict tsm r t thread_id in
+        let tsm = model_update_hevict tsm ({T.record_key=r.record_key; T.record_value=r.record_value}) t thread_id in
         (* advance clock to t *)
         let tsm = model_update_clock tsm t in
         (* evict record *)
@@ -129,12 +137,19 @@ let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp) (thread_
 
 assume
 val is_proper_descendent (k0 k1:T.key) : bool
+
 assume
 val has_instore_merkle_desc (tsm:thread_state_model) (s:slot tsm) : bool
+
 assume
 val desc_dir (k0:T.key) (k1:T.key { k0 `is_proper_descendent` k1 }) : bool
-assume
-val to_merkle_value (v:T.value) : option T.mval_value
+
+let to_merkle_value (v:T.value)
+  : option T.mval_value
+  = match v with
+    | T.V_mval v -> Some v
+    | _ -> None
+
 assume
 val desc_hash_dir (v:T.mval_value) (d:bool) : T.descendent_hash
 assume
@@ -162,8 +177,8 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
     match model_get_record tsm s' with
     | None -> model_fail tsm
     | Some r' ->
-      let k' = r'.T.record_key in
-      let v' = r'.T.record_value in
+      let k' = r'.record_key in
+      let v' = r'.record_value in
       (* check k is a proper desc of k' *)
       if not (is_proper_descendent k k') then model_fail tsm
       (* check store does not contain slot s *)
@@ -181,11 +196,12 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
         | T.Dh_vnone _ -> (* k' has no child in direction d *)
             (* first add must be init value *)
             if v <> init_value k then model_fail tsm
+            else if points_to_some_slot tsm s' d then model_fail tsm
             else
-              let tsm = model_put_record tsm s'
-                ({r' with T.record_value=(T.V_mval (update_merkle_value v' d k h false))}) in
-              let tsm = model_put_record tsm s (mk_record k v T.MAdd) in
-              update_in_store tsm s' d true
+              let tsm = model_madd_to_store tsm s k v s' d in
+              let v'_upd = update_merkle_value v' d k h false in
+              model_put_record tsm s'
+                  ({r' with record_value=(T.V_mval v'_upd)})
 
         | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
           if k2 = k then (* k is a child of k' *)
@@ -213,7 +229,7 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
                     model_madd_to_store tsm s k (T.V_mval mv_upd) s' d
                   )
                 in
-                model_put_record tsm s' ({r' with T.record_value=(T.V_mval v'_upd)})
+                model_put_record tsm s' ({r' with record_value=(T.V_mval v'_upd)})
 
 let vevictbm_model (tsm:thread_state_model)
                    (s s':slot tsm)
@@ -223,11 +239,11 @@ let vevictbm_model (tsm:thread_state_model)
   = match model_get_record tsm s, model_get_record tsm s' with
     | Some r, Some r' ->
       begin
-      if not (is_proper_descendent r.T.record_key r'.T.record_key) then model_fail tsm
+      if not (is_proper_descendent r.record_key r'.record_key) then model_fail tsm
       else if has_instore_merkle_desc tsm s then model_fail tsm
-      else if r.T.record_add_method <> T.MAdd then model_fail tsm
-      else let d = desc_dir r.T.record_key r'.T.record_key in
-           match to_merkle_value r'.T.record_value with
+      else if r.record_add_method <> T.MAdd then model_fail tsm
+      else let d = desc_dir r.record_key r'.record_key in
+           match to_merkle_value r'.record_value with
            | None -> model_fail tsm //should be impossible, since r' has a proper descendent
            | Some v' ->
              let dh' = desc_hash_dir v' d in
@@ -235,9 +251,9 @@ let vevictbm_model (tsm:thread_state_model)
              | T.Dh_vnone _ ->
                model_fail tsm
              | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-               if (k2 <> r.T.record_key) `Prims.op_BarBar` (b2 = T.Vtrue)
+               if (k2 <> r.record_key) `Prims.op_BarBar` (b2 = T.Vtrue)
                then model_fail tsm
-               else let tsm = model_put_record tsm s' ({r' with T.record_value=(T.V_mval (update_merkle_value v' d r.T.record_key h2 true))}) in
+               else let tsm = model_put_record tsm s' ({r' with record_value=(T.V_mval (update_merkle_value v' d r.record_key h2 true))}) in
                     let tsm = update_in_store tsm s' d false in
                     vevictb_model tsm s t thread_id
       end

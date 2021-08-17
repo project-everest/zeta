@@ -11,8 +11,9 @@ open Steel.Array
 
 module T = Veritas.Formats.Types
 open Veritas.Steel.VerifierModel
+module VM = Veritas.Steel.VerifierModel
 
-let vstore : Type0 = Steel.Array.array (option T.record)
+let vstore : Type0 = Steel.Array.array (option VM.record)
 unfold
 let is_vstore (st:vstore) = varray st
 
@@ -26,7 +27,7 @@ val vcache_create (n:U32.t)
 let slot_id = U16.t
 
 val vcache_get_record (vst:vstore) (s:slot_id)
-  : Steel (option T.record)
+  : Steel (option VM.record)
           (is_vstore vst)
           (fun _ -> is_vstore vst)
           (requires fun h -> U16.v s < length (asel vst h))
@@ -35,7 +36,7 @@ val vcache_get_record (vst:vstore) (s:slot_id)
              asel vst h0 == asel vst h1 /\
              res == Seq.index (asel vst h1) (U16.v s))
 
-val vcache_set (st:vstore) (s:slot_id) (r:option T.record)
+val vcache_set (st:vstore) (s:slot_id) (r:option VM.record)
   : Steel unit
       (is_vstore st)
       (fun _ -> is_vstore st)
@@ -44,7 +45,7 @@ val vcache_set (st:vstore) (s:slot_id) (r:option T.record)
         U16.v s < length (asel st h0) /\
         asel st h1 == Seq.upd (asel st h0) (U16.v s) r)
 
-let vcache_update_record (st:vstore) (s:slot_id) (r:T.record)
+let vcache_update_record (st:vstore) (s:slot_id) (r:VM.record)
   : Steel unit
       (is_vstore st)
       (fun _ -> is_vstore st)

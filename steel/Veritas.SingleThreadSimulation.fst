@@ -12,7 +12,7 @@ module U16 = FStar.UInt16
 module BV = FStar.BV
 module L = FStar.List.Tot
 module BinTree = Veritas.BinTree
-
+#push-options "--using_facts_from '* -FStar.Seq.Properties.slice_slice -Steel -FStar.Tactics -FStar.Reflection'"
 
 let lemma_seq_to_list_append #a (s0 s1:Seq.seq a)
   : Lemma (Seq.seq_to_list (Seq.append s0 s1) ==
@@ -66,7 +66,6 @@ let s_key_as_i_key (s_key:S_Types.key)
 
 let related_key (s_key:S_Types.key)
                 (i_key:Veritas.Key.key)
-  : prop
   = let open S_Types in
     let (| l, m |) = key_as_list s_key in
     bool_list_as_bin_tree l == i_key /\
@@ -81,7 +80,6 @@ val related_key_inj (k0 k1:_) (m0 m1:_)
 
 let related_desc_hash (s_hash:S_Types.descendent_hash)
                       (i_hash:Veritas.Record.desc_hash)
-  : prop
   = let open S_Types in
     let open Veritas.Record in
     match s_hash, i_hash with
@@ -94,7 +92,6 @@ let related_desc_hash (s_hash:S_Types.descendent_hash)
 
 let related_merkle_value (s_value:S_Types.mval_value)
                          (i_value:Veritas.Record.merkle_value)
-  : prop
   = let open Veritas.Record in
     let open S_Types in
     related_desc_hash s_value.l (MkValue?.l i_value) /\
@@ -102,7 +99,6 @@ let related_merkle_value (s_value:S_Types.mval_value)
 
 let related_data_value (s_value:S_Types.data_value)
                        (i_value:Veritas.Record.data_value)
-  : prop
   = let open S_Types in
     let open Veritas.Record in
     match s_value, i_value with
@@ -110,10 +106,8 @@ let related_data_value (s_value:S_Types.data_value)
     | Dv_vsome s, DValue i -> int_of_u256 s == i
     | _ -> False
 
-let related_value (#k:Veritas.Key.key)
-                  (s_value:S_Types.value)
-                  (i_value:Veritas.Record.value_type_of k)
-  : prop
+let related_value (s_value:S_Types.value)
+                  (i_value:Veritas.Record.value)
   = let open S_Types in
     let open Veritas.Record in
     match s_value, i_value with
@@ -121,19 +115,16 @@ let related_value (#k:Veritas.Key.key)
     | V_dval dv, DVal dv' -> related_data_value dv dv'
     | _ -> False
 
-assume
-val related_value_inj (#k0 #k1:Veritas.Key.key)
-                      (v0 v1:_)
-                      (u0:Veritas.Record.value_type_of k0)
-                      (u1:Veritas.Record.value_type_of k1)
+let related_value_inj (v0 v1:_)
+                      (u0 u1:Veritas.Record.value)
   : Lemma
     (related_value v0 u0 /\
      related_value v1 u1 /\
      (v0 == v1 <==> u0 == u1))
+  = admit()
 
 let related_add_method (s_am: S_Types.add_method)
                        (i_am: IStore.add_method)
-  : prop
   = let open S_Types in
     match s_am, i_am with
     | MAdd, Veritas.Verifier.MAdd -> True
@@ -143,7 +134,6 @@ let related_add_method (s_am: S_Types.add_method)
 let related_in_store_tag #vcfg
                          (s_in_store_tag: option (S_Types.slot_id))
                          (i_in_store_tag: option (VCfg.slot_id vcfg))
-  : prop
   = match s_in_store_tag, i_in_store_tag with
     | None, None -> True
     | Some s, Some i -> U16.v s == i
@@ -152,7 +142,6 @@ let related_in_store_tag #vcfg
 let related_parent_slot #vcfg
                         (s: option (S_Types.slot_id & bool))
                         (p: option (VCfg.slot_id vcfg & Veritas.BinTree.bin_tree_dir))
-  : prop
   = match s, p with
     | None, None -> True
     | Some (s, b), Some (i, d) ->
@@ -161,21 +150,19 @@ let related_parent_slot #vcfg
     | _ -> False
 
 let related_record #vcfg
-                   (s_record:S_Types.record)
+                   (s_record:S.record)
                    (i_record:IStore.vstore_entry vcfg)
-  : prop
   = let IStore.VStoreE k v am l_in_store r_in_store p = i_record in
-    related_key s_record.S_Types.record_key k /\
-    related_value s_record.S_Types.record_value v /\
-    related_add_method s_record.S_Types.record_add_method am /\
-    related_in_store_tag s_record.S_Types.record_l_child_in_store l_in_store /\
-    related_in_store_tag s_record.S_Types.record_r_child_in_store r_in_store /\
-    related_parent_slot s_record.S_Types.record_parent_slot p
+    related_key s_record.S.record_key k /\
+    related_value s_record.S.record_value v /\
+    related_add_method s_record.S.record_add_method am /\
+    related_in_store_tag s_record.S.record_l_child_in_store l_in_store /\
+    related_in_store_tag s_record.S.record_r_child_in_store r_in_store /\
+    related_parent_slot s_record.S.record_parent_slot p
 
 let related_record_opt #vcfg
-                       (s_record:option S_Types.record)
+                       (s_record:option S.record)
                        (i_record:option (IStore.vstore_entry vcfg))
-  : prop
   = match s_record, i_record with
     | None, None -> True
     | Some s, Some i -> related_record s i
@@ -184,27 +171,23 @@ let related_record_opt #vcfg
 let related_stores #vcfg
                    (s_store:S.contents)
                    (i_store:IStore.vstore vcfg)
-  : prop
   = Seq.length s_store == vcfg.VCfg.store_size /\
     (forall (i:nat { i < Seq.length s_store }).
       related_record_opt (Seq.index s_store i) (Seq.index i_store i))
 
 let related_clocks (s_clock:U64.t)
                    (i_clock:MSH.timestamp)
-  : prop
   = let open U64 in
     v (s_clock `shift_right` 32ul) == i_clock.MSH.e /\
     v (s_clock `logand` uint_to_t (FStar.UInt.max_int 32)) == i_clock.MSH.c
 
 let related_hashes (s_hash:S.model_hash)
                    (i_hash:MSH.ms_hash_value)
-  : prop
   = s_hash == i_hash
 
 let related_states #vcfg
                    (tsm:S.thread_state_model)
                    (vtls:I.vtls vcfg)
-  : prop
   = Seq.length tsm.S.model_store == vcfg.VCfg.store_size /\
     (if tsm.S.model_failed then I.Failed? vtls == true
      else (
@@ -216,6 +199,7 @@ let related_states #vcfg
       related_hashes tsm.S.model_hevict hevict
       )
     ))
+
 module IL = Veritas.Intermediate.Logs
 module VC = Veritas.Intermediate.VerifierConfig
 let lift_data_value (d:S_Types.data_value)
@@ -226,20 +210,44 @@ let lift_data_value (d:S_Types.data_value)
     | Dv_vnone () -> Null
     | Dv_vsome d -> DValue (int_of_u256 d)
 
+let lift_slot #vcfg (s:S_Types.slot_id)
+  : option (VC.slot_id vcfg)
+  = let open S_Types in
+    let i_slot = U16.v s in
+    if i_slot >= VC.store_size vcfg
+    then None
+    else Some i_slot
+
+let lift_key (s:S_Types.key)
+  : option (s':Veritas.Key.key{related_key s s'})
+  = admit()
+
+let lift_value (s:S_Types.value)
+  : option (Veritas.Record.value)
+  = admit()
+
+let lift_record (s:S_Types.record)
+  : option Veritas.Record.record
+  = let open S_Types in
+    match lift_key s.record_key,
+          lift_value s.record_value
+    with
+    | Some k, Some v -> Some (k, v)
+    | _ -> None
+
 let lift_vlog_entry_get_put #vcfg (e:S_Types.vlog_entry_get_put)
   : option (VC.slot_id vcfg &
             Veritas.Key.data_key &
             Veritas.Record.data_value)
   = let open S_Types in
-    let i_slot = U16.v e.vegp_s in
+    let i_slot = lift_slot #vcfg e.vegp_s in
     let i_key = s_key_as_i_key e.vegp_k in
     let i_data = lift_data_value e.vegp_v in
-    if i_slot >= VC.store_size vcfg
+    if None? i_slot
     ||  Veritas.BinTree.depth i_key <> Veritas.Key.key_size
     ||  U16.v e.vegp_k.significant_digits <> Veritas.Key.key_size
     then None
-    else Some (i_slot, i_key, i_data)
-
+    else Some (Some?.v i_slot, i_key, i_data)
 
 let lift_log_entry #vcfg (v:S_Types.vlog_entry)
   : option (IL.logS_entry vcfg)
@@ -258,6 +266,17 @@ let lift_log_entry #vcfg (v:S_Types.vlog_entry)
       | Some (s, k, d) -> Some (Put_S s k d)
     )
 
+    | Ve_AddM addm -> (
+      match lift_slot addm.veam_s,
+            lift_record addm.veam_r,
+            lift_slot addm.veam_s2
+      with
+      | Some s, Some r, Some s' ->
+        Some (AddM_S s r s')
+      | _ ->
+        None
+    )
+
     | _ -> None
 
 let related_lift_vlog_entry_get_put #vcfg (e:S_Types.vlog_entry_get_put)
@@ -268,12 +287,9 @@ let related_lift_vlog_entry_get_put #vcfg (e:S_Types.vlog_entry_get_put)
       let open S_Types in
       let Some (s, k, v) = lift_vlog_entry_get_put #vcfg e in
       related_key e.vegp_k k /\
-      related_value #k (V_dval e.vegp_v) (DVal v)
+      related_value (V_dval e.vegp_v) (DVal v)
     ))
   = admit()
-
-
-
 
 #push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 4"
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,12 +329,12 @@ let related_vget (#vcfg: _)
       let Some s = IStore.get_slot st s in
       let kk = IStore.VStoreE?.k s in
       let vv = IStore.VStoreE?.v s in
-      assert (related_key (r.S_Types.record_key) kk);
-      assert (related_value (r.S_Types.record_value) vv);
-      related_key_inj gp.vegp_k (r.S_Types.record_key)
+      assert (related_key (r.S.record_key) kk);
+      assert (related_value (r.S.record_value) vv);
+      related_key_inj gp.vegp_k (r.S.record_key)
                       k kk;
-      related_value_inj #k #kk (V_dval gp.vegp_v)
-                        r.S_Types.record_value
+      related_value_inj (V_dval gp.vegp_v)
+                        r.S.record_value
                         (DVal d)
                         vv
 
@@ -328,7 +344,6 @@ let related_vget (#vcfg: _)
 
 let related_slots #vcfg  (slot_s:S_Types.slot_id)
                          (slot_i:VC.slot_id vcfg)
-  : prop
   = U16.v slot_s == slot_i
 
 let update_entry #vcfg
@@ -353,7 +368,6 @@ let istore_upd_value #vcfg
     let st' = IStore.update_value st s d in
     //just need to trigger a rewrite get_slot into seq.index
     assert (forall i. i <> s ==> get_slot st i == get_slot st' i /\ Seq.index st i == Seq.index st' i)
-
 
 let related_vput (#vcfg: _)
                  (tsm:S.thread_state_model)
@@ -387,7 +401,7 @@ let related_vput (#vcfg: _)
      | Some r ->
        let Some entry = IStore.get_slot st s in
        let IStore.VStoreE kk vv am l_in_store r_in_store p = entry in
-       related_key_inj gp.vegp_k (r.S_Types.record_key)
+       related_key_inj gp.vegp_k (r.S.record_key)
                       k kk;
        if k <> kk then ()
        else istore_upd_value st s (DVal d)
@@ -395,3 +409,243 @@ let related_vput (#vcfg: _)
 ////////////////////////////////////////////////////////////////////////////////
 // VADDM
 ////////////////////////////////////////////////////////////////////////////////
+let z_thread_id : S_Types.thread_id = 0us
+
+let related_desc_dir (b:bool) (d:Veritas.BinTree.bin_tree_dir) =
+  b = Veritas.BinTree.Left? d
+
+let related_key_proper_descendent (k0 k1:S_Types.key) (m0 m1:Veritas.Key.key)
+  : Lemma
+    (requires related_key k0 m0 /\
+              related_key k1 m1)
+    (ensures (S.is_proper_descendent k0 k1 <==>
+              Veritas.BinTree.is_proper_desc m0 m1) /\
+             (S.is_proper_descendent k0 k1 ==>
+              (related_desc_dir (S.desc_dir k0 k1)
+                                (Veritas.BinTree.desc_dir m0 m1))))
+  = admit()
+
+let related_desc_hash_dir (v:_) (b:_)
+                          (m:_) (d:_)
+  : Lemma
+    (requires
+      related_merkle_value v m /\
+      related_desc_dir b d)
+    (ensures
+      related_desc_hash (S.desc_hash_dir v b)
+                        (Veritas.Record.desc_hash_dir m d))
+  = admit()
+
+let related_hashfn (v:S_Types.value)
+                   (m:Veritas.Record.value)
+  : Lemma
+    (requires related_value v m)
+    (ensures related_hashes (bitvec_of_u256 (S.hashfn v)) (Veritas.Hash.hashfn m))
+  = admit()
+
+let related_init_value (s_k:_) (i_k:_)
+  : Lemma
+    (requires related_key s_k i_k)
+    (ensures related_value (S.init_value s_k) (Veritas.Record.init_value i_k))
+  = admit()
+
+let related_lift_log_entry_addm #vcfg (e:S_Types.vlog_entry { S_Types.Ve_AddM? e})
+  : Lemma
+    (requires Some? (lift_log_entry #vcfg e))
+    (ensures (
+      let open Veritas.Record in
+      let open S_Types in
+      let S_Types.Ve_AddM addm = e in
+      let Some (IL.AddM_S s r s') = lift_log_entry #vcfg e in
+      related_key addm.veam_r.S_Types.record_key (fst r) /\
+      related_value addm.veam_r.S_Types.record_value (snd r)
+    ))
+  = admit()
+
+let points_to_some_slot_related #vcfg (tsm:_)
+                                (st:IStore.vstore vcfg)
+                                (s:S_Types.slot_id)
+                                (b:bool)
+                                (d:Veritas.BinTree.bin_tree_dir)
+  : Lemma
+    (requires
+      related_stores tsm.S.model_store st /\
+      Some? (lift_slot #vcfg s) /\
+      Veritas.Intermediate.Store.inuse_slot st (Some?.v (lift_slot #vcfg s)) /\
+      related_desc_dir b d)
+    (ensures
+      S.points_to_some_slot tsm s b ==
+      IStore.points_to_some_slot st (Some?.v ((lift_slot #vcfg s))) d)
+  = admit()
+
+let madd_to_store_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
+                                (s_s:S_Types.slot_id) (i_s:IStore.empty_slot_id st)
+                                (s_k:S_Types.key) (i_k:Veritas.Key.key)
+                                (s_v:S_Types.value) (i_v:Record.value_type_of i_k)
+                                (s_s':S_Types.slot_id) (i_s':IStore.merkle_slot_id st)
+                                (s_d:bool) (i_d:BinTree.bin_tree_dir)
+  : Lemma
+    (requires
+      related_stores tsm.S.model_store st /\
+      (lift_slot #vcfg s_s == Some i_s) /\
+      related_key s_k i_k /\
+      related_value s_v i_v /\
+      (lift_slot #vcfg s_s' == Some i_s') /\
+      related_desc_dir s_d i_d /\
+      IStore.points_to_none st i_s' i_d)
+    (ensures (
+      let tsm' = S.model_madd_to_store tsm s_s s_k s_v s_s' s_d in
+      let st'  = IStore.madd_to_store st i_s i_k i_v i_s' i_d in
+      related_stores tsm'.S.model_store st' /\
+      (st' `Seq.equal` Seq.upd st i_s (Seq.index st' i_s)) /\
+      (tsm'.S.model_store `Seq.equal` Seq.upd tsm.S.model_store (U16.v s_s) (Seq.index tsm'.S.model_store (U16.v s_s))) /\
+      tsm' == { tsm with S.model_store = tsm'.S.model_store} //modifies only the store
+      ))
+  = admit()
+
+let related_update_merkle_value (s_v:_) (i_v:_)
+                                (s_d:_) (i_d:_)
+                                (s_k:_) (i_k:_)
+                                (s_h:_) (i_h:_)
+                                (b:bool)
+  : Lemma
+    (requires
+      related_merkle_value s_v i_v /\
+      related_desc_dir s_d i_d /\
+      related_key s_k i_k /\
+      related_hashes (bitvec_of_u256 s_h) i_h
+  )
+    (ensures
+      related_merkle_value
+        (S.update_merkle_value s_v s_d s_k s_h b)
+        (Verifier.update_merkle_value i_v i_d i_k i_h b))
+  = admit()
+
+#push-options "--z3rlimit_factor 8 --query_stats --ifuel 1 --log_queries"
+val related_vaddm (#vcfg: _)
+                  (tsm:S.thread_state_model)
+                  (vtls:I.vtls vcfg)
+                  (v:S_Types.vlog_entry)
+  : Lemma
+    (requires
+      S_Types.Ve_AddM? v == true /\
+      Some? (lift_log_entry #vcfg v) == true /\
+      related_states tsm vtls /\
+      I.Valid? vtls == true)
+    (ensures (
+      let open S_Types in
+      let open IL in
+      let addm = Ve_AddM?._0 v in
+      let Some (AddM_S s r s') = lift_log_entry #vcfg v in
+      (S.vaddm_model tsm addm.veam_s addm.veam_r addm.veam_s2 z_thread_id
+        `related_states`
+      (I.vaddm s r s' vtls))))
+
+let related_vaddm (#vcfg: _)
+                  (tsm:S.thread_state_model)
+                  (vtls:I.vtls vcfg)
+                  (v:S_Types.vlog_entry)
+  = let open Veritas.Record in
+    let open S_Types in
+    let open IL in
+    let open S in
+    let addm = Ve_AddM?._0 v in
+    let Some (AddM_S i_s i_r i_s') = lift_log_entry #vcfg v in
+    related_lift_log_entry_addm #vcfg v;
+    let s_s = addm.veam_s in
+    let s_r = addm.veam_r in
+    let s_s' = addm.veam_s2  in
+    let tsm' = S.vaddm_model tsm s_s s_r s_s' z_thread_id in
+    let vtls' = I.vaddm i_s i_r i_s' vtls in
+    let I.Valid id st clock hadd hevict = vtls in
+    match model_get_record tsm s_s' with
+    | None -> ()
+    | Some s_r' ->
+      assert (not (IStore.empty_slot st i_s'));
+      let Some i_r' = IStore.get_slot st i_s' in
+      assert (related_record s_r' i_r');
+      let s_k = addm.veam_r.S_Types.record_key in
+      let s_v = addm.veam_r.S_Types.record_value in
+      let s_k' = s_r'.record_key in
+      let s_v' = s_r'.record_value in
+      let i_k, i_v = i_r in
+      let i_k' = IStore.stored_key st i_s' in
+      let i_v' = IStore.stored_value st i_s' in
+      if i_s = i_s'
+      then (
+        assert (vtls' == I.Failed);
+        assert (tsm'.model_failed)
+        //At the TSM level, we do not explicitly check that s <> s'
+        //but it follows anyway, since if s' is not in the store it fails
+        //and if s' is in the store then s must not be in the store
+      ) else (
+        related_key_proper_descendent s_k s_k' i_k i_k';
+        if not (S.is_proper_descendent s_k s_k')
+        then ()
+        else if Some? (model_get_record tsm s_s)
+        then ()
+        else if not (S.is_value_of s_k s_v)
+        then (assume (not (Veritas.Record.is_value_of i_k i_v)))
+        else (
+          assume (Veritas.Record.is_value_of i_k i_v);
+          assert (Veritas.Record.MVal? i_v');
+          assert (related_value s_v' i_v');
+          assert (S_Types.V_mval? s_v');
+          let i_mv' = Veritas.Record.to_merkle_value i_v' in
+          let i_d = Veritas.BinTree.desc_dir i_k i_k' in
+          let i_dh' = Veritas.Record.desc_hash_dir i_mv' i_d in
+          let i_h = Veritas.Hash.hashfn i_v in
+          let Some s_mv' = S.to_merkle_value s_v' in
+          let s_d = S.desc_dir s_k s_k' in
+          let s_dh' = S.desc_hash_dir s_mv' s_d in
+          let s_h = S.hashfn s_v in
+          related_desc_hash_dir s_mv' s_d i_mv' i_d;
+          match s_dh' with
+          | S_Types.Dh_vnone _ ->
+            assert (i_dh' == Empty);
+            related_init_value s_k i_k;
+            if s_v = S.init_value s_k
+            then (
+              assert (i_v = Veritas.Record.init_value i_k);
+              points_to_some_slot_related tsm st s_s' s_d i_d;
+              if S.points_to_some_slot tsm s_s' s_d
+              then (
+                assert (IStore.points_to_some_slot st i_s' i_d)
+              )
+              else (
+                madd_to_store_related tsm st s_s i_s s_k i_k s_v i_v s_s' i_s' s_d i_d;
+                let tsm1 = S.model_madd_to_store tsm s_s s_k s_v s_s' s_d in
+                let st1 = IStore.madd_to_store st i_s i_k i_v i_s' i_d in
+                assume (related_hashes (bitvec_of_u256 s_h) i_h);
+                related_update_merkle_value
+                  (S_Types.V_mval?._0 s_v')
+                  (Record.MVal?.v i_v') s_d i_d s_k i_k s_h i_h false;
+                let s_v'_upd =
+                  S.update_merkle_value (S_Types.V_mval?._0 s_v') s_d s_k s_h false in
+                let i_v'_upd =
+                  Verifier.update_merkle_value
+                    (Record.MVal?.v i_v')
+                    i_d i_k i_h false
+                in
+                assert (related_merkle_value s_v'_upd i_v'_upd);
+                istore_upd_value st1 i_s' (Record.MVal i_v'_upd);
+                assert (tsm' == model_put_record tsm1 s_s'
+                              ({s_r' with record_value=(S_Types.V_mval s_v'_upd)}));
+                let st' = IStore.update_value st1 i_s' (Record.MVal i_v'_upd) in
+                assert (vtls' == I.update_thread_store vtls st');
+                assert (related_stores tsm1.S.model_store st1);
+                assert (st' == Seq.upd st' i_s' (Some (update_entry i_r' (Record.MVal i_v'_upd))));
+                assert (related_stores tsm'.S.model_store st')
+              )
+            )
+            else (
+              assert (i_v <> Veritas.Record.init_value i_k)
+            )
+          | S_Types.Dh_vsome
+              { S_Types.dhd_key=s_k2;
+                S_Types.dhd_h=s_h2;
+                S_Types.evicted_to_blum = s_b2
+              } ->
+            admit()
+        )
+      )
