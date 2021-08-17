@@ -773,6 +773,17 @@ let related_vaddm_some_child tsm s_s s_k s_v s_s' s_k' s_v' s_mv' s_d s_dh' s_h
       )
     )
 
+let value_of_related (s_k:_) (s_v:_)
+                     (i_k:_) (i_v:_)
+  : Lemma
+    (requires
+      related_key s_k i_k /\
+      related_value s_v i_v)
+    (ensures
+      S.is_value_of s_k s_v <==>
+      Record.is_value_of i_k i_v)
+  = admit()
+
 let related_vaddm (#vcfg: _)
                   (tsm:S.thread_state_model)
                   (vtls:I.vtls vcfg)
@@ -816,34 +827,35 @@ let related_vaddm (#vcfg: _)
         then ()
         else if Some? (model_get_record tsm s_s)
         then ()
-        else if not (S.is_value_of s_k s_v)
-        then (assume (not (Veritas.Record.is_value_of i_k i_v)))
         else (
-          assume (Veritas.Record.is_value_of i_k i_v);
-          assert (Veritas.Record.MVal? i_v');
-          assert (related_value s_v' i_v');
-          assert (S_Types.V_mval? s_v');
-          // assert (vaddm_basic_preconditions tsm s_s s_k s_v s_s' s_k' s_v'
-          //                                  vtls i_s i_k i_v i_s' i_k' i_v');
-          let i_mv' = Veritas.Record.to_merkle_value i_v' in
-          let i_d = Veritas.BinTree.desc_dir i_k i_k' in
-          let i_dh' = Veritas.Record.desc_hash_dir i_mv' i_d in
-          let i_h = Veritas.Hash.hashfn i_v in
-          let Some s_mv' = S.to_merkle_value s_v' in
-          let s_d = S.desc_dir s_k s_k' in
-          let s_dh' = S.desc_hash_dir s_mv' s_d in
-          let s_h = S.hashfn s_v in
-          related_hashfn s_v i_v;
-          assert (related_hashes (bitvec_of_u256 s_h) i_h);
-          related_desc_hash_dir s_mv' s_d i_mv' i_d;
-          match s_dh' with
-          | S_Types.Dh_vnone _ ->
-            related_vaddm_no_child
-              tsm s_s s_k s_v s_s' s_k' s_v' s_mv' s_d s_dh' s_h
-             vtls i_s i_k i_v i_s' i_k' i_v' i_mv' i_d i_dh' i_h
-          | _ ->
-            related_vaddm_some_child
-              tsm s_s s_k s_v s_s' s_k' s_v' s_mv' s_d s_dh' s_h
-             vtls i_s i_k i_v i_s' i_k' i_v' i_mv' i_d i_dh' i_h
+          value_of_related s_k s_v i_k i_v;
+          if not (S.is_value_of s_k s_v)
+          then ()
+          else (
+            assert (Veritas.Record.is_value_of i_k i_v);
+            assert (Veritas.Record.MVal? i_v');
+            assert (related_value s_v' i_v');
+            assert (S_Types.V_mval? s_v');
+            let i_mv' = Veritas.Record.to_merkle_value i_v' in
+            let i_d = Veritas.BinTree.desc_dir i_k i_k' in
+            let i_dh' = Veritas.Record.desc_hash_dir i_mv' i_d in
+            let i_h = Veritas.Hash.hashfn i_v in
+            let Some s_mv' = S.to_merkle_value s_v' in
+            let s_d = S.desc_dir s_k s_k' in
+            let s_dh' = S.desc_hash_dir s_mv' s_d in
+            let s_h = S.hashfn s_v in
+            related_hashfn s_v i_v;
+            assert (related_hashes (bitvec_of_u256 s_h) i_h);
+            related_desc_hash_dir s_mv' s_d i_mv' i_d;
+            match s_dh' with
+            | S_Types.Dh_vnone _ ->
+              related_vaddm_no_child
+                tsm s_s s_k s_v s_s' s_k' s_v' s_mv' s_d s_dh' s_h
+              vtls i_s i_k i_v i_s' i_k' i_v' i_mv' i_d i_dh' i_h
+            | _ ->
+              related_vaddm_some_child
+                tsm s_s s_k s_v s_s' s_k' s_v' s_mv' s_d s_dh' s_h
+              vtls i_s i_k i_v i_s' i_k' i_v' i_mv' i_d i_dh' i_h
+          )
         )
       )
