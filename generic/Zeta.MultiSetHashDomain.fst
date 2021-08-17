@@ -4,7 +4,7 @@ module K = Zeta.Key
 module R = Zeta.Record
 module M = Zeta.Merkle
 
-let nkey (n:nat) = k:K.key{Zeta.BinTree.depth k = n}
+let nkey (n:nat) = k:base_key{Zeta.BinTree.depth k = n}
 
 let rec compare_nkey (n:nat)
   : cmp (nkey n)
@@ -21,8 +21,8 @@ let rec compare_nkey (n:nat)
     f
 
 let compare_key
-  : cmp K.key
-  = let f = fun (k1 k2:K.key) ->
+  : cmp base_key
+  = let f = fun (k1 k2:base_key) ->
         let open Zeta.BinTree in
         if k1 = k2 then true
         else if depth k1 = depth k2 then compare_nkey (depth k1) k1 k2

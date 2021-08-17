@@ -72,7 +72,7 @@ val blum_add_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl { is_bl
 
 let is_blum_add_in_epoch #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
   = is_blum_add tl i &&
-    epoch_of (blum_add_elem tl i) = ep
+    (blum_add_elem tl i).t.e = ep
 
 let is_blum_evict #vspec (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_blum_evict (index tl i)
@@ -82,4 +82,4 @@ val blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl { is_
 
 let is_blum_evict_in_epoch #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
   = is_blum_evict tl i &&
-    epoch_of (blum_evict_elem tl i) = ep
+    (blum_evict_elem tl i).t.e = ep

@@ -19,31 +19,26 @@ let epoch = nat
  *)
 let counter = nat
 
-type timestamp =
-  | MkTimestamp: e: epoch ->
-                 c: counter -> timestamp
+type timestamp = {
+  e: epoch;
+  c: counter;
+}
 
 (* next timestamp *)
-let next (t: timestamp): timestamp =
-  match t with
-  | MkTimestamp e c -> MkTimestamp e (c + 1)
+let next (t: timestamp)
+  = { e = t.e; c = t.c + 1 }
 
 (* return the epoch of a timestamp *)
-let epoch_of (t: timestamp): epoch =
-  match t with
-  | MkTimestamp e _ -> e
+let epoch_of (t: timestamp)
+  = t.e
 
 (* first timestamp of an epoch *)
-let first (e: epoch): timestamp =
-  MkTimestamp e 0
+let first (e: epoch): timestamp
+  = { e; c = 0 }
 
 (* < relation of timestamps *)
 let ts_lt (t1 t2: timestamp) =
-  let e1 = MkTimestamp?.e t1 in
-  let c1 = MkTimestamp?.c t1 in
-  let e2 = MkTimestamp?.e t2 in
-  let c2 = MkTimestamp?.c t2 in
-  e1 < e2 || e1 = e2 && c1 < c2
+  t1.e < t2.e || t1.e = t2.e && t1.c < t2.c
 
 (* >= relation of timestamps *)
 let ts_geq (t1 t2: timestamp) =
@@ -56,3 +51,6 @@ let ts_leq (t1 t2: timestamp) =
 (* > relation of timestamps *)
 let ts_gt (t1 t2: timestamp): bool =
   not (t1 `ts_leq` t2)
+
+let max (t1 t2: timestamp) =
+  if t1 `ts_lt` t2 then t2 else t1

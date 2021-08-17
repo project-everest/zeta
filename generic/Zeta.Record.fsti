@@ -33,3 +33,12 @@ let value_of (#aprm: app_params) (r: record aprm)
 let to_merkle_value (#aprm: app_params) (v: value aprm { IntV? v })
   = let IntV v = v in
     v
+
+let init_value (#aprm: app_params) (k: key aprm): value_t k
+  = match k with
+    | AppK _ -> AppV Null
+    | IntK _ -> IntV ({left = Empty; right = Empty})
+
+let is_init_record (#aprm: app_params) (r: record aprm): bool
+  = let k,v = r in
+    v = init_value k
