@@ -6,22 +6,22 @@ open Zeta.BinTree
 let key_size = 256
 
 (* key is a bin_tree_node of bounded depth *)
-type key = n:bin_tree_node{depth n <= key_size}
+let key = n:bin_tree_node{depth n <= key_size}
 
 (* height of a key *)
 let height (k:key) = key_size - depth k
 
 (* 
- * data keys are keys at depth key_size; these are the 
- * keys exposed to an application 
+ * leaf keys are keys of length 256. they correspond to
+ * hashes of application keys.
  *)
-type data_key = k:key{depth k = key_size}
+type leaf_key = k:key{depth k = key_size}
 
 (* merkle keys are non-data keys *)
 type merkle_key = k:key{depth k < key_size}
 
-(* is this a data key *)
-let is_data_key (k:key) = depth k = key_size
+(* is this a leaf key *)
+let is_leaf_key (k:key) = depth k = key_size
 
 (* is this a merkle key *)
 let is_merkle_key (k:key) = depth k < key_size

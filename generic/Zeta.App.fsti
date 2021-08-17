@@ -136,7 +136,7 @@ noeq
 type app_params = {
   adm: app_data_model;
   tbl : fn_tbl adm;
-  keyhashfn: app_key adm -> data_key;
+  keyhashfn: app_key adm -> leaf_key;
   valuehashfn: app_value_nullable adm -> hash_value;
   keycmp: cmp (app_key adm);
   valcmp: cmp (app_value_nullable adm);

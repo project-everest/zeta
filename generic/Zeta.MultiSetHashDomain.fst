@@ -1,6 +1,10 @@
 module Zeta.MultiSetHashDomain
 
-let nkey (n:nat) = k:key{Zeta.BinTree.depth k = n}
+module K = Zeta.Key
+module R = Zeta.Record
+module M = Zeta.Merkle
+
+let nkey (n:nat) = k:K.key{Zeta.BinTree.depth k = n}
 
 let rec compare_nkey (n:nat)
   : cmp (nkey n)
@@ -17,8 +21,8 @@ let rec compare_nkey (n:nat)
     f
 
 let compare_key
-  : cmp key
-  = let f = fun (k1 k2:key) ->
+  : cmp K.key
+  = let f = fun (k1 k2:K.key) ->
         let open Zeta.BinTree in
         if k1 = k2 then true
         else if depth k1 = depth k2 then compare_nkey (depth k1) k1 k2
@@ -99,8 +103,9 @@ let compare_hash_value
     f
 
 let compare_desc_hash
-  : cmp desc_hash
-  = let f = fun (d1 d2:desc_hash) ->
+  : cmp M.desc_hash_t
+  = let open Zeta.Merkle in
+    let f = fun (d1 d2:desc_hash_t) ->
         if d1 = d2 then true
         else match d1, d2 with
              | Empty, _ -> true
@@ -115,46 +120,47 @@ let compare_desc_hash
     f
 
 let compare_merkle_value
-  : cmp merkle_value
-  = let f = fun m1 m2 ->
+  : cmp M.value
+  = let open Zeta.Merkle in
+    let f = fun m1 m2 ->
         if m1 = m2 then true
-        else let MkValue l1 r1 = m1 in
-             let MkValue l2 r2 = m2 in
-             if l1 = l2 then compare_desc_hash r1 r2
-             else compare_desc_hash l1 l2
+        else if m1.left = m2.left then compare_desc_hash m1.right m2.right
+             else compare_desc_hash m1.left m2.left
     in
     f
 
-let compare_merkle_record
-  : cmp merkle_record
-  = let f = fun r1 r2 ->
-        let k1,v1 = r1 in
-        let k2,v2 = r2 in
-        if k1 = k2
-        then compare_merkle_value v1 v2
-        else compare_merkle_key k1 k2
+let compare_gen_key (aprm: app_params)
+  : cmp (GenKey.key aprm)
+  = let open Zeta.GenKey in
+    let f = fun (k1 k2: key aprm) ->
+    if k1 = k2 then true
+    else match k1, k2 with
+         | IntK _, AppK _ -> true
+         | AppK _, IntK _ -> false
+         | IntK k1, IntK k2 -> compare_merkle_key k1 k2
+         | AppK k1, AppK k2 -> aprm.keycmp k1 k2
     in
     f
 
-let compare_data_record (aprm: app_params)
-  : cmp (app_record aprm.adm)
-  = let f = fun (r1 r2: app_record aprm.adm) ->
-            let k1,v1 = r1 in
-            let k2,v2 = r2 in
-            if k1 = k2
-            then aprm.valcmp v1 v2
-            else aprm.keycmp k1 k2
+let compare_gen_value (aprm: app_params)
+  : cmp (R.value aprm)
+  = let f = fun (v1 v2: R.value aprm) ->
+    if v1 = v2 then true
+    else match v1, v2 with
+         | IntV _, AppV _ -> true
+         | AppV _, IntV _ -> false
+         | IntV v1, IntV v2 -> compare_merkle_value v1 v2
+         | AppV v1, AppV v2 -> aprm.valcmp v1 v2
     in
     f
 
 let compare_record (aprm: app_params)
-  : cmp (record aprm)
-  = let f = fun (r1 r2: record aprm) ->
-        match r1, r2 with
-        | App _, Int _ -> false
-        | Int _, App _ -> true
-        | App r1, App r2 -> compare_data_record aprm r1 r2
-        | Int r1, Int r2 -> compare_merkle_record r1 r2
+  : cmp (R.record aprm)
+  = let f = fun (r1 r2: R.record aprm) ->
+        let k1,v1 = r1 in
+        let k2,v2 = r2 in
+        if k1 = k2 then compare_gen_value aprm v1 v2
+        else compare_gen_key aprm k1 k2
     in
     f
 

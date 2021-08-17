@@ -46,10 +46,10 @@ type verifier_spec_base = {
 
   (* update the record in a slot with a new value *)
   put: s: slot_t -> vtls: vtls_t { valid vtls && Some? (get s vtls)} ->
-       v: (value_t (Some?.v (get s vtls))) ->
-       vtls': vtls_t { let r = Some?.v (get s vtls) in
+       v: (value_t (key_of (Some?.v (get s vtls)))) ->
+       vtls': vtls_t { let k,_ = Some?.v (get s vtls) in
                        valid vtls' && Some? (get s vtls') &&
-                       Some?.v (get s vtls') = update r v };
+                       (k,v) = Some?.v (get s vtls')};
 
   (* implementation of merkle add *)
   addm: record app -> slot_t -> slot_t -> vtls: vtls_t { valid vtls } -> vtls_t;
