@@ -41,10 +41,18 @@ let slot (tsm:thread_state_model) = i:T.slot_id{U16.v i < Seq.length tsm.model_s
 
 let model_get_record (tsm:thread_state_model) (s:slot tsm) : GTot (option record)
   = Seq.index tsm.model_store (U16.v s)
+let has_slot (tsm:thread_state_model) (s:slot tsm) = Some? (model_get_record tsm s)
 
 let model_put_record (tsm:thread_state_model) (s:slot tsm) (r:record)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) (Some r)}
+
+let model_update_value (tsm:thread_state_model)
+                       (s:slot tsm{has_slot  tsm s})
+                       (r:T.value)
+  : thread_state_model
+  = let Some v = model_get_record tsm s in
+    model_put_record tsm s ({v with record_value = r})
 
 let model_evict_record (tsm:thread_state_model) (s:slot tsm)
   : thread_state_model
@@ -150,6 +158,7 @@ let to_merkle_value (v:T.value)
     | T.V_mval v -> Some v
     | _ -> None
 
+
 assume
 val desc_hash_dir (v:T.mval_value) (d:bool) : T.descendent_hash
 assume
@@ -164,11 +173,16 @@ assume
 val points_to_some_slot (tsm:thread_state_model) (s:slot tsm) (d:bool) : bool
 assume
 val model_madd_to_store (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d:bool)
-  : (tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store})
+  : (tsm':thread_state_model{
+        Seq.length tsm.model_store = Seq.length tsm'.model_store /\
+        (forall (ss:slot tsm). {:pattern has_slot tsm' ss} has_slot tsm ss ==> has_slot tsm' ss)
+    })
 assume
 val model_madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d d2:bool)
-  : (tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store})
-
+  : (tsm':thread_state_model{
+         Seq.length tsm.model_store = Seq.length tsm'.model_store /\
+         (forall (ss:slot tsm). {:pattern has_slot tsm' ss} has_slot tsm ss ==> has_slot tsm' ss)
+    })
 
 let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm) (thread_id:thread_id) : thread_state_model =
     let k = r.T.record_key in
@@ -200,8 +214,7 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
             else
               let tsm = model_madd_to_store tsm s k v s' d in
               let v'_upd = update_merkle_value v' d k h false in
-              model_put_record tsm s'
-                  ({r' with record_value=(T.V_mval v'_upd)})
+              model_update_value tsm s' (T.V_mval v'_upd)
 
         | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
           if k2 = k then (* k is a child of k' *)
@@ -218,18 +231,18 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
             else
               let d2 = desc_dir k2 k in
               match to_merkle_value v with
-              | None -> model_fail tsm
+              | None -> model_fail tsm // NS: this case should be unnecessary because k has a proper descendent
               | Some mv ->
                 let mv_upd = update_merkle_value mv d2 k2 h2 (b2=T.Vtrue) in
                 let v'_upd = update_merkle_value v' d k h false in
                 let tsm =
                   if points_to_some_slot tsm s' d then
-                    model_madd_to_store_split tsm s k v s' d d2
+                    model_madd_to_store_split tsm s k (T.V_mval mv_upd) s' d d2
                   else (
                     model_madd_to_store tsm s k (T.V_mval mv_upd) s' d
                   )
                 in
-                model_put_record tsm s' ({r' with record_value=(T.V_mval v'_upd)})
+                model_update_value tsm s' (T.V_mval v'_upd)
 
 let vevictbm_model (tsm:thread_state_model)
                    (s s':slot tsm)
