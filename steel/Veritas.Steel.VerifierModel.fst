@@ -33,6 +33,7 @@ type thread_state_model = {
   model_clock : U64.t;
   model_hadd : model_hash;
   model_hevict : model_hash;
+  model_thread_id: T.thread_id
 }
 
 let model_fail tsm = {tsm with model_failed=true}
@@ -60,6 +61,9 @@ let model_evict_record (tsm:thread_state_model) (s:slot tsm)
 
 assume
 val is_data_key (k:T.key) : bool
+
+assume
+val is_root (k:T.key) : bool
 
 val is_value_of (k:T.key) (v:T.value) : bool
 let is_value_of k v = if is_data_key k then T.V_dval? v else T.V_mval? v
@@ -143,6 +147,12 @@ val model_madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v
 
 assume
 val model_mevict_from_store (tsm:thread_state_model) (s s':slot tsm) (d:bool)
+  : (tsm':thread_state_model{
+        Seq.length tsm.model_store = Seq.length tsm'.model_store
+    })
+
+assume
+val model_bevict_from_store (tsm:thread_state_model) (s:slot tsm)
   : (tsm':thread_state_model{
         Seq.length tsm.model_store = Seq.length tsm'.model_store
     })
@@ -288,23 +298,54 @@ let vevictm_model (tsm:thread_state_model) (s s':slot tsm)
       | _ -> model_fail tsm
     )
 
+let sat_evictb_checks (tsm:_)
+                      (s:slot tsm)
+                      (t:T.timestamp)
+  : GTot bool
+  = match model_get_record tsm s with
+    | None -> false
+    | Some r ->
+      let k = r.record_key in
+      let v = r.record_value in
+      let clock = tsm.model_clock in
+      (* check key at s is not root *)
+      not (is_root k) &&
+
+      (* check time of evict < current time *)
+      clock `timestamp_lt` t &&
+
+      (* check k has no (merkle) children n the store *)
+      not (points_to_some_slot tsm s true) &&
+      not (points_to_some_slot tsm s false)
+
+let model_vevictb_update_hash_clock
+       tsm
+       (s:slot tsm)
+       (t:T.timestamp { sat_evictb_checks tsm s t })
+   : thread_state_model
+   = let Some r = model_get_record tsm s in
+     let k = r.record_key in
+     let v = r.record_value in
+     (* update evict hash *)
+     let h = tsm.model_hevict in
+     let h_upd = model_update_hash h ({T.record_key = k; T.record_value=v}) t tsm.model_thread_id in
+     (* update hash *)
+     { tsm with model_hevict = h_upd;
+                model_clock = t }
+
 let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp) (thread_id:thread_id)
   : thread_state_model
-  = let clk = tsm.model_clock in
-    if not (clk `timestamp_lt` t)
+  = if not (sat_evictb_checks tsm s t)
     then model_fail tsm
-    else begin
-      (* check that the vstore contains s *)
-      match model_get_record tsm s with
-      | None -> model_fail tsm
-      | Some r ->
-        (* update the evict hash *)
-        let tsm = model_update_hevict tsm ({T.record_key=r.record_key; T.record_value=r.record_value}) t thread_id in
-        (* advance clock to t *)
-        let tsm = model_update_clock tsm t in
-        (* evict record *)
-        model_evict_record tsm s
-    end
+    else (
+      let Some r = model_get_record tsm s in
+      if r.record_add_method <> T.BAdd
+      then model_fail tsm
+      else (
+        let tsm = model_vevictb_update_hash_clock tsm s t in
+        model_bevict_from_store tsm s
+      )
+    )
 
 let vevictbm_model (tsm:thread_state_model)
                    (s s':slot tsm)

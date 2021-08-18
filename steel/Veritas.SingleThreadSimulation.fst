@@ -191,6 +191,7 @@ let related_stores #vcfg
     (forall (i:nat { i < Seq.length s_store }).
       related_record_opt (Seq.index s_store i) (Seq.index i_store i))
 
+[@@"opaque_to_smt"]
 let timestamp_of_clock (s_clock:U64.t)
   : MSH.timestamp
   = let open U64 in
@@ -198,7 +199,6 @@ let timestamp_of_clock (s_clock:U64.t)
       (v (s_clock `shift_right` 32ul))
       (v (s_clock `logand` uint_to_t (FStar.UInt.max_int 32)))
 
-[@@"opaque_to_smt"]
 let related_clocks (s_clock:U64.t)
                    (i_clock:MSH.timestamp)
   = timestamp_of_clock s_clock == i_clock
@@ -206,6 +206,10 @@ let related_clocks (s_clock:U64.t)
 let related_hashes (s_hash:S.model_hash)
                    (i_hash:MSH.ms_hash_value)
   = s_hash == i_hash
+
+let related_thread_id (s_id:S_Types.thread_id)
+                      (i_id:Verifier.thread_id)
+  = U16.v s_id = i_id
 
 let related_states #vcfg
                    (tsm:S.thread_state_model)
@@ -215,6 +219,7 @@ let related_states #vcfg
      else (
      I.Valid? vtls /\
      (let I.Valid id st clock hadd hevict = vtls in
+      related_thread_id tsm.S.model_thread_id id /\
       related_stores tsm.S.model_store st /\
       related_clocks tsm.S.model_clock clock /\
       related_hashes tsm.S.model_hadd hadd /\
@@ -315,6 +320,13 @@ let lift_log_entry #vcfg (v:S_Types.vlog_entry)
       with
       | Some s, Some s' ->
         Some (EvictM_S s s')
+      | _ -> None
+    )
+
+    | Ve_EvictB evb -> (
+      match lift_slot evb.veeb_s with
+      | Some s ->
+        Some (EvictB_S s (timestamp_of_clock evb.veeb_t))
       | _ -> None
     )
 
@@ -578,7 +590,7 @@ let madd_to_store_split_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
       ))
   = admit()
 
-let maevict_from_store_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
+let mevict_from_store_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
     (s_s:S_Types.slot_id)
     (s_s':S_Types.slot_id)
     (s_d:bool)
@@ -607,6 +619,26 @@ let maevict_from_store_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
       ))
     [SMTPat (S.model_mevict_from_store tsm s_s s_s' s_d);
      SMTPat (IStore.mevict_from_store st i_s i_s' i_d)]
+  = admit()
+
+let bevict_from_store_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
+    (s_s:S_Types.slot_id)
+    (i_s:IStore.inuse_slot_id st)
+  : Lemma
+    (requires
+      related_stores tsm.S.model_store st /\
+      (lift_slot #vcfg s_s == Some i_s) /\
+      IStore.points_to_none st i_s BinTree.Left /\
+      IStore.points_to_none st i_s BinTree.Right /\
+      IStore.add_method_of st i_s == Verifier.BAdd)
+    (ensures (
+      let tsm' = S.model_bevict_from_store tsm s_s in
+      let st'  = IStore.bevict_from_store st i_s in
+      related_stores tsm'.S.model_store st' /\
+      tsm' == { tsm with S.model_store = tsm'.S.model_store} //modifies only the store
+      ))
+    [SMTPat (S.model_bevict_from_store tsm s_s);
+     SMTPat (IStore.bevict_from_store st i_s)]
   = admit()
 
 let related_update_merkle_value (s_v:_)
@@ -1108,3 +1140,97 @@ let related_vevictm (#vcfg: _)
             )
         )
       | _ -> ()
+
+////////////////////////////////////////////////////////////////////////////////
+// vevictb
+////////////////////////////////////////////////////////////////////////////////
+
+let timestamp_lt_related  (s_t s_t':S_Types.timestamp)
+                          (i_t i_t':MSH.timestamp)
+  : Lemma
+    (requires
+      related_clocks s_t i_t /\
+      related_clocks s_t' i_t')
+    (ensures
+      MSH.ts_lt i_t i_t' <==>
+      S.timestamp_lt s_t s_t')
+    [SMTPat (related_clocks s_t i_t);
+     SMTPat (related_clocks s_t' i_t')]
+  = admit()
+
+let is_root_related (s_k:_) (i_k:Veritas.Key.key)
+  : Lemma
+    (requires
+      related_key s_k i_k)
+    (ensures
+      S.is_root s_k <==> i_k=BinTree.Root)
+    [SMTPat (related_key s_k i_k);
+     SMTPat (S.is_root s_k)]
+  = admit()
+
+let model_update_hash_related (s_h:_) (s_k:_) (s_v:_) (s_t:_) (s_j:_)
+                              (i_h:_) (i_k:_) (i_v:_) (i_t:_) (i_j:_)
+  : Lemma
+    (requires
+      related_hashes s_h i_h /\
+      related_key s_k i_k /\
+      related_value s_v i_v /\
+      related_thread_id s_j i_j /\
+      related_clocks s_t i_t)
+    (ensures (
+      let open S_Types in
+      related_hashes
+        (S.model_update_hash s_h ({record_key=s_k; record_value=s_v}) s_t s_j)
+        (MultiSetHash.ms_hashfn_upd (MSH.MHDom (i_k, i_v) i_t i_j) i_h)))
+    [SMTPat (S.model_update_hash s_h ({S_Types.record_key=s_k; S_Types.record_value=s_v}) s_t s_j);
+    SMTPat (MultiSetHash.ms_hashfn_upd (MSH.MHDom (i_k, i_v) i_t i_j) i_h)]
+  = admit()
+
+let related_sat_evictb_checks (#vcfg: _)
+                              (tsm:S.thread_state_model)
+                              (vtls:I.vtls vcfg)
+                              (s_s:S.slot tsm)
+                              (s_t:S_Types.timestamp)
+                              (i_s:VC.slot_id vcfg)
+                              (i_t:MSH.timestamp)
+  : Lemma
+    (requires
+      I.Valid? vtls /\
+      related_states tsm vtls /\
+      related_slots s_s i_s /\
+      related_clocks s_t i_t)
+    (ensures
+      S.sat_evictb_checks tsm s_s s_t ==
+      I.sat_evictb_checks i_s i_t vtls)
+    [SMTPat (S.sat_evictb_checks tsm s_s s_t);
+     SMTPat (I.sat_evictb_checks i_s i_t vtls)]
+  = let st = I.thread_store vtls in
+    if IStore.inuse_slot (I.thread_store vtls) i_s
+    then (
+      points_to_some_slot_related tsm st s_s true BinTree.Left;
+      points_to_some_slot_related tsm st s_s false BinTree.Right
+    )
+
+let related_vevictb (#vcfg: _)
+                    (tsm:S.thread_state_model)
+                    (vtls:I.vtls vcfg)
+                    (v:S_Types.vlog_entry)
+  : Lemma
+    (requires
+      S_Types.Ve_EvictB? v == true /\
+      Some? (lift_log_entry #vcfg v) == true /\
+      related_states tsm vtls /\
+      I.Valid? vtls == true)
+    (ensures (
+      let open S_Types in
+      let open IL in
+      let { veeb_s = s_s; veeb_t = s_t} = Ve_EvictB?._0 v in
+      let Some (EvictB_S i_s i_t) = lift_log_entry #vcfg v in
+      S.vevictb_model tsm s_s s_t z_thread_id
+        `related_states`
+      I.vevictb i_s i_t vtls))
+  = ()
+
+////////////////////////////////////////////////////////////////////////////////
+//vevictbm
+////////////////////////////////////////////////////////////////////////////////
