@@ -191,12 +191,17 @@ let related_stores #vcfg
     (forall (i:nat { i < Seq.length s_store }).
       related_record_opt (Seq.index s_store i) (Seq.index i_store i))
 
+let timestamp_of_clock (s_clock:U64.t)
+  : MSH.timestamp
+  = let open U64 in
+    MSH.MkTimestamp
+      (v (s_clock `shift_right` 32ul))
+      (v (s_clock `logand` uint_to_t (FStar.UInt.max_int 32)))
+
 [@@"opaque_to_smt"]
 let related_clocks (s_clock:U64.t)
                    (i_clock:MSH.timestamp)
-  = let open U64 in
-    v (s_clock `shift_right` 32ul) == i_clock.MSH.e /\
-    v (s_clock `logand` uint_to_t (FStar.UInt.max_int 32)) == i_clock.MSH.c
+  = timestamp_of_clock s_clock == i_clock
 
 let related_hashes (s_hash:S.model_hash)
                    (i_hash:MSH.ms_hash_value)
@@ -290,8 +295,18 @@ let lift_log_entry #vcfg (v:S_Types.vlog_entry)
       with
       | Some s, Some r, Some s' ->
         Some (AddM_S s r s')
-      | _ ->
-        None
+      | _ -> None
+    )
+
+    | Ve_AddB addb -> (
+      match lift_slot addb.veab_s,
+            lift_record addb.veab_r
+      with
+      | Some s, Some r ->
+        Some (AddB_S s r
+                     (timestamp_of_clock addb.veab_t)
+                     (U16.v addb.veab_j))
+      | _ -> None
     )
 
     | _ -> None
@@ -577,24 +592,6 @@ let related_update_merkle_value (s_v:_)
   = admit()
 
 #push-options "--z3rlimit_factor 8 --query_stats --ifuel 1"
-val related_vaddm (#vcfg: _)
-                  (tsm:S.thread_state_model)
-                  (vtls:I.vtls vcfg)
-                  (v:S_Types.vlog_entry)
-  : Lemma
-    (requires
-      S_Types.Ve_AddM? v == true /\
-      Some? (lift_log_entry #vcfg v) == true /\
-      related_states tsm vtls /\
-      I.Valid? vtls == true)
-    (ensures (
-      let open S_Types in
-      let open IL in
-      let addm = Ve_AddM?._0 v in
-      let Some (AddM_S s r s') = lift_log_entry #vcfg v in
-      (S.vaddm_model tsm addm.veam_s addm.veam_r addm.veam_s2 z_thread_id
-        `related_states`
-      (I.vaddm s r s' vtls))))
 
 let vaddm_basic_preconditions tsm s_s s_k s_v s_s' s_k' s_v'
                               s_mv' s_d s_dh' s_h
@@ -788,6 +785,20 @@ let related_vaddm (#vcfg: _)
                   (tsm:S.thread_state_model)
                   (vtls:I.vtls vcfg)
                   (v:S_Types.vlog_entry)
+  : Lemma
+    (requires
+      S_Types.Ve_AddM? v == true /\
+      Some? (lift_log_entry #vcfg v) == true /\
+      related_states tsm vtls /\
+      I.Valid? vtls == true)
+    (ensures (
+      let open S_Types in
+      let open IL in
+      let addm = Ve_AddM?._0 v in
+      let Some (AddM_S s r s') = lift_log_entry #vcfg v in
+      (S.vaddm_model tsm addm.veam_s addm.veam_r addm.veam_s2 z_thread_id
+        `related_states`
+      (I.vaddm s r s' vtls))))
   = let open Veritas.Record in
     let open S_Types in
     let open IL in
@@ -859,3 +870,117 @@ let related_vaddm (#vcfg: _)
           )
         )
       )
+////////////////////////////////////////////////////////////////////////////////
+
+let related_lift_log_entry_addb #vcfg (e:S_Types.vlog_entry { S_Types.Ve_AddB? e})
+  : Lemma
+    (requires Some? (lift_log_entry #vcfg e))
+    (ensures (
+      let open Veritas.Record in
+      let open S_Types in
+      let S_Types.Ve_AddB addb = e in
+      let Some (IL.AddB_S s r t j) = lift_log_entry #vcfg e in
+      related_key addb.veab_r.S_Types.record_key (fst r) /\
+      related_value addb.veab_r.S_Types.record_value (snd r) /\
+      related_clocks addb.veab_t t
+    ))
+  = admit()
+
+let update_hadd_related #vcfg (tsm:_) (vtls:I.vtls vcfg)
+                              (s_r:S_Types.record)
+                              (s_t:S_Types.timestamp)
+                              (s_j:S_Types.thread_id)
+                              (i_r:Record.record)
+  : Lemma
+    (requires
+      I.Valid? vtls /\
+      related_states tsm vtls /\
+      related_key s_r.S_Types.record_key (fst i_r) /\
+      related_value s_r.S_Types.record_value (snd i_r))
+    (ensures (
+      let i_t = timestamp_of_clock s_t in
+      let i_j = U16.v s_j in
+      let tsm' = S.model_update_hadd tsm s_r s_t s_j in
+      let vtls' =
+        let h_upd = MultiSetHash.ms_hashfn_upd (MSH.MHDom i_r i_t i_j) (I.thread_hadd vtls) in
+        I.update_thread_hadd vtls h_upd
+      in
+      related_states tsm' vtls'))
+  = admit()
+
+let update_clock_related #vcfg (tsm:_) (vtls:I.vtls vcfg)
+                               (s_t:S_Types.timestamp)
+  : Lemma
+    (requires
+      I.Valid? vtls /\
+      related_states tsm vtls)
+    (ensures (
+      let i_t = timestamp_of_clock s_t in
+      let tsm' = S.model_update_clock tsm s_t in
+      let vtls' =
+        let clk = I.thread_clock vtls in
+        let clk_upd = Verifier.max clk (MSH.next i_t) in
+        I.update_thread_clock vtls clk_upd
+      in
+      related_states tsm' vtls'))
+  = admit()
+
+let badd_to_store_related #vcfg (tsm:_) (vtls:I.vtls vcfg{I.Valid? vtls})
+                                (s_s:_) (s_k:_) (s_v:_)
+                                (i_s:VC.slot_id vcfg) (i_k:_) (i_v:_)
+  : Lemma
+    (requires
+      I.Valid? vtls /\
+      related_states tsm vtls /\
+      related_slots #vcfg s_s i_s /\
+      related_key s_k i_k /\
+      related_value s_v i_v /\
+      not (IStore.inuse_slot (I.thread_store vtls) i_s))
+    (ensures (
+      let tsm' = S.(model_put_record tsm s_s (mk_record s_k s_v S_Types.BAdd)) in
+      let st = I.thread_store vtls in
+      let vtls' = I.update_thread_store vtls (IStore.badd_to_store st i_s i_k i_v) in
+      related_states tsm' vtls'))
+  = admit()
+
+
+let related_vaddb (#vcfg: _)
+                  (tsm:S.thread_state_model)
+                  (vtls:I.vtls vcfg)
+                  (v:S_Types.vlog_entry)
+  : Lemma
+    (requires
+      S_Types.Ve_AddB? v == true /\
+      Some? (lift_log_entry #vcfg v) == true /\
+      related_states tsm vtls /\
+      I.Valid? vtls == true)
+    (ensures (
+      let open S_Types in
+      let open IL in
+      let addb = Ve_AddB?._0 v in
+      let Some (AddB_S s r t j) = lift_log_entry #vcfg v in
+      (S.vaddb_model tsm addb.veab_s addb.veab_r addb.veab_t addb.veab_j
+        `related_states`
+      (I.vaddb s r t j vtls))))
+  = let open S_Types in
+    let open IL in
+    let addb = Ve_AddB?._0 v in
+    let s_s = addb.veab_s in
+    let s_r = addb.veab_r in
+    let s_k = s_r.record_key in
+    let s_v = s_r.record_value in
+    let s_t = addb.veab_t in
+    let s_j = addb.veab_j in
+    let Some (AddB_S i_s i_r i_t i_j) = lift_log_entry #vcfg v in
+    let tsm' = S.vaddb_model tsm s_s s_r s_t s_j in
+    let vtls' = I.vaddb i_s i_r i_t i_j vtls in
+    let i_k, i_v = i_r in
+    related_lift_log_entry_addb #vcfg v;
+    value_of_related s_k s_v i_k i_v;
+    if not (S.is_value_of s_k s_v) then ()
+    else if Some? (S.model_get_record tsm s_s) then ()
+    else (
+      update_hadd_related tsm vtls s_r s_t s_j i_r;
+      update_clock_related tsm vtls s_t;
+      badd_to_store_related tsm vtls s_s s_k s_v i_s i_k i_v
+    )
