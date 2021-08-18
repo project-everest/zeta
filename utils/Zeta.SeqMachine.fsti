@@ -1,7 +1,7 @@
-module Veritas.SeqMachine
+module Zeta.SeqMachine
 
 open FStar.Seq
-open Veritas.SeqAux
+open Zeta.SeqAux
 
 (* a transition function tr is failure propagating
  * if it remains in failure state once entered

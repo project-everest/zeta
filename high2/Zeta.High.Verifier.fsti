@@ -339,3 +339,6 @@ val lemma_high_verifier (aprm: app_params)
   : Lemma (ensures (GV.clock_monotonic_prop (high_verifier_spec aprm) /\
                     GV.thread_id_constant_prop (high_verifier_spec aprm)))
           [SMTPat (high_verifier_spec aprm)]
+
+let vlog_entry (aprm: app_params)
+  = GV.verifier_log_entry (high_verifier_spec aprm)

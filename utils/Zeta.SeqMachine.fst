@@ -1,7 +1,4 @@
-module Veritas.SeqMachine
-
-open FStar.Seq
-open Veritas.SeqAux
+module Zeta.SeqMachine
 
 let lemma_empty_seq_valid (sm: seq_machine):
   Lemma (valid sm (empty #(elem_type sm))) =

@@ -86,10 +86,22 @@ type verifier_log_entry (vspec: verifier_spec_base) =
 
 let is_blum_add #vspec (e: verifier_log_entry vspec) = AddB? e
 
+let is_evict #vspec (e: verifier_log_entry vspec): bool =
+  match e with
+  | EvictM _ _ -> true
+  | EvictB _ _ -> true
+  | EvictBM _ _ _ -> true
+  | _ -> false
+
 let is_blum_evict #vspec (e: verifier_log_entry vspec) =
   match e with
   | EvictB _ _ -> true
   | EvictBM _ _ _ -> true
+  | _ -> false
+
+let is_merkle_evict #vspec (e:verifier_log_entry vspec): bool =
+  match e with
+  | EvictM _ _ -> true
   | _ -> false
 
 val get_record_set (#vspec: verifier_spec_base) (ss: S.seq (vspec.slot_t)) (vtls: vspec.vtls_t {vspec.valid vtls}):
