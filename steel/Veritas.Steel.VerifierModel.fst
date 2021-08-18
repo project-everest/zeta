@@ -350,31 +350,44 @@ let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp) (thread_
 let vevictbm_model (tsm:thread_state_model)
                    (s s':slot tsm)
                    (t:T.timestamp)
-                   (thread_id:thread_id)
   : thread_state_model
-  = match model_get_record tsm s, model_get_record tsm s' with
-    | Some r, Some r' ->
-      begin
-      if not (is_proper_descendent r.record_key r'.record_key) then model_fail tsm
-      else if has_instore_merkle_desc tsm s then model_fail tsm
-      else if r.record_add_method <> T.MAdd then model_fail tsm
-      else let d = desc_dir r.record_key r'.record_key in
-           match to_merkle_value r'.record_value with
+  = if s = s' then model_fail tsm
+    else if not (sat_evictb_checks tsm s t)
+    then model_fail tsm
+    else if None? (model_get_record tsm s')
+    then model_fail tsm
+    else (
+      let Some r = model_get_record tsm s in
+      let Some r' = model_get_record tsm s' in
+      if r.record_add_method <> T.MAdd
+      then model_fail tsm
+      else (
+        let k = r.record_key in
+        let k' = r'.record_key in
+        let v' = r'.record_value in
+        if not (is_proper_descendent k k')
+        then model_fail tsm
+        else (
+           match to_merkle_value v' with
            | None -> model_fail tsm //should be impossible, since r' has a proper descendent
-           | Some v' ->
-             let dh' = desc_hash_dir v' d in
+           | Some mv' ->
+             let d = desc_dir k k' in
+             let dh' = desc_hash_dir mv' d in
              match dh' with
-             | T.Dh_vnone _ ->
-               model_fail tsm
+             | T.Dh_vnone _ -> model_fail tsm
              | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-               if (k2 <> r.record_key) `Prims.op_BarBar` (b2 = T.Vtrue)
+               if (k2 <> k) || (b2 = T.Vtrue)
                then model_fail tsm
-               else let tsm = model_put_record tsm s'
-                            ({r' with
-                              record_value=T.V_mval
-                                (update_merkle_value v' d r.record_key h2 true)})
-                    in
-                    let tsm = update_in_store tsm s' d false in
-                    vevictb_model tsm s t thread_id
-      end
-    | _ -> model_fail tsm
+               else if None? r.record_parent_slot
+                    || fst (Some?.v r.record_parent_slot) <> s'
+                    || snd (Some?.v r.record_parent_slot) <> d
+               then model_fail tsm
+               else (
+                 let tsm = model_vevictb_update_hash_clock tsm s t in
+                 let mv'_upd = update_merkle_value mv' d k h2 true in
+                 let tsm = model_update_value tsm s' (T.V_mval mv'_upd) in
+                 model_mevict_from_store tsm s s' d
+               )
+        )
+      )
+    )

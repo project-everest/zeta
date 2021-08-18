@@ -86,13 +86,14 @@ let related_key (s_key:S_Types.key)
     bool_list_as_bin_tree l == i_key /\
     L.for_all (( = ) false) m
 
-assume
-val related_key_inj (k0 k1:_) (m0 m1:_)
+let related_key_inj (k0 k1:_) (m0 m1:_)
   : Lemma
-    (related_key k0 m0 /\
-     related_key k1 m1 ==>
-     (m0 == m1 <==> k0 == k1))
-
+    (ensures related_key k0 m0 /\
+             related_key k1 m1 ==>
+             (m0 == m1 <==> k0 == k1))
+    [SMTPat (related_key k0 m0);
+     SMTPat (related_key k1 m1)]
+  = admit()
 
 let related_desc_hash (s_hash:S_Types.descendent_hash)
                       (i_hash:Veritas.Record.desc_hash)
@@ -330,7 +331,14 @@ let lift_log_entry #vcfg (v:S_Types.vlog_entry)
       | _ -> None
     )
 
-    | _ -> None
+    | Ve_EvictBM evb -> (
+      match lift_slot evb.veebm_s,
+            lift_slot evb.veebm_s2
+      with
+      | Some s, Some s' ->
+        Some (EvictBM_S s s' (timestamp_of_clock evb.veebm_t))
+      | _ -> None
+    )
 
 let related_lift_vlog_entry_get_put #vcfg (e:S_Types.vlog_entry_get_put)
   : Lemma
@@ -477,6 +485,8 @@ let related_key_proper_descendent (k0 k1:S_Types.key) (m0 m1:Veritas.Key.key)
              (S.is_proper_descendent k0 k1 ==>
               (related_desc_dir (S.desc_dir k0 k1)
                                 (Veritas.BinTree.desc_dir m0 m1))))
+    [SMTPat (S.is_proper_descendent k0 k1);
+     SMTPat (Veritas.BinTree.is_proper_desc m0 m1)]
   = admit()
 
 let related_desc_hash_dir (v:_) (b:_)
@@ -488,6 +498,8 @@ let related_desc_hash_dir (v:_) (b:_)
     (ensures
       related_desc_hash (S.desc_hash_dir v b)
                         (Veritas.Record.desc_hash_dir m d))
+    [SMTPat (S.desc_hash_dir v b);
+     SMTPat (Veritas.Record.desc_hash_dir m d)]
   = admit()
 
 let related_hashfn (v:S_Types.value)
@@ -661,6 +673,8 @@ let related_update_merkle_value (s_v:_)
       related_merkle_value
         (S.update_merkle_value s_v s_d s_k s_h b)
         (Verifier.update_merkle_value i_v i_d i_k i_h b))
+    [SMTPat (S.update_merkle_value s_v s_d s_k s_h b);
+     SMTPat (Verifier.update_merkle_value i_v i_d i_k i_h b)]
   = admit()
 
 #push-options "--z3rlimit_factor 8 --query_stats --ifuel 1"
@@ -1234,3 +1248,23 @@ let related_vevictb (#vcfg: _)
 ////////////////////////////////////////////////////////////////////////////////
 //vevictbm
 ////////////////////////////////////////////////////////////////////////////////
+
+let related_vevictbm (#vcfg: _)
+                     (tsm:S.thread_state_model)
+                     (vtls:I.vtls vcfg)
+                     (v:S_Types.vlog_entry)
+  : Lemma
+    (requires
+      S_Types.Ve_EvictBM? v == true /\
+      Some? (lift_log_entry #vcfg v) == true /\
+      related_states tsm vtls /\
+      I.Valid? vtls == true)
+    (ensures (
+      let open S_Types in
+      let open IL in
+      let { veebm_s = s_s; veebm_s2 = s_s'; veebm_t = s_t} = Ve_EvictBM?._0 v in
+      let Some (EvictBM_S i_s i_s' i_t) = lift_log_entry #vcfg v in
+      S.vevictbm_model tsm s_s s_s' s_t
+        `related_states`
+      I.vevictbm i_s i_s' i_t vtls))
+  = ()
