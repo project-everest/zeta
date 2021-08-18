@@ -82,7 +82,8 @@ noeq type vtls_t (app: app_params) = {
   st: store_t app;
 }
 
-let fail (#aprm: app_params) (vtls: vtls_t aprm)
+let fail (#aprm: app_params) (vtls: vtls_t aprm):
+  vtls': vtls_t aprm {not (vtls'.valid)}
   = { valid = false; tid = vtls.tid; clock = vtls.clock; st = vtls.st }
 
 (* update the store of a specified verifier thread *)
@@ -265,10 +266,61 @@ let evictbm (#aprm: app_params)
           evictb_aux k t MAdd (update_thread_store vs st)
         else fail vs
 
-let next_epoch (#aprm: app_params) (vs: vtls_t aprm{vs.valid})
+let nextepoch (#aprm: app_params) (vs: vtls_t aprm{vs.valid})
   = let e = vs.clock.e + 1 in
     let clock = { e; c = 0 } in
     update_thread_clock vs clock
 
-let verify_epoch (#aprm: app_params) (vs: vtls_t aprm{vs.valid})
+let verifyepoch (#aprm: app_params) (vs: vtls_t aprm{vs.valid})
   = vs
+
+let empty_store (aprm: app_params): store_t aprm = fun (k:base_key) -> None
+
+(* initialize verifier state *)
+let init_thread_state (aprm: app_params) (tid:thread_id): vtls_t aprm =
+  let vs = { valid = true; tid; clock = { e=0; c=0 }; st = empty_store aprm } in
+  if tid = 0 then
+    let st = vs.st in
+    let open Zeta.BinTree in
+    let st = add_to_store st (IntK Root, init_value (IntK Root)) MAdd in
+    update_thread_store vs st
+  else vs
+
+let high_verifier_spec (app: app_params): Zeta.GenericVerifier.verifier_spec_base
+  = let valid (vtls: vtls_t app): bool
+      = vtls.valid
+    in
+
+    let clock (vtls: vtls_t app{valid vtls})
+      = vtls.clock
+    in
+
+    let tid (vtls: vtls_t app)
+      = vtls.tid
+    in
+
+    let init (t: thread_id): vtls: vtls_t app {valid vtls /\ tid vtls = t}
+      = init_thread_state app t
+    in
+
+    let slot_t = base_key in
+
+    let get (k: slot_t) (vtls: vtls_t app {valid vtls}): option (record app)
+      = if store_contains vtls.st k
+        then Some (Some?.v (vtls.st k)).r
+        else None
+    in
+
+    let put (s: slot_t)
+            (vtls: vtls_t app { valid vtls && Some? (get s vtls)})
+            (v: (value_t (key_of (Some?.v (get s vtls)))))
+            : (vtls': vtls_t app { let k,_ = Some?.v (get s vtls) in
+                       valid vtls' && Some? (get s vtls') &&
+                       (k,v) = Some?.v (get s vtls')})
+      = let k,_ = Some?.v (get s vtls) in
+        let st = update_store vtls.st s (k,v) in
+        update_thread_store vtls st
+    in
+    let open Zeta.GenericVerifier in
+    { vtls_t = vtls_t app; valid; fail; clock; tid; init; slot_t; app;
+      get; put; addm; addb; evictm; evictb; evictbm; nextepoch; verifyepoch }
