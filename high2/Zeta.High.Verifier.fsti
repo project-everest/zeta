@@ -103,7 +103,8 @@ let addm (#aprm: app_params)
          (r:record aprm)
          (k: base_key)
          (k': base_key)
-         (vs: vtls_t aprm {vs.valid}): vtls_t aprm
+         (vs: vtls_t aprm {vs.valid}):
+    (vs':vtls_t aprm {vs'.tid = vs.tid /\ vs'.clock = vs.clock})
   = let st = vs.st in
     let open Zeta.BinTree in
     let open Zeta.Merkle in
@@ -171,7 +172,8 @@ let has_instore_merkle_desc
 let evictm (#aprm: app_params)
            (k:base_key)
            (k':base_key)
-           (vs: vtls_t aprm  {vs.valid}): vtls_t aprm
+           (vs: vtls_t aprm  {vs.valid}):
+           (vs': vtls_t aprm {vs'.tid = vs.tid /\ vs'.clock = vs.clock})
   = let st = vs.st in
     let open Zeta.BinTree in
     (* check store contains k and k' *)
@@ -198,7 +200,8 @@ let addb (#aprm: app_params)
          (k: base_key)
          (t:timestamp)
          (j:thread_id)
-         (vs:vtls_t aprm {vs.valid}): vtls_t aprm
+         (vs:vtls_t aprm {vs.valid})
+         : (vs': vtls_t aprm {vs'.tid = vs.tid /\ vs.clock `ts_leq` vs'.clock })
   = let st = vs.st in
     let open Zeta.BinTree in
     (* the key of the record r has to be k or its hash has to be k (for app records) *)
@@ -236,14 +239,16 @@ let evictb_aux (#aprm: app_params)
 let evictb (#aprm: app_params)
            (k:base_key)
            (t:timestamp)
-           (vs:vtls_t aprm {vs.valid}): vtls_t aprm
+           (vs:vtls_t aprm {vs.valid})
+           : (vs': vtls_t aprm {vs'.tid = vs.tid /\ vs.clock `ts_leq` vs'.clock})
   = evictb_aux k t BAdd vs
 
 let evictbm (#aprm: app_params)
             (k:base_key)
             (k':base_key)
             (t:timestamp)
-            (vs:vtls_t  aprm {vs.valid}): vtls_t aprm
+            (vs:vtls_t  aprm {vs.valid})
+            : (vs': vtls_t aprm {vs'.tid = vs.tid /\ vs.clock `ts_leq` vs'.clock})
   = let st = vs.st in
     let open Zeta.BinTree in
     if not (store_contains st k') then fail vs
@@ -267,11 +272,13 @@ let evictbm (#aprm: app_params)
         else fail vs
 
 let nextepoch (#aprm: app_params) (vs: vtls_t aprm{vs.valid})
+    : (vs': vtls_t aprm {vs'.tid = vs.tid /\ vs.clock `ts_leq` vs'.clock})
   = let e = vs.clock.e + 1 in
     let clock = { e; c = 0 } in
     update_thread_clock vs clock
 
 let verifyepoch (#aprm: app_params) (vs: vtls_t aprm{vs.valid})
+    : (vs': vtls_t aprm {vs'.tid = vs.tid /\ vs.clock `ts_leq` vs'.clock})
   = vs
 
 let empty_store (aprm: app_params): store_t aprm = fun (k:base_key) -> None
@@ -286,6 +293,7 @@ let init_thread_state (aprm: app_params) (tid:thread_id): vtls_t aprm =
     update_thread_store vs st
   else vs
 
+(* the specification of the high level verifier *)
 let high_verifier_spec (app: app_params): Zeta.GenericVerifier.verifier_spec_base
   = let valid (vtls: vtls_t app): bool
       = vtls.valid
@@ -324,3 +332,10 @@ let high_verifier_spec (app: app_params): Zeta.GenericVerifier.verifier_spec_bas
     let open Zeta.GenericVerifier in
     { vtls_t = vtls_t app; valid; fail; clock; tid; init; slot_t; app;
       get; put; addm; addb; evictm; evictb; evictbm; nextepoch; verifyepoch }
+
+module GV = Zeta.GenericVerifier
+
+val lemma_high_verifier (aprm: app_params)
+  : Lemma (ensures (GV.clock_monotonic_prop (high_verifier_spec aprm) /\
+                    GV.thread_id_constant_prop (high_verifier_spec aprm)))
+          [SMTPat (high_verifier_spec aprm)]
