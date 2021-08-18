@@ -309,6 +309,15 @@ let lift_log_entry #vcfg (v:S_Types.vlog_entry)
       | _ -> None
     )
 
+    | Ve_EvictM evm -> (
+      match lift_slot evm.veem_s,
+            lift_slot evm.veem_s2
+      with
+      | Some s, Some s' ->
+        Some (EvictM_S s s')
+      | _ -> None
+    )
+
     | _ -> None
 
 let related_lift_vlog_entry_get_put #vcfg (e:S_Types.vlog_entry_get_put)
@@ -567,6 +576,37 @@ let madd_to_store_split_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
       related_stores tsm'.S.model_store st' /\
       tsm' == { tsm with S.model_store = tsm'.S.model_store} //modifies only the store
       ))
+  = admit()
+
+let maevict_from_store_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
+    (s_s:S_Types.slot_id)
+    (s_s':S_Types.slot_id)
+    (s_d:bool)
+    (i_s:IStore.inuse_slot_id st)
+    (i_s':IStore.inuse_slot_id st { i_s <> i_s' })
+    (i_d:BinTree.bin_tree_dir)
+  : Lemma
+    (requires
+      related_stores tsm.S.model_store st /\
+      (lift_slot #vcfg s_s == Some i_s) /\
+      (lift_slot #vcfg s_s' == Some i_s') /\
+      related_desc_dir s_d i_d /\
+      IStore.points_to_none st i_s BinTree.Left /\
+      IStore.points_to_none st i_s BinTree.Right /\
+      ((not (IStore.has_parent st i_s) /\
+       IStore.points_to_none st i_s' i_d)
+       \/
+       (IStore.has_parent st i_s /\
+        IStore.parent_slot st i_s = i_s' /\
+        IStore.parent_dir st i_s = i_d)))
+    (ensures (
+      let tsm' = S.model_mevict_from_store tsm s_s s_s' s_d in
+      let st'  = IStore.mevict_from_store st i_s i_s' i_d in
+      related_stores tsm'.S.model_store st' /\
+      tsm' == { tsm with S.model_store = tsm'.S.model_store} //modifies only the store
+      ))
+    [SMTPat (S.model_mevict_from_store tsm s_s s_s' s_d);
+     SMTPat (IStore.mevict_from_store st i_s i_s' i_d)]
   = admit()
 
 let related_update_merkle_value (s_v:_)
@@ -871,7 +911,8 @@ let related_vaddm (#vcfg: _)
         )
       )
 ////////////////////////////////////////////////////////////////////////////////
-
+// vaddb
+////////////////////////////////////////////////////////////////////////////////
 let related_lift_log_entry_addb #vcfg (e:S_Types.vlog_entry { S_Types.Ve_AddB? e})
   : Lemma
     (requires Some? (lift_log_entry #vcfg e))
@@ -984,3 +1025,86 @@ let related_vaddb (#vcfg: _)
       update_clock_related tsm vtls s_t;
       badd_to_store_related tsm vtls s_s s_k s_v i_s i_k i_v
     )
+
+////////////////////////////////////////////////////////////////////////////////
+// vevictm
+////////////////////////////////////////////////////////////////////////////////
+
+let related_vevictm (#vcfg: _)
+                    (tsm:S.thread_state_model)
+                    (vtls:I.vtls vcfg)
+                    (v:S_Types.vlog_entry)
+  : Lemma
+    (requires
+      S_Types.Ve_EvictM? v == true /\
+      Some? (lift_log_entry #vcfg v) == true /\
+      related_states tsm vtls /\
+      I.Valid? vtls == true)
+    (ensures (
+      let open S_Types in
+      let open IL in
+      let { veem_s = s_s; veem_s2 = s_s'} = Ve_EvictM?._0 v in
+      let Some (EvictM_S i_s i_s') = lift_log_entry #vcfg v in
+      S.vevictm_model tsm s_s s_s'
+        `related_states`
+      I.vevictm i_s i_s' vtls))
+  = let open S_Types in
+    let open IL in
+    let { veem_s = s_s; veem_s2 = s_s'} = Ve_EvictM?._0 v in
+    let Some (EvictM_S i_s i_s') = lift_log_entry #vcfg v in
+    let tsm' = S.vevictm_model tsm s_s s_s' in
+    let vtls' = I.vevictm i_s i_s' vtls in
+      match S.model_get_record tsm s_s,
+            S.model_get_record tsm s_s'
+      with
+      | Some s_r, Some s_r' ->
+        let s_k = s_r.S.record_key in
+        let s_v = s_r.S.record_value in
+        let s_k' = s_r'.S.record_key in
+        let s_v' = s_r'.S.record_value in
+        let st = I.thread_store vtls in
+        let i_k = IStore.stored_key st i_s in
+        let i_v = IStore.stored_value st i_s in
+        let i_k' = IStore.stored_key st i_s' in
+        let i_v' = IStore.stored_value st i_s' in
+        related_key_proper_descendent s_k s_k' i_k i_k';
+        points_to_some_slot_related tsm st s_s true BinTree.Left;
+        points_to_some_slot_related tsm st s_s false BinTree.Right;
+        if not (S.is_proper_descendent s_k s_k')
+        || S.points_to_some_slot tsm s_s true
+        || S.points_to_some_slot tsm s_s false
+        then ()
+        else (
+          let s_d = S.desc_dir s_k s_k' in
+          let s_h = S.hashfn s_v in
+          let i_d = BinTree.desc_dir i_k i_k' in
+          let i_h = Hash.hashfn i_v in
+          related_hashfn s_v i_v;
+          assert (related_desc_dir s_d i_d);
+          let Some s_mv' = S.to_merkle_value s_v' in
+          let i_mv' = Record.to_merkle_value i_v' in
+          let s_dh' = S.desc_hash_dir s_mv' s_d in
+          let i_dh' = Record.desc_hash_dir i_mv' i_d in
+          related_desc_hash_dir s_mv' s_d i_mv' i_d;
+          match s_dh' with
+          | Dh_vnone _ -> ()
+          | Dh_vsome {dhd_key=s_k2; dhd_h=s_h2; evicted_to_blum = s_b2} ->
+            let Record.Desc i_k2 i_h2 i_b2 = i_dh' in
+            related_key_inj s_k s_k2 i_k i_k2;
+            points_to_some_slot_related tsm st s_s' s_d i_d;
+            if s_k2 <> s_k then ()
+            else if
+                 Some? s_r.S.record_parent_slot &&
+                 (fst (Some?.v s_r.S.record_parent_slot) <> s_s' ||
+                  snd (Some?.v s_r.S.record_parent_slot) <> s_d)
+            then ()
+            else if None? s_r.S.record_parent_slot
+                 && S.points_to_some_slot tsm s_s' s_d
+            then ()
+            else (
+              related_update_merkle_value
+                s_mv' s_d s_k s_h
+                i_mv' i_d i_k i_h false
+            )
+        )
+      | _ -> ()

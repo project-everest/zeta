@@ -58,21 +58,6 @@ let model_evict_record (tsm:thread_state_model) (s:slot tsm)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) None }
 
-let vget_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model =
-  match model_get_record tsm s with
-  | None -> model_fail tsm
-  | Some r ->
-      if r.record_key <> k then model_fail tsm
-      else if r.record_value <> v then model_fail tsm
-      else tsm
-
-let vput_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model
-  = match model_get_record tsm s with
-    | None -> model_fail tsm
-    | Some r ->
-      if r.record_key <> k then model_fail tsm
-      else model_put_record tsm s ({r with record_value = v})
-
 assume
 val is_data_key (k:T.key) : bool
 
@@ -106,42 +91,6 @@ let model_update_hadd (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:thread_id)
 let model_update_hevict (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:thread_id) =
   ({tsm with model_hevict = model_update_hash tsm.model_hevict r t thread_id})
 
-let vaddb_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (t:T.timestamp) (thread_id:thread_id)
-  : thread_state_model
-  = let { T.record_key = k;
-          T.record_value = v } = r in
-    (* check value type consistent with key k *)
-    if not (is_value_of k v) then model_fail tsm
-    else if Some? (model_get_record tsm s) then model_fail tsm
-    else (
-      //TODO: need to check that the key does not exist
-      (* updated h_add *)
-      let tsm = model_update_hadd tsm r t thread_id in
-      (* updated clock *)
-      let tsm = model_update_clock tsm t in
-      (* add record to store *)
-      model_put_record tsm s (mk_record k v T.BAdd)
-    )
-
-let timestamp_lt (t0 t1:T.timestamp) = t0 `U64.lt` t1
-
-let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp) (thread_id:thread_id)
-  : GTot thread_state_model
-  = let clk = tsm.model_clock in
-    if not (clk `timestamp_lt` t)
-    then model_fail tsm
-    else begin
-      (* check that the vstore contains s *)
-      match model_get_record tsm s with
-      | None -> model_fail tsm
-      | Some r ->
-        (* update the evict hash *)
-        let tsm = model_update_hevict tsm ({T.record_key=r.record_key; T.record_value=r.record_value}) t thread_id in
-        (* advance clock to t *)
-        let tsm = model_update_clock tsm t in
-        (* evict record *)
-        model_evict_record tsm s
-    end
 
 assume
 val is_proper_descendent (k0 k1:T.key) : bool
@@ -161,28 +110,61 @@ let to_merkle_value (v:T.value)
 
 assume
 val desc_hash_dir (v:T.mval_value) (d:bool) : T.descendent_hash
+
 assume
 val update_merkle_value (v:T.mval_value) (d:bool) (k:T.key) (h:T.hash_value) (b:bool) : T.mval_value
+
 assume
 val update_in_store (tsm:thread_state_model) (s:slot tsm) (d:bool) (b:bool) : tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store}
+
 assume
 val hashfn (v:T.value) : T.hash_value
+
 assume
 val init_value (k:T.key) : T.value
+
 assume
 val points_to_some_slot (tsm:thread_state_model) (s:slot tsm) (d:bool) : bool
+
 assume
 val model_madd_to_store (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d:bool)
   : (tsm':thread_state_model{
         Seq.length tsm.model_store = Seq.length tsm'.model_store /\
         (forall (ss:slot tsm). {:pattern has_slot tsm' ss} has_slot tsm ss ==> has_slot tsm' ss)
     })
+
 assume
 val model_madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d d2:bool)
   : (tsm':thread_state_model{
          Seq.length tsm.model_store = Seq.length tsm'.model_store /\
          (forall (ss:slot tsm). {:pattern has_slot tsm' ss} has_slot tsm ss ==> has_slot tsm' ss)
     })
+
+
+assume
+val model_mevict_from_store (tsm:thread_state_model) (s s':slot tsm) (d:bool)
+  : (tsm':thread_state_model{
+        Seq.length tsm.model_store = Seq.length tsm'.model_store
+    })
+
+let timestamp_lt (t0 t1:T.timestamp) = t0 `U64.lt` t1
+
+////////////////////////////////////////////////////////////////////////////////
+
+let vget_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model =
+  match model_get_record tsm s with
+  | None -> model_fail tsm
+  | Some r ->
+      if r.record_key <> k then model_fail tsm
+      else if r.record_value <> v then model_fail tsm
+      else tsm
+
+let vput_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model
+  = match model_get_record tsm s with
+    | None -> model_fail tsm
+    | Some r ->
+      if r.record_key <> k then model_fail tsm
+      else model_put_record tsm s ({r with record_value = v})
 
 let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm) (thread_id:thread_id) : thread_state_model =
     let k = r.T.record_key in
@@ -244,6 +226,86 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
                 in
                 model_update_value tsm s' (T.V_mval v'_upd)
 
+
+let vaddb_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (t:T.timestamp) (thread_id:thread_id)
+  : thread_state_model
+  = let { T.record_key = k;
+          T.record_value = v } = r in
+    (* check value type consistent with key k *)
+    if not (is_value_of k v) then model_fail tsm
+    else if Some? (model_get_record tsm s) then model_fail tsm
+    else (
+      //TODO: need to check that the key does not exist
+      (* updated h_add *)
+      let tsm = model_update_hadd tsm r t thread_id in
+      (* updated clock *)
+      let tsm = model_update_clock tsm t in
+      (* add record to store *)
+      model_put_record tsm s (mk_record k v T.BAdd)
+    )
+
+let vevictm_model (tsm:thread_state_model) (s s':slot tsm)
+  : thread_state_model
+  = if s = s' then model_fail tsm
+    else (
+      match model_get_record tsm s,
+            model_get_record tsm s'
+      with
+      | Some r, Some r' ->
+        let k = r.record_key in
+        let v = r.record_value in
+        let k' = r'.record_key in
+        let v' = r'.record_value in
+        (* check k is a proper descendent of k' *)
+        if not (is_proper_descendent k k') then model_fail tsm
+        (* check k does not have a (merkle) child in the store *)
+        else if points_to_some_slot tsm s true
+              || points_to_some_slot tsm s false
+        then model_fail tsm
+        else (
+          let d = desc_dir k k' in
+          match to_merkle_value v' with
+          | None -> model_fail tsm //TODO: should be impossible
+          | Some v' ->
+            let dh' = desc_hash_dir v' d in
+            let h = hashfn v in
+            match dh' with
+            | T.Dh_vnone _ -> model_fail tsm
+            | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
+              if k2 <> k then model_fail tsm
+              else if Some? r.record_parent_slot &&
+                      (fst (Some?.v r.record_parent_slot) <> s' ||
+                       snd (Some?.v r.record_parent_slot) <> d)
+              then model_fail tsm
+              else if None? r.record_parent_slot
+                   && points_to_some_slot tsm s' d
+              then model_fail tsm
+              else
+                let v'_upd = update_merkle_value v' d k h false in
+                let tsm = model_update_value tsm s' (T.V_mval v'_upd) in
+                model_mevict_from_store tsm s s' d
+        )
+      | _ -> model_fail tsm
+    )
+
+let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp) (thread_id:thread_id)
+  : thread_state_model
+  = let clk = tsm.model_clock in
+    if not (clk `timestamp_lt` t)
+    then model_fail tsm
+    else begin
+      (* check that the vstore contains s *)
+      match model_get_record tsm s with
+      | None -> model_fail tsm
+      | Some r ->
+        (* update the evict hash *)
+        let tsm = model_update_hevict tsm ({T.record_key=r.record_key; T.record_value=r.record_value}) t thread_id in
+        (* advance clock to t *)
+        let tsm = model_update_clock tsm t in
+        (* evict record *)
+        model_evict_record tsm s
+    end
+
 let vevictbm_model (tsm:thread_state_model)
                    (s s':slot tsm)
                    (t:T.timestamp)
@@ -266,7 +328,11 @@ let vevictbm_model (tsm:thread_state_model)
              | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
                if (k2 <> r.record_key) `Prims.op_BarBar` (b2 = T.Vtrue)
                then model_fail tsm
-               else let tsm = model_put_record tsm s' ({r' with record_value=(T.V_mval (update_merkle_value v' d r.record_key h2 true))}) in
+               else let tsm = model_put_record tsm s'
+                            ({r' with
+                              record_value=T.V_mval
+                                (update_merkle_value v' d r.record_key h2 true)})
+                    in
                     let tsm = update_in_store tsm s' d false in
                     vevictb_model tsm s t thread_id
       end
