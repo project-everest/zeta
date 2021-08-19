@@ -176,7 +176,7 @@ let vput_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : 
       if r.record_key <> k then model_fail tsm
       else model_put_record tsm s ({r with record_value = v})
 
-let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm) (thread_id:thread_id) : thread_state_model =
+let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm) : thread_state_model =
     let k = r.T.record_key in
     let v = r.T.record_value in
     (* check store contains slot s' *)
@@ -333,7 +333,7 @@ let model_vevictb_update_hash_clock
      { tsm with model_hevict = h_upd;
                 model_clock = t }
 
-let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp) (thread_id:thread_id)
+let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp)
   : thread_state_model
   = if not (sat_evictb_checks tsm s t)
     then model_fail tsm
