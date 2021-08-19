@@ -37,7 +37,7 @@ let v_hash (#p:vprop) (r:prf_set_hash)
   : GTot model_hash
   = h (prf_set_hash_inv r)
 
-val prf_update_hash (p:prf_set_hash) (r:T.record) (t:T.timestamp) (thread_id:thread_id)
+val prf_update_hash (p:prf_set_hash) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
   : Steel unit
     (prf_set_hash_inv p)
     (fun _ -> prf_set_hash_inv p)
@@ -48,7 +48,7 @@ let counter_t = ref U64.t
 
 noeq
 type thread_state_t = {
-  id           : thread_id;
+  id           : T.thread_id;
   st           : vstore;  //a map from keys (cache ids) to merkle leaf or internal nodes
   clock        : counter_t;
   hadd         : prf_set_hash; //current incremental set hash values; TODO
@@ -70,6 +70,7 @@ let v_thread (#p:vprop) (t:thread_state_t)
   (h:rmem p{FStar.Tactics.with_tactic selector_tactic (can_be_split p (thread_state_inv t) /\ True)})
   : GTot thread_state_model
   = {
+      model_thread_id = t.id;
       model_failed = sel t.failed (focus_rmem h (thread_state_inv t));
       model_store = asel t.st (focus_rmem h (thread_state_inv t));
       model_clock = sel t.clock (focus_rmem h (thread_state_inv t));
@@ -85,117 +86,117 @@ val update_clock (ts:T.timestamp) (vs:thread_state_t)
     (requires fun _ -> True)
     (ensures fun h0 _ h1 -> v_thread vs h1 == model_update_clock (v_thread vs h0) ts)
 
-
-let fail (vs:thread_state_t) (msg:string)
+val fail (vs:thread_state_t) (msg:string)
   : SteelF unit
              (thread_state_inv vs)
              (fun _ -> thread_state_inv vs)
              (requires fun _ -> True)
              (ensures fun h0 _ h1 -> v_thread vs h1 == model_fail (v_thread vs h0))
-  = write vs.failed false; ()
 
-#push-options "--fuel 0 --ifuel 0"
 
-let vget (s:U16.t) (v:T.value) (vs: thread_state_t)
+val vget (s:U16.t) (k:T.key) (v:T.data_value) (vs: thread_state_t)
   : Steel unit
           (thread_state_inv vs)
           (fun _ -> thread_state_inv vs)
           (requires fun h -> U16.v s < length (v_thread vs h).model_store)
           (ensures fun h0 _ h1 ->
             U16.v s < length (v_thread vs h0).model_store /\
-            v_thread vs h1 == vget_model (v_thread vs h0) s v
+            v_thread vs h1 == vget_model (v_thread vs h0) s k v
           )
-  = let ro = VCache.vcache_get_record vs.st s in
-    match ro with
-    | None ->
-      fail vs "Slot not found"
-    | Some r' ->
-      if v = r'.T.record_value
-      // AF: Usual problem of Steel vs SteelF difference between the two branches
-      then (noop (); ())
-      else fail vs "Failed: inconsistent key or value in Get"
 
-(* verifier write operation *)
-let vput (s:U16.t) (v:T.value) (vs: thread_state_t)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
-    (ensures fun h0 _ h1 ->
-      U16.v s < length (v_thread vs h0).model_store /\
-      v_thread vs h1 == vput_model (v_thread vs h0) s v)
-  = let ro = VCache.vcache_get_record vs.st s in
-    match ro with
-    | None ->
-      fail vs "Slot not found"
+//   = let ro = VCache.vcache_get_record vs.st s in
+//     match ro with
+//     | None ->
+//       fail vs "Slot not found"
+//     | Some r' ->
+//       if k <> r'.record_key
+//       then fail vs "Failed: inconsistent key in Get"
+//       else if T.V_dval v <> r'.record_value
+//       then fail vs "Failed: inconsistent value in Get"
+//       // AF: Usual problem of Steel vs SteelF difference between the two branches
+//       else (noop (); ())
 
-    | Some r ->
-      vcache_update_record vs.st s ({ r with T.record_value = v });
-      ()
+// (* verifier write operation *)
+// let vput (s:U16.t) (v:T.value) (vs: thread_state_t)
+//   : Steel unit
+//     (thread_state_inv vs)
+//     (fun _ -> thread_state_inv vs)
+//     (requires fun h -> U16.v s < length (v_thread vs h).model_store)
+//     (ensures fun h0 _ h1 ->
+//       U16.v s < length (v_thread vs h0).model_store /\
+//       v_thread vs h1 == vput_model (v_thread vs h0) s v)
+//   = let ro = VCache.vcache_get_record vs.st s in
+//     match ro with
+//     | None ->
+//       fail vs "Slot not found"
 
-let vaddb (s:U16.t)
-          (r:T.record)
-          (t:T.timestamp)
-          (thread_id:thread_id)
-          (vs:thread_state_t)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
-    (ensures fun h0 _ h1 ->
-      U16.v s < length (v_thread vs h0).model_store /\
-      v_thread vs h1 == vaddb_model (v_thread vs h0) s r t thread_id)
-  = let h = get() in
-    assert (U16.v s < length (v_thread vs h).model_store);
+//     | Some r ->
+//       vcache_update_record vs.st s ({ r with T.record_value = v });
+//       ()
 
-    let { T.record_key = k;
-          T.record_value = v } = r in
-    (* check value type consistent with key k *)
-    if not (is_value_of k v)
-    then (
-      fail vs "vaddm: value is incompatible with key"
-    )
-    else (
-      let ro = VCache.vcache_get_record vs.st s in
-      if Some? ro
-      then (
-        fail vs "vaddm: slot s already exists"
-      )
-      else (
-        prf_update_hash vs.hadd r t thread_id;// vs;
-        update_clock t vs;
-        VCache.vcache_add_record vs.st s k v T.BAdd)
-    )
+// let vaddb (s:U16.t)
+//           (r:T.record)
+//           (t:T.timestamp)
+//           (thread_id:thread_id)
+//           (vs:thread_state_t)
+//   : Steel unit
+//     (thread_state_inv vs)
+//     (fun _ -> thread_state_inv vs)
+//     (requires fun h -> U16.v s < length (v_thread vs h).model_store)
+//     (ensures fun h0 _ h1 ->
+//       U16.v s < length (v_thread vs h0).model_store /\
+//       v_thread vs h1 == vaddb_model (v_thread vs h0) s r t thread_id)
+//   = let h = get() in
+//     assert (U16.v s < length (v_thread vs h).model_store);
 
-let vevictb (s:U16.t)
-            (t:T.timestamp)
-            (vs:thread_state_t)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
-    (ensures  fun h0 _ h1 ->
-      U16.v s < length (v_thread vs h0).model_store /\
-      v_thread vs h1 == vevictb_model (v_thread vs h0) s t vs.id)
-  = let h = get() in
-    assert (U16.v s < length (v_thread vs h).model_store);
+//     let { T.record_key = k;
+//           T.record_value = v } = r in
+//     (* check value type consistent with key k *)
+//     if not (is_value_of k v)
+//     then (
+//       fail vs "vaddm: value is incompatible with key"
+//     )
+//     else (
+//       let ro = VCache.vcache_get_record vs.st s in
+//       if Some? ro
+//       then (
+//         fail vs "vaddm: slot s already exists"
+//       )
+//       else (
+//         prf_update_hash vs.hadd r t thread_id;// vs;
+//         update_clock t vs;
+//         VCache.vcache_add_record vs.st s k v T.BAdd)
+//     )
 
-    let clk = read vs.clock in
-    if not (clk `timestamp_lt` t)
-    then (
-      fail vs "Timestamp is old"
-    )
-    else (
-      (* check that the vstore contains s *)
-      let r = VCache.vcache_get_record vs.st s in
-      match r with
-      | None ->
-        fail vs "Slot is empty"
+// let vevictb (s:U16.t)
+//             (t:T.timestamp)
+//             (vs:thread_state_t)
+//   : Steel unit
+//     (thread_state_inv vs)
+//     (fun _ -> thread_state_inv vs)
+//     (requires fun h -> U16.v s < length (v_thread vs h).model_store)
+//     (ensures  fun h0 _ h1 ->
+//       U16.v s < length (v_thread vs h0).model_store /\
+//       v_thread vs h1 == vevictb_model (v_thread vs h0) s t vs.id)
+//   = let h = get() in
+//     assert (U16.v s < length (v_thread vs h).model_store);
 
-      | Some r ->
-        (* update the evict hash *)
-        prf_update_hash vs.hevict r t vs.id;
+//     let clk = read vs.clock in
+//     if not (clk `timestamp_lt` t)
+//     then (
+//       fail vs "Timestamp is old"
+//     )
+//     else (
+//       (* check that the vstore contains s *)
+//       let r = VCache.vcache_get_record vs.st s in
+//       match r with
+//       | None ->
+//         fail vs "Slot is empty"
 
-        update_clock t vs;
+//       | Some r ->
+//         (* update the evict hash *)
+//         prf_update_hash vs.hevict r t vs.id;
 
-        VCache.vcache_evict_record vs.st s)
+//         update_clock t vs;
+
+//         VCache.vcache_evict_record vs.st s)

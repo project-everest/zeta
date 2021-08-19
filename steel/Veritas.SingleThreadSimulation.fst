@@ -736,7 +736,7 @@ let related_vget (#vcfg: _)
       let open IL in
       let gp = Ve_Get?._0 v in
       let Some (Get_S s k d) = lift_log_entry #vcfg v in
-      (S.vget_model tsm gp.vegp_s gp.vegp_k (V_dval gp.vegp_v))
+      (S.vget_model tsm gp.vegp_s gp.vegp_k gp.vegp_v)
         `related_states`
       (I.vget s k d vtls)))
    =
@@ -747,7 +747,7 @@ let related_vget (#vcfg: _)
     let gp = Ve_Get?._0 v in
     let Some (Get_S s k d) = lift_log_entry #vcfg v in
     related_lift_vlog_entry_get_put #vcfg gp;
-    let tsm' = S.vget_model tsm gp.vegp_s gp.vegp_k (V_dval gp.vegp_v) in
+    let tsm' = S.vget_model tsm gp.vegp_s gp.vegp_k gp.vegp_v in
     let vtls' = I.vget s k d vtls in
     let I.Valid id st clock hadd hevict = vtls in
     match model_get_record tsm gp.vegp_s with
@@ -808,7 +808,7 @@ let related_vput (#vcfg: _)
       let open IL in
       let gp = Ve_Put?._0 v in
       let Some (Put_S s k d) = lift_log_entry #vcfg v in
-      (S.vput_model tsm gp.vegp_s gp.vegp_k (V_dval gp.vegp_v))
+      (S.vput_model tsm gp.vegp_s gp.vegp_k gp.vegp_v)
         `related_states`
       (I.vput s k d vtls)))
    = let open Veritas.Record in
@@ -818,7 +818,7 @@ let related_vput (#vcfg: _)
      let gp = Ve_Put?._0 v in
      let Some (Put_S s k d) = lift_log_entry #vcfg v in
      related_lift_vlog_entry_get_put #vcfg gp;
-     let tsm' = S.vput_model tsm gp.vegp_s gp.vegp_k (V_dval gp.vegp_v) in
+     let tsm' = S.vput_model tsm gp.vegp_s gp.vegp_k gp.vegp_v in
      let vtls' = I.vput s k d vtls in
      let I.Valid id st clock hadd hevict = vtls in
      match model_get_record tsm gp.vegp_s with

@@ -9,13 +9,22 @@ module MSH = Veritas.MultiSetHashDomain
 module T = Veritas.Formats.Types
 
 
-let data_key = k:T.key{ U16.v k.T.significant_digits = 256 }
-let data_value = T.data_value
-let thread_id = T.thread_id
+let is_data_key (k:T.key)
+  : bool
+  = U16.v k.T.significant_digits = 256
+
+assume
+val is_root (k:T.key) : bool
+
+let is_value_of (k:T.key) (v:T.value)
+  : bool
+  = if is_data_key k then T.V_dval? v else T.V_mval? v
+
+let data_key = k:T.key{ is_data_key k }
 
 type record = {
   record_key : T.key;
-  record_value : T.value;
+  record_value : (v:T.value { is_value_of record_key v });
   record_add_method : T.add_method;
   record_l_child_in_store : option T.slot_id;
   record_r_child_in_store : option T.slot_id;
@@ -48,9 +57,14 @@ let model_put_record (tsm:thread_state_model) (s:slot tsm) (r:record)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) (Some r)}
 
+let key_of_slot (tsm:thread_state_model) (s:slot tsm { has_slot tsm s })
+  : GTot T.key
+  = let Some v = model_get_record tsm s in
+    v.record_key
+
 let model_update_value (tsm:thread_state_model)
                        (s:slot tsm{has_slot  tsm s})
-                       (r:T.value)
+                       (r:T.value {is_value_of (key_of_slot tsm s) r})
   : thread_state_model
   = let Some v = model_get_record tsm s in
     model_put_record tsm s ({v with record_value = r})
@@ -58,15 +72,6 @@ let model_update_value (tsm:thread_state_model)
 let model_evict_record (tsm:thread_state_model) (s:slot tsm)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) None }
-
-assume
-val is_data_key (k:T.key) : bool
-
-assume
-val is_root (k:T.key) : bool
-
-val is_value_of (k:T.key) (v:T.value) : bool
-let is_value_of k v = if is_data_key k then T.V_dval? v else T.V_mval? v
 
 let mk_record (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : record
   = {
@@ -86,18 +91,25 @@ let model_update_clock (tsm:thread_state_model) (ts:T.timestamp)
 
 // AF: Should somewhat correspond to Veritas.MultiSetHash.ms_hashfn_upd
 assume
-val model_update_hash (h:model_hash) (r:T.record) (t:T.timestamp) (thread_id:thread_id)
+val model_update_hash (h:model_hash) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
   : model_hash
 
-let model_update_hadd (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:thread_id) =
+let model_update_hadd (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id) =
   ({tsm with model_hadd = model_update_hash tsm.model_hadd r t thread_id})
 
-let model_update_hevict (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:thread_id) =
+let model_update_hevict (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id) =
   ({tsm with model_hevict = model_update_hash tsm.model_hevict r t thread_id})
 
 
 assume
 val is_proper_descendent (k0 k1:T.key) : bool
+
+let is_proper_descendent_key_type (k0 k1:T.key)
+  : Lemma
+    (requires is_proper_descendent k0 k1)
+    (ensures  not (is_data_key k1))
+    [SMTPat (is_proper_descendent k0 k1)]
+  = admit()
 
 assume
 val has_instore_merkle_desc (tsm:thread_state_model) (s:slot tsm) : bool
@@ -134,15 +146,21 @@ assume
 val model_madd_to_store (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d:bool)
   : (tsm':thread_state_model{
         Seq.length tsm.model_store = Seq.length tsm'.model_store /\
-        (forall (ss:slot tsm). {:pattern has_slot tsm' ss} has_slot tsm ss ==> has_slot tsm' ss)
-    })
+        (forall (ss:slot tsm). {:pattern has_slot tsm' ss}
+          has_slot tsm ss ==>
+          (has_slot tsm' ss /\
+           is_data_key (key_of_slot tsm ss) ==
+           is_data_key (key_of_slot tsm' ss)))})
 
 assume
 val model_madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d d2:bool)
   : (tsm':thread_state_model{
          Seq.length tsm.model_store = Seq.length tsm'.model_store /\
-         (forall (ss:slot tsm). {:pattern has_slot tsm' ss} has_slot tsm ss ==> has_slot tsm' ss)
-    })
+         (forall (ss:slot tsm). {:pattern has_slot tsm' ss}
+           (has_slot tsm ss ==>
+             (has_slot tsm' ss /\
+              is_data_key (key_of_slot tsm ss) ==
+              is_data_key (key_of_slot tsm' ss))))})
 
 
 assume
@@ -161,23 +179,27 @@ let timestamp_lt (t0 t1:T.timestamp) = t0 `U64.lt` t1
 
 ////////////////////////////////////////////////////////////////////////////////
 
-let vget_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model =
-  match model_get_record tsm s with
-  | None -> model_fail tsm
-  | Some r ->
-      if r.record_key <> k then model_fail tsm
-      else if r.record_value <> v then model_fail tsm
-      else tsm
-
-let vput_model (tsm:thread_state_model) (s:slot tsm) (k:data_key) (v:T.value) : thread_state_model
+let vget_model (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.data_value)
+  : thread_state_model
   = match model_get_record tsm s with
     | None -> model_fail tsm
     | Some r ->
       if r.record_key <> k then model_fail tsm
-      else model_put_record tsm s ({r with record_value = v})
+      else if r.record_value <> T.V_dval v then model_fail tsm
+      else tsm
 
-let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm) : thread_state_model =
-    let k = r.T.record_key in
+let vput_model (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.data_value)
+  : thread_state_model
+  = match model_get_record tsm s with
+    | None -> model_fail tsm
+    | Some r ->
+      if r.record_key <> k then model_fail tsm
+      else if not (is_data_key k) then model_fail tsm
+      else model_put_record tsm s ({r with record_value = T.V_dval v})
+
+let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
+  : thread_state_model
+  = let k = r.T.record_key in
     let v = r.T.record_value in
     (* check store contains slot s' *)
     match model_get_record tsm s' with
@@ -203,10 +225,11 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
             (* first add must be init value *)
             if v <> init_value k then model_fail tsm
             else if points_to_some_slot tsm s' d then model_fail tsm
-            else
+            else (
               let tsm = model_madd_to_store tsm s k v s' d in
               let v'_upd = update_merkle_value v' d k h false in
               model_update_value tsm s' (T.V_mval v'_upd)
+            )
 
         | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
           if k2 = k then (* k is a child of k' *)
@@ -222,22 +245,20 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
             else if not (is_proper_descendent k2 k) then model_fail tsm
             else
               let d2 = desc_dir k2 k in
-              match to_merkle_value v with
-              | None -> model_fail tsm // NS: this case should be unnecessary because k has a proper descendent
-              | Some mv ->
-                let mv_upd = update_merkle_value mv d2 k2 h2 (b2=T.Vtrue) in
-                let v'_upd = update_merkle_value v' d k h false in
-                let tsm =
+              let Some mv = to_merkle_value v in
+              let mv_upd = update_merkle_value mv d2 k2 h2 (b2=T.Vtrue) in
+              let v'_upd = update_merkle_value v' d k h false in
+              let tsm =
                   if points_to_some_slot tsm s' d then
                     model_madd_to_store_split tsm s k (T.V_mval mv_upd) s' d d2
                   else (
                     model_madd_to_store tsm s k (T.V_mval mv_upd) s' d
                   )
-                in
-                model_update_value tsm s' (T.V_mval v'_upd)
+              in
+              model_update_value tsm s' (T.V_mval v'_upd)
 
 
-let vaddb_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (t:T.timestamp) (thread_id:thread_id)
+let vaddb_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
   : thread_state_model
   = let { T.record_key = k;
           T.record_value = v } = r in
@@ -274,26 +295,24 @@ let vevictm_model (tsm:thread_state_model) (s s':slot tsm)
         then model_fail tsm
         else (
           let d = desc_dir k k' in
-          match to_merkle_value v' with
-          | None -> model_fail tsm //TODO: should be impossible
-          | Some v' ->
-            let dh' = desc_hash_dir v' d in
-            let h = hashfn v in
-            match dh' with
-            | T.Dh_vnone _ -> model_fail tsm
-            | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-              if k2 <> k then model_fail tsm
-              else if Some? r.record_parent_slot &&
-                      (fst (Some?.v r.record_parent_slot) <> s' ||
-                       snd (Some?.v r.record_parent_slot) <> d)
-              then model_fail tsm
-              else if None? r.record_parent_slot
-                   && points_to_some_slot tsm s' d
-              then model_fail tsm
-              else
-                let v'_upd = update_merkle_value v' d k h false in
-                let tsm = model_update_value tsm s' (T.V_mval v'_upd) in
-                model_mevict_from_store tsm s s' d
+          let Some v' = to_merkle_value v' in
+          let dh' = desc_hash_dir v' d in
+          let h = hashfn v in
+          match dh' with
+          | T.Dh_vnone _ -> model_fail tsm
+          | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
+            if k2 <> k then model_fail tsm
+            else if Some? r.record_parent_slot &&
+                    (fst (Some?.v r.record_parent_slot) <> s' ||
+                     snd (Some?.v r.record_parent_slot) <> d)
+            then model_fail tsm
+            else if None? r.record_parent_slot
+                 && points_to_some_slot tsm s' d
+            then model_fail tsm
+            else
+              let v'_upd = update_merkle_value v' d k h false in
+              let tsm = model_update_value tsm s' (T.V_mval v'_upd) in
+              model_mevict_from_store tsm s s' d
         )
       | _ -> model_fail tsm
     )
@@ -368,26 +387,24 @@ let vevictbm_model (tsm:thread_state_model)
         if not (is_proper_descendent k k')
         then model_fail tsm
         else (
-           match to_merkle_value v' with
-           | None -> model_fail tsm //should be impossible, since r' has a proper descendent
-           | Some mv' ->
-             let d = desc_dir k k' in
-             let dh' = desc_hash_dir mv' d in
-             match dh' with
-             | T.Dh_vnone _ -> model_fail tsm
-             | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-               if (k2 <> k) || (b2 = T.Vtrue)
-               then model_fail tsm
-               else if None? r.record_parent_slot
-                    || fst (Some?.v r.record_parent_slot) <> s'
-                    || snd (Some?.v r.record_parent_slot) <> d
-               then model_fail tsm
-               else (
-                 let tsm = model_vevictb_update_hash_clock tsm s t in
-                 let mv'_upd = update_merkle_value mv' d k h2 true in
-                 let tsm = model_update_value tsm s' (T.V_mval mv'_upd) in
-                 model_mevict_from_store tsm s s' d
-               )
+           let Some mv' = to_merkle_value v' in
+           let d = desc_dir k k' in
+           let dh' = desc_hash_dir mv' d in
+           match dh' with
+           | T.Dh_vnone _ -> model_fail tsm
+           | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
+             if (k2 <> k) || (b2 = T.Vtrue)
+             then model_fail tsm
+             else if None? r.record_parent_slot
+                  || fst (Some?.v r.record_parent_slot) <> s'
+                  || snd (Some?.v r.record_parent_slot) <> d
+             then model_fail tsm
+             else (
+               let tsm = model_vevictb_update_hash_clock tsm s t in
+               let mv'_upd = update_merkle_value mv' d k h2 true in
+               let tsm = model_update_value tsm s' (T.V_mval mv'_upd) in
+               model_mevict_from_store tsm s s' d
+           )
         )
       )
     )
