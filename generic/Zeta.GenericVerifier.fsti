@@ -84,6 +84,16 @@ type verifier_log_entry (vspec: verifier_spec_base) =
             rs: S.seq (vspec.slot_t) ->
             verifier_log_entry vspec
 
+let is_appfn #vspec (e: verifier_log_entry vspec)
+  = RunApp? e
+
+let param_len #vspec (e: verifier_log_entry vspec{is_appfn e})
+  = let RunApp _ _ rs = e in
+    S.length rs
+
+let is_internal #vspec (e: verifier_log_entry vspec)
+  = not (is_appfn e)
+
 let is_blum_add #vspec (e: verifier_log_entry vspec) = AddB? e
 
 let is_evict #vspec (e: verifier_log_entry vspec): bool =
