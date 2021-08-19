@@ -11,7 +11,7 @@ module U16 = FStar.UInt16
 module BV = FStar.BV
 module L = FStar.List.Tot
 module BinTree = Veritas.BinTree
-#push-options "--using_facts_from '* -FStar.Seq.Properties.slice_slice -Steel -FStar.Tactics -FStar.Reflection'"
+#push-options "--using_facts_from '* -FStar.Seq.Properties.slice_slice'"
 
 let lemma_seq_to_list_append #a (s0 s1:Seq.seq a)
   : Lemma (Seq.seq_to_list (Seq.append s0 s1) ==
