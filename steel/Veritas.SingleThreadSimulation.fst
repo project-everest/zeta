@@ -677,7 +677,7 @@ let related_update_merkle_value (s_v:_)
      SMTPat (Verifier.update_merkle_value i_v i_d i_k i_h b)]
   = admit()
 
-#push-options "--z3rlimit_factor 8 --query_stats --ifuel 1"
+#push-options "--z3rlimit_factor 8 --ifuel 1"
 
 let vaddm_basic_preconditions tsm s_s s_k s_v s_s' s_k' s_v'
                               s_mv' s_d s_dh' s_h
@@ -1159,6 +1159,33 @@ let related_vevictm (#vcfg: _)
 // vevictb
 ////////////////////////////////////////////////////////////////////////////////
 
+let timestamp_lt_related_aux  (s_t s_t':S_Types.timestamp)
+                              (i_t i_t':MSH.timestamp)
+  : Lemma
+    (requires
+      related_clocks s_t i_t /\
+      related_clocks s_t' i_t' /\
+      MSH.ts_lt i_t i_t')
+    (ensures S.timestamp_lt s_t s_t')
+  = let open U64 in
+    reveal_opaque (`%timestamp_of_clock) timestamp_of_clock;
+    assert (i_t == MSH.MkTimestamp (v (s_t `shift_right` 32ul))
+                                   (v (s_t `logand` uint_to_t (FStar.UInt.max_int 32))));
+    assert (i_t' == MSH.MkTimestamp (v (s_t' `shift_right` 32ul))
+                                    (v (s_t' `logand` uint_to_t (FStar.UInt.max_int 32))));
+    if (v (s_t `shift_right` 32ul) < v (s_t' `shift_right` 32ul))
+    then begin
+      assert (v (s_t `shift_right` 32ul) == v s_t / pow2 32);
+      assert (v (s_t' `shift_right` 32ul) == v s_t' / pow2 32)
+    end
+    else begin
+      assert (v (s_t `shift_right` 32ul) ==
+              v (s_t' `shift_right` 32ul));
+      assert (v (s_t `logand` uint_to_t (FStar.UInt.max_int 32)) <
+              v (s_t' `logand` uint_to_t (FStar.UInt.max_int 32)));
+      admit ()
+    end
+
 let timestamp_lt_related  (s_t s_t':S_Types.timestamp)
                           (i_t i_t':MSH.timestamp)
   : Lemma
@@ -1170,7 +1197,7 @@ let timestamp_lt_related  (s_t s_t':S_Types.timestamp)
       S.timestamp_lt s_t s_t')
     [SMTPat (related_clocks s_t i_t);
      SMTPat (related_clocks s_t' i_t')]
-  = admit()
+  = admit ()
 
 let is_root_related (s_k:_) (i_k:Veritas.Key.key)
   : Lemma
@@ -1180,7 +1207,7 @@ let is_root_related (s_k:_) (i_k:Veritas.Key.key)
       S.is_root s_k <==> i_k=BinTree.Root)
     [SMTPat (related_key s_k i_k);
      SMTPat (S.is_root s_k)]
-  = admit()
+  = admit ()
 
 let model_update_hash_related (s_h:_) (s_k:_) (s_v:_) (s_t:_) (s_j:_)
                               (i_h:_) (i_k:_) (i_v:_) (i_t:_) (i_j:_)
