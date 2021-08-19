@@ -567,7 +567,6 @@ let related_update_merkle_value (s_v:_)
      SMTPat (Verifier.update_merkle_value i_v i_d i_k i_h b)]
   = admit()
 
-<<<<<<< HEAD
 let value_of_related (s_k:_) (s_v:_)
                      (i_k:_) (i_v:_)
   : Lemma
