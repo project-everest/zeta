@@ -1173,7 +1173,7 @@ let timestamp_lt_related_aux  (s_t s_t':S_Types.timestamp)
                                    (v (s_t `logand` uint_to_t (FStar.UInt.max_int 32))));
     assert (i_t' == MSH.MkTimestamp (v (s_t' `shift_right` 32ul))
                                     (v (s_t' `logand` uint_to_t (FStar.UInt.max_int 32))));
-    if (v (s_t `shift_right` 32ul) < v (s_t' `shift_right` 32ul))
+    if ((s_t `shift_right` 32ul) `lt` (s_t' `shift_right` 32ul))
     then begin
       assert (v (s_t `shift_right` 32ul) == v s_t / pow2 32);
       assert (v (s_t' `shift_right` 32ul) == v s_t' / pow2 32)
