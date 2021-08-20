@@ -7,43 +7,7 @@ module U64 = FStar.UInt64
 
 module MSH = Veritas.MultiSetHashDomain
 module T = Veritas.Formats.Types
-
-
-let is_data_key (k:T.key)
-  : bool
-  = U16.v k.T.significant_digits = 256
-
-assume
-val is_root (k:T.key) : bool
-
-let is_value_of (k:T.key) (v:T.value)
-  : bool
-  = if is_data_key k then T.V_dval? v else T.V_mval? v
-
-let data_key = k:T.key{ is_data_key k }
-
-type record = {
-  record_key : T.key;
-  record_value : (v:T.value { is_value_of record_key v });
-  record_add_method : T.add_method;
-  record_l_child_in_store : option T.slot_id;
-  record_r_child_in_store : option T.slot_id;
-  record_parent_slot : option (T.slot_id & bool);
-}
-
-let contents = Seq.seq (option record)
-let model_hash = MSH.ms_hash_value
-
-[@@erasable]
-noeq
-type thread_state_model = {
-  model_failed : bool;
-  model_store : contents;
-  model_clock : U64.t;
-  model_hadd : model_hash;
-  model_hevict : model_hash;
-  model_thread_id: T.thread_id
-}
+open Veritas.ThreadStateModel
 
 let model_fail tsm = {tsm with model_failed=true}
 

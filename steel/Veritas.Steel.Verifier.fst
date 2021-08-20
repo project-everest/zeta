@@ -14,6 +14,7 @@ module T = Veritas.Formats.Types
 
 open Veritas.Steel.VCache
 open Veritas.Steel.VerifierModel
+open Veritas.ThreadStateModel
 
 let prf_set_hash = ref model_hash
 

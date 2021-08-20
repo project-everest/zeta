@@ -14,7 +14,7 @@ module T = Veritas.Formats.Types
 
 open Veritas.Steel.VCache
 open Veritas.Steel.VerifierModel
-
+open Veritas.ThreadStateModel
 val prf_set_hash : Type0
 
 // AF: Internally, should probably be implemented with a ghost reference to the model_hash

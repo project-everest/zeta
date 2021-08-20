@@ -11,7 +11,7 @@ open Steel.Array
 
 module T = Veritas.Formats.Types
 open Veritas.Steel.VerifierModel
-module VM = Veritas.Steel.VerifierModel
+module VM = Veritas.ThreadStateModel
 
 let vstore : Type0 = Steel.Array.array (option VM.record)
 unfold
@@ -59,7 +59,7 @@ let vcache_add_record
       (vst:vstore)
       (s:slot_id)
       (k:T.key)
-      (v:T.value{is_value_of k v})
+      (v:T.value{VM.is_value_of k v})
       (a:T.add_method)
   : Steel unit
       (is_vstore vst)
