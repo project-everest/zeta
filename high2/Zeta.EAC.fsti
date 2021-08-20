@@ -136,12 +136,39 @@ let eac_add #app #ks (ee: vlog_entry_ext app) (s: eac_state app ks) : eac_state 
 
 let eac_smk (app: app_params) (k: base_key) = SeqMachine EACInit EACFail (eac_add #app #k)
 
+(* the eac state of a key after processing log l *)
+let eac_state_of_key
+  (#app: app_params)
+  (l: vlog_ext app)
+  (k: key app): eac_state app (to_base_key k)
+  = let open Zeta.SeqMachine in
+    let bk = to_base_key k in
+    seq_machine_run (eac_smk app bk) l
+
+val eac_state_transition
+  (#app: app_params)
+  (l: vlog_ext app {length l > 0})
+  (k: key app)
+  : Lemma (ensures (let open Zeta.SeqAux in
+                    let n = length l - 1 in
+                    let l' = prefix l n in
+                    let ee = index l n in
+                    let es' = eac_state_of_key l' k in
+                    let es = eac_state_of_key l k in
+                    es = eac_add ee es'))
+           [SMTPat (eac_state_of_key l k)]
+
 (* evict add consistency *)
 let eac #app (l:vlog_ext app) =
   forall (k: base_key). {:pattern Zeta.SeqMachine.valid (eac_smk app k) l} Zeta.SeqMachine.valid (eac_smk app k) l
 
 (* refinement of evict add consistent logs *)
 let eac_log app = l:vlog_ext app{eac l}
+
+val eac_empty_log
+  (#app: app_params)
+  (l: vlog_ext app {length l = 0})
+  : Lemma (ensures (eac l))
 
 val eac_implies_prefix_eac
   (#app: app_params)
@@ -162,15 +189,6 @@ val max_eac_prefix
 
 (* computable version of eac *)
 val is_eac_log (#app: app_params) (l:vlog_ext app): (r:bool{r <==> eac l})
-
-(* the eac state of a key after processing log l *)
-let eac_state_of_key
-  (#app: app_params)
-  (l: vlog_ext app)
-  (k: key app): eac_state app (to_base_key k)
-  = let open Zeta.SeqMachine in
-    let bk = to_base_key k in
-    seq_machine_run (eac_smk app bk) l
 
 val eac_value (#app: app_params) (l: eac_log app) (k: key app)
   : value_t k
