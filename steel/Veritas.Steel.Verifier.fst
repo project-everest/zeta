@@ -38,7 +38,7 @@ val points_to_some_slot (s:U16.t)
   : Steel bool
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
-    (requires fun h -> True) //U16.v s < length (v_thread vs h).model_store)
+    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
     (ensures fun h0 b h1 ->
       U16.v s < length (v_thread vs h0).model_store /\
       b == VerifierModel.points_to_some_slot (v_thread vs h0) s d /\
