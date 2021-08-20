@@ -103,3 +103,74 @@ val vget (s:U16.t) (k:T.key) (v:T.data_value) (vs: thread_state_t)
             U16.v s < length (v_thread vs h0).model_store /\
             v_thread vs h1 == vget_model (v_thread vs h0) s k v
           )
+
+val vput (s:U16.t) (k:T.key) (v:T.data_value) (vs: thread_state_t)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
+    (ensures fun h0 _ h1 ->
+      U16.v s < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == vput_model (v_thread vs h0) s k v)
+
+val vaddm (s:U16.t) (r:T.record) (s':U16.t) (vs:_)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h0 ->
+      U16.v s  < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store)
+    (ensures fun h0 _ h1 ->
+      U16.v s  < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == vaddm_model (v_thread vs h0) s r s')
+
+val vevictm (s s':U16.t) (vs:_)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h0 ->
+      U16.v s  < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store)
+    (ensures fun h0 _ h1 ->
+      U16.v s  < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == vevictm_model (v_thread vs h0) s s')
+
+val vaddb (s:U16.t)
+          (r:T.record)
+          (t:T.timestamp)
+          (thread_id:T.thread_id)
+          (vs:thread_state_t)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
+    (ensures fun h0 _ h1 ->
+      U16.v s < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == vaddb_model (v_thread vs h0) s r t thread_id)
+
+val vevictb (s:U16.t)
+            (t:T.timestamp)
+            (vs:thread_state_t)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
+    (ensures  fun h0 _ h1 ->
+      U16.v s < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == vevictb_model (v_thread vs h0) s t)
+
+val vevictbm (s s':U16.t)
+             (t:T.timestamp)
+             (vs:_)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (fun h0 ->
+      U16.v s < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store)
+    (fun h0 _ h1 ->
+      U16.v s < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == vevictbm_model (v_thread vs h0) s s' t)

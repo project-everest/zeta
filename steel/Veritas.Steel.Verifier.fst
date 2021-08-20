@@ -131,7 +131,6 @@ val mevict_from_store (s s':_) (d:_) (vs:_)
        model_mevict_from_store (v_thread vs h0) s s' d)
 
 #push-options "--query_stats --fuel 0 --ifuel 1"
-#restart-solver
 let fail vs msg = write vs.failed true; ()
 
 let vget (s:U16.t) (k:T.key) (v:T.data_value) (vs: thread_state_t)
@@ -148,14 +147,7 @@ let vget (s:U16.t) (k:T.key) (v:T.data_value) (vs: thread_state_t)
       else (noop (); ())
 
 (* verifier write operation *)
-let vput (s:U16.t) (k:T.key) (v:T.data_value) (vs: thread_state_t)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
-    (ensures fun h0 _ h1 ->
-      U16.v s < length (v_thread vs h0).model_store /\
-      v_thread vs h1 == vput_model (v_thread vs h0) s k v)
+let vput s k v vs
   = let ro = VCache.vcache_get_record vs.st s in
     match ro with
     | None ->
@@ -166,20 +158,8 @@ let vput (s:U16.t) (k:T.key) (v:T.data_value) (vs: thread_state_t)
       else if not (is_data_key k) then fail vs "not a data key"
       else (
         vcache_update_record vs.st s ({ r with record_value = T.V_dval v });
-        ()
+        () //seem to need this
       )
-
-val vaddm (s:U16.t) (r:T.record) (s':U16.t) (vs:_)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h0 ->
-      U16.v s  < length (v_thread vs h0).model_store /\
-      U16.v s' < length (v_thread vs h0).model_store)
-    (ensures fun h0 _ h1 ->
-      U16.v s  < length (v_thread vs h0).model_store /\
-      U16.v s' < length (v_thread vs h0).model_store /\
-      v_thread vs h1 == vaddm_model (v_thread vs h0) s r s')
 
 let coerce #a #p (x:a) (pf:squash (p x)) : x:a{p x} = x
 
@@ -257,17 +237,6 @@ let vaddm s r s' vs
                   )
              )))
 
-val vevictm (s s':U16.t) (vs:_)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h0 ->
-      U16.v s  < length (v_thread vs h0).model_store /\
-      U16.v s' < length (v_thread vs h0).model_store)
-    (ensures fun h0 _ h1 ->
-      U16.v s  < length (v_thread vs h0).model_store /\
-      U16.v s' < length (v_thread vs h0).model_store /\
-      v_thread vs h1 == vevictm_model (v_thread vs h0) s s')
 let vevictm s s' vs
   = let h = get () in
     assert (U16.v s  < length (v_thread vs h).model_store);  //this assert seems necessary
@@ -315,18 +284,7 @@ let vevictm s s' vs
                    )
           ))
 
-let vaddb (s:U16.t)
-          (r:T.record)
-          (t:T.timestamp)
-          (thread_id:T.thread_id)
-          (vs:thread_state_t)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h -> U16.v s < length (v_thread vs h).model_store)
-    (ensures fun h0 _ h1 ->
-      U16.v s < length (v_thread vs h0).model_store /\
-      v_thread vs h1 == vaddb_model (v_thread vs h0) s r t thread_id)
+let vaddb s r t thread_id vs
   = let h = get() in
     assert (U16.v s < length (v_thread vs h).model_store);
 
@@ -398,22 +356,9 @@ let vevictb (s:U16.t)
       )
     )
 
-val vevictbm_model (s s':U16.t)
-                   (t:T.timestamp)
-                   (vs:_)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (fun h0 ->
-      U16.v s < length (v_thread vs h0).model_store /\
-      U16.v s' < length (v_thread vs h0).model_store)
-    (fun h0 _ h1 ->
-      U16.v s < length (v_thread vs h0).model_store /\
-      U16.v s' < length (v_thread vs h0).model_store /\
-      v_thread vs h1 == vevictbm_model (v_thread vs h0) s s' t)
-let vevictbm_model (s s':U16.t)
-                   (t:T.timestamp)
-                   (vs:_)
+let vevictbm (s s':U16.t)
+             (t:T.timestamp)
+             (vs:_)
   = let h = get() in
     assert (U16.v s < length (v_thread vs h).model_store);
     assert (U16.v s' < length (v_thread vs h).model_store);
