@@ -397,3 +397,67 @@ let vevictb (s:U16.t)
         bevict_from_store s vs
       )
     )
+
+val vevictbm_model (s s':U16.t)
+                   (t:T.timestamp)
+                   (vs:_)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (fun h0 ->
+      U16.v s < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store)
+    (fun h0 _ h1 ->
+      U16.v s < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == vevictbm_model (v_thread vs h0) s s' t)
+let vevictbm_model (s s':U16.t)
+                   (t:T.timestamp)
+                   (vs:_)
+  = let h = get() in
+    assert (U16.v s < length (v_thread vs h).model_store);
+    assert (U16.v s' < length (v_thread vs h).model_store);
+    if s = s' then fail vs "equal slots"
+    else (
+      let b = sat_evictb_checks s t vs in
+      if not b then fail vs "sat_evictb_checks"
+      else (
+        let r' = VCache.vcache_get_record vs.st s' in
+        if None? r' then fail vs "s' does not exist"
+        else (
+          let r = VCache.vcache_get_record vs.st s in
+          let Some r = r in
+          let Some r' = r' in
+          if r.record_add_method <> T.MAdd
+          then fail vs "not MAdd"
+          else (
+            let k = r.record_key in
+            let k' = r'.record_key in
+            let v' = r'.record_value in
+            if not (is_proper_descendent k k')
+            then fail vs "not proper desc"
+            else (
+              let Some mv' = to_merkle_value v' in
+              let d = desc_dir k k' in
+              let dh' = desc_hash_dir mv' d in
+              match dh' with
+              | T.Dh_vnone _ ->
+                fail vs "dh' none"
+              | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
+                if (k2 <> k) || (b2 = T.Vtrue)
+                then fail vs "k2<>k || b2"
+                else if None? r.record_parent_slot
+                     || fst (Some?.v r.record_parent_slot) <> s'
+                     || snd (Some?.v r.record_parent_slot) <> d
+                then fail vs "paren slot checks"
+                else (
+                  vevictb_update_hash_clock s t vs;
+                  let mv'_upd = update_merkle_value mv' d k h2 true in
+                  update_value s' (T.V_mval mv'_upd) vs;
+                  mevict_from_store s s' d vs
+                )
+            )
+        )
+      )
+    )
+  )
