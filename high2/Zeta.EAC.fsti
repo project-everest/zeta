@@ -6,6 +6,7 @@ open Zeta.Time
 open Zeta.Key
 open Zeta.App
 open Zeta.AppSimulate
+open Zeta.GenKey
 open Zeta.Record
 open Zeta.GenericVerifier
 open Zeta.High.Verifier
@@ -18,7 +19,8 @@ type vlog_entry_ext (app: app_params) =
   | NEvict: e:vlog_entry app{is_internal e && not (is_evict e)} -> vlog_entry_ext app
   | EvictMerkle: e:vlog_entry app{is_merkle_evict e} -> v:value app -> vlog_entry_ext app
   | EvictBlum: e:vlog_entry app{is_blum_evict e} -> v:value app -> tid:thread_id -> vlog_entry_ext app
-  | App: e:vlog_entry app{is_appfn e} -> rs: seq (record app) -> vlog_entry_ext app
+  | App: e:vlog_entry app{is_appfn e} ->
+         rs: appfn_rs_t (RunApp?.f e) { length rs = length (RunApp?.rs e) }   -> vlog_entry_ext app
 
 let vlog_ext (app: app_params) = seq (vlog_entry_ext app)
 
@@ -86,10 +88,16 @@ let eac_add #app #ks (ee: vlog_entry_ext app) (s: eac_state app ks) : eac_state 
 
     | EACInStore m v -> (
       match ee with
-      | App (RunApp f p _) rs ->
-        if length rs <> appfn_arity f then EACFail
+      | App (RunApp f p refkeys) rs ->
+        let fn = appfn f in
+        let rc, _, ws = fn p rs in
+        let idx = index_mem ks refkeys in
+        let (_,v') = index rs idx in
+        if AppV v' <> v then EACFail
+        else if rc = Fn_failure then EACFail
         else
-          EACFail
+          let v = AppV (index ws idx) in
+          EACInStore m v
 
       | EvictMerkle (EvictM  _ _) v' ->
         if AppV? v && v' <> v then EACFail
@@ -135,63 +143,63 @@ let eac #app (l:vlog_ext app) =
 (* refinement of evict add consistent logs *)
 let eac_log app = l:vlog_ext app{eac l}
 
+val eac_implies_prefix_eac
+  (#app: app_params)
+  (l: eac_log app)
+  (i: nat {i <= length l})
+  : Lemma (ensures (eac (Zeta.SeqAux.prefix l i)))
+          [SMTPat (Zeta.SeqAux.prefix l i)]
+
+val max_eac_prefix
+  (#app: app_params)
+  (l:vlog_ext app)
+  : (i:nat{let open Zeta.SeqAux in
+          eac l /\ i = length l
+          \/
+          i < length l /\
+          eac (prefix l i) /\
+          ~ (eac (prefix l (i + 1)))})
+
 (* computable version of eac *)
 val is_eac_log (#app: app_params) (l:vlog_ext app): (r:bool{r <==> eac l})
 
-let max_eac_prefix (l:vlog_ext{not (is_eac_log l)}):
-  (i:nat{i < length l /\
-        is_eac_log (prefix l i) /\
-        not (is_eac_log (prefix l (i + 1)))}) =
-  max_valid_all_prefix eac_sm l
+(* the eac state of a key after processing log l *)
+let eac_state_of_key
+  (#app: app_params)
+  (l: vlog_ext app)
+  (k: key app): eac_state app (to_base_key k)
+  = let open Zeta.SeqMachine in
+    let bk = to_base_key k in
+    seq_machine_run (eac_smk app bk) l
 
-(* the state operations of a vlog *)
-let is_state_op (e: vlog_entry): bool =
-  match e with
-  | Get k v -> true
-  | Put k v -> true
-  | _ -> false
+val eac_value (#app: app_params) (l: eac_log app) (k: key app)
+  : value_t k
 
-(* map vlog entry to state op *)
-let to_state_op (e:vlog_entry {is_state_op e}): state_op =
-  match e with
-  | Get k v -> Veritas.State.Get k v
-  | Put k v -> Veritas.State.Put k v
+let appfn_call_seq
+  (#app: app_params)
+  (l: vlog_ext app)
+  : seq (appfn_call app)
+  = let open Zeta.SeqAux in
+    let is_app = fun (i: seq_index l) ->
+      App? (index l i)
+    in
+    let to_fncall = fun (i: seq_index l{is_app i}) ->
+      let ee = index l i in
+      let e = to_vlog_entry ee in
+      { fid_c = RunApp?.f e;
+        arg_c = RunApp?.p e;
+        inp_c = App?.rs ee;
+      }
+    in
+    indexed_filter_map l is_app to_fncall
 
-(* filter out the state ops of vlog *)
-let to_state_op_vlog (l: vlog) =
-  map to_state_op (filter_refine is_state_op l)
+val eac_implies_valid_simulation (#app: app_params) (l: eac_log app)
+  : Lemma (ensures (let fs = appfn_call_seq l in
+                    Some? (simulate fs)))
+          [SMTPat (eac l)]
 
-(* valid eac states *)
-let is_eac_state_active (st:eac_state): bool = st <> EACFail &&
-                                           st <> EACInit &&
-                                           st <> EACRoot
-
-let is_evict_ext (e:vlog_entry_ext): bool =
-  match e with
-  | EvictMerkle _ _ -> true
-  | EvictBlum _ _ _ -> true
-  | _ -> false
-
-let value_ext (e:vlog_entry_ext{is_evict_ext e}): value =
-  match e with
-  | EvictMerkle _ v -> v
-  | EvictBlum _ v _ -> v
-
-(* value of a valid state *)
-let value_of (st:eac_state {is_eac_state_active st}): value =
-  match st with
-  | EACInStore _ v -> v
-  | EACEvictedMerkle v -> v
-  | EACEvictedBlum v _ _ -> v
-
-let add_method_of (st:eac_state {is_eac_state_instore st}): add_method =
-  match st with
-  | EACInStore m _ -> m
-
-let to_vlog (l:vlog_ext) =
-  map to_vlog_entry l
-
-val lemma_eac_implies_rw_consistent (le:eac_log):
-  Lemma (rw_consistent (to_state_op_vlog (to_vlog le)))
-
-val is_eac (l:vlog_ext) : b:bool{b <==> eac l}
+val eac_state_is_app_state (#app: app_params) (l: eac_log app) (k: app_key app.adm)
+  : Lemma (ensures (let fs = appfn_call_seq l in
+                    let app_state,_ = Some?.v (simulate fs) in
+                    let gk = AppK k in
+                    eac_value l gk = AppV (app_state k)))
