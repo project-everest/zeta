@@ -53,10 +53,17 @@ let model_update_clock (tsm:thread_state_model) (ts:T.timestamp)
     then { tsm with model_clock = tsm.model_clock `U64.add` ts } //+1
     else model_fail tsm
 
-// AF: Should somewhat correspond to Veritas.MultiSetHash.ms_hashfn_upd
-assume
-val model_update_hash (h:model_hash) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
+let model_update_hash (h:model_hash) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
   : model_hash
+  = let open Veritas.ThreadStateModel in
+    match lift_key r.T.record_key, lift_value r.T.record_value with
+    | Some k, Some v ->
+      Veritas.MultiSetHash.ms_hashfn_upd
+        (Veritas.MultiSetHashDomain.MHDom (k, v) (timestamp_of_clock t) (U16.v thread_id))
+        h
+    | _ ->
+      //TODO: we need a better spec here, otherwise prf_update_hash will not be provable
+      h
 
 let model_update_hadd (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id) =
   ({tsm with model_hadd = model_update_hash tsm.model_hadd r t thread_id})
@@ -64,22 +71,59 @@ let model_update_hadd (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:T.thread_i
 let model_update_hevict (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id) =
   ({tsm with model_hevict = model_update_hash tsm.model_hevict r t thread_id})
 
+module TSM = Veritas.ThreadStateModel
+module C = FStar.Int.Cast
+let truncate_key (k:T.key) (w:U16.t { U16.v w < U16.v k.T.significant_digits }) =
+  let open U16 in
+  let kk =
+    let kk = k.T.k in
+    if w = 0us
+    then { T.v0 = 0uL; T.v1 = 0uL; T.v2 = 0uL; T.v3 = 0uL }
+    else if w <^ 64us
+    then { kk with T.v0 = U64.shift_right kk.T.v0 (C.uint16_to_uint32 (64us -^ w)) }
+    else if w = 64us
+    then { T.v0 = kk.T.v0; T.v1 = 0uL; T.v2 = 0uL; T.v3 = 0uL }
+    else if w <^ 128us
+    then { kk with T.v1 = U64.shift_right kk.T.v1 (C.uint16_to_uint32 (128us -^ w)) }
+    else if w = 128us
+    then { T.v0 = kk.T.v0; T.v1 = kk.T.v1; T.v2 = 0uL; T.v3 = 0uL }
+    else if w <^ 192us
+    then { kk with T.v2 = U64.shift_right kk.T.v2 (C.uint16_to_uint32 (192us -^ w)) }
+    else if w = 192us
+    then { T.v0 = kk.T.v0; T.v1 = kk.T.v1; T.v2 = kk.T.v2; T.v3 = 0uL }
+    else { kk with T.v3 = U64.shift_right kk.T.v3 (C.uint16_to_uint32 (256us -^ w)) }
+  in
+  { k with T.k = kk; T.significant_digits = w }
 
-assume
-val is_proper_descendent (k0 k1:T.key) : bool
+let is_proper_descendent (k0 k1:T.key)
+  : bool
+  = let open FStar.UInt16 in
+    k0.T.significant_digits >^ k1.T.significant_digits &&
+    truncate_key k0 k1.T.significant_digits = k1
 
 let is_proper_descendent_key_type (k0 k1:T.key)
   : Lemma
     (requires is_proper_descendent k0 k1)
     (ensures  not (is_data_key k1))
     [SMTPat (is_proper_descendent k0 k1)]
-  = admit()
+  = ()
 
-assume
-val has_instore_merkle_desc (tsm:thread_state_model) (s:slot tsm) : bool
+let ith_bit (k0:T.key) (i:U16.t { U16.v i < 256 })
+  : bool
+  = let open U16 in
+    let kk = k0.T.k in
+    if i <^ 64us
+    then (U64.shift_right kk.T.v0 (C.uint16_to_uint32 i)) `U64.rem` 2uL = 1uL
+    else if i <^ 128us
+    then (U64.shift_right kk.T.v1 (C.uint16_to_uint32 (i -^ 64us))) `U64.rem` 2uL = 1uL
+    else if i <^ 192us
+    then (U64.shift_right kk.T.v2 (C.uint16_to_uint32 (i -^ 128us))) `U64.rem` 2uL = 1uL
+    else (U64.shift_right kk.T.v3 (C.uint16_to_uint32 (i -^ 192us))) `U64.rem` 2uL = 1uL
 
-assume
-val desc_dir (k0:T.key) (k1:T.key { k0 `is_proper_descendent` k1 }) : bool
+let desc_dir (k0:T.key) (k1:T.key { k0 `is_proper_descendent` k1 })
+  : bool
+  = let open U16 in
+    ith_bit k0 k1.T.significant_digits
 
 let to_merkle_value (v:T.value)
   : option T.mval_value
@@ -87,34 +131,82 @@ let to_merkle_value (v:T.value)
     | T.V_mval v -> Some v
     | _ -> None
 
+let desc_hash_dir (v:T.mval_value) (d:bool)
+  : T.descendent_hash
+  = if d then v.T.l else v.T.r
 
-assume
-val desc_hash_dir (v:T.mval_value) (d:bool) : T.descendent_hash
+let update_merkle_value (v:T.mval_value)
+                        (d:bool)
+                        (k:T.key)
+                        (h:T.hash_value)
+                        (b:bool)
+  : T.mval_value
+  = let desc_hash = T.(Dh_vsome ({
+        dhd_key = k;
+        dhd_h = h;
+        evicted_to_blum = (if b then Vtrue else Vfalse)
+    })) in
+    if d then {v with T.l = desc_hash}
+    else {v with T.r = desc_hash}
 
-assume
-val update_merkle_value (v:T.mval_value) (d:bool) (k:T.key) (h:T.hash_value) (b:bool) : T.mval_value
+let hashfn (v:T.value)
+  : T.hash_value
+  = admit()
 
-assume
-val update_in_store (tsm:thread_state_model) (s:slot tsm) (d:bool) (b:bool) : tsm':thread_state_model{Seq.length tsm.model_store = Seq.length tsm'.model_store}
+let init_value (k:T.key)
+  : T.value
+  = let open T in
+    if TSM.is_data_key k
+    then V_dval (Dv_vnone ())
+    else V_mval ({ l = Dh_vnone (); r = Dh_vnone ()})
 
-assume
-val hashfn (v:T.value) : T.hash_value
+let points_to_some_slot (tsm:thread_state_model)
+                        (s:slot tsm)
+                        (d:bool)
+  : GTot bool
+  = match model_get_record tsm s with
+    | None -> false
+    | Some r ->
+      if d
+      then Some? (r.TSM.record_l_child_in_store)
+      else Some? (r.TSM.record_r_child_in_store)
 
-assume
-val init_value (k:T.key) : T.value
-
-assume
-val points_to_some_slot (tsm:thread_state_model) (s:slot tsm) (d:bool) : bool
-
-assume
-val model_madd_to_store (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d:bool)
-  : (tsm':thread_state_model{
+let model_madd_to_store (tsm:thread_state_model)
+                        (s:slot tsm)
+                        (k:T.key)
+                        (v:T.value)
+                        (s':slot tsm)
+                        (d:bool)
+  : tsm':thread_state_model{
         Seq.length tsm.model_store = Seq.length tsm'.model_store /\
         (forall (ss:slot tsm). {:pattern has_slot tsm' ss}
           has_slot tsm ss ==>
           (has_slot tsm' ss /\
            is_data_key (key_of_slot tsm ss) ==
-           is_data_key (key_of_slot tsm' ss)))})
+           is_data_key (key_of_slot tsm' ss)))
+    }
+  = let open TSM in
+    assume (is_value_of k v);
+    assume (not (has_slot tsm s));
+    let new_entry = {
+        record_key = k;
+        record_value = v;
+        record_add_method = T.MAdd;
+        record_l_child_in_store = None;
+        record_r_child_in_store = None;
+        record_parent_slot = Some (s', d)
+    } in
+    let store' = Seq.upd tsm.model_store (U16.v s) (Some new_entry) in
+    match model_get_record tsm s' with
+    | None -> tsm
+    | Some r' ->
+      let r' =
+        if d
+        then { r' with record_l_child_in_store = Some s }
+        else { r' with record_r_child_in_store = Some s }
+      in
+      let store'' = Seq.upd store' (U16.v s') (Some r') in
+      {tsm with model_store = store''}
 
 assume
 val model_madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d d2:bool)

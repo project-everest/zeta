@@ -186,7 +186,7 @@ let vaddm s r s' vs
         else let Some v' = to_merkle_value v' in
              let d = desc_dir k k' in
              let dh' = desc_hash_dir v' d in
-             let h = hashfn v in
+             let h = hashfn v in //TODO: Need a better, low-level hash
              match dh' with
              | T.Dh_vnone _ -> (* k' has no child in direction d *)
              (* first add must be init value *)
@@ -278,7 +278,7 @@ let vevictm s s' vs
                    && b
                    then fail vs "parent slot mismatch"
                    else (
-                     let h = hashfn v in //Lower
+                     let h = hashfn v in //TODO: Lower
                      let v'_upd = update_merkle_value v' d k h false in
                      let tsm = update_value s' (T.V_mval v'_upd) vs in
                      mevict_from_store s s' d vs
