@@ -53,10 +53,14 @@ val madd_to_store (s:U16.t) (k:T.key) (v:T.value) (s':U16.t) (d:bool)
     (fun _ -> thread_state_inv vs)
     (requires fun h0 ->
       slot_ok s vs h0 /\
-      slot_ok s' vs h0)
+      slot_ok s' vs h0 /\
+      not (has_slot (v_thread vs h0) s) /\
+      is_value_of k v)
     (ensures fun h0 _ h1 ->
       slot_ok s vs h0 /\
       slot_ok s' vs h0 /\
+      not (has_slot (v_thread vs h0) s) /\
+      is_value_of k v /\
       v_thread vs h1 == model_madd_to_store (v_thread vs h0) s k v s' d)
 
 assume
@@ -67,10 +71,14 @@ val madd_to_store_split (s:U16.t) (k:T.key) (v:T.value) (s':U16.t) (d d':bool)
     (fun _ -> thread_state_inv vs)
     (requires fun h0 ->
       slot_ok s vs h0 /\
-      slot_ok s' vs h0)
+      slot_ok s' vs h0 /\
+      not (has_slot (v_thread vs h0) s) /\
+      is_value_of k v)
     (ensures fun h0 _ h1 ->
       slot_ok s vs h0 /\
       slot_ok s' vs h0 /\
+      not (has_slot (v_thread vs h0) s) /\
+      is_value_of k v /\
       v_thread vs h1 == model_madd_to_store_split (v_thread vs h0) s k v s' d d')
 
 assume

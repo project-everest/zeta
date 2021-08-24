@@ -37,15 +37,22 @@ let model_evict_record (tsm:thread_state_model) (s:slot tsm)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) None }
 
-let mk_record (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : record
+let mk_record_full (k:T.key)
+                   (v:T.value{is_value_of k v})
+                   (a:T.add_method)
+                   l r p : record
   = {
       record_key = k;
       record_value = v;
       record_add_method = a;
-      record_l_child_in_store = None;
-      record_r_child_in_store = None;
-      record_parent_slot = None
+      record_l_child_in_store = l;
+      record_r_child_in_store = r;
+      record_parent_slot = p
     }
+
+
+let mk_record (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : record
+  = mk_record_full k v a None None None
 
 let model_update_clock (tsm:thread_state_model) (ts:T.timestamp)
   : thread_state_model
@@ -172,9 +179,9 @@ let points_to_some_slot (tsm:thread_state_model)
       else Some? (r.TSM.record_r_child_in_store)
 
 let model_madd_to_store (tsm:thread_state_model)
-                        (s:slot tsm)
+                        (s:slot tsm { not (has_slot tsm s) })
                         (k:T.key)
-                        (v:T.value)
+                        (v:T.value { is_value_of k v })
                         (s':slot tsm)
                         (d:bool)
   : tsm':thread_state_model{
@@ -186,8 +193,6 @@ let model_madd_to_store (tsm:thread_state_model)
            is_data_key (key_of_slot tsm' ss)))
     }
   = let open TSM in
-    assume (is_value_of k v);
-    assume (not (has_slot tsm s));
     let new_entry = {
         record_key = k;
         record_value = v;
@@ -208,28 +213,88 @@ let model_madd_to_store (tsm:thread_state_model)
       let store'' = Seq.upd store' (U16.v s') (Some r') in
       {tsm with model_store = store''}
 
-assume
-val model_madd_to_store_split (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.value) (s':slot tsm) (d d2:bool)
-  : (tsm':thread_state_model{
+let model_madd_to_store_split (tsm:thread_state_model)
+                              (s:slot tsm { not (has_slot tsm s) })
+                              (k:T.key)
+                              (v:T.value { is_value_of k v })
+                              (s':slot tsm)
+                              (d d2:bool)
+  : tsm':thread_state_model{
          Seq.length tsm.model_store = Seq.length tsm'.model_store /\
          (forall (ss:slot tsm). {:pattern has_slot tsm' ss}
            (has_slot tsm ss ==>
              (has_slot tsm' ss /\
               is_data_key (key_of_slot tsm ss) ==
-              is_data_key (key_of_slot tsm' ss))))})
+              is_data_key (key_of_slot tsm' ss))))}
+  = let open TSM in
+    let st = tsm.model_store in
+    match model_get_record tsm s' with
+    | None -> tsm //fail
+    | Some { record_key = k';
+             record_value = v';
+             record_add_method = am';
+             record_l_child_in_store = l';
+             record_r_child_in_store = r';
+             record_parent_slot = p'} ->
+      let p = (s', d) in
+      let s2_opt = if d then l' else r' in
+      let e =
+        if d2
+        then mk_record_full k v T.MAdd s2_opt None (Some p)
+        else mk_record_full k v T.MAdd None s2_opt (Some p)
+      in
+      let e' =
+        if d
+        then mk_record_full k' v' am' (Some s) r' p'
+        else mk_record_full k' v' am' l' (Some s) p'
+      in
+      let st = Seq.upd st (U16.v s) (Some e) in
+      let st = Seq.upd st (U16.v s') (Some e') in
+      match s2_opt with
+      | None -> tsm //fail
+      | Some s2 ->
+        if U16.v s2 >= Seq.length st
+        then tsm //fail
+        else match Seq.index st (U16.v s2) with
+             | None -> tsm
+             | Some { record_key = k2;
+                      record_value = v2;
+                      record_add_method = am2;
+                      record_l_child_in_store = l2;
+                      record_r_child_in_store = r2;
+                      record_parent_slot = p2 } ->
+          let p2new = s2, d2 in
+          let e2 = mk_record_full k2 v2 am2 l2 r2 (Some p2new) in
+          let st = Seq.upd st (U16.v s2) (Some e2) in
+          { tsm with model_store = st }
 
-
-assume
-val model_mevict_from_store (tsm:thread_state_model) (s s':slot tsm) (d:bool)
-  : (tsm':thread_state_model{
+let model_mevict_from_store (tsm:thread_state_model)
+                            (s s':slot tsm)
+                            (d:bool)
+  : tsm':thread_state_model{
         Seq.length tsm.model_store = Seq.length tsm'.model_store
-    })
+    }
+  = let open TSM in
+    match model_get_record tsm s' with
+    | None -> tsm //fail
+    | Some r' ->
+      let e' =
+        if d
+        then { r' with record_l_child_in_store = None }
+        else { r' with record_r_child_in_store = None }
+      in
+      let st = Seq.upd tsm.model_store (U16.v s') (Some e') in
+      let st = Seq.upd st (U16.v s) None in
+      { tsm with model_store = st }
 
-assume
-val model_bevict_from_store (tsm:thread_state_model) (s:slot tsm)
-  : (tsm':thread_state_model{
+
+let model_bevict_from_store (tsm:thread_state_model)
+                            (s:slot tsm)
+  : tsm':thread_state_model{
         Seq.length tsm.model_store = Seq.length tsm'.model_store
-    })
+    }
+  = let open TSM in
+    { tsm with model_store = Seq.upd tsm.model_store (U16.v s) None }
 
 let timestamp_lt (t0 t1:T.timestamp) = t0 `U64.lt` t1
 

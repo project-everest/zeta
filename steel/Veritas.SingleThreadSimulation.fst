@@ -65,7 +65,8 @@ let related_hashfn (v:S_Types.value)
                    (m:Veritas.Record.value)
   : Lemma
     (requires related_value v m)
-    (ensures related_hashes (bitvec_of_u256 (S.hashfn v)) (Veritas.Hash.hashfn m))
+    (ensures related_hashes (bitvec_of_u256 (S.hashfn v))
+                            (Veritas.Hash.hashfn m))
   = admit()
 
 let related_init_value (s_k:_) (i_k:_)
@@ -122,7 +123,9 @@ let madd_to_store_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
       related_value s_v i_v /\
       (lift_slot #vcfg s_s' == Some i_s') /\
       related_desc_dir s_d i_d /\
-      IStore.points_to_none st i_s' i_d)
+      IStore.points_to_none st i_s' i_d /\
+      is_value_of s_k s_v /\
+      not (S.has_slot tsm s_s))
     (ensures (
       let tsm' = S.model_madd_to_store tsm s_s s_k s_v s_s' s_d in
       let st'  = IStore.madd_to_store st i_s i_k i_v i_s' i_d in
@@ -152,7 +155,9 @@ let madd_to_store_split_related (#vcfg:_) (tsm:_) (st:IStore.vstore vcfg)
       related_value s_v i_v /\
       (lift_slot #vcfg s_s' == Some i_s') /\
       related_desc_dir s_d i_d /\
-      IStore.points_to_some_slot st i_s' i_d)
+      IStore.points_to_some_slot st i_s' i_d /\
+      is_value_of s_k s_v /\
+      not (S.has_slot tsm s_s))
     (ensures (
       let tsm' = S.model_madd_to_store_split tsm s_s s_k s_v s_s' s_d s_d2 in
       let st'  = IStore.madd_to_store_split st i_s i_k i_v i_s' i_d i_d2 in
