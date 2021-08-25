@@ -25,14 +25,33 @@ let prf_set_hash_sel (r:prf_set_hash) : selector (model_hash) (prf_set_hash_sl r
 
 let prf_update_hash p r t thread_id = sladmit()
 
-let update_clock (ts:T.timestamp) (vs:thread_state_t) = sladmit()
+let check_overflow_add (x y:U64.t)
+  : res:option U64.t {
+        if FStar.UInt.fits (U64.v x + U64.v y) 64
+        then Some? res /\
+             Some?.v res == U64.add x y
+        else None? res
+    }
+ = let open U64 in
+   let res = add_mod x y in
+   if res <^ x then None
+   else if res -^ x = y then Some res
+   else None
+
+let update_clock (ts:T.timestamp) (vs:thread_state_t) =
+  let c = Steel.Reference.read vs.clock in
+  let res = check_overflow_add c ts in
+  match res with
+  | None ->
+    write vs.failed true; ()
+  | Some res ->
+    write vs.clock res; ()
 
 //Needs an unfold, else weirdness
 unfold
 let slot_ok (s:U16.t) (vs:_) (h:rmem (thread_state_inv vs))
   = U16.v s < length (v_thread vs h).model_store
 
-assume
 val points_to_some_slot (s:U16.t)
                         (d:bool)
                         (vs:_)
@@ -44,44 +63,119 @@ val points_to_some_slot (s:U16.t)
       U16.v s < length (v_thread vs h0).model_store /\
       b == VerifierModel.points_to_some_slot (v_thread vs h0) s d /\
       v_thread vs h0 == v_thread vs h1)
+let points_to_some_slot s d vs
+  = let r = vcache_get_record vs.st s in
+    match r with
+    | None -> false
+    | Some r ->
+      if d
+      then Some? (r.record_l_child_in_store)
+      else Some? (r.record_r_child_in_store)
 
-assume
 val madd_to_store (s:U16.t) (k:T.key) (v:T.value) (s':U16.t) (d:bool)
                   (vs:_)
   : Steel unit
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
     (requires fun h0 ->
-      slot_ok s vs h0 /\
-      slot_ok s' vs h0 /\
-      not (has_slot (v_thread vs h0) s) /\
-      is_value_of k v)
-    (ensures fun h0 _ h1 ->
-      slot_ok s vs h0 /\
-      slot_ok s' vs h0 /\
+      U16.v s < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store /\
       not (has_slot (v_thread vs h0) s) /\
       is_value_of k v /\
+      has_slot (v_thread vs h0) s')
+    (ensures fun h0 _ h1 ->
+      U16.v s < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store /\
       v_thread vs h1 == model_madd_to_store (v_thread vs h0) s k v s' d)
 
-assume
-val madd_to_store_split (s:U16.t) (k:T.key) (v:T.value) (s':U16.t) (d d':bool)
+#push-options "--query_stats --fuel 0 --ifuel 1"
+let madd_to_store s k v s' d vs
+  = let h = get () in
+    assert (U16.v s  < length (v_thread vs h).model_store);  //this assert seems necessary
+    assert (not (has_slot (v_thread vs h) s)); //this one does too
+    let r' = vcache_get_record vs.st s' in
+    match r' with
+    | Some r' ->
+      let new_entry = {
+        record_key = k;
+        record_value = v;
+        record_add_method = T.MAdd;
+        record_l_child_in_store = None;
+        record_r_child_in_store = None;
+        record_parent_slot = Some (s', d)
+      } in
+      vcache_update_record vs.st s new_entry;
+      let r' =
+        if d
+        then { r' with record_l_child_in_store = Some s }
+        else { r' with record_r_child_in_store = Some s }
+      in
+      vcache_update_record vs.st s' r'
+
+val madd_to_store_split (s:U16.t) (k:T.key) (v:T.value) (s':U16.t) (d d2:bool)
                         (vs:_)
   : Steel unit
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
     (requires fun h0 ->
-      slot_ok s vs h0 /\
-      slot_ok s' vs h0 /\
-      not (has_slot (v_thread vs h0) s) /\
-      is_value_of k v)
-    (ensures fun h0 _ h1 ->
-      slot_ok s vs h0 /\
-      slot_ok s' vs h0 /\
+      U16.v s < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store /\
       not (has_slot (v_thread vs h0) s) /\
       is_value_of k v /\
-      v_thread vs h1 == model_madd_to_store_split (v_thread vs h0) s k v s' d d')
+      has_slot (v_thread vs h0) s')
+    (ensures fun h0 _ h1 ->
+      U16.v s < length (v_thread vs h0).model_store /\
+      U16.v s' < length (v_thread vs h0).model_store /\
+      v_thread vs h1 == model_madd_to_store_split (v_thread vs h0) s k v s' d d2)
+let choose d l r = if d then l else r
+let coerce #a #p (x:a) (pf:squash (p x)) : x:a{p x} = x
 
 assume
+val vcache_bounds_check (vst:vstore) (s:slot_id)
+  : Steel bool
+          (is_vstore vst)
+          (fun _ -> is_vstore vst)
+          (requires fun h -> True)
+          (ensures fun h0 res h1 ->
+             res  == (U16.v s < length (asel vst h0)) /\
+             asel vst h0 == asel vst h1)
+
+#push-options "--query_stats --fuel 0 --ifuel 1"
+let madd_to_store_split s k v s' d d2 vs
+  = let h = get () in
+    assert (U16.v s  < length (v_thread vs h).model_store);  //this assert seems necessary
+    assert (is_value_of k v);
+    assert (not (has_slot (v_thread vs h) s)); //this one does too
+    assert (has_slot (v_thread vs h) s');
+    let r' = vcache_get_record vs.st s' in
+    match r' with
+    | Some r' ->
+      let p = (s', d) in
+      let s2_opt = record_child_slot r' d in
+      match s2_opt with
+      | None -> noop(); ()
+      | Some s2 ->
+        let b = vcache_bounds_check vs.st s2 in
+        if not b then (noop(); ())
+        else (
+          let r2 = vcache_get_record vs.st s2 in
+          match r2 with
+          | None -> noop() ; ()
+          | Some r2 ->
+            let pf : squash (is_value_of k v) = () in
+            let v : (v:T.value { is_value_of k v }) =
+              coerce v pf
+            in
+            let e = mk_record_full k v T.MAdd None None (Some p) in
+            let e = record_update_child e d2 s2 in
+            let e' = record_update_child r' d s in
+            let p2new = s2, d2 in
+            let e2 = record_update_parent_slot r2 p2new in
+            vcache_update_record vs.st s e;
+            vcache_update_record vs.st s' e';
+            vcache_update_record vs.st s2 e2
+          )
+
 val vevictb_update_hash_clock
        (s:U16.t)
        (t:T.timestamp)
@@ -97,9 +191,18 @@ val vevictb_update_hash_clock
        VerifierModel.sat_evictb_checks (v_thread vs h0) s t /\
        v_thread vs h1 ==
        model_vevictb_update_hash_clock (v_thread vs h0) s t)
+let vevictb_update_hash_clock s t vs
+  = let h = get () in
+    assert (U16.v s  < length (v_thread vs h).model_store);  //these asserts are necessary
+    assert (VerifierModel.sat_evictb_checks (v_thread vs h) s t);
+    let r = vcache_get_record vs.st s in
+    let Some r = r in
+    let record = { T.record_key = r.record_key;
+                   T.record_value = r.record_value } in
+    prf_update_hash vs.hevict record t vs.id;
+    Steel.Reference.write vs.clock t
 
-assume
-val bevict_from_store (s:U16.t) (vs:_)
+let bevict_from_store (s:U16.t) (vs:_)
   : Steel unit
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
@@ -109,9 +212,9 @@ val bevict_from_store (s:U16.t) (vs:_)
        U16.v s < length (v_thread vs h0).model_store /\
        v_thread vs h1 ==
        model_bevict_from_store (v_thread vs h0) s)
+  = vcache_evict_record vs.st s; ()
 
-assume
-val update_value (s:U16.t) (v:T.value) (vs:_)
+let update_value (s:U16.t) (v:T.value) (vs:_)
   : Steel unit
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
@@ -124,9 +227,12 @@ val update_value (s:U16.t) (v:T.value) (vs:_)
       has_slot (v_thread vs h0) s /\
       is_value_of (key_of_slot (v_thread vs h0) s) v /\
       v_thread vs h1 == model_update_value (v_thread vs h0) s v)
+  = let ropt = vcache_get_record vs.st s in //TODO: better to just update a field rather than read and write back a whole record
+    let Some r = ropt in
+    let r' = { r with record_value = v } in
+    vcache_update_record vs.st s r'
 
-assume
-val mevict_from_store (s s':_) (d:_) (vs:_)
+let mevict_from_store (s s':_) (d:_) (vs:_)
   : Steel unit
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
@@ -138,6 +244,27 @@ val mevict_from_store (s s':_) (d:_) (vs:_)
        U16.v s' < length (v_thread vs h0).model_store /\
        v_thread vs h1 ==
        model_mevict_from_store (v_thread vs h0) s s' d)
+  = let h = get () in
+    assert (U16.v s  < length (v_thread vs h).model_store);  //this assert seems necessary
+    let r' = vcache_get_record vs.st s' in
+    match r' with
+    | None ->
+      noop();
+      ()
+    | Some r' ->
+      if d
+      then
+        let e' = { r' with record_l_child_in_store = None } in
+        vcache_update_record vs.st s' e';
+        vcache_evict_record vs.st s;
+        Steel.Effect.Atomic.return ()
+      else
+        let e' = { r' with record_r_child_in_store = None } in
+        vcache_update_record vs.st s' e';
+        vcache_evict_record vs.st s;
+        Steel.Effect.Atomic.return ()
+
+
 
 #push-options "--query_stats --fuel 0 --ifuel 1"
 let fail vs msg = write vs.failed true; ()
@@ -170,7 +297,6 @@ let vput s k v vs
         () //seem to need this
       )
 
-let coerce #a #p (x:a) (pf:squash (p x)) : x:a{p x} = x
 
 let vaddm s r s' vs
   = let h = get () in

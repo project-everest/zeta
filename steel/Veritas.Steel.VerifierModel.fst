@@ -80,25 +80,24 @@ let model_update_hevict (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:T.thread
 
 module TSM = Veritas.ThreadStateModel
 module C = FStar.Int.Cast
+let shift_right_64 (x:U64.t) (w:U16.t{U16.v w <= 64})
+  : U64.t
+  = if w = 64us then 0uL
+    else U64.shift_right x (C.uint16_to_uint32 w)
+
 let truncate_key (k:T.key) (w:U16.t { U16.v w < U16.v k.T.significant_digits }) =
   let open U16 in
   let kk =
     let kk = k.T.k in
-    if w = 0us
-    then { T.v0 = 0uL; T.v1 = 0uL; T.v2 = 0uL; T.v3 = 0uL }
-    else if w <^ 64us
-    then { kk with T.v0 = U64.shift_right kk.T.v0 (C.uint16_to_uint32 (64us -^ w)) }
-    else if w = 64us
-    then { T.v0 = kk.T.v0; T.v1 = 0uL; T.v2 = 0uL; T.v3 = 0uL }
-    else if w <^ 128us
-    then { kk with T.v1 = U64.shift_right kk.T.v1 (C.uint16_to_uint32 (128us -^ w)) }
-    else if w = 128us
-    then { T.v0 = kk.T.v0; T.v1 = kk.T.v1; T.v2 = 0uL; T.v3 = 0uL }
+    let zkey = { T.v0 = 0uL; T.v1 = 0uL; T.v2 = 0uL; T.v3 = 0uL } in
+    if w <=^ 64us
+    then { zkey with T.v0 = shift_right_64 kk.T.v0 (64us -^ w) }
+    else if w <=^ 128us
+    then { zkey with T.v0 = kk.T.v0;
+                     T.v1 = shift_right_64 kk.T.v1 (128us -^ w) }
     else if w <^ 192us
-    then { kk with T.v2 = U64.shift_right kk.T.v2 (C.uint16_to_uint32 (192us -^ w)) }
-    else if w = 192us
-    then { T.v0 = kk.T.v0; T.v1 = kk.T.v1; T.v2 = kk.T.v2; T.v3 = 0uL }
-    else { kk with T.v3 = U64.shift_right kk.T.v3 (C.uint16_to_uint32 (256us -^ w)) }
+    then { kk with T.v2 = shift_right_64 kk.T.v2 (192us -^ w); T.v3 = 0uL }
+    else { kk with T.v3 = shift_right_64 kk.T.v3 (256us -^ w) }
   in
   { k with T.k = kk; T.significant_digits = w }
 
@@ -179,9 +178,9 @@ let points_to_some_slot (tsm:thread_state_model)
       else Some? (r.TSM.record_r_child_in_store)
 
 let model_madd_to_store (tsm:thread_state_model)
-                        (s:slot tsm { not (has_slot tsm s) })
+                        (s:slot tsm)
                         (k:T.key)
-                        (v:T.value { is_value_of k v })
+                        (v:T.value)
                         (s':slot tsm)
                         (d:bool)
   : tsm':thread_state_model{
@@ -193,18 +192,21 @@ let model_madd_to_store (tsm:thread_state_model)
            is_data_key (key_of_slot tsm' ss)))
     }
   = let open TSM in
-    let new_entry = {
+    if has_slot tsm s
+    || not (is_value_of k v)
+    || not (has_slot tsm s')
+    then tsm
+    else
+      let Some r' = model_get_record tsm s' in
+      let new_entry = {
         record_key = k;
         record_value = v;
         record_add_method = T.MAdd;
         record_l_child_in_store = None;
         record_r_child_in_store = None;
         record_parent_slot = Some (s', d)
-    } in
-    let store' = Seq.upd tsm.model_store (U16.v s) (Some new_entry) in
-    match model_get_record tsm s' with
-    | None -> tsm
-    | Some r' ->
+      } in
+      let store' = Seq.upd tsm.model_store (U16.v s) (Some new_entry) in
       let r' =
         if d
         then { r' with record_l_child_in_store = Some s }
@@ -213,10 +215,22 @@ let model_madd_to_store (tsm:thread_state_model)
       let store'' = Seq.upd store' (U16.v s') (Some r') in
       {tsm with model_store = store''}
 
+let record_update_parent_slot (r:record)
+                              (s:_)
+  = { r with record_parent_slot = Some s }
+
+let record_update_child (r:record) (d:bool) (s:_)
+  = if d then {r with record_l_child_in_store = Some s }
+    else {r with record_r_child_in_store = Some s}
+
+let record_child_slot (r:record) (d:bool)
+  = if d then r.record_l_child_in_store
+    else r.record_r_child_in_store
+
 let model_madd_to_store_split (tsm:thread_state_model)
-                              (s:slot tsm { not (has_slot tsm s) })
+                              (s:slot tsm)
                               (k:T.key)
-                              (v:T.value { is_value_of k v })
+                              (v:T.value)
                               (s':slot tsm)
                               (d d2:bool)
   : tsm':thread_state_model{
@@ -228,45 +242,32 @@ let model_madd_to_store_split (tsm:thread_state_model)
               is_data_key (key_of_slot tsm' ss))))}
   = let open TSM in
     let st = tsm.model_store in
-    match model_get_record tsm s' with
-    | None -> tsm //fail
-    | Some { record_key = k';
-             record_value = v';
-             record_add_method = am';
-             record_l_child_in_store = l';
-             record_r_child_in_store = r';
-             record_parent_slot = p'} ->
-      let p = (s', d) in
-      let s2_opt = if d then l' else r' in
-      let e =
-        if d2
-        then mk_record_full k v T.MAdd s2_opt None (Some p)
-        else mk_record_full k v T.MAdd None s2_opt (Some p)
-      in
-      let e' =
-        if d
-        then mk_record_full k' v' am' (Some s) r' p'
-        else mk_record_full k' v' am' l' (Some s) p'
-      in
-      let st = Seq.upd st (U16.v s) (Some e) in
-      let st = Seq.upd st (U16.v s') (Some e') in
-      match s2_opt with
-      | None -> tsm //fail
-      | Some s2 ->
-        if U16.v s2 >= Seq.length st
-        then tsm //fail
-        else match Seq.index st (U16.v s2) with
-             | None -> tsm
-             | Some { record_key = k2;
-                      record_value = v2;
-                      record_add_method = am2;
-                      record_l_child_in_store = l2;
-                      record_r_child_in_store = r2;
-                      record_parent_slot = p2 } ->
-          let p2new = s2, d2 in
-          let e2 = mk_record_full k2 v2 am2 l2 r2 (Some p2new) in
-          let st = Seq.upd st (U16.v s2) (Some e2) in
-          { tsm with model_store = st }
+    if has_slot tsm s
+    || not (is_value_of k v)
+    || not (has_slot tsm s')
+    then tsm
+    else
+      match model_get_record tsm s' with
+      | Some r' ->
+        let p = (s', d) in
+        let s2_opt = record_child_slot r' d in
+        match s2_opt with
+        | None -> tsm //fail
+        | Some s2 ->
+          if U16.v s2 >= Seq.length st
+          then tsm //fail
+          else match Seq.index st (U16.v s2) with
+               | None -> tsm
+               | Some r2 ->
+                 let e = mk_record_full k v T.MAdd None None (Some p) in
+                 let e = record_update_child e d2 s2 in
+                 let e' = record_update_child r' d s in
+                 let p2new = s2, d2 in
+                 let e2 = record_update_parent_slot r2 p2new in
+                 let st = Seq.upd st (U16.v s) (Some e) in
+                 let st = Seq.upd st (U16.v s') (Some e') in
+                 let st = Seq.upd st (U16.v s2) (Some e2) in
+                 { tsm with model_store = st }
 
 let model_mevict_from_store (tsm:thread_state_model)
                             (s s':slot tsm)
