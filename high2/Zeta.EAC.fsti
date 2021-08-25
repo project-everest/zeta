@@ -73,7 +73,7 @@ let eac_add #app #ks (ee: vlog_entry_ext app) (s: eac_state app ks) : eac_state 
         match ee with
 
         | NEvict (AddM (k,v) _ _) ->
-          if v = init_value k then EACInStore MAdd v
+          if v = init_value k && to_base_key k = ks then EACInStore MAdd v
           else EACFail
 
         | NEvict NextEpoch ->
@@ -139,24 +139,25 @@ let eac_smk (app: app_params) (k: base_key) = SeqMachine EACInit EACFail (eac_ad
 (* the eac state of a key after processing log l *)
 let eac_state_of_key
   (#app: app_params)
+  (k: key app)
   (l: vlog_ext app)
-  (k: key app): eac_state app (to_base_key k)
+  : eac_state app (to_base_key k)
   = let open Zeta.SeqMachine in
     let bk = to_base_key k in
     seq_machine_run (eac_smk app bk) l
 
 val eac_state_transition
   (#app: app_params)
-  (l: vlog_ext app {length l > 0})
   (k: key app)
+  (l: vlog_ext app {length l > 0})
   : Lemma (ensures (let open Zeta.SeqAux in
                     let n = length l - 1 in
                     let l' = prefix l n in
                     let ee = index l n in
-                    let es' = eac_state_of_key l' k in
-                    let es = eac_state_of_key l k in
+                    let es' = eac_state_of_key k l' in
+                    let es = eac_state_of_key k l in
                     es = eac_add ee es'))
-           [SMTPat (eac_state_of_key l k)]
+           [SMTPat (eac_state_of_key k l)]
 
 (* evict add consistency *)
 let eac #app (l:vlog_ext app) =
@@ -177,6 +178,13 @@ val eac_implies_prefix_eac
   : Lemma (ensures (eac (Zeta.SeqAux.prefix l i)))
           [SMTPat (Zeta.SeqAux.prefix l i)]
 
+val lemma_eac_state_of_key
+  (#app: app_params)
+  (l: eac_log app)
+  (k: key app)
+  : Lemma (ensures (eac_state_of_key k l <> EACFail))
+          [SMTPat (eac_state_of_key k l)]
+
 val max_eac_prefix
   (#app: app_params)
   (l:vlog_ext app)
@@ -190,7 +198,7 @@ val max_eac_prefix
 (* computable version of eac *)
 val is_eac_log (#app: app_params) (l:vlog_ext app): (r:bool{r <==> eac l})
 
-val eac_value (#app: app_params) (l: eac_log app) (k: key app)
+val eac_value (#app: app_params) (k: key app) (l: eac_log app)
   : value_t k
 
 let appfn_call_seq
@@ -220,4 +228,4 @@ val eac_state_is_app_state (#app: app_params) (l: eac_log app) (k: app_key app.a
   : Lemma (ensures (let fs = appfn_call_seq l in
                     let app_state,_ = Some?.v (simulate fs) in
                     let gk = AppK k in
-                    eac_value l gk = AppV (app_state k)))
+                    eac_value gk l = AppV (app_state k)))

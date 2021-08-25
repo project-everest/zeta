@@ -49,7 +49,7 @@ val lemma_hprefix_append_telem (#a:Type) (s: seq a{length s > 0}):
   Lemma (ensures (let s' = hprefix s in
                   let e = telem s in
                   s == append1 s' e))
-        [SMTPat (append1 (hprefix s) (telem s))]
+        [SMTPat (hprefix s); SMTPat (prefix s (length s - 1))]
 
 val lemma_prefix0_empty (#a:Type) (s: seq a):
 Lemma (prefix s 0 == empty #a)

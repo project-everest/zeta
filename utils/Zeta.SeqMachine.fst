@@ -1,5 +1,10 @@
 module Zeta.SeqMachine
 
+let lemma_empty_seq_init (sm: seq_machine) (s: seq (elem_type sm){length s = 0})
+  : Lemma (ensures (seq_machine_run sm s = (init_state sm)))
+  = lemma_reduce_empty (init_state sm) (trans_fn sm);
+    lemma_empty s
+
 let lemma_empty_seq_valid (sm: seq_machine):
   Lemma (valid sm (empty #(elem_type sm))) =
   lemma_reduce_empty (init_state sm) (trans_fn sm)

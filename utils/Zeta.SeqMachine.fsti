@@ -47,6 +47,9 @@ let seq_machine_run (sm: seq_machine) (s: seq (elem_type sm)): Tot (state_type s
 let valid (sm: seq_machine) (s: seq (elem_type sm)) = 
   (fail_state sm) <> (seq_machine_run sm s)
 
+val lemma_empty_seq_init (sm: seq_machine) (s: seq (elem_type sm){length s = 0})
+  : Lemma (ensures (seq_machine_run sm s = (init_state sm)))
+
 (* empty sequence is valid *)
 val lemma_empty_seq_valid (sm: seq_machine):
   Lemma (valid sm (empty #(elem_type sm)))
