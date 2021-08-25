@@ -395,20 +395,26 @@ let vevictm s s' vs
             | T.Dh_vnone _ -> fail vs "No child"
             | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
               if k2 <> k then fail vs "k2 <> k"
-              else if Some? r.record_parent_slot &&
-                    (fst (Some?.v r.record_parent_slot) <> s' ||
-                     snd (Some?.v r.record_parent_slot) <> d)
-              then fail vs "parent slot mismatch"
-              else let b = points_to_some_slot s' d vs in
-                   if None? r.record_parent_slot
-                   && b
-                   then fail vs "parent slot mismatch"
-                   else (
-                     let h = hashfn v in //TODO: Lower
-                     let v'_upd = update_merkle_value v' d k h false in
-                     let tsm = update_value s' (T.V_mval v'_upd) vs in
-                     mevict_from_store s s' d vs
-                   )
+              else match r.record_parent_slot with
+                   | None ->
+                     let b = points_to_some_slot s' d vs in
+                     if b then fail vs "parent slot mismatch"
+                     else (
+                       let h = hashfn v in //TODO: Lower
+                       let v'_upd = update_merkle_value v' d k h false in
+                       let tsm = update_value s' (T.V_mval v'_upd) vs in
+                       mevict_from_store s s' d vs
+                     )
+
+                   | Some (p_s, p_d) ->
+                     if p_s <> s' || p_d <> d
+                     then fail vs "parent slot mismatch"
+                     else (
+                       let h = hashfn v in //TODO: Lower
+                       let v'_upd = update_merkle_value v' d k h false in
+                       let tsm = update_value s' (T.V_mval v'_upd) vs in
+                       mevict_from_store s s' d vs
+                     )
           ))
 
 let vaddb s r t thread_id vs
@@ -518,18 +524,19 @@ let vevictbm (s s':U16.t)
               | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
                 if (k2 <> k) || (b2 = T.Vtrue)
                 then fail vs "k2<>k || b2"
-                else if None? r.record_parent_slot
-                     || fst (Some?.v r.record_parent_slot) <> s'
-                     || snd (Some?.v r.record_parent_slot) <> d
-                then fail vs "paren slot checks"
-                else (
-                  vevictb_update_hash_clock s t vs;
-                  let mv'_upd = update_merkle_value mv' d k h2 true in
-                  update_value s' (T.V_mval mv'_upd) vs;
-                  mevict_from_store s s' d vs
+                else match r.record_parent_slot with
+                     | None -> fail vs "paren slot checks"
+                     | Some (ps, pd) ->
+                       if ps <> s' || pd <> d
+                       then fail vs "paren slot checks"
+                       else (
+                         vevictb_update_hash_clock s t vs;
+                         let mv'_upd = update_merkle_value mv' d k h2 true in
+                         update_value s' (T.V_mval mv'_upd) vs;
+                         mevict_from_store s s' d vs
+                       )
                 )
             )
         )
       )
     )
-  )
