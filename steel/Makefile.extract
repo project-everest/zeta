@@ -2,7 +2,7 @@
 #include ../Makefile.common
 VERITAS_HOME = ..
 SRC_DIRS=$(VERITAS_HOME)/high $(VERITAS_HOME)/intermediate $(VERITAS_HOME)/steel/formats
-FSTAR_FILES=$(wildcard *fst *fsti)
+FSTAR_FILES=Veritas.Steel.Verifier.fst
 
 all: verify
 
@@ -14,3 +14,5 @@ $(OUTPUT_DIRECTORY)/%.krml:
 	--extract_module $(basename $(notdir $(subst .checked,,$<)))
 
 extract: $(filter-out $(OUTPUT_DIRECTORY)/Veritas_Intermediate% $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))
+
+# krml -warn-error +9 -skip-compilation "*.krml" -bundle Veritas.Steel.Verifier=Veritas.*

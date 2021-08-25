@@ -51,7 +51,7 @@ FSTAR=fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 
 .depend: $(FSTAR_FILES)
 	mkdir -p $(CACHE_DIRECTORY)
-	$(FSTAR) --dep full --extract 'Veritas' $(notdir $^) > .depend
+	$(FSTAR) --dep full $(notdir $^) > .depend
 
 depend: .depend
 
