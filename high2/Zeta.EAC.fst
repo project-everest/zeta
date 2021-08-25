@@ -56,7 +56,6 @@ let eac_empty_log
     in
     ()
 
-
 let rec search_keys_subtree (f: base_key -> bool) (k: base_key)
   : Tot (o: (option base_key)
     {
@@ -255,14 +254,101 @@ let eac_value (#app: app_params) (k: key app) (l: eac_log app)
   : value_t k
   = eac_value_base k l
 
+let eac_valid_helper_init #app (l: eac_log app{length l = 0})
+  : Lemma (ensures (let fs = appfn_call_seq l in
+                    Some? (simulate fs) /\
+                    (forall (k: app_key app.adm).
+                      let app_state,_ = Some?.v (simulate fs) in
+                      let gk = AppK k in
+                      eac_value gk l = AppV (app_state k))))
+  = admit()
+
+let lemma_indexed_filter_map_extend_unsat (#a #b:_)
+  (s: seq a)
+  (f:(seq_index s -> bool))
+  (m:(i:(seq_index s){f i} -> b))
+  : Lemma (requires (length s > 0 /\ not (f (length s - 1))))
+          (ensures (indexed_filter_map s f m == indexed_filter_map (hprefix s) f m))
+  = admit()
+
+let lemma_indexed_filter_map_extend_sat (#a #b:_)
+  (s: seq a)
+  (f:(seq_index s -> bool))
+  (m:(i:(seq_index s){f i} -> b))
+  : Lemma (requires (length s > 0 /\ f (length s - 1)))
+          (ensures (indexed_filter_map s f m == append1 (indexed_filter_map (hprefix s) f m)
+                                                        (m (length s - 1))))
+  = admit()
+
+let appfn_call_seq_unchanged #app (l: eac_log app)
+  : Lemma (requires (length l > 0 /\ not (App? (telem l))))
+          (ensures (appfn_call_seq l == appfn_call_seq (hprefix l)))
+  = admit()
+
+let appfn_call_seq_append #app (l: eac_log app)
+  : Lemma (requires (length l > 0 /\ App? (telem l)))
+          (ensures (let App (RunApp fid_c arg_c _) inp_c = telem l in
+                    let fc = {fid_c; arg_c; inp_c} in
+          appfn_call_seq l == append1 (appfn_call_seq (hprefix l)) fc))
+  = admit()
+
+let app_key_eac_value_unchanged_by_nonapp_entry #app (l: eac_log app) (k: key app{AppK? k})
+  : Lemma (requires (length l > 0 /\ ~ (App? (telem l))))
+          (ensures (let l' = hprefix l in
+                    eac_value k l = eac_value k l'))
+  = admit()
+
+let non_ref_key_eac_value_unchanged #app (l: eac_log app) (k: key app)
+  : Lemma (requires (length l > 0 /\
+                     (let ee = telem l in
+                      let e = to_vlog_entry ee in
+                      let bk = to_base_key k in
+                      not (e `refs_key` bk))))
+          (ensures (let l' = hprefix l in
+                    eac_value k l = eac_value k l'))
+  = admit()
+
+let rec eac_valid_helper (#app: app_params) (l: eac_log app)
+  : Lemma (ensures (let fs = appfn_call_seq l in
+                    Some? (simulate fs) /\
+                    (forall (k: app_key app.adm).
+                      let app_state,_ = Some?.v (simulate fs) in
+                      let gk = AppK k in
+                      eac_value gk l = AppV (app_state k))))
+          (decreases (length l))
+ = if length l = 0 then eac_valid_helper_init l
+   else
+     let i = length l - 1 in
+     let l' = prefix l i in
+     let ee = index l i in
+     let e = to_vlog_entry ee in
+     let fs = appfn_call_seq l in
+     eac_valid_helper l';
+     if App? ee then (
+
+       admit()
+     )
+     else
+       appfn_call_seq_unchanged l;
+       let app_state,_ = Some?.v (simulate fs) in
+
+       let aux (k: app_key app.adm)
+         : Lemma (ensures (let gk = AppK k in
+                           eac_value gk l = AppV (app_state k)))
+          = let gk = AppK k in
+            app_key_eac_value_unchanged_by_nonapp_entry l gk
+       in
+       FStar.Classical.forall_intro aux
+
+
 let eac_implies_valid_simulation (#app: app_params) (l: eac_log app)
   : Lemma (ensures (let fs = appfn_call_seq l in
                     Some? (simulate fs)))
-  = admit()
+  = eac_valid_helper l
 
 let eac_state_is_app_state (#app: app_params) (l: eac_log app) (k: app_key app.adm)
   : Lemma (ensures (let fs = appfn_call_seq l in
                     let app_state,_ = Some?.v (simulate fs) in
                     let gk = AppK k in
                     eac_value gk l = AppV (app_state k)))
-  = admit()
+  = eac_valid_helper l

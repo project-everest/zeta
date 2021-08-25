@@ -60,79 +60,94 @@ let to_vlog_entry #app (ee:vlog_entry_ext app): vlog_entry app =
   | NEvict e -> e
   | App e _ -> e
 
-let eac_add #app #ks (ee: vlog_entry_ext app) (s: eac_state app ks) : eac_state app ks
+(* implement eac_add for app entries *)
+let eac_add_app #app #ks (ee: vlog_entry_ext app {App? ee}) (s: eac_state app ks)
+  : eac_state app ks
   = let e = to_vlog_entry ee in
-    (* if this entry does not reference key ks, the state is unchanged *)
-    if not (e `refs_key` ks) then s
+    let App (RunApp f p refkeys) rs = ee in
+    let fn = appfn f in
+    let rc,_,ws = fn p rs in
+
+    (* any app failure leads to eac failure *)
+    if rc = Fn_failure then EACFail
+    (* propagate state if e does not ref the key we are tracking *)
+    else if not (e `refs_key` ks) then s
     else
       match s with
-      | EACFail ->
-        EACFail
-
-      | EACInit -> (
-        match ee with
-
-        | NEvict (AddM (k,v) _ _) ->
-          if v = init_value k && to_base_key k = ks then EACInStore MAdd v
-          else EACFail
-
-        | NEvict NextEpoch ->
-          s
-
-        | NEvict VerifyEpoch ->
-          s
-
-        | _ ->
-          EACFail
-        )
-
-    | EACInStore m v -> (
-      match ee with
-      | App (RunApp f p refkeys) rs ->
-        let fn = appfn f in
-        let rc, _, ws = fn p rs in
+      | EACInStore m v ->
         let idx = index_mem ks refkeys in
         let (_,v') = index rs idx in
         if AppV v' <> v then EACFail
-        else if rc = Fn_failure then EACFail
         else
           let v = AppV (index ws idx) in
           EACInStore m v
-
-      | EvictMerkle (EvictM  _ _) v' ->
-        if AppV? v && v' <> v then EACFail
-        else if IntV? v && not (IntV? v') then EACFail
-        else EACEvictedMerkle v'
-
-      | EvictBlum (EvictBM k k' t) v' j ->
-        if AppV? v && v' <> v || m <> MAdd then EACFail
-        else if IntV? v && not (IntV? v') then EACFail
-        else EACEvictedBlum v' t j
-
-      | EvictBlum (EvictB _ t) v' j ->
-        if AppV? v && v' <> v || m <> BAdd then EACFail
-        else if IntV? v && not (IntV? v') then EACFail
-        else EACEvictedBlum v' t j
-
-      | _ ->
-      EACFail
-    )
-
-    | EACEvictedMerkle v -> (
-      match ee with
-      | NEvict (AddM (_,v') _ _) ->
-        if v' = v then EACInStore MAdd v
-        else EACFail
       | _ -> EACFail
-    )
 
-    | EACEvictedBlum v t tid -> (
-      match ee with
-      | NEvict (AddB (_,v') _ t' tid') ->
-        if v' = v && t' = t && tid' = tid then EACInStore BAdd v
-        else EACFail
-      | _ -> EACFail
-    )
+let eac_add #app #ks (ee: vlog_entry_ext app) (s: eac_state app ks) : eac_state app ks
+  = if App? ee then eac_add_app ee s
+    else
+      let e = to_vlog_entry ee in
+      (* if this entry does not reference key ks, the state is unchanged *)
+      if not (e `refs_key` ks) then s
+      else
+        match s with
+        | EACFail ->
+          EACFail
+
+        | EACInit -> (
+          match ee with
+
+          | NEvict (AddM (k,v) _ _) ->
+            if v = init_value k && to_base_key k = ks then EACInStore MAdd v
+            else EACFail
+
+          | NEvict NextEpoch ->
+            s
+
+          | NEvict VerifyEpoch ->
+            s
+
+          | _ ->
+            EACFail
+          )
+
+        | EACInStore m v -> (
+          match ee with
+
+          | EvictMerkle (EvictM  _ _) v' ->
+            if AppV? v && v' <> v then EACFail
+            else if IntV? v && not (IntV? v') then EACFail
+            else EACEvictedMerkle v'
+
+          | EvictBlum (EvictBM k k' t) v' j ->
+            if AppV? v && v' <> v || m <> MAdd then EACFail
+            else if IntV? v && not (IntV? v') then EACFail
+            else EACEvictedBlum v' t j
+
+          | EvictBlum (EvictB _ t) v' j ->
+            if AppV? v && v' <> v || m <> BAdd then EACFail
+            else if IntV? v && not (IntV? v') then EACFail
+            else EACEvictedBlum v' t j
+
+          | _ ->
+          EACFail
+        )
+
+        | EACEvictedMerkle v -> (
+          match ee with
+          | NEvict (AddM (_,v') _ _) ->
+            if v' = v then EACInStore MAdd v
+            else EACFail
+          | _ -> EACFail
+        )
+
+        | EACEvictedBlum v t tid -> (
+          match ee with
+          | NEvict (AddB (_,v') _ t' tid') ->
+            if v' = v && t' = t && tid' = tid then EACInStore BAdd v
+            else EACFail
+          | _ -> EACFail
+        )
 
 let eac_smk (app: app_params) (k: base_key) = SeqMachine EACInit EACFail (eac_add #app #k)
 
@@ -201,6 +216,10 @@ val is_eac_log (#app: app_params) (l:vlog_ext app): (r:bool{r <==> eac l})
 val eac_value (#app: app_params) (k: key app) (l: eac_log app)
   : value_t k
 
+let to_fncall (#app: app_params) (ee: vlog_entry_ext app {App? ee})
+  = let App (RunApp fid_c arg_c _) inp_c = ee in
+    {fid_c; arg_c; inp_c}
+
 let appfn_call_seq
   (#app: app_params)
   (l: vlog_ext app)
@@ -211,11 +230,7 @@ let appfn_call_seq
     in
     let to_fncall = fun (i: seq_index l{is_app i}) ->
       let ee = index l i in
-      let e = to_vlog_entry ee in
-      { fid_c = RunApp?.f e;
-        arg_c = RunApp?.p e;
-        inp_c = App?.rs ee;
-      }
+      to_fncall ee
     in
     indexed_filter_map l is_app to_fncall
 

@@ -56,6 +56,15 @@ val prefix_of_distinct_distinct
                   distinct_keys #adm sk'))
         [SMTPat (SA.prefix sk i)]
 
+(* check that each record in a sequence of records is consistent with an input state *)
+val input_correct (#adm: app_data_model)
+  (st: app_state adm)
+  (inp: S.seq (app_record adm))
+  : Tot (b: bool{b <==>
+                (forall (i: SA.seq_index inp).
+                    let k,v = S.index inp i in
+                    st k = v)})
+
 (* update the state with new values for a sequence of keys (specified as a record) *)
 let rec update_seq #adm
   (st: app_state adm)
@@ -79,7 +88,11 @@ let simulate_step #aprm (fncall: appfn_call aprm) (st: app_state aprm.adm):
   option ( app_state aprm.adm & appfn_res fncall.fid_c) =
   let fn = appfn fncall.fid_c in
   let rc,res,ws = fn fncall.arg_c fncall.inp_c in
-  if rc = Fn_failure then None
+  (* if the input records are not consistent with the state then fail *)
+  if not (input_correct st fncall.inp_c) then None
+  (* if the function evaluation fails, fail the step *)
+  else if rc = Fn_failure then None
+  (* No failures: update the state *)
   else Some (update_seq st fncall.inp_c ws, res)
 
 (* initial state of the application *)
