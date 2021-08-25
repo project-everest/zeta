@@ -12,6 +12,7 @@ module L = FStar.List.Tot
 module BinTree = Veritas.BinTree
 #push-options "--using_facts_from '* -FStar.Seq.Properties.slice_slice'"
 
+let slot (n:U16.t) = x:T.slot_id{ U16.v x < U16.v n}
 let is_data_key (k:T.key)
   : bool
   = k.T.significant_digits = 256us
@@ -26,23 +27,24 @@ let is_value_of (k:T.key) (v:T.value)
 
 let data_key = k:T.key{ is_data_key k }
 
-type record = {
+type record (n:U16.t) = {
   record_key : T.key;
   record_value : (v:T.value { is_value_of record_key v });
   record_add_method : T.add_method;
-  record_l_child_in_store : option T.slot_id;
-  record_r_child_in_store : option T.slot_id;
-  record_parent_slot : option (T.slot_id & bool);
+  record_l_child_in_store : option (slot n);
+  record_r_child_in_store : option (slot n);
+  record_parent_slot : option (slot n & bool);
 }
 
-let contents = Seq.seq (option record)
+let contents (n:U16.t) = Seq.lseq (option (record n)) (U16.v n)
 let model_hash = MSH.ms_hash_value
 
 [@@erasable]
 noeq
 type thread_state_model = {
   model_failed : bool;
-  model_store : contents;
+  model_store_len : U16.t;
+  model_store : contents model_store_len;
   model_clock : U64.t;
   model_hadd : model_hash;
   model_hevict : model_hash;
@@ -189,16 +191,16 @@ let related_add_method (s_am: T.add_method)
     | BAdd, Veritas.Verifier.BAdd -> True
     | _ -> False
 
-let related_in_store_tag #vcfg
-                         (s_in_store_tag: option (T.slot_id))
+let related_in_store_tag #n #vcfg
+                         (s_in_store_tag: option (slot n))
                          (i_in_store_tag: option (VCfg.slot_id vcfg))
   = match s_in_store_tag, i_in_store_tag with
     | None, None -> True
     | Some s, Some i -> U16.v s == i
     | _ -> False
 
-let related_parent_slot #vcfg
-                        (s: option (T.slot_id & bool))
+let related_parent_slot #n #vcfg
+                        (s: option (slot n & bool))
                         (p: option (VCfg.slot_id vcfg & Veritas.BinTree.bin_tree_dir))
   = match s, p with
     | None, None -> True
@@ -207,8 +209,8 @@ let related_parent_slot #vcfg
       b == Veritas.BinTree.Left? d
     | _ -> False
 
-let related_record #vcfg
-                   (s_record:record)
+let related_record #n #vcfg
+                   (s_record:record n)
                    (i_record:IStore.vstore_entry vcfg)
   = let IStore.VStoreE k v am l_in_store r_in_store p = i_record in
     related_key s_record.record_key k /\
@@ -218,16 +220,16 @@ let related_record #vcfg
     related_in_store_tag s_record.record_r_child_in_store r_in_store /\
     related_parent_slot s_record.record_parent_slot p
 
-let related_record_opt #vcfg
-                       (s_record:option record)
+let related_record_opt #n #vcfg
+                       (s_record:option (record n))
                        (i_record:option (IStore.vstore_entry vcfg))
   = match s_record, i_record with
     | None, None -> True
     | Some s, Some i -> related_record s i
     | _ -> False
 
-let related_stores #vcfg
-                   (s_store:contents)
+let related_stores #n #vcfg
+                   (s_store:contents n)
                    (i_store:IStore.vstore vcfg)
   = Seq.length s_store == vcfg.VCfg.store_size /\
     (forall (i:nat { i < Seq.length s_store }).

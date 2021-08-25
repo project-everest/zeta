@@ -1,10 +1,11 @@
 module Veritas.Steel.VCache
+module C = FStar.Int.Cast
 
-let vcache_create n = malloc None n
+let vcache_create n =
+  let h = get () in //TODO: need this unnecessarily
+  malloc None (C.uint16_to_uint32 n)
 
-assume
-val uint16_to_uint32 (n:U16.t) : Tot (v:U32.t{U32.v v == U16.v n})
+let vcache_get_record vst s =
+  index vst (C.uint16_to_uint32 s)
 
-let vcache_get_record vst s = index vst (uint16_to_uint32 s)
-
-let vcache_set st s r = upd st (uint16_to_uint32 s) r
+let vcache_set st s r = upd st (C.uint16_to_uint32 s) r

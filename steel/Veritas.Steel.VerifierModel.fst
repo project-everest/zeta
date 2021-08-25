@@ -11,36 +11,41 @@ open Veritas.ThreadStateModel
 
 let model_fail tsm = {tsm with model_failed=true}
 
-let slot (tsm:thread_state_model) = i:T.slot_id{U16.v i < Seq.length tsm.model_store}
-
-let model_get_record (tsm:thread_state_model) (s:slot tsm) : GTot (option record)
+let model_get_record (tsm:thread_state_model) (s:slot tsm.model_store_len)
+  : GTot (option (record tsm.model_store_len))
   = Seq.index tsm.model_store (U16.v s)
-let has_slot (tsm:thread_state_model) (s:slot tsm) = Some? (model_get_record tsm s)
 
-let model_put_record (tsm:thread_state_model) (s:slot tsm) (r:record)
+let has_slot (tsm:thread_state_model) (s:slot tsm.model_store_len)
+  = Some? (model_get_record tsm s)
+
+let model_put_record (tsm:thread_state_model) (s:slot tsm.model_store_len) (r:record tsm.model_store_len)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) (Some r)}
 
-let key_of_slot (tsm:thread_state_model) (s:slot tsm { has_slot tsm s })
+let key_of_slot (tsm:thread_state_model) (s:slot tsm.model_store_len { has_slot tsm s })
   : GTot T.key
   = let Some v = model_get_record tsm s in
     v.record_key
 
 let model_update_value (tsm:thread_state_model)
-                       (s:slot tsm{has_slot  tsm s})
+                       (s:slot tsm.model_store_len{has_slot  tsm s})
                        (r:T.value {is_value_of (key_of_slot tsm s) r})
   : thread_state_model
   = let Some v = model_get_record tsm s in
     model_put_record tsm s ({v with record_value = r})
 
-let model_evict_record (tsm:thread_state_model) (s:slot tsm)
+let model_evict_record (tsm:thread_state_model) (s:slot tsm.model_store_len)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) None }
 
-let mk_record_full (k:T.key)
+module TSM = Veritas.ThreadStateModel
+let mk_record_full (#n:_)
+                   (k:T.key)
                    (v:T.value{is_value_of k v})
                    (a:T.add_method)
-                   l r p : record
+                   (l r:option (TSM.slot n))
+                   (p:option (TSM.slot n & bool))
+  : TSM.record n
   = {
       record_key = k;
       record_value = v;
@@ -51,7 +56,7 @@ let mk_record_full (k:T.key)
     }
 
 
-let mk_record (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : record
+let mk_record #n (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : record n
   = mk_record_full k v a None None None
 
 let model_update_clock (tsm:thread_state_model) (ts:T.timestamp)
@@ -167,7 +172,7 @@ let init_value (k:T.key)
     else V_mval ({ l = Dh_vnone (); r = Dh_vnone ()})
 
 let points_to_some_slot (tsm:thread_state_model)
-                        (s:slot tsm)
+                        (s:slot tsm.model_store_len)
                         (d:bool)
   : GTot bool
   = match model_get_record tsm s with
@@ -178,14 +183,14 @@ let points_to_some_slot (tsm:thread_state_model)
       else Some? (r.TSM.record_r_child_in_store)
 
 let model_madd_to_store (tsm:thread_state_model)
-                        (s:slot tsm)
+                        (s:slot tsm.model_store_len)
                         (k:T.key)
                         (v:T.value)
-                        (s':slot tsm)
+                        (s':slot tsm.model_store_len)
                         (d:bool)
   : tsm':thread_state_model{
         Seq.length tsm.model_store = Seq.length tsm'.model_store /\
-        (forall (ss:slot tsm). {:pattern has_slot tsm' ss}
+        (forall (ss:slot tsm.model_store_len). {:pattern has_slot tsm' ss}
           has_slot tsm ss ==>
           (has_slot tsm' ss /\
            is_data_key (key_of_slot tsm ss) ==
@@ -215,27 +220,30 @@ let model_madd_to_store (tsm:thread_state_model)
       let store'' = Seq.upd store' (U16.v s') (Some r') in
       {tsm with model_store = store''}
 
-let record_update_parent_slot (r:record)
-                              (s:_)
+let record_update_parent_slot (#n:_)
+                              (r:record n)
+                              (s:(slot n & bool))
   = { r with record_parent_slot = Some s }
 
-let record_update_child (r:record) (d:bool) (s:_)
+let record_update_child (#n:_) (r:record n) (d:bool) (s:slot n)
+  : record n
   = if d then {r with record_l_child_in_store = Some s }
     else {r with record_r_child_in_store = Some s}
 
-let record_child_slot (r:record) (d:bool)
+let record_child_slot (#n:_) (r:record n) (d:bool)
+  : option (slot n)
   = if d then r.record_l_child_in_store
     else r.record_r_child_in_store
 
 let model_madd_to_store_split (tsm:thread_state_model)
-                              (s:slot tsm)
+                              (s:slot tsm.model_store_len)
                               (k:T.key)
                               (v:T.value)
-                              (s':slot tsm)
+                              (s':slot tsm.model_store_len)
                               (d d2:bool)
   : tsm':thread_state_model{
          Seq.length tsm.model_store = Seq.length tsm'.model_store /\
-         (forall (ss:slot tsm). {:pattern has_slot tsm' ss}
+         (forall (ss:slot tsm.model_store_len). {:pattern has_slot tsm' ss}
            (has_slot tsm ss ==>
              (has_slot tsm' ss /\
               is_data_key (key_of_slot tsm ss) ==
@@ -270,7 +278,7 @@ let model_madd_to_store_split (tsm:thread_state_model)
                  { tsm with model_store = st }
 
 let model_mevict_from_store (tsm:thread_state_model)
-                            (s s':slot tsm)
+                            (s s':slot tsm.model_store_len)
                             (d:bool)
   : tsm':thread_state_model{
         Seq.length tsm.model_store = Seq.length tsm'.model_store
@@ -288,9 +296,8 @@ let model_mevict_from_store (tsm:thread_state_model)
       let st = Seq.upd st (U16.v s) None in
       { tsm with model_store = st }
 
-
 let model_bevict_from_store (tsm:thread_state_model)
-                            (s:slot tsm)
+                            (s:slot tsm.model_store_len)
   : tsm':thread_state_model{
         Seq.length tsm.model_store = Seq.length tsm'.model_store
     }
@@ -301,7 +308,7 @@ let timestamp_lt (t0 t1:T.timestamp) = t0 `U64.lt` t1
 
 ////////////////////////////////////////////////////////////////////////////////
 
-let vget_model (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.data_value)
+let vget_model (tsm:thread_state_model) (s:slot tsm.model_store_len) (k:T.key) (v:T.data_value)
   : thread_state_model
   = match model_get_record tsm s with
     | None -> model_fail tsm
@@ -310,7 +317,7 @@ let vget_model (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.data_value)
       else if r.record_value <> T.V_dval v then model_fail tsm
       else tsm
 
-let vput_model (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.data_value)
+let vput_model (tsm:thread_state_model) (s:slot tsm.model_store_len) (k:T.key) (v:T.data_value)
   : thread_state_model
   = match model_get_record tsm s with
     | None -> model_fail tsm
@@ -319,7 +326,7 @@ let vput_model (tsm:thread_state_model) (s:slot tsm) (k:T.key) (v:T.data_value)
       else if not (is_data_key k) then model_fail tsm
       else model_put_record tsm s ({r with record_value = T.V_dval v})
 
-let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
+let vaddm_model (tsm:thread_state_model) (s:slot tsm.model_store_len) (r:T.record) (s':slot tsm.model_store_len)
   : thread_state_model
   = let k = r.T.record_key in
     let v = r.T.record_value in
@@ -380,7 +387,7 @@ let vaddm_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (s':slot tsm)
               model_update_value tsm s' (T.V_mval v'_upd)
 
 
-let vaddb_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
+let vaddb_model (tsm:thread_state_model) (s:slot tsm.model_store_len) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
   : thread_state_model
   = let { T.record_key = k;
           T.record_value = v } = r in
@@ -397,7 +404,7 @@ let vaddb_model (tsm:thread_state_model) (s:slot tsm) (r:T.record) (t:T.timestam
       model_put_record tsm s (mk_record k v T.BAdd)
     )
 
-let vevictm_model (tsm:thread_state_model) (s s':slot tsm)
+let vevictm_model (tsm:thread_state_model) (s s':slot tsm.model_store_len)
   : thread_state_model
   = if s = s' then model_fail tsm
     else (
@@ -440,7 +447,7 @@ let vevictm_model (tsm:thread_state_model) (s s':slot tsm)
     )
 
 let sat_evictb_checks (tsm:_)
-                      (s:slot tsm)
+                      (s:slot tsm.model_store_len)
                       (t:T.timestamp)
   : GTot bool
   = match model_get_record tsm s with
@@ -461,7 +468,7 @@ let sat_evictb_checks (tsm:_)
 
 let model_vevictb_update_hash_clock
        tsm
-       (s:slot tsm)
+       (s:slot tsm.model_store_len)
        (t:T.timestamp { sat_evictb_checks tsm s t })
    : thread_state_model
    = let Some r = model_get_record tsm s in
@@ -474,7 +481,7 @@ let model_vevictb_update_hash_clock
      { tsm with model_hevict = h_upd;
                 model_clock = t }
 
-let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp)
+let vevictb_model (tsm:thread_state_model) (s:slot tsm.model_store_len) (t:T.timestamp)
   : thread_state_model
   = if not (sat_evictb_checks tsm s t)
     then model_fail tsm
@@ -489,7 +496,7 @@ let vevictb_model (tsm:thread_state_model) (s:slot tsm) (t:T.timestamp)
     )
 
 let vevictbm_model (tsm:thread_state_model)
-                   (s s':slot tsm)
+                   (s s':slot tsm.model_store_len)
                    (t:T.timestamp)
   : thread_state_model
   = if s = s' then model_fail tsm

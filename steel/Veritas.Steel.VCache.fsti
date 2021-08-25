@@ -13,71 +13,73 @@ module T = Veritas.Formats.Types
 open Veritas.Steel.VerifierModel
 module VM = Veritas.ThreadStateModel
 
-let vstore : Type0 = Steel.Array.array (option VM.record)
-unfold
-let is_vstore (st:vstore) = varray st
+let vstore (n:U16.t)
+  : Type0
+  = a:Steel.Array.array (option (VM.record n)) {
+         U16.v n == Steel.Array.length a
+    }
 
-val vcache_create (n:U32.t)
-  : Steel vstore
+unfold
+let is_vstore (#n:U16.t) (st:vstore n) = varray st
+
+val vcache_create (n:U16.t)
+  : Steel (vstore n)
            emp
            (fun v -> is_vstore v)
            (requires fun _ -> True)
-           (ensures fun _ v h1 -> asel v h1 == Seq.create (U32.v n) None)
+           (ensures fun _ v h1 -> asel v h1 == Seq.create (U16.v n) None)
 
-let slot_id = U16.t
+let slot (n:U16.t) = x:U16.t{ U16.v x < U16.v n }
 
-val vcache_get_record (vst:vstore) (s:slot_id)
-  : Steel (option VM.record)
+val vcache_get_record (#n:_) (vst:vstore n) (s:slot n)
+  : Steel (option (VM.record n))
           (is_vstore vst)
           (fun _ -> is_vstore vst)
-          (requires fun h -> U16.v s < length (asel vst h))
+          (requires fun h -> True)
           (ensures fun h0 res h1 ->
-             U16.v s < length (asel vst h0) /\
              asel vst h0 == asel vst h1 /\
              res == Seq.index (asel vst h1) (U16.v s))
 
-val vcache_set (st:vstore) (s:slot_id) (r:option VM.record)
+val vcache_set (#n:_) (st:vstore n) (s:slot n) (r:option (VM.record n))
   : Steel unit
       (is_vstore st)
       (fun _ -> is_vstore st)
-      (requires fun h -> U16.v s < length (asel st h))
+      (requires fun h -> True)
       (ensures fun h0 _ h1 ->
-        U16.v s < length (asel st h0) /\
         asel st h1 == Seq.upd (asel st h0) (U16.v s) r)
 
-let vcache_update_record (st:vstore) (s:slot_id) (r:VM.record)
+let vcache_update_record (#n:_) (st:vstore n) (s:slot n) (r:VM.record n)
   : Steel unit
       (is_vstore st)
       (fun _ -> is_vstore st)
-      (requires fun h -> U16.v s < length (asel st h))
+      (requires fun h -> True)
       (ensures fun h0 _ h1 ->
-        U16.v s < length (asel st h0) /\
         asel st h1 == Seq.upd (asel st h0) (U16.v s) (Some r))
   = vcache_set st s (Some r)
 
 let vcache_add_record
-      (vst:vstore)
-      (s:slot_id)
+      (#n:_)
+      (vst:vstore n)
+      (s:slot n)
       (k:T.key)
       (v:T.value{VM.is_value_of k v})
       (a:T.add_method)
   : Steel unit
       (is_vstore vst)
       (fun _ -> is_vstore vst)
-      (requires fun h -> U16.v s < length (asel vst h))
+      (requires fun h -> True)
       (ensures fun h0 _ h1 ->
-        U16.v s < length (asel vst h0) /\
         asel vst h1 == Seq.upd (asel vst h0) (U16.v s) (Some (mk_record k v a)))
   = vcache_update_record vst s (mk_record k v a)
 
 let vcache_evict_record
-      (vst:vstore)
-      (s:slot_id)
+      (#n:_)
+      (vst:vstore n)
+      (s:slot n)
   : Steel unit
       (is_vstore vst)
       (fun _ -> is_vstore vst)
-      (requires fun h -> U16.v s < length (asel vst h))
+      (requires fun h -> True)
       (ensures fun h0 _ h1 ->
-        U16.v s < length (asel vst h0) /\
         asel vst h1 == Seq.upd (asel vst h0) (U16.v s) None)
   = vcache_set vst s None
