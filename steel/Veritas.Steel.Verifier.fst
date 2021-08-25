@@ -15,15 +15,7 @@ module T = Veritas.Formats.Types
 open Veritas.Steel.VCache
 open Veritas.Steel.VerifierModel
 open Veritas.ThreadStateModel
-
-let prf_set_hash = ref model_hash
-
-let prf_set_hash_sl (x:prf_set_hash)
-  = Steel.Memory.emp
-
-let prf_set_hash_sel (r:prf_set_hash) : selector (model_hash) (prf_set_hash_sl r) = admit()
-
-let prf_update_hash p r t thread_id = sladmit()
+module PRF = Veritas.Steel.PRFSetHash
 
 let check_overflow_add (x y:U64.t)
   : res:option U64.t {
@@ -199,7 +191,7 @@ let vevictb_update_hash_clock s t vs
     let Some r = r in
     let record = { T.record_key = r.record_key;
                    T.record_value = r.record_value } in
-    prf_update_hash vs.hevict record t vs.id;
+    PRF.prf_update_hash vs.hevict record t vs.id;
     Steel.Reference.write vs.clock t
 
 let bevict_from_store (s:U16.t) (vs:_)
@@ -437,7 +429,7 @@ let vaddb s r t thread_id vs
         fail vs "vaddb: slot s already exists"
       )
       else (
-        prf_update_hash vs.hadd r t thread_id;// vs;
+        PRF.prf_update_hash vs.hadd r t thread_id;// vs;
         update_clock t vs;
         VCache.vcache_add_record vs.st s k v T.BAdd)
     )

@@ -15,34 +15,7 @@ module T = Veritas.Formats.Types
 open Veritas.Steel.VCache
 open Veritas.Steel.VerifierModel
 open Veritas.ThreadStateModel
-val prf_set_hash : Type0
-
-// AF: Internally, should probably be implemented with a ghost reference to the model_hash
-// The selector would then fetch the value in the ghost state
-// The reason why we would need a ghost state is that the "spec" contains strictly more
-// information than the concrete value. So we cannot reconstruct it out of just the concrete state
-val prf_set_hash_sl (_:prf_set_hash) : slprop u#1
-val prf_set_hash_sel (r:prf_set_hash) : selector (model_hash) (prf_set_hash_sl r)
-[@@__steel_reduce__]
-let prf_set_hash_inv' (r:prf_set_hash) : vprop' =
-  { hp = prf_set_hash_sl r;
-    t = model_hash;
-    sel = prf_set_hash_sel r}
-unfold
-let prf_set_hash_inv (r:prf_set_hash) : vprop = VUnit (prf_set_hash_inv' r)
-
-[@@ __steel_reduce__]
-let v_hash (#p:vprop) (r:prf_set_hash)
-  (h:rmem p{FStar.Tactics.with_tactic selector_tactic (can_be_split p (prf_set_hash_inv r) /\ True)})
-  : GTot model_hash
-  = h (prf_set_hash_inv r)
-
-val prf_update_hash (p:prf_set_hash) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
-  : Steel unit
-    (prf_set_hash_inv p)
-    (fun _ -> prf_set_hash_inv p)
-    (requires fun _ -> True)
-    (ensures fun h0 _ h1 -> v_hash p h1 == model_update_hash (v_hash p h0) r t thread_id)
+module PRF = Veritas.Steel.PRFSetHash
 
 let counter_t = ref U64.t
 
@@ -51,18 +24,19 @@ type thread_state_t = {
   id           : T.thread_id;
   st           : vstore;  //a map from keys (cache ids) to merkle leaf or internal nodes
   clock        : counter_t;
-  hadd         : prf_set_hash; //current incremental set hash values; TODO
-  hevict       : prf_set_hash;
+  hadd         : PRF.prf_set_hash; //current incremental set hash values; TODO
+  hevict       : PRF.prf_set_hash;
   failed       : ref bool
 }
 
 [@@__reduce__; __steel_reduce__]
+noextract
 let thread_state_inv (t:thread_state_t) : vprop =
   is_vstore t.st `star`
   vptr t.clock `star`
   vptr t.failed `star`
-  prf_set_hash_inv t.hadd `star`
-  prf_set_hash_inv t.hevict
+  PRF.prf_set_hash_inv t.hadd `star`
+  PRF.prf_set_hash_inv t.hevict
 
 [@@ __steel_reduce__]
 unfold
@@ -74,8 +48,8 @@ let v_thread (#p:vprop) (t:thread_state_t)
       model_failed = sel t.failed (focus_rmem h (thread_state_inv t));
       model_store = asel t.st (focus_rmem h (thread_state_inv t));
       model_clock = sel t.clock (focus_rmem h (thread_state_inv t));
-      model_hadd = v_hash t.hadd (focus_rmem h (thread_state_inv t));
-      model_hevict = v_hash t.hevict (focus_rmem h (thread_state_inv t))
+      model_hadd = PRF.v_hash t.hadd (focus_rmem h (thread_state_inv t));
+      model_hevict = PRF.v_hash t.hevict (focus_rmem h (thread_state_inv t))
     }
 
 // AF: Requires some integers reasoningm, but should be straightforward

@@ -14,11 +14,11 @@ module BinTree = Veritas.BinTree
 
 let is_data_key (k:T.key)
   : bool
-  = U16.v k.T.significant_digits = 256
+  = k.T.significant_digits = 256us
 
 let is_root (k:T.key) 
   : bool
-  = U16.v k.T.significant_digits = 0
+  = k.T.significant_digits = 0us
 
 let is_value_of (k:T.key) (v:T.value)
   : bool
