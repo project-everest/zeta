@@ -2,6 +2,7 @@ module Zeta.EAC
 
 open Zeta.SeqMachine
 open Zeta.SeqAux
+open Zeta.AppSimulate.Helper
 
 let eac_state_of_base_key
   (#app: app_params)
@@ -308,6 +309,64 @@ let non_ref_key_eac_value_unchanged #app (l: eac_log app) (k: key app)
                     eac_value k l = eac_value k l'))
   = admit()
 
+let eac_implies_appfn_success (#app: app_params) (l: eac_log app)
+  : Lemma (requires (length l > 0 /\ App? (telem l)))
+          (ensures (correct (to_fncall (telem l))))
+          [SMTPat (eac l)]
+  = admit()
+
+let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.adm)
+  : Lemma (requires (length l > 0 /\ App? (telem l)))
+          (ensures (let gk = AppK ak in
+                    let ee = telem l in
+                    let App (RunApp _ _ refkeys) _ = ee in
+                    let e = to_vlog_entry ee in
+                    let bk = to_base_key gk in
+                    let fc = to_fncall ee in
+
+                    (e `refs_key` bk <==> fc `refs` ak) /\
+                    (e `refs_key` bk ==> (index_mem bk refkeys = refkey_idx fc ak))))
+  = admit()
+
+let ref_key_value_change #app (l: eac_log app) (ak: app_key app.adm)
+  : Lemma (requires (length l > 0 /\
+                    (let k = AppK ak in
+                     let ee = telem l in
+                     let e = to_vlog_entry ee in
+                     let bk = to_base_key k in
+                     App? ee /\ e `refs_key` bk)))
+          (ensures (let k = AppK ak in
+                    let ee = telem l in
+                    let fc = to_fncall ee in
+                    fc `refs` ak /\
+                    eac_value k l = AppV (write fc ak)))
+  = let ee = telem l in               // the tail element
+    let gk = AppK ak in               // generalized key
+    let bk = to_base_key gk in        // base-key
+    assert(bk == app.keyhashfn ak);   // is simply a hash of app key to 256 bits
+
+    let l' = hprefix l in
+    assert(eac l');                   // eac l => eac (prefix l)
+
+    let eac_smk = eac_smk app bk in   // state machine for the leaf key
+    assert(valid eac_smk l');         // running the state machine on l' results in valid state
+    assert(valid eac_smk l);          // since (eac l)
+
+    let es' = eac_state_of_base_key bk l' in
+    let es = eac_state_of_base_key bk l in
+
+    assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
+    assert(es = eac_add_app ee es');  // .. since ee is App?
+
+    assert(EACInStore? es');          // otherwise, es would fail
+    eac_refs_is_app_refs l ak;
+
+    match ee with
+    | App (RunApp f p refkeys) rs ->
+      let fc = to_fncall ee in
+      let idx = index_mem bk refkeys in
+      assert(idx = refkey_idx fc ak);
+      ()
 
 let eac_valid_helper_nonapp (#app: app_params) (l: eac_log app)
   : Lemma (requires (length l > 0 /\
@@ -327,22 +386,68 @@ let eac_valid_helper_nonapp (#app: app_params) (l: eac_log app)
     in
     assert(app_state_feq app_state (eac_app_state l))
 
-let eac_implies_appfn_success (#app: app_params) (l: eac_log app)
-  : Lemma (requires (length l > 0 /\ App? (telem l)))
-          (ensures (let fc = to_fncall (telem l) in
-                    let fn = appfn fc.fid_c in
-                    let rc,_,_ = fn fc.arg_c fc.inp_c in
-                    rc <> Fn_failure))
-          [SMTPat (eac l)]
-  = admit()
-
-let eac_implies_input_correct (#app: app_params) (l: eac_log app)
-  : Lemma (requires (length l > 0 /\ App? (telem l)))
-          (ensures (let fc = to_fncall (telem l) in
+let eac_implies_input_consistent_key #app (l: eac_log app) (ak: app_key app.adm)
+  : Lemma (requires (length l > 0 /\ App? (telem l) /\
+                     to_fncall (telem l) `refs` ak))
+          (ensures (let ee = telem l in
+                    let fc = to_fncall ee in
                     let st = eac_app_state (hprefix l) in
-                    input_correct st fc.inp_c))
+                    refkey_inp_val fc ak = st ak))
+  = //let ee = telem l in
+    // let l' = hprefix l in
+    // assert(eac l');
+
+    // let fc = to_fncall ee in
+    //let st = eac_app_state (hprefix l) in
+
+    // the base-key of the application key ak
+    let bk = to_base_key (AppK ak) in
+
+    // deconstruct ee
+    //match ee with
+    //| App (RunApp f p refkeys) rs ->
+      eac_refs_is_app_refs l ak;
+
+      //let idx = index_mem bk refkeys in
+
+      eac_state_transition_aux bk l;
+      //let es = eac_state_of_base_key bk l in
+      //let es' = eac_state_of_base_key bk l' in
+      //assert(es = eac_add_app ee es');
+
+      let eac_smk = eac_smk app bk in   // state machine for the leaf key
+      //assert(valid eac_smk l');         // running the state machine on l' results in valid state
+      assert(valid eac_smk l);          // since (eac l)
+
+      //assert(EACInStore? es');          // otherwise, eac failure
+      //match es' with
+      //| EACInStore _ gk v ->
+        // assert(gk = AppK ak);
+        //assert(v = AppV (st ak));
+        ()
+
+let eac_implies_input_consistent #app (l: eac_log app)
+  : Lemma (requires (length l > 0 /\ App? (telem l)))
+          (ensures (let ee = telem l in
+                    let fc = to_fncall ee in
+                    let st = eac_app_state (hprefix l) in
+                    input_consistent fc st))
           [SMTPat (eac l)]
-  = admit()
+  = let ee = telem l in
+    let e = to_vlog_entry ee in
+    let fc = to_fncall ee in
+    let st = eac_app_state (hprefix l) in
+
+    let aux (ak: app_key app.adm)
+          : Lemma (ensures (fc `refs` ak ==> (refkey_inp_val fc ak = st ak)))
+      = let bk = to_base_key (AppK ak) in
+        eac_refs_is_app_refs l ak;
+        if e `refs_key` bk then
+          eac_implies_input_consistent_key l ak
+        else ()
+    in
+    FStar.Classical.forall_intro aux;
+    ()
 
 let eac_valid_helper_app (#app: app_params) (l: eac_log app)
   : Lemma (requires (length l > 0 /\
@@ -351,24 +456,33 @@ let eac_valid_helper_app (#app: app_params) (l: eac_log app)
           (ensures (eac_valid_prop l))
   = let l' = hprefix l in
     let ee = telem l in
+
+    (* the function call sequences of l' and l differ by the function call of the last element of l *)
     let fc = to_fncall ee in
     let fs = appfn_call_seq l in
     let fs' = appfn_call_seq l' in
-    let fn = appfn fc.fid_c in
     appfn_call_seq_append l;
     assert(fs == append1 fs' fc);
-    let rc,_,ws = fn fc.arg_c fc.inp_c in
-    assert(rc <> Fn_failure);
+
+    (* since l is eac, every function call within l is "correct" - does not return failure *)
+    assert(correct fc);
+
+    (* from induction we know that simulating fs' succeeds and results in state st' (say) *)
     lemma_prefix1_append fs' fc;
     assert(hprefix fs == fs');
-    assert(Some? (simulate fs'));
-    let ors = simulate fs' in
-    let st',_ = Some?.v ors in
-    let or = simulate_step fc st' in
+    let Some (st',_) = simulate fs' in
+
+    eac_implies_input_consistent l;
+    correct_succeeds_if_input_consistent fc st';
+
+    //let ors = simulate fs' in
+    //let st',_ = Some?.v ors in
+    //let or = simulate_step fc st' in
+    (*
     assert(st' == eac_app_state l');
     assert(input_correct st' fc.inp_c);
     assert(Some? or);
-    assert(Some? (simulate fs));
+    *)
     admit()
 
 let rec eac_valid_helper (#app: app_params) (l: eac_log app)
