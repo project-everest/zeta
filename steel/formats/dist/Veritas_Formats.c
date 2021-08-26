@@ -265,11 +265,6 @@ static uint64_t vbool_validator(slice input, uint64_t pos)
   }
 }
 
-static uint32_t vbool_jumper(uint32_t pos)
-{
-  return pos + (uint32_t)1U;
-}
-
 static Veritas_Formats_Types_vbool vbool_reader(slice input, uint32_t pos)
 {
   uint8_t res = input.base[pos];
@@ -281,52 +276,10 @@ static Veritas_Formats_Types_vbool vbool_reader(slice input, uint32_t pos)
     return Veritas_Formats_Types_Vfalse;
 }
 
-static bool
-__eq__Veritas_Formats_Types_vbool(Veritas_Formats_Types_vbool y, Veritas_Formats_Types_vbool x)
-{
-  switch (x)
-  {
-    case Veritas_Formats_Types_Vfalse:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_Vfalse:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_Vtrue:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_Vtrue:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    default:
-      {
-        return false;
-      }
-  }
-}
-
 static uint32_t vbool_writer(Veritas_Formats_Types_vbool x, slice input, uint32_t pos)
 {
   uint8_t ite;
-  if (__eq__Veritas_Formats_Types_vbool(Veritas_Formats_Types_Vfalse, x))
+  if (Veritas_Formats_Types_Vfalse == x)
     ite = (uint8_t)0U;
   else
     ite = (uint8_t)1U;
@@ -527,51 +480,6 @@ descendent_hash_desc_lserializer(
   return len10 + len20;
 }
 
-static bool
-__eq__Veritas_Formats_Types_voption(
-  Veritas_Formats_Types_voption y,
-  Veritas_Formats_Types_voption x
-)
-{
-  switch (x)
-  {
-    case Veritas_Formats_Types_Vnone:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_Vnone:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_Vsome:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_Vsome:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    default:
-      {
-        return false;
-      }
-  }
-}
-
 static uint32_t descendent_hash_size32(Veritas_Formats_Types_descendent_hash x)
 {
   Veritas_Formats_Types_voption tg;
@@ -585,7 +493,7 @@ static uint32_t descendent_hash_size32(Veritas_Formats_Types_descendent_hash x)
         "unreachable (pattern matches are exhaustive in F*)");
   uint32_t s1 = (uint32_t)1U;
   uint32_t s2;
-  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
+  if (Veritas_Formats_Types_Vnone == tg)
     s2 = (uint32_t)0U;
   else
   {
@@ -648,7 +556,7 @@ static Veritas_Formats_Types_descendent_hash descendent_hash_reader(slice input,
   else
     k = Veritas_Formats_Types_Vnone;
   uint32_t pos_ = pos + (uint32_t)1U;
-  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, k))
+  if (Veritas_Formats_Types_Vnone == k)
     return ((Veritas_Formats_Types_descendent_hash){ .tag = Veritas_Formats_Types_Dh_vnone });
   else
   {
@@ -671,7 +579,7 @@ descendent_hash_lserializer(Veritas_Formats_Types_descendent_hash x, uint8_t *b,
       KRML_EABORT(Veritas_Formats_Types_voption,
         "unreachable (pattern matches are exhaustive in F*)");
   uint8_t ite0;
-  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
+  if (Veritas_Formats_Types_Vnone == tg)
     ite0 = (uint8_t)0U;
   else
     ite0 = (uint8_t)1U;
@@ -684,7 +592,7 @@ descendent_hash_lserializer(Veritas_Formats_Types_descendent_hash x, uint8_t *b,
   uint32_t len1 = res1;
   uint32_t pos1 = pos + len1;
   uint32_t res;
-  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
+  if (Veritas_Formats_Types_Vnone == tg)
     res = (uint32_t)0U;
   else
   {
@@ -699,116 +607,6 @@ descendent_hash_lserializer(Veritas_Formats_Types_descendent_hash x, uint8_t *b,
   }
   uint32_t len2 = res;
   return len1 + len2;
-}
-
-static uint64_t add_method_validator(slice input, uint64_t pos)
-{
-  uint64_t res;
-  if ((uint64_t)input.len - pos < (uint64_t)1U)
-    res = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
-  else
-    res = pos + (uint64_t)1U;
-  if (is_error(res))
-    return res;
-  else
-  {
-    uint8_t va = input.base[(uint32_t)pos];
-    bool ite;
-    if (va == (uint8_t)0U)
-      ite = true;
-    else if (va == (uint8_t)1U)
-      ite = true;
-    else
-      ite = false;
-    if (!ite)
-      return VALIDATOR_ERROR_GENERIC;
-    else
-      return res;
-  }
-}
-
-static uint32_t add_method_jumper(uint32_t pos)
-{
-  return pos + (uint32_t)1U;
-}
-
-static Veritas_Formats_Types_add_method add_method_reader(slice input, uint32_t pos)
-{
-  uint8_t res = input.base[pos];
-  if (res == (uint8_t)0U)
-    return Veritas_Formats_Types_MAdd;
-  else if (res == (uint8_t)1U)
-    return Veritas_Formats_Types_BAdd;
-  else
-    return Veritas_Formats_Types_MAdd;
-}
-
-static bool
-__eq__Veritas_Formats_Types_add_method(
-  Veritas_Formats_Types_add_method y,
-  Veritas_Formats_Types_add_method x
-)
-{
-  switch (x)
-  {
-    case Veritas_Formats_Types_MAdd:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_MAdd:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_BAdd:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_BAdd:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    default:
-      {
-        return false;
-      }
-  }
-}
-
-static uint32_t
-add_method_writer(Veritas_Formats_Types_add_method x, slice input, uint32_t pos)
-{
-  uint8_t ite;
-  if (__eq__Veritas_Formats_Types_add_method(Veritas_Formats_Types_MAdd, x))
-    ite = (uint8_t)0U;
-  else
-    ite = (uint8_t)1U;
-  input.base[pos] = ite;
-  uint32_t len = (uint32_t)1U;
-  uint32_t res = pos + len;
-  uint32_t pos_ = res;
-  uint32_t pos_0 = pos_;
-  return pos_0;
-}
-
-static uint32_t
-add_method_lserializer(Veritas_Formats_Types_add_method x, uint8_t *b, uint32_t pos)
-{
-  uint32_t pos_ = add_method_writer(x, ((slice){ .base = b, .len = pos + (uint32_t)1U }), pos);
-  return pos_ - pos;
 }
 
 static uint64_t thread_id_validator(slice sl, uint64_t pos)
@@ -844,7 +642,7 @@ static uint32_t data_value_size32(Veritas_Formats_Types_data_value x)
         "unreachable (pattern matches are exhaustive in F*)");
   uint32_t s1 = (uint32_t)1U;
   uint32_t s2;
-  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
+  if (Veritas_Formats_Types_Vnone == tg)
     s2 = (uint32_t)0U;
   else
   {
@@ -907,7 +705,7 @@ static Veritas_Formats_Types_data_value data_value_reader(slice input, uint32_t 
   else
     k = Veritas_Formats_Types_Vnone;
   uint32_t pos_ = pos + (uint32_t)1U;
-  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, k))
+  if (Veritas_Formats_Types_Vnone == k)
     return ((Veritas_Formats_Types_data_value){ .tag = Veritas_Formats_Types_Dv_vnone });
   else
   {
@@ -930,7 +728,7 @@ data_value_lserializer(Veritas_Formats_Types_data_value x, uint8_t *b, uint32_t 
       KRML_EABORT(Veritas_Formats_Types_voption,
         "unreachable (pattern matches are exhaustive in F*)");
   uint8_t ite0;
-  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
+  if (Veritas_Formats_Types_Vnone == tg)
     ite0 = (uint8_t)0U;
   else
     ite0 = (uint8_t)1U;
@@ -943,7 +741,7 @@ data_value_lserializer(Veritas_Formats_Types_data_value x, uint8_t *b, uint32_t 
   uint32_t len1 = res1;
   uint32_t pos1 = pos + len1;
   uint32_t res;
-  if (__eq__Veritas_Formats_Types_voption(Veritas_Formats_Types_Vnone, tg))
+  if (Veritas_Formats_Types_Vnone == tg)
     res = (uint32_t)0U;
   else
   {
@@ -1013,51 +811,6 @@ mval_value_lserializer(Veritas_Formats_Types_mval_value x, uint8_t *input, uint3
   return len1 + len2;
 }
 
-static bool
-__eq__Veritas_Formats_Types_value_kind(
-  Veritas_Formats_Types_value_kind y,
-  Veritas_Formats_Types_value_kind x
-)
-{
-  switch (x)
-  {
-    case Veritas_Formats_Types_Mval:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_Mval:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_Dval:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_Dval:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    default:
-      {
-        return false;
-      }
-  }
-}
-
 static uint32_t value_size32(Veritas_Formats_Types_value x)
 {
   Veritas_Formats_Types_value_kind tg;
@@ -1071,7 +824,7 @@ static uint32_t value_size32(Veritas_Formats_Types_value x)
         "unreachable (pattern matches are exhaustive in F*)");
   uint32_t s1 = (uint32_t)1U;
   uint32_t s2;
-  if (__eq__Veritas_Formats_Types_value_kind(Veritas_Formats_Types_Mval, tg))
+  if (Veritas_Formats_Types_Mval == tg)
   {
     Veritas_Formats_Types_mval_value ite;
     if (x.tag == Veritas_Formats_Types_V_mval)
@@ -1140,7 +893,7 @@ static Veritas_Formats_Types_value value_reader(slice input, uint32_t pos)
   else
     k = Veritas_Formats_Types_Mval;
   uint32_t pos_ = pos + (uint32_t)1U;
-  if (__eq__Veritas_Formats_Types_value_kind(Veritas_Formats_Types_Mval, k))
+  if (Veritas_Formats_Types_Mval == k)
   {
     Veritas_Formats_Types_mval_value res = mval_value_reader(input, pos_);
     return
@@ -1166,7 +919,7 @@ static uint32_t value_lserializer(Veritas_Formats_Types_value x, uint8_t *b, uin
       KRML_EABORT(Veritas_Formats_Types_value_kind,
         "unreachable (pattern matches are exhaustive in F*)");
   uint8_t ite0;
-  if (__eq__Veritas_Formats_Types_value_kind(Veritas_Formats_Types_Mval, tg))
+  if (Veritas_Formats_Types_Mval == tg)
     ite0 = (uint8_t)0U;
   else
     ite0 = (uint8_t)1U;
@@ -1179,7 +932,7 @@ static uint32_t value_lserializer(Veritas_Formats_Types_value x, uint8_t *b, uin
   uint32_t len1 = res1;
   uint32_t pos1 = pos + len1;
   uint32_t res;
-  if (__eq__Veritas_Formats_Types_value_kind(Veritas_Formats_Types_Mval, tg))
+  if (Veritas_Formats_Types_Mval == tg)
   {
     Veritas_Formats_Types_mval_value ite;
     if (x.tag == Veritas_Formats_Types_V_mval)
@@ -1207,122 +960,46 @@ static uint32_t value_lserializer(Veritas_Formats_Types_value x, uint8_t *b, uin
 
 static uint64_t record_validator(slice input, uint64_t pos)
 {
-  uint64_t pos10 = key_validator(input, pos);
-  uint64_t pos12;
-  if (is_error(pos10))
-    pos12 = pos10;
-  else
-    pos12 = value_validator(input, pos10);
-  uint64_t pos1;
-  if (is_error(pos12))
-    pos1 = pos12;
-  else
-  {
-    uint64_t pos11 = add_method_validator(input, pos12);
-    if (is_error(pos11))
-      pos1 = pos11;
-    else
-      pos1 = vbool_validator(input, pos11);
-  }
+  uint64_t pos1 = key_validator(input, pos);
   if (is_error(pos1))
     return pos1;
   else
-    return vbool_validator(input, pos1);
+    return value_validator(input, pos1);
 }
 
 static uint32_t record_jumper(slice input, uint32_t pos)
 {
-  return vbool_jumper(vbool_jumper(add_method_jumper(value_jumper(input, key_jumper(pos)))));
+  return value_jumper(input, key_jumper(pos));
 }
-
-typedef struct __Veritas_Formats_Types_key_Veritas_Formats_Types_value_s
-{
-  Veritas_Formats_Types_key fst;
-  Veritas_Formats_Types_value snd;
-}
-__Veritas_Formats_Types_key_Veritas_Formats_Types_value;
-
-typedef struct __Veritas_Formats_Types_add_method_Veritas_Formats_Types_vbool_s
-{
-  Veritas_Formats_Types_add_method fst;
-  Veritas_Formats_Types_vbool snd;
-}
-__Veritas_Formats_Types_add_method_Veritas_Formats_Types_vbool;
-
-typedef struct
-__K___Veritas_Formats_Types_key_Veritas_Formats_Types_value_K___Veritas_Formats_Types_add_method_Veritas_Formats_Types_vbool_s
-{
-  __Veritas_Formats_Types_key_Veritas_Formats_Types_value fst;
-  __Veritas_Formats_Types_add_method_Veritas_Formats_Types_vbool snd;
-}
-__K___Veritas_Formats_Types_key_Veritas_Formats_Types_value_K___Veritas_Formats_Types_add_method_Veritas_Formats_Types_vbool;
 
 typedef struct record__s
 {
-  __K___Veritas_Formats_Types_key_Veritas_Formats_Types_value_K___Veritas_Formats_Types_add_method_Veritas_Formats_Types_vbool
-  fst;
-  Veritas_Formats_Types_vbool snd;
+  Veritas_Formats_Types_key fst;
+  Veritas_Formats_Types_value snd;
 }
 record_;
 
 static Veritas_Formats_Types_record record_reader(slice input, uint32_t pos)
 {
   Veritas_Formats_Types_key x1 = key_reader(input, pos);
-  uint32_t pos20 = key_jumper(pos);
-  Veritas_Formats_Types_value x2 = value_reader(input, pos20);
-  __Veritas_Formats_Types_key_Veritas_Formats_Types_value x10 = { .fst = x1, .snd = x2 };
-  uint32_t pos22 = value_jumper(input, key_jumper(pos));
-  Veritas_Formats_Types_add_method x11 = add_method_reader(input, pos22);
-  uint32_t pos21 = add_method_jumper(pos22);
-  Veritas_Formats_Types_vbool x20 = vbool_reader(input, pos21);
-  __Veritas_Formats_Types_add_method_Veritas_Formats_Types_vbool
-  x21 = { .fst = x11, .snd = x20 };
-  __K___Veritas_Formats_Types_key_Veritas_Formats_Types_value_K___Veritas_Formats_Types_add_method_Veritas_Formats_Types_vbool
-  x12 = { .fst = x10, .snd = x21 };
-  uint32_t pos2 = vbool_jumper(add_method_jumper(value_jumper(input, key_jumper(pos))));
-  Veritas_Formats_Types_vbool x22 = vbool_reader(input, pos2);
-  record_ res = { .fst = x12, .snd = x22 };
-  Veritas_Formats_Types_vbool record_r_child_in_store = res.snd;
-  Veritas_Formats_Types_vbool record_l_child_in_store = res.fst.snd.snd;
-  Veritas_Formats_Types_add_method record_add_method = res.fst.snd.fst;
-  Veritas_Formats_Types_value record_value = res.fst.fst.snd;
-  Veritas_Formats_Types_key record_key = res.fst.fst.fst;
+  uint32_t pos2 = key_jumper(pos);
+  Veritas_Formats_Types_value x2 = value_reader(input, pos2);
+  record_ res = { .fst = x1, .snd = x2 };
+  Veritas_Formats_Types_key record_key = res.fst;
+  Veritas_Formats_Types_value record_value = res.snd;
   return
-    (
-      (Veritas_Formats_Types_record){
-        .record_key = record_key,
-        .record_value = record_value,
-        .record_add_method = record_add_method,
-        .record_l_child_in_store = record_l_child_in_store,
-        .record_r_child_in_store = record_r_child_in_store
-      }
-    );
+    ((Veritas_Formats_Types_record){ .record_key = record_key, .record_value = record_value });
 }
 
 static uint32_t
 record_lserializer(Veritas_Formats_Types_record x, uint8_t *input, uint32_t pos)
 {
-  uint32_t res0 = key_lserializer(x.record_key, input, pos);
-  uint32_t len1 = res0;
-  uint32_t pos10 = pos + len1;
-  uint32_t res1 = value_lserializer(x.record_value, input, pos10);
-  uint32_t len2 = res1;
-  uint32_t res2 = len1 + len2;
-  uint32_t len10 = res2;
-  uint32_t pos12 = pos + len10;
-  uint32_t res = add_method_lserializer(x.record_add_method, input, pos12);
-  uint32_t len11 = res;
-  uint32_t pos11 = pos12 + len11;
-  uint32_t res3 = vbool_lserializer(x.record_l_child_in_store, input, pos11);
-  uint32_t len20 = res3;
-  uint32_t res4 = len11 + len20;
-  uint32_t len21 = res4;
-  uint32_t res5 = len10 + len21;
-  uint32_t len12 = res5;
-  uint32_t pos1 = pos + len12;
-  uint32_t res6 = vbool_lserializer(x.record_r_child_in_store, input, pos1);
-  uint32_t len22 = res6;
-  return len12 + len22;
+  uint32_t res = key_lserializer(x.record_key, input, pos);
+  uint32_t len1 = res;
+  uint32_t pos1 = pos + len1;
+  uint32_t res0 = value_lserializer(x.record_value, input, pos1);
+  uint32_t len2 = res0;
+  return len1 + len2;
 }
 
 static uint64_t vlog_entry_addb_validator(slice input, uint64_t pos)
@@ -1523,16 +1200,28 @@ static Veritas_Formats_Types_vlog_entry_addm vlog_entry_addm_reader(slice input,
 
 static uint64_t vlog_entry_get_put_validator(slice input, uint64_t pos)
 {
-  uint64_t pos1 = slot_id_validator(input, pos);
+  uint64_t pos10 = slot_id_validator(input, pos);
+  uint64_t pos1;
+  if (is_error(pos10))
+    pos1 = pos10;
+  else
+    pos1 = key_validator(input, pos10);
   if (is_error(pos1))
     return pos1;
   else
     return data_value_validator(input, pos1);
 }
 
-typedef struct vlog_entry_get_put__s
+typedef struct __uint16_t_Veritas_Formats_Types_key_s
 {
   uint16_t fst;
+  Veritas_Formats_Types_key snd;
+}
+__uint16_t_Veritas_Formats_Types_key;
+
+typedef struct vlog_entry_get_put__s
+{
+  __uint16_t_Veritas_Formats_Types_key fst;
   Veritas_Formats_Types_data_value snd;
 }
 vlog_entry_get_put_;
@@ -1541,12 +1230,23 @@ static Veritas_Formats_Types_vlog_entry_get_put
 vlog_entry_get_put_reader(slice input, uint32_t pos)
 {
   uint16_t x1 = slot_id_reader(input, pos);
-  uint32_t pos2 = slot_id_jumper(pos);
-  Veritas_Formats_Types_data_value x2 = data_value_reader(input, pos2);
-  vlog_entry_get_put_ res = { .fst = x1, .snd = x2 };
-  uint16_t vegp_s = res.fst;
+  uint32_t pos20 = slot_id_jumper(pos);
+  Veritas_Formats_Types_key x2 = key_reader(input, pos20);
+  __uint16_t_Veritas_Formats_Types_key x10 = { .fst = x1, .snd = x2 };
+  uint32_t pos2 = key_jumper(slot_id_jumper(pos));
+  Veritas_Formats_Types_data_value x20 = data_value_reader(input, pos2);
+  vlog_entry_get_put_ res = { .fst = x10, .snd = x20 };
   Veritas_Formats_Types_data_value vegp_v = res.snd;
-  return ((Veritas_Formats_Types_vlog_entry_get_put){ .vegp_s = vegp_s, .vegp_v = vegp_v });
+  Veritas_Formats_Types_key vegp_k = res.fst.snd;
+  uint16_t vegp_s = res.fst.fst;
+  return
+    (
+      (Veritas_Formats_Types_vlog_entry_get_put){
+        .vegp_s = vegp_s,
+        .vegp_k = vegp_k,
+        .vegp_v = vegp_v
+      }
+    );
 }
 
 static uint64_t vlog_entry_validator(slice input, uint64_t pos)
@@ -1580,126 +1280,6 @@ static uint64_t vlog_entry_validator(slice input, uint64_t pos)
   }
 }
 
-bool
-__eq__Veritas_Formats_Types_vlog_entry_kind(
-  Veritas_Formats_Types_vlog_entry_kind y,
-  Veritas_Formats_Types_vlog_entry_kind x
-)
-{
-  switch (x)
-  {
-    case Veritas_Formats_Types_Get:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_Get:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_Put:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_Put:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_AddM:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_AddM:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_EvictM:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_EvictM:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_AddB:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_AddB:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_EvictB:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_EvictB:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    case Veritas_Formats_Types_EvictBM:
-      {
-        switch (y)
-        {
-          case Veritas_Formats_Types_EvictBM:
-            {
-              return true;
-            }
-          default:
-            {
-              return false;
-            }
-        }
-        break;
-      }
-    default:
-      {
-        return false;
-      }
-  }
-}
-
 static Veritas_Formats_Types_vlog_entry vlog_entry_reader(slice input, uint32_t pos)
 {
   uint8_t res = input.base[pos];
@@ -1721,7 +1301,7 @@ static Veritas_Formats_Types_vlog_entry vlog_entry_reader(slice input, uint32_t 
   else
     k = Veritas_Formats_Types_Get;
   uint32_t pos_ = pos + (uint32_t)1U;
-  if (__eq__Veritas_Formats_Types_vlog_entry_kind(Veritas_Formats_Types_Get, k))
+  if (Veritas_Formats_Types_Get == k)
   {
     Veritas_Formats_Types_vlog_entry_get_put res = vlog_entry_get_put_reader(input, pos_);
     return
@@ -1732,7 +1312,7 @@ static Veritas_Formats_Types_vlog_entry vlog_entry_reader(slice input, uint32_t 
         }
       );
   }
-  else if (__eq__Veritas_Formats_Types_vlog_entry_kind(Veritas_Formats_Types_Put, k))
+  else if (Veritas_Formats_Types_Put == k)
   {
     Veritas_Formats_Types_vlog_entry_get_put res = vlog_entry_get_put_reader(input, pos_);
     return
@@ -1743,7 +1323,7 @@ static Veritas_Formats_Types_vlog_entry vlog_entry_reader(slice input, uint32_t 
         }
       );
   }
-  else if (__eq__Veritas_Formats_Types_vlog_entry_kind(Veritas_Formats_Types_AddM, k))
+  else if (Veritas_Formats_Types_AddM == k)
   {
     Veritas_Formats_Types_vlog_entry_addm res = vlog_entry_addm_reader(input, pos_);
     return
@@ -1754,7 +1334,7 @@ static Veritas_Formats_Types_vlog_entry vlog_entry_reader(slice input, uint32_t 
         }
       );
   }
-  else if (__eq__Veritas_Formats_Types_vlog_entry_kind(Veritas_Formats_Types_EvictM, k))
+  else if (Veritas_Formats_Types_EvictM == k)
   {
     Veritas_Formats_Types_vlog_entry_evictm res = vlog_entry_evictm_reader(input, pos_);
     return
@@ -1765,7 +1345,7 @@ static Veritas_Formats_Types_vlog_entry vlog_entry_reader(slice input, uint32_t 
         }
       );
   }
-  else if (__eq__Veritas_Formats_Types_vlog_entry_kind(Veritas_Formats_Types_AddB, k))
+  else if (Veritas_Formats_Types_AddB == k)
   {
     Veritas_Formats_Types_vlog_entry_addb res = vlog_entry_addb_reader(input, pos_);
     return
@@ -1776,7 +1356,7 @@ static Veritas_Formats_Types_vlog_entry vlog_entry_reader(slice input, uint32_t 
         }
       );
   }
-  else if (__eq__Veritas_Formats_Types_vlog_entry_kind(Veritas_Formats_Types_EvictB, k))
+  else if (Veritas_Formats_Types_EvictB == k)
   {
     Veritas_Formats_Types_vlog_entry_evictb res = vlog_entry_evictb_reader(input, pos_);
     return
@@ -2186,30 +1766,6 @@ Veritas_Formats_Types___proj__Mkrecord__item__record_value(
   return projectee.record_value;
 }
 
-Veritas_Formats_Types_add_method
-Veritas_Formats_Types___proj__Mkrecord__item__record_add_method(
-  Veritas_Formats_Types_record projectee
-)
-{
-  return projectee.record_add_method;
-}
-
-Veritas_Formats_Types_vbool
-Veritas_Formats_Types___proj__Mkrecord__item__record_l_child_in_store(
-  Veritas_Formats_Types_record projectee
-)
-{
-  return projectee.record_l_child_in_store;
-}
-
-Veritas_Formats_Types_vbool
-Veritas_Formats_Types___proj__Mkrecord__item__record_r_child_in_store(
-  Veritas_Formats_Types_record projectee
-)
-{
-  return projectee.record_r_child_in_store;
-}
-
 bool Veritas_Formats_Types_uu___is_Get(Veritas_Formats_Types_vlog_entry_kind projectee)
 {
   switch (projectee)
@@ -2321,6 +1877,14 @@ Veritas_Formats_Types___proj__Mkvlog_entry_get_put__item__vegp_s(
 )
 {
   return projectee.vegp_s;
+}
+
+Veritas_Formats_Types_key
+Veritas_Formats_Types___proj__Mkvlog_entry_get_put__item__vegp_k(
+  Veritas_Formats_Types_vlog_entry_get_put projectee
+)
+{
+  return projectee.vegp_k;
 }
 
 Veritas_Formats_Types_data_value
