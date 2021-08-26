@@ -1380,39 +1380,6 @@ static Veritas_Formats_Types_vlog_entry vlog_entry_reader(slice input, uint32_t 
   }
 }
 
-bool Veritas_Formats_bool_of_vbool(Veritas_Formats_Types_vbool x)
-{
-  switch (x)
-  {
-    case Veritas_Formats_Types_Vfalse:
-      {
-        return false;
-      }
-    case Veritas_Formats_Types_Vtrue:
-      {
-        return true;
-      }
-    default:
-      {
-        KRML_HOST_EPRINTF("KreMLin incomplete match at %s:%d\n", __FILE__, __LINE__);
-        KRML_HOST_EXIT(253U);
-      }
-  }
-}
-
-Veritas_Formats_Types_vbool Veritas_Formats_vbool_of_bool(bool x)
-{
-  if (x)
-    return Veritas_Formats_Types_Vtrue;
-  else
-    return Veritas_Formats_Types_Vfalse;
-}
-
-uint32_t Veritas_Formats_serialize_length(Veritas_Formats_Types_value x)
-{
-  return value_size32(x);
-}
-
 void Veritas_Formats_serialize_value(Veritas_Formats_Types_value v, uint8_t *dst)
 {
   uint32_t uu____0 = value_lserializer(v, (uint8_t *)dst, (uint32_t)0U);
@@ -1448,6 +1415,11 @@ uint32_t
 Veritas_Formats_serialize_stamped_record(uint8_t *dst, Veritas_Formats_Types_stamped_record r)
 {
   return stamped_record_lserializer(r, (uint8_t *)dst, (uint32_t)0U);
+}
+
+uint32_t Veritas_Formats_Pure_serialize_length(Veritas_Formats_Types_value x)
+{
+  return value_size32(x);
 }
 
 uint64_t Veritas_Formats_Types___proj__Mku256__item__v3(Veritas_Formats_Types_u256 projectee)

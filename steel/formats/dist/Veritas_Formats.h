@@ -195,12 +195,6 @@ Veritas_Formats_Types_vlog_entry;
 
 typedef uint8_t Veritas_Formats_Types_vlog_entry_kind;
 
-bool Veritas_Formats_bool_of_vbool(Veritas_Formats_Types_vbool x);
-
-Veritas_Formats_Types_vbool Veritas_Formats_vbool_of_bool(bool x);
-
-uint32_t Veritas_Formats_serialize_length(Veritas_Formats_Types_value x);
-
 void Veritas_Formats_serialize_value(Veritas_Formats_Types_value v, uint8_t *dst);
 
 #define FStar_Pervasives_Native_None 0
@@ -220,6 +214,8 @@ Veritas_Formats_extract_log_entry_from(uint32_t len, uint8_t *buf, uint32_t *bpo
 
 uint32_t
 Veritas_Formats_serialize_stamped_record(uint8_t *dst, Veritas_Formats_Types_stamped_record r);
+
+uint32_t Veritas_Formats_Pure_serialize_length(Veritas_Formats_Types_value x);
 
 typedef uint16_t Veritas_Formats_Types_slot_id;
 
