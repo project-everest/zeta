@@ -384,3 +384,14 @@ let lift_log_entry #vcfg (v:T.vlog_entry)
         Some (EvictBM_S s s' (timestamp_of_clock evb.veebm_t))
       | _ -> None
     )
+
+assume val map_seq (#a #b:Type) (f:a -> b) (s:Seq.seq a) : Seq.seq b
+
+assume val fold_seq (#a #b:Type) (f:b -> a -> b) (y:b) (s:Seq.seq a) : b
+
+let lift_log_entries #vcfg (es : Seq.seq T.vlog_entry) : option (IL.logS vcfg) =
+  let log_eopt = map_seq (lift_log_entry #vcfg) es in
+  fold_seq (fun sopt eopt ->
+    match sopt, eopt with
+    | Some s, Some e -> Some (Seq.snoc s e)
+    | _, _ -> None) (Some Seq.empty) log_eopt

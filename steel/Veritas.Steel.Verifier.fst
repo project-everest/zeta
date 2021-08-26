@@ -506,3 +506,5 @@ let vevictbm vs s s' t
         )
       )
     )
+
+let verify #n vs c m = sladmit ()

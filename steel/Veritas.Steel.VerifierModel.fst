@@ -537,3 +537,26 @@ let vevictbm_model (tsm:thread_state_model)
         )
       )
     )
+
+assume val fold_seq (#a #b:Type) (f:b -> a -> b) (y:b) (s:Seq.seq a) : b
+
+let verify_model (tsm:thread_state_model) (s:Seq.seq T.vlog_entry)
+  : thread_state_model =
+  let open T in
+  fold_seq (fun tsm e ->
+    match e with
+    | Ve_Get ve ->
+      assume (U16.v ve.vegp_s < U16.v tsm.model_store_len);
+      vget_model tsm ve.vegp_s ve.vegp_k ve.vegp_v
+    | Ve_Put ve ->
+      assume (U16.v ve.vegp_s < U16.v tsm.model_store_len);
+      vput_model tsm ve.vegp_s ve.vegp_k ve.vegp_v
+    | Ve_AddM ve ->
+      assume (U16.v ve.veam_s < U16.v tsm.model_store_len);
+      assume (U16.v ve.veam_s2 < U16.v tsm.model_store_len);
+      vaddm_model tsm ve.veam_s ve.veam_r ve.veam_s2
+    | Ve_EvictM ve ->
+      assume (U16.v ve.veem_s < U16.v tsm.model_store_len);
+      assume (U16.v ve.veem_s2 < U16.v tsm.model_store_len);
+      vevictm_model tsm ve.veem_s ve.veem_s2
+    | _ -> admit ()) tsm s

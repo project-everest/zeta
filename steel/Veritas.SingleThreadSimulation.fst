@@ -976,3 +976,18 @@ let related_vevictbm (#vcfg: _)
         `related_states`
       I.vevictbm i_s i_s' i_t vtls))
   = ()
+
+let related_entries (#vcfg:_)
+  (tsm:TSM.thread_state_model)
+  (vtls:I.vtls vcfg)
+  (s:Seq.seq (S_Types.vlog_entry))
+  : Lemma
+      (requires
+        Some? (TSM.lift_log_entries #vcfg s) /\
+        tsm `related_states` vtls /\
+        I.Valid? vtls)
+      (ensures
+        S.verify_model tsm s
+          `related_states`
+        I.verify vtls (Some?.v (TSM.lift_log_entries #vcfg s)))
+  = admit ()
