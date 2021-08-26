@@ -64,11 +64,6 @@ Veritas_Formats_Types_descendent_hash;
 
 typedef uint8_t Veritas_Formats_Types_voption;
 
-#define Veritas_Formats_Types_MAdd 0
-#define Veritas_Formats_Types_BAdd 1
-
-typedef uint8_t Veritas_Formats_Types_add_method;
-
 #define Veritas_Formats_Types_Dv_vnone 0
 #define Veritas_Formats_Types_Dv_vsome 1
 
@@ -113,9 +108,6 @@ typedef struct Veritas_Formats_Types_record_s
 {
   Veritas_Formats_Types_key record_key;
   Veritas_Formats_Types_value record_value;
-  Veritas_Formats_Types_add_method record_add_method;
-  Veritas_Formats_Types_vbool record_l_child_in_store;
-  Veritas_Formats_Types_vbool record_r_child_in_store;
 }
 Veritas_Formats_Types_record;
 
@@ -162,6 +154,7 @@ Veritas_Formats_Types_vlog_entry_addm;
 typedef struct Veritas_Formats_Types_vlog_entry_get_put_s
 {
   uint16_t vegp_s;
+  Veritas_Formats_Types_key vegp_k;
   Veritas_Formats_Types_data_value vegp_v;
 }
 Veritas_Formats_Types_vlog_entry_get_put;
@@ -201,12 +194,6 @@ Veritas_Formats_Types_vlog_entry;
 #define Veritas_Formats_Types_EvictBM 6
 
 typedef uint8_t Veritas_Formats_Types_vlog_entry_kind;
-
-bool
-__eq__Veritas_Formats_Types_vlog_entry_kind(
-  Veritas_Formats_Types_vlog_entry_kind y,
-  Veritas_Formats_Types_vlog_entry_kind x
-);
 
 bool Veritas_Formats_bool_of_vbool(Veritas_Formats_Types_vbool x);
 
@@ -317,6 +304,11 @@ bool Veritas_Formats_Types_uu___is_V_dval(Veritas_Formats_Types_value projectee)
 Veritas_Formats_Types_data_value
 Veritas_Formats_Types___proj__V_dval__item___0(Veritas_Formats_Types_value projectee);
 
+#define Veritas_Formats_Types_MAdd 0
+#define Veritas_Formats_Types_BAdd 1
+
+typedef uint8_t Veritas_Formats_Types_add_method;
+
 bool Veritas_Formats_Types_uu___is_MAdd(Veritas_Formats_Types_add_method projectee);
 
 bool Veritas_Formats_Types_uu___is_BAdd(Veritas_Formats_Types_add_method projectee);
@@ -328,21 +320,6 @@ Veritas_Formats_Types___proj__Mkrecord__item__record_key(
 
 Veritas_Formats_Types_value
 Veritas_Formats_Types___proj__Mkrecord__item__record_value(
-  Veritas_Formats_Types_record projectee
-);
-
-Veritas_Formats_Types_add_method
-Veritas_Formats_Types___proj__Mkrecord__item__record_add_method(
-  Veritas_Formats_Types_record projectee
-);
-
-Veritas_Formats_Types_vbool
-Veritas_Formats_Types___proj__Mkrecord__item__record_l_child_in_store(
-  Veritas_Formats_Types_record projectee
-);
-
-Veritas_Formats_Types_vbool
-Veritas_Formats_Types___proj__Mkrecord__item__record_r_child_in_store(
   Veritas_Formats_Types_record projectee
 );
 
@@ -362,6 +339,11 @@ bool Veritas_Formats_Types_uu___is_EvictBM(Veritas_Formats_Types_vlog_entry_kind
 
 uint16_t
 Veritas_Formats_Types___proj__Mkvlog_entry_get_put__item__vegp_s(
+  Veritas_Formats_Types_vlog_entry_get_put projectee
+);
+
+Veritas_Formats_Types_key
+Veritas_Formats_Types___proj__Mkvlog_entry_get_put__item__vegp_k(
   Veritas_Formats_Types_vlog_entry_get_put projectee
 );
 

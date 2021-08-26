@@ -82,9 +82,6 @@ enum {
 struct {
   key record_key;
   value record_value;
-  add_method record_add_method;
-  vbool record_l_child_in_store;
-  vbool record_r_child_in_store;
 } record;
 
 enum {
@@ -100,6 +97,7 @@ enum {
 
 struct {
   slot_id vegp_s;
+  key vegp_k;
   data_value vegp_v;
 } vlog_entry_get_put;
 
