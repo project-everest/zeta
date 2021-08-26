@@ -82,7 +82,6 @@ enum {
 struct {
   key record_key;
   value record_value;
-  add_method record_add_method;
 } record;
 
 enum {
