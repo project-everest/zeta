@@ -27,19 +27,19 @@ let vlog_ext (app: app_params) = seq (vlog_entry_ext app)
 type eac_state (app: app_params) (k: base_key) =
   | EACFail: eac_state app k
   | EACInit: eac_state app k
-  | EACInStore: m:add_method -> v:value app -> eac_state app k
-  | EACEvictedMerkle: v:value app -> eac_state app k
-  | EACEvictedBlum: v:value app -> t:timestamp -> j:thread_id -> eac_state app k
+  | EACInStore: m:add_method -> gk:key app {to_base_key gk = k} -> v:value_t gk -> eac_state app k
+  | EACEvictedMerkle: gk:key app {to_base_key gk = k} -> v:value_t gk -> eac_state app k
+  | EACEvictedBlum: gk: key app{to_base_key gk = k} -> v:value_t gk -> t:timestamp -> j:thread_id -> eac_state app k
 
 let is_eac_state_evicted #app #k (s: eac_state app k): bool =
   match s with
-  | EACEvictedMerkle _ -> true
-  | EACEvictedBlum _ _ _ -> true
+  | EACEvictedMerkle _ _ -> true
+  | EACEvictedBlum _ _ _ _ -> true
   | _ -> false
 
 let is_eac_state_instore #app #k (s: eac_state app k): bool =
   match s with
-  | EACInStore _ _ -> true
+  | EACInStore _ _ _ -> true
   | _ -> false
 
 let refs_key #app (e: vlog_entry app) (k: base_key)
@@ -74,13 +74,14 @@ let eac_add_app #app #ks (ee: vlog_entry_ext app {App? ee}) (s: eac_state app ks
     else if not (e `refs_key` ks) then s
     else
       match s with
-      | EACInStore m v ->
+      | EACInStore m gk v ->
         let idx = index_mem ks refkeys in
-        let (_,v') = index rs idx in
+        let (gk',v') = index rs idx in
         if AppV v' <> v then EACFail
+        else if AppK gk' <> gk then EACFail
         else
           let v = AppV (index ws idx) in
-          EACInStore m v
+          EACInStore m gk v
       | _ -> EACFail
 
 let eac_add #app #ks (ee: vlog_entry_ext app) (s: eac_state app ks) : eac_state app ks
@@ -98,7 +99,7 @@ let eac_add #app #ks (ee: vlog_entry_ext app) (s: eac_state app ks) : eac_state 
           match ee with
 
           | NEvict (AddM (k,v) _ _) ->
-            if v = init_value k && to_base_key k = ks then EACInStore MAdd v
+            if v = init_value k && to_base_key k = ks then EACInStore MAdd k v
             else EACFail
 
           | NEvict NextEpoch ->
@@ -111,40 +112,40 @@ let eac_add #app #ks (ee: vlog_entry_ext app) (s: eac_state app ks) : eac_state 
             EACFail
           )
 
-        | EACInStore m v -> (
+        | EACInStore m k v -> (
           match ee with
 
           | EvictMerkle (EvictM  _ _) v' ->
             if AppV? v && v' <> v then EACFail
             else if IntV? v && not (IntV? v') then EACFail
-            else EACEvictedMerkle v'
+            else EACEvictedMerkle k v'
 
-          | EvictBlum (EvictBM k k' t) v' j ->
+          | EvictBlum (EvictBM _ k' t) v' j ->
             if AppV? v && v' <> v || m <> MAdd then EACFail
             else if IntV? v && not (IntV? v') then EACFail
-            else EACEvictedBlum v' t j
+            else EACEvictedBlum k v' t j
 
           | EvictBlum (EvictB _ t) v' j ->
             if AppV? v && v' <> v || m <> BAdd then EACFail
             else if IntV? v && not (IntV? v') then EACFail
-            else EACEvictedBlum v' t j
+            else EACEvictedBlum k v' t j
 
           | _ ->
           EACFail
         )
 
-        | EACEvictedMerkle v -> (
+        | EACEvictedMerkle k v -> (
           match ee with
-          | NEvict (AddM (_,v') _ _) ->
-            if v' = v then EACInStore MAdd v
+          | NEvict (AddM (k',v') _ _) ->
+            if v' = v  && k' = k then EACInStore MAdd k v
             else EACFail
           | _ -> EACFail
         )
 
-        | EACEvictedBlum v t tid -> (
+        | EACEvictedBlum k v t tid -> (
           match ee with
-          | NEvict (AddB (_,v') _ t' tid') ->
-            if v' = v && t' = t && tid' = tid then EACInStore BAdd v
+          | NEvict (AddB (k',v') _ t' tid') ->
+            if k' = k && v' = v && t' = t && tid' = tid then EACInStore BAdd k v
             else EACFail
           | _ -> EACFail
         )

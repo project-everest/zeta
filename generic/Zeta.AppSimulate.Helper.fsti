@@ -2,21 +2,8 @@ module Zeta.AppSimulate.Helper
 
 open Zeta.App
 open Zeta.AppSimulate
-(* Helper lemmas for reasoning about app simulate *)
 
-(* running a function with arity 0 leaves the state unchanged since the function does not
- * read/write from/to the state *)
-val simulate_arity0_leaves_state_unchanged
-  (#aprm: app_params)
-  (fncall: appfn_call aprm)
-  (st: app_state aprm.adm)
-  (k: app_key aprm.adm)
-  : Lemma (requires (let fid = fncall.fid_c in
-                     appfn_arity fid = 0))
-          (ensures (let o = simulate_step fncall st in
-                    Some? o ==>
-                    (let st',_ = Some?.v o in
-                     st k = st' k)))
+(* Helper lemmas for reasoning about app simulate *)
 
 (* equality of two app states *)
 let app_state_feq #adm (st1 st2: app_state adm)
@@ -52,24 +39,6 @@ let refs #app (fc: appfn_call app) (k: app_key app.adm)
 val refkey_idx (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k})
   : i:_{let k',v = FStar.Seq.index fc.inp_c i in k' = k}
 
-(* the written-value of a key *)
-let write #app (fc: appfn_call app{correct fc}) (k: app_key app.adm{fc `refs` k})
-  = let i = refkey_idx fc k in
-    let ws = writes fc in
-    let open FStar.Seq in
-    index ws i
-
-
-
-(* does a fncall succeed for a given state and input? *)
-let succeeds #app (fc: appfn_call app)
-  = Some? (simulate_step fc st)
-
-(* for a successful proc call, the state after applying the function *)
-let apply #app (fc: appfn_call app) (st: app_state app.adm {succeeds fc st})
-  = let Some (st, _) = simulate_step fc st in
-    st
-
 (* for a referenced key, the input value provided to the function invocation *)
 let refkey_inp_val (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k})
   = let open FStar.Seq in
@@ -77,15 +46,42 @@ let refkey_inp_val (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k
     let _,v = index fc.inp_c i in
     v
 
-(* if a function application succeeds, then the input value provided as input for a key is consistent
- * with the "pre" state *)
-val lemma_refkey_pre_val (#app:_)
-  (fc: appfn_call app)
-  (st: app_state app.adm)
-  (k: app_key app.adm{fc `refs` k})
-  : Lemma (requires (succeeds fc st))
-          (ensures (refkey_inp_val fc k = st k))
+(* the written-value of a key *)
+let write #app (fc: appfn_call app{correct fc}) (k: app_key app.adm{fc `refs` k})
+  = let i = refkey_idx fc k in
+    let ws = writes fc in
+    let open FStar.Seq in
+    index ws i
 
-let refkey_post_val #app (fc: appfn_call app) (k: _{fc `refs` k})
-  = let fn = appfn fc.fid_c in
-    let rc
+(* does a fncall succeed for a given state and input? *)
+let succeeds #app (fc: appfn_call app) (st: app_state app.adm)
+  = Some? (simulate_step fc st)
+
+(* the inputs of a function call are consistent with a state, if the values of all referenced keys are those
+ * in the state *)
+let input_consistent #app (fc: appfn_call app) (st: app_state app.adm)
+  = forall (k: app_key app.adm). {:pattern (refkey_inp_val fc k = st k)} fc `refs` k ==> (refkey_inp_val fc k = st k)
+
+val input_correct_is_input_consistent (#app:_) (fc: appfn_call app) (st: app_state app.adm)
+  : Lemma (ensures (let rs = fc.inp_c in
+                   input_consistent fc st <==> input_correct st rs))
+          [SMTPat (input_consistent fc st)]
+
+(* a state transition is guaranteed to succeed on a correct function call if the inputs are consistent
+ * with the state *)
+val correct_succeeds_if_input_consistent (#app:_) (fc: appfn_call app) (st: app_state app.adm)
+  : Lemma (ensures (succeeds fc st <==> correct fc /\ input_consistent fc st))
+
+(* for a successful proc call, the state after applying the function *)
+let apply_trans #app (fc: appfn_call app) (st: app_state app.adm {succeeds fc st})
+  = let Some (st, _) = simulate_step fc st in
+    st
+
+(* in the post state of applying a transition function, the value of an unreferenced key is the same;
+ * the value of a referenced key is that produced by the write of the function *)
+val lemma_post_state (#app:_) (fc: appfn_call app) (st: app_state app.adm {succeeds fc st}) (k: app_key app.adm)
+  : Lemma (ensures (let stpost = apply_trans fc st in
+                    (* fc references k and the value of k in stpost is the written value *)
+                    fc `refs` k /\ write fc k = stpost k
+                      \/
+                    ~ (fc `refs` k) /\ stpost k = st k))

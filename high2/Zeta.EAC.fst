@@ -218,9 +218,9 @@ let eac_value_base (#app: app_params) (k: key app) (l: eac_log app)
   = let es = eac_state_of_key k l in
     match es with
     | EACInit -> init_value k
-    | EACInStore _ v -> v
-    | EACEvictedMerkle v -> v
-    | EACEvictedBlum v _ _ -> v
+    | EACInStore _ gk v -> if gk = k then v else init_value k
+    | EACEvictedMerkle gk v -> if gk = k then v else init_value k
+    | EACEvictedBlum gk v _ _ -> if gk = k then v else init_value k
 
 let rec lemma_eac_value_compatible (#app: app_params) (k: key app) (l: eac_log app)
   : Lemma (ensures (Zeta.Record.compatible k (eac_value_base k l)))
