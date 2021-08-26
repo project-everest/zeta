@@ -14,17 +14,38 @@ module BY = FStar.Bytes
 module HS = FStar.HyperStack
 module HST = FStar.HyperStack.ST
 
+inline_for_extraction
+noextract
+let significant_digits_filter
+  (x: U16.t)
+: Tot bool
+= x `U16.lte` 256us
+
+inline_for_extraction
+noextract
+let significant_digits_synth
+  (x: LP.parse_filter_refine significant_digits_filter)
+: Tot significant_digits_t
+= x
+
+inline_for_extraction
+noextract
+let significant_digits_synth_recip
+  (x: significant_digits_t)
+: Tot (LP.parse_filter_refine significant_digits_filter)
+= x
+
 let significant_digits_t_parser =
   LP.parse_synth
-    (LP.parse_filter LP.parse_u16 (fun x -> x `U16.lte` 256us))
-    (fun x -> x)
+    (LP.parse_filter LP.parse_u16 significant_digits_filter)
+    significant_digits_synth
 
 let significant_digits_t_serializer =
   LP.serialize_synth
     _
     _
-    (LP.serialize_filter LP.serialize_u16 (fun x -> x `U16.lte` 256us))
-    (fun x -> x)
+    (LP.serialize_filter LP.serialize_u16 significant_digits_filter)
+    significant_digits_synth_recip
     ()
 
 let significant_digits_t_bytesize _ = 2
