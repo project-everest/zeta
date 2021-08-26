@@ -1,8 +1,7 @@
 module Veritas.Formats
 module LP = LowParse.Low.Base
 
-let serialize_length x =
-  Veritas.Formats.EverParse.Value.value_size32 x
+friend Veritas.Formats.Pure
 
 let serialize_value v dst =
   let _ = Veritas.Formats.EverParse.Value.value_lserializer v dst 0ul in ()   
