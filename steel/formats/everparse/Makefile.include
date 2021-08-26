@@ -18,11 +18,7 @@ ifeq (,$(QD_HOME))
   $(error Please define QD_HOME)
 endif
 
-QD := $(QD_HOME)/qd
-dummy := $(shell test -e $(QD))
-ifneq ($(.SHELLSTATUS),0)
-  QD := $(QD_HOME)/bin/qd
-endif
+QD := $(QD_HOME)/bin/qd.exe
 
 KRML := $(KREMLIN_HOME)/krml
 dummy := $(shell test -e $(KRML))
