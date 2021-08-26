@@ -234,13 +234,16 @@ let appfn_call_seq
     in
     indexed_filter_map l is_app to_fncall
 
+let eac_app_state #app (l: eac_log app) (ak: app_key app.adm)
+  = let gk = AppK ak in
+    AppV?.v (eac_value gk l)
+
 val eac_implies_valid_simulation (#app: app_params) (l: eac_log app)
   : Lemma (ensures (let fs = appfn_call_seq l in
                     Some? (simulate fs)))
           [SMTPat (eac l)]
 
-val eac_state_is_app_state (#app: app_params) (l: eac_log app) (k: app_key app.adm)
+val eac_state_is_app_state (#app: app_params) (l: eac_log app)
   : Lemma (ensures (let fs = appfn_call_seq l in
                     let app_state,_ = Some?.v (simulate fs) in
-                    let gk = AppK k in
-                    eac_value gk l = AppV (app_state k)))
+                    app_state == eac_app_state l))

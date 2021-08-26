@@ -254,13 +254,14 @@ let eac_value (#app: app_params) (k: key app) (l: eac_log app)
   : value_t k
   = eac_value_base k l
 
+let eac_valid_prop (#app: app_params) (l: eac_log app)
+  = let fs = appfn_call_seq l in
+    Some? (simulate fs) /\
+    (let app_state,_ = Some?.v (simulate fs) in
+     eac_app_state l == app_state)
+
 let eac_valid_helper_init #app (l: eac_log app{length l = 0})
-  : Lemma (ensures (let fs = appfn_call_seq l in
-                    Some? (simulate fs) /\
-                    (forall (k: app_key app.adm).
-                      let app_state,_ = Some?.v (simulate fs) in
-                      let gk = AppK k in
-                      eac_value gk l = AppV (app_state k))))
+  : Lemma (ensures (eac_valid_prop l))
   = admit()
 
 let lemma_indexed_filter_map_extend_unsat (#a #b:_)
@@ -287,8 +288,7 @@ let appfn_call_seq_unchanged #app (l: eac_log app)
 
 let appfn_call_seq_append #app (l: eac_log app)
   : Lemma (requires (length l > 0 /\ App? (telem l)))
-          (ensures (let App (RunApp fid_c arg_c _) inp_c = telem l in
-                    let fc = {fid_c; arg_c; inp_c} in
+          (ensures (let fc = to_fncall (telem l) in
           appfn_call_seq l == append1 (appfn_call_seq (hprefix l)) fc))
   = admit()
 
@@ -308,47 +308,90 @@ let non_ref_key_eac_value_unchanged #app (l: eac_log app) (k: key app)
                     eac_value k l = eac_value k l'))
   = admit()
 
+
+let eac_valid_helper_nonapp (#app: app_params) (l: eac_log app)
+  : Lemma (requires (length l > 0 /\
+                     not (App? (telem l)) /\
+                     eac_valid_prop (hprefix l)))
+          (ensures (eac_valid_prop l))
+  = let open Zeta.AppSimulate.Helper in
+    appfn_call_seq_unchanged l;
+    let fs = appfn_call_seq l in
+    let app_state,_ = Some?.v (simulate fs) in
+
+    let aux (k: app_key app.adm)
+      : Lemma (ensures (let gk = AppK k in
+                        eac_app_state l k = app_state k))
+        = let gk = AppK k in
+          app_key_eac_value_unchanged_by_nonapp_entry l gk
+    in
+    assert(app_state_feq app_state (eac_app_state l))
+
+let eac_implies_appfn_success (#app: app_params) (l: eac_log app)
+  : Lemma (requires (length l > 0 /\ App? (telem l)))
+          (ensures (let fc = to_fncall (telem l) in
+                    let fn = appfn fc.fid_c in
+                    let rc,_,_ = fn fc.arg_c fc.inp_c in
+                    rc <> Fn_failure))
+          [SMTPat (eac l)]
+  = admit()
+
+let eac_implies_input_correct (#app: app_params) (l: eac_log app)
+  : Lemma (requires (length l > 0 /\ App? (telem l)))
+          (ensures (let fc = to_fncall (telem l) in
+                    let st = eac_app_state (hprefix l) in
+                    input_correct st fc.inp_c))
+          [SMTPat (eac l)]
+  = admit()
+
+let eac_valid_helper_app (#app: app_params) (l: eac_log app)
+  : Lemma (requires (length l > 0 /\
+                     App? (telem l) /\
+                     eac_valid_prop (hprefix l)))
+          (ensures (eac_valid_prop l))
+  = let l' = hprefix l in
+    let ee = telem l in
+    let fc = to_fncall ee in
+    let fs = appfn_call_seq l in
+    let fs' = appfn_call_seq l' in
+    let fn = appfn fc.fid_c in
+    appfn_call_seq_append l;
+    assert(fs == append1 fs' fc);
+    let rc,_,ws = fn fc.arg_c fc.inp_c in
+    assert(rc <> Fn_failure);
+    lemma_prefix1_append fs' fc;
+    assert(hprefix fs == fs');
+    assert(Some? (simulate fs'));
+    let ors = simulate fs' in
+    let st',_ = Some?.v ors in
+    let or = simulate_step fc st' in
+    assert(st' == eac_app_state l');
+    assert(input_correct st' fc.inp_c);
+    assert(Some? or);
+    assert(Some? (simulate fs));
+    admit()
+
 let rec eac_valid_helper (#app: app_params) (l: eac_log app)
-  : Lemma (ensures (let fs = appfn_call_seq l in
-                    Some? (simulate fs) /\
-                    (forall (k: app_key app.adm).
-                      let app_state,_ = Some?.v (simulate fs) in
-                      let gk = AppK k in
-                      eac_value gk l = AppV (app_state k))))
+  : Lemma (ensures eac_valid_prop l)
           (decreases (length l))
- = if length l = 0 then eac_valid_helper_init l
-   else
-     let i = length l - 1 in
-     let l' = prefix l i in
-     let ee = index l i in
-     let e = to_vlog_entry ee in
-     let fs = appfn_call_seq l in
-     eac_valid_helper l';
-     if App? ee then (
-
-       admit()
-     )
-     else
-       appfn_call_seq_unchanged l;
-       let app_state,_ = Some?.v (simulate fs) in
-
-       let aux (k: app_key app.adm)
-         : Lemma (ensures (let gk = AppK k in
-                           eac_value gk l = AppV (app_state k)))
-          = let gk = AppK k in
-            app_key_eac_value_unchanged_by_nonapp_entry l gk
-       in
-       FStar.Classical.forall_intro aux
-
+  = if (length l) = 0 then
+       eac_valid_helper_init l
+    else
+      let i = length l - 1 in
+      let l' = prefix l i in
+      eac_valid_helper l';
+      if App? (index l i) then
+        eac_valid_helper_app l
+      else
+        eac_valid_helper_nonapp l
 
 let eac_implies_valid_simulation (#app: app_params) (l: eac_log app)
   : Lemma (ensures (let fs = appfn_call_seq l in
                     Some? (simulate fs)))
   = eac_valid_helper l
 
-let eac_state_is_app_state (#app: app_params) (l: eac_log app) (k: app_key app.adm)
+let eac_state_is_app_state (#app: app_params) (l: eac_log app)
   : Lemma (ensures (let fs = appfn_call_seq l in
                     let app_state,_ = Some?.v (simulate fs) in
-                    let gk = AppK k in
-                    eac_value gk l = AppV (app_state k)))
+                    app_state == eac_app_state l))
   = eac_valid_helper l
