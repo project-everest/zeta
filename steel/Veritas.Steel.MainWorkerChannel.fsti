@@ -12,7 +12,8 @@ module Awc = Veritas.Steel.ApplicationWorkerChannel
 
 val epoch_id : Type0
 
-val initial_thread_state_model (id:epoch_id) : TSM.thread_state_model
+val initial_thread_state_model (id:epoch_id)
+  : tsm:TSM.thread_state_model{tsm.TSM.model_failed == false}
 
 noeq
 type epoch_hash_entry (c:G.erased Awc.ch) = {
