@@ -363,7 +363,7 @@ private let seq_remove (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
   : Seq.seq a
   = Seq.append (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
 
-#push-options "--z3rlimit_factor 4"
+#push-options "--z3rlimit_factor 6"
 private let seq_remove_count1 (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
   : Lemma
       (Seq.count (Seq.index s i) s == Seq.count (Seq.index s i) (seq_remove s i) + 1)
@@ -410,7 +410,7 @@ private let seq_remove_count2 (#a:eqtype)
 #pop-options
 
 /// This is the bijection for the recursive call
-
+#push-options "--z3rlimit_factor 3"
 private let ismap_next (#a:eqtype)
   (s1:Seq.seq a{Seq.length s1 > 0})
   (s2:Seq.seq a)
@@ -425,6 +425,7 @@ private let ismap_next (#a:eqtype)
       else n - 1 in
 
     f
+#pop-options
 
 private let rec seq_count_into_smap_x (#a:eqtype)
   (s1 s2:Seq.seq a)

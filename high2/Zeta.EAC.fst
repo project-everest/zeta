@@ -300,24 +300,6 @@ let app_key_eac_value_unchanged_by_nonapp_entry #app (l: eac_log app) (k: key ap
 
 open Zeta.AppSimulate.Helper
 
-let non_ref_key_eac_value_unchanged #app (l: eac_log app) (ak: app_key app.adm)
-  : Lemma (requires (length l > 0 /\
-                     (let ee = telem l in
-                      let e = to_vlog_entry ee in
-                      App? (telem l) /\ ~ ( (to_fncall ee) `refs` ak))))
-          (ensures (let l' = hprefix l in
-                    let gk = AppK ak in
-                    eac_value gk l = eac_value gk l'))
-  = admit()
-
-
-let eac_implies_appfn_success (#app: app_params) (l: eac_log app)
-  : Lemma (requires (length l > 0 /\ App? (telem l)))
-          (ensures (correct (to_fncall (telem l))))
-          [SMTPat (eac l)]
-  = admit()
-
-
 let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.adm)
   : Lemma (requires (length l > 0 /\ App? (telem l)))
           (ensures (let gk = AppK ak in
@@ -362,6 +344,40 @@ let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.ad
         ()
     )
     else ()
+
+let non_ref_key_eac_value_unchanged #app (l: eac_log app) (ak: app_key app.adm)
+  : Lemma (requires (length l > 0 /\
+                     (let ee = telem l in
+                      let e = to_vlog_entry ee in
+                      App? (telem l) /\ ~ ( (to_fncall ee) `refs` ak))))
+          (ensures (let l' = hprefix l in
+                    let gk = AppK ak in
+                    eac_value gk l = eac_value gk l'))
+  = let ee = telem l in
+
+  admit()
+
+let eac_implies_appfn_success (#app: app_params) (l: eac_log app)
+  : Lemma (requires (length l > 0 /\ App? (telem l)))
+          (ensures (correct (to_fncall (telem l))))
+          [SMTPat (eac l)]
+  = let ee = telem l in
+    let e = to_vlog_entry ee in
+    let fc = to_fncall ee in
+    let l' = hprefix l in
+    assert(eac l');
+
+    // Root is any key
+    let open Zeta.BinTree in
+    let eac_smk = eac_smk app Root in
+    assert(Zeta.SeqMachine.valid eac_smk l');
+    assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
+    let es' = eac_state_of_base_key Root l' in
+    let es = eac_state_of_base_key Root l in
+
+    assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
+    assert(es = eac_add_app ee es');  // .. since ee is App?
+    ()
 
 let ref_key_value_change #app (l: eac_log app) (ak: app_key app.adm)
   : Lemma (requires (length l > 0 /\
