@@ -298,23 +298,25 @@ let app_key_eac_value_unchanged_by_nonapp_entry #app (l: eac_log app) (k: key ap
                     eac_value k l = eac_value k l'))
   = admit()
 
-let non_ref_key_eac_value_unchanged #app (l: eac_log app) (k: key app)
+open Zeta.AppSimulate.Helper
+
+let non_ref_key_eac_value_unchanged #app (l: eac_log app) (ak: app_key app.adm)
   : Lemma (requires (length l > 0 /\
                      (let ee = telem l in
                       let e = to_vlog_entry ee in
-                      let bk = to_base_key k in
-                      not (e `refs_key` bk))))
+                      App? (telem l) /\ ~ ( (to_fncall ee) `refs` ak))))
           (ensures (let l' = hprefix l in
-                    eac_value k l = eac_value k l'))
+                    let gk = AppK ak in
+                    eac_value gk l = eac_value gk l'))
   = admit()
 
-open Zeta.AppSimulate.Helper
 
 let eac_implies_appfn_success (#app: app_params) (l: eac_log app)
   : Lemma (requires (length l > 0 /\ App? (telem l)))
           (ensures (correct (to_fncall (telem l))))
           [SMTPat (eac l)]
   = admit()
+
 
 let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.adm)
   : Lemma (requires (length l > 0 /\ App? (telem l)))
@@ -325,35 +327,40 @@ let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.ad
                     let bk = to_base_key gk in
                     let fc = to_fncall ee in
 
-                    (e `refs_key` bk <==> fc `refs` ak) /\
-                    (e `refs_key` bk ==> (index_mem bk refkeys = refkey_idx fc ak))))
-  = let gk = AppK ak in
-    let ee = telem l in
-    let App (RunApp _ _ refkeys) _ = ee in
+                    fc `refs` ak ==>
+                    e `refs_key` bk /\ index_mem bk refkeys = refkey_idx fc ak))
+  = let ee = telem l in
+    let App (RunApp _ _ refkeys) rs = ee in
     let e = to_vlog_entry ee in
-    let bk = to_base_key gk in
     let fc = to_fncall ee in
 
-    if e `refs_key` bk then (
+    if refs_comp fc ak then (
+      let idx = refkey_idx fc ak in
+
+      (* the base key at location idx *)
+      let bk' = index refkeys idx in        // we don't know yet bk' = bk
+
+      // clearly bk' is referenced by e
+      assert(e `refs_key` bk');
 
       let l' = hprefix l in
-      assert(eac l');                   // eac l => eac (prefix l)
+      assert(eac l');
 
-      let eac_smk = eac_smk app bk in   // state machine for the leaf key
+      let eac_smk = eac_smk app bk' in   // state machine for the leaf key
       assert(Zeta.SeqMachine.valid eac_smk l');         // running the state machine on l' results in valid state
       assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
 
-      let es' = eac_state_of_base_key bk l' in
-      let es = eac_state_of_base_key bk l in
+      let es' = eac_state_of_base_key bk' l' in
+      let es = eac_state_of_base_key bk' l in
 
       assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
       assert(es = eac_add_app ee es');  // .. since ee is App?
-
-      assert(EACInStore? es');          // otherwise, es would fail
-      let idx = index_mem bk refkeys in
-      admit()
+      assert(EACInStore? es');          // otherwise es should be EACFail
+      match es' with
+      | EACInStore _ gk _ ->
+        assert(gk = AppK ak);           // we check this in eac_pp_add
+        ()
     )
-    else if refs_comp fc ak then admit()
     else ()
 
 let ref_key_value_change #app (l: eac_log app) (ak: app_key app.adm)
@@ -362,11 +369,10 @@ let ref_key_value_change #app (l: eac_log app) (ak: app_key app.adm)
                      let ee = telem l in
                      let e = to_vlog_entry ee in
                      let bk = to_base_key k in
-                     App? ee /\ e `refs_key` bk)))
+                     App? ee /\ (to_fncall ee) `refs` ak)))
           (ensures (let k = AppK ak in
                     let ee = telem l in
                     let fc = to_fncall ee in
-                    fc `refs` ak /\
                     eac_value k l = AppV (write fc ak)))
   = let ee = telem l in               // the tail element
     let gk = AppK ak in               // generalized key
@@ -386,9 +392,8 @@ let ref_key_value_change #app (l: eac_log app) (ak: app_key app.adm)
     assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
     assert(es = eac_add_app ee es');  // .. since ee is App?
 
-    assert(EACInStore? es');          // otherwise, es would fail
     eac_refs_is_app_refs l ak;
-
+    assert(EACInStore? es');          // otherwise, es would fail
     match ee with
     | App (RunApp f p refkeys) rs ->
       let fc = to_fncall ee in
@@ -401,17 +406,16 @@ let eac_valid_helper_nonapp (#app: app_params) (l: eac_log app)
                      not (App? (telem l)) /\
                      eac_valid_prop (hprefix l)))
           (ensures (eac_valid_prop l))
-  = let open Zeta.AppSimulate.Helper in
-    appfn_call_seq_unchanged l;
+  = appfn_call_seq_unchanged l;
     let fs = appfn_call_seq l in
-    let app_state,_ = Some?.v (simulate fs) in
-
+    let app_state = post_state fs in
     let aux (k: app_key app.adm)
       : Lemma (ensures (let gk = AppK k in
                         eac_app_state l k = app_state k))
-        = let gk = AppK k in
-          app_key_eac_value_unchanged_by_nonapp_entry l gk
+      = let gk = AppK k in
+        app_key_eac_value_unchanged_by_nonapp_entry l gk
     in
+    FStar.Classical.forall_intro aux;
     assert(app_state_feq app_state (eac_app_state l))
 
 let eac_implies_input_consistent_key #app (l: eac_log app) (ak: app_key app.adm)
@@ -470,7 +474,7 @@ let eac_implies_input_consistent #app (l: eac_log app)
           : Lemma (ensures (fc `refs` ak ==> (refkey_inp_val fc ak = st ak)))
       = let bk = to_base_key (AppK ak) in
         eac_refs_is_app_refs l ak;
-        if e `refs_key` bk then
+        if refs_comp fc ak then
           eac_implies_input_consistent_key l ak
         else ()
     in
@@ -516,13 +520,12 @@ let eac_valid_helper_app (#app: app_params) (l: eac_log app)
 
     let aux (ak: app_key app.adm)
       : Lemma (ensures (sts ak = ste ak))
-      = let bk = to_base_key (AppK ak) in
-        eac_refs_is_app_refs l ak;
+      = eac_refs_is_app_refs l ak;
         lemma_post_state fc st' ak;
-        if e `refs_key` bk then
+        if refs_comp fc ak then
           ref_key_value_change l ak
         else
-          non_ref_key_eac_value_unchanged l (AppK ak)
+          non_ref_key_eac_value_unchanged l ak
     in
     FStar.Classical.forall_intro aux;
     assert(app_state_feq sts ste);

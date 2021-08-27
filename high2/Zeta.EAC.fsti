@@ -19,7 +19,7 @@ type vlog_entry_ext (app: app_params) =
   | NEvict: e:vlog_entry app{is_internal e && not (is_evict e)} -> vlog_entry_ext app
   | EvictMerkle: e:vlog_entry app{is_merkle_evict e} -> v:value app -> vlog_entry_ext app
   | EvictBlum: e:vlog_entry app{is_blum_evict e} -> v:value app -> tid:thread_id -> vlog_entry_ext app
-  | App: e:vlog_entry app{is_appfn e} ->
+  | App: e:vlog_entry app{is_appfn e /\ Zeta.SeqAux.distinct_elems (RunApp?.rs e)} ->
          rs: appfn_rs_t (RunApp?.f e) { length rs = length (RunApp?.rs e) }   -> vlog_entry_ext app
 
 let vlog_ext (app: app_params) = seq (vlog_entry_ext app)

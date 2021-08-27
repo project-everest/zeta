@@ -1026,3 +1026,13 @@ let rec lemma_indexed_filter_map (#a #b:_)
     let s' = prefix s n in
     if i = n then ()
     else lemma_indexed_filter_map s' f m i
+
+(* the element at each index is a member of the seqeunce *)
+let each_index_mem (#a: eqtype) (l: seq a) (i: seq_index l)
+  : Lemma (ensures (mem (index l i) l))
+  = ()
+
+let lemma_elem_idx_uniq (#a: eqtype) (s: seq a{distinct_elems s}) (i: seq_index s)
+  : Lemma (ensures (let e = index s i in
+                    index_mem e s = i))
+  = ()

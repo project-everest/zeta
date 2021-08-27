@@ -511,3 +511,16 @@ val lemma_indexed_filter_map (#a #b:_)
   : Lemma (ensures (let j = indexed_filter_map_map s f m i in
                     i = indexed_filter_map_invmap s f m j))
           [SMTPat (indexed_filter_map_map s f m i)]
+
+(* the element at each index is a member of the seqeunce *)
+val each_index_mem (#a: eqtype) (l: seq a) (i: seq_index l)
+  : Lemma (ensures (mem (index l i) l))
+          [SMTPat (index l i)]
+
+(* a sequence with distinct values *)
+let distinct_elems (#a: eqtype) (s: seq a)
+  = forall (i1 i2: seq_index s). i1 <> i2 ==> (index s i1) <> (index s i2)
+
+val lemma_elem_idx_uniq (#a: eqtype) (s: seq a{distinct_elems s}) (i: seq_index s)
+  : Lemma (ensures (let e = index s i in
+                    index_mem e s = i))
