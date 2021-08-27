@@ -124,7 +124,7 @@ let rec simulate #aprm (fs: S.seq (appfn_call aprm)):
       )
 
 (* a function-call-result sequence is valid if we get the result when run simulation on the call parameters *)
-let valid #aprm (rs: S.seq (appfn_call_res aprm)) =
+let valid_call_result #aprm (rs: S.seq (appfn_call_res aprm)) =
   let fs = SA.map to_appfn_call rs in
   Some? (simulate fs) /\
     (let Some (_,rs2) = simulate fs in
@@ -134,4 +134,4 @@ let valid #aprm (rs: S.seq (appfn_call_res aprm)) =
  * interleaving that is valid per the definition above
  *)
 let seq_consistent #aprm (sr: S.seq (S.seq (appfn_call_res aprm))) =
-  exists is. I.interleave #(appfn_call_res aprm) is sr /\ valid is
+  exists is. I.interleave #(appfn_call_res aprm) is sr /\ valid_call_result is

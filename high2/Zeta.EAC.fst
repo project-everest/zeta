@@ -2,7 +2,6 @@ module Zeta.EAC
 
 open Zeta.SeqMachine
 open Zeta.SeqAux
-open Zeta.AppSimulate.Helper
 
 let eac_state_of_base_key
   (#app: app_params)
@@ -309,6 +308,8 @@ let non_ref_key_eac_value_unchanged #app (l: eac_log app) (k: key app)
                     eac_value k l = eac_value k l'))
   = admit()
 
+open Zeta.AppSimulate.Helper
+
 let eac_implies_appfn_success (#app: app_params) (l: eac_log app)
   : Lemma (requires (length l > 0 /\ App? (telem l)))
           (ensures (correct (to_fncall (telem l))))
@@ -349,8 +350,8 @@ let ref_key_value_change #app (l: eac_log app) (ak: app_key app.adm)
     assert(eac l');                   // eac l => eac (prefix l)
 
     let eac_smk = eac_smk app bk in   // state machine for the leaf key
-    assert(valid eac_smk l');         // running the state machine on l' results in valid state
-    assert(valid eac_smk l);          // since (eac l)
+    assert(Zeta.SeqMachine.valid eac_smk l');         // running the state machine on l' results in valid state
+    assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
 
     let es' = eac_state_of_base_key bk l' in
     let es = eac_state_of_base_key bk l in
@@ -417,7 +418,7 @@ let eac_implies_input_consistent_key #app (l: eac_log app) (ak: app_key app.adm)
 
       let eac_smk = eac_smk app bk in   // state machine for the leaf key
       //assert(valid eac_smk l');         // running the state machine on l' results in valid state
-      assert(valid eac_smk l);          // since (eac l)
+      assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
 
       //assert(EACInStore? es');          // otherwise, eac failure
       //match es' with
@@ -456,6 +457,7 @@ let eac_valid_helper_app (#app: app_params) (l: eac_log app)
           (ensures (eac_valid_prop l))
   = let l' = hprefix l in
     let ee = telem l in
+    let e = to_vlog_entry ee in
 
     (* the function call sequences of l' and l differ by the function call of the last element of l *)
     let fc = to_fncall ee in
@@ -470,20 +472,34 @@ let eac_valid_helper_app (#app: app_params) (l: eac_log app)
     (* from induction we know that simulating fs' succeeds and results in state st' (say) *)
     lemma_prefix1_append fs' fc;
     assert(hprefix fs == fs');
-    let Some (st',_) = simulate fs' in
+    let st' = post_state fs' in
+    assert(st' == eac_app_state l');
 
     eac_implies_input_consistent l;
     correct_succeeds_if_input_consistent fc st';
 
-    //let ors = simulate fs' in
-    //let st',_ = Some?.v ors in
-    //let or = simulate_step fc st' in
-    (*
-    assert(st' == eac_app_state l');
-    assert(input_correct st' fc.inp_c);
-    assert(Some? or);
-    *)
-    admit()
+    (* simulating fs does not fail *)
+    assert(valid fs);
+
+    (* final state after full simulation of fs is obtained by applying fc on st' *)
+    let sts = post_state fs in
+    assert(sts == apply_trans fc st');
+
+    let ste = eac_app_state l in
+
+    let aux (ak: app_key app.adm)
+      : Lemma (ensures (sts ak = ste ak))
+      = let bk = to_base_key (AppK ak) in
+        eac_refs_is_app_refs l ak;
+        lemma_post_state fc st' ak;
+        if e `refs_key` bk then
+          ref_key_value_change l ak
+        else
+          non_ref_key_eac_value_unchanged l (AppK ak)
+    in
+    FStar.Classical.forall_intro aux;
+    assert(app_state_feq sts ste);
+    ()
 
 let rec eac_valid_helper (#app: app_params) (l: eac_log app)
   : Lemma (ensures eac_valid_prop l)

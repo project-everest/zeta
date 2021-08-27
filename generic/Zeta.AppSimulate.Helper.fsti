@@ -85,3 +85,24 @@ val lemma_post_state (#app:_) (fc: appfn_call app) (st: app_state app.adm {succe
                     fc `refs` k /\ write fc k = stpost k
                       \/
                     ~ (fc `refs` k) /\ stpost k = st k))
+
+open FStar.Seq
+open Zeta.SeqAux
+
+(* a valid sequence is a sequence that does not fail *)
+let valid (#app:_) (fs: seq (appfn_call app))
+  = Some? (simulate fs)
+
+let post_state #app (fs: seq (appfn_call app) {valid fs})
+  = let Some (st,_) = simulate fs in
+    st
+
+val prefix_of_valid_valid (#app:_) (fs: seq (appfn_call app) {valid fs}) (i: nat {i <= length fs})
+  : Lemma (ensures (valid (prefix fs i)))
+          [SMTPat (prefix fs i)]
+
+val lemma_apply_trans (#app:_) (fs: seq (appfn_call app) {length fs > 0 /\ valid fs})
+  : Lemma (ensures (let fs' = hprefix fs in
+                    let fc = telem fs in
+                    post_state fs == apply_trans fc (post_state fs')))
+          [SMTPat (valid fs)]
