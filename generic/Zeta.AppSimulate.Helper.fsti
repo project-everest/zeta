@@ -35,6 +35,9 @@ let refs #app (fc: appfn_call app) (k: app_key app.adm)
   = let open FStar.Seq in
   exists i. (let k',v = index fc.inp_c i in k = k')
 
+val refs_comp (#app:_) (fc: appfn_call app) (k: app_key app.adm)
+  : b:bool { b <==> refs fc k }
+
 (* for a referenced key, return the parameter position index *)
 val refkey_idx (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k})
   : i:_{let k',v = FStar.Seq.index fc.inp_c i in k' = k}

@@ -327,7 +327,34 @@ let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.ad
 
                     (e `refs_key` bk <==> fc `refs` ak) /\
                     (e `refs_key` bk ==> (index_mem bk refkeys = refkey_idx fc ak))))
-  = admit()
+  = let gk = AppK ak in
+    let ee = telem l in
+    let App (RunApp _ _ refkeys) _ = ee in
+    let e = to_vlog_entry ee in
+    let bk = to_base_key gk in
+    let fc = to_fncall ee in
+
+    if e `refs_key` bk then (
+
+      let l' = hprefix l in
+      assert(eac l');                   // eac l => eac (prefix l)
+
+      let eac_smk = eac_smk app bk in   // state machine for the leaf key
+      assert(Zeta.SeqMachine.valid eac_smk l');         // running the state machine on l' results in valid state
+      assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
+
+      let es' = eac_state_of_base_key bk l' in
+      let es = eac_state_of_base_key bk l in
+
+      assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
+      assert(es = eac_add_app ee es');  // .. since ee is App?
+
+      assert(EACInStore? es');          // otherwise, es would fail
+      let idx = index_mem bk refkeys in
+      admit()
+    )
+    else if refs_comp fc ak then admit()
+    else ()
 
 let ref_key_value_change #app (l: eac_log app) (ak: app_key app.adm)
   : Lemma (requires (length l > 0 /\
