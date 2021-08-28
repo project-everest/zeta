@@ -979,9 +979,6 @@ let related_vevictbm (#vcfg: _)
 
 ////////////////////
 
-let tsm_to_vtls vcfg (tsm:thread_state_model)
-  : vtls:(I.vtls vcfg){tsm `related_states` vtls} = admit ()
-
 let related_entries (vcfg:_)
   (tsm:TSM.thread_state_model)
   (vtls:I.vtls vcfg)
