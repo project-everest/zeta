@@ -1,5 +1,6 @@
 module Veritas.SingleThreadSimulation
 open FStar.Ghost
+module VSeq = Veritas.SeqAux
 module I = Veritas.Intermediate.Verify
 module S = Veritas.Steel.VerifierModel
 module VCfg = Veritas.Intermediate.VerifierConfig
@@ -979,7 +980,29 @@ let related_vevictbm (#vcfg: _)
 
 ////////////////////
 
-let related_entries (vcfg:_)
+let related_entry vcfg (tsm:TSM.thread_state_model) (vtls:I.vtls vcfg)
+  (e:S_Types.vlog_entry)
+  : Lemma
+      (requires
+        Some? (TSM.lift_log_entry #vcfg e) /\
+        tsm `related_states` vtls)
+      (ensures
+        S.verify_step_model tsm e
+          `related_states`
+        I.verify_step vtls (Some?.v (TSM.lift_log_entry #vcfg e)))
+  = if tsm.TSM.model_failed then ()
+    else
+      match e with
+      | S_Types.Ve_Get _ -> related_vget tsm vtls e
+      | S_Types.Ve_Put _ -> related_vput tsm vtls e
+      | S_Types.Ve_AddM _ -> related_vaddm tsm vtls e
+      | S_Types.Ve_EvictM _ -> related_vevictm tsm vtls e
+      | S_Types.Ve_AddB _ -> related_vaddb tsm vtls e
+      | S_Types.Ve_EvictB _ -> related_vevictb tsm vtls e
+      | S_Types.Ve_EvictBM _ -> related_vevictbm tsm vtls e
+
+#push-options "--fuel 1 --z3rlimit 50"
+let rec related_entries (vcfg:_)
   (tsm:TSM.thread_state_model)
   (vtls:I.vtls vcfg)
   (s:Seq.seq (S_Types.vlog_entry))
@@ -991,5 +1014,17 @@ let related_entries (vcfg:_)
         S.verify_model tsm s
           `related_states`
         I.verify vtls (Some?.v (TSM.lift_log_entries #vcfg s)))
+      (decreases Seq.length s)
       [SMTPat (tsm `related_states` vtls); SMTPat (S.verify_model tsm s)]
-  = admit ()
+  = let n = Seq.length s in
+    if n = 0 then ()
+    else
+      let prefix = VSeq.prefix s (n - 1) in
+      related_entries vcfg tsm vtls prefix;
+      let tsm_prefix = S.verify_model tsm prefix in
+      let vtls_prefix = I.verify vtls (Some?.v (TSM.lift_log_entries #vcfg prefix)) in
+      let nth = Seq.index s (n - 1) in
+      assume (VSeq.prefix (Some?.v (TSM.lift_log_entries #vcfg s)) (n - 1) ==
+              Some?.v (TSM.lift_log_entries #vcfg prefix));
+      related_entry vcfg tsm_prefix vtls_prefix nth
+#pop-options
