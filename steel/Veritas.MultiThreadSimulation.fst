@@ -17,9 +17,9 @@ assume val initial_thread_state_model (t_id:Spec.thread_id)
   : TSM.thread_state_model
 
 let tsm_to_vtls_initial vcfg (t_id:Spec.thread_id)
-  : Lemma (SSim.tsm_to_vtls vcfg (initial_thread_state_model t_id) ==
+  : Lemma (initial_thread_state_model t_id `TSM.related_states`
            I.init_thread_state t_id (IntT.init_store vcfg t_id))
-          [SMTPat (SSim.tsm_to_vtls vcfg (initial_thread_state_model t_id));
+          [SMTPat (initial_thread_state_model t_id);
            SMTPat (I.init_thread_state t_id (IntT.init_store vcfg t_id))]
   = admit ()
 

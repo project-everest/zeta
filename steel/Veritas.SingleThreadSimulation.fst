@@ -984,12 +984,15 @@ let tsm_to_vtls vcfg (tsm:thread_state_model)
 
 let related_entries (vcfg:_)
   (tsm:TSM.thread_state_model)
+  (vtls:I.vtls vcfg)
   (s:Seq.seq (S_Types.vlog_entry))
   : Lemma
-      (requires Some? (TSM.lift_log_entries #vcfg s))
+      (requires
+        Some? (TSM.lift_log_entries #vcfg s) /\
+        tsm `related_states` vtls)
       (ensures
         S.verify_model tsm s
           `related_states`
-        I.verify (tsm_to_vtls vcfg tsm) (Some?.v (TSM.lift_log_entries #vcfg s)))
-      [SMTPat (TSM.lift_log_entries #vcfg s); SMTPat (S.verify_model tsm s)]
+        I.verify vtls (Some?.v (TSM.lift_log_entries #vcfg s)))
+      [SMTPat (tsm `related_states` vtls); SMTPat (S.verify_model tsm s)]
   = admit ()
