@@ -1,5 +1,7 @@
 module Veritas.ThreadStateModel
 open FStar.Ghost
+
+module VSeq = Veritas.SeqAux
 module I = Veritas.Intermediate.Verify
 module VCfg = Veritas.Intermediate.VerifierConfig
 module IStore = Veritas.Intermediate.Store
@@ -385,13 +387,9 @@ let lift_log_entry #vcfg (v:T.vlog_entry)
       | _ -> None
     )
 
-assume val map_seq (#a #b:Type) (f:a -> b) (s:Seq.seq a) : Seq.seq b
-
-assume val fold_seq (#a #b:Type) (f:b -> a -> b) (y:b) (s:Seq.seq a) : b
-
 let lift_log_entries #vcfg (es : Seq.seq T.vlog_entry) : option (IL.logS vcfg) =
-  let log_eopt = map_seq (lift_log_entry #vcfg) es in
-  fold_seq (fun sopt eopt ->
+  let log_eopt = VSeq.map (lift_log_entry #vcfg) es in
+  VSeq.reduce (Some Seq.empty) (fun eopt sopt ->
     match sopt, eopt with
     | Some s, Some e -> Some (Seq.snoc s e)
-    | _, _ -> None) (Some Seq.empty) log_eopt
+    | _, _ -> None) log_eopt

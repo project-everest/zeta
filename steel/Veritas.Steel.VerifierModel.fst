@@ -5,6 +5,8 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 
+module VSeq = Veritas.SeqAux
+
 module MSH = Veritas.MultiSetHashDomain
 module T = Veritas.Formats.Types
 open Veritas.ThreadStateModel
@@ -538,12 +540,10 @@ let vevictbm_model (tsm:thread_state_model)
       )
     )
 
-assume val fold_seq (#a #b:Type) (f:b -> a -> b) (y:b) (s:Seq.seq a) : b
-
 let verify_model (tsm:thread_state_model) (s:Seq.seq T.vlog_entry)
   : thread_state_model =
   let open T in
-  fold_seq (fun tsm e ->
+  VSeq.reduce tsm (fun e tsm ->
     match e with
     | Ve_Get ve ->
       assume (U16.v ve.vegp_s < U16.v tsm.model_store_len);
@@ -559,4 +559,4 @@ let verify_model (tsm:thread_state_model) (s:Seq.seq T.vlog_entry)
       assume (U16.v ve.veem_s < U16.v tsm.model_store_len);
       assume (U16.v ve.veem_s2 < U16.v tsm.model_store_len);
       vevictm_model tsm ve.veem_s ve.veem_s2
-    | _ -> admit ()) tsm s
+    | _ -> admit ()) s
