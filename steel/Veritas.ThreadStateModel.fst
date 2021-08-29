@@ -388,8 +388,7 @@ let lift_log_entry #vcfg (v:T.vlog_entry)
     )
 
 let rec lift_log_entries #vcfg (es : Seq.seq T.vlog_entry)
-  : Tot (sopt:option (IL.logS vcfg){
-          Some? sopt ==> Seq.length (Some?.v sopt) == Seq.length es})
+  : Tot (sopt:option (IL.logS vcfg){Some? sopt ==> Seq.length (Some?.v sopt) == Seq.length es})
         (decreases Seq.length es) =
 
   let n = Seq.length es in
@@ -403,23 +402,3 @@ let rec lift_log_entries #vcfg (es : Seq.seq T.vlog_entry)
          (match lift_log_entry #vcfg e with
           | None -> None
           | Some e -> Some (Seq.snoc lifted_prefix e))
-
-
-//   let log_eopt = VSeq.map (lift_log_entry #vcfg) es in
-//   VSeq.reduce (Some Seq.empty) (fun eopt sopt ->
-//     match sopt, eopt with
-//     | Some s, Some e -> Some (Seq.snoc s e)
-//     | _, _ -> None) log_eopt
-
-// let lift_log_entries_lemma vcfg (es:Seq.seq T.vlog_entry)
-//   : Lemma
-//       (requires Some? (lift_log_entries #vcfg es))
-//       (ensures
-//         (let lifted_es = Some?.v (lift_log_entries #vcfg es) in
-//          Seq.length lifted_es == Seq.length es /\
-//          (forall (i:nat{i < Seq.length es}).
-//             Some? (lift_log_entry #vcfg (Seq.index es i)) /\
-//             Some?.v (lift_log_entry #vcfg (Seq.index es i)) ==
-//             Seq.index lifted_es i)))
-//       [SMTPat (lift_log_entries #vcfg es)]
-//   = admit ()

@@ -23,7 +23,7 @@ let tsm_to_vtls_initial vcfg (t_id:Spec.thread_id)
            SMTPat (I.init_thread_state t_id (IntT.init_store vcfg t_id))]
   = admit ()
 
-let verify_model_implies_lift vcfg (tsm:TSM.thread_state_model) (s:Seq.seq (Formats.vlog_entry))
+let verify_model_implies_lift_some vcfg (tsm:TSM.thread_state_model) (s:Seq.seq (Formats.vlog_entry))
   : Lemma
       (requires not (SteelModel.verify_model tsm s).TSM.model_failed)
       (ensures Some? (TSM.lift_log_entries #vcfg s))

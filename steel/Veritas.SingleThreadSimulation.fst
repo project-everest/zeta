@@ -1001,8 +1001,44 @@ let related_entry vcfg (tsm:TSM.thread_state_model) (vtls:I.vtls vcfg)
       | S_Types.Ve_EvictB _ -> related_vevictb tsm vtls e
       | S_Types.Ve_EvictBM _ -> related_vevictbm tsm vtls e
 
-#push-options "--fuel 1 --z3rlimit 50"
-let rec related_entries (vcfg:_)
+#push-options "--fuel 1"
+let rec lift_log_entries_is_a_map #vcfg (s:Seq.seq (S_Types.vlog_entry))
+  : Lemma
+      (requires Some? (TSM.lift_log_entries #vcfg s))
+      (ensures
+        (let Some s' = TSM.lift_log_entries #vcfg s in
+         (forall (i:nat{i < Seq.length s}).
+            Some? (TSM.lift_log_entry #vcfg (Seq.index s i)) /\
+            Seq.index s' i == Some?.v (TSM.lift_log_entry #vcfg (Seq.index s i)))))
+      (decreases Seq.length s)
+  = let n = Seq.length s in
+    if n = 0 then ()
+    else begin
+      lift_log_entries_is_a_map #vcfg (VSeq.prefix s (n - 1));
+      assert (forall (i:nat{i < n - 1}).
+                 Seq.index (Some?.v (TSM.lift_log_entries #vcfg s)) i ==
+                 Some?.v (TSM.lift_log_entry #vcfg (Seq.index s i)))
+    end
+
+let rec lift_log_entries_prefix #vcfg (s:Seq.seq (S_Types.vlog_entry)) (n:nat)
+  : Lemma
+      (requires
+        n <= Seq.length s /\
+        Some? (TSM.lift_log_entries #vcfg s))
+      (ensures
+        Some? (TSM.lift_log_entries #vcfg (VSeq.prefix s n)) /\
+        Seq.equal (VSeq.prefix (Some?.v (TSM.lift_log_entries #vcfg s)) n)
+                  (Some?.v (TSM.lift_log_entries #vcfg (VSeq.prefix s n))))
+      (decreases Seq.length s)
+  = let len = Seq.length s in
+    if len = 0 || len = n || n = 0 then ()
+    else begin
+      lift_log_entries_prefix #vcfg (VSeq.prefix s (len - 1)) n;
+      lift_log_entries_is_a_map #vcfg s;
+      lift_log_entries_is_a_map #vcfg (VSeq.prefix s n)
+    end
+
+let rec related_entries vcfg
   (tsm:TSM.thread_state_model)
   (vtls:I.vtls vcfg)
   (s:Seq.seq (S_Types.vlog_entry))
@@ -1023,8 +1059,6 @@ let rec related_entries (vcfg:_)
       related_entries vcfg tsm vtls prefix;
       let tsm_prefix = S.verify_model tsm prefix in
       let vtls_prefix = I.verify vtls (Some?.v (TSM.lift_log_entries #vcfg prefix)) in
-      let nth = Seq.index s (n - 1) in
-      assume (VSeq.prefix (Some?.v (TSM.lift_log_entries #vcfg s)) (n - 1) ==
-              Some?.v (TSM.lift_log_entries #vcfg prefix));
-      related_entry vcfg tsm_prefix vtls_prefix nth
+      lift_log_entries_prefix #vcfg s (n - 1);
+      related_entry vcfg tsm_prefix vtls_prefix (Seq.index s (n - 1))
 #pop-options
