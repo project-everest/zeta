@@ -13,16 +13,6 @@ module Formats = Veritas.Formats.Types
 module SteelModel = Veritas.Steel.VerifierModel
 module MSH = Veritas.MultiSetHashDomain
 
-assume val initial_thread_state_model (t_id:Spec.thread_id)
-  : TSM.thread_state_model
-
-let tsm_to_vtls_initial vcfg (t_id:Spec.thread_id)
-  : Lemma (initial_thread_state_model t_id `TSM.related_states`
-           I.init_thread_state t_id (IntT.init_store vcfg t_id))
-          [SMTPat (initial_thread_state_model t_id);
-           SMTPat (I.init_thread_state t_id (IntT.init_store vcfg t_id))]
-  = admit ()
-
 let verify_step_model_implies_lift_some vcfg (tsm:TSM.thread_state_model)
   (e:Formats.vlog_entry)
   : Lemma
@@ -51,11 +41,11 @@ let rec verify_model_implies_lift_some vcfg (tsm:TSM.thread_state_model) (s:Seq.
 noeq
 type epoch_hash_entry = {
   t_id : Spec.thread_id;
-  e_id : Mwc.epoch_id;
+  e_id : Formats.epoch_id;
   entries : Seq.seq Formats.vlog_entry;
   hadd : TSM.model_hash;
   hevict : h:TSM.model_hash{
-    let tsm = SteelModel.verify_model (initial_thread_state_model t_id) entries in
+    let tsm = SteelModel.verify_model (TSM.initial_thread_state_model t_id) entries in
     not tsm.TSM.model_failed /\
     tsm.TSM.model_hadd == hadd /\
     tsm.TSM.model_hevict == h}

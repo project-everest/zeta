@@ -5,6 +5,7 @@ module VSeq = Veritas.SeqAux
 module I = Veritas.Intermediate.Verify
 module VCfg = Veritas.Intermediate.VerifierConfig
 module IStore = Veritas.Intermediate.Store
+module IntT = Veritas.Intermediate.Thread
 module MSH = Veritas.MultiSetHashDomain
 module U64 = FStar.UInt64
 module T = Veritas.Formats.Types
@@ -402,3 +403,13 @@ let rec lift_log_entries #vcfg (es : Seq.seq T.vlog_entry)
          (match lift_log_entry #vcfg e with
           | None -> None
           | Some e -> Some (Seq.snoc lifted_prefix e))
+
+assume val initial_thread_state_model (t_id:Veritas.Verifier.thread_id)
+  : thread_state_model
+
+let tsm_to_vtls_initial vcfg (t_id:Veritas.Verifier.thread_id)
+  : Lemma (initial_thread_state_model t_id `related_states`
+           I.init_thread_state t_id (IntT.init_store vcfg t_id))
+          [SMTPat (initial_thread_state_model t_id);
+           SMTPat (I.init_thread_state t_id (IntT.init_store vcfg t_id))]
+  = admit ()
