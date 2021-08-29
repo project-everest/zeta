@@ -23,12 +23,30 @@ let tsm_to_vtls_initial vcfg (t_id:Spec.thread_id)
            SMTPat (I.init_thread_state t_id (IntT.init_store vcfg t_id))]
   = admit ()
 
-let verify_model_implies_lift_some vcfg (tsm:TSM.thread_state_model) (s:Seq.seq (Formats.vlog_entry))
+let verify_step_model_implies_lift_some vcfg (tsm:TSM.thread_state_model)
+  (e:Formats.vlog_entry)
+  : Lemma
+      (requires not (SteelModel.verify_step_model tsm e).TSM.model_failed)
+      (ensures Some? (TSM.lift_log_entry #vcfg e))
+  = admit ()
+
+#push-options "--fuel 1 --ifuel 0"
+let rec verify_model_implies_lift_some vcfg (tsm:TSM.thread_state_model) (s:Seq.seq (Formats.vlog_entry))
   : Lemma
       (requires not (SteelModel.verify_model tsm s).TSM.model_failed)
       (ensures Some? (TSM.lift_log_entries #vcfg s))
+      (decreases Seq.length s)
       [SMTPat (SteelModel.verify_model tsm s); SMTPat (TSM.lift_log_entries #vcfg s)]
-  = admit ()
+  = let n = Seq.length s in
+    if n = 0 then ()
+    else begin
+      let prefix = VSeq.prefix s (n - 1) in
+      let nth = Seq.index s (n - 1) in
+      let tsm_prefix = SteelModel.verify_model tsm prefix in
+      verify_model_implies_lift_some vcfg tsm prefix;
+      verify_step_model_implies_lift_some vcfg tsm_prefix nth
+    end
+#pop-options
 
 noeq
 type epoch_hash_entry = {
