@@ -264,23 +264,6 @@ let eac_valid_helper_init #app (l: eac_log app{length l = 0})
   : Lemma (ensures (eac_valid_prop l))
   = admit()
 
-let lemma_indexed_filter_map_extend_unsat (#a #b:_)
-  (s: seq a)
-  (f:(seq_index s -> bool))
-  (m:(i:(seq_index s){f i} -> b))
-  : Lemma (requires (length s > 0 /\ not (f (length s - 1))))
-          (ensures (indexed_filter_map s f m == indexed_filter_map (hprefix s) f m))
-  = admit()
-
-let lemma_indexed_filter_map_extend_sat (#a #b:_)
-  (s: seq a)
-  (f:(seq_index s -> bool))
-  (m:(i:(seq_index s){f i} -> b))
-  : Lemma (requires (length s > 0 /\ f (length s - 1)))
-          (ensures (indexed_filter_map s f m == append1 (indexed_filter_map (hprefix s) f m)
-                                                        (m (length s - 1))))
-  = admit()
-
 let appfn_call_seq_unchanged #app (l: eac_log app)
   : Lemma (requires (length l > 0 /\ not (App? (telem l))))
           (ensures (appfn_call_seq l == appfn_call_seq (hprefix l)))
@@ -292,11 +275,11 @@ let appfn_call_seq_append #app (l: eac_log app)
           appfn_call_seq l == append1 (appfn_call_seq (hprefix l)) fc))
   = admit()
 
-let app_key_eac_value_unchanged_by_nonapp_entry #app (l: eac_log app) (k: key app{AppK? k})
+let app_key_eac_value_unchanged_by_nonapp_entry #app (l: eac_log app) (gk: key app{AppK? gk})
   : Lemma (requires (length l > 0 /\ ~ (App? (telem l))))
           (ensures (let l' = hprefix l in
-                    eac_value k l = eac_value k l'))
-  = admit()
+                    eac_value gk l = eac_value gk l'))
+  = ()
 
 open Zeta.AppSimulate.Helper
 
@@ -345,6 +328,7 @@ let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.ad
     )
     else ()
 
+
 let non_ref_key_eac_value_unchanged #app (l: eac_log app) (ak: app_key app.adm)
   : Lemma (requires (length l > 0 /\
                      (let ee = telem l in
@@ -354,8 +338,38 @@ let non_ref_key_eac_value_unchanged #app (l: eac_log app) (ak: app_key app.adm)
                     let gk = AppK ak in
                     eac_value gk l = eac_value gk l'))
   = let ee = telem l in
+    let e = to_vlog_entry ee in
+    let gk = AppK ak in
+    let bk = to_base_key gk in
+    let fc = to_fncall ee in
+    let App (RunApp _ _ refkeys) rs = ee in
 
-  admit()
+    if e `refs_key` bk then (
+      let idx = index_mem bk refkeys in
+      let l' = hprefix l in
+      assert(eac l');
+
+      let eac_smk = eac_smk app bk in   // state machine for the leaf key
+      assert(Zeta.SeqMachine.valid eac_smk l');         // running the state machine on l' results in valid state
+      assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
+
+      let es' = eac_state_of_base_key bk l' in
+      let es = eac_state_of_base_key bk l in
+
+      assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
+      assert(es = eac_add_app ee es');  // .. since ee is App?
+      assert(EACInStore? es');          // otherwise es should be EACFail
+
+      match es' with
+      | EACInStore _ gk' v ->
+        let ak',v' = index rs idx in
+        assert(AppK ak' = gk');
+
+        if ak' = ak then
+          refs_witness fc ak idx
+        else ()
+    )
+    else ()
 
 let eac_implies_appfn_success (#app: app_params) (l: eac_log app)
   : Lemma (requires (length l > 0 /\ App? (telem l)))

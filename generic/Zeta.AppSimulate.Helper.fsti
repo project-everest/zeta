@@ -42,6 +42,10 @@ val refs_comp (#app:_) (fc: appfn_call app) (k: app_key app.adm)
 val refkey_idx (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k})
   : i:_{let k',v = FStar.Seq.index fc.inp_c i in k' = k}
 
+val refs_witness (#app:_) (fc: appfn_call app) (k: app_key app.adm)
+ (i: Zeta.SeqAux.seq_index fc.inp_c {k = fst (FStar.Seq.index fc.inp_c i)})
+  : Lemma (ensures (refs fc k))
+
 (* for a referenced key, the input value provided to the function invocation *)
 let refkey_inp_val (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k})
   = let open FStar.Seq in

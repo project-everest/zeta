@@ -225,15 +225,8 @@ let appfn_call_seq
   (#app: app_params)
   (l: vlog_ext app)
   : seq (appfn_call app)
-  = let open Zeta.SeqAux in
-    let is_app = fun (i: seq_index l) ->
-      App? (index l i)
-    in
-    let to_fncall = fun (i: seq_index l{is_app i}) ->
-      let ee = index l i in
-      to_fncall ee
-    in
-    indexed_filter_map l is_app to_fncall
+  = let open Zeta.FilterMap in
+    simple_filter_map App? to_fncall l
 
 let eac_app_state #app (l: eac_log app) (ak: app_key app.adm)
   = let gk = AppK ak in

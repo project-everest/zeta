@@ -484,34 +484,6 @@ let mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
    }
   = Seq.init (Seq.length s) f
 
-val indexed_filter_map (#a #b:_) (s: seq a) (f:(seq_index s -> bool)) (m:(i:(seq_index s){f i} -> b))
-  : seq b
-
-val indexed_filter_map_map (#a #b:_)
-  (s: seq a)
-  (f:(seq_index s -> bool))
-  (m:(i:(seq_index s){f i} -> b))
-  (i: seq_index s {f i})
-  : j: (let fm = indexed_filter_map s f m in
-        seq_index fm) { let fm = indexed_filter_map s f m in
-                        index fm j == m i}
-
-val indexed_filter_map_invmap (#a #b:_)
-  (s: seq a)
-  (f:(seq_index s -> bool))
-  (m:(i:(seq_index s){f i} -> b))
-  (j: seq_index (indexed_filter_map s f m))
-  : i:(seq_index s){ f i /\ indexed_filter_map_map s f m i = j }
-
-val lemma_indexed_filter_map (#a #b:_)
-  (s: seq a)
-  (f:(seq_index s -> bool))
-  (m:(i:(seq_index s){f i} -> b))
-  (i: seq_index s {f i})
-  : Lemma (ensures (let j = indexed_filter_map_map s f m i in
-                    i = indexed_filter_map_invmap s f m j))
-          [SMTPat (indexed_filter_map_map s f m i)]
-
 (* the element at each index is a member of the seqeunce *)
 val each_index_mem (#a: eqtype) (l: seq a) (i: seq_index l)
   : Lemma (ensures (mem (index l i) l))

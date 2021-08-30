@@ -971,62 +971,6 @@ let map_upd (#a #b:Type) (f:a -> b) (s:seq a) (i:seq_index s) (x:a)
   : Lemma (map f (Seq.upd s i x) `Seq.equal` Seq.upd (map f s) i (f x))
   = ()
 
-let rec indexed_filter_map (#a #b:_) (s: seq a) (f:(seq_index s -> bool)) (m:(i:(seq_index s){f i} -> b))
-  : Tot (seq b)
-  (decreases (length s))
-  = let n = length s in
-    if n = 0
-    then empty #b
-    else
-      let s' = prefix s (n - 1) in
-      let ms' = indexed_filter_map s' f m in
-      if f (n-1)
-      then append1 ms' (m (n-1))
-      else ms'
-
-let rec indexed_filter_map_map (#a #b:_)
-  (s: seq a)
-  (f:(seq_index s -> bool))
-  (m:(i:(seq_index s){f i} -> b))
-  (i: seq_index s {f i})
-  : Tot (j: (let fm = indexed_filter_map s f m in
-            seq_index fm) { let fm = indexed_filter_map s f m in
-                        index fm j == m i})
-  (decreases (length s))
-  = let n = length s - 1 in
-    let s' = prefix s n in
-    let ms' = indexed_filter_map s' f m in
-    if i = n
-    then length ms'
-    else indexed_filter_map_map s' f m i
-
-let rec indexed_filter_map_invmap (#a #b:_)
-  (s: seq a)
-  (f:(seq_index s -> bool))
-  (m:(i:(seq_index s){f i} -> b))
-  (j: seq_index (indexed_filter_map s f m))
-  : Tot (i:(seq_index s){ f i /\ indexed_filter_map_map s f m i = j })
-    (decreases (length s))
-  = let n = length s - 1 in
-    let s' = prefix s n in
-    let ms' = indexed_filter_map s' f m in
-    if j = length ms'
-    then n
-    else indexed_filter_map_invmap s' f m j
-
-let rec lemma_indexed_filter_map (#a #b:_)
-  (s: seq a)
-  (f:(seq_index s -> bool))
-  (m:(i:(seq_index s){f i} -> b))
-  (i: seq_index s {f i})
-  : Lemma (ensures (let j = indexed_filter_map_map s f m i in
-                    i = indexed_filter_map_invmap s f m j))
-          (decreases (length s))
-  = let n = length s - 1 in
-    let s' = prefix s n in
-    if i = n then ()
-    else lemma_indexed_filter_map s' f m i
-
 (* the element at each index is a member of the seqeunce *)
 let each_index_mem (#a: eqtype) (l: seq a) (i: seq_index l)
   : Lemma (ensures (mem (index l i) l))
