@@ -264,9 +264,20 @@ let eac_valid_prop (#app: app_params) (l: eac_log app)
 let eac_valid_helper_init #app (l: eac_log app{length l = 0})
   : Lemma (ensures (eac_valid_prop l))
   = let fs = appfn_call_seq l in
-    lemma_valid_empty  fs;
+    lemma_valid_empty fs;
     assert(valid fs);
-    admit()
+
+    let ste = eac_app_state l in
+    let sta = post_state fs in
+    let aux (ak: app_key app.adm)
+      : Lemma (ensures (ste ak = sta ak))
+      = lemma_init_value_null fs ak;
+        let bk = to_base_key (AppK ak) in
+        lemma_empty_seq_init (eac_smk app bk) l
+    in
+    FStar.Classical.forall_intro aux;
+    assert(app_state_feq ste sta);
+    ()
 
 let appfn_call_seq_unchanged #app (l: eac_log app)
   : Lemma (requires (length l > 0 /\ not (App? (telem l))))
