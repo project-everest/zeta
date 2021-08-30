@@ -639,7 +639,7 @@ let lemma_prefix_interleaving (#a:eqtype)
   (j:nat{j < S.length (s_seq il)}) = 
   per_thread_prefix il i
 
-#push-options "--z3rlimit_factor 2"
+#push-options "--z3rlimit_factor 3"
 let lemma_prefix_snoc (#a:eqtype) (il:interleaving a) (i:seq_index il)
   = let rec aux (il:interleaving a) (i:seq_index il)
       : Lemma 

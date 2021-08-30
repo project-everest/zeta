@@ -51,3 +51,29 @@ let tail_fmparam_t #a #b (f: a -> bool) (m: (x:a{f x}) -> b)
 
 let simple_filter_map (#a #b:_) (f: a -> bool) (m: (x:a {f x}) -> b)
   = indexed_filter_map (tail_fmparam_t f m)
+
+val lemma_filter_map_extend_sat
+  (#a #b:_)
+  (fm: filter_map_param_t a b)
+  (s: seq a {length s > 0 /\ fm.f s})
+  : Lemma (ensures (let fms = indexed_filter_map fm s in
+                    let fms' = indexed_filter_map fm (hprefix s) in
+                    let me = fm.m s in
+                    fms == append1 fms' me))
+          [SMTPat (indexed_filter_map fm s)]
+
+val lemma_filter_map_extend_unsat
+  (#a #b:_)
+  (fm: filter_map_param_t a b)
+  (s: seq a {length s > 0 /\ not (fm.f s)})
+  : Lemma (ensures (let fms = indexed_filter_map fm s in
+                    let fms' = indexed_filter_map fm (hprefix s) in
+                    fms == fms'))
+          [SMTPat (indexed_filter_map fm s)]
+
+val lemma_filter_map_empty
+  (#a #b:_)
+  (fm: filter_map_param_t a b)
+  (s: seq a {length s = 0})
+  : Lemma (ensures length (indexed_filter_map fm s) = 0)
+          [SMTPat (indexed_filter_map fm s)]

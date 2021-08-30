@@ -254,26 +254,30 @@ let eac_value (#app: app_params) (k: key app) (l: eac_log app)
   : value_t k
   = eac_value_base k l
 
+open Zeta.AppSimulate.Helper
+
 let eac_valid_prop (#app: app_params) (l: eac_log app)
   = let fs = appfn_call_seq l in
-    Some? (simulate fs) /\
-    (let app_state,_ = Some?.v (simulate fs) in
-     eac_app_state l == app_state)
+    valid fs /\
+    eac_app_state l == post_state fs
 
 let eac_valid_helper_init #app (l: eac_log app{length l = 0})
   : Lemma (ensures (eac_valid_prop l))
-  = admit()
+  = let fs = appfn_call_seq l in
+    lemma_valid_empty  fs;
+    assert(valid fs);
+    admit()
 
 let appfn_call_seq_unchanged #app (l: eac_log app)
   : Lemma (requires (length l > 0 /\ not (App? (telem l))))
           (ensures (appfn_call_seq l == appfn_call_seq (hprefix l)))
-  = admit()
+  = ()
 
 let appfn_call_seq_append #app (l: eac_log app)
   : Lemma (requires (length l > 0 /\ App? (telem l)))
           (ensures (let fc = to_fncall (telem l) in
           appfn_call_seq l == append1 (appfn_call_seq (hprefix l)) fc))
-  = admit()
+  = ()
 
 let app_key_eac_value_unchanged_by_nonapp_entry #app (l: eac_log app) (gk: key app{AppK? gk})
   : Lemma (requires (length l > 0 /\ ~ (App? (telem l))))
@@ -281,7 +285,6 @@ let app_key_eac_value_unchanged_by_nonapp_entry #app (l: eac_log app) (gk: key a
                     eac_value gk l = eac_value gk l'))
   = ()
 
-open Zeta.AppSimulate.Helper
 
 let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.adm)
   : Lemma (requires (length l > 0 /\ App? (telem l)))

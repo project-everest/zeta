@@ -113,3 +113,9 @@ val lemma_apply_trans (#app:_) (fs: seq (appfn_call app) {length fs > 0 /\ valid
                     let fc = telem fs in
                     post_state fs == apply_trans fc (post_state fs')))
           [SMTPat (valid fs)]
+
+val lemma_valid_empty (#app:_) (fs: seq (appfn_call app){length fs = 0})
+  : Lemma (ensures (valid fs))
+
+val lemma_init_value_null (#app:_) (fs: seq (appfn_call app){length fs = 0}) (k: app_key app.adm)
+  : Lemma (ensures (post_state fs k = Null))

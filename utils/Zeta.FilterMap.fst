@@ -53,3 +53,30 @@ let rec lemma_indexed_filter_map (#a #b:_)
     let s' = prefix s n in
     if i = n then ()
     else lemma_indexed_filter_map fm s' i
+
+let lemma_filter_map_extend_sat
+  (#a #b:_)
+  (fm: filter_map_param_t a b)
+  (s: seq a {length s > 0 /\ fm.f s})
+  : Lemma (ensures (let fms = indexed_filter_map fm s in
+                    let fms' = indexed_filter_map fm (hprefix s) in
+                    let me = fm.m s in
+                    fms == append1 fms' me))
+          (decreases length s)
+  = ()
+
+let lemma_filter_map_extend_unsat
+  (#a #b:_)
+  (fm: filter_map_param_t a b)
+  (s: seq a {length s > 0 /\ not (fm.f s)})
+  : Lemma (ensures (let fms = indexed_filter_map fm s in
+                    let fms' = indexed_filter_map fm (hprefix s) in
+                    fms == fms'))
+  = ()
+
+let lemma_filter_map_empty
+  (#a #b:_)
+  (fm: filter_map_param_t a b)
+  (s: seq a {length s = 0})
+  : Lemma (ensures length (indexed_filter_map fm s) = 0)
+  = ()
