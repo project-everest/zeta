@@ -59,7 +59,7 @@ val initialize_log (len:U32.t) (a:A.array U8.t)
 (*
   [parsed_log_inv i l n s]: This is implemented as a Steel invariant.
 
-      i >--> parsed_log l s n
+      exists (i:iname). i >--> parsed_log l s n
 
   where parsed_log l n s : slprop =
         pure (Seq.length s = n) `star` l.g `pts_to` s
@@ -69,8 +69,7 @@ val initialize_log (len:U32.t) (a:A.array U8.t)
   Because I need this invariant, I'm using indexed slprops
   rather than selectors
 *)
-val parsed_log_inv (i:iname)
-                   (l:log)
+val parsed_log_inv (l:log)
                    (n:U32.t)
                    (s:repr)
   : prop
@@ -78,7 +77,7 @@ val parsed_log_inv (i:iname)
 (* [read_result]: Three potential results from trying to read an entry *)
 noeq
 type read_result =
-  | Finished of iname
+  | Finished
   | Parsed_with_maybe_more of T.vlog_entry
   | Failed:  pos:U32.t -> msg:string -> read_result
 
@@ -105,12 +104,12 @@ val read_next (#s:repr)
     (log_with_parsed_prefix l s)
     (fun o ->
       match o with
-      | Finished i -> A.varray (log_array l)
+      | Finished -> A.varray (log_array l)
       | Parsed_with_maybe_more e -> log_with_parsed_prefix l (snoc_log s e)
       | Failed pos _ -> A.varray (log_array l))
     (requires fun _ -> True)
     (ensures fun _ o _ ->
       match o with
-      | Finished i -> parsed_log_inv i l (log_len l) s
+      | Finished -> parsed_log_inv l (log_len l) s
       | Parsed_with_maybe_more e -> True
       | Failed pos _ -> U32.(pos <^ log_len l))
