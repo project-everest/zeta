@@ -74,8 +74,8 @@ val initialize_log (len:U32.t) (a:A.array U8.t)
 
       exists (i:iname). i >--> parsed_log l s n
 
-  where parsed_log l n s : slprop =
-        pure (Seq.length s = n) `star` l.g `pts_to` s
+  where parsed_log l s : slprop =
+        pure (Seq.length s = log_len l) `star` l.g `pts_to` s
 
   i.e., that the ghost ref of l points to the sequence
 
@@ -83,7 +83,6 @@ val initialize_log (len:U32.t) (a:A.array U8.t)
   rather than selectors
 *)
 val parsed_log_inv (l:log)
-                   (n:U32.t)
                    (s:repr)
   : prop
 
@@ -93,6 +92,13 @@ type read_result =
   | Finished
   | Parsed_with_maybe_more of T.vlog_entry
   | Failed:  pos:U32.t -> msg:string -> read_result
+
+let read_next_provides (s:repr) (l:log) (o:read_result)
+  : vprop
+  = match o with
+    | Finished -> A.varray (log_array l)
+    | Parsed_with_maybe_more e -> log_with_parsed_prefix l (snoc_log s e)
+    | Failed pos _ -> A.varray (log_array l)
 
 (* [read_next]:
     - To call [read_next], the caller needs to own the `log_with_parsed_prefix` permission
@@ -115,17 +121,13 @@ val read_next (#s:repr)
               (l:log)
   : Steel read_result
     (log_with_parsed_prefix l s)
-    (fun o ->
-      match o with
-      | Finished -> A.varray (log_array l)
-      | Parsed_with_maybe_more e -> log_with_parsed_prefix l (snoc_log s e)
-      | Failed pos _ -> A.varray (log_array l))
+    (read_next_provides s l)
     (requires fun _ -> True)
     (ensures fun _ o h1 ->
       match o with
       | Finished ->
         //The entries we parsed is stable and fixed to s
-        parsed_log_inv l (log_len l) s /\
+        parsed_log_inv l s /\
         //and s is the parse of the contents of the array in state h1
         parsed (array_sel (log_array l) (rmem_coerce h1)) s
       | Parsed_with_maybe_more e -> True

@@ -246,9 +246,9 @@ let vget (vs: thread_state_t) (s:slot vs.len) (k:T.key) (v:T.data_value)
       fail vs "Slot not found"
     | Some r' ->
       if k <> r'.record_key
-      then fail vs "Failed: inconsistent key in Get"
+      then (fail vs "Failed: inconsistent key in Get"; ())
       else if T.V_dval v <> r'.record_value
-      then fail vs "Failed: inconsistent value in Get"
+      then (fail vs "Failed: inconsistent value in Get"; ())
       // AF: Usual problem of Steel vs SteelF difference between the two branches
       else (noop (); ())
 
@@ -257,11 +257,11 @@ let vput vs s k v
   = let ro = VCache.vcache_get_record vs.st s in
     match ro with
     | None ->
-      fail vs "Slot not found"
+      fail vs "Slot not found"; ()
 
     | Some r ->
-      if r.record_key <> k then fail vs "slot-key mismatch"
-      else if not (is_data_key k) then fail vs "not a data key"
+      if r.record_key <> k then (fail vs "slot-key mismatch"; ())
+      else if not (is_data_key k) then (fail vs "not a data key"; ())
       else (
         vcache_update_record vs.st s ({ r with record_value = T.V_dval v });
         () //seem to need this
@@ -553,5 +553,156 @@ let verify_step vs e
          ve.veebm_s2 <^ vs.len
       then vevictbm vs ve.veebm_s ve.veebm_s2 ve.veebm_t
       else fail vs "slot bounds check"
+
+module L = Veritas.Steel.Log
+module A = Steel.Array
+let parse_failed (l:L.log) = A.varray (L.log_array l)
+module U8 = FStar.UInt8
+let log_append (l0 l1:L.repr) : L.repr = Seq.append l0 l1
+
+let verify_log_post (s:L.repr) (l:L.log)
+                    (tsm0: thread_state_model)
+                    (sopt: option L.repr)
+                    (tsm1: thread_state_model)
+  = match sopt with
+    | None ->
+       tsm1.model_failed == true
+    | Some s' ->
+        // let a = L.log_array l in
+        // L.parsed (A.asel a h1) (log_append s s') /\
+       Log.parsed_log_inv l (log_append s s') /\
+       tsm1 == verify_model tsm0 s'
+
+module AT = Steel.Effect.Atomic
+
+let log_append_empty (s:L.repr)
+  : Lemma
+    (ensures
+           log_append L.empty_log s == s /\
+           log_append s L.empty_log == s)
+    [SMTPatOr [[SMTPat (log_append L.empty_log s)];
+               [SMTPat (log_append s L.empty_log)]]]
+  = assert (Seq.equal (log_append L.empty_log s) s);
+    assert (Seq.equal (log_append s L.empty_log) s)
+
+let cons_log (e:T.vlog_entry) (s:L.repr) : L.repr = Seq.cons e s
+
+let log_snoc_append (s:L.repr) (e:T.vlog_entry) (s':L.repr)
+  : Lemma
+    (ensures
+           log_append (L.snoc_log s e) s' == log_append s (cons_log e s'))
+    [SMTPat (log_append (L.snoc_log s e) s')]
+  = admit()
+
+#push-options "--fuel 1"
+let verify_model_cons (tsm:thread_state_model)
+                      (e:T.vlog_entry)
+                      (s:L.repr)
+  : Lemma
+    (ensures
+      verify_model (verify_step_model tsm e) s ==
+      verify_model tsm (cons_log e s))
+    [SMTPat (verify_model (verify_step_model tsm e) s)]
+  = admit()
+
+assume
+val dispose (#s:L.repr)
+            (l:L.log)
+  : SteelT unit
+    (L.log_with_parsed_prefix l s)
+    (fun _ -> A.varray (L.log_array l))
+
+val verify_log (#s:L.repr) (vs:_) (l:L.log)
+  : Steel (option L.repr)
+    (thread_state_inv vs `star` L.log_with_parsed_prefix l s)
+    (fun o -> thread_state_inv vs `star` A.varray (L.log_array l))
+    (requires fun _ -> True)
+    (ensures fun h0 sopt h1 ->
+      verify_log_post s l (v_thread vs h0) sopt (v_thread vs h1))
+
+let rec verify_log #s vs l
+  = let h0 = get () in
+    assert (v_thread vs h0 == v_thread vs h0);
+    let failed = read vs.failed in
+    if failed
+    then (
+         dispose l;
+         AT.return None
+    )
+    else (
+      let r = L.read_next l in
+      let h1 = get () in
+      assert (v_thread vs h1 == v_thread vs h0);
+      match r with
+      | L.Finished ->
+        assert (L.parsed_log_inv l (log_append s L.empty_log));
+        change_equal_slprop (L.read_next_provides s l r)
+                            (A.varray (L.log_array l));
+        assert (verify_model (v_thread vs h0) L.empty_log ==
+               v_thread vs h1);
+        AT.return (Some L.empty_log)
+      | L.Failed pos msg ->
+        change_equal_slprop (L.read_next_provides s l r)
+                            (A.varray (L.log_array l));
+        write vs.failed true;
+        AT.return None
+      | L.Parsed_with_maybe_more entry ->
+        verify_step vs entry;
+        change_equal_slprop (L.read_next_provides s l r)
+                            (L.log_with_parsed_prefix l (L.snoc_log s entry));
+        let sopt = verify_log vs l in
+        match sopt with
+        | None ->
+          AT.return None
+        | Some s' ->
+          AT.return (Some (cons_log entry s'))
+    )
+
+let verify_array_post (a:A.array U8.t)
+                      (tsm0:thread_state_model)
+                      (sopt:option L.repr)
+                      (tsm1:thread_state_model)
+  = match sopt with
+    | None -> tsm1.model_failed == true
+    | Some s ->
+        exists (l:L.log).{:pattern (Log.parsed_log_inv l s)}
+          L.log_array l == a /\
+          Log.parsed_log_inv l s /\
+          tsm1 == verify_model tsm0 s
+
+let relate_log_to_array (l:L.log) tsm0 sopt tsm1
+  : Lemma
+    (requires verify_log_post L.empty_log l tsm0 sopt tsm1)
+    (ensures verify_array_post (L.log_array l) tsm0 sopt tsm1)
+  = assert (forall (s:L.repr). Seq.equal (log_append L.empty_log s) s); ()
+
+val verify_array (vs:_) (len:U32.t) (a:A.array U8.t)
+  : Steel (option L.repr)
+    (thread_state_inv vs `star` A.varray a)
+    (fun _ -> thread_state_inv vs `star` A.varray a)
+    (requires fun _ -> U32.v len == A.length a)
+    (ensures fun h0 sopt h1 ->
+      verify_array_post a (v_thread vs h0) sopt (v_thread vs h1))
+
+let rewrite_log_array (a:A.array U8.t)
+                      (l:L.log)
+  : Steel unit
+    (A.varray (L.log_array l))
+    (fun _ -> A.varray a)
+    (requires fun _ -> a == L.log_array l)
+    (ensures fun _ _ _ -> True)
+  = change_equal_slprop (A.varray (L.log_array l))
+                        (A.varray a)
+
+
+let verify_array vs len a =
+  let h0 = get () in
+  assert (v_thread vs h0 == v_thread vs h0);
+  let l = L.initialize_log len a in
+  let sopt = verify_log vs l in
+  rewrite_log_array a l;
+  let h2 = get () in
+  relate_log_to_array l (v_thread vs h0) sopt (v_thread vs h2);
+  AT.return sopt
 
 let verify #n vs c m = sladmit ()
