@@ -1,5 +1,5 @@
 module Zeta.Generic.TSLog
-
+open Zeta.SSeq
 module SA=Zeta.SeqAux
 
 #push-options "--max_fuel 0 --max_ifuel 0 --z3rlimit_factor 2"

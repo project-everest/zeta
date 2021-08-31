@@ -134,9 +134,10 @@ val ssfilter_map_map (#a #b:_)
   (fm: ssfm_t a b)
   (s: sseq a)
   (ii: sseq_index s {fm.f (indexss s ii)})
-  : j: (sseq_index (ssfilter_map fm s))
+  : jj: (sseq_index (ssfilter_map fm s))
     {let t,i = ii in
-     indexss (ssfilter_map fm s) j == fm.m t (index s t) i}
+     indexss (ssfilter_map fm s) jj == fm.m t (index s t) i /\
+     fst ii = fst jj}
 
 (* map an index of the filter-map back to the original sequence *)
 val ssfilter_map_invmap (#a #b:_)
@@ -151,16 +152,10 @@ val lemma_ssfilter_map (#a #b:_)
   (ii: sseq_index s {fm.f (indexss s ii)})
   : Lemma (ensures (let jj = ssfilter_map_map fm s ii in
                     ii = ssfilter_map_invmap fm s jj))
+          [SMTPat (ssfilter_map_map fm s ii)]
 
 val lemma_ssfilter_map_idx (#a #b:_)
   (ssfm: ssfm_t a b)
   (ss: sseq a)
   (i: seq_index ss)
   : Lemma (ensures (index (ssfilter_map ssfm ss) i = filter_map (to_fm_t ssfm i) (index ss i)))
-
-open Zeta.Interleave
-
-val ilfilter_map (#a #b:eqtype)
-  (fm: ssfm_t a b)
-  (il: interleaving a)
-  : il': interleaving b{s_seq il' = ssfilter_map fm (s_seq il)}

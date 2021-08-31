@@ -728,4 +728,8 @@ let rec interleave_sseq_index_next (#a:eqtype) (il:interleaving a) (i:seq_index 
         interleave_sseq_index_next (IL _ _ prf') i
       )
 
-
+let ilfilter_map (#a #b:eqtype)
+  (fm: ssfm_t a b)
+  (il: interleaving a)
+  : il': interleaving b{s_seq il' = ssfilter_map fm (s_seq il)}
+  = admit()

@@ -219,3 +219,10 @@ val interleave_sseq_index_next (#a:eqtype) (il:interleaving a) (i:seq_index il)
     let tid, j = i2s_map il i in
     Seq.index (s_seq il_i) tid `Seq.equal`
     SA.prefix (Seq.index (s_seq il) tid) (j + 1)))
+
+open Zeta.FilterMap
+
+val ilfilter_map (#a #b:eqtype)
+  (fm: ssfm_t a b)
+  (il: interleaving a)
+  : il': interleaving b{s_seq il' = ssfilter_map fm (s_seq il)}

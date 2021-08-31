@@ -2,9 +2,9 @@ module Zeta.Generic.Global
 
 open FStar.Seq
 open Zeta.SeqAux
+open Zeta.SSeq
 open Zeta.Interleave
 open Zeta.Time
-open Zeta.InterleaveMultiSet
 open Zeta.MultiSetHashDomain
 open Zeta.GenericVerifier
 open Zeta.Generic.Thread
@@ -22,7 +22,7 @@ let thread_log #vspec (gl: vlog vspec) (tid: SA.seq_index gl): T.vlog _ =
   (tid, S.index gl tid)
 
 let index #vspec (gl: vlog vspec) (i: sseq_index gl) =
-  I.indexss gl i
+  indexss gl i
 
 (* a global log is verifiable if every thread-level log is verifiable *)
 let verifiable #vspec (gl: vlog vspec) =
