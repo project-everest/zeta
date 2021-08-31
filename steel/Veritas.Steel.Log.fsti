@@ -6,9 +6,22 @@ module U32 = FStar.UInt32
 open Steel.Memory
 open Steel.Effect
 
+(* Some utilities *)
+let rmem_coerce (#p #q:vprop) (h:rmem p { p == q}) : rmem q = h
+let array_sel (a:A.array U8.t) (h:rmem (A.varray a))
+  : GTot (Seq.seq U8.t)
+  = A.asel a h
+
+(* The underlying spec-level representation of a log *)
 let repr = Ghost.erased (Seq.seq T.vlog_entry)
+
+(* Some utilities to work with reprs *)
 let empty_log : repr = Seq.empty
 let snoc_log (r:repr) (e:T.vlog_entry) : repr = Seq.snoc r e
+
+(* A relation between raw bytes and their repr *)
+val parsed (s:Seq.seq U8.t) (r:repr) : prop
+
 
 (* [log] : The main abstract type of this module
 
@@ -108,8 +121,12 @@ val read_next (#s:repr)
       | Parsed_with_maybe_more e -> log_with_parsed_prefix l (snoc_log s e)
       | Failed pos _ -> A.varray (log_array l))
     (requires fun _ -> True)
-    (ensures fun _ o _ ->
+    (ensures fun _ o h1 ->
       match o with
-      | Finished -> parsed_log_inv l (log_len l) s
+      | Finished ->
+        //The entries we parsed is stable and fixed to s
+        parsed_log_inv l (log_len l) s /\
+        //and s is the parse of the contents of the array in state h1
+        parsed (array_sel (log_array l) (rmem_coerce h1)) s
       | Parsed_with_maybe_more e -> True
       | Failed pos _ -> U32.(pos <^ log_len l))
