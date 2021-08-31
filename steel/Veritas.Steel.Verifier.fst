@@ -507,4 +507,51 @@ let vevictbm vs s s' t
       )
     )
 
+val verify_step (vs:_) (e:T.vlog_entry)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h0 ->
+      not ((v_thread vs h0).model_failed))
+    (ensures fun h0 _ h1 ->
+      v_thread vs h1 == verify_step_model (v_thread vs h0) e)
+
+let verify_step vs e
+  = let h = get() in
+    assert (not ((v_thread vs h).model_failed));
+    let open U16 in
+    let open T in
+    match e with
+    | Ve_Get ve ->
+      if ve.vegp_s <^ vs.len
+      then vget vs ve.vegp_s ve.vegp_k ve.vegp_v
+      else fail vs "slot bounds check"
+    | Ve_Put ve ->
+      if ve.vegp_s <^ vs.len
+      then vput vs ve.vegp_s ve.vegp_k ve.vegp_v
+      else fail vs "slot bounds check"
+    | Ve_AddM ve ->
+      if ve.veam_s <^ vs.len &&
+         ve.veam_s2 <^ vs.len
+      then vaddm vs ve.veam_s ve.veam_r ve.veam_s2
+      else fail vs "slot bounds check"
+    | Ve_EvictM ve ->
+      if ve.veem_s <^ vs.len &&
+         ve.veem_s2 <^ vs.len
+      then vevictm vs ve.veem_s ve.veem_s2
+      else fail vs "slot bounds check"
+    | Ve_AddB ve ->
+      if ve.veab_s <^ vs.len
+      then vaddb vs ve.veab_s ve.veab_r ve.veab_t ve.veab_j
+      else fail vs "slot bounds check"
+    | Ve_EvictB ve ->
+      if ve.veeb_s <^ vs.len
+      then vevictb vs ve.veeb_s ve.veeb_t
+      else fail vs "slot bounds check"
+    | Ve_EvictBM ve ->
+      if ve.veebm_s <^ vs.len &&
+         ve.veebm_s2 <^ vs.len
+      then vevictbm vs ve.veebm_s ve.veebm_s2 ve.veebm_t
+      else fail vs "slot bounds check"
+
 let verify #n vs c m = sladmit ()

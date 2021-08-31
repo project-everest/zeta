@@ -544,44 +544,45 @@ let verify_step_model (tsm:thread_state_model) (e:T.vlog_entry) : thread_state_m
   let open T in
   if tsm.model_failed then tsm
   else
-    let fail = {tsm with model_failed = true} in
     match e with
     | Ve_Get ve ->
       if U16.v ve.vegp_s < U16.v tsm.model_store_len
       then vget_model tsm ve.vegp_s ve.vegp_k ve.vegp_v
-      else fail
+      else model_fail tsm
     | Ve_Put ve ->
       if U16.v ve.vegp_s < U16.v tsm.model_store_len
       then vput_model tsm ve.vegp_s ve.vegp_k ve.vegp_v
-      else fail 
+      else model_fail tsm 
     | Ve_AddM ve ->
       if U16.v ve.veam_s < U16.v tsm.model_store_len &&
          U16.v ve.veam_s2 < U16.v tsm.model_store_len
       then vaddm_model tsm ve.veam_s ve.veam_r ve.veam_s2
-      else fail
+      else model_fail tsm
     | Ve_EvictM ve ->
       if U16.v ve.veem_s < U16.v tsm.model_store_len &&
          U16.v ve.veem_s2 < U16.v tsm.model_store_len
       then vevictm_model tsm ve.veem_s ve.veem_s2
-      else fail
+      else model_fail tsm
     | Ve_AddB ve ->
       if U16.v ve.veab_s < U16.v tsm.model_store_len
       then vaddb_model tsm ve.veab_s ve.veab_r ve.veab_t ve.veab_j
-      else fail
+      else model_fail tsm
     | Ve_EvictB ve ->
       if U16.v ve.veeb_s < U16.v tsm.model_store_len
       then vevictb_model tsm ve.veeb_s ve.veeb_t
-      else fail
+      else model_fail tsm
     | Ve_EvictBM ve ->
       if U16.v ve.veebm_s < U16.v tsm.model_store_len &&
          U16.v ve.veebm_s2 < U16.v tsm.model_store_len
       then vevictbm_model tsm ve.veebm_s ve.veebm_s2 ve.veebm_t
-      else fail
+      else model_fail tsm
 
 let rec verify_model (tsm:thread_state_model) (s:Seq.seq T.vlog_entry)
   : Tot thread_state_model (decreases Seq.length s)
   = let n = Seq.length s in
-    if n = 0 then tsm
+    if n = 0 
+    || tsm.model_failed
+    then tsm
     else let s_prefix = VSeq.prefix s (n - 1) in
          let tsm = verify_model tsm s_prefix in
          verify_step_model tsm (Seq.index s (n - 1))

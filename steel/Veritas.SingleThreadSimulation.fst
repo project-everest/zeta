@@ -1053,7 +1053,8 @@ let rec related_entries vcfg
       (decreases Seq.length s)
       [SMTPat (tsm `related_states` vtls); SMTPat (S.verify_model tsm s)]
   = let n = Seq.length s in
-    if n = 0 then ()
+    if n = 0
+    then ()
     else
       let prefix = VSeq.prefix s (n - 1) in
       related_entries vcfg tsm vtls prefix;
@@ -1061,4 +1062,5 @@ let rec related_entries vcfg
       let vtls_prefix = I.verify vtls (Some?.v (TSM.lift_log_entries #vcfg prefix)) in
       lift_log_entries_prefix #vcfg s (n - 1);
       related_entry vcfg tsm_prefix vtls_prefix (Seq.index s (n - 1))
+
 #pop-options
