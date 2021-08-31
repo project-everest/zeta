@@ -600,8 +600,10 @@ let verify_model_cons (tsm:thread_state_model)
                       (s:L.repr)
   : Lemma
     (requires
-      not tsm.model_failed /\
-      not (verify_step_model tsm e).model_failed)
+      True
+      // not tsm.model_failed /\
+      // not (verify_step_model tsm e).model_failed
+  )
     (ensures
       verify_model (verify_step_model tsm e) s ==
       verify_model tsm (cons_log e s))
@@ -616,6 +618,14 @@ val verify_log (#s:L.repr) (vs:_) (l:L.log)
     (requires fun _ -> True)
     (ensures fun h0 sopt h1 ->
       verify_log_post s l (v_thread vs h0) sopt (v_thread vs h1))
+
+
+// assume
+// val dispose (#s:L.repr)
+//             (l:L.log)
+//   : SteelT unit
+//     (L.log_with_parsed_prefix l s)
+//     (fun _ -> A.varray (L.log_array l))
 
 let rec verify_log #s vs l
   = let h0 = get () in
