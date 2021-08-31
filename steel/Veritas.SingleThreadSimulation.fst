@@ -1,5 +1,6 @@
 module Veritas.SingleThreadSimulation
 open FStar.Ghost
+module VSeq = Veritas.SeqAux
 module I = Veritas.Intermediate.Verify
 module S = Veritas.Steel.VerifierModel
 module VCfg = Veritas.Intermediate.VerifierConfig
@@ -977,17 +978,87 @@ let related_vevictbm (#vcfg: _)
       I.vevictbm i_s i_s' i_t vtls))
   = ()
 
-let related_entries (#vcfg:_)
+////////////////////
+
+let related_entry vcfg (tsm:TSM.thread_state_model) (vtls:I.vtls vcfg)
+  (e:S_Types.vlog_entry)
+  : Lemma
+      (requires
+        Some? (TSM.lift_log_entry #vcfg e) /\
+        tsm `related_states` vtls)
+      (ensures
+        S.verify_step_model tsm e
+          `related_states`
+        I.verify_step vtls (Some?.v (TSM.lift_log_entry #vcfg e)))
+  = if tsm.TSM.model_failed then ()
+    else
+      match e with
+      | S_Types.Ve_Get _ -> related_vget tsm vtls e
+      | S_Types.Ve_Put _ -> related_vput tsm vtls e
+      | S_Types.Ve_AddM _ -> related_vaddm tsm vtls e
+      | S_Types.Ve_EvictM _ -> related_vevictm tsm vtls e
+      | S_Types.Ve_AddB _ -> related_vaddb tsm vtls e
+      | S_Types.Ve_EvictB _ -> related_vevictb tsm vtls e
+      | S_Types.Ve_EvictBM _ -> related_vevictbm tsm vtls e
+
+#push-options "--fuel 1"
+let rec lift_log_entries_is_a_map #vcfg (s:Seq.seq (S_Types.vlog_entry))
+  : Lemma
+      (requires Some? (TSM.lift_log_entries #vcfg s))
+      (ensures
+        (let Some s' = TSM.lift_log_entries #vcfg s in
+         (forall (i:nat{i < Seq.length s}).
+            Some? (TSM.lift_log_entry #vcfg (Seq.index s i)) /\
+            Seq.index s' i == Some?.v (TSM.lift_log_entry #vcfg (Seq.index s i)))))
+      (decreases Seq.length s)
+  = let n = Seq.length s in
+    if n = 0 then ()
+    else begin
+      lift_log_entries_is_a_map #vcfg (VSeq.prefix s (n - 1));
+      assert (forall (i:nat{i < n - 1}).
+                 Seq.index (Some?.v (TSM.lift_log_entries #vcfg s)) i ==
+                 Some?.v (TSM.lift_log_entry #vcfg (Seq.index s i)))
+    end
+
+let rec lift_log_entries_prefix #vcfg (s:Seq.seq (S_Types.vlog_entry)) (n:nat)
+  : Lemma
+      (requires
+        n <= Seq.length s /\
+        Some? (TSM.lift_log_entries #vcfg s))
+      (ensures
+        Some? (TSM.lift_log_entries #vcfg (VSeq.prefix s n)) /\
+        Seq.equal (VSeq.prefix (Some?.v (TSM.lift_log_entries #vcfg s)) n)
+                  (Some?.v (TSM.lift_log_entries #vcfg (VSeq.prefix s n))))
+      (decreases Seq.length s)
+  = let len = Seq.length s in
+    if len = 0 || len = n || n = 0 then ()
+    else begin
+      lift_log_entries_prefix #vcfg (VSeq.prefix s (len - 1)) n;
+      lift_log_entries_is_a_map #vcfg s;
+      lift_log_entries_is_a_map #vcfg (VSeq.prefix s n)
+    end
+
+let rec related_entries vcfg
   (tsm:TSM.thread_state_model)
   (vtls:I.vtls vcfg)
   (s:Seq.seq (S_Types.vlog_entry))
   : Lemma
       (requires
         Some? (TSM.lift_log_entries #vcfg s) /\
-        tsm `related_states` vtls /\
-        I.Valid? vtls)
+        tsm `related_states` vtls)
       (ensures
         S.verify_model tsm s
           `related_states`
         I.verify vtls (Some?.v (TSM.lift_log_entries #vcfg s)))
-  = admit ()
+      (decreases Seq.length s)
+      [SMTPat (tsm `related_states` vtls); SMTPat (S.verify_model tsm s)]
+  = let n = Seq.length s in
+    if n = 0 then ()
+    else
+      let prefix = VSeq.prefix s (n - 1) in
+      related_entries vcfg tsm vtls prefix;
+      let tsm_prefix = S.verify_model tsm prefix in
+      let vtls_prefix = I.verify vtls (Some?.v (TSM.lift_log_entries #vcfg prefix)) in
+      lift_log_entries_prefix #vcfg s (n - 1);
+      related_entry vcfg tsm_prefix vtls_prefix (Seq.index s (n - 1))
+#pop-options

@@ -1,8 +1,11 @@
 module Veritas.ThreadStateModel
 open FStar.Ghost
+
+module VSeq = Veritas.SeqAux
 module I = Veritas.Intermediate.Verify
 module VCfg = Veritas.Intermediate.VerifierConfig
 module IStore = Veritas.Intermediate.Store
+module IntT = Veritas.Intermediate.Thread
 module MSH = Veritas.MultiSetHashDomain
 module U64 = FStar.UInt64
 module T = Veritas.Formats.Types
@@ -385,13 +388,28 @@ let lift_log_entry #vcfg (v:T.vlog_entry)
       | _ -> None
     )
 
-assume val map_seq (#a #b:Type) (f:a -> b) (s:Seq.seq a) : Seq.seq b
+let rec lift_log_entries #vcfg (es : Seq.seq T.vlog_entry)
+  : Tot (sopt:option (IL.logS vcfg){Some? sopt ==> Seq.length (Some?.v sopt) == Seq.length es})
+        (decreases Seq.length es) =
 
-assume val fold_seq (#a #b:Type) (f:b -> a -> b) (y:b) (s:Seq.seq a) : b
+  let n = Seq.length es in
+  if n = 0 then Some Seq.empty
+  else let prefix = VSeq.prefix es (n - 1) in
+       let e = Seq.index es (n - 1) in
+       let lifted_prefix = lift_log_entries #vcfg prefix in
+       match lifted_prefix with
+       | None -> None
+       | Some lifted_prefix ->
+         (match lift_log_entry #vcfg e with
+          | None -> None
+          | Some e -> Some (Seq.snoc lifted_prefix e))
 
-let lift_log_entries #vcfg (es : Seq.seq T.vlog_entry) : option (IL.logS vcfg) =
-  let log_eopt = map_seq (lift_log_entry #vcfg) es in
-  fold_seq (fun sopt eopt ->
-    match sopt, eopt with
-    | Some s, Some e -> Some (Seq.snoc s e)
-    | _, _ -> None) (Some Seq.empty) log_eopt
+assume val initial_thread_state_model (t_id:Veritas.Verifier.thread_id)
+  : thread_state_model
+
+let tsm_to_vtls_initial vcfg (t_id:Veritas.Verifier.thread_id)
+  : Lemma (initial_thread_state_model t_id `related_states`
+           I.init_thread_state t_id (IntT.init_store vcfg t_id))
+          [SMTPat (initial_thread_state_model t_id);
+           SMTPat (I.init_thread_state t_id (IntT.init_store vcfg t_id))]
+  = admit ()
