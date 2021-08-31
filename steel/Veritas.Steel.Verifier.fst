@@ -599,18 +599,15 @@ let verify_model_cons (tsm:thread_state_model)
                       (e:T.vlog_entry)
                       (s:L.repr)
   : Lemma
+    (requires
+      not tsm.model_failed /\
+      not (verify_step_model tsm e).model_failed)
     (ensures
       verify_model (verify_step_model tsm e) s ==
       verify_model tsm (cons_log e s))
     [SMTPat (verify_model (verify_step_model tsm e) s)]
-  = admit()
-
-assume
-val dispose (#s:L.repr)
-            (l:L.log)
-  : SteelT unit
-    (L.log_with_parsed_prefix l s)
-    (fun _ -> A.varray (L.log_array l))
+  = assert (Seq.tail (cons_log e s) `Seq.equal` s);
+    admit()
 
 val verify_log (#s:L.repr) (vs:_) (l:L.log)
   : Steel (option L.repr)
@@ -626,7 +623,7 @@ let rec verify_log #s vs l
     let failed = read vs.failed in
     if failed
     then (
-         dispose l;
+         L.dispose l;
          AT.return None
     )
     else (

@@ -132,3 +132,11 @@ val read_next (#s:repr)
         parsed (array_sel (log_array l) (rmem_coerce h1)) s
       | Parsed_with_maybe_more e -> True
       | Failed pos _ -> U32.(pos <^ log_len l))
+
+(* And dispose to unconditionally just drop the log and
+   return the underlying array *)
+val dispose (#s:repr)
+            (l:log)
+  : SteelT unit
+    (log_with_parsed_prefix l s)
+    (fun _ -> A.varray (log_array l))
