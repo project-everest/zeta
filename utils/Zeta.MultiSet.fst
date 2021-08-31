@@ -363,7 +363,7 @@ private let seq_remove (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
   : Seq.seq a
   = Seq.append (Seq.slice s 0 i) (Seq.slice s (i + 1) (Seq.length s))
 
-#push-options "--z3rlimit_factor 6"
+#push-options "--z3rlimit_factor 7"
 private let seq_remove_count1 (#a:eqtype) (s:Seq.seq a) (i:seq_index s)
   : Lemma
       (Seq.count (Seq.index s i) s == Seq.count (Seq.index s i) (seq_remove s i) + 1)
@@ -509,4 +509,3 @@ let rec lemma_add_incr_mem_aux (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
 
 let lemma_add_incr_mem (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
  : Lemma (ensures mem x (add_elem s x) = 1 + mem x s) = lemma_add_incr_mem_aux s x
-

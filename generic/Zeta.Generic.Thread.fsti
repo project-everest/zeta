@@ -51,9 +51,39 @@ val lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i:
                   verify_step (index tl i) (state_at tl i)))
         [SMTPat (verify_step (index tl i) (state_at tl i))]
 
+(* the type of functions that return a value at position i *)
+let idxfn_t_base (vspec: verifier_spec) (b: eqtype)
+  = (tl: verifiable_log vspec -> i: seq_index tl -> b)
+
+(* prefix property means that the value of function i depends only on the prefix until i *)
+let prefix_property #vspec #b (f: idxfn_t_base vspec b)
+  = forall (tl: verifiable_log vspec) (i: nat) (j:nat).
+      {:pattern f (prefix tl j) i}
+      j <= length tl ==>
+      i < j ==>
+      f tl i = f (prefix tl j) i
+
+let idxfn_t (vspec: verifier_spec) (b: eqtype) = f:(idxfn_t_base vspec b){prefix_property f}
+
+(* the type of functions that return a value at position i, but defined only for positions satisfying a filter *)
+let cond_idxfn_t_base #vspec (b:eqtype) (f: idxfn_t vspec bool)
+  = tl:verifiable_log vspec -> i: seq_index tl {f tl i} -> b
+
+let cond_prefix_property #vspec #b (#f: idxfn_t vspec bool) (m: cond_idxfn_t_base b f)
+  = forall (tl: verifiable_log vspec) (i:nat) (j:nat).
+      j <= length tl ==>
+      i < j ==>
+      f tl i ==>
+      m tl i = m (prefix tl j) i
+
+let cond_idxfn_t #vspec (b:eqtype) (f:idxfn_t vspec bool)
+  = m:(cond_idxfn_t_base b f){cond_prefix_property m}
+
 (* clock after processing i entries of the log *)
-let clock #vspec (tl: verifiable_log vspec) (i: seq_index tl) =
-  vspec.clock (verify (prefix tl (i+1)))
+let clock_base #vspec (tl: verifiable_log vspec) (i: seq_index tl)
+  = vspec.clock (verify (prefix tl (i+1)))
+
+let clock #vspec: (idxfn_t vspec timestamp) = clock_base #vspec
 
 (* clock is monotonic *)
 val lemma_clock_monotonic (#vspec:verifier_spec)
@@ -65,21 +95,12 @@ val lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
   Lemma (ensures (let tid, _ = tl in
                   vspec.tid (verify tl) = tid))
 
-let is_blum_add #vspec (tl: verifiable_log vspec) (i: seq_index tl)
-  = GV.is_blum_add (index tl i)
+val is_blum_add (#vspec:_) (ep: epoch): idxfn_t vspec bool
 
-val blum_add_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl { is_blum_add tl i }): ms_hashfn_dom vspec.app
+val blum_add_elem (#vspec:_) (#ep: epoch):
+  cond_idxfn_t #vspec (ms_hashfn_dom vspec.app) (is_blum_add ep)
 
-let is_blum_add_in_epoch #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
-  = is_blum_add tl i &&
-    (blum_add_elem tl i).t.e = ep
+val is_blum_evict (#vspec:_) (ep: epoch): idxfn_t vspec bool
 
-let is_blum_evict #vspec (tl: verifiable_log vspec) (i: seq_index tl)
-  = GV.is_blum_evict (index tl i)
-
-val blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl { is_blum_evict tl i }):
-  ms_hashfn_dom vspec.app
-
-let is_blum_evict_in_epoch #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
-  = is_blum_evict tl i &&
-    (blum_evict_elem tl i).t.e = ep
+val blum_evict_elem (#vspec:_) (#ep: epoch):
+  cond_idxfn_t #vspec (ms_hashfn_dom vspec.app) (is_blum_add ep)

@@ -6,6 +6,7 @@ open Zeta.SSeq
 open Zeta.Interleave
 open Zeta.Time
 open Zeta.MultiSetHashDomain
+open Zeta.FilterMap
 open Zeta.GenericVerifier
 open Zeta.Generic.Thread
 
@@ -35,11 +36,13 @@ let clock #vspec (gl: verifiable_log vspec) (i: sseq_index gl) =
   let tl = thread_log gl tid in
   T.clock tl i'
 
+
 (* blum add set elements for a given epoch *)
-val add_set
+let add_set
   (#vspec: verifier_spec)
   (ep: epoch)
   (gl: verifiable_log vspec): mset_ms_hashfn_dom vspec.app
+  = admit()
 
 (* blum evict set elements for a given epoch *)
 val evict_set
