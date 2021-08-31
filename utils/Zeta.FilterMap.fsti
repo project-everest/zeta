@@ -21,9 +21,7 @@ let prefix_property
   (#b:eqtype)
   (f: a -> bool)
   (m: (s:seq a -> i:seq_index s{f (index s i)} -> b))
-  = forall (s: seq a).
-    forall (i: nat).
-    forall (j: nat).
+  = forall (s: seq a) (i: nat) (j: nat).
     {:pattern m (prefix s j) i}
     j <= length s ==>
     i < j ==>
@@ -109,10 +107,7 @@ let ss_prefix_property
   (#b:eqtype)
   (f: a -> bool)
   (m: (nat -> s:seq a -> i:seq_index s{f (index s i)} -> b))
-  = forall (s: seq a).
-    forall (i: nat).
-    forall (j: nat).
-    forall (t: nat).
+  = forall (s: seq a) (i: nat) (j: nat) (t: nat).
     {:pattern m t (prefix s j) i}
     j <= length s ==>
     i < j ==>
@@ -123,19 +118,10 @@ let ss_prefix_property
 noeq
 type ssfm_t (a:_) (b:eqtype) =
   | SSFM: f: (a -> bool) ->
-          m: (j:nat -> s:seq a -> i:seq_index s{f (index s i)} -> b) -> ssfm_t a b
-
-val lemma_ss_prefix_property
-  (#a:_)
-  (#b:eqtype)
-  (f: a -> bool)
-  (m: (nat -> s:seq a -> i:seq_index s{f (index s i)} -> b))
-  (t: nat)
-  : Lemma (ensures (prefix_property f (m t)))
+          m: (j:nat -> s:seq a -> i:seq_index s{f (index s i)} -> b){ss_prefix_property f m} -> ssfm_t a b
 
 let to_fm_t (#a #b:_) (ssfm: ssfm_t a b) (t: nat): fm_t a b
-  = lemma_ss_prefix_property ssfm.f ssfm.m t;
-    FM ssfm.f (ssfm.m t)
+  = FM ssfm.f (ssfm.m t)
 
 (* the filter map from the specification *)
 val ssfilter_map (#a #b:_)

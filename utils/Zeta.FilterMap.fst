@@ -82,47 +82,6 @@ let lemma_filter_map_empty
   : Lemma (ensures length (filter_map fm s) = 0)
   = ()
 
-let lemma_ss_prefix_property
-  (#a:_)
-  (#b:eqtype)
-  (f: a -> bool)
-  (m: (nat -> s:seq a -> i:seq_index s{f (index s i)} -> b))
-  (t: nat)
-  : Lemma (ensures (prefix_property f (m t)))
-  = let m' = m t in
-    let aux (s: seq a)
-      : Lemma (ensures (forall (i:nat).
-                        forall (j:nat).
-                        j <= length s ==>
-                        i < j ==>
-                        f (index s i) ==>
-                        m' s i = m' (prefix s j) i))
-      = let aux2 (i:nat)
-          : Lemma (ensures (forall (j:nat).
-                        j <= length s ==>
-                        i < j ==>
-                        f (index s i) ==>
-                        m' s i = m' (prefix s j) i))
-            = let aux3 (j:nat)
-                : Lemma (ensures (
-                        j <= length s ==>
-                        i < j ==>
-                        f (index s i) ==>
-                        m' s i = m' (prefix s j) i))
-                = if j > length s then ()
-                  else if i >= j then ()
-                  else if not (f (index s i)) then ()
-                  else (
-                    assume(m t s i = m t (prefix s j) i)
-                  )
-            in
-            FStar.Classical.forall_intro aux3
-        in
-        FStar.Classical.forall_intro aux2
-    in
-    FStar.Classical.forall_intro aux
-
-
 let rec ssfilter_map (#a #b:_)
   (fm: ssfm_t a b)
   (s: sseq a)
@@ -132,4 +91,6 @@ let rec ssfilter_map (#a #b:_)
     if n = 0 then empty #(seq b)
     else
       let fmss' = ssfilter_map fm (prefix s (n-1)) in
-      admit()
+      let fmi = to_fm_t fm (n - 1) in
+      let fms = filter_map fmi (index s (n-1)) in
+      append1 fmss' fms
