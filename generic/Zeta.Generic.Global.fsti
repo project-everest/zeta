@@ -35,56 +35,17 @@ let clock #vspec (gl: verifiable_log vspec) (i: sseq_index gl) =
   let tl = thread_log gl tid in
   T.clock tl i'
 
-(* is a specified index a blum add? *)
-let is_blum_add #vspec (gl: verifiable_log vspec) (i: sseq_index gl): bool
-  = let tid, i' = i in
-    let tl = thread_log gl tid in
-    T.is_blum_add tl i'
-
-(* if an index is blum add, the blum add element for that index *)
-let blum_add_elem #vspec (gl: verifiable_log vspec) (i: sseq_index gl { is_blum_add gl i })
-  = let tid, i' = i in
-    let tl = thread_log gl tid in
-    T.blum_add_elem tl i'
-
-(* does a blum add belong to epoch ep*)
-let is_blum_add_in_epoch #vspec (ep: epoch) (gl: verifiable_log vspec) (i: sseq_index gl)
-  = let tid, i' = i in
-    let tl = thread_log gl tid in
-    T.is_blum_add_in_epoch ep tl i'
-
 (* blum add set elements for a given epoch *)
-let add_set
+val add_set
   (#vspec: verifier_spec)
   (ep: epoch)
   (gl: verifiable_log vspec): mset_ms_hashfn_dom vspec.app
-  = let f = is_blum_add_in_epoch ep gl in
-    let m = blum_add_elem gl in
-    sseq_indexed_filter_map_multiset (ms_hashfn_dom_cmp vspec.app) gl f m
-
-let is_blum_evict #vspec (gl: verifiable_log vspec) (i: sseq_index gl)
-  = let tid, i' = i in
-    let tl = thread_log gl tid in
-    T.is_blum_evict tl i'
-
-let blum_evict_elem #vspec (gl: verifiable_log vspec) (i: sseq_index gl { is_blum_evict gl i })
-  = let tid, i' = i in
-    let tl = thread_log gl tid in
-    T.blum_evict_elem tl i'
-
-let is_blum_evict_in_epoch #vspec (ep: epoch) (gl: verifiable_log vspec) (i: sseq_index gl)
-  = let tid, i' = i in
-    let tl = thread_log gl tid in
-    T.is_blum_evict_in_epoch ep tl i'
 
 (* blum evict set elements for a given epoch *)
-let evict_set
+val evict_set
   (#vspec: verifier_spec)
   (ep: epoch)
   (gl: verifiable_log vspec): mset_ms_hashfn_dom vspec.app
-  = let f = is_blum_evict_in_epoch ep gl in
-    let m = blum_evict_elem gl in
-    sseq_indexed_filter_map_multiset (ms_hashfn_dom_cmp vspec.app) gl f m
 
 (* verifiable log property that add- and evict sets are the same *)
 let aems_equal_for_epoch #vspec
@@ -103,3 +64,7 @@ let aems_equal_upto #vspec (epmax: epoch) (gl: verifiable_log vspec) =
   forall (ep: epoch).
   {:pattern aems_equal_for_epoch_prop ep gl epmax}
   aems_equal_for_epoch_prop ep gl epmax
+
+(* global log whose add and evict multisets are equal *)
+let ms_verifiable_log #vspec (ep: epoch)
+  = gl:verifiable_log vspec{aems_equal_upto ep gl}
