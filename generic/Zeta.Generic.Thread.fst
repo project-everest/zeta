@@ -12,8 +12,8 @@ let rec verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
 (* the state after processing i'th entry is obtained by applying the verify
  * step to the state before processing the i'th entry *)
 let lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl):
-  Lemma (ensures (state_at tl (i + 1) ==
-                  verify_step (index tl i) (state_at tl i)))
+  Lemma (ensures (state_post tl i ==
+                  verify_step (index tl i) (state_pre tl i)))
   = ()
 
 #push-options "--z3rlimit_factor 3"
@@ -61,6 +61,37 @@ let is_blum_evict_base #vspec (tl: verifiable_log vspec) (i: seq_index tl)
 
 let blum_evict_elem_base #vspec (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict_base tl i})
   : ms_hashfn_dom vspec.app
-  = match (index tl i) with
-    | EvictB s t -> admit()
-    | EvictBM s s' t -> admit()
+  = let e = index tl i in
+    let st' = state_pre tl i in
+    let st = state_post tl i in
+    assert(vspec.valid st);
+    let s = evict_slot e in
+    let t = blum_evict_timestamp e in
+    let r = Some?.v (vspec.get s st') in
+    let tid = vspec.tid st' in
+    MHDom r t tid
+
+let is_blum_evict #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
+  = is_blum_evict_base tl i &&
+    (let be = blum_evict_elem_base tl i in be.t.e = ep)
+
+let blum_evict_cond_prefix_prop vspec (ep: epoch)
+  : Lemma (ensures (cond_prefix_property #vspec
+                                         #(ms_hashfn_dom vspec.app)
+                                         #(is_blum_evict ep)
+                                         blum_evict_elem_base))
+  = ()
+
+let blum_evict_elem #vspec (#ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict ep tl i})
+  = blum_evict_cond_prefix_prop vspec ep;
+    blum_evict_elem_base tl i
+
+let is_appfn (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
+  = GV.is_appfn (index tl i)
+
+let appfn_call_res (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_appfn tl i})
+  = let e = index tl i in
+    let st' = state_pre tl i in
+    let st = state_post tl i in
+    assert(vspec.valid st);
+    GV.appfn_result e st'
