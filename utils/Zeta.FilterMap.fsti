@@ -94,11 +94,21 @@ let indexm #a #b (f: a -> bool) (m: (x:a{f x}) -> b) (s: seq a) (i: seq_index s{
 let indexf #a (f: a -> bool) (s: seq a) (i: seq_index s)
   = f (index s i)
 
+let alltrue #a (_:a)
+  = true
+
 let simple_fm_t #a (#b:eqtype) (f: a -> bool) (m: (x:a{f x}) -> b)
   = FM (indexf f) (indexm f m)
 
 let simple_filter_map (#a:_) (#b:eqtype) (f: a -> bool) (m: (x:a {f x}) -> b)
   = filter_map (simple_fm_t f m)
+
+let map (#a:_) (#b:_) (f: idxfn_t a b)
+  = let fm = FM (indexf alltrue) f in
+    filter_map fm
+
+let simple_map (#a:_) (#b:eqtype) (m: a -> b)
+  = simple_filter_map alltrue m
 
 val lemma_filter_map_extend_sat
   (#a:_)
@@ -140,12 +150,10 @@ let s_prefix_property
   (#a:_)
   (#b:_)
   (f: sidxfn_t_base p a b)
-  = forall (s: seq a) (i: nat) (j: nat) (t: nat).
-    {:pattern f t (prefix s j) i}
-    j <= length s ==>
-    i < j ==>
+  = forall (t: nat).
+    {:pattern f t}
     t < p ==>
-    f t s i = f t (prefix s j) i
+    prefix_property (f t)
 
 let sidxfn_t (p:nat) (a:_) (b:eqtype)  = f:sidxfn_t_base p a b {s_prefix_property f}
 
@@ -162,13 +170,10 @@ let s_cond_prefix_property
   (#b:_)
   (#f:sidxfn_t p a bool)
   (m: scond_idxfn_t_base b f)
-  = forall (s: seq a) (i: nat) (j: nat) (t: nat).
-    {:pattern m t (prefix s j) i}
-    j <= length s ==>
-    i < j ==>
+  = forall (t: nat).
+    {:pattern m t}
     t < p ==>
-    f t s i ==>
-    m t s i = m t (prefix s j) i
+    cond_prefix_property #a #b #(f t) (m t)
 
 let scond_idxfn_t #p #a (b:_) (f:sidxfn_t p a bool)
   = m:scond_idxfn_t_base b f{s_cond_prefix_property m}

@@ -16,6 +16,16 @@ let lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i:
                   verify_step (index tl i) (state_pre tl i)))
   = ()
 
+let conj_is_idxfn (#vspec:_) (f1 f2: idxfn_t vspec bool)
+  : Lemma (ensures (prefix_property (conj f1 f2)))
+  = ()
+
+(* clock after processing i entries of the log *)
+let clock_base #vspec (tl: verifiable_log vspec) (i: seq_index tl)
+  = vspec.clock (verify (prefix tl (i+1)))
+
+let clock #vspec: (idxfn_t vspec timestamp) = clock_base #vspec
+
 #push-options "--z3rlimit_factor 3"
 
 let rec lemma_clock_monotonic (#vspec:verifier_spec)
@@ -89,9 +99,92 @@ let blum_evict_elem #vspec (#ep: epoch) (tl: verifiable_log vspec) (i: seq_index
 let is_appfn (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_appfn (index tl i)
 
-let appfn_call_res (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_appfn tl i})
+let appfn_call_res (#vspec:_) (ep: epoch)
+    (tl: verifiable_log vspec) (i: seq_index tl {is_appfn tl i && is_within_epoch ep tl i})
   = let e = index tl i in
     let st' = state_pre tl i in
     let st = state_post tl i in
     assert(vspec.valid st);
     GV.appfn_result e st'
+
+let rec filter_map (#vspec:_) (#b:_)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec)
+  : Tot (S.seq b)
+    (decreases length tl)
+  = let n = length tl in
+    if n = 0
+    then S.empty #b
+    else
+      let tl' = prefix tl (n - 1) in
+      let ms' = filter_map fm tl' in
+      if fm.f tl (n-1)
+      then SA.append1 ms' (fm.m tl (n - 1))
+      else ms'
+
+let rec filter_map_map (#vspec:_) (#b:_)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec)
+  (i: seq_index tl {fm.f tl i})
+  : Tot(j: (SA.seq_index (filter_map fm tl)) {S.index (filter_map fm tl) j == fm.m tl i})
+    (decreases (length tl))
+  = let n = length tl - 1 in
+    let tl' = prefix tl n in
+    let ms' = filter_map fm tl' in
+    if i = n
+    then S.length ms'
+    else filter_map_map fm tl' i
+
+let rec filter_map_invmap (#vspec:_) (#b:_)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec)
+  (j: SA.seq_index (filter_map fm tl))
+  : Tot(i:(seq_index tl){fm.f tl i /\ filter_map_map fm tl i = j })
+    (decreases (length tl))
+  = let n = length tl - 1 in
+    let tl' = prefix tl n in
+    let ms' = filter_map fm tl' in
+    if j = S.length ms'
+    then n
+    else filter_map_invmap fm tl' j
+
+let rec lemma_filter_map (#vspec:_) (#b:_)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec)
+  (i: seq_index tl {fm.f tl i})
+  : Lemma (ensures (let j = filter_map_map fm tl i in
+                    i = filter_map_invmap fm tl j))
+          (decreases (length tl))
+  = let n = length tl - 1 in
+    let tl' = prefix tl n in
+    if i = n then ()
+    else lemma_filter_map fm tl' i
+
+let lemma_filter_map_extend_sat
+  (#vspec:_)
+  (#b:eqtype)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec {length tl > 0 /\ fm.f tl (length tl - 1)})
+  : Lemma (ensures (let fms = filter_map fm tl in
+                    let fms' = filter_map fm (prefix tl (length tl - 1)) in
+                    let me = fm.m tl (length tl - 1) in
+                    fms == SA.append1 fms' me))
+  = ()
+
+let lemma_filter_map_extend_unsat
+  (#vspec:_)
+  (#b:eqtype)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec {length tl > 0 /\ not (fm.f tl (length tl - 1))})
+  : Lemma (ensures (let fms = filter_map fm tl in
+                    let fms' = filter_map fm (prefix tl (length tl - 1)) in
+                    fms == fms'))
+  = ()
+
+let lemma_filter_map_empty
+  (#vspec:_)
+  (#b:eqtype)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec {length tl = 0})
+  : Lemma (ensures S.length (filter_map fm tl) = 0)
+  = ()

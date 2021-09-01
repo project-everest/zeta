@@ -68,6 +68,15 @@ let prefix_property #vspec #b (f: idxfn_t_base vspec b)
 
 let idxfn_t (vspec: verifier_spec) (b: eqtype) = f:(idxfn_t_base vspec b){prefix_property f}
 
+(* conjunction of two index filters *)
+let conj #vspec (f1 f2: idxfn_t vspec bool)
+  = fun (tl: verifiable_log vspec) (i: seq_index tl) ->
+      f1 tl i && f2 tl i
+
+val conj_is_idxfn (#vspec:_) (f1 f2: idxfn_t vspec bool)
+  : Lemma (ensures (prefix_property (conj f1 f2)))
+          [SMTPat (conj f1 f2)]
+
 (* the type of functions that return a value at position i, but defined only for positions satisfying a filter *)
 let cond_idxfn_t_base #vspec (b:eqtype) (f: idxfn_t vspec bool)
   = tl:verifiable_log vspec -> i: seq_index tl {f tl i} -> b
@@ -83,11 +92,12 @@ let cond_prefix_property #vspec #b (#f: idxfn_t vspec bool) (m: cond_idxfn_t_bas
 let cond_idxfn_t #vspec (b:eqtype) (f:idxfn_t vspec bool)
   = m:(cond_idxfn_t_base b f){cond_prefix_property m}
 
-(* clock after processing i entries of the log *)
-let clock_base #vspec (tl: verifiable_log vspec) (i: seq_index tl)
-  = vspec.clock (verify (prefix tl (i+1)))
+val clock (#vspec:_) : (idxfn_t vspec timestamp)
 
-let clock #vspec: (idxfn_t vspec timestamp) = clock_base #vspec
+(* the epoch of the i'th entry *)
+let epoch_of #vspec (tl: verifiable_log vspec) (i: seq_index tl)
+  = let t = clock tl i in
+    t.e
 
 (* clock is monotonic *)
 val lemma_clock_monotonic (#vspec:verifier_spec)
@@ -112,8 +122,79 @@ val blum_evict_elem (#vspec:_) (#ep: epoch):
 (* is the i'th entry an app function *)
 val is_appfn (#vspec:_): idxfn_t vspec bool
 
+(* is the i'th entry within epoch ep *)
+let is_within_epoch #vspec (ep: epoch)
+  (tl: verifiable_log vspec) (i: seq_index tl)
+  = epoch_of tl i <= ep
+
 open Zeta.AppSimulate
 
 (* for an appfn entry, return the function call params and result *)
-val appfn_call_res (#vspec:_):
-  cond_idxfn_t #vspec (appfn_call_res vspec.app) is_appfn
+val appfn_call_res (#vspec:_) (ep: epoch):
+  cond_idxfn_t #vspec (appfn_call_res vspec.app) (conj is_appfn (is_within_epoch ep))
+
+noeq
+type fm_t (vspec:_) (b:eqtype) =
+  | FM: f: idxfn_t vspec bool ->
+        m: cond_idxfn_t b f -> fm_t vspec b
+
+let to_fm #vspec #b (#f: idxfn_t vspec bool) (m: cond_idxfn_t b f)
+  = FM f m
+
+(* filter each element of the log using fm.f and map them using fm.m *)
+val filter_map (#vspec:_) (#b:_)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec)
+  : S.seq b
+
+(* map an index of the original sequence to the filter-mapped sequence *)
+val filter_map_map (#vspec:_) (#b:_)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec)
+  (i: seq_index tl {fm.f tl i})
+  : j: (SA.seq_index (filter_map fm tl)) {S.index (filter_map fm tl) j == fm.m tl i}
+
+(* map an index of the filter-map back to the original sequence *)
+val filter_map_invmap (#vspec:_) (#b:_)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec)
+  (j: SA.seq_index (filter_map fm tl))
+  : i:(seq_index tl){fm.f tl i /\ filter_map_map fm tl i = j }
+
+(* the above two index mappings are inverses of one-another *)
+val lemma_filter_map (#vspec:_) (#b:_)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec)
+  (i: seq_index tl {fm.f tl i})
+  : Lemma (ensures (let j = filter_map_map fm tl i in
+                    i = filter_map_invmap fm tl j))
+          [SMTPat (filter_map_map fm tl i)]
+
+val lemma_filter_map_extend_sat
+  (#vspec:_)
+  (#b:eqtype)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec {length tl > 0 /\ fm.f tl (length tl - 1)})
+  : Lemma (ensures (let fms = filter_map fm tl in
+                    let fms' = filter_map fm (prefix tl (length tl - 1)) in
+                    let me = fm.m tl (length tl - 1) in
+                    fms == SA.append1 fms' me))
+          [SMTPat (filter_map fm tl)]
+
+val lemma_filter_map_extend_unsat
+  (#vspec:_)
+  (#b:eqtype)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec {length tl > 0 /\ not (fm.f tl (length tl - 1))})
+  : Lemma (ensures (let fms = filter_map fm tl in
+                    let fms' = filter_map fm (prefix tl (length tl - 1)) in
+                    fms == fms'))
+          [SMTPat (filter_map fm tl)]
+
+val lemma_filter_map_empty
+  (#vspec:_)
+  (#b:eqtype)
+  (fm: fm_t vspec b)
+  (tl: verifiable_log vspec {length tl = 0})
+  : Lemma (ensures S.length (filter_map fm tl) = 0)
+          [SMTPat (filter_map fm tl)]
