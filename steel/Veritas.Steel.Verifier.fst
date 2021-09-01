@@ -17,6 +17,43 @@ open Veritas.Steel.VerifierModel
 open Veritas.ThreadStateModel
 module PRF = Veritas.Steel.PRFSetHash
 
+let counter_t = ref U64.t
+
+noeq
+type thread_state_t = {
+  id           : T.thread_id;
+  len          : U16.t;
+  st           : vstore len;  //a map from keys (cache ids) to merkle leaf or internal nodes
+  clock        : counter_t;
+  hadd         : PRF.prf_set_hash; //current incremental set hash values; TODO
+  hevict       : PRF.prf_set_hash;
+  failed       : ref bool
+}
+
+[@@__reduce__; __steel_reduce__]
+noextract
+let thread_state_inv (t:thread_state_t) : vprop =
+  is_vstore t.st `star`
+  vptr t.clock `star`
+  vptr t.failed `star`
+  PRF.prf_set_hash_inv t.hadd `star`
+  PRF.prf_set_hash_inv t.hevict
+
+[@@ __steel_reduce__]
+//unfold
+let v_thread (#p:vprop) (t:thread_state_t)
+  (h:rmem p{FStar.Tactics.with_tactic selector_tactic (can_be_split p (thread_state_inv t) /\ True)})
+  : GTot thread_state_model
+  = {
+      model_thread_id = t.id;
+      model_store_len = t.len;
+      model_failed = sel t.failed (focus_rmem h (thread_state_inv t));
+      model_store = asel t.st (focus_rmem h (thread_state_inv t));
+      model_clock = sel t.clock (focus_rmem h (thread_state_inv t));
+      model_hadd = PRF.v_hash t.hadd (focus_rmem h (thread_state_inv t));
+      model_hevict = PRF.v_hash t.hevict (focus_rmem h (thread_state_inv t))
+    }
+
 let check_overflow_add (x y:U64.t)
   : res:option U64.t {
         if FStar.UInt.fits (U64.v x + U64.v y) 64
@@ -239,6 +276,17 @@ let fail (vs:thread_state_t) (msg:string)
              (ensures fun h0 _ h1 -> v_thread vs h1 == model_fail (v_thread vs h0))
   = write vs.failed true; ()
 
+////////////////////////////////////////////////////////////////////////////////
+
+val vget (vs: thread_state_t) (s:slot vs.len) (k:T.key) (v:T.data_value)
+  : Steel unit
+          (thread_state_inv vs)
+          (fun _ -> thread_state_inv vs)
+          (requires fun h -> True)
+          (ensures fun h0 _ h1 ->
+            v_thread vs h1 == vget_model (v_thread vs h0) s k v
+          )
+
 let vget (vs: thread_state_t) (s:slot vs.len) (k:T.key) (v:T.data_value)
   = let ro = VCache.vcache_get_record vs.st s in
     match ro with
@@ -251,6 +299,16 @@ let vget (vs: thread_state_t) (s:slot vs.len) (k:T.key) (v:T.data_value)
       then (fail vs "Failed: inconsistent value in Get"; ())
       // AF: Usual problem of Steel vs SteelF difference between the two branches
       else (noop (); ())
+
+////////////////////////////////////////////////////////////////////////////////
+
+val vput (vs: thread_state_t) (s:slot vs.len) (k:T.key) (v:T.data_value)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h -> True)
+    (ensures fun h0 _ h1 ->
+      v_thread vs h1 == vput_model (v_thread vs h0) s k v)
 
 (* verifier write operation *)
 let vput vs s k v
@@ -266,6 +324,16 @@ let vput vs s k v
         vcache_update_record vs.st s ({ r with record_value = T.V_dval v });
         () //seem to need this
       )
+
+////////////////////////////////////////////////////////////////////////////////
+
+val vaddm (vs:_) (s:slot vs.len) (r:T.record) (s':slot vs.len)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h0 -> True)
+    (ensures fun h0 _ h1 ->
+      v_thread vs h1 == vaddm_model (v_thread vs h0) s r s')
 
 let vaddm vs s r s'
   = let h = get () in
@@ -343,6 +411,15 @@ let vaddm vs s r s'
                     update_value vs s' (T.V_mval v'_upd)
                   )
              )))
+////////////////////////////////////////////////////////////////////////////////
+
+val vevictm (vs:_) (s s':slot vs.len)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h0 -> True)
+    (ensures fun h0 _ h1 ->
+      v_thread vs h1 == vevictm_model (v_thread vs h0) s s')
 
 let vevictm vs s s'
   = let h = get () in
@@ -397,6 +474,20 @@ let vevictm vs s s'
                      )
           ))
 
+////////////////////////////////////////////////////////////////////////////////
+
+val vaddb (vs:thread_state_t)
+          (s:slot vs.len)
+          (r:T.record)
+          (t:T.timestamp)
+          (thread_id:T.thread_id)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h -> True)
+    (ensures fun h0 _ h1 ->
+      v_thread vs h1 == vaddb_model (v_thread vs h0) s r t thread_id)
+
 let vaddb vs s r t thread_id
   = let h = get() in
     assert (v_thread vs h == v_thread vs h);
@@ -418,6 +509,8 @@ let vaddb vs s r t thread_id
         update_clock t vs;
         VCache.vcache_add_record vs.st s k v T.BAdd)
     )
+
+////////////////////////////////////////////////////////////////////////////////
 
 val sat_evictb_checks (vs:_)
                       (s:slot vs.len)
@@ -445,6 +538,19 @@ let sat_evictb_checks vs s t
         not b1 && not b2
       )
 
+////////////////////////////////////////////////////////////////////////////////
+
+val vevictb (vs:thread_state_t)
+            (s:slot vs.len)
+            (t:T.timestamp)
+
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (requires fun h -> True)
+    (ensures  fun h0 _ h1 ->
+      v_thread vs h1 == vevictb_model (v_thread vs h0) s t)
+
 let vevictb vs s t
   = let chk = sat_evictb_checks vs s t in
     if not chk then fail vs "sat_evictb_checks failed"
@@ -457,6 +563,18 @@ let vevictb vs s t
         bevict_from_store vs s
       )
     )
+
+////////////////////////////////////////////////////////////////////////////////
+
+val vevictbm (vs:_)
+             (s s':slot vs.len)
+             (t:T.timestamp)
+  : Steel unit
+    (thread_state_inv vs)
+    (fun _ -> thread_state_inv vs)
+    (fun h0 -> True)
+    (fun h0 _ h1 ->
+      v_thread vs h1 == vevictbm_model (v_thread vs h0) s s' t)
 
 let vevictbm vs s s' t
   = let h = get() in
@@ -507,6 +625,8 @@ let vevictbm vs s s' t
       )
     )
 
+////////////////////////////////////////////////////////////////////////////////
+
 val verify_step (vs:_) (e:T.vlog_entry)
   : Steel unit
     (thread_state_inv vs)
@@ -554,10 +674,13 @@ let verify_step vs e
       then vevictbm vs ve.veebm_s ve.veebm_s2 ve.veebm_t
       else fail vs "slot bounds check"
 
+////////////////////////////////////////////////////////////////////////////////
+
 module L = Veritas.Steel.Log
 module A = Steel.Array
-let parse_failed (l:L.log) = A.varray (L.log_array l)
+module AT = Steel.Effect.Atomic
 module U8 = FStar.UInt8
+
 let log_append (l0 l1:L.repr) : L.repr = Seq.append l0 l1
 
 let verify_log_post (s:L.repr) (l:L.log)
@@ -573,7 +696,6 @@ let verify_log_post (s:L.repr) (l:L.log)
        Log.parsed_log_inv l (log_append s s') /\
        tsm1 == verify_model tsm0 s'
 
-module AT = Steel.Effect.Atomic
 
 let log_append_empty (s:L.repr)
   : Lemma
@@ -611,6 +733,8 @@ let verify_model_cons (tsm:thread_state_model)
   = assert (Seq.tail (cons_log e s) `Seq.equal` s);
     admit()
 
+////////////////////////////////////////////////////////////////////////////////
+
 val verify_log (#s:L.repr) (vs:_) (l:L.log)
   : Steel (option L.repr)
     (thread_state_inv vs `star` L.log_with_parsed_prefix l s)
@@ -618,14 +742,6 @@ val verify_log (#s:L.repr) (vs:_) (l:L.log)
     (requires fun _ -> True)
     (ensures fun h0 sopt h1 ->
       verify_log_post s l (v_thread vs h0) sopt (v_thread vs h1))
-
-
-// assume
-// val dispose (#s:L.repr)
-//             (l:L.log)
-//   : SteelT unit
-//     (L.log_with_parsed_prefix l s)
-//     (fun _ -> A.varray (L.log_array l))
 
 let rec verify_log #s vs l
   = let h0 = get () in
@@ -664,32 +780,13 @@ let rec verify_log #s vs l
         | Some s' ->
           AT.return (Some (cons_log entry s'))
     )
-
-let verify_array_post (a:A.array U8.t)
-                      (tsm0:thread_state_model)
-                      (sopt:option L.repr)
-                      (tsm1:thread_state_model)
-  = match sopt with
-    | None -> tsm1.model_failed == true
-    | Some s ->
-        exists (l:L.log).{:pattern (Log.parsed_log_inv l s)}
-          L.log_array l == a /\
-          Log.parsed_log_inv l s /\
-          tsm1 == verify_model tsm0 s
+////////////////////////////////////////////////////////////////////////////////
 
 let relate_log_to_array (l:L.log) tsm0 sopt tsm1
   : Lemma
     (requires verify_log_post L.empty_log l tsm0 sopt tsm1)
     (ensures verify_array_post (L.log_array l) tsm0 sopt tsm1)
   = assert (forall (s:L.repr). Seq.equal (log_append L.empty_log s) s); ()
-
-val verify_array (vs:_) (len:U32.t) (a:A.array U8.t)
-  : Steel (option L.repr)
-    (thread_state_inv vs `star` A.varray a)
-    (fun _ -> thread_state_inv vs `star` A.varray a)
-    (requires fun _ -> U32.v len == A.length a)
-    (ensures fun h0 sopt h1 ->
-      verify_array_post a (v_thread vs h0) sopt (v_thread vs h1))
 
 let rewrite_log_array (a:A.array U8.t)
                       (l:L.log)
@@ -700,8 +797,6 @@ let rewrite_log_array (a:A.array U8.t)
     (ensures fun _ _ _ -> True)
   = change_equal_slprop (A.varray (L.log_array l))
                         (A.varray a)
-
-
 let verify_array vs len a =
   let h0 = get () in
   assert (v_thread vs h0 == v_thread vs h0);
@@ -711,5 +806,3 @@ let verify_array vs len a =
   let h2 = get () in
   relate_log_to_array l (v_thread vs h0) sopt (v_thread vs h2);
   AT.return sopt
-
-let verify #n vs c m = sladmit ()

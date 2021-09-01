@@ -16,116 +16,57 @@ open Veritas.Steel.VCache
 open Veritas.Steel.VerifierModel
 open Veritas.ThreadStateModel
 module PRF = Veritas.Steel.PRFSetHash
+module L = Veritas.Steel.Log
+module U8 = FStar.UInt8
+module A = Steel.Array
 
-let counter_t = ref U64.t
+val thread_state_t
+  : Type0
 
-noeq
-type thread_state_t = {
-  id           : T.thread_id;
-  len          : U16.t;
-  st           : vstore len;  //a map from keys (cache ids) to merkle leaf or internal nodes
-  clock        : counter_t;
-  hadd         : PRF.prf_set_hash; //current incremental set hash values; TODO
-  hevict       : PRF.prf_set_hash;
-  failed       : ref bool
-}
-
-[@@__reduce__; __steel_reduce__]
 noextract
-let thread_state_inv (t:thread_state_t) : vprop =
-  is_vstore t.st `star`
-  vptr t.clock `star`
-  vptr t.failed `star`
-  PRF.prf_set_hash_inv t.hadd `star`
-  PRF.prf_set_hash_inv t.hevict
+val thread_state_inv (t:thread_state_t)
+  : vprop
 
-[@@ __steel_reduce__]
-unfold
-let v_thread (#p:vprop) (t:thread_state_t)
-  (h:rmem p{FStar.Tactics.with_tactic selector_tactic (can_be_split p (thread_state_inv t) /\ True)})
-  : GTot thread_state_model
-  = {
-      model_thread_id = t.id;
-      model_store_len = t.len;
-      model_failed = sel t.failed (focus_rmem h (thread_state_inv t));
-      model_store = asel t.st (focus_rmem h (thread_state_inv t));
-      model_clock = sel t.clock (focus_rmem h (thread_state_inv t));
-      model_hadd = PRF.v_hash t.hadd (focus_rmem h (thread_state_inv t));
-      model_hevict = PRF.v_hash t.hevict (focus_rmem h (thread_state_inv t))
-    }
+val v_thread
+     (#p:vprop)
+     (t:thread_state_t)
+     (h:rmem p{
+       FStar.Tactics.with_tactic
+         selector_tactic
+         (can_be_split p (thread_state_inv t) /\ True)
+     })
+  : thread_state_model
 
-val vget (vs: thread_state_t) (s:slot vs.len) (k:T.key) (v:T.data_value)
-  : Steel unit
-          (thread_state_inv vs)
-          (fun _ -> thread_state_inv vs)
-          (requires fun h -> True)
-          (ensures fun h0 _ h1 ->
-            v_thread vs h1 == vget_model (v_thread vs h0) s k v
-          )
+let verify_array_post (a:A.array U8.t)
+                      (tsm0:thread_state_model)
+                      (sopt:option L.repr)
+                      (tsm1:thread_state_model)
+  = match sopt with
+    | None -> tsm1.model_failed == true
+    | Some s ->
+        exists (l:L.log).{:pattern (Log.parsed_log_inv l s)}
+          L.log_array l == a /\
+          Log.parsed_log_inv l s /\
+          tsm1 == verify_model tsm0 s
 
-val vput (vs: thread_state_t) (s:slot vs.len) (k:T.key) (v:T.data_value)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h -> True)
-    (ensures fun h0 _ h1 ->
-      v_thread vs h1 == vput_model (v_thread vs h0) s k v)
+val verify_array (vs:_)
+                 (len:U32.t)
+                 (a:A.array U8.t)
+  : Steel (option L.repr)
+    (thread_state_inv vs `star` A.varray a)
+    (fun _ -> thread_state_inv vs `star` A.varray a)
+    (requires fun _ ->
+      U32.v len == A.length a)
+    (ensures fun h0 sopt h1 ->
+      verify_array_post a (v_thread vs h0) sopt (v_thread vs h1))
 
-val vaddm (vs:_) (s:slot vs.len) (r:T.record) (s':slot vs.len)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h0 -> True)
-    (ensures fun h0 _ h1 ->
-      v_thread vs h1 == vaddm_model (v_thread vs h0) s r s')
 
-val vevictm (vs:_) (s s':slot vs.len)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h0 -> True)
-    (ensures fun h0 _ h1 ->
-      v_thread vs h1 == vevictm_model (v_thread vs h0) s s')
 
-val vaddb (vs:thread_state_t)
-          (s:slot vs.len)
-          (r:T.record)
-          (t:T.timestamp)
-          (thread_id:T.thread_id)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h -> True)
-    (ensures fun h0 _ h1 ->
-      v_thread vs h1 == vaddb_model (v_thread vs h0) s r t thread_id)
-
-val vevictb (vs:thread_state_t)
-            (s:slot vs.len)
-            (t:T.timestamp)
-
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (requires fun h -> True)
-    (ensures  fun h0 _ h1 ->
-      v_thread vs h1 == vevictb_model (v_thread vs h0) s t)
-
-val vevictbm (vs:_)
-             (s s':slot vs.len)
-             (t:T.timestamp)
-  : Steel unit
-    (thread_state_inv vs)
-    (fun _ -> thread_state_inv vs)
-    (fun h0 -> True)
-    (fun h0 _ h1 ->
-      v_thread vs h1 == vevictbm_model (v_thread vs h0) s s' t)
-
-module Awc = Veritas.Steel.ApplicationWorkerChannel
-
-val verify (#n:erased nat) (vs:thread_state_t) (c:Awc.ch) (m:nat)
-  : Steel unit
-      (thread_state_inv vs `star` Awc.reader c n)
-      (fun _ -> thread_state_inv vs `star` Awc.reader c m)
-      (fun _ -> True)
-      (fun h0 _ h1 ->
-       v_thread vs h1 == verify_model (v_thread vs h0) (Awc.trace_n_m c n m))
+// module Awc = Veritas.Steel.ApplicationWorkerChannel
+// val verify (#n:erased nat) (vs:thread_state_t) (c:Awc.ch) (m:nat)
+//   : Steel unit
+//       (thread_state_inv vs `star` Awc.reader c n)
+//       (fun _ -> thread_state_inv vs `star` Awc.reader c m)
+//       (fun _ -> True)
+//       (fun h0 _ h1 ->
+//        v_thread vs h1 == verify_model (v_thread vs h0) (Awc.trace_n_m c n m))
