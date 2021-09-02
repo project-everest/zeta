@@ -20,7 +20,7 @@ let empty_log : repr = Seq.empty
 let snoc_log (r:repr) (e:T.vlog_entry) : repr = Seq.snoc r e
 
 (* A relation between raw bytes and their repr *)
-val parsed (s:Seq.seq U8.t) (r:repr) : prop
+val parsed (s:Seq.seq U8.t) (r:repr) : Type0
 
 
 (* [log] : The main abstract type of this module
@@ -56,7 +56,8 @@ val initialize_log (len:U32.t) (a:A.array U8.t)
   : Steel log
     (A.varray a)
     (fun l -> log_with_parsed_prefix l empty_log)
-    (requires fun _ -> True)
+    (requires fun _ ->
+      A.length a == U32.v len)
     (ensures fun _ l _ ->
       log_len l == len /\
       log_array l == a)
@@ -70,9 +71,9 @@ val initialize_log (len:U32.t) (a:A.array U8.t)
 *)
 
 (*
-  [parsed_log_inv i l n s]: This is implemented as a Steel invariant.
+  [parsed_log_inv l s]: This is implemented as a Steel invariant.
 
-      exists (i:iname). i >--> parsed_log l s n
+      exists (i:iname). i >--> parsed_log l s
 
   where parsed_log l s : slprop =
         pure (Seq.length s = log_len l) `star` l.g `pts_to` s
@@ -84,7 +85,7 @@ val initialize_log (len:U32.t) (a:A.array U8.t)
 *)
 val parsed_log_inv (l:log)
                    (s:repr)
-  : prop
+  : Type0
 
 (* [read_result]: Three potential results from trying to read an entry *)
 noeq
