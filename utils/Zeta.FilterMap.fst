@@ -1,8 +1,8 @@
 module Zeta.FilterMap
 
-let rec filter_map (#a #b:_)
-  (fm: fm_t a b)
-  (s: seq a)
+let rec filter_map (#a #pred #b:_)
+  (fm: fm_t a pred b)
+  (s: seq a{pred s})
   : Tot (seq b)
     (decreases length s)
   = let n = length s in
@@ -15,9 +15,9 @@ let rec filter_map (#a #b:_)
       then append1 ms' (fm.m s (n - 1))
       else ms'
 
-let rec filter_map_map (#a #b:_)
-  (fm: fm_t a b)
-  (s: seq a)
+let rec filter_map_map (#a #pred #b:_)
+  (fm: fm_t a pred b)
+  (s: seq a{pred s})
   (i: seq_index s {fm.f s i})
   : Tot(j: (seq_index (filter_map fm s)) {index (filter_map fm s) j == fm.m s i})
     (decreases (length s))
@@ -28,9 +28,9 @@ let rec filter_map_map (#a #b:_)
     then length ms'
     else filter_map_map fm s' i
 
-let rec filter_map_map_prefix_property (#a #b:_)
-  (fm: fm_t a b)
-  (s: seq a)
+let rec filter_map_map_prefix_property (#a #pred #b:_)
+  (fm: fm_t a pred b)
+  (s: seq a{pred s})
   (i: seq_index s {fm.f s i})
   (j: nat{j <= length s /\ j > i})
   : Lemma (ensures (filter_map_map fm s i = filter_map_map fm (prefix s j) i))
@@ -41,9 +41,9 @@ let rec filter_map_map_prefix_property (#a #b:_)
     else if j = length s then ()
     else filter_map_map_prefix_property fm s' i j
 
-let rec lemma_filter_map_map_monotonic (#a #b:_)
-  (fm: fm_t a b)
-  (s: seq a)
+let rec lemma_filter_map_map_monotonic (#a #pred #b:_)
+  (fm: fm_t a pred b)
+  (s: seq a{pred s})
   (i1 i2: (i:seq_index s {fm.f s i}))
   : Lemma (ensures (i1 < i2 ==> filter_map_map fm s i1 < filter_map_map fm s i2))
           (decreases length s)
@@ -54,9 +54,9 @@ let rec lemma_filter_map_map_monotonic (#a #b:_)
     else
       lemma_filter_map_map_monotonic fm s' i1 i2
 
-let rec filter_map_invmap (#a #b:_)
-  (fm: fm_t a b)
-  (s: seq a)
+let rec filter_map_invmap (#a #pred #b:_)
+  (fm: fm_t a pred b)
+  (s: seq a{pred s})
   (j: seq_index (filter_map fm s))
   : Tot(i:(seq_index s){ fm.f s i /\ filter_map_map fm s i = j })
     (decreases (length s))
@@ -67,9 +67,9 @@ let rec filter_map_invmap (#a #b:_)
     then n
     else filter_map_invmap fm s' j
 
-let rec lemma_filter_map (#a #b:_)
-  (fm: fm_t a b)
-  (s: seq a)
+let rec lemma_filter_map (#a #pred #b:_)
+  (fm: fm_t a pred b)
+  (s: seq a {pred s})
   (i: seq_index s {fm.f s i})
   : Lemma (ensures (let j = filter_map_map fm s i in
                     i = filter_map_invmap fm s j))
@@ -79,9 +79,9 @@ let rec lemma_filter_map (#a #b:_)
     if i = n then ()
     else lemma_filter_map fm s' i
 
-let filter_map_invmap_monotonic (#a #b:_)
-  (fm: fm_t a b)
-  (s: seq a)
+let filter_map_invmap_monotonic (#a #pred #b:_)
+  (fm: fm_t a pred b)
+  (s: seq a{pred s})
   (j1 j2: seq_index (filter_map fm s))
   : Lemma (ensures (j1 < j2 ==> filter_map_invmap fm s j1 < filter_map_invmap fm s j2))
   = if j1 >= j2 then ()
@@ -93,9 +93,10 @@ let filter_map_invmap_monotonic (#a #b:_)
 
 let lemma_filter_map_extend_sat
   (#a:_)
+  (#pred:_)
   (#b:eqtype)
-  (fm: fm_t a b)
-  (s: seq a {length s > 0 /\ fm.f s (length s - 1)})
+  (fm: fm_t a pred b)
+  (s: seq a {pred s /\ length s > 0 /\ fm.f s (length s - 1)})
   : Lemma (ensures (let fms = filter_map fm s in
                     let fms' = filter_map fm (hprefix s) in
                     let me = fm.m s (length s - 1) in
@@ -104,9 +105,10 @@ let lemma_filter_map_extend_sat
 
 let lemma_filter_map_extend_unsat
   (#a:_)
+  (#pred:_)
   (#b:eqtype)
-  (fm: fm_t a b)
-  (s: seq a {length s > 0 /\ not (fm.f s (length s - 1))})
+  (fm: fm_t a pred b)
+  (s: seq a {pred s /\ length s > 0 /\ not (fm.f s (length s - 1))})
   : Lemma (ensures (let fms = filter_map fm s in
                     let fms' = filter_map fm (hprefix s) in
                     fms == fms'))
@@ -114,9 +116,10 @@ let lemma_filter_map_extend_unsat
 
 let lemma_filter_map_empty
   (#a:_)
+  (#pred:_)
   (#b:eqtype)
-  (fm: fm_t a b)
-  (s: seq a {length s = 0})
+  (fm: fm_t a pred b)
+  (s: seq a {pred s /\ length s = 0})
   : Lemma (ensures length (filter_map fm s) = 0)
   = ()
 

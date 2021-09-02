@@ -45,3 +45,8 @@ val lemma_sseq_correct2 (#a:eqtype) (ss: sseq a) (x:a) (i:seq_index ss) (j:seq_i
 
 val lemma_sseq_extend_len (#a:eqtype) (ss: sseq a) (x:a) (i:seq_index ss):
   Lemma (ensures (flat_length (sseq_extend ss x i) = 1 + flat_length ss))
+
+let sseq_all_prefix_of (#a:eqtype)
+                       (ss0 ss1: sseq a)
+  = length ss0 = length ss1 /\
+    (forall (tid:seq_index ss1). (index ss0 tid) `prefix_of` (index ss1 tid))

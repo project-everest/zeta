@@ -1,101 +1,68 @@
 module Zeta.Interleave
 
-let elem #a #n (e: (a & t:nat {t < n})): a
-  = fst e
+let is_prefix #a #n (il: interleaving a n) (s: seq a)
+  = s `prefix_of` il.is
 
-let i_seq_base (#a:_) (il: interleaving a)
-  = simple_map elem il.st
+let elem #a #n (il: interleaving a n) (s: seq a{is_prefix il s}) (i: seq_index s)
+  = S.index s i
 
-let lemma_iseq_length (#a:_) (il: interleaving a)
-  : Lemma (ensures (S.length il.st = S.length (i_seq_base il)))
-          [SMTPat (i_seq_base il)]
-  = admit()
+let of_seq #a #n (il: interleaving a n) (t: nat) (s: seq a{is_prefix il s}) (i: seq_index s)
+  = t = S.index il.ts i
 
-let i_seq (#a:_) (il: interleaving a): (s: seq a {S.length il.st = S.length s})
-  = i_seq_base il
+let seq_i_fm (#a:_) (#n:_) (il: interleaving a n) (i:nat{i < n})
+  : fm_t a (is_prefix il) a
+  = FM (of_seq il i) (elem il)
 
-let seq_id #a #n (e: (a & t:nat{t < n}))
-  = snd e
+let s_seq_i (#a:_) (#n:_) (il: interleaving a n) (i:nat{i < n})
+  = let fm = seq_i_fm il i in
+    filter_map fm il.is
 
-let of_seq_id #a #n (t:nat{t < n}) (e: (a & t:nat{ t < n }))
-  = seq_id e = t
+let s_seq (#a:_) (#n:_) (il: interleaving a n)
+  = init n (s_seq_i il)
 
-let s_seq_i (#a:_) (il: interleaving a) (i:nat{i < il.n})
-  = simple_filter_map (of_seq_id i) elem il.st
-
-let s_seq (#a:_) (il: interleaving a)
-  = init il.n (s_seq_i il)
-
-let lemma_index (#a:_) (il: interleaving a) (i: seq_index il)
-  : Lemma (ensures (index il i = elem (S.index il.st i)))
-          [SMTPat (index il i)]
-  = admit()
-
-let prefix_base (#a:_) (il: interleaving a) (i:nat{i <= length il})
-  = {n = il.n; st = SA.prefix il.st i}
-
-let lemma_prefix #a (il: interleaving a) (i:nat{i <= length il})
-  : Lemma (ensures (i_seq (prefix_base il i) = SA.prefix (i_seq il) i))
-          [SMTPat (prefix_base il i)]
-  = admit()
-
-let prefix (#a:_) (il: interleaving a) (i:nat{i <= length il})
-  = prefix_base il i
-
-let per_thread_prefix (#a:eqtype) (il: interleaving a) (i:nat{i <= length il})
+let per_thread_prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
   : Lemma (let ss = s_seq il in
            let il' = prefix il i in
            let ss' = s_seq il' in
            ss' `sseq_all_prefix_of` ss)
   = admit()
 
-let i2s_map (#a:_) (il:interleaving a) (i:seq_index il)
-  = let t = seq_id (S.index il.st i) in
-    let fm = simple_fm_t (of_seq_id t) (elem #a #il.n) in
-    let j = filter_map_map fm il.st i in
+let i2s_map (#a:_) (#n:_) (il:interleaving a n) (i:seq_index il)
+  = let t = sid il i in
+    let fm = seq_i_fm il t in
+    let j = filter_map_map fm il.is i in
     (t,j)
 
-let s2i_map (#a:eqtype) (il:interleaving a) (si: sseq_index (s_seq il))
+let s2i_map (#a:_) (#n:_) (il:interleaving a n) (si: sseq_index (s_seq il))
   = let t,j = si in
-    let fm = simple_fm_t (of_seq_id t) (elem #a #il.n) in
-    filter_map_invmap fm il.st j
+    let fm = seq_i_fm il t in
+    filter_map_invmap fm il.is j
 
-let lemma_i2s_s2i (#a:eqtype) (il:interleaving a) (i:seq_index il):
+let lemma_i2s_s2i (#a:_) (#n:_) (il:interleaving a n) (i:seq_index il):
   Lemma (ensures (s2i_map il (i2s_map il i) = i))
   = ()
 
-let prefix_identity (#a:eqtype) (il:interleaving a)
-  : Lemma (ensures prefix il (length il) == il)
-  = ()
-
-let lemma_index_prefix_property (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}):
+let lemma_index_prefix_property (#a #n:_) (il:interleaving a n) (i:nat{i <= length il}) (j:nat{j < i}):
   Lemma (ensures (index (prefix il i) j = index il j))
   = ()
 
-let lemma_prefix_prefix_property (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j <= i}):
+let lemma_prefix_prefix_property (#a #n:_) (il:interleaving a n) (i:nat{i <= length il}) (j:nat{j <= i}):
   Lemma (ensures (prefix (prefix il i) j == prefix il j))
-  = admit()
+  = ()
 
-let lemma_i2s_prefix_property (#a:_) (il:interleaving a)(i:nat{i <= length il})(j:nat{j < i}):
+let lemma_i2s_prefix_property (#a:_) (#n:_) (il:interleaving a n)(i:nat{i <= length il})(j:nat{j < i}):
   Lemma (ensures (i2s_map (prefix il i) j = i2s_map il j))
-  = admit()
-
-let some_interleaving (#a: eqtype) (ss: sseq a)
-  : il: interleaving a {s_seq il = ss}
-  = admit()
-
-let lemma_empty_len (#a:_) (#n:_)
-  : Lemma (ensures (length (empty_interleaving a n) = 0))
-  = let il = empty_interleaving a n in
-    //assert(S.length il.st = 0);
-    assert(il.n = n);
-    assert(il.st == empty #(a & t:nat{t < n}));
-    //assume(S.length il.st = 0);
-    //assert(length il == S.length il.st);
+  = let t = sid il j in
+    let fm = seq_i_fm il t in
+    filter_map_map_prefix_property fm il.is j i;
     admit()
 
-let lemma_length0_implies_empty (#a:_) (il: interleaving a{length il = 0})
-  : Lemma (ensures (il == empty_interleaving a il.n))
+let some_interleaving (#a:_) (ss: sseq a)
+  : il: interleaving a (S.length ss) {s_seq il = ss}
+  = admit()
+
+let lemma_length0_implies_empty (#a #n:_) (il: interleaving a n{length il = 0})
+  : Lemma (ensures (il == empty_interleaving a n))
   = admit()
 
 let lemma_empty_sseq (a:eqtype) (n:_) (i: nat{i < n})

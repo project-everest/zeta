@@ -62,6 +62,8 @@ let is_prefix (#a:eqtype) (s:seq a) (ps: seq a): Tot bool =
 length ps <= length s &&
 ps = prefix s (length ps)
 
+let prefix_of (#a:eqtype) (s0 s1:seq a) = is_prefix s1 s0
+
 (* Suffix of a sequence *)
 val suffix (#a:Type) (s:seq a) (i:nat{i <= length s}): Tot (s':seq a{length s' = i})
 
