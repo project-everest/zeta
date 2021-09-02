@@ -68,14 +68,37 @@ let prefix_identity (#a:eqtype) (il:interleaving a)
   : Lemma (ensures prefix il (length il) == il)
   = ()
 
-let lemma_prefix_index (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}):
+let lemma_index_prefix_property (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j < i}):
   Lemma (ensures (index (prefix il i) j = index il j))
   = ()
 
-let lemma_prefix_prefix (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j <= i}):
+let lemma_prefix_prefix_property (#a:eqtype) (il:interleaving a) (i:nat{i <= length il}) (j:nat{j <= i}):
   Lemma (ensures (prefix (prefix il i) j == prefix il j))
+  = admit()
+
+let lemma_i2s_prefix_property (#a:_) (il:interleaving a)(i:nat{i <= length il})(j:nat{j < i}):
+  Lemma (ensures (i2s_map (prefix il i) j = i2s_map il j))
   = admit()
 
 let some_interleaving (#a: eqtype) (ss: sseq a)
   : il: interleaving a {s_seq il = ss}
+  = admit()
+
+let lemma_empty_len (#a:_) (#n:_)
+  : Lemma (ensures (length (empty_interleaving a n) = 0))
+  = let il = empty_interleaving a n in
+    //assert(S.length il.st = 0);
+    assert(il.n = n);
+    assert(il.st == empty #(a & t:nat{t < n}));
+    //assume(S.length il.st = 0);
+    //assert(length il == S.length il.st);
+    admit()
+
+let lemma_length0_implies_empty (#a:_) (il: interleaving a{length il = 0})
+  : Lemma (ensures (il == empty_interleaving a il.n))
+  = admit()
+
+let lemma_empty_sseq (a:eqtype) (n:_) (i: nat{i < n})
+  : Lemma (ensures (let il = empty_interleaving a n in
+                    S.index (s_seq il) i = empty #a))
   = admit()

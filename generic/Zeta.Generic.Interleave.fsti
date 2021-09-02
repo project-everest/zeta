@@ -2,12 +2,11 @@ module Zeta.Generic.Interleave
 
 open FStar.Seq
 open Zeta.SeqAux
-open Zeta.Interleave
 open Zeta.Time
 open Zeta.GenericVerifier
 open Zeta.Generic.Thread
 open Zeta.Generic.Global
-
+open Zeta.Interleave
 module V = Zeta.GenericVerifier
 module T = Zeta.Generic.Thread
 module G = Zeta.Generic.Global
@@ -33,36 +32,86 @@ let verifiable #vspec (il: ilog vspec) =
 let verifiable_log vspec = il:ilog vspec {verifiable il}
 
 val lemma_prefix_verifiable (#vspec:_) (il:verifiable_log vspec) (i:nat{i <= I.length il}):
-  Lemma (ensures (verifiable (I.prefix il i)))
-        [SMTPat (I.prefix il i)]
+  Lemma (ensures (verifiable (prefix il i)))
+        [SMTPat (prefix il i)]
 
-(* an index function is a function that returns a value at every index of the interleaved log *)
-(* a class of index functions we are interested in are index functions that derive from index
- * functions of the thread log *)
-let idxfn (#vspec:_) (#b:_) (tfn: idxfn_t vspec b) (il: verifiable_log vspec) (i: seq_index il)
-  = let j = i2s_map il i in
-    G.idxfn tfn (to_glog il) j
+(* an index function defined over positions of an interleaving *)
+let idxfn_t_base vspec (b:eqtype) = il:verifiable_log vspec -> i:seq_index il -> b
 
-let prefix_property #vspec #b (tfn: idxfn_t vspec b)
-  = forall (il: verifiable_log vspec) (i: nat) (j:nat).
-     {:pattern idxfn tfn (prefix il j) i}
-      j <= I.length il ==>
-      i < j ==>
-      idxfn tfn il i = idxfn tfn (prefix il j) i
+let prefix_property
+  (#vspec:_)
+  (#b:eqtype)
+  (f: idxfn_t_base vspec b)
+  = forall (il: verifiable_log vspec) (i: nat) (j: nat).
+    {:pattern f (prefix il j) i}
+    j <= length il ==>
+    i < j ==>
+    f il i = f (prefix il j) i
 
-val lemma_idxfn_prefix_property
+let idxfn_t vspec (b: eqtype) = f: idxfn_t_base vspec b {prefix_property f}
+
+let cond_idxfn_t_base (#vspec:_) (b:eqtype) (f:idxfn_t vspec bool)
+  = il:verifiable_log vspec -> i:seq_index il{f il i} -> b
+
+let cond_prefix_property
   (#vspec:_)
   (#b:_)
-  (tfn: idxfn_t vspec b)
-  : Lemma (ensures (prefix_property tfn))
-          [SMTPat (idxfn tfn)]
+  (#f:_)
+  (m: cond_idxfn_t_base b f)
+  = forall (il: verifiable_log vspec) (i: nat) (j: nat).
+    {:pattern m (prefix il j) i}
+    j <= length il ==>
+    i < j ==>
+    f il i ==>
+    m il i = m (prefix il j) i
+
+let cond_idxfn_t (#vspec:_) (b:eqtype) (f:idxfn_t vspec bool)
+  = m:cond_idxfn_t_base b f{cond_prefix_property m}
+
+(* a specification of a filter-map *)
+noeq
+type fm_t (vspec:_) (b:eqtype) =
+  | FM: f: _   ->
+        m: cond_idxfn_t #vspec b f -> fm_t vspec b
+
+val filter_map (#vspec:_) (#b:eqtype)
+  (fm: fm_t vspec b)
+  (il: verifiable_log vspec)
+  : interleaving b
+
+val filter (#vspec: _)
+  (f: idxfn_t vspec bool)
+  (il: verifiable_log vspec)
+  : verifiable_log vspec
+
+val map (#vspec:_) (#b:eqtype)
+  (f: idxfn_t vspec b)
+  (il: verifiable_log vspec)
+  : interleaving b
+
+val idxfn_from_tfn
+  (#vspec:_)
+  (#b:_)
+  (tfn: T.idxfn_t vspec b)
+  : idxfn_t vspec b
+
+(* this lemma defines the output of the idxfn as running the tfn on the thread at the index
+ * specified by the interleaving *)
+val lemma_idxfn
+  (#vspec:_)
+  (#b:_)
+  (tfn: T.idxfn_t vspec b)
+  (il: verifiable_log vspec)
+  (i: seq_index il)
+  : Lemma (ensures (let ifn = idxfn_from_tfn tfn in
+                    let ii = i2s_map il i in
+                    ifn il i = G.idxfn tfn (to_glog il) ii))
+          [SMTPat (idxfn_from_tfn tfn il i)]
 
 (* the clock value at every index *)
-let clock #vspec = idxfn (T.clock #vspec)
+let clock #vspec = idxfn_from_tfn (T.clock #vspec)
 
 (* conditional index functions that are defined in some positions *)
-let cond_idxfn (#vspec:_) (#b:_) (#f:_) (tfn: cond_idxfn_t #vspec b f)
-  (il: verifiable_log vspec) (i: seq_index il {idxfn f il i})
-  = let j = i2s_map il i in
-    G.cond_idxfn tfn (to_glog il) j
+val cond_idxfn_from_tfn (#vspec:_) (#b:_) (#f:_) (tfn: T.cond_idxfn_t #vspec b f)
+  : cond_idxfn_t b (idxfn_from_tfn f)
 

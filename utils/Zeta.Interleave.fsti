@@ -20,7 +20,7 @@ val i_seq (#a:_) (il: interleaving a): (s: seq a {S.length il.st = S.length s})
 val s_seq (#a:_) (il: interleaving a): ss:sseq a{S.length ss = il.n}
 
 let length (#a:eqtype) (il: interleaving a)
-  = length il.st
+  = S.length il.st
 
 let seq_index (#a:eqtype) (il: interleaving a) = i:nat{i < length il}
 
@@ -79,55 +79,21 @@ val lemma_i2s_prefix_property (#a:_) (il:interleaving a)(i:nat{i <= length il})(
   Lemma (ensures (i2s_map (prefix il i) j = i2s_map il j))
         [SMTPat (i2s_map (prefix il i) j)]
 
-val some_interleaving (#a: eqtype) (ss: sseq a)
-  : il: interleaving a {s_seq il = ss}
-
 let interleave (#a:eqtype) (s: seq a) (ss: sseq a)
   = exists il. (i_seq il = s) /\ (s_seq il = ss)
 
-(* an index function defined over positions of an interleaving *)
-let idxfn_t_base (a b:eqtype) = il:interleaving a -> i:seq_index il -> b
+val some_interleaving (#a: eqtype) (ss: sseq a)
+  : il: interleaving a {s_seq il = ss}
 
-let prefix_property
-  (#a:_)
-  (#b:eqtype)
-  (f: idxfn_t_base a b)
-  = forall (il: interleaving a) (i: nat) (j: nat).
-    {:pattern f (prefix il j) i}
-    j <= length il ==>
-    i < j ==>
-    f il i = f (prefix il j) i
+let empty_interleaving (a:eqtype) (n:nat)
+  = {n; st = empty #(a & t:nat{t < n})}
 
-let idxfn_t (a b: eqtype) = f: idxfn_t_base a b {prefix_property f}
+val lemma_empty_len (#a:_) (#n:_)
+  : Lemma (ensures (length (empty_interleaving a n) = 0))
 
-let cond_idxfn_t_base (#a:_) (b:eqtype) (f:idxfn_t a bool)
-  = il:interleaving a -> i:seq_index il{f il i} -> b
+val lemma_length0_implies_empty (#a:_) (il: interleaving a{length il = 0})
+  : Lemma (ensures (il == empty_interleaving a il.n))
 
-let cond_prefix_property
-  (#a:_)
-  (#b:_)
-  (#f:_)
-  (m: cond_idxfn_t_base b f)
-  = forall (il: interleaving a) (i: nat) (j: nat).
-    {:pattern m (prefix il j) i}
-    j <= length il ==>
-    i < j ==>
-    f il i ==>
-    m il i = m (prefix il j) i
-
-let cond_idxfn_t (#a:_) (b:eqtype) (f:idxfn_t a bool)
-  = m:cond_idxfn_t_base b f{cond_prefix_property m}
-
-(* a specification of a filter-map *)
-noeq
-type fm_t (a:_) (b:eqtype) =
-  | FM: f: _   ->
-        m: cond_idxfn_t #a b f -> fm_t a b
-
-(*
- * we can naturally extend a sequence level filter-map operation to interleave filter map operations.
- *)
-val filter_map (#a #b:eqtype)
-  (fm: fm_t a b)
-  (il: interleaving a)
-  : interleaving b
+val lemma_empty_sseq (a:eqtype) (n:_) (i: nat{i < n})
+  : Lemma (ensures (let il = empty_interleaving a n in
+                    S.index (s_seq il) i = empty #a))
