@@ -38,9 +38,35 @@ let v_hash (#p:vprop) (r:prf_set_hash)
   : GTot model_hash
   = h (prf_set_hash_inv r)
 
+val create (_:unit)
+  : Steel prf_set_hash
+    emp
+    (fun p -> prf_set_hash_inv p)
+    (requires fun _ -> True)
+    (ensures fun _ p h1 -> v_hash p h1 == init_hash)
+
+val free (p:prf_set_hash)
+  : SteelT unit
+    (prf_set_hash_inv p)
+    (fun _ -> emp)
+
 val prf_update_hash (p:prf_set_hash) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
   : Steel unit
     (prf_set_hash_inv p)
     (fun _ -> prf_set_hash_inv p)
     (requires fun _ -> True)
     (ensures fun h0 _ h1 -> v_hash p h1 == model_update_hash (v_hash p h0) r t thread_id)
+
+module A = Steel.Array
+module U8 = FStar.UInt8
+
+val as_model_hash (s:Seq.lseq U64.t 4) : model_hash
+val prf_read_hash (p:prf_set_hash) (out:A.array U64.t)
+  : Steel unit
+    (prf_set_hash_inv p `star` A.varray out)
+    (fun _ -> prf_set_hash_inv p `star` A.varray out)
+    (requires fun _ -> A.length out == 4)
+    (ensures fun h0 _ h1 ->
+      A.length out == 4 /\
+      v_hash p h0 == v_hash p h1 /\
+      as_model_hash (A.asel out h1) == v_hash p h1)

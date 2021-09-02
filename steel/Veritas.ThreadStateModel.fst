@@ -54,6 +54,21 @@ type thread_state_model = {
   model_thread_id: T.thread_id
 }
 
+assume
+val init_hash : model_hash
+
+let init_thread_state_model tid store_size
+  : thread_state_model
+  = {
+      model_thread_id = tid;
+      model_store_len = store_size;
+      model_failed = false;
+      model_store = Seq.create (U16.v store_size) None;
+      model_clock = 0uL;
+      model_hadd = init_hash;
+      model_hevict = init_hash
+    }
+
 let lemma_seq_to_list_append #a (s0 s1:Seq.seq a)
   : Lemma (Seq.seq_to_list (Seq.append s0 s1) ==
            L.(Seq.seq_to_list s0 @ Seq.seq_to_list s1))

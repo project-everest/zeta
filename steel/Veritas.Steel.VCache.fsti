@@ -29,6 +29,12 @@ val vcache_create (n:U16.t)
            (requires fun _ -> True)
            (ensures fun _ v h1 -> asel v h1 == Seq.create (U16.v n) None)
 
+
+val free (#n:_) (p:vstore n)
+  : SteelT unit
+    (is_vstore p)
+    (fun _ -> emp)
+
 let slot (n:U16.t) = x:U16.t{ U16.v x < U16.v n }
 
 val vcache_get_record (#n:_) (vst:vstore n) (s:slot n)

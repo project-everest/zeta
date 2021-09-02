@@ -60,6 +60,19 @@ val verify_array (vs:_)
     (ensures fun h0 sopt h1 ->
       verify_array_post a (v_thread vs h0) sopt (v_thread vs h1))
 
+val create (tid:T.thread_id) (store_size:U16.t)
+  : Steel thread_state_t
+    emp
+    (fun vs -> thread_state_inv vs)
+    (requires fun _ -> True)
+    (ensures fun _ vs h1 ->
+      v_thread vs h1 == init_thread_state_model tid store_size)
+
+val free (vs:thread_state_t)
+  : SteelT unit
+    (thread_state_inv vs)
+    (fun _ -> emp)
+
 
 
 // module Awc = Veritas.Steel.ApplicationWorkerChannel

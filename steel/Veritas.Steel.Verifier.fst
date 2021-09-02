@@ -836,41 +836,11 @@ let verify_array vs len a =
   relate_log_to_array l (v_thread vs h0) sopt (v_thread vs h2);
   AT.return sopt
 
-assume
-val init_hash : model_hash
-
-assume
-val create_prf_set_hash (_:unit)
-  : Steel PRF.prf_set_hash
-    emp
-    (fun p -> PRF.prf_set_hash_inv p)
-    (requires fun _ -> True)
-    (ensures fun _ p h1 -> PRF.v_hash p h1 == init_hash)
-
-let init_thread_state_model tid store_size
-  : thread_state_model
-  = {
-      model_thread_id = tid;
-      model_store_len = store_size;
-      model_failed = false;
-      model_store = Seq.create (U16.v store_size) None;
-      model_clock = 0uL;
-      model_hadd = init_hash;
-      model_hevict = init_hash
-    }
-
-val create (tid:T.thread_id) (store_size:U16.t)
-  : Steel thread_state_t
-    emp
-    (fun vs -> thread_state_inv vs)
-    (requires fun _ -> True)
-    (ensures fun _ vs h1 ->
-      v_thread vs h1 == init_thread_state_model tid store_size) //should be initialized to init thread state
 let create tid store_size
   = let st = VCache.vcache_create store_size in
     let clock = Steel.Reference.malloc 0uL in
-    let hadd = create_prf_set_hash () in
-    let hevict = create_prf_set_hash () in
+    let hadd = PRF.create_prf_set_hash () in
+    let hevict = PRF.create_prf_set_hash () in
     let failed = Steel.Reference.malloc false in
     let vs = {
       id = tid;
@@ -882,3 +852,10 @@ let create tid store_size
       failed = failed
     } in
     AT.return vs
+
+let free vs
+  = Steel.Reference.free vs.clock;
+    Steel.Reference.free vs.failed;
+    VCache.free vs.st;
+    PRF.free vs.hadd;
+    PRF.free vs.hevict
