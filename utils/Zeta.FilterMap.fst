@@ -28,6 +28,32 @@ let rec filter_map_map (#a #b:_)
     then length ms'
     else filter_map_map fm s' i
 
+let rec filter_map_map_prefix_property (#a #b:_)
+  (fm: fm_t a b)
+  (s: seq a)
+  (i: seq_index s {fm.f s i})
+  (j: nat{j <= length s /\ j > i})
+  : Lemma (ensures (filter_map_map fm s i = filter_map_map fm (prefix s j) i))
+          (decreases (length s))
+  = let n = length s - 1 in
+    let s' = prefix s n in
+    if i = n then ()
+    else if j = length s then ()
+    else filter_map_map_prefix_property fm s' i j
+
+let rec lemma_filter_map_map_monotonic (#a #b:_)
+  (fm: fm_t a b)
+  (s: seq a)
+  (i1 i2: (i:seq_index s {fm.f s i}))
+  : Lemma (ensures (i1 < i2 ==> filter_map_map fm s i1 < filter_map_map fm s i2))
+          (decreases length s)
+  = let n = length s - 1 in
+    let s' = prefix s n in
+    if i1 >= i2 then ()
+    else if i2 = n then ()
+    else
+      lemma_filter_map_map_monotonic fm s' i1 i2
+
 let rec filter_map_invmap (#a #b:_)
   (fm: fm_t a b)
   (s: seq a)
@@ -52,6 +78,18 @@ let rec lemma_filter_map (#a #b:_)
     let s' = prefix s n in
     if i = n then ()
     else lemma_filter_map fm s' i
+
+let filter_map_invmap_monotonic (#a #b:_)
+  (fm: fm_t a b)
+  (s: seq a)
+  (j1 j2: seq_index (filter_map fm s))
+  : Lemma (ensures (j1 < j2 ==> filter_map_invmap fm s j1 < filter_map_invmap fm s j2))
+  = if j1 >= j2 then ()
+    else
+      let i1 = filter_map_invmap fm s j1 in
+      let i2 = filter_map_invmap fm s j2 in
+      lemma_filter_map_map_monotonic fm s i1 i2;
+      lemma_filter_map_map_monotonic fm s i2 i1
 
 let lemma_filter_map_extend_sat
   (#a:_)
@@ -82,81 +120,3 @@ let lemma_filter_map_empty
   : Lemma (ensures length (filter_map fm s) = 0)
   = ()
 
-let pred_idxfn (#p:nat{p > 0}) (#a:_) (#b:_) (f:sidxfn_t p a b)
-  : sidxfn_t (p-1) a b
-  = f
-
-let pred_cond_idxfn (#p:nat{p>0}) (#a:_) (#b:_) (#f:sidxfn_t p a bool) (m:scond_idxfn_t b f)
-  : scond_idxfn_t b (pred_idxfn f)
-  = m
-
-let pred (#p:_{p > 0}) (#a:_) (#b: _)  (fm: ssfm_t p a b)
-  : ssfm_t (p-1) a b
-  = SSFM (pred_idxfn fm.f) (pred_cond_idxfn fm.m)
-
-let rec ssfilter_map (#p:_) (#a #b:_)
-  (fm: ssfm_t p a b)
-  (s: sseq a{length s = p})
-  : Tot(s':sseq b {length s' = length s})
-    (decreases (length s))
-  = let n = length s in
-    if n = 0 then empty #(seq b)
-    else
-      let fmss' = ssfilter_map (pred fm) (prefix s (n-1)) in
-      let fmi = to_fm_t fm (n - 1) in
-      let fms = filter_map fmi (index s (n-1)) in
-      append1 fmss' fms
-
-let rec ssfilter_map_map (#p:_) (#a #b:_)
-  (fm: ssfm_t p a b)
-  (s: sseq a {length s = p})
-  (ii: sseq_index s {ssfn fm.f s ii})
-  : Tot(jj: (sseq_index (ssfilter_map fm s))
-    {indexss (ssfilter_map fm s) jj == cond_ssfn fm.m s ii /\
-     fst ii = fst jj})
-    (decreases (length s))
-  = let t,i = ii in
-    let n = length s in
-    if t = n - 1 then
-      let fmi = to_fm_t fm (n - 1) in
-      t, filter_map_map fmi (index s (n-1)) i
-    else
-      ssfilter_map_map (pred fm) (prefix s (n-1)) ii
-
-let rec ssfilter_map_invmap (#p:_) (#a #b:_)
-  (fm: ssfm_t p a b)
-  (s: sseq a {length s = p})
-  (jj: sseq_index (ssfilter_map fm s))
-  : Tot(ii:(sseq_index s){ssfn fm.f s ii /\ ssfilter_map_map fm s ii = jj })
-    (decreases (length s))
-  = let t,j = jj in
-    let n = length s in
-    if t = n - 1 then
-      let fmi = to_fm_t fm (n - 1) in
-      t, filter_map_invmap fmi (index s (n - 1)) j
-    else
-      ssfilter_map_invmap (pred fm) (prefix s (n - 1)) jj
-
-let rec lemma_ssfilter_map (#p:_) (#a #b:_)
-  (fm: ssfm_t p a b)
-  (s: sseq a{length s = p})
-  (ii: sseq_index s {ssfn fm.f s ii})
-  : Lemma (ensures (let jj = ssfilter_map_map fm s ii in
-                    ii = ssfilter_map_invmap fm s jj))
-          (decreases (length s))
-  = let t,i = ii in
-    let n = length s in
-    if t = n - 1 then ()
-    else
-      lemma_ssfilter_map (pred fm) (prefix s (n-1)) ii
-
-let rec lemma_ssfilter_map_idx (#p:_) (#a #b:_)
-  (ssfm: ssfm_t p a b)
-  (ss: sseq a{length ss = p})
-  (i: seq_index ss)
-  : Lemma (ensures (index (ssfilter_map ssfm ss) i = filter_map (to_fm_t ssfm i) (index ss i)))
-          (decreases (length ss))
-  = let n = length ss in
-    if i = n - 1 then ()
-    else
-      lemma_ssfilter_map_idx (pred ssfm) (prefix ss (n - 1)) i

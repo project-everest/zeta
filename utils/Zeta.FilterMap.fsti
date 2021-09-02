@@ -72,6 +72,19 @@ val filter_map_map (#a #b:_)
   (i: seq_index s {fm.f s i})
   : j: (seq_index (filter_map fm s)) {index (filter_map fm s) j == fm.m s i}
 
+val filter_map_map_prefix_property (#a #b:_)
+  (fm: fm_t a b)
+  (s: seq a)
+  (i: seq_index s {fm.f s i})
+  (j: nat{j <= length s /\ j > i})
+  : Lemma (ensures (filter_map_map fm s i = filter_map_map fm (prefix s j) i))
+
+val lemma_filter_map_map_monotonic (#a #b:_)
+  (fm: fm_t a b)
+  (s: seq a)
+  (i1 i2: (i:seq_index s {fm.f s i}))
+  : Lemma (ensures (i1 < i2 ==> filter_map_map fm s i1 < filter_map_map fm s i2))
+
 (* map an index of the filter-map back to the original sequence *)
 val filter_map_invmap (#a #b:_)
   (fm: fm_t a b)
@@ -88,27 +101,11 @@ val lemma_filter_map (#a #b:_)
                     i = filter_map_invmap fm s j))
           [SMTPat (filter_map_map fm s i)]
 
-let indexm #a #b (f: a -> bool) (m: (x:a{f x}) -> b) (s: seq a) (i: seq_index s{f (index s i)})
-  = m (index s i)
-
-let indexf #a (f: a -> bool) (s: seq a) (i: seq_index s)
-  = f (index s i)
-
-let alltrue #a (_:a)
-  = true
-
-let simple_fm_t #a (#b:eqtype) (f: a -> bool) (m: (x:a{f x}) -> b)
-  = FM (indexf f) (indexm f m)
-
-let simple_filter_map (#a:_) (#b:eqtype) (f: a -> bool) (m: (x:a {f x}) -> b)
-  = filter_map (simple_fm_t f m)
-
-let map (#a:_) (#b:_) (f: idxfn_t a b)
-  = let fm = FM (indexf alltrue) f in
-    filter_map fm
-
-let simple_map (#a:_) (#b:eqtype) (m: a -> b)
-  = simple_filter_map alltrue m
+val filter_map_invmap_monotonic (#a #b:_)
+  (fm: fm_t a b)
+  (s: seq a)
+  (j1 j2: seq_index (filter_map fm s))
+  : Lemma (ensures (j1 < j2 ==> filter_map_invmap fm s j1 < filter_map_invmap fm s j2))
 
 val lemma_filter_map_extend_sat
   (#a:_)
@@ -139,104 +136,24 @@ val lemma_filter_map_empty
   : Lemma (ensures length (filter_map fm s) = 0)
           [SMTPat (filter_map fm s)]
 
-(* we are interested in sequence of sequences and index functions over the inner sequence.
- * one subtlety is we want the indexed functions over the inner sequence to not be fixed but
- * dependent on the index of the sequence in the sequence of sequences. *)
-
-let sidxfn_t_base (p:nat) (a:_) (b:eqtype) = (t:nat{t < p}) -> s:seq a -> seq_index s -> b
-
-let s_prefix_property
-  (#p:_)
-  (#a:_)
-  (#b:_)
-  (f: sidxfn_t_base p a b)
-  = forall (t: nat).
-    {:pattern f t}
-    t < p ==>
-    prefix_property (f t)
-
-let sidxfn_t (p:nat) (a:_) (b:eqtype)  = f:sidxfn_t_base p a b {s_prefix_property f}
-
-let ssfn #p #a #b (f:sidxfn_t p a b) (ss: sseq a{length ss = p}) (ti: sseq_index ss)
-  = let t,i = ti in
-    f t (index ss t) i
-
-let scond_idxfn_t_base (#p:_) (#a:_) (b:eqtype) (f:sidxfn_t p a bool)
-  = t:nat{t < p} -> s:seq a -> i: seq_index s {f t s i} -> b
-
-let s_cond_prefix_property
-  (#p:_)
-  (#a:_)
-  (#b:_)
-  (#f:sidxfn_t p a bool)
-  (m: scond_idxfn_t_base b f)
-  = forall (t: nat).
-    {:pattern m t}
-    t < p ==>
-    cond_prefix_property #a #b #(f t) (m t)
-
-let scond_idxfn_t #p #a (b:_) (f:sidxfn_t p a bool)
-  = m:scond_idxfn_t_base b f{s_cond_prefix_property m}
-
-let cond_ssfn #p #a #b (#f:sidxfn_t p a bool) (m:scond_idxfn_t b f)
-  (ss: sseq a{length ss = p}) (ti: sseq_index ss{ssfn f ss ti})
-  = let t,i = ti in
-    m t (index ss t) i
-
-(* a specification of a filter-map for sequence of sequences *)
-noeq
-type ssfm_t (p:nat) (a:_) (b:eqtype) =
-  | SSFM: f: _  ->
-          m: scond_idxfn_t #p #a b f -> ssfm_t p a b
-
-let to_fm_t (#p:_) (#a #b:_) (ssfm: ssfm_t p a b) (t: nat{t < p}): fm_t a b
-  = FM (ssfm.f t) (ssfm.m t)
-
-let indexssm #a #b (p:nat) (f: a -> bool) (m: (x:a{f x}) -> b) (t:nat{t < p}) (s: seq a) (i: seq_index s{f (index s i)})
+let indexm #a #b (f: a -> bool) (m: (x:a{f x}) -> b) (s: seq a) (i: seq_index s{f (index s i)})
   = m (index s i)
 
-let indexssf #a (p:nat) (f: a -> bool) (t:nat{t < p}) (s: seq a) (i: seq_index s)
+let indexf #a (f: a -> bool) (s: seq a) (i: seq_index s)
   = f (index s i)
 
-let simple_ssfm_t #a (#b:eqtype) (p:nat) (f: a -> bool) (m: (x:a{f x}) -> b)
-  : ssfm_t p a b
-  = SSFM (indexssf p f) (indexssm p f m)
+let alltrue #a (_:a)
+  = true
 
-(* the filter map from the specification *)
-val ssfilter_map (#p:_) (#a #b:_)
-  (fm: ssfm_t p a b)
-  (s: sseq a{length s = p})
-  : s':sseq b {length s' = length s}
+let simple_fm_t #a (#b:eqtype) (f: a -> bool) (m: (x:a{f x}) -> b)
+  = FM (indexf f) (indexm f m)
 
-let simple_ssfilter_map (#a:_) (#b:eqtype) (f: a -> bool) (m: (x:a {f x}) -> b) (s: sseq a)
-  = ssfilter_map (simple_ssfm_t (length s) f m) s
+let simple_filter_map (#a:_) (#b:eqtype) (f: a -> bool) (m: (x:a {f x}) -> b)
+  = filter_map (simple_fm_t f m)
 
-(* map an index of the original sequence to the filter-mapped sequence *)
-val ssfilter_map_map (#p:_) (#a #b:_)
-  (fm: ssfm_t p a b)
-  (s: sseq a {length s = p})
-  (ii: sseq_index s {ssfn fm.f s ii})
-  : jj: (sseq_index (ssfilter_map fm s))
-    {indexss (ssfilter_map fm s) jj == cond_ssfn fm.m s ii /\
-     fst ii = fst jj}
+let map (#a:_) (#b:_) (f: idxfn_t a b)
+  = let fm = FM (indexf alltrue) f in
+    filter_map fm
 
-(* map an index of the filter-map back to the original sequence *)
-val ssfilter_map_invmap (#p:_) (#a #b:_)
-  (fm: ssfm_t p a b)
-  (s: sseq a {length s = p})
-  (jj: sseq_index (ssfilter_map fm s))
-  : ii:(sseq_index s){ssfn fm.f s ii /\ ssfilter_map_map fm s ii = jj }
-
-val lemma_ssfilter_map (#p:_) (#a #b:_)
-  (fm: ssfm_t p a b)
-  (s: sseq a{length s = p})
-  (ii: sseq_index s {ssfn fm.f s ii})
-  : Lemma (ensures (let jj = ssfilter_map_map fm s ii in
-                    ii = ssfilter_map_invmap fm s jj))
-          [SMTPat (ssfilter_map_map fm s ii)]
-
-val lemma_ssfilter_map_idx (#p:_) (#a #b:_)
-  (ssfm: ssfm_t p a b)
-  (ss: sseq a{length ss = p})
-  (i: seq_index ss)
-  : Lemma (ensures (index (ssfilter_map ssfm ss) i = filter_map (to_fm_t ssfm i) (index ss i)))
+let simple_map (#a:_) (#b:eqtype) (m: a -> b)
+  = simple_filter_map alltrue m
