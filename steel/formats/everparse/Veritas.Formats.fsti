@@ -18,9 +18,17 @@ val extract_log_entry_from (len: U32.t) (buf: B.lbuffer U8.t (U32.v len)) (pos: 
             B.live h buf /\ B.live h pos /\ B.disjoint buf pos
           )
           (ensures fun h0 v h1 ->
+            let p = B.deref h0 pos in
+            let p' = B.deref h1 pos in
             B.live h1 buf /\ B.live h1 pos /\ B.disjoint buf pos /\
-            B.modifies (B.loc_buffer buf `B.loc_union` B.loc_buffer pos) h0 h1) (* /\
-            log at position h0.pos contains a vali repr of v *)
+            B.modifies (B.loc_buffer pos) h0 h1 /\
+            U32.v p <= U32.v p' /\
+            begin match v with
+            | Some v ->
+              parsed (Seq.slice (B.as_seq h0 buf) (U32.v p) (U32.v p')) v
+            | _ -> True
+            end
+          )
 
 val serialize_stamped_record
   (dst: B.buffer U8.t)
