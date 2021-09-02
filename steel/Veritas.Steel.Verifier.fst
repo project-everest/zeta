@@ -714,24 +714,53 @@ let log_snoc_append (s:L.repr) (e:T.vlog_entry) (s':L.repr)
     (ensures
            log_append (L.snoc_log s e) s' == log_append s (cons_log e s'))
     [SMTPat (log_append (L.snoc_log s e) s')]
-  = admit()
+  = assert (Seq.equal (Seq.append (Seq.snoc s e) s')
+                      (Seq.append s (Seq.cons e s')))
 
 #push-options "--fuel 1"
-let verify_model_cons (tsm:thread_state_model)
-                      (e:T.vlog_entry)
-                      (s:L.repr)
+module VSeq = Veritas.SeqAux
+let rec verify_model_cons (tsm:thread_state_model)
+                          (e:T.vlog_entry)
+                          (s:L.repr)
   : Lemma
-    (requires
-      True
-      // not tsm.model_failed /\
-      // not (verify_step_model tsm e).model_failed
-  )
     (ensures
       verify_model (verify_step_model tsm e) s ==
       verify_model tsm (cons_log e s))
+    (decreases (Seq.length s))
     [SMTPat (verify_model (verify_step_model tsm e) s)]
-  = assert (Seq.tail (cons_log e s) `Seq.equal` s);
-    admit()
+  = let s = Ghost.reveal s in
+    let s' = Seq.cons e s in
+    let prefix = VSeq.prefix s' (Seq.length s' - 1) in
+    let last = Seq.index s' (Seq.length s) in
+    if tsm.model_failed
+    then ()
+    else (
+      calc
+      (==)
+      {
+        verify_model tsm s';
+        (==) {}
+        verify_step_model (verify_model tsm prefix) last;
+      };
+      if Seq.length prefix = 0
+      then ()
+      else (
+        assert (prefix `Seq.equal`
+                Seq.cons e (Seq.tail prefix));
+        verify_model_cons tsm e (Seq.tail prefix);
+        assert (verify_model tsm (Seq.cons e (Seq.tail prefix)) ==
+                verify_model (verify_step_model tsm e) (Seq.tail prefix));
+        calc
+        (==)
+        {
+          verify_step_model (verify_model tsm prefix) last;
+          (==) {}
+          verify_step_model (verify_model (verify_step_model tsm e) (Seq.tail prefix)) last;
+          (==) {  assert (Seq.tail prefix `Seq.equal` VSeq.prefix s (Seq.length s - 1)) }
+          verify_model (verify_step_model tsm e) s;
+        }
+      )
+    )
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -806,3 +835,50 @@ let verify_array vs len a =
   let h2 = get () in
   relate_log_to_array l (v_thread vs h0) sopt (v_thread vs h2);
   AT.return sopt
+
+assume
+val init_hash : model_hash
+
+assume
+val create_prf_set_hash (_:unit)
+  : Steel PRF.prf_set_hash
+    emp
+    (fun p -> PRF.prf_set_hash_inv p)
+    (requires fun _ -> True)
+    (ensures fun _ p h1 -> PRF.v_hash p h1 == init_hash)
+
+let init_thread_state_model tid store_size
+  : thread_state_model
+  = {
+      model_thread_id = tid;
+      model_store_len = store_size;
+      model_failed = false;
+      model_store = Seq.create (U16.v store_size) None;
+      model_clock = 0uL;
+      model_hadd = init_hash;
+      model_hevict = init_hash
+    }
+
+val create (tid:T.thread_id) (store_size:U16.t)
+  : Steel thread_state_t
+    emp
+    (fun vs -> thread_state_inv vs)
+    (requires fun _ -> True)
+    (ensures fun _ vs h1 ->
+      v_thread vs h1 == init_thread_state_model tid store_size) //should be initialized to init thread state
+let create tid store_size
+  = let st = VCache.vcache_create store_size in
+    let clock = Steel.Reference.malloc 0uL in
+    let hadd = create_prf_set_hash () in
+    let hevict = create_prf_set_hash () in
+    let failed = Steel.Reference.malloc false in
+    let vs = {
+      id = tid;
+      len = store_size;
+      st = st;
+      clock = clock;
+      hadd = hadd;
+      hevict = hevict;
+      failed = failed
+    } in
+    AT.return vs
