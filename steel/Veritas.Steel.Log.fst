@@ -5,13 +5,15 @@ module U8 = FStar.UInt8
 module U32 = FStar.UInt32
 module EP = Veritas.Formats
 module R = Steel.Reference
+module AT = Steel.Effect.Atomic
 
 let bytes_repr (l:nat) = Ghost.erased (Seq.lseq U8.t l)
 
 let rec parsed_raw (s:Seq.seq U8.t) (r: repr)
   : Tot Type
     (decreases (Seq.length s))
-  = if Seq.length r = 0 then True
+  = if Seq.length r = 0
+    then Seq.length s == 0
     else (
       exists (to:nat{0 < to /\ to <= Seq.length s}).
            EP.valid_entry s 0 to (Seq.head r) /\
@@ -28,6 +30,53 @@ let parsed_raw_until
 
 let parsed s r = parsed_raw s (FStar.Ghost.reveal r)
 
+let rec parsed_raw_append (s0 s1:Seq.seq U8.t) (r0 r1:repr)
+  : Lemma
+    (requires
+      parsed_raw s0 r0 /\
+      parsed_raw s1 r1)
+    (ensures
+      parsed_raw (Seq.append s0 s1) (Seq.append r0 r1))
+    (decreases (Seq.length r0))
+  = if Seq.length r0 = 0
+    then (
+      assert (Seq.append r0 r1 `Seq.equal` r1);
+      assert (Seq.append s0 s1 `Seq.equal` s1)
+    )
+    else (
+     assert (exists (to:nat{0 < to /\ to <= Seq.length s1}).
+               EP.valid_entry s1 0 to (Seq.head r1) /\
+               parsed_raw (Seq.slice s1 to (Seq.length s1)) (Seq.tail r1));
+
+     let to = FStar.IndefiniteDescription.indefinite_description_ghost
+                 (to:nat{0 < to /\ to <= Seq.length s1})
+                 (fun to ->
+                   EP.valid_entry s1 0 to (Seq.head r1) /\
+                   parsed_raw (Seq.slice s1 to (Seq.length s1)) (Seq.tail r1))
+     in
+      admit()
+    )
+
+let parsed_raw_singleton (#len:nat)
+                         (s:Seq.lseq U8.t len)
+                         (pos pos': EP.bounded_u32 len)
+                         (e:T.vlog_entry)
+  : Lemma
+    (requires
+      EP.valid_entry s (U32.v pos) (U32.v pos') e /\
+      U32.v pos <= U32.v pos')
+    (ensures
+      parsed_raw (Seq.slice s (U32.v pos) (U32.v pos')) (Seq.create 1 e))
+  = admit()
+
+let valid_entry_pos_leq s pos pos' e
+  : Lemma
+    (requires
+      EP.valid_entry s (U32.v pos) (U32.v pos') e)
+    (ensures
+      U32.v pos <= U32.v pos')
+  = admit()
+
 let extend_parsed_raw_util
       (#len:nat)
       (pos:EP.bounded_u32 len)
@@ -41,13 +90,25 @@ let extend_parsed_raw_util
       EP.valid_entry s (U32.v pos) (U32.v pos') e)
     (ensures
       parsed_raw_until pos' s (snoc_log r e))
-  = admit()
+    (decreases (Seq.length s))
+  = assert (parsed_raw (Seq.slice s 0 (U32.v pos)) r);
+    valid_entry_pos_leq s pos pos' e;
+    parsed_raw_singleton s pos pos' e;
+    parsed_raw_append (Seq.slice s 0 (U32.v pos))
+                      (Seq.slice s (U32.v pos) (U32.v pos'))
+                      r (Seq.create 1 e);
+    assert (Seq.equal
+                  (Seq.append (Seq.slice s 0 (U32.v pos))
+                              (Seq.slice s (U32.v pos) (U32.v pos')))
+                  (Seq.slice s 0 (U32.v pos')));
+    assert (Seq.equal (Seq.append r (Seq.create 1 e))
+                      (snoc_log r e))
 
 let parsed_raw_until_empty (len:_)
                            (pos:EP.bounded_u32 (U32.v len) { pos == 0ul })
                            (s:bytes_repr (U32.v len))
   : Lemma (parsed_raw_until pos s Seq.empty)
-  = admit()
+  = assert (parsed_raw (Seq.slice s 0 0) Seq.empty)
 
 let parsed_raw_until_full
       (#len:nat)
@@ -60,7 +121,7 @@ let parsed_raw_until_full
       parsed_raw_until pos s r)
     (ensures
       parsed s r)
-  = admit()
+  = assert (Seq.slice s 0 len `Seq.equal` s)
 
 noeq
 type log = {
@@ -80,10 +141,6 @@ let contents #t (a:A.array t) = A.contents t (A.length a)
 assume
 val varray_pts_to (#t:_) (a:A.array t) (bs:Ghost.erased (contents a)) : vprop
 
-let raw_log_pts_to (a:A.array U8.t) (bs:bytes_repr (A.length a)) =
-  varray_pts_to a bs
-
-module AT = Steel.Effect.Atomic
 
 assume
 val intro_varray_pts_to (#t:_)
