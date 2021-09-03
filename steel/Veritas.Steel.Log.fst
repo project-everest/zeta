@@ -26,6 +26,8 @@ let parsed_raw_until
   : prop
   = parsed_raw (Seq.slice s 0 (U32.v pos)) r
 
+let parsed s r = parsed_raw s (FStar.Ghost.reveal r)
+
 let extend_parsed_raw_util
       (#len:nat)
       (pos:EP.bounded_u32 len)
@@ -40,9 +42,6 @@ let extend_parsed_raw_util
     (ensures
       parsed_raw_until pos' s (snoc_log r e))
   = admit()
-
-let parsed s r = parsed_raw s (FStar.Ghost.reveal r)
-
 
 let parsed_raw_until_empty (len:_)
                            (pos:EP.bounded_u32 (U32.v len) { pos == 0ul })
@@ -109,14 +108,13 @@ val elim_varray_pts_to (#t:_)
     (ensures fun _ _ h1 ->
       A.asel a h1 == Ghost.reveal c)
 
-assume
-val varray_pts_to_u8 (#len:_)
+let varray_pts_to_u8 (#len:_)
                      (a:EP.larray U8.t len)
                      (bs:bytes_repr (U32.v len))
   : vprop
+  = varray_pts_to a bs
 
-assume
-val intro_varray_pts_to_u8 (#opened:inames)
+let intro_varray_pts_to_u8 (#opened:inames)
                            (#len: U32.t)
                            (arr: EP.larray U8.t len)
   : AT.SteelGhost (bytes_repr (U32.v len)) opened
@@ -125,9 +123,9 @@ val intro_varray_pts_to_u8 (#opened:inames)
     (requires fun _ -> True)
     (ensures fun h0 x h1 ->
       Ghost.reveal x == A.asel arr h0)
+  = intro_varray_pts_to arr
 
-assume
-val elim_varray_pts_to_u8 (#opened:inames)
+let elim_varray_pts_to_u8 (#opened:inames)
                           (#len: U32.t)
                           (arr: EP.larray U8.t len)
                           (b: bytes_repr (U32.v len))
@@ -137,6 +135,7 @@ val elim_varray_pts_to_u8 (#opened:inames)
     (requires fun _ -> True)
     (ensures fun h0 x h1 ->
       Ghost.reveal b == A.asel arr h1)
+  = elim_varray_pts_to arr b
 
 module Perm = Steel.FractionalPermission
 [@@__reduce__; __steel_reduce__]
@@ -279,8 +278,8 @@ let log_inv (l:log) (p: EP.bounded_u32 (U32.v l.len)) (bs: bytes_repr (U32.v l.l
     log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost p bs s
 
 
-(* And dispose to unconditionally just drop the log and
-   return the underlying array *)
+(* Unconditionally drop the log and ghost state and
+   return permission to the underlying array *)
 val free (#s:repr)
          (l:log)
          (#p:Ghost.erased (EP.bounded_u32 (U32.v l.len)))
@@ -324,13 +323,35 @@ let fail #s l #p #bs pos
     intro_read_next_provides_failed s res l;
     AT.return res
 
-assume
-val read_pt (#a:Type) (#p:Perm.perm) (#v:Ghost.erased a) (r:R.ref a)
+let read_pt (#a:Type) (#p:Perm.perm) (#v:Ghost.erased a) (r:R.ref a)
   : Steel a (R.pts_to r p v) (fun x -> R.pts_to r p v)
            (requires fun _ -> True)
            (ensures fun _ x _ -> x == Ghost.reveal v)
+  = let x = R.read_pt r in
+    assert_spinoff (R.pts_to r p (Ghost.hide x) ==
+                    R.pts_to r p v);
+    AT.change_equal_slprop (R.pts_to r p (Ghost.hide x))
+                           (R.pts_to r p v);
+    AT.return x
+
+
 
 assume
+val ep_extract_log_entry_from (len: U32.t)
+                              (buf: EP.larray U8.t len)
+                              (pos: EP.bounded_u32 (U32.v len))
+  : Steel (either (T.vlog_entry & EP.bounded_u32 (U32.v len))
+                  (EP.bounded_u32 (U32.v len) & string))
+    (A.varray buf)
+    (fun _ -> A.varray buf)
+    (requires fun _ -> True)
+    (ensures fun h0 x h1 ->
+      A.asel buf h0 == A.asel buf h1 /\
+      (match x with
+       | Inl (e, pos') ->
+         EP.valid_entry (A.asel buf h0) (U32.v pos) (U32.v pos') e
+       | _ -> True))
+
 val extract_log_entry_from (len: U32.t)
                            (buf: EP.larray U8.t len)
                            (#bs: bytes_repr (U32.v len))
@@ -346,7 +367,13 @@ val extract_log_entry_from (len: U32.t)
          EP.valid_entry bs (U32.v p) (U32.v p') e
        | Inr (p', _) ->
          True))
-
+let extract_log_entry_from len buf #bs p
+  = elim_varray_pts_to_u8 buf _;
+    let res = ep_extract_log_entry_from len buf p in
+    let bs' = intro_varray_pts_to_u8 buf in
+    AT.change_equal_slprop (varray_pts_to_u8 buf bs')
+                           (varray_pts_to_u8 buf bs);
+    AT.return res
 
 let st_extend_parsed_raw_util
       (#len:nat) #o
@@ -361,13 +388,9 @@ let st_extend_parsed_raw_util
      (requires fun _ ->
        EP.valid_entry s (U32.v pos) (U32.v pos') e)
      (ensures fun _ _ _ -> True)
-  = AT.sladmit()
-
-let extend_ghost_log (#s:repr) (g:R.ghost_ref _) (e:T.vlog_entry)
-  : SteelT unit
-    (R.ghost_pts_to g Perm.full_perm s)
-    (fun _ -> R.ghost_pts_to g Perm.full_perm (snoc_log s e))
-  = AT.sladmit(); AT.return ()
+  = AT.elim_pure _;
+    extend_parsed_raw_util pos s r pos' e;
+    AT.intro_pure _
 
 let parsed_array s l (h1:rmem (read_next_provides s l Finished)) =
   parsed (A.asel l.arr h1) s
@@ -413,7 +436,7 @@ let read_next_maybe_more (#s:repr)
       AT.return r
     | Inl (e, p') ->
       st_extend_parsed_raw_util p _ s p' e;
-      extend_ghost_log l.ghost e;
+      R.ghost_write_pt l.ghost (snoc_log s e);
       R.write_pt l.pos p';
       intro_log_with_parsed_prefix l _ _ _ _ _ _ _ ();
       intro_read_next_provides_success l e
