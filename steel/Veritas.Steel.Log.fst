@@ -334,25 +334,7 @@ let read_pt (#a:Type) (#p:Perm.perm) (#v:Ghost.erased a) (r:R.ref a)
                            (R.pts_to r p v);
     AT.return x
 
-
-
-assume
-val ep_extract_log_entry_from (len: U32.t)
-                              (buf: EP.larray U8.t len)
-                              (pos: EP.bounded_u32 (U32.v len))
-  : Steel (either (T.vlog_entry & EP.bounded_u32 (U32.v len))
-                  (EP.bounded_u32 (U32.v len) & string))
-    (A.varray buf)
-    (fun _ -> A.varray buf)
-    (requires fun _ -> True)
-    (ensures fun h0 x h1 ->
-      A.asel buf h0 == A.asel buf h1 /\
-      (match x with
-       | Inl (e, pos') ->
-         EP.valid_entry (A.asel buf h0) (U32.v pos) (U32.v pos') e
-       | _ -> True))
-
-val extract_log_entry_from (len: U32.t)
+let extract_log_entry_from (len: U32.t)
                            (buf: EP.larray U8.t len)
                            (#bs: bytes_repr (U32.v len))
                            (p: EP.bounded_u32 (U32.v len))
@@ -367,9 +349,8 @@ val extract_log_entry_from (len: U32.t)
          EP.valid_entry bs (U32.v p) (U32.v p') e
        | Inr (p', _) ->
          True))
-let extract_log_entry_from len buf #bs p
   = elim_varray_pts_to_u8 buf _;
-    let res = ep_extract_log_entry_from len buf p in
+    let res = EP.extract_log_entry_from len buf p in
     let bs' = intro_varray_pts_to_u8 buf in
     AT.change_equal_slprop (varray_pts_to_u8 buf bs')
                            (varray_pts_to_u8 buf bs);
