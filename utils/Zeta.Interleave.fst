@@ -1,19 +1,29 @@
 module Zeta.Interleave
+
 module IF = Zeta.IdxFn
+
+let seq_index = SA.seq_index
 
 let gen_seq (a:eqtype) (n:_) =
   {
     seq_t = interleaving a n;
-    IF.length = length;
-    IF.prefix = prefix;
+    IF.length = S.length;
+    IF.prefix = SA.prefix;
   }
 
-let of_seq #a #n (t: nat) (il: interleaving a n) (i: seq_index il)
-  = t = S.index il.ts i
+(* an element is from src t *)
+let from_src #a #n (t: nat) (il: interleaving a n) (i: seq_index il)
+  = t = (S.index il i).src
+
+let to_elem #a #n (il: interleaving a n) (i: seq_index il)
+  = (S.index il i).elem
+
+let i_seq (#a:_) (#n:nat) (il: interleaving a n)
+  = map #(gen_seq a n) (to_elem #a #n) il
 
 let seq_i_fm a n (i:nat)
   : fm_t (gen_seq a n) a
-  = FM (of_seq i) index
+  = FM (from_src i) to_elem
 
 let s_seq_i (#a:_) (#n:_) (il: interleaving a n) (i:nat{i < n})
   = filter_map (seq_i_fm a n i) il
@@ -29,7 +39,7 @@ let per_thread_prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il
   = admit()
 
 let i2s_map (#a:_) (#n:_) (il:interleaving a n) (i:seq_index il)
-  = let t = sid il i in
+  = let t = src il i in
     let fm = seq_i_fm a n t in
     let j = filter_map_map fm il i in
     (t,j)
@@ -70,3 +80,12 @@ let lemma_empty_sseq (a:eqtype) (n:_) (i: nat{i < n})
   : Lemma (ensures (let il = empty_interleaving a n in
                     S.index (s_seq il) i = empty #a))
   = admit()
+
+let interleaving_extend (#a #n:_) (il: interleaving a n) (x: a) (t: nat{t < n})
+  : il': interleaving a n {length il' = length il + 1 /\
+                           index il' (length il) = x /\
+                           sid il' (length il) = t /\
+                           prefix il' (length il) = il}
+  = let il' = { is = append1 il.is x; ts = append1 il.ts t } in
+
+    admit()
