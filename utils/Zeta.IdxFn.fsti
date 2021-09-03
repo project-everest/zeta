@@ -74,6 +74,56 @@ let cond_prefix_property
 let cond_idxfn_t (#gs:_) (b:eqtype) (f:idxfn_t gs bool)
   = m:cond_idxfn_t_base b f{cond_prefix_property m}
 
+(* length of applying a filter to *)
+val flen (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t)
+  : l:nat{ l <=  gs.length s}
+
+(* map every index satisfying the filter to the index in the filtered sequence *)
+val idx2fidx (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t) (i: seq_index s{f s i})
+  : j:nat {j < flen f s}
+
+val fidx2idx (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t) (j: nat {j < flen f s})
+  : i:seq_index s{f s i /\ idx2fidx f s i = j}
+
+val lemma_idx2fidx (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t) (i: seq_index s{f s i })
+  : Lemma (ensures (i = fidx2idx f s (idx2fidx f s i)))
+          [SMTPat (idx2fidx f s i)]
+
+val idx2fidx_prefix_property (#gs:_)
+  (f: idxfn_t gs bool)
+  (s: gs.seq_t)
+  (i: seq_index s {f s i})
+  (j: nat{j <= gs.length s /\ j > i})
+  : Lemma (ensures (idx2fidx f s i = idx2fidx f (gs.prefix s j) i))
+
+val idx2fidx_monotonic (#gs:_)
+  (f: idxfn_t gs bool)
+  (s: gs.seq_t)
+  (i1 i2: (i:seq_index s {f s i}))
+  : Lemma (ensures ((i1 < i2 ==> idx2fidx f s i1 < idx2fidx f s i2) /\
+                    (i2 < i1 ==> idx2fidx f s i1 > idx2fidx f s i2)))
+
+val fidx2idx_monotonic (#gs:_)
+  (f: idxfn_t gs bool)
+  (s: gs.seq_t)
+  (i1 i2: (i:nat{i < flen f s}))
+  : Lemma (ensures ((i1 < i2 ==> fidx2idx f s i1 < fidx2idx f s i2) /\
+                    (i2 < i1 ==> fidx2idx f s i1 > fidx2idx f s i2)))
+
+val lemma_fextend_sat (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{gs.length s > 0})
+  : Lemma (requires (f s (gs.length s - 1)))
+          (ensures (let n = gs.length s in
+                    let s' = gs.prefix s (n-1) in
+                    flen f s = flen f s' + 1 /\
+                    idx2fidx f s (n - 1) = flen f s' /\
+                    fidx2idx f s (flen f s') = (n-1)))
+
+val lemma_fextend_unsat (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{gs.length s > 0})
+  : Lemma (requires (not (f s (gs.length s - 1))))
+          (ensures (let n = gs.length s in
+                    let s' = gs.prefix s (n-1) in
+                    flen f s = flen f s'))
+
 (* a specification of a filter-map *)
 noeq
 type fm_t (gs:_) (b:eqtype) =
@@ -81,52 +131,52 @@ type fm_t (gs:_) (b:eqtype) =
         m: cond_idxfn_t b f -> fm_t gs b
 
 (* apply the filter fm.f on s to get a filtered sequence; apply fm.m on each element to get the result *)
-val filter_map (#gs #b:_)
+let filter_map (#gs #b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t)
-  : seq b
+  : s':seq b {length s' = flen fm.f s}
+  = init (flen fm.f s) (fun j -> fm.m s (fidx2idx fm.f s j))
 
 (* map an index of the original sequence to the filter-mapped sequence *)
-val filter_map_map (#gs #b:_)
+let filter_map_map (#gs #b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t)
   (i: seq_index s {fm.f s i})
-  : j: (SA.seq_index (filter_map fm s)) {index (filter_map fm s) j == fm.m s i}
+  : j: (SA.seq_index (filter_map fm s)) {index (filter_map fm s) j == fm.m s i /\
+        j = idx2fidx fm.f s i}
+  = idx2fidx fm.f s i
 
-val filter_map_map_prefix_property (#gs #b:_)
+let filter_map_map_prefix_property (#gs #b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t)
   (i: seq_index s {fm.f s i})
   (j: nat{j <= gs.length s /\ j > i})
   : Lemma (ensures (filter_map_map fm s i = filter_map_map fm (gs.prefix s j) i))
+  = idx2fidx_prefix_property fm.f s i j
 
-val lemma_filter_map_map_monotonic (#gs #b:_)
+let lemma_filter_map_map_monotonic (#gs #b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t)
   (i1 i2: (i:seq_index s {fm.f s i}))
-  : Lemma (ensures (i1 < i2 ==> filter_map_map fm s i1 < filter_map_map fm s i2))
+  : Lemma (ensures ((i1 < i2 ==> filter_map_map fm s i1 < filter_map_map fm s i2) /\
+                    (i1 > i2 ==> filter_map_map fm s i1 > filter_map_map fm s i2)))
+  = idx2fidx_monotonic fm.f s i1 i2
 
 (* map an index of the filter-map back to the original sequence *)
-val filter_map_invmap (#gs #b:_)
+let filter_map_invmap (#gs #b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t)
   (j: SA.seq_index (filter_map fm s))
-  : i:(seq_index s){fm.f s i /\ filter_map_map fm s i = j }
+  : i:(seq_index s){fm.f s i /\ filter_map_map fm s i = j /\ i = fidx2idx fm.f s j }
+  = fidx2idx fm.f s j
 
-(* the above two index mappings are inverses of one-another *)
-val lemma_filter_map (#gs #b:_)
-  (fm: fm_t gs b)
-  (s: gs.seq_t)
-  (i: seq_index s {fm.f s i})
-  : Lemma (ensures (let j = filter_map_map fm s i in
-                    i = filter_map_invmap fm s j))
-          [SMTPat (filter_map_map fm s i)]
-
-val filter_map_invmap_monotonic (#gs #b:_)
+let filter_map_invmap_monotonic (#gs #b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t)
   (j1 j2: SA.seq_index (filter_map fm s))
-  : Lemma (ensures (j1 < j2 ==> filter_map_invmap fm s j1 < filter_map_invmap fm s j2))
+  : Lemma (ensures (j1 < j2 ==> filter_map_invmap fm s j1 < filter_map_invmap fm s j2) /\
+                   (j1 > j2 ==> filter_map_invmap fm s j1 > filter_map_invmap fm s j2))
+  = fidx2idx_monotonic fm.f s j1 j2
 
 val lemma_filter_map_extend_sat
   (#gs:_)
@@ -149,16 +199,22 @@ val lemma_filter_map_extend_unsat
                     fms == fms'))
           [SMTPat (filter_map fm s)]
 
-val lemma_filter_map_empty
-  (#gs:_)
-  (#b:eqtype)
-  (fm: fm_t gs b)
-  (s: gs.seq_t  {gs.length s = 0})
-  : Lemma (ensures length (filter_map fm s) = 0)
-          [SMTPat (filter_map fm s)]
+let monotonic (#gs:_) (f: idxfn_t gs bool)
+  = forall (s:gs.seq_t) (i1 i2: seq_index s).
+        i1 < i2 ==>
+        f s i2 ==>
+        f s i1
 
+(* return true everywhere; assert(monotonic (all_true gs))*)
 let all_true (gs:gen_seq_spec) (s: gs.seq_t) (i:seq_index s)
   = true
+
+val lemma_monotonic_filter (#gs:_)
+  (f: idxfn_t gs bool{monotonic f})
+  (s: gs.seq_t)
+  (i: seq_index s{f s i})
+  : Lemma (ensures (idx2fidx f s i = i))
+          [SMTPat (idx2fidx f s i)]
 
 let map_fm (#gs:_) (#b:_) (m: idxfn_t gs b)
   : fm_t gs b
@@ -181,3 +237,11 @@ val lemma_map_map
   (i: seq_index s)
   : Lemma (ensures (let fm = map_fm m in
                     filter_map_map fm s i = i))
+
+val lemma_filter_map_monotonic
+  (#gs:_)
+  (b:_)
+  (f:idxfn_t gs bool{monotonic f})
+  (fm: fm_t gs b)
+  (s: gs.seq_t)
+  : Lemma (ensures (filter_map (FM (conj fm.f f) fm.m) s == filter_map fm (gs.prefix s (flen f s))))
