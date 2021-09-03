@@ -3,7 +3,7 @@ module Zeta.Interleave
 open FStar.Seq
 open Zeta.SeqAux
 open Zeta.SSeq
-open Zeta.FilterMap
+open Zeta.IdxFn
 
 module S = FStar.Seq
 module SA = Zeta.SeqAux
@@ -18,8 +18,6 @@ type interleaving (a:eqtype) (n:nat) = {
 let i_seq (#a:_) (#n:nat) (il: interleaving a n)
   = il.is
 
-val s_seq (#a:_) (#n:_) (il: interleaving a n): ss:sseq a{S.length ss = n}
-
 let length (#a:_) (#n:_) (il: interleaving a n)
   = S.length il.is
 
@@ -32,7 +30,10 @@ let sid (#a:_) (#n:_) (il: interleaving a n) (i: seq_index il)
   = S.index il.ts i
 
 let prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
+  : il':interleaving a n {length il' = i}
   = {is = SA.prefix il.is i; ts = SA.prefix il.ts i}
+
+val s_seq (#a:_) (#n:_) (il: interleaving a n): ss:sseq a{S.length ss = n}
 
 val per_thread_prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
   : Lemma (let ss = s_seq il in

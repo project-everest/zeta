@@ -1,21 +1,22 @@
 module Zeta.Interleave
+module IF = Zeta.IdxFn
 
-let is_prefix #a #n (il: interleaving a n) (s: seq a)
-  = s `prefix_of` il.is
+let gen_seq (a:eqtype) (n:_) =
+  {
+    seq_t = interleaving a n;
+    IF.length = length;
+    IF.prefix = prefix;
+  }
 
-let elem #a #n (il: interleaving a n) (s: seq a{is_prefix il s}) (i: seq_index s)
-  = S.index s i
-
-let of_seq #a #n (il: interleaving a n) (t: nat) (s: seq a{is_prefix il s}) (i: seq_index s)
+let of_seq #a #n (t: nat) (il: interleaving a n) (i: seq_index il)
   = t = S.index il.ts i
 
-let seq_i_fm (#a:_) (#n:_) (il: interleaving a n) (i:nat{i < n})
-  : fm_t a (is_prefix il) a
-  = FM (of_seq il i) (elem il)
+let seq_i_fm a n (i:nat)
+  : fm_t (gen_seq a n) a
+  = FM (of_seq i) index
 
 let s_seq_i (#a:_) (#n:_) (il: interleaving a n) (i:nat{i < n})
-  = let fm = seq_i_fm il i in
-    filter_map fm il.is
+  = filter_map (seq_i_fm a n i) il
 
 let s_seq (#a:_) (#n:_) (il: interleaving a n)
   = init n (s_seq_i il)
@@ -29,14 +30,14 @@ let per_thread_prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il
 
 let i2s_map (#a:_) (#n:_) (il:interleaving a n) (i:seq_index il)
   = let t = sid il i in
-    let fm = seq_i_fm il t in
-    let j = filter_map_map fm il.is i in
+    let fm = seq_i_fm a n t in
+    let j = filter_map_map fm il i in
     (t,j)
 
 let s2i_map (#a:_) (#n:_) (il:interleaving a n) (si: sseq_index (s_seq il))
   = let t,j = si in
-    let fm = seq_i_fm il t in
-    filter_map_invmap fm il.is j
+    let fm = seq_i_fm a n t in
+    filter_map_invmap fm il j
 
 let lemma_i2s_s2i (#a:_) (#n:_) (il:interleaving a n) (i:seq_index il):
   Lemma (ensures (s2i_map il (i2s_map il i) = i))
@@ -53,8 +54,8 @@ let lemma_prefix_prefix_property (#a #n:_) (il:interleaving a n) (i:nat{i <= len
 let lemma_i2s_prefix_property (#a:_) (#n:_) (il:interleaving a n)(i:nat{i <= length il})(j:nat{j < i}):
   Lemma (ensures (i2s_map (prefix il i) j = i2s_map il j))
   = let t = sid il j in
-    let fm = seq_i_fm il t in
-    filter_map_map_prefix_property fm il.is j i;
+    let fm = seq_i_fm a n t in
+    filter_map_map_prefix_property fm il j i;
     admit()
 
 let some_interleaving (#a:_) (ss: sseq a)

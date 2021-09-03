@@ -3,11 +3,13 @@ module Zeta.Generic.Thread
 open Zeta.Time
 open Zeta.MultiSetHashDomain
 open Zeta.GenericVerifier
+open Zeta.IdxFn
 
 module S = FStar.Seq
 module SA = Zeta.SeqAux
 module MSD = Zeta.MultiSetHashDomain
 module GV = Zeta.GenericVerifier
+module IF = Zeta.IdxFn
 
 (* a verifier log attached to a thread id *)
 let vlog (vspec: verifier_spec) = thread_id & verifier_log vspec
@@ -22,7 +24,7 @@ let index #vspec (tl: vlog vspec) (i: seq_index tl) =
   let _, l = tl in
   S.index l i
 
-let prefix #vspec (tl: vlog vspec) (i: nat {i <= length tl}): vlog _ =
+let prefix_base #vspec (tl: vlog vspec) (i: nat {i <= length tl}): vlog _ =
   let tid, l = tl in
   tid, SA.prefix l i
 
@@ -37,8 +39,12 @@ let verifiable_log vspec = tl: vlog vspec { verifiable tl }
 (* if a thread log is verifiable, its prefix is verifiable *)
 val verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
   (tl:verifiable_log vspec) (i:nat{i <= length tl}):
-  Lemma (ensures (verifiable (prefix tl i)))
-        [SMTPat (prefix tl i)]
+  Lemma (ensures (verifiable (prefix_base tl i)))
+        [SMTPat (prefix_base tl i)]
+
+let prefix #vspec (tl: verifiable_log vspec) (i: nat{i <= length tl})
+  : tl': verifiable_log vspec {length tl' = i}
+  = prefix_base tl i
 
 (* the verifier state after processing i entries *)
 let state_pre #vspec (tl: verifiable_log vspec) (i:nat{i <= length tl}) =
@@ -54,43 +60,16 @@ val lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i:
                   verify_step (index tl i) (state_pre tl i)))
         [SMTPat (verify_step (index tl i) (state_pre tl i))]
 
-(* the type of functions that return a value at position i *)
-let idxfn_t_base (vspec: verifier_spec) (b: eqtype)
-  = (tl: verifiable_log vspec -> i: seq_index tl -> b)
+let gen_seq (vspec: verifier_spec): gen_seq_spec = {
+  seq_t = verifiable_log vspec;
+  length;
+  prefix
+}
 
-(* prefix property means that the value of function i depends only on the prefix until i *)
-let prefix_property #vspec #b (f: idxfn_t_base vspec b)
-  = forall (tl: verifiable_log vspec) (i: nat) (j:nat).
-      {:pattern f (prefix tl j) i}
-      j <= length tl ==>
-      i < j ==>
-      f tl i = f (prefix tl j) i
-
-let idxfn_t (vspec: verifier_spec) (b: eqtype) = f:(idxfn_t_base vspec b){prefix_property f}
-
-(* conjunction of two index filters *)
-let conj #vspec (f1 f2: idxfn_t vspec bool)
-  = fun (tl: verifiable_log vspec) (i: seq_index tl) ->
-      f1 tl i && f2 tl i
-
-val conj_is_idxfn (#vspec:_) (f1 f2: idxfn_t vspec bool)
-  : Lemma (ensures (prefix_property (conj f1 f2)))
-          [SMTPat (conj f1 f2)]
-
-(* the type of functions that return a value at position i, but defined only for positions satisfying a filter *)
-let cond_idxfn_t_base #vspec (b:eqtype) (f: idxfn_t vspec bool)
-  = tl:verifiable_log vspec -> i: seq_index tl {f tl i} -> b
-
-let cond_prefix_property #vspec #b (#f: idxfn_t vspec bool) (m: cond_idxfn_t_base b f)
-  = forall (tl: verifiable_log vspec) (i:nat) (j:nat).
-      {:pattern m (prefix tl j) i}
-      j <= length tl ==>
-      i < j ==>
-      f tl i ==>
-      m tl i = m (prefix tl j) i
+let idxfn_t (vspec: verifier_spec) (b: eqtype) = IF.idxfn_t (gen_seq vspec) b
 
 let cond_idxfn_t #vspec (b:eqtype) (f:idxfn_t vspec bool)
-  = m:(cond_idxfn_t_base b f){cond_prefix_property m}
+  = IF.cond_idxfn_t b f
 
 val clock (#vspec:_) : (idxfn_t vspec timestamp)
 
@@ -132,69 +111,3 @@ open Zeta.AppSimulate
 (* for an appfn entry, return the function call params and result *)
 val appfn_call_res (#vspec:_) (ep: epoch):
   cond_idxfn_t #vspec (appfn_call_res vspec.app) (conj is_appfn (is_within_epoch ep))
-
-noeq
-type fm_t (vspec:_) (b:eqtype) =
-  | FM: f: idxfn_t vspec bool ->
-        m: cond_idxfn_t b f -> fm_t vspec b
-
-let to_fm #vspec #b (#f: idxfn_t vspec bool) (m: cond_idxfn_t b f)
-  = FM f m
-
-(* filter each element of the log using fm.f and map them using fm.m *)
-val filter_map (#vspec:_) (#b:_)
-  (fm: fm_t vspec b)
-  (tl: verifiable_log vspec)
-  : S.seq b
-
-(* map an index of the original sequence to the filter-mapped sequence *)
-val filter_map_map (#vspec:_) (#b:_)
-  (fm: fm_t vspec b)
-  (tl: verifiable_log vspec)
-  (i: seq_index tl {fm.f tl i})
-  : j: (SA.seq_index (filter_map fm tl)) {S.index (filter_map fm tl) j == fm.m tl i}
-
-(* map an index of the filter-map back to the original sequence *)
-val filter_map_invmap (#vspec:_) (#b:_)
-  (fm: fm_t vspec b)
-  (tl: verifiable_log vspec)
-  (j: SA.seq_index (filter_map fm tl))
-  : i:(seq_index tl){fm.f tl i /\ filter_map_map fm tl i = j }
-
-(* the above two index mappings are inverses of one-another *)
-val lemma_filter_map (#vspec:_) (#b:_)
-  (fm: fm_t vspec b)
-  (tl: verifiable_log vspec)
-  (i: seq_index tl {fm.f tl i})
-  : Lemma (ensures (let j = filter_map_map fm tl i in
-                    i = filter_map_invmap fm tl j))
-          [SMTPat (filter_map_map fm tl i)]
-
-val lemma_filter_map_extend_sat
-  (#vspec:_)
-  (#b:eqtype)
-  (fm: fm_t vspec b)
-  (tl: verifiable_log vspec {length tl > 0 /\ fm.f tl (length tl - 1)})
-  : Lemma (ensures (let fms = filter_map fm tl in
-                    let fms' = filter_map fm (prefix tl (length tl - 1)) in
-                    let me = fm.m tl (length tl - 1) in
-                    fms == SA.append1 fms' me))
-          [SMTPat (filter_map fm tl)]
-
-val lemma_filter_map_extend_unsat
-  (#vspec:_)
-  (#b:eqtype)
-  (fm: fm_t vspec b)
-  (tl: verifiable_log vspec {length tl > 0 /\ not (fm.f tl (length tl - 1))})
-  : Lemma (ensures (let fms = filter_map fm tl in
-                    let fms' = filter_map fm (prefix tl (length tl - 1)) in
-                    fms == fms'))
-          [SMTPat (filter_map fm tl)]
-
-val lemma_filter_map_empty
-  (#vspec:_)
-  (#b:eqtype)
-  (fm: fm_t vspec b)
-  (tl: verifiable_log vspec {length tl = 0})
-  : Lemma (ensures S.length (filter_map fm tl) = 0)
-          [SMTPat (filter_map fm tl)]

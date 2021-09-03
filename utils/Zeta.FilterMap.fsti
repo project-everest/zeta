@@ -47,6 +47,15 @@ let prefix_property
 (* an index function with the prefix property *)
 let idxfn_t (a:_) (pred: seq_pred_t a) (b:eqtype) = f:idxfn_t_base a pred b {prefix_property f}
 
+(* conjunction of two index filters *)
+let conj #a #pred (f1 f2: idxfn_t a pred bool)
+  = fun (s: seq a{pred s}) (i: seq_index s) ->
+      f1 s i && f2 s i
+
+val conj_is_idxfn (#a #pred:_) (f1 f2: idxfn_t a pred bool)
+  : Lemma (ensures (prefix_property #a #pred (conj f1 f2)))
+          [SMTPat (conj f1 f2)]
+
 (* a conditional index function is a function that is defined only some indexes satisfying
  * a predicate *)
 let cond_idxfn_t_base (#a:_) (#pred: seq_pred_t a) (b:eqtype) (f:idxfn_t a pred bool)

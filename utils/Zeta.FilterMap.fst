@@ -1,5 +1,9 @@
 module Zeta.FilterMap
 
+let conj_is_idxfn (#a #pred:_) (f1 f2: idxfn_t a pred bool)
+  : Lemma (ensures (prefix_property #a #pred (conj f1 f2)))
+  = ()
+
 let rec filter_map (#a #pred #b:_)
   (fm: fm_t a pred b)
   (s: seq a{pred s})
