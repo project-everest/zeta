@@ -217,20 +217,6 @@ let parsed_log_inv l s =
 #push-options "--query_stats --log_queries"
 let dummy () = ()
 
-val read_next' (#s:repr) (l:log)
-  : Steel read_result
-    (log_with_parsed_prefix l s)
-    (read_next_provides s l)
-    (requires fun _ -> True)
-    (ensures fun _ o h1 ->
-      match o with
-      | Finished ->
-        //The entries we parsed is stable and fixed to s
-        parsed_log_inv l s /\
-        //and s is the parse of the contents of the array in state h1
-        parsed (array_sel (log_array l) (rmem_coerce h1)) s
-      | Parsed_with_maybe_more e -> True
-      | Failed pos _ -> U32.(pos <^ log_len l))
 #restart-solver
 #push-options "--ide_id_info_off"
 let elim_log_with_parsed_prefix
@@ -339,6 +325,37 @@ let st_extend_parsed_raw_util
      (ensures fun _ _ _ -> True)
   = AT.sladmit()
 
+let extend_ghost_log (#s:repr) (g:R.ghost_ref _) (e:T.vlog_entry)
+  : SteelT unit
+    (R.ghost_pts_to g Perm.full_perm s)
+    (fun _ -> R.ghost_pts_to g Perm.full_perm (snoc_log s e))
+  = AT.sladmit(); AT.return ()
+
+let read_next_ensures s l (o:read_result) (h1:rmem (read_next_provides s l o)) =
+    match o with
+    | Finished ->
+      //The entries we parsed is stable and fixed to s
+      parsed_log_inv l s /\
+      //and s is the parse of the contents of the array in state h1
+      parsed (array_sel (log_array l) (rmem_coerce h1)) s
+    | Parsed_with_maybe_more e -> True
+    | Failed pos _ -> U32.(pos <^ log_len l) == true
+
+val read_next' (#s:repr) (l:log)
+  : Steel read_result
+    (log_with_parsed_prefix l s)
+    (read_next_provides s l)
+    (requires fun _ -> True)
+    (ensures fun _ o h1 -> read_next_ensures s l o h1)
+      // match o with
+      // | Finished ->
+      //   //The entries we parsed is stable and fixed to s
+      //   parsed_log_inv l s /\
+      //   //and s is the parse of the contents of the array in state h1
+      //   parsed (array_sel (log_array l) (rmem_coerce h1)) s
+      // | Parsed_with_maybe_more e -> True
+      // | Failed pos _ -> U32.(pos <^ log_len l))
+
 let read_next' #s l
   = let h = AT.get () in
     let pbs = elim_log_with_parsed_prefix l s in
@@ -354,8 +371,15 @@ let read_next' #s l
       | Inr (p, _) -> let r = fail l pos in AT.return r
       | Inl (e, p') ->
         st_extend_parsed_raw_util (fst pbs) _ s p' e;
-        AT.sladmit ();
-        AT.return (Failed p' "")
+        extend_ghost_log l.ghost e;
+        R.write_pt l.pos p';
+        intro_log_with_parsed_prefix l _ _ _ _ _ _ _ ();
+        let res = Parsed_with_maybe_more e in
+        AT.change_equal_slprop (log_with_parsed_prefix _ _)
+                               (read_next_provides s l res);
+        let h = AT.get() in
+        assert (read_next_ensures s l res h);
+        AT.return res
     )
 
     // if pos = l.len
