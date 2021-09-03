@@ -43,6 +43,13 @@ let extend_parsed_raw_util
 
 let parsed s r = parsed_raw s (FStar.Ghost.reveal r)
 
+
+let parsed_raw_until_empty (len:_)
+                           (pos:EP.bounded_u32 (U32.v len) { pos == 0ul })
+                           (s:bytes_repr (U32.v len))
+  : Lemma (parsed_raw_until pos s Seq.empty)
+  = admit()
+
 let parsed_raw_until_full
       (#len:nat)
       (pos:EP.bounded_u32 len)
@@ -146,12 +153,6 @@ let log_with_parsed_prefix_raw
     varray_pts_to_u8 arr bs `star`
     R.ghost_pts_to ghost Perm.full_perm s `star`
     pure (parsed_raw_until pos_val bs s)
-
-let parsed_raw_until_empty (len:_)
-                           (pos:EP.bounded_u32 (U32.v len) { pos == 0ul })
-                           (s:bytes_repr (U32.v len))
-  : Lemma (parsed_raw_until pos s Seq.empty)
-  = admit()
 
 //[@@__reduce__; __steel_reduce__]
 let log_with_parsed_prefix (l:log) (s:repr)
@@ -280,7 +281,6 @@ let log_inv (l:log) (p: EP.bounded_u32 (U32.v l.len)) (bs: bytes_repr (U32.v l.l
 
 (* And dispose to unconditionally just drop the log and
    return the underlying array *)
-assume
 val free (#s:repr)
          (l:log)
          (#p:Ghost.erased (EP.bounded_u32 (U32.v l.len)))
@@ -289,7 +289,11 @@ val free (#s:repr)
   : SteelT unit
     (log_inv l p bs s)
     (fun _ -> A.varray (log_array l))
-
+let free #s l #p #bs _ =
+  AT.elim_pure _;
+  R.ghost_free_pt l.ghost;
+  R.free_pt l.pos;
+  elim_varray_pts_to_u8 l.arr _
 
 let intro_read_next_provides_failed
     (s:repr)
