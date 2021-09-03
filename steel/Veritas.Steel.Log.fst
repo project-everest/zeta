@@ -248,12 +248,10 @@ let parsed_log (l:log) (s:repr) : vprop =
 
 let parsed_log_inv l s =
   let open AT in
+  (exists (bs:bytes_repr (U32.v l.len)). parsed bs s) /\
   (exists (i:iname). i >--> parsed_log l s)
 
-#push-options "--query_stats --log_queries"
-let dummy () = ()
-
-#restart-solver
+#push-options "--query_stats"
 #push-options "--ide_id_info_off"
 let elim_log_with_parsed_prefix
      (l:log)
@@ -475,3 +473,10 @@ let read_next' #s l
       let x = read_next_maybe_more l pos in
       AT.return x
     )
+
+let read_next #s l = read_next' #s l
+
+let dispose #s l =
+  let h = AT.get () in
+  let pbs = elim_log_with_parsed_prefix l s in
+  free l ()
