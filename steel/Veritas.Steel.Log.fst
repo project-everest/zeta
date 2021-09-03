@@ -23,6 +23,7 @@ let parsed_raw_until
       (pos:EP.bounded_u32 len)
       (s:bytes_repr len)
       (r:repr)
+  : prop
   = parsed_raw (Seq.slice s 0 (U32.v pos)) r
 
 let extend_parsed_raw_util
@@ -41,6 +42,19 @@ let extend_parsed_raw_util
   = admit()
 
 let parsed s r = parsed_raw s (FStar.Ghost.reveal r)
+
+let parsed_raw_until_full
+      (#len:nat)
+      (pos:EP.bounded_u32 len)
+      (s:bytes_repr len)
+      (r:repr)
+  : Lemma
+    (requires
+      U32.v pos == len /\
+      parsed_raw_until pos s r)
+    (ensures
+      parsed s r)
+  = admit()
 
 noeq
 type log = {
@@ -77,6 +91,18 @@ val intro_varray_pts_to (#t:_)
       Ghost.reveal x == A.asel a h0)
 
 assume
+val elim_varray_pts_to (#t:_)
+                       (#opened:inames)
+                       (a:A.array t)
+                       (c:Ghost.erased (contents a))
+  : AT.SteelGhost unit opened
+    (varray_pts_to a c)
+    (fun _ -> A.varray a)
+    (requires fun _ -> True)
+    (ensures fun _ _ h1 ->
+      A.asel a h1 == Ghost.reveal c)
+
+assume
 val varray_pts_to_u8 (#len:_)
                      (a:EP.larray U8.t len)
                      (bs:bytes_repr (U32.v len))
@@ -88,10 +114,22 @@ val intro_varray_pts_to_u8 (#opened:inames)
                            (arr: EP.larray U8.t len)
   : AT.SteelGhost (bytes_repr (U32.v len)) opened
     (A.varray arr)
-    (fun x -> varray_pts_to_u8 arr x `star` emp)
+    (fun x -> varray_pts_to_u8 arr x)
     (requires fun _ -> True)
     (ensures fun h0 x h1 ->
       Ghost.reveal x == A.asel arr h0)
+
+assume
+val elim_varray_pts_to_u8 (#opened:inames)
+                          (#len: U32.t)
+                          (arr: EP.larray U8.t len)
+                          (b: bytes_repr (U32.v len))
+  : AT.SteelGhost unit opened
+    (varray_pts_to_u8 arr b)
+    (fun x -> A.varray arr)
+    (requires fun _ -> True)
+    (ensures fun h0 x h1 ->
+      Ghost.reveal b == A.asel arr h1)
 
 module Perm = Steel.FractionalPermission
 [@@__reduce__; __steel_reduce__]
@@ -206,12 +244,10 @@ let initialize_log' (len:U32.t) (a:EP.larray U8.t len)
 let initialize_log len a = initialize_log' len a
 
 let parsed_log (l:log) (s:repr) : vprop =
-   pure (U32.v l.len == Seq.length s) `star`
    R.ghost_pts_to l.ghost Perm.full_perm s
 
 let parsed_log_inv l s =
   let open AT in
-  (U32.v l.len == Seq.length s) /\
   (exists (i:iname). i >--> parsed_log l s)
 
 #push-options "--query_stats --log_queries"
@@ -257,7 +293,7 @@ val free (#s:repr)
     (fun _ -> A.varray (log_array l))
 
 
-let intro_read_next_provides_finished
+let intro_read_next_provides_failed
     (s:repr)
     (r:read_result)
     (l:log)
@@ -283,7 +319,7 @@ val fail (#s:repr)
 let fail #s l #p #bs pos
   = free l ();
     let res = Failed pos "" in
-    intro_read_next_provides_finished s res l;
+    intro_read_next_provides_failed s res l;
     AT.return res
 
 assume
@@ -331,15 +367,94 @@ let extend_ghost_log (#s:repr) (g:R.ghost_ref _) (e:T.vlog_entry)
     (fun _ -> R.ghost_pts_to g Perm.full_perm (snoc_log s e))
   = AT.sladmit(); AT.return ()
 
+let parsed_array s l (h1:rmem (read_next_provides s l Finished)) =
+  parsed (A.asel l.arr h1) s
+
+let coerce_rmem p q (h:rmem p) (_:squash (p==q)) : rmem q = h
 let read_next_ensures s l (o:read_result) (h1:rmem (read_next_provides s l o)) =
     match o with
     | Finished ->
       //The entries we parsed is stable and fixed to s
       parsed_log_inv l s /\
       //and s is the parse of the contents of the array in state h1
-      parsed (array_sel (log_array l) (rmem_coerce h1)) s
+      parsed_array s l (coerce_rmem _ _ h1 ())
     | Parsed_with_maybe_more e -> True
     | Failed pos _ -> U32.(pos <^ log_len l) == true
+
+let intro_read_next_provides_success #s (l:log) (e:T.vlog_entry)
+  : Steel read_result
+    (log_with_parsed_prefix l (snoc_log s e))
+    (fun res -> read_next_provides s l res)
+    (requires fun _ -> True)
+    (ensures fun _ o h -> read_next_ensures s l o h)
+  = let res = Parsed_with_maybe_more e in
+    AT.change_equal_slprop (log_with_parsed_prefix l (snoc_log s e))
+                           (read_next_provides s l res);
+    AT.return res
+
+let read_next_maybe_more (#s:repr)
+                         (l:log)
+                         (#p:Ghost.erased (EP.bounded_u32 (U32.v l.len)))
+                         (#bs:Ghost.erased _)
+                         (pos:EP.bounded_u32 (U32.v l.len))
+  : Steel read_result
+    (log_inv l p bs s)
+    (read_next_provides s l)
+    (requires fun _ -> pos == Ghost.reveal p /\ U32.v pos < U32.v l.len)
+    (ensures fun _ o h1 -> read_next_ensures s l o h1)
+  = let h = AT.get () in
+    assert (U32.v pos < U32.v l.len);
+    let eopt = extract_log_entry_from l.len l.arr pos in
+    match eopt with
+    | Inr (p, _) ->
+      let r = fail l pos in
+      AT.return r
+    | Inl (e, p') ->
+      st_extend_parsed_raw_util p _ s p' e;
+      extend_ghost_log l.ghost e;
+      R.write_pt l.pos p';
+      intro_log_with_parsed_prefix l _ _ _ _ _ _ _ ();
+      intro_read_next_provides_success l e
+
+val intro_read_next_provides_finished (#s:_) (l:log)
+  : Steel read_result
+    (A.varray l.arr)
+    (fun res -> read_next_provides s l res)
+    (requires fun h0 ->
+      parsed (A.asel l.arr h0) s /\
+      parsed_log_inv l s)
+    (ensures fun _ o h ->
+      read_next_ensures s l o h)
+let intro_read_next_provides_finished #s l
+  = let h0 = AT.get () in
+    AT.change_equal_slprop (A.varray l.arr)
+                           (read_next_provides s l Finished);
+    let h1 = AT.get () in
+    assert (parsed_array s l h1);
+    assert_spinoff (read_next_ensures s l Finished h1);
+    AT.return Finished
+
+let read_next_finished (#s:repr)
+                       (l:log)
+                       (#p:Ghost.erased (EP.bounded_u32 (U32.v l.len)))
+                       (#bs:Ghost.erased _)
+                       (pos:EP.bounded_u32 (U32.v l.len))
+  : Steel read_result
+    (log_inv l p bs s)
+    (read_next_provides s l)
+    (requires fun _ -> pos == Ghost.reveal p /\ pos == l.len)
+    (ensures fun _ o h1 -> read_next_ensures s l o h1)
+  =   AT.elim_pure (parsed_raw_until #(U32.v l.len) p bs s);
+      parsed_raw_until_full pos bs s;
+      assert (parsed bs s);
+      let i = AT.new_invariant (parsed_log l s) in
+      assert (parsed_log_inv l s);
+      elim_varray_pts_to_u8 l.arr _;
+      let h = AT.get () in
+      assert (parsed (A.asel l.arr h) s);
+      let res = Finished in
+      R.free_pt l.pos;
+      intro_read_next_provides_finished l
 
 val read_next' (#s:repr) (l:log)
   : Steel read_result
@@ -347,41 +462,16 @@ val read_next' (#s:repr) (l:log)
     (read_next_provides s l)
     (requires fun _ -> True)
     (ensures fun _ o h1 -> read_next_ensures s l o h1)
-      // match o with
-      // | Finished ->
-      //   //The entries we parsed is stable and fixed to s
-      //   parsed_log_inv l s /\
-      //   //and s is the parse of the contents of the array in state h1
-      //   parsed (array_sel (log_array l) (rmem_coerce h1)) s
-      // | Parsed_with_maybe_more e -> True
-      // | Failed pos _ -> U32.(pos <^ log_len l))
-
 let read_next' #s l
   = let h = AT.get () in
     let pbs = elim_log_with_parsed_prefix l s in
     let pos = read_pt l.pos in
     if pos = l.len
     then (
-      AT.sladmit();
-      AT.return Finished
+      let x = read_next_finished l pos in
+      AT.return x
     )
     else (
-      let eopt = extract_log_entry_from l.len l.arr pos in
-      match eopt with
-      | Inr (p, _) -> let r = fail l pos in AT.return r
-      | Inl (e, p') ->
-        st_extend_parsed_raw_util (fst pbs) _ s p' e;
-        extend_ghost_log l.ghost e;
-        R.write_pt l.pos p';
-        intro_log_with_parsed_prefix l _ _ _ _ _ _ _ ();
-        let res = Parsed_with_maybe_more e in
-        AT.change_equal_slprop (log_with_parsed_prefix _ _)
-                               (read_next_provides s l res);
-        let h = AT.get() in
-        assert (read_next_ensures s l res h);
-        AT.return res
+      let x = read_next_maybe_more l pos in
+      AT.return x
     )
-
-    // if pos = l.len
-    // then (
-    // )
