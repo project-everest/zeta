@@ -839,8 +839,8 @@ let verify_array vs len a =
 let create tid store_size
   = let st = VCache.vcache_create store_size in
     let clock = Steel.Reference.malloc 0uL in
-    let hadd = PRF.create_prf_set_hash () in
-    let hevict = PRF.create_prf_set_hash () in
+    let hadd = PRF.create () in
+    let hevict = PRF.create () in
     let failed = Steel.Reference.malloc false in
     let vs = {
       id = tid;
