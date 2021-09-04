@@ -50,3 +50,14 @@ let sseq_all_prefix_of (#a:eqtype)
                        (ss0 ss1: sseq a)
   = length ss0 = length ss1 /\
     (forall (tid:seq_index ss1). (index ss0 tid) `prefix_of` (index ss1 tid))
+
+let empty (a:_) (n:nat)
+  : sseq a
+  = create n (empty #a)
+
+val lemma_flat_length_emptyn (a:_) (n:nat)
+  : Lemma (ensures (flat_length (empty a n) = 0))
+          [SMTPat (empty a n)]
+
+val lemma_flat_length_zero (#a:_) (ss: sseq a {flat_length ss = 0})
+  : Lemma (ensures (ss == empty a (length ss)))

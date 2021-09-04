@@ -74,14 +74,14 @@ val some_interleaving (#a: eqtype) (ss: sseq a)
   : il: interleaving a (S.length ss) {s_seq il = ss}
 
 let empty_interleaving (a:eqtype) (n:nat)
-  = empty #(elem_src a n)
+  = Seq.empty #(elem_src a n)
 
 val lemma_length0_implies_empty (#a:_) (#n:_) (il: interleaving a n{length il = 0})
   : Lemma (ensures (il == empty_interleaving a n))
 
 val lemma_empty_sseq (a:eqtype) (n:_) (i: nat{i < n})
   : Lemma (ensures (let il = empty_interleaving a n in
-                    S.index (s_seq il) i = empty #a))
+                    S.index (s_seq il) i = Seq.empty #a))
 
 val interleaving_extend (#a #n:_) (il: interleaving a n) (x: a) (t: nat{t < n})
   : il': interleaving a n {length il' = length il + 1 /\

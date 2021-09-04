@@ -137,3 +137,58 @@ let rec lemma_sseq_extend_len (#a:eqtype) (ss: sseq a) (x:a) (i:seq_index ss):
     lemma_hprefix_append1 ss;
     lemma_flat_length_app1 ss' (telem ss)
   )
+
+let rec lemma_flat_length_emptyn (a:_) (n:nat)
+  : Lemma (ensures (flat_length (empty a n) = 0))
+          (decreases n)
+  = let ss = empty a n in
+    if n = 0 then (
+      lemma_empty ss;
+      lemma_flat_length_empty #a
+    )
+    else (
+      let ss' = empty a (n-1) in
+      lemma_flat_length_emptyn a (n-1);
+      let ssc = append1 ss' (FStar.Seq.empty #a) in
+      let aux(i: seq_index ss)
+        : Lemma (ensures (index ss i == index ssc i))
+                [SMTPat (index ss i == index ssc i)]
+        =  ()
+      in
+      assert(equal ss ssc);
+      lemma_flat_length_app1 ss' (FStar.Seq.empty #a)
+    )
+
+let rec lemma_flat_length_zero (#a:_) (ss: sseq a {flat_length ss = 0})
+  : Lemma (ensures (ss == empty a (length ss)))
+          (decreases (length ss))
+  = let n = length ss in
+    let en = empty a (length ss) in
+    if n = 0 then (
+      lemma_empty ss;
+      let aux(i: seq_index ss)
+        : Lemma (ensures (index ss i == index en i))
+                [SMTPat (index ss i == index en i)]
+        = ()
+      in
+      assert(equal ss en)
+    )
+    else (
+      let ss' = prefix ss (n - 1) in
+      let s = index ss (n - 1) in
+      lemma_hprefix_append_telem ss;
+      //assert(ss == append1 ss' s);
+      lemma_flat_length_app1 ss' s;
+      //assert(length s = 0);
+      lemma_empty s;
+      //assert(flat_length ss' = 0);
+      lemma_flat_length_zero ss';
+      //assert(ss' == empty a (n-1));
+      //assert(length ss = length en);
+      let aux (i: seq_index ss)
+        : Lemma (ensures (index ss i == index en i))
+        = ()
+      in
+      FStar.Classical.forall_intro aux;
+      assert(equal ss en)
+    )
