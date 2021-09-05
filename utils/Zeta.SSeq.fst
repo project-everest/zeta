@@ -193,12 +193,14 @@ let rec lemma_flat_length_zero (#a:_) (ss: sseq a {flat_length ss = 0})
       assert(equal ss en)
     )
 
-let sseq_prefix (#a:_) (ss: sseq a) (i: seq_index ss{length (index ss i) > 0})
+let sseq_prefix (#a:eqtype) (ss: sseq a) (i: seq_index ss{length (index ss i) > 0})
   : ss': sseq a
     {
+      let si = index ss i in
+      let x = telem si in
       length ss' = length ss /\
       flat_length ss' = flat_length ss - 1 /\
       index ss' i == hprefix (index ss i) /\
-      (forall i'. i' <> i ==> index ss' i' == index ss i')
+      ss == sseq_extend ss' x i
     }
   = admit()

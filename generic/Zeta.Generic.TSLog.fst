@@ -6,7 +6,7 @@ module T = Zeta.Generic.Thread
 (* clock is idxfn_t, so has the prefix property *)
 let lemma_prefix_clock_sorted (#vspec #n:_) (itsl: its_log vspec n) (i:nat{i <= length itsl}):
   Lemma (ensures (clock_sorted (prefix itsl i)))
-  = admit()
+  = ()
 
 let lemma_empty_verifiable_clock_sorted (vspec: verifier_spec) (n:_)
   : Lemma (ensures (let il = empty_interleaving (verifier_log_entry vspec) n in
@@ -65,7 +65,7 @@ let gl_thread_prefix_verifiable
           [SMTPat (sseq_prefix gl tid)]
   = admit()
 
-let rec create 
+let rec create
   (#vspec:_) 
   (gl: G.verifiable_log vspec):
   Tot (itsl:its_log vspec (S.length gl){to_glog itsl == gl})
@@ -97,5 +97,17 @@ let rec create
       (* recursively construct the interleaving for gl' *)
       let itsl' = create gl' in
 
-      admit()
+      let itsl: interleaving _ n = interleaving_extend itsl' (G.indexss gl (tid,tn-1)) tid in
+      assert(to_glog itsl = gl);
+      assert(verifiable itsl);
+      assert(clock_sorted itsl');
+
+      let aux(i j: seq_index itsl)
+        : Lemma (ensures (i <= j ==> clock itsl i `ts_leq` clock itsl j))
+        = admit()
+      in
+      FStar.Classical.forall_intro_2 aux;
+      assert(clock_sorted itsl);
+
+      itsl
     )

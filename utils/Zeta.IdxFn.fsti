@@ -248,3 +248,26 @@ val lemma_filter_map_monotonic
   (fm: fm_t gs b)
   (s: gs.seq_t)
   : Lemma (ensures (filter_map (FM (conj fm.f f) fm.m) s == filter_map fm (gs.prefix s (flen f s))))
+
+let seq_basic (a:eqtype) : gen_seq_spec = {
+  seq_t = seq a;
+  length;
+  prefix = SA.prefix
+}
+
+let indexf (#a #b:eqtype) (f: a -> b) (s: seq a) (i: SA.seq_index s)
+  : b
+  = f (index s i)
+
+let indexm (#a #b:eqtype) (f: a -> bool) (m: (x:a{f x}) -> b) (s: seq a) (i: SA.seq_index s{indexf #_ #bool f s i})
+  : b
+  = m (index s i)
+
+let simple_fm (#a #b: eqtype) (f: a->bool) (m: (x:a{f x}) -> b)
+  : fm_t (seq_basic a) b
+  = FM (indexf f) (indexm f m)
+
+let simple_filter_map (#a #b:eqtype) (f: a -> bool) (m: (x:a{f x}) -> b) (s: seq a)
+  : seq b
+  = let fm = simple_fm f m in
+    filter_map fm s

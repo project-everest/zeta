@@ -64,6 +64,12 @@ let idxfn #vspec #n #b (tfn: T.idxfn_t vspec b)
   : IF.idxfn_t (gen_seq vspec n) _
   = idxfn_base tfn
 
+(* this should be =() proof but does not work since some pattern matching does not kick-in *)
+val idxfn_prefix_property (#vspec:_) (#n:_) (#b:_) (tfn: T.idxfn_t vspec b)
+  (il: verifiable_log vspec n) (j:nat{j <= S.length il}) (i: nat{i < j})
+  : Lemma (ensures (idxfn tfn il i = idxfn tfn (prefix il j) i))
+          [SMTPat (idxfn tfn (prefix il j) i)]
+
 let cond_idxfn_base #vspec #n #b #f (m: T.cond_idxfn_t b f)
   (il: verifiable_log vspec n) (i: seq_index il{idxfn f il i})
   = G.cond_idxfn m (to_glog il) (i2s_map il i)

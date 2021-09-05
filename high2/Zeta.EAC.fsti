@@ -225,7 +225,7 @@ let appfn_call_seq
   (#app: app_params)
   (l: vlog_ext app)
   : seq (appfn_call app)
-  = let open Zeta.FilterMap in
+  = let open Zeta.IdxFn in
     simple_filter_map App? to_fncall l
 
 let eac_app_state #app (l: eac_log app) (ak: app_key app.adm)

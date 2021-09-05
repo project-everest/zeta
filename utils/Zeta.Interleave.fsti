@@ -87,4 +87,5 @@ val interleaving_extend (#a #n:_) (il: interleaving a n) (x: a) (t: nat{t < n})
   : il': interleaving a n {length il' = length il + 1 /\
                            index il' (length il) = x /\
                            src il' (length il) = t /\
-                           prefix il' (length il) = il}
+                           prefix il' (length il) = il /\
+                           s_seq il' = sseq_extend (s_seq il) x t}
