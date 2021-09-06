@@ -49,5 +49,5 @@ let lemma_filter_map_idx (#b:_) (gs:gen_sseq)
   (fm: fm_t gs.gsi b)
   (s: gs.gso.seq_t)
   (i: nat{i < gs.gso.length s})
-  : Lemma (ensures (S.index (filter_map gs fm s) i = Zeta.IdxFn.filter_map fm (gs.index s i)))
+  : Lemma (ensures (S.index (filter_map gs fm s) i == Zeta.IdxFn.filter_map fm (gs.index s i)))
   = lemma_map_map (apply gs fm) s i

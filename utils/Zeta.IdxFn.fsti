@@ -27,23 +27,23 @@ let gen_seq_spec = gs: gen_seq_base {prefix_prefix_prop gs}
 let seq_index (#gs: gen_seq_spec) (s: gs.seq_t) = i:nat{i < gs.length s}
 
 (* an index function is a function that maps indexed elements of a sequence to another domain. *)
-let idxfn_t_base (gs: gen_seq_spec) (b:eqtype)
+let idxfn_t_base (gs: gen_seq_spec) (b:Type0)
   = s:gs.seq_t -> i:seq_index s -> b
 
 (* an index function has a prefix property if the value of the function at an index depends only on the
  * sequence until that index *)
 let prefix_property
   (#gs:_)
-  (#b:eqtype)
+  (#b:_)
   (f: idxfn_t_base gs b)
   = forall (s: gs.seq_t) (i: seq_index s) (j: nat).
     {:pattern f (gs.prefix s j) i}
     j <= gs.length s ==>
     i < j ==>
-    f s i = f (gs.prefix s j) i
+    f s i == f (gs.prefix s j) i
 
 (* an index function with the prefix property *)
-let idxfn_t (gs:_) (b:eqtype) = f:idxfn_t_base gs b {prefix_property f}
+let idxfn_t (gs:_) (b:_) = f:idxfn_t_base gs b {prefix_property f}
 
 (* conjunction of two index filters *)
 let conj #gs (f1 f2: idxfn_t gs bool)
@@ -56,7 +56,7 @@ val conj_is_idxfn (#gs:_) (f1 f2: idxfn_t gs bool)
 
 (* a conditional index function is a function that is defined only some indexes satisfying
  * a predicate *)
-let cond_idxfn_t_base (#gs:_) (b:eqtype) (f:idxfn_t gs bool)
+let cond_idxfn_t_base (#gs:_) (b:Type0) (f:idxfn_t gs bool)
   = s:gs.seq_t -> i:seq_index s{f s i} -> b
 
 let cond_prefix_property
@@ -69,9 +69,9 @@ let cond_prefix_property
     j <= gs.length s ==>
     i < j ==>
     f s i ==>
-    m s i = m (gs.prefix s j) i
+    m s i == m (gs.prefix s j) i
 
-let cond_idxfn_t (#gs:_) (b:eqtype) (f:idxfn_t gs bool)
+let cond_idxfn_t (#gs:_) (b:Type0) (f:idxfn_t gs bool)
   = m:cond_idxfn_t_base b f{cond_prefix_property m}
 
 (* length of applying a filter to *)
@@ -126,11 +126,11 @@ val lemma_fextend_unsat (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{gs.length s > 
 
 (* a specification of a filter-map *)
 noeq
-type fm_t (gs:_) (b:eqtype) =
+type fm_t (gs:_) (b:_) =
   | FM: f: idxfn_t gs bool   ->
         m: cond_idxfn_t b f -> fm_t gs b
 
-let to_fm (#gs:_) (#b:eqtype) (#f:idxfn_t gs bool) (m: cond_idxfn_t b f)
+let to_fm (#gs:_) (#b:_) (#f:idxfn_t gs bool) (m: cond_idxfn_t b f)
   = FM f m
 
 (* apply the filter fm.f on s to get a filtered sequence; apply fm.m on each element to get the result *)
@@ -183,7 +183,7 @@ let filter_map_invmap_monotonic (#gs #b:_)
 
 val lemma_filter_map_extend_sat
   (#gs:_)
-  (#b:eqtype)
+  (#b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t {gs.length s > 0 /\ fm.f s (gs.length s - 1)})
   : Lemma (ensures (let fms = filter_map fm s in
@@ -194,7 +194,7 @@ val lemma_filter_map_extend_sat
 
 val lemma_filter_map_extend_unsat
   (#gs:_)
-  (#b:eqtype)
+  (#b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t {gs.length s > 0 /\ not (fm.f s (gs.length s - 1))})
   : Lemma (ensures (let fms = filter_map fm s in

@@ -103,7 +103,7 @@ let lemma_fextend_unsat (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{gs.length s > 
 
 let lemma_filter_map_extend_sat
   (#gs:_)
-  (#b:eqtype)
+  (#b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t {gs.length s > 0 /\ fm.f s (gs.length s - 1)})
   : Lemma (ensures (let fms = filter_map fm s in
@@ -128,7 +128,7 @@ let lemma_filter_map_extend_sat
 
 let lemma_filter_map_extend_unsat
   (#gs:_)
-  (#b:eqtype)
+  (#b:_)
   (fm: fm_t gs b)
   (s: gs.seq_t {gs.length s > 0 /\ not (fm.f s (gs.length s - 1))})
   : Lemma (ensures (let fms = filter_map fm s in

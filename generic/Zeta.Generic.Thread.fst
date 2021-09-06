@@ -87,7 +87,7 @@ let blum_evict_elem #vspec (#ep: epoch) (tl: verifiable_log vspec) (i: seq_index
 let is_appfn (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_appfn (index tl i)
 
-let appfn_call_res (#vspec:_) (ep: epoch)
+let to_appfn_call_res (#vspec:_) (ep: epoch)
     (tl: verifiable_log vspec) (i: seq_index tl {is_appfn tl i && is_within_epoch ep tl i})
   = let e = index tl i in
     let st' = state_pre tl i in
