@@ -108,9 +108,9 @@ let ms_verifiable_log #vspec (ep: epoch)
   = gl:verifiable_log vspec{aems_equal_upto ep gl}
 
 (* filter-mapped sequence of sequence app-function-call results *)
-let appfn_call_res
+let appfn_calls
   (#vspec: verifier_spec)
   (ep: epoch)
   (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
-  = let fm = to_fm (T.appfn_call_res #vspec ep) in
+  = let fm = to_fm (T.to_appfn_call_res #vspec ep) in
     filter_map (gen_sseq vspec) fm gl

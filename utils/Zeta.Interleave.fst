@@ -13,7 +13,7 @@ let gen_seq (a:eqtype) (n:_) =
 
 (* an element is from src t *)
 let from_src #a #n (t: nat) (il: interleaving a n) (i: seq_index il)
-  = t = (S.index il i).src
+  = t = (S.index il i).s
 
 let to_elem #a #n (il: interleaving a n) (i: seq_index il)
   = (S.index il i).elem

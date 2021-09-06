@@ -9,8 +9,8 @@ module S = FStar.Seq
 module SA = Zeta.SeqAux
 
 type elem_src (a:eqtype) (n:nat) = {
-  elem: a;
-  src: t:nat{t< n};
+  e: a;
+  s: t:nat{t< n};
 }
 
 (* an interleaving of n sequences specifed by storing the mapping from every
@@ -25,7 +25,7 @@ val i_seq (#a:_) (#n:nat) (il: interleaving a n)
   : is: seq a {length is = length il }
 
 let src (#a:_) (#n:_) (il: interleaving a n) (i: SA.seq_index il)
-  = (S.index il i).src
+  = (S.index il i).s
 
 let index (#a:_) (#n:_) (il: interleaving a n) (i: SA.seq_index il)
   = S.index (i_seq il) i
