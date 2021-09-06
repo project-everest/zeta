@@ -16,7 +16,7 @@ let from_src #a #n (t: nat) (il: interleaving a n) (i: seq_index il)
   = t = (S.index il i).s
 
 let to_elem #a #n (il: interleaving a n) (i: seq_index il)
-  = (S.index il i).elem
+  = (S.index il i).e
 
 let i_seq (#a:_) (#n:nat) (il: interleaving a n)
   = map #(gen_seq a n) (to_elem #a #n) il
