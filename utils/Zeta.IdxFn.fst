@@ -197,3 +197,12 @@ let lemma_filter_map_monotonic
   (s: gs.seq_t)
   : Lemma (ensures (filter_map (FM (conj fm.f f) fm.m) s == filter_map fm (gs.prefix s (flen f s))))
   = admit()
+
+let lemma_map_prefix
+  (#gs:_)
+  (#b:_)
+  (f: idxfn_t gs b)
+  (s: gs.seq_t)
+  (i:nat{i <= gs.length s})
+  : Lemma (ensures (SA.prefix (map f s) i == map f (gs.prefix s i)))
+  = admit()

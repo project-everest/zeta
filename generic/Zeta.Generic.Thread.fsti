@@ -114,11 +114,6 @@ let is_within_epoch #vspec (ep: epoch)
 
 open Zeta.AppSimulate
 
-let is_appfn_within_epoch #vspec (ep: epoch)
-  (tl: verifiable_log vspec) (i: seq_index tl)
-  = is_appfn tl i &&
-    is_within_epoch ep tl i
-
 (* for an appfn entry, return the function call params and result *)
 val to_appfn_call_res (#vspec:_):
   cond_idxfn_t #vspec (appfn_call_res vspec.app) is_appfn
