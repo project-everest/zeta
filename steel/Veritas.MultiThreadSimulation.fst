@@ -9,7 +9,7 @@ module IntG = Veritas.Intermediate.Global
 module Mwc = Veritas.Steel.MainWorkerChannel
 module SSim = Veritas.SingleThreadSimulation
 module TSM = Veritas.ThreadStateModel
-module Formats = Veritas.Formats.Types
+module Formats = Veritas.Epoch
 module SteelModel = Veritas.Steel.VerifierModel
 module MSH = Veritas.MultiSetHashDomain
 

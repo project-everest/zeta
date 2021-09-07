@@ -5,7 +5,7 @@ module G = FStar.Ghost
 open Steel.Effect
 
 module TSM = Veritas.ThreadStateModel
-module Formats = Veritas.Formats.Types
+module Formats = Veritas.Epoch
 module Model = Veritas.Steel.VerifierModel
 module Awc = Veritas.Steel.ApplicationWorkerChannel
 
