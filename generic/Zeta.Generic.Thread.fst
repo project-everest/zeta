@@ -12,8 +12,8 @@ let rec verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
 (* the state after processing i'th entry is obtained by applying the verify
  * step to the state before processing the i'th entry *)
 let lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl):
-  Lemma (ensures (state_post tl i ==
-                  verify_step (index tl i) (state_pre tl i)))
+  Lemma (ensures (state_post_base tl i ==
+                  verify_step (index tl i) (state_pre_base tl i)))
   = ()
 
 (* clock after processing i entries of the log *)

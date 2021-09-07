@@ -60,7 +60,7 @@ let gen_sseq (vspec:verifier_spec): gen_sseq = {
 let idxfn (#vspec:verifier_spec) #b (f: T.idxfn_t vspec b) (gl: verifiable_log vspec) (ii: sseq_index gl)
   = Zeta.SIdxFn.idxfn #b (gen_sseq vspec) f gl ii
 
-let cond_idxfn (#b:eqtype) (#vspec:verifier_spec) (#f: T.idxfn_t vspec bool)
+let cond_idxfn (#b:_) (#vspec:verifier_spec) (#f: T.idxfn_t vspec bool)
   = Zeta.SIdxFn.cond_idxfn #b #(gen_sseq vspec) #f
 
 let clock #vspec = idxfn (T.clock #vspec)
@@ -110,7 +110,6 @@ let ms_verifiable_log #vspec (ep: epoch)
 (* filter-mapped sequence of sequence app-function-call results *)
 let appfn_calls
   (#vspec: verifier_spec)
-  (ep: epoch)
   (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
-  = let fm = to_fm (T.to_appfn_call_res #vspec ep) in
+  = let fm = to_fm (T.to_appfn_call_res #vspec) in
     filter_map (gen_sseq vspec) fm gl

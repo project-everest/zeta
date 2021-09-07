@@ -47,18 +47,18 @@ let prefix #vspec (tl: verifiable_log vspec) (i: nat{i <= length tl})
   = prefix_base tl i
 
 (* the verifier state after processing i entries *)
-let state_pre #vspec (tl: verifiable_log vspec) (i:nat{i <= length tl}) =
+let state_pre_base #vspec (tl: verifiable_log vspec) (i:nat{i <= length tl}) =
   (verify (prefix tl i))
 
-let state_post #vspec (tl: verifiable_log vspec) (i:seq_index tl)
+let state_post_base #vspec (tl: verifiable_log vspec) (i:seq_index tl)
   = (verify (prefix tl (i+1)))
 
 (* the state after processing i'th entry is obtained by applying the verify
  * step to the state before processing the i'th entry *)
 val lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl):
-  Lemma (ensures (state_post tl i ==
-                  verify_step (index tl i) (state_pre tl i)))
-        [SMTPat (verify_step (index tl i) (state_pre tl i))]
+  Lemma (ensures (state_post_base tl i ==
+                  verify_step (index tl i) (state_pre_base tl i)))
+        [SMTPat (verify_step (index tl i) (state_pre_base tl i))]
 
 let gen_seq (vspec: verifier_spec): gen_seq_spec = {
   seq_t = verifiable_log vspec;
@@ -66,12 +66,18 @@ let gen_seq (vspec: verifier_spec): gen_seq_spec = {
   prefix
 }
 
-let idxfn_t (vspec: verifier_spec) (b: eqtype) = IF.idxfn_t (gen_seq vspec) b
+let idxfn_t (vspec: verifier_spec) (b: _) = IF.idxfn_t (gen_seq vspec) b
 
-let cond_idxfn_t #vspec (b:eqtype) (f:idxfn_t vspec bool)
+let cond_idxfn_t #vspec (b:_) (f:idxfn_t vspec bool)
   = IF.cond_idxfn_t b f
 
 val clock (#vspec:_) : (idxfn_t vspec timestamp)
+
+let state_pre #vspec : idxfn_t vspec _
+  = state_pre_base #vspec
+
+let state_post #vspec : idxfn_t vspec _
+  = state_post_base #vspec
 
 (* the epoch of the i'th entry *)
 let epoch_of #vspec (tl: verifiable_log vspec) (i: seq_index tl)
@@ -114,5 +120,5 @@ let is_appfn_within_epoch #vspec (ep: epoch)
     is_within_epoch ep tl i
 
 (* for an appfn entry, return the function call params and result *)
-val to_appfn_call_res (#vspec:_) (ep: epoch):
-  cond_idxfn_t #vspec (appfn_call_res vspec.app) (is_appfn_within_epoch ep)
+val to_appfn_call_res (#vspec:_):
+  cond_idxfn_t #vspec (appfn_call_res vspec.app) is_appfn
