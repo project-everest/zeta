@@ -16,6 +16,8 @@ val serialize_value: v:value -> dst: A.array U8.t { A.length dst == U32.v (seria
 
 module R = Steel.Reference
 
+inline_for_extraction
+noextract
 let bounded_u32 (l:nat) = x:U32.t { U32.v x <= l }
 
 let larray t (l:U32.t) = a:A.array t { A.length a == U32.v l }
@@ -65,23 +67,6 @@ val extract_log_entry_from (len: U32.t)
        | Inl (e, pos') ->
          valid_entry (A.asel buf h0) (U32.v pos) (U32.v pos') e
        | _ -> True))
-
-val extract_log_entry_from_alt (len: U32.t) (buf: A.array U8.t { A.length buf == U32.v len }) (pos: ref (x: U32.t { U32.v x <= U32.v len }))
-  : Steel (option vlog_entry)
-    (A.varray buf `star` vptr pos)
-    (fun _ -> A.varray buf `star` vptr pos)
-    (fun _ -> True)
-    (fun h res h' ->
-      let p = h (vptr pos) in
-      let p' = h' (vptr pos) in
-      U32.v p <= U32.v p' /\
-      h' (A.varray buf) == h (A.varray buf) /\
-      begin match res with
-      | None -> True
-      | Some v ->
-        parsed (Seq.slice (h (A.varray buf)) (U32.v p) (U32.v p')) v
-      end
-    )
 
 val serialize_stamped_record
   (dst: A.array U8.t { 184 <= A.length dst })

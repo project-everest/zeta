@@ -12,20 +12,25 @@ val serialize_value: v:value -> dst: B.lbuffer U8.t (U32.v (serialize_length v))
     (requires fun h -> B.live h dst)
     (ensures fun h0 _ h1 -> B.(modifies (loc_buffer dst) h0 h1))
 
-val extract_log_entry_from (len: U32.t) (buf: B.lbuffer U8.t (U32.v len)) (pos: B.pointer (x: U32.t { U32.v x <= U32.v len }))
-  : HST.Stack (option vlog_entry)
+inline_for_extraction
+noextract
+let bounded_u32 (l:nat) = x:U32.t { U32.v x <= l }
+
+val extract_log_entry_from (len: U32.t)
+                           (buf: B.lbuffer U8.t (U32.v len))
+                           (pos: bounded_u32 (U32.v len))
+  : HST.Stack (either (vlog_entry & bounded_u32 (U32.v len))
+                  (bounded_u32 (U32.v len) & string))
           (requires fun h ->
-            B.live h buf /\ B.live h pos /\ B.disjoint buf pos
+            B.live h buf
           )
           (ensures fun h0 v h1 ->
-            let p = B.deref h0 pos in
-            let p' = B.deref h1 pos in
-            B.live h1 buf /\ B.live h1 pos /\ B.disjoint buf pos /\
-            B.modifies (B.loc_buffer pos) h0 h1 /\
-            U32.v p <= U32.v p' /\
+            B.live h1 buf /\
+            B.modifies B.loc_none h0 h1 /\
             begin match v with
-            | Some v ->
-              parsed (Seq.slice (B.as_seq h0 buf) (U32.v p) (U32.v p')) v
+            | Inl (v, pos') ->
+              U32.v pos <= U32.v pos' /\
+              parsed (Seq.slice (B.as_seq h0 buf) (U32.v pos) (U32.v pos')) v
             | _ -> True
             end
           )
