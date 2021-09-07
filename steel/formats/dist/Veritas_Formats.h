@@ -197,20 +197,41 @@ typedef uint8_t Veritas_Formats_Types_vlog_entry_kind;
 
 void Veritas_Formats_serialize_value(Veritas_Formats_Types_value v, uint8_t *dst);
 
-#define FStar_Pervasives_Native_None 0
-#define FStar_Pervasives_Native_Some 1
-
-typedef uint8_t FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry_tags;
-
-typedef struct FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry_s
+typedef struct K___Veritas_Formats_Types_vlog_entry_uint32_t_s
 {
-  FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry_tags tag;
-  Veritas_Formats_Types_vlog_entry v;
+  Veritas_Formats_Types_vlog_entry fst;
+  uint32_t snd;
 }
-FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry;
+K___Veritas_Formats_Types_vlog_entry_uint32_t;
 
-FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry
-Veritas_Formats_extract_log_entry_from(uint32_t len, uint8_t *buf, uint32_t *bpos);
+typedef struct K___uint32_t_Prims_string_s
+{
+  uint32_t fst;
+  Prims_string snd;
+}
+K___uint32_t_Prims_string;
+
+#define FStar_Pervasives_Inl 0
+#define FStar_Pervasives_Inr 1
+
+typedef uint8_t
+FStar_Pervasives_either__K___Veritas_Formats_Types_vlog_entry_uint32_t_K___uint32_t_Prims_string_tags;
+
+typedef struct
+FStar_Pervasives_either__K___Veritas_Formats_Types_vlog_entry_uint32_t_K___uint32_t_Prims_string_s
+{
+  FStar_Pervasives_either__K___Veritas_Formats_Types_vlog_entry_uint32_t_K___uint32_t_Prims_string_tags
+  tag;
+  union {
+    K___Veritas_Formats_Types_vlog_entry_uint32_t case_Inl;
+    K___uint32_t_Prims_string case_Inr;
+  }
+  ;
+}
+FStar_Pervasives_either__K___Veritas_Formats_Types_vlog_entry_uint32_t_K___uint32_t_Prims_string;
+
+FStar_Pervasives_either__K___Veritas_Formats_Types_vlog_entry_uint32_t_K___uint32_t_Prims_string
+Veritas_Formats_extract_log_entry_from(uint32_t len, uint8_t *buf, uint32_t pos);
 
 uint32_t
 Veritas_Formats_serialize_stamped_record(uint8_t *dst, Veritas_Formats_Types_stamped_record r);

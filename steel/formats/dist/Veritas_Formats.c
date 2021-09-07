@@ -1385,30 +1385,27 @@ void Veritas_Formats_serialize_value(Veritas_Formats_Types_value v, uint8_t *dst
   uint32_t uu____0 = value_lserializer(v, (uint8_t *)dst, (uint32_t)0U);
 }
 
-FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry
-Veritas_Formats_extract_log_entry_from(uint32_t len, uint8_t *buf, uint32_t *bpos)
+FStar_Pervasives_either__K___Veritas_Formats_Types_vlog_entry_uint32_t_K___uint32_t_Prims_string
+Veritas_Formats_extract_log_entry_from(uint32_t len, uint8_t *buf, uint32_t pos)
 {
   slice sl = { .base = buf, .len = len };
-  uint32_t pos = bpos[0U];
   uint64_t pos_ = vlog_entry_validator(sl, (uint64_t)pos);
   if (is_error(pos_))
     return
       (
-        (FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry){
-          .tag = FStar_Pervasives_Native_None
+        (FStar_Pervasives_either__K___Veritas_Formats_Types_vlog_entry_uint32_t_K___uint32_t_Prims_string){
+          .tag = FStar_Pervasives_Inr,
+          { .case_Inr = { .fst = pos, .snd = "extract_log_entry: no valid log entry" } }
         }
       );
   else
-  {
-    bpos[0U] = (uint32_t)pos_;
     return
       (
-        (FStar_Pervasives_Native_option__Veritas_Formats_Types_vlog_entry){
-          .tag = FStar_Pervasives_Native_Some,
-          .v = vlog_entry_reader(sl, pos)
+        (FStar_Pervasives_either__K___Veritas_Formats_Types_vlog_entry_uint32_t_K___uint32_t_Prims_string){
+          .tag = FStar_Pervasives_Inl,
+          { .case_Inl = { .fst = vlog_entry_reader(sl, pos), .snd = (uint32_t)pos_ } }
         }
       );
-  }
 }
 
 uint32_t
