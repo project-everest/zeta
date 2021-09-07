@@ -1,4 +1,4 @@
-SRC_DIRS = high intermediate
+SRC_DIRS = utils generic high2
 FSTAR_FILES=$(wildcard $(addsuffix /*fst, $(SRC_DIRS))) $(wildcard $(addsuffix /*fsti, $(SRC_DIRS)))
 
 all: verify low-level

@@ -1,4 +1,4 @@
-VERITAS_HOME = ..
+ZETA_HOME = ..
 FSTAR_FILES=$(wildcard *fst *fsti)
 
 all: verify

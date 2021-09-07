@@ -38,7 +38,7 @@ val is_eac (#app #n:_) (il: verifiable_log app n)
 
 let eac_log (app: app_params) (n:nat) = il: verifiable_log app n {is_eac il}
 
-let neac_log (app: app_params) (n:nat) = il: verifiable_log app n {~ (is_eac il)}
+let neac_log (app: app_params) (n:nat) = il: verifiable_log app n {not (is_eac il)}
 
 val eac_boundary (#app #n:_) (il: neac_log app n)
   : (i: seq_index il{is_eac (prefix il i) /\
@@ -47,12 +47,9 @@ val eac_boundary (#app #n:_) (il: neac_log app n)
 val lemma_eac_implies_prefix_eac (#app #n:_) (il: eac_log app n) (i: nat{i <= S.length il})
   : Lemma (ensures (is_eac (prefix il i)))
 
-#push-options "--z3rlimit_factor 3"
-// TODO: why (high_verifier_spec app).app == app is so hard to infer?
 let appfn_calls (#app #n:_) (il: eac_log app n)
   : seq (Zeta.AppSimulate.appfn_call_res app)
   = GI.appfn_calls il
-#pop-options
 
 val lemma_eac_implies_appfn_valid (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (Zeta.AppSimulate.valid_call_result (appfn_calls il)))

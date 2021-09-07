@@ -22,4 +22,18 @@ let lemma_eac_empty #app #n (il: verifiable_log app n{S.length il = 0})
 let eac_boundary (#app #n:_) (il: neac_log app n)
   : (i: seq_index il{is_eac (prefix il i) /\
                      ~ (is_eac (prefix il (i+1)))})
+  = let open Zeta.IdxFn in
+    let le = vlog_ext_of_il_log il in
+    let i = max_eac_prefix le in
+    lemma_map_prefix mk_vlog_entry_ext il i;
+    lemma_map_prefix mk_vlog_entry_ext il (i+1);
+    i
+
+let lemma_eac_implies_prefix_eac (#app #n:_) (il: eac_log app n) (i: nat{i <= S.length il})
+  : Lemma (ensures (is_eac (prefix il i)))
+  = let open Zeta.IdxFn in
+    lemma_map_prefix mk_vlog_entry_ext il i
+
+let lemma_eac_implies_appfn_valid (#app #n:_) (il: eac_log app n)
+  : Lemma (ensures (Zeta.AppSimulate.valid_call_result (appfn_calls il)))
   = admit()

@@ -294,7 +294,7 @@ let init_thread_state (aprm: app_params) (tid:thread_id): vtls_t aprm =
   else vs
 
 (* the specification of the high level verifier *)
-let high_verifier_spec (app: app_params): Zeta.GenericVerifier.verifier_spec_base
+let high_verifier_spec_base (app: app_params): Zeta.GenericVerifier.verifier_spec_base
   = let valid (vtls: vtls_t app): bool
       = vtls.valid
     in
@@ -336,9 +336,12 @@ let high_verifier_spec (app: app_params): Zeta.GenericVerifier.verifier_spec_bas
 module GV = Zeta.GenericVerifier
 
 val lemma_high_verifier (aprm: app_params)
-  : Lemma (ensures (GV.clock_monotonic_prop (high_verifier_spec aprm) /\
-                    GV.thread_id_constant_prop (high_verifier_spec aprm)))
-          [SMTPat (high_verifier_spec aprm)]
+  : Lemma (ensures (GV.clock_monotonic_prop (high_verifier_spec_base aprm) /\
+                    GV.thread_id_constant_prop (high_verifier_spec_base aprm)))
+          [SMTPat (high_verifier_spec_base aprm)]
+
+let high_verifier_spec (app: app_params) : Zeta.GenericVerifier.verifier_spec
+  = high_verifier_spec_base app
 
 let vlog_entry (aprm: app_params)
   = GV.verifier_log_entry (high_verifier_spec aprm)

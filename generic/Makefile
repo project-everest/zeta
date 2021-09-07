@@ -1,4 +1,4 @@
-VERITAS_HOME = ..
+ZETA_HOME = ..
 SRC_DIRS = . ../utils
 FSTAR_FILES=$(wildcard *fst *fsti)
 
