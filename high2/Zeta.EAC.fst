@@ -206,6 +206,15 @@ let max_eac_prefix
   = let _,i = max_eac_prefix_aux l in
     i
 
+let eac_fail_key
+  (#app: app_params)
+  (l:vlog_ext app {~ (eac l)})
+  : k:base_key {let open Zeta.SeqAux in
+                let i = max_eac_prefix l in
+                ~ (valid (eac_smk app k) (prefix l (i+1)))}
+  = let k,i = max_eac_prefix_aux l in
+    k
+
 (* computable version of eac *)
 let is_eac_log (#app: app_params) (l:vlog_ext app): (r:bool{r <==> eac l})
   = let i = max_eac_prefix l in

@@ -29,10 +29,12 @@ let eac_boundary (#app #n:_) (il: neac_log app n)
     lemma_map_prefix mk_vlog_entry_ext il (i+1);
     i
 
-let lemma_eac_implies_prefix_eac (#app #n:_) (il: eac_log app n) (i: nat{i <= S.length il})
-  : Lemma (ensures (is_eac (prefix il i)))
+let lemma_eac_implies_prefix_eac (#app #n:_) (il: verifiable_log app n) (i: nat{i <= S.length il})
+  : Lemma (ensures (is_eac il ==> is_eac (prefix il i)))
   = let open Zeta.IdxFn in
-    lemma_map_prefix mk_vlog_entry_ext il i
+    if is_eac il then
+      lemma_map_prefix mk_vlog_entry_ext il i
+    else ()
 
 let lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (let gl = to_glog il in
