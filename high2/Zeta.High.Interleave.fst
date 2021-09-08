@@ -32,13 +32,6 @@ let vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
                     e = to_vlog_entry ee))
   = ()
 
-let is_eac_post (#app: app_params) (#n:nat)
-  (il: verifiable_log app n) (i: seq_index il)
-  : bool
-  = let il' = prefix il (i+1) in
-    let l' = vlog_ext_of_il_log il' in
-    is_eac_log l'
-
 let is_eac #app #n (il: verifiable_log app n)
   = is_eac_log (vlog_ext_of_il_log il)
 
@@ -46,6 +39,27 @@ let lemma_eac_empty #app #n (il: verifiable_log app n{S.length il = 0})
   : Lemma (ensures (is_eac il))
   = let le = vlog_ext_of_il_log il in
     eac_empty_log le
+
+(* state after processing the i'th element *)
+let eac_state_of_key (#app #n:_) (k: base_key)
+  : IF.seqfn_t (gen_seq app n) (eac_state app k)
+  = admit()
+
+let empty_implies_eac (#app #n:_) (il: verifiable_log app n)
+  : Lemma (ensures (length il = 0 ==> is_eac il))
+  = if length il = 0 then
+      let le = vlog_ext_of_il_log il in
+      eac_empty_log le
+    else ()
+
+let eac_state_transition (#app #n:_) (k: base_key)
+  (il: verifiable_log app n) (i: seq_index il)
+  : Lemma (ensures (let es_pre = IF.to_pre_fn (eac_state_of_key k) il i in
+                    let es_post = IF.to_post_fn (eac_state_of_key k) il i in
+                    let smk = eac_smk app k in
+                    let ee = mk_vlog_entry_ext il i in
+                    es_post = eac_add ee es_pre))
+  = admit()
 
 let lemma_eac_implies_prefix_eac (#app #n:_) (il: verifiable_log app n) (i: nat{i <= S.length il})
   : Lemma (ensures (is_eac il ==> is_eac (prefix il i)))

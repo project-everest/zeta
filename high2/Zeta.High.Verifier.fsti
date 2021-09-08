@@ -36,6 +36,10 @@ let stored_value (#aprm: app_params) (st:store_t aprm) (k:base_key {store_contai
   = let _, v = (Some?.v (st k)).r in
     v
 
+let stored_key (#aprm: app_params) (st:store_t aprm) (k:base_key {store_contains st k})
+  = let k, _ = (Some?.v (st k)).r in
+    k
+
 (* add method of a key in the store *)
 let add_method_of (#aprm: app_params) (st:store_t aprm) (k:base_key {store_contains st k})
   = (Some?.v (st k)).am
@@ -345,3 +349,17 @@ let high_verifier_spec (app: app_params) : Zeta.GenericVerifier.verifier_spec
 
 let vlog_entry (aprm: app_params)
   = GV.verifier_log_entry (high_verifier_spec aprm)
+
+let is_add_of_key (#app:_) (bk: base_key) (e: vlog_entry app)
+  = let open Zeta.GenericVerifier in
+    match e with
+    | AddM _ k _ -> bk = k
+    | AddB _ k _ _ -> bk = k
+    | _ -> false
+
+let add_method_of_entry (#app:_) (e: vlog_entry app{Zeta.GenericVerifier.is_add e})
+  : add_method
+  = let open Zeta.GenericVerifier in
+    match e with
+    | AddM _ _ _ -> MAdd
+    | AddB _ _ _ _ -> BAdd

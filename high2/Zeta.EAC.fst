@@ -3,6 +3,14 @@ module Zeta.EAC
 open Zeta.SeqMachine
 open Zeta.SeqAux
 
+let empty_log_implies_init_state
+  (#app: _)
+  (k: base_key)
+  (l: vlog_ext app{length l = 0})
+  : Lemma (ensures (eac_state_of_key k l = EACInit))
+  = let smk = eac_smk app k in
+    lemma_empty_seq_init smk l
+
 let eac_state_transition
   (#app: app_params)
   (k: base_key)
@@ -587,3 +595,29 @@ let eac_state_is_app_state (#app: app_params) (l: eac_log app)
                     let app_state,_ = Some?.v (simulate fs) in
                     app_state == eac_app_state l))
   = eac_valid_helper l
+
+let rec eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le: eac_log app)
+  : Lemma (ensures (let es = eac_state_of_key bk le in
+                    let open Zeta.SeqAux in
+                    let open Zeta.IdxFn in
+                    let l = simple_map to_vlog_entry le in
+                    (EACInStore? es ==> (has_some_add bk le /\
+                                         eac_add_method es = last_add_method bk le))))
+          (decreases (length le))
+  = let n = length le in
+    let es = eac_state_of_key bk le in
+    assert(es <> EACFail);
+    if n = 0 then
+      empty_log_implies_init_state bk le
+    else (
+      let le' = prefix le (n - 1) in
+      let ee = index le (n - 1) in
+      let e = to_vlog_entry ee in
+      let open Zeta.SeqAux in
+      eac_instore_implies_equiv_some_add bk le';
+      if App? ee || not (e `refs_key` bk) then
+        lemma_last_index_opt_last_elem_nsat (is_add_of_key bk) le
+      else if is_add_of_key bk ee then
+        lemma_last_index_last_elem_sat (is_add_of_key bk) le
+      else ()
+    )

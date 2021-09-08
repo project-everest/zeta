@@ -161,6 +161,12 @@ let eac_state_of_key
   = let open Zeta.SeqMachine in
     seq_machine_run (eac_smk app k) l
 
+val empty_log_implies_init_state
+  (#app: _)
+  (k: base_key)
+  (l: vlog_ext app{length l = 0})
+  : Lemma (ensures (eac_state_of_key k l = EACInit))
+
 val eac_state_transition
   (#app: app_params)
   (k: base_key)
@@ -247,3 +253,32 @@ val eac_state_is_app_state (#app: app_params) (l: eac_log app)
   : Lemma (ensures (let fs = appfn_call_seq l in
                     let app_state,_ = Some?.v (simulate fs) in
                     app_state == eac_app_state l))
+
+let eac_add_method (#app: app_params) (#k: base_key) (es: eac_state app k {EACInStore? es})
+  = let EACInStore m _ _ = es in
+    m
+
+let is_add_of_key #app (bk: base_key) (ee: vlog_entry_ext app)
+  = let e = to_vlog_entry ee in
+    is_add_of_key bk e
+
+let has_some_add (#app: app_params) (bk: base_key) (le: vlog_ext app)
+  : bool
+  = let open Zeta.SeqAux in
+    exists_sat_elems (is_add_of_key bk) le
+
+let last_add_method (#app: app_params) (bk: base_key) (le: vlog_ext app {has_some_add bk le})
+  : add_method
+  = let open Zeta.SeqAux in
+    let i = last_index (is_add_of_key bk) le in
+    let ee = index le i in
+    let e  = to_vlog_entry ee in
+    add_method_of_entry e
+
+val eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le: eac_log app)
+  : Lemma (ensures (let es = eac_state_of_key bk le in
+                    let open Zeta.SeqAux in
+                    let open Zeta.IdxFn in
+                    let l = simple_map to_vlog_entry le in
+                    (EACInStore? es ==> (has_some_add bk le /\
+                                         eac_add_method es = last_add_method bk le))))

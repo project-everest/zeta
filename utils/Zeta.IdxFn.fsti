@@ -292,3 +292,13 @@ let to_post_fn (#gs #b:_) (f: seqfn_t gs b) (s: gs.seq_t) (i:seq_index s)
   : b
   = let s' = gs.prefix s (i+1) in
     f s'
+
+let simple_map_fm (#a #b: eqtype) (m: a -> b)
+  : fm_t (seq_basic a) b
+  = let gs : gen_seq_spec = seq_basic a in
+    FM (all_true gs) (indexf m)
+
+let simple_map (#a #b: eqtype) (m: a -> b) (s: seq a)
+  : seq b
+  = let fm = simple_map_fm m in
+    filter_map fm s
