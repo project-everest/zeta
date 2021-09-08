@@ -50,12 +50,9 @@ let lemma_cond_idxfn_interleave (#vspec #n:_) (#b: eqtype) (#f:_) (m: T.cond_idx
                     I.interleave #b sb ssb))
   = admit()
 
-let thread_state_pre (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n})
-  : IF.idxfn_t (gen_seq vspec n) (v:vspec.vtls_t {vspec.valid v})
-  = admit()
 
-let thread_state_post (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n})
-  : IF.idxfn_t (gen_seq vspec n) (v:vspec.vtls_t {vspec.valid v})
+let thread_state (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n})
+  : IF.seqfn_t (gen_seq vspec n) (v:vspec.vtls_t {vspec.valid v})
   = admit()
 
 let lemma_cur_thread_state_extend (#vspec: verifier_spec) (#n:_)
@@ -63,6 +60,14 @@ let lemma_cur_thread_state_extend (#vspec: verifier_spec) (#n:_)
   : Lemma (ensures (let st_pre = cur_thread_state_pre il i in
                     let st_post = cur_thread_state_post il i in
                     st_post == V.verify_step (I.index il i) st_pre))
+  = admit()
+
+let lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{tid < n})
+  (il: verifiable_log vspec n) (i: seq_index il)
+  : Lemma (requires (tid <> src il i))
+          (ensures (let st_pre = IF.to_pre_fn (thread_state tid) il i in
+                    let st_post = IF.to_post_fn (thread_state tid) il i in
+                    st_pre == st_post))
   = admit()
 
 let lemma_add_evict_set_identical_glog_aux (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)

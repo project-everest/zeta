@@ -137,26 +137,30 @@ let clock #vspec #n = idxfn #_ #vspec #n (T.clock #vspec)
 (* sequence of appfn calls and their results upto epoch ep in the interleaved sequence *)
 let to_appfn_call_res #vspec #n = cond_idxfn #vspec #n #_ #_ (T.to_appfn_call_res #vspec)
 
-val thread_state_pre (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n})
-  : IF.idxfn_t (gen_seq vspec n) (v:vspec.vtls_t {vspec.valid v})
-
-val thread_state_post (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n})
-  : IF.idxfn_t (gen_seq vspec n) (v:vspec.vtls_t {vspec.valid v})
+val thread_state (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n})
+  : IF.seqfn_t (gen_seq vspec n) (v:vspec.vtls_t {vspec.valid v})
 
 let cur_thread_state_pre (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n) (i: seq_index il)
   = let s = src il i in
-    thread_state_pre s il i
+    IF.to_pre_fn (thread_state s) il i
 
 let cur_thread_state_post (#vspec: verifier_spec) (#n:_)
   (il: verifiable_log vspec n) (i: seq_index il)
   = let s = src il i in
-    thread_state_post s il i
+    IF.to_post_fn (thread_state s) il i
 
 val lemma_cur_thread_state_extend (#vspec: verifier_spec) (#n:_)
   (il: verifiable_log vspec n) (i: seq_index il)
   : Lemma (ensures (let st_pre = cur_thread_state_pre il i in
                     let st_post = cur_thread_state_post il i in
                     st_post == V.verify_step (I.index il i) st_pre))
+
+val lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{tid < n})
+  (il: verifiable_log vspec n) (i: seq_index il)
+  : Lemma (requires (tid <> src il i))
+          (ensures (let st_pre = IF.to_pre_fn (thread_state tid) il i in
+                    let st_post = IF.to_post_fn (thread_state tid) il i in
+                    st_pre == st_post))
 
 let blum_add_elem #vspec #n (ep: epoch) = cond_idxfn #vspec #n #_ #_ (T.blum_add_elem #vspec #ep)
 

@@ -3,35 +3,9 @@ module Zeta.EAC
 open Zeta.SeqMachine
 open Zeta.SeqAux
 
-let eac_state_of_base_key
-  (#app: app_params)
-  (k: base_key)
-  (l: vlog_ext app)
-  : eac_state app k
-  = seq_machine_run (eac_smk app k) l
-
-let eac_state_transition_aux
-  (#app: app_params)
-  (k: base_key)
-  (l: vlog_ext app {length l > 0})
-  : Lemma (ensures (let open Zeta.SeqAux in
-                    let n = length l - 1 in
-                    let l' = prefix l n in
-                    let ee = index l n in
-                    let es' = eac_state_of_base_key k l' in
-                    let es = eac_state_of_base_key k l in
-                    es = eac_add ee es'))
-          [SMTPat (eac_state_of_base_key k l)]
-  = let n = length l - 1 in
-    let l' = prefix l n in
-    let ee = index l n in
-    let smk = eac_smk app k in
-    lemma_hprefix_append_telem l;
-    lemma_reduce_append (init_state smk) (trans_fn smk) l' ee
-
 let eac_state_transition
   (#app: app_params)
-  (k: key app)
+  (k: base_key)
   (l: vlog_ext app {length l > 0})
   : Lemma (ensures (let open Zeta.SeqAux in
                     let n = length l - 1 in
@@ -40,8 +14,13 @@ let eac_state_transition
                     let es' = eac_state_of_key k l' in
                     let es = eac_state_of_key k l in
                     es = eac_add ee es'))
-  = let bk = to_base_key k in
-    eac_state_transition_aux bk l
+          [SMTPat (eac_state_of_key k l)]
+  = let n = length l - 1 in
+    let l' = prefix l n in
+    let ee = index l n in
+    let smk = eac_smk app k in
+    lemma_hprefix_append_telem l;
+    lemma_reduce_append (init_state smk) (trans_fn smk) l' ee
 
 let eac_empty_log
   (#app: app_params)
@@ -125,7 +104,7 @@ let eac_induction_step_helper
           \/
           Some? o /\
           (let k = Some?.v o in
-           eac_state_of_base_key k l = EACFail)
+           eac_state_of_key k l = EACFail)
     }
   = let n = length l - 1 in
     let l' = prefix l n in
@@ -188,10 +167,9 @@ let rec eac_implies_prefix_eac
 let lemma_eac_state_of_key
   (#app: app_params)
   (l: eac_log app)
-  (k: key app)
+  (k: base_key)
   : Lemma (ensures (eac_state_of_key k l <> EACFail))
-  = let bk = to_base_key k in
-    let smk = eac_smk app bk in
+  = let smk = eac_smk app k in
     assert(valid smk l);
     ()
 
@@ -224,7 +202,8 @@ let is_eac_log (#app: app_params) (l:vlog_ext app): (r:bool{r <==> eac l})
 
 let eac_value_base (#app: app_params) (k: key app) (l: eac_log app)
   : value app
-  = let es = eac_state_of_key k l in
+  = let bk = to_base_key k in
+    let es = eac_state_of_key bk l in
     match es with
     | EACInit -> init_value k
     | EACInStore _ gk v -> if gk = k then v else init_value k
@@ -238,12 +217,12 @@ let rec lemma_eac_value_compatible (#app: app_params) (k: key app) (l: eac_log a
   = let n = length l in
     let bk = to_base_key k in
     let smk = eac_smk app bk in
-    lemma_eac_state_of_key l k;
+    lemma_eac_state_of_key l bk;
     if n = 0 then
       lemma_empty_seq_init smk l
     else (
       let l' = prefix l (n - 1) in
-      let es' = eac_state_of_base_key bk l' in
+      let es' = eac_state_of_key bk l' in
       let ee = index l (n - 1) in
       let e = to_vlog_entry ee in
       lemma_eac_value_compatible k l';
@@ -338,8 +317,8 @@ let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.ad
       assert(Zeta.SeqMachine.valid eac_smk l');         // running the state machine on l' results in valid state
       assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
 
-      let es' = eac_state_of_base_key bk' l' in
-      let es = eac_state_of_base_key bk' l in
+      let es' = eac_state_of_key bk' l' in
+      let es = eac_state_of_key bk' l in
 
       assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
       assert(es = eac_add_app ee es');  // .. since ee is App?
@@ -376,8 +355,8 @@ let non_ref_key_eac_value_unchanged #app (l: eac_log app) (ak: app_key app.adm)
       assert(Zeta.SeqMachine.valid eac_smk l');         // running the state machine on l' results in valid state
       assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
 
-      let es' = eac_state_of_base_key bk l' in
-      let es = eac_state_of_base_key bk l in
+      let es' = eac_state_of_key bk l' in
+      let es = eac_state_of_key bk l in
 
       assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
       assert(es = eac_add_app ee es');  // .. since ee is App?
@@ -409,8 +388,8 @@ let eac_implies_appfn_success (#app: app_params) (l: eac_log app)
     let eac_smk = eac_smk app Root in
     assert(Zeta.SeqMachine.valid eac_smk l');
     assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
-    let es' = eac_state_of_base_key Root l' in
-    let es = eac_state_of_base_key Root l in
+    let es' = eac_state_of_key Root l' in
+    let es = eac_state_of_key Root l in
 
     assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
     assert(es = eac_add_app ee es');  // .. since ee is App?
@@ -439,8 +418,8 @@ let ref_key_value_change #app (l: eac_log app) (ak: app_key app.adm)
     assert(Zeta.SeqMachine.valid eac_smk l');         // running the state machine on l' results in valid state
     assert(Zeta.SeqMachine.valid eac_smk l);          // since (eac l)
 
-    let es' = eac_state_of_base_key bk l' in
-    let es = eac_state_of_base_key bk l in
+    let es' = eac_state_of_key bk l' in
+    let es = eac_state_of_key bk l in
 
     assert(es = eac_add ee es');      // es is obtained by running eac_add on ee and es'
     assert(es = eac_add_app ee es');  // .. since ee is App?
@@ -495,9 +474,9 @@ let eac_implies_input_consistent_key #app (l: eac_log app) (ak: app_key app.adm)
 
       //let idx = index_mem bk refkeys in
 
-      eac_state_transition_aux bk l;
-      //let es = eac_state_of_base_key bk l in
-      //let es' = eac_state_of_base_key bk l' in
+      eac_state_transition bk l;
+      //let es = eac_state_of_key bk l in
+      //let es' = eac_state_of_key bk l' in
       //assert(es = eac_add_app ee es');
 
       let eac_smk = eac_smk app bk in   // state machine for the leaf key

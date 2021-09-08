@@ -155,16 +155,15 @@ let eac_smk (app: app_params) (k: base_key) = SeqMachine EACInit EACFail (eac_ad
 (* the eac state of a key after processing log l *)
 let eac_state_of_key
   (#app: app_params)
-  (k: key app)
+  (k: base_key)
   (l: vlog_ext app)
-  : eac_state app (to_base_key k)
+  : eac_state app k
   = let open Zeta.SeqMachine in
-    let bk = to_base_key k in
-    seq_machine_run (eac_smk app bk) l
+    seq_machine_run (eac_smk app k) l
 
 val eac_state_transition
   (#app: app_params)
-  (k: key app)
+  (k: base_key)
   (l: vlog_ext app {length l > 0})
   : Lemma (ensures (let open Zeta.SeqAux in
                     let n = length l - 1 in
@@ -197,7 +196,7 @@ val eac_implies_prefix_eac
 val lemma_eac_state_of_key
   (#app: app_params)
   (l: eac_log app)
-  (k: key app)
+  (k: base_key)
   : Lemma (ensures (eac_state_of_key k l <> EACFail))
           [SMTPat (eac_state_of_key k l)]
 

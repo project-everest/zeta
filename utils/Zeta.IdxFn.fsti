@@ -279,3 +279,16 @@ let simple_filter_map (#a #b:eqtype) (f: a -> bool) (m: (x:a{f x}) -> b) (s: seq
   : seq b
   = let fm = simple_fm f m in
     filter_map fm s
+
+let seqfn_t (gs: gen_seq_spec) (b:_)
+  = s:gs.seq_t -> b
+
+let to_pre_fn (#gs #b:_) (f: seqfn_t gs b) (s: gs.seq_t) (i:seq_index s)
+  : b
+  = let s' = gs.prefix s i in
+    f s'
+
+let to_post_fn (#gs #b:_) (f: seqfn_t gs b) (s: gs.seq_t) (i:seq_index s)
+  : b
+  = let s' = gs.prefix s (i+1) in
+    f s'
