@@ -31,6 +31,9 @@ let lemma_verifier_correct
     lemma_appfn_calls_within_epoch epmax itsl;
     assert(G.appfn_calls (to_glog itsl_ep) = app_calls_ss);
 
+    lemma_add_evict_set_identical_glog epmax itsl;
+    assert(aems_equal_upto epmax itsl);
+
     if is_eac itsl_ep then (
       (* is_eac itsl_ep ==> this sequence is sequentially consistent *)
       lemma_eac_implies_appfn_calls_seq_consistent itsl_ep;
@@ -39,5 +42,4 @@ let lemma_verifier_correct
       hash_collision_contra app
     )
     else
-
-    admit()
+      Zeta.High.Verifier.EAC.lemma_neac_implies_hash_collision epmax itsl

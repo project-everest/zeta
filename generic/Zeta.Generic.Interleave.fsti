@@ -172,6 +172,9 @@ let aems_equal_for_epoch_prop #vspec #n (ep epmax: epoch) (il: verifiable_log vs
 let aems_equal_upto #vspec #n (epmax: epoch) (il: verifiable_log vspec n)
   = forall (ep: epoch). {:pattern aems_equal_for_epoch_prop ep epmax il} aems_equal_for_epoch_prop ep epmax il
 
+val lemma_add_evict_set_identical_glog (#vspec #n:_) (epmax: epoch) (il: verifiable_log vspec n)
+  : Lemma (ensures (aems_equal_upto epmax il <==> G.aems_equal_upto epmax (to_glog il)))
+
 let appfn_calls (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : seq (Zeta.AppSimulate.appfn_call_res vspec.app)
   = let fm = IF.to_fm to_appfn_call_res in
