@@ -146,6 +146,7 @@ val get_record_set (#vspec: verifier_spec_base) (ss: S.seq (vspec.slot_t)) (vtls
   (let record_t = app_record vspec.app.adm in
    ors: option (S.seq record_t) {Some? ors ==> (let rs = Some?.v ors in
                                                 S.length rs = S.length ss /\
+                                                SA.distinct_elems ss /\
                                                 distinct_keys #vspec.app.adm rs)})
 
 let get_record_set_succ #vspec

@@ -28,6 +28,12 @@ let verifiable_log (app:_) (n:nat)
 val mk_vlog_entry_ext (#app: app_params) (#n:nat)
   : IF.idxfn_t (gen_seq app n) (vlog_entry_ext app)
 
+val vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
+  : Lemma (ensures (let ee = mk_vlog_entry_ext il i in
+                    let e = I.index il i in
+                    e = to_vlog_entry ee))
+          [SMTPat (mk_vlog_entry_ext il i)]
+
 let vlog_ext_of_il_log (#app: app_params) (#n:nat)
   (il: verifiable_log app n)
   : seq (vlog_entry_ext app)
@@ -40,10 +46,6 @@ let eac_log (app: app_params) (n:nat) = il: verifiable_log app n {is_eac il}
 
 let neac_log (app: app_params) (n:nat) = il: verifiable_log app n {not (is_eac il)}
 
-val eac_boundary (#app #n:_) (il: neac_log app n)
-  : (i: seq_index il{is_eac (prefix il i) /\
-                     ~ (is_eac (prefix il (i+1)))})
-
 val lemma_eac_implies_prefix_eac (#app #n:_) (il: verifiable_log app n) (i: nat{i <= S.length il})
   : Lemma (ensures (is_eac il ==> is_eac (prefix il i)))
           [SMTPat (prefix il i)]
@@ -51,3 +53,13 @@ val lemma_eac_implies_prefix_eac (#app #n:_) (il: verifiable_log app n) (i: nat{
 val lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (let gl = to_glog il in
                     Zeta.AppSimulate.seq_consistent (G.appfn_calls gl)))
+
+val eac_boundary (#app #n:_) (il: neac_log app n)
+  : (i: seq_index il{is_eac (prefix il i) /\
+                     ~ (is_eac (prefix il (i+1)))})
+
+(* it can never happen that the verifier succeeds but eac fails in an app log entry *)
+val eac_boundary_not_appfn (#app #n:_) (il: neac_log app n)
+  : Lemma (ensures (let i = eac_boundary il in
+                    let e = I.index il i in
+                    not (V.is_appfn e)))

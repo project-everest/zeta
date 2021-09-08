@@ -152,6 +152,12 @@ let cur_thread_state_post (#vspec: verifier_spec) (#n:_)
   = let s = src il i in
     thread_state_post s il i
 
+val lemma_cur_thread_state_extend (#vspec: verifier_spec) (#n:_)
+  (il: verifiable_log vspec n) (i: seq_index il)
+  : Lemma (ensures (let st_pre = cur_thread_state_pre il i in
+                    let st_post = cur_thread_state_post il i in
+                    st_post == V.verify_step (I.index il i) st_pre))
+
 let blum_add_elem #vspec #n (ep: epoch) = cond_idxfn #vspec #n #_ #_ (T.blum_add_elem #vspec #ep)
 
 let blum_evict_elem #vspec #n (ep: epoch) = cond_idxfn #vspec #n #_ #_ (T.blum_evict_elem #_ #ep)

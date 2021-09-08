@@ -58,6 +58,13 @@ let thread_state_post (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n})
   : IF.idxfn_t (gen_seq vspec n) (v:vspec.vtls_t {vspec.valid v})
   = admit()
 
+let lemma_cur_thread_state_extend (#vspec: verifier_spec) (#n:_)
+  (il: verifiable_log vspec n) (i: seq_index il)
+  : Lemma (ensures (let st_pre = cur_thread_state_pre il i in
+                    let st_post = cur_thread_state_post il i in
+                    st_post == V.verify_step (I.index il i) st_pre))
+  = admit()
+
 let lemma_add_evict_set_identical_glog_aux (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
   : Lemma (ensures (add_set ep il == G.add_set ep (to_glog il) /\
                     evict_set ep il == G.evict_set ep (to_glog il)))
