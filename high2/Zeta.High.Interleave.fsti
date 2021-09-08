@@ -47,9 +47,6 @@ val eac_boundary (#app #n:_) (il: neac_log app n)
 val lemma_eac_implies_prefix_eac (#app #n:_) (il: eac_log app n) (i: nat{i <= S.length il})
   : Lemma (ensures (is_eac (prefix il i)))
 
-let appfn_calls (#app #n:_) (il: eac_log app n)
-  : seq (Zeta.AppSimulate.appfn_call_res app)
-  = GI.appfn_calls il
-
-val lemma_eac_implies_appfn_valid (#app #n:_) (il: eac_log app n)
-  : Lemma (ensures (Zeta.AppSimulate.valid_call_result (appfn_calls il)))
+val lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
+  : Lemma (ensures (let gl = to_glog il in
+                    Zeta.AppSimulate.seq_consistent (G.appfn_calls gl)))

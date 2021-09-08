@@ -23,16 +23,31 @@ let cond_idxfn_has_prefix_prop (#vspec #n #b #f:_) (m: T.cond_idxfn_t b f)
   : Lemma (ensures (IF.cond_prefix_property #(gen_seq vspec n) #_ #(idxfn f) (cond_idxfn_base m)))
   = admit()
 
+let lemma_cond_idxfn (#vspec #n:_) (#b: eqtype) (#f:_) (m: T.cond_idxfn_t b f)
+  (il: verifiable_log vspec n)
+  : Lemma (ensures (let fm_il = to_fm (cond_idxfn_il #vspec #n #_ #_ m) in
+                    let ilb = IF.filter_map fm_il il in
+                    let fm_s = to_fm (cond_idxfn #vspec #n #_ #_ m) in
+                    let sb = IF.filter_map fm_s il in
+                    sb = i_seq ilb))
+  = admit()
+
 let lemma_filter_map (#vspec #n:_) (#b:eqtype) (#f:_) (m: T.cond_idxfn_t b f)
     (il: verifiable_log vspec n) (i: seq_index il)
   : Lemma (ensures (let fmil = to_fm (cond_idxfn_il #vspec #n #_ #_ m) in
                     let ilb = IF.filter_map fmil il in
                     let fm = to_fm m in
                     let ssb = SF.filter_map (G.gen_sseq vspec) fm (to_glog il) in
-                    let fmil2 = to_fm (cond_idxfn #vspec #n #_ #_ m) in
-                    let sb = IF.filter_map fmil2 il in
-                    ssb = s_seq ilb /\
-                    sb = i_seq ilb))
+                    ssb = s_seq ilb))
+  = admit()
+
+let lemma_cond_idxfn_interleave (#vspec #n:_) (#b: eqtype) (#f:_) (m: T.cond_idxfn_t b f)
+  (il: verifiable_log vspec n)
+  : Lemma (ensures (let fm_s = to_fm (cond_idxfn #vspec #n #_ #_ m) in
+                    let sb = IF.filter_map fm_s il in
+                    let fm = to_fm m in
+                    let ssb = SF.filter_map (G.gen_sseq vspec) fm (to_glog il) in
+                    I.interleave #b sb ssb))
   = admit()
 
 let thread_state_pre (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n})

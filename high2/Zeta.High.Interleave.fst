@@ -34,6 +34,7 @@ let lemma_eac_implies_prefix_eac (#app #n:_) (il: eac_log app n) (i: nat{i <= S.
   = let open Zeta.IdxFn in
     lemma_map_prefix mk_vlog_entry_ext il i
 
-let lemma_eac_implies_appfn_valid (#app #n:_) (il: eac_log app n)
-  : Lemma (ensures (Zeta.AppSimulate.valid_call_result (appfn_calls il)))
+let lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
+  : Lemma (ensures (let gl = to_glog il in
+                    Zeta.AppSimulate.seq_consistent (G.appfn_calls gl)))
   = admit()

@@ -94,3 +94,7 @@ let to_appfn_call_res (#vspec:_)
     let st = state_post tl i in
     assert(vspec.valid st);
     GV.appfn_result e st'
+
+let to_appfn_call_res_ep (#vspec:_) (ep: epoch)
+    (tl: verifiable_log vspec) (i: seq_index tl {is_appfn_within_epoch ep tl i})
+  = to_appfn_call_res tl i

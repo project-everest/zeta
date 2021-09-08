@@ -114,6 +114,12 @@ let is_within_epoch #vspec (ep: epoch)
 
 open Zeta.AppSimulate
 
+let is_appfn_within_epoch #vspec (ep: epoch)
+  = conj (is_appfn #vspec) (is_within_epoch #vspec ep)
+
 (* for an appfn entry, return the function call params and result *)
 val to_appfn_call_res (#vspec:_):
   cond_idxfn_t #vspec (appfn_call_res vspec.app) is_appfn
+
+val to_appfn_call_res_ep (#vspec:_) (ep: epoch):
+  cond_idxfn_t #vspec (appfn_call_res vspec.app) (is_appfn_within_epoch ep)

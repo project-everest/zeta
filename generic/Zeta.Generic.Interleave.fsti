@@ -5,6 +5,8 @@ open Zeta.SeqAux
 open Zeta.Time
 open Zeta.IdxFn
 open Zeta.SIdxFn
+open Zeta.MultiSet
+open Zeta.MultiSetHashDomain
 open Zeta.GenericVerifier
 open Zeta.Generic.Thread
 open Zeta.Generic.Global
@@ -105,16 +107,29 @@ let cond_idxfn_il #vspec #n (#b:eqtype) #f (m: T.cond_idxfn_t b f)
   : IF.cond_idxfn_t (elem_src b n) (idxfn f)
   = cond_idxfn_il_base #vspec #n #b #f m
 
+val lemma_cond_idxfn (#vspec #n:_) (#b: eqtype) (#f:_) (m: T.cond_idxfn_t b f)
+  (il: verifiable_log vspec n)
+  : Lemma (ensures (let fm_il = to_fm (cond_idxfn_il #vspec #n #_ #_ m) in
+                    let ilb = IF.filter_map fm_il il in
+                    let fm_s = to_fm (cond_idxfn #vspec #n #_ #_ m) in
+                    let sb = IF.filter_map fm_s il in
+                    sb = i_seq ilb))
+
 val lemma_filter_map (#vspec #n:_) (#b:eqtype) (#f:_) (m: T.cond_idxfn_t b f)
     (il: verifiable_log vspec n) (i: seq_index il)
   : Lemma (ensures (let fmil = to_fm (cond_idxfn_il #vspec #n #_ #_ m) in
                     let ilb = IF.filter_map fmil il in
                     let fm = to_fm m in
                     let ssb = SF.filter_map (G.gen_sseq vspec) fm (to_glog il) in
-                    let fmil2 = to_fm (cond_idxfn #vspec #n #_ #_ m) in
-                    let sb = IF.filter_map fmil2 il in
-                    ssb = s_seq ilb /\
-                    sb = i_seq ilb))
+                    ssb = s_seq ilb))
+
+val lemma_cond_idxfn_interleave (#vspec #n:_) (#b: eqtype) (#f:_) (m: T.cond_idxfn_t b f)
+  (il: verifiable_log vspec n)
+  : Lemma (ensures (let fm_s = to_fm (cond_idxfn #vspec #n #_ #_ m) in
+                    let sb = IF.filter_map fm_s il in
+                    let fm = to_fm m in
+                    let ssb = SF.filter_map (G.gen_sseq vspec) fm (to_glog il) in
+                    I.interleave #b sb ssb))
 
 (* the clock value at every index *)
 let clock #vspec #n = idxfn #_ #vspec #n (T.clock #vspec)
@@ -137,7 +152,33 @@ let cur_thread_state_post (#vspec: verifier_spec) (#n:_)
   = let s = src il i in
     thread_state_post s il i
 
+let blum_add_elem #vspec #n (ep: epoch) = cond_idxfn #vspec #n #_ #_ (T.blum_add_elem #vspec #ep)
+
+let blum_evict_elem #vspec #n (ep: epoch) = cond_idxfn #vspec #n #_ #_ (T.blum_evict_elem #_ #ep)
+
+let add_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
+  : mset_ms_hashfn_dom vspec.app
+  = let fm = IF.to_fm (blum_add_elem ep) in
+    seq2mset (IF.filter_map fm il)
+
+let evict_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
+  : mset_ms_hashfn_dom vspec.app
+  = let fm = IF.to_fm (blum_evict_elem ep) in
+    seq2mset (IF.filter_map fm il)
+
+let aems_equal_for_epoch_prop #vspec #n (ep epmax: epoch) (il: verifiable_log vspec n)
+  = ep <= epmax ==> add_set ep il == evict_set ep il
+
+let aems_equal_upto #vspec #n (epmax: epoch) (il: verifiable_log vspec n)
+  = forall (ep: epoch). {:pattern aems_equal_for_epoch_prop ep epmax il} aems_equal_for_epoch_prop ep epmax il
+
 let appfn_calls (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : seq (Zeta.AppSimulate.appfn_call_res vspec.app)
   = let fm = IF.to_fm to_appfn_call_res in
+    IF.filter_map fm il
+
+let appfn_calls_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
+  : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
+  = let ifn = cond_idxfn_il #vspec #n #_ #_ (T.to_appfn_call_res #vspec)  in
+    let fm = to_fm ifn in
     IF.filter_map fm il

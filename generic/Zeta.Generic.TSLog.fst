@@ -111,3 +111,14 @@ let rec create
 
       itsl
     )
+
+let prefix_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
+  : itsl': its_log vspec n {itsl' `prefix_of` itsl}
+  = admit()
+
+let lemma_appfn_calls_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
+  : Lemma (ensures (let itsl_ep = prefix_within_epoch ep itsl in
+                    let gl_ep = to_glog itsl_ep in
+                    let gl = to_glog itsl in
+                    G.appfn_calls gl_ep = G.appfn_calls_within_ep ep gl))
+  = admit()

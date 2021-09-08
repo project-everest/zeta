@@ -113,3 +113,10 @@ let appfn_calls
   (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
   = let fm = to_fm (T.to_appfn_call_res #vspec) in
     filter_map (gen_sseq vspec) fm gl
+
+let appfn_calls_within_ep
+  (#vspec: verifier_spec)
+  (ep: epoch)
+  (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
+  = let fm = to_fm (T.to_appfn_call_res_ep #vspec ep) in
+    filter_map (gen_sseq vspec) fm gl
