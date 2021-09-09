@@ -6,11 +6,12 @@ module T = Zeta.Generic.Thread
 (* clock is idxfn_t, so has the prefix property *)
 let lemma_prefix_clock_sorted (#vspec #n:_) (itsl: its_log vspec n) (i:nat{i <= length itsl}):
   Lemma (ensures (clock_sorted (prefix itsl i)))
-  = ()
+  = admit()
 
 let lemma_empty_verifiable_clock_sorted (vspec: verifier_spec) (n:_)
   : Lemma (ensures (let il = empty_interleaving (verifier_log_entry vspec) n in
                     verifiable il /\ clock_sorted il))
+          [SMTPat (empty_interleaving (verifier_log_entry vspec) n)]
   = admit()
 
 let lemma_empty_interleaving_empty_sseq (vspec: verifier_spec) (n:_)
@@ -114,6 +115,13 @@ let rec create
 
 let prefix_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
   : itsl': its_log vspec n {itsl' `prefix_of` itsl}
+  = admit()
+
+let prefix_within_epoch_correct (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n) (i: seq_index itsl)
+  : Lemma (ensures (let il' = prefix_within_epoch ep itsl in
+                    let l' = S.length il' in
+                    (i < l' ==> (clock itsl i).e <= ep) /\
+                    (i >= l' ==> (clock itsl i).e > ep)))
   = admit()
 
 let lemma_appfn_calls_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)

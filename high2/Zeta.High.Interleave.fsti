@@ -17,14 +17,9 @@ module HV = Zeta.High.Verifier
 module I = Zeta.Interleave
 module S = FStar.Seq
 module SA = Zeta.SeqAux
-module IF = Zeta.IdxFn
-module SF = Zeta.SIdxFn
 module EAC=Zeta.EAC
 
 let ilog (app: app_params) = Zeta.Generic.Interleave.ilog (high_verifier_spec app)
-
-let gen_seq (app: app_params)
-  = Zeta.Generic.Interleave.gen_seq (high_verifier_spec app)
 
 let verifiable_log (app:_) (n:nat)
   = il:ilog app n {verifiable il}
@@ -39,8 +34,8 @@ let has_some_add_of_key (#app #n:_) (bk: base_key) (il: verifiable_log app n)
 let exists_in_some_store (#app #n:_) (bk: base_key)  (il: verifiable_log app n)
   = exists tid. store_contains (thread_store tid il) bk
 
-val mk_vlog_entry_ext (#app: app_params) (#n:nat)
-  : IF.idxfn_t (gen_seq app n) (vlog_entry_ext app)
+val mk_vlog_entry_ext (#app: app_params) (#n:nat) (il: verifiable_log app n) (i: seq_index il)
+  : vlog_entry_ext app
 
 val vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
   : Lemma (ensures (let ee = mk_vlog_entry_ext il i in
@@ -48,17 +43,23 @@ val vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
                     e = to_vlog_entry ee))
           [SMTPat (mk_vlog_entry_ext il i)]
 
-let vlog_ext_of_il_log (#app: app_params) (#n:nat)
-  (il: verifiable_log app n)
+val vlog_ext_of_il_log (#app: app_params) (#n:nat) (il: verifiable_log app n)
   : seq (vlog_entry_ext app)
-  = IF.map mk_vlog_entry_ext il
 
 val is_eac (#app #n:_) (il: verifiable_log app n)
   : b:bool{b <==> eac (vlog_ext_of_il_log il)}
 
 (* state after processing the i'th element *)
-val eac_state_of_key (#app #n:_) (k: base_key)
-  : IF.seqfn_t (gen_seq app n) (eac_state app k)
+val eac_state_of_key (#app #n:_) (k: base_key) (il: verifiable_log app n)
+  : eac_state app k
+
+let eac_state_of_key_pre (#app #n:_) (k: base_key) (il: verifiable_log app n) (i: seq_index il)
+  = let il' = prefix il i in
+    eac_state_of_key k il'
+
+let eac_state_of_key_post (#app #n:_) (k: base_key) (il: verifiable_log app n) (i: seq_index il)
+  = let il' = prefix il (i+1) in
+    eac_state_of_key k il'
 
 let eac_state_of_gkey (#app #n:_) (gk: key app) (il: verifiable_log app n)
   : (eac_state app (to_base_key gk))
@@ -83,8 +84,8 @@ val empty_implies_eac (#app #n:_) (il: verifiable_log app n)
 
 val eac_state_transition (#app #n:_) (k: base_key)
   (il: verifiable_log app n) (i: seq_index il)
-  : Lemma (ensures (let es_pre = IF.to_pre_fn (eac_state_of_key k) il i in
-                    let es_post = IF.to_post_fn (eac_state_of_key k) il i in
+  : Lemma (ensures (let es_pre =  eac_state_of_key_pre k il i in
+                    let es_post = eac_state_of_key_post k il i in
                     let smk = eac_smk app k in
                     let ee = mk_vlog_entry_ext il i in
                     es_post = eac_add ee es_pre))
@@ -168,6 +169,5 @@ val eac_boundary_not_appfn (#app #n:_) (il: neac_log app n)
 
 val eac_fail_key (#app #n:_) (il: neac_log app n)
   : k:base_key {let i = eac_boundary il in
-                IF.to_post_fn (eac_state_of_key k) il i = EACFail /\
-                IF.to_pre_fn (eac_state_of_key k) il i <> EACFail}
-
+                eac_state_of_key_post k il i = EACFail /\
+                eac_state_of_key_pre k il i <> EACFail}

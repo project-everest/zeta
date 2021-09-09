@@ -2,16 +2,20 @@ module Zeta.High.Verifier.EAC
 
 open Zeta.App
 open Zeta.Key
+open Zeta.Time
+open Zeta.MultiSetHashDomain
 open Zeta.GenericVerifier
 open Zeta.EAC
 open Zeta.High.Interleave
 
+module S = FStar.Seq
 module I = Zeta.Interleave
+module T = Zeta.Generic.Thread
+module G = Zeta.Generic.Global
 module GI=Zeta.Generic.Interleave
 module GTL=Zeta.Generic.TSLog
 module HI=Zeta.High.Interleave
 module HTL=Zeta.High.TSLog
-module IF=Zeta.IdxFn
 
 type failure_info (app:app_params) (n:nat) = {
   bi: nat;
@@ -24,7 +28,7 @@ let eac_failure (#app #n:_) (il: neac_log app n)
   : failure_info app n
   = let bi = eac_boundary il in
     let bk = eac_fail_key il in
-    let es = IF.to_pre_fn (eac_state_of_key bk) il bi in
+    let es = eac_state_of_key_pre bk il bi in
     let le = I.index il bi in
     { bi; bk; es; le}
 
@@ -37,8 +41,10 @@ let lemma_non_eac_init_addb
      fi.es = EACInit /\
      AddB? fi.le})
   = let fi = eac_failure itsl in
-    let e = I.prefix itsl fi.bi in
-    //let be = blum_add_elem itsl fi.bi in
+    let be = blum_add_elem itsl fi.bi in
+
+
+
 
     admit()
 

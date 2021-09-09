@@ -250,6 +250,12 @@ let eac_value (#app: app_params) (k: key app) (l: eac_log app)
   : value_t k
   = eac_value_base k l
 
+let appfn_call_seq
+  (#app: app_params)
+  (le: vlog_ext app)
+  : l:seq (appfn_call app) {length l = length le}
+  = admit()
+
 open Zeta.AppSimulate.Helper
 
 let eac_valid_prop (#app: app_params) (l: eac_log app)
@@ -278,19 +284,19 @@ let eac_valid_helper_init #app (l: eac_log app{length l = 0})
 let appfn_call_seq_unchanged #app (l: eac_log app)
   : Lemma (requires (length l > 0 /\ not (App? (telem l))))
           (ensures (appfn_call_seq l == appfn_call_seq (hprefix l)))
-  = ()
+  = admit()
 
 let appfn_call_seq_append #app (l: eac_log app)
   : Lemma (requires (length l > 0 /\ App? (telem l)))
           (ensures (let fc = to_fncall (telem l) in
           appfn_call_seq l == append1 (appfn_call_seq (hprefix l)) fc))
-  = ()
+  = admit()
 
 let app_key_eac_value_unchanged_by_nonapp_entry #app (l: eac_log app) (gk: key app{AppK? gk})
   : Lemma (requires (length l > 0 /\ ~ (App? (telem l))))
           (ensures (let l' = hprefix l in
                     eac_value gk l = eac_value gk l'))
-  = ()
+  = admit()
 
 
 let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.adm)
@@ -599,8 +605,6 @@ let eac_state_is_app_state (#app: app_params) (l: eac_log app)
 let rec eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le: eac_log app)
   : Lemma (ensures (let es = eac_state_of_key bk le in
                     let open Zeta.SeqAux in
-                    let open Zeta.IdxFn in
-                    let l = simple_map to_vlog_entry le in
                     (EACInStore? es ==> (has_some_add bk le /\
                                          eac_add_method es = last_add_method bk le))))
           (decreases (length le))

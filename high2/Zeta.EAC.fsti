@@ -233,12 +233,10 @@ let to_fncall (#app: app_params) (ee: vlog_entry_ext app {App? ee})
   = let App (RunApp fid_c arg_c _) inp_c = ee in
     {fid_c; arg_c; inp_c}
 
-let appfn_call_seq
+val appfn_call_seq
   (#app: app_params)
-  (l: vlog_ext app)
-  : seq (appfn_call app)
-  = let open Zeta.IdxFn in
-    simple_filter_map App? to_fncall l
+  (le: vlog_ext app)
+  : l:seq (appfn_call app){length le = length l}
 
 let eac_app_state #app (l: eac_log app) (ak: app_key app.adm)
   = let gk = AppK ak in
@@ -278,7 +276,5 @@ let last_add_method (#app: app_params) (bk: base_key) (le: vlog_ext app {has_som
 val eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le: eac_log app)
   : Lemma (ensures (let es = eac_state_of_key bk le in
                     let open Zeta.SeqAux in
-                    let open Zeta.IdxFn in
-                    let l = simple_map to_vlog_entry le in
                     (EACInStore? es ==> (has_some_add bk le /\
                                          eac_add_method es = last_add_method bk le))))

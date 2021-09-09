@@ -13,9 +13,11 @@ module T = Zeta.Generic.TSLog
 let its_log (app: app_params)
   = T.its_log (high_verifier_spec app)
 
-let neac_before_epoch (app n:_) (ep: epoch)
-  = itsl: its_log app n {not (is_eac (prefix_within_epoch ep itsl))}
+let is_neac_before_epoch (#app #n:_) (ep: epoch) (itsl: its_log app n)
+  = not (is_eac itsl) &&
+      (let bi = eac_boundary itsl in
+       let t = clock itsl bi in
+       t.e <= ep)
 
-val neac_before_epoch_implies_neac (#app #n:_) (ep: epoch) (itsl: neac_before_epoch app n ep)
-  : Lemma (ensures (not (is_eac itsl)))
-          [SMTPat (prefix_within_epoch ep itsl)]
+let neac_before_epoch (app n:_) (ep: epoch)
+  = itsl: its_log app n { is_neac_before_epoch ep itsl }

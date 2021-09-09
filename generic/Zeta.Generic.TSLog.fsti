@@ -4,7 +4,6 @@ open FStar.Seq
 open Zeta.SeqAux
 open Zeta.Interleave
 open Zeta.Time
-open Zeta.IdxFn
 open Zeta.GenericVerifier
 open Zeta.Generic.Thread
 open Zeta.Generic.Global
@@ -29,6 +28,12 @@ val create (#vspec:_) (gl: G.verifiable_log vspec): (itsl:its_log vspec (S.lengt
 
 val prefix_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
   : itsl': its_log vspec n {itsl' `prefix_of` itsl}
+
+val prefix_within_epoch_correct (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n) (i: seq_index itsl)
+  : Lemma (ensures (let il' = prefix_within_epoch ep itsl in
+                    let l' = S.length il' in
+                    (i < l' ==> (clock itsl i).e <= ep) /\
+                    (i >= l' ==> (clock itsl i).e > ep)))
 
 val lemma_appfn_calls_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
   : Lemma (ensures (let itsl_ep = prefix_within_epoch ep itsl in

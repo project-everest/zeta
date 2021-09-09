@@ -3,24 +3,24 @@ module Zeta.Generic.Thread
 (* if a thread log is verifiable, its prefix is verifiable *)
 let rec verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
   (tl:verifiable_log vspec) (i:nat{i <= length tl}):
-  Lemma (ensures (verifiable (prefix_base tl i)))
+  Lemma (ensures (verifiable (prefix tl i)))
         (decreases (length tl))
   = let n = length tl in
     if n = i then ()
-    else verifiable_implies_prefix_verifiable (prefix_base tl (n-1)) i
+    else verifiable_implies_prefix_verifiable (prefix tl (n-1)) i
 
 (* the state after processing i'th entry is obtained by applying the verify
  * step to the state before processing the i'th entry *)
 let lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl):
-  Lemma (ensures (state_post_base tl i ==
-                  verify_step (index tl i) (state_pre_base tl i)))
+  Lemma (ensures (state_post tl i ==
+                  verify_step (index tl i) (state_pre tl i)))
+        [SMTPat (state_post tl i)]
   = ()
 
 (* clock after processing i entries of the log *)
-let clock_base #vspec (tl: verifiable_log vspec) (i: seq_index tl)
-  = vspec.clock (verify (prefix tl (i+1)))
-
-let clock #vspec: (idxfn_t vspec timestamp) = clock_base #vspec
+let clock_base #vspec (tl: verifiable_log vspec)
+  = let vs = state tl in
+    vspec.clock vs
 
 #push-options "--z3rlimit_factor 3"
 
@@ -46,32 +46,23 @@ let rec lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
     if n = 0 then ()
     else lemma_thread_id_state (prefix tl (n-1))
 
-let is_blum_add #vspec (tl: verifiable_log vspec) (i: seq_index tl)
-  = GV.is_blum_add (index tl i)
-
 let blum_add_elem #vspec (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
   : ms_hashfn_dom vspec.app
   = match (index tl i) with
     | AddB r _ t tid ->
       MHDom r t tid
 
-let is_blum_evict #vspec (tl: verifiable_log vspec) (i: seq_index tl)
-  = GV.is_blum_evict (index tl i)
-
-let blum_evict_elem #vspec (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
+let blum_evict_elem (#vspec: verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
   : ms_hashfn_dom vspec.app
   = let e = index tl i in
     let st' = state_pre tl i in
     let st = state_post tl i in
-    assert(vspec.valid st);
     let s = evict_slot e in
     let t = blum_evict_timestamp e in
+    lemma_state_transition tl i;
     let r = Some?.v (vspec.get s st') in
     let tid = vspec.tid st' in
     MHDom r t tid
-
-let is_appfn (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
-  = GV.is_appfn (index tl i)
 
 let to_appfn_call_res (#vspec:_)
     (tl: verifiable_log vspec) (i: seq_index tl {is_appfn tl i})
@@ -80,3 +71,13 @@ let to_appfn_call_res (#vspec:_)
     let st = state_post tl i in
     assert(vspec.valid st);
     GV.appfn_result e st'
+
+let lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
+  : Lemma (ensures (let be = blum_add_elem tl i in
+                    be.t `ts_lt` clock tl i))
+  = admit()
+
+let lemma_evict_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
+  : Lemma (ensures (let be = blum_evict_elem tl i in
+                    be.t = clock tl i))
+  = admit()

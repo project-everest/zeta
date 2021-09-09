@@ -3,13 +3,11 @@ module Zeta.Generic.Thread
 open Zeta.Time
 open Zeta.MultiSetHashDomain
 open Zeta.GenericVerifier
-open Zeta.IdxFn
 
 module S = FStar.Seq
 module SA = Zeta.SeqAux
 module MSD = Zeta.MultiSetHashDomain
 module GV = Zeta.GenericVerifier
-module IF = Zeta.IdxFn
 
 (* a verifier log attached to a thread id *)
 let vlog (vspec: verifier_spec) = thread_id & verifier_log vspec
@@ -24,7 +22,7 @@ let index #vspec (tl: vlog vspec) (i: seq_index tl) =
   let _, l = tl in
   S.index l i
 
-let prefix_base #vspec (tl: vlog vspec) (i: nat {i <= length tl}): vlog _ =
+let prefix #vspec (tl: vlog vspec) (i: nat {i <= length tl}): vlog _ =
   let tid, l = tl in
   tid, SA.prefix l i
 
@@ -39,45 +37,40 @@ let verifiable_log vspec = tl: vlog vspec { verifiable tl }
 (* if a thread log is verifiable, its prefix is verifiable *)
 val verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
   (tl:verifiable_log vspec) (i:nat{i <= length tl}):
-  Lemma (ensures (verifiable (prefix_base tl i)))
-        [SMTPat (prefix_base tl i)]
+  Lemma (ensures (verifiable (prefix tl i)))
+        [SMTPat (prefix tl i)]
 
-let prefix #vspec (tl: verifiable_log vspec) (i: nat{i <= length tl})
-  : tl': verifiable_log vspec {length tl' = i}
-  = prefix_base tl i
+(* the verifier state after processing a log *)
+let state #vspec (tl:verifiable_log vspec)
+  : (v:vspec.vtls_t{vspec.valid v})
+  = verify tl
 
-(* the verifier state after processing i entries *)
-let state_pre_base #vspec (tl: verifiable_log vspec) (i:nat{i <= length tl}) =
-  (verify (prefix tl i))
+let state_pre (#vspec: verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl)
+  = let tl' = prefix tl i in
+    state tl'
 
-let state_post_base #vspec (tl: verifiable_log vspec) (i:seq_index tl)
-  = (verify (prefix tl (i+1)))
+let state_post (#vspec: verifier_spec)(tl: verifiable_log vspec) (i: seq_index tl)
+  = let tl' = prefix tl (i+1) in
+    state tl'
 
 (* the state after processing i'th entry is obtained by applying the verify
  * step to the state before processing the i'th entry *)
 val lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl):
-  Lemma (ensures (state_post_base tl i ==
-                  verify_step (index tl i) (state_pre_base tl i)))
-        [SMTPat (verify_step (index tl i) (state_pre_base tl i))]
+  Lemma (ensures (state_post tl i ==
+                  verify_step (index tl i) (state_pre tl i)))
+        [SMTPat (state_post tl i)]
 
-let gen_seq (vspec: verifier_spec): gen_seq_spec = {
-  seq_t = verifiable_log vspec;
-  length;
-  prefix
-}
+val clock_base (#vspec:_) (tl: verifiable_log vspec): timestamp
 
-let idxfn_t (vspec: verifier_spec) (b: _) = IF.idxfn_t (gen_seq vspec) b
+let clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
+  = let tl' = prefix tl (i+1) in
+    clock_base tl'
 
-let cond_idxfn_t #vspec (b:_) (f:idxfn_t vspec bool)
-  = IF.cond_idxfn_t b f
+let clock_post #vspec = clock #vspec
 
-val clock (#vspec:_) : (idxfn_t vspec timestamp)
-
-let state_pre #vspec : idxfn_t vspec _
-  = state_pre_base #vspec
-
-let state_post #vspec : idxfn_t vspec _
-  = state_post_base #vspec
+let clock_pre (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
+  = let tl' = prefix tl i in
+    clock_base tl'
 
 (* the epoch of the i'th entry *)
 let epoch_of #vspec (tl: verifiable_log vspec) (i: seq_index tl)
@@ -99,20 +92,22 @@ val lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
   Lemma (ensures (let tid, _ = tl in
                   vspec.tid (verify tl) = tid))
 
-val is_blum_add (#vspec:_): idxfn_t vspec bool
+let is_blum_add (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
+  = GV.is_blum_add (index tl i)
 
-val blum_add_elem (#vspec:_):
-  cond_idxfn_t #vspec (ms_hashfn_dom vspec.app) is_blum_add
+val blum_add_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
+  : ms_hashfn_dom vspec.app
 
 let is_blum_add_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
   : bool
   = is_blum_add tl i &&
     (let be = blum_add_elem tl i in be.t.e = ep)
 
-val is_blum_evict (#vspec:_): idxfn_t vspec bool
+let is_blum_evict (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
+  = GV.is_blum_evict (index tl i)
 
-val blum_evict_elem (#vspec:_):
-  cond_idxfn_t #vspec (ms_hashfn_dom vspec.app) is_blum_evict
+val blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
+  : ms_hashfn_dom vspec.app
 
 let is_blum_evict_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
   : bool
@@ -120,13 +115,24 @@ let is_blum_evict_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_i
     (let be = blum_evict_elem tl i in be.t.e = ep)
 
 (* is the i'th entry an app function *)
-val is_appfn (#vspec:_): idxfn_t vspec bool
+let is_appfn (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
+  = GV.is_appfn (index tl i)
 
 open Zeta.AppSimulate
 
-let is_appfn_within_epoch #vspec (ep: epoch)
-  = conj (is_appfn #vspec) (is_within_epoch #vspec ep)
+let is_appfn_within_epoch #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
+  = is_appfn tl i && is_within_epoch ep tl i
 
 (* for an appfn entry, return the function call params and result *)
-val to_appfn_call_res (#vspec:_):
-  cond_idxfn_t #vspec (appfn_call_res vspec.app) is_appfn
+val to_appfn_call_res (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
+  : appfn_call_res vspec.app
+
+val lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
+  : Lemma (ensures (let be = blum_add_elem tl i in
+                    be.t `ts_lt` clock tl i))
+          [SMTPat (blum_add_elem tl i)]
+
+val lemma_evict_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
+  : Lemma (ensures (let be = blum_evict_elem tl i in
+                    be.t = clock tl i))
+          [SMTPat (blum_evict_elem tl i)]

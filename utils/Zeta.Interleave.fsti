@@ -3,7 +3,6 @@ module Zeta.Interleave
 open FStar.Seq
 open Zeta.SeqAux
 open Zeta.SSeq
-open Zeta.IdxFn
 
 module S = FStar.Seq
 module SA = Zeta.SeqAux
@@ -18,7 +17,7 @@ type elem_src (a:eqtype) (n:nat) = {
 type interleaving (a:eqtype) (n:nat) = seq (elem_src a n)
 
 let prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
-  : il':interleaving a n {length il' = i}
+  : interleaving a n
   = SA.prefix il i
 
 val i_seq (#a:_) (#n:nat) (il: interleaving a n)

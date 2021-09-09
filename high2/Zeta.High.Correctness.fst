@@ -9,8 +9,11 @@ open Zeta.Generic.Interleave
 open Zeta.Generic.TSLog
 open Zeta.High.Global
 open Zeta.High.Interleave
+open Zeta.High.TSLog
 open Zeta.HashCollision
 
+module S = FStar.Seq
+module SA = Zeta.SeqAux
 module I = Zeta.Interleave
 module G = Zeta.Generic.Global
 module HG = Zeta.High.Global
@@ -41,5 +44,25 @@ let lemma_verifier_correct
 
       hash_collision_contra app
     )
-    else
+    else (
+      let l_ep = S.length itsl_ep in
+
+      let aux ()
+        : Lemma (ensures (not (is_eac itsl)))
+        = if is_eac itsl then
+            lemma_eac_implies_prefix_eac itsl l_ep
+          else ()
+      in
+      aux();
+
+      let aux()
+        : Lemma (ensures (is_neac_before_epoch epmax itsl))
+        = let i = eac_boundary itsl in
+          prefix_within_epoch_correct epmax itsl i;
+          if i < l_ep then ()
+          else lemma_eac_implies_prefix_eac (prefix itsl i) l_ep
+      in
+      aux();
+
       Zeta.High.Verifier.EAC.lemma_neac_implies_hash_collision epmax itsl
+    )

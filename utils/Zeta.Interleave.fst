@@ -1,6 +1,7 @@
 module Zeta.Interleave
+open Zeta.IdxFnInt
 
-module IF = Zeta.IdxFn
+module IF = Zeta.IdxFnInt
 
 let seq_index = SA.seq_index
 
