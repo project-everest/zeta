@@ -130,7 +130,8 @@ type fm_t (gs:_) (b:_) =
   | FM: f: idxfn_t gs bool   ->
         m: cond_idxfn_t b f -> fm_t gs b
 
-let to_fm (#gs:_) (#b:_) (#f:idxfn_t gs bool) (m: cond_idxfn_t b f)
+let to_fm (#gs:_) (#b:_) (f:idxfn_t gs bool) (m: cond_idxfn_t b f)
+  : fm_t gs b
   = FM f m
 
 (* apply the filter fm.f on s to get a filtered sequence; apply fm.m on each element to get the result *)

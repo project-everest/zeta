@@ -73,6 +73,57 @@ let lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
                     Zeta.AppSimulate.seq_consistent (G.appfn_calls gl)))
   = admit()
 
+let eac_implies_eac_state_valid (#app #n:_) (k: base_key)
+  (il: verifiable_log app n)
+  : Lemma (ensures (is_eac il ==> eac_state_of_key k il <> EACFail))
+  = admit()
+
+let eac_state_of_root_init (#app #n:_) (il: eac_log app n)
+  : Lemma (ensures (eac_state_of_key Zeta.BinTree.Root il = EACInit))
+  = admit()
+
+let eac_state_active_implies_prev_add (#app #n:_) (k: base_key) (il: eac_log app n)
+  : Lemma (ensures (is_eac_state_active k il <==> has_some_add_of_key k il))
+  = admit()
+
+(* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
+let stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {EACInStore? (eac_state_of_key k il)})
+  : tid:nat{tid < n /\ store_contains (thread_store tid il) k}
+  = admit()
+
+let lemma_instore (#app #n:_) (bk: base_key) (il: eac_log app n)
+  : Lemma (ensures (exists_in_some_store bk il <==> EACInStore? (eac_state_of_key bk il)))
+  = admit()
+
+(* uniqueness: k is never in two stores *)
+let key_in_unique_store (#app #n:_) (k:base_key) (il: eac_log app n) (tid1 tid2: thread_id il)
+  : Lemma (ensures (tid1 <> tid2 ==>
+                    ~ (store_contains (thread_store tid1 il) k /\ store_contains (thread_store tid2 il) k)))
+  = admit()
+
+let to_gen_key (#app #n:_) (bk: base_key) (il: eac_log app n {is_eac_state_active bk il})
+  : gk:key app {to_base_key gk = bk}
+  = admit()
+
+let stored_key_is_correct (#app #n:_) (bk: base_key) (il: eac_log app n{EACInStore? (eac_state_of_key bk il)})
+  : Lemma (ensures (let tid = stored_tid bk il in
+                    let st = thread_store tid il in
+                    stored_key st bk = to_gen_key bk il))
+  = admit()
+
+let lemma_root_in_store0 (#app #n:_) (il: verifiable_log app n)
+  : Lemma (requires (n > 0))
+          (ensures (store_contains (thread_store 0 il) Zeta.BinTree.Root))
+  = admit()
+
+let lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: verifiable_log app n)
+  : Lemma (not (store_contains (thread_store tid il) Zeta.BinTree.Root))
+  = admit()
+
+let eac_value (#app #n:_) (k: key app) (il: eac_log app n)
+  : value_t k
+  = admit()
+
 let eac_boundary (#app #n:_) (il: neac_log app n)
   : (i: seq_index il{is_eac (prefix il i) /\
                      ~ (is_eac (prefix il (i+1)))})
@@ -103,3 +154,9 @@ let eac_boundary_not_appfn (#app #n:_) (il: neac_log app n)
       admit()
     )
     else ()
+
+let eac_fail_key (#app #n:_) (il: neac_log app n)
+  : k:base_key {let i = eac_boundary il in
+                IF.to_post_fn (eac_state_of_key k) il i = EACFail /\
+                IF.to_pre_fn (eac_state_of_key k) il i <> EACFail}
+  = admit()

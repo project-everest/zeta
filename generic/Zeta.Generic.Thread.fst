@@ -46,26 +46,19 @@ let rec lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
     if n = 0 then ()
     else lemma_thread_id_state (prefix tl (n-1))
 
-let is_blum_add_base #vspec (tl: verifiable_log vspec) (i: seq_index tl)
+let is_blum_add #vspec (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_blum_add (index tl i)
 
-let blum_add_elem_base #vspec (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add_base tl i})
+let blum_add_elem #vspec (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
   : ms_hashfn_dom vspec.app
   = match (index tl i) with
     | AddB r _ t tid ->
       MHDom r t tid
 
-let is_blum_add #vspec (ep:epoch) (tl: verifiable_log vspec) (i:seq_index tl)
-  = is_blum_add_base tl i &&
-    (let be = blum_add_elem_base tl i in be.t.e = ep)
-
-let blum_add_elem (#vspec:_) (#ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl { is_blum_add ep tl i })
-  = blum_add_elem_base tl i
-
-let is_blum_evict_base #vspec (tl: verifiable_log vspec) (i: seq_index tl)
+let is_blum_evict #vspec (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_blum_evict (index tl i)
 
-let blum_evict_elem_base #vspec (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict_base tl i})
+let blum_evict_elem #vspec (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
   : ms_hashfn_dom vspec.app
   = let e = index tl i in
     let st' = state_pre tl i in
@@ -77,13 +70,6 @@ let blum_evict_elem_base #vspec (tl: verifiable_log vspec) (i: seq_index tl{is_b
     let tid = vspec.tid st' in
     MHDom r t tid
 
-let is_blum_evict #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
-  = is_blum_evict_base tl i &&
-    (let be = blum_evict_elem_base tl i in be.t.e = ep)
-
-let blum_evict_elem #vspec (#ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict ep tl i})
-  = blum_evict_elem_base tl i
-
 let is_appfn (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_appfn (index tl i)
 
@@ -94,7 +80,3 @@ let to_appfn_call_res (#vspec:_)
     let st = state_post tl i in
     assert(vspec.valid st);
     GV.appfn_result e st'
-
-let to_appfn_call_res_ep (#vspec:_) (ep: epoch)
-    (tl: verifiable_log vspec) (i: seq_index tl {is_appfn_within_epoch ep tl i})
-  = to_appfn_call_res tl i

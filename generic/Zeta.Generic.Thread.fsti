@@ -84,6 +84,11 @@ let epoch_of #vspec (tl: verifiable_log vspec) (i: seq_index tl)
   = let t = clock tl i in
     t.e
 
+(* is the i'th entry within epoch ep *)
+let is_within_epoch #vspec (ep: epoch)
+  (tl: verifiable_log vspec) (i: seq_index tl)
+  = epoch_of tl i <= ep
+
 (* clock is monotonic *)
 val lemma_clock_monotonic (#vspec:verifier_spec)
   (tl: verifiable_log vspec) (i:nat) (j: seq_index tl {j >= i}):
@@ -94,23 +99,28 @@ val lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
   Lemma (ensures (let tid, _ = tl in
                   vspec.tid (verify tl) = tid))
 
-val is_blum_add (#vspec:_) (ep: epoch): idxfn_t vspec bool
+val is_blum_add (#vspec:_): idxfn_t vspec bool
 
-val blum_add_elem (#vspec:_) (#ep: epoch):
-  cond_idxfn_t #vspec (ms_hashfn_dom vspec.app) (is_blum_add ep)
+val blum_add_elem (#vspec:_):
+  cond_idxfn_t #vspec (ms_hashfn_dom vspec.app) is_blum_add
 
-val is_blum_evict (#vspec:_) (ep: epoch): idxfn_t vspec bool
+let is_blum_add_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
+  : bool
+  = is_blum_add tl i &&
+    (let be = blum_add_elem tl i in be.t.e = ep)
 
-val blum_evict_elem (#vspec:_) (#ep: epoch):
-  cond_idxfn_t #vspec (ms_hashfn_dom vspec.app) (is_blum_evict ep)
+val is_blum_evict (#vspec:_): idxfn_t vspec bool
+
+val blum_evict_elem (#vspec:_):
+  cond_idxfn_t #vspec (ms_hashfn_dom vspec.app) is_blum_evict
+
+let is_blum_evict_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
+  : bool
+  = is_blum_evict tl i &&
+    (let be = blum_evict_elem tl i in be.t.e = ep)
 
 (* is the i'th entry an app function *)
 val is_appfn (#vspec:_): idxfn_t vspec bool
-
-(* is the i'th entry within epoch ep *)
-let is_within_epoch #vspec (ep: epoch)
-  (tl: verifiable_log vspec) (i: seq_index tl)
-  = epoch_of tl i <= ep
 
 open Zeta.AppSimulate
 
@@ -120,6 +130,3 @@ let is_appfn_within_epoch #vspec (ep: epoch)
 (* for an appfn entry, return the function call params and result *)
 val to_appfn_call_res (#vspec:_):
   cond_idxfn_t #vspec (appfn_call_res vspec.app) is_appfn
-
-val to_appfn_call_res_ep (#vspec:_) (ep: epoch):
-  cond_idxfn_t #vspec (appfn_call_res vspec.app) (is_appfn_within_epoch ep)

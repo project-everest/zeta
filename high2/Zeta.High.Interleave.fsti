@@ -146,11 +146,11 @@ let stored_add_method (#app #n:_) (gk: key app) (il: eac_log app n{EACInStore? (
     add_method_of st bk
 
 (* the root is always in thread 0 *)
-val lemma_root_in_store0 (#app #n:_) (il: verifiable_log app n)
+val lemma_root_in_store0 (#app #n:_) (il: eac_log app n)
   : Lemma (requires (n > 0))
           (ensures (store_contains (thread_store 0 il) Zeta.BinTree.Root))
 
-val lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: verifiable_log app n)
+val lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: eac_log app n)
   : Lemma (not (store_contains (thread_store tid il) Zeta.BinTree.Root))
 
 val eac_value (#app #n:_) (k: key app) (il: eac_log app n)
@@ -165,4 +165,9 @@ val eac_boundary_not_appfn (#app #n:_) (il: neac_log app n)
   : Lemma (ensures (let i = eac_boundary il in
                     let e = I.index il i in
                     not (V.is_appfn e)))
+
+val eac_fail_key (#app #n:_) (il: neac_log app n)
+  : k:base_key {let i = eac_boundary il in
+                IF.to_post_fn (eac_state_of_key k) il i = EACFail /\
+                IF.to_pre_fn (eac_state_of_key k) il i <> EACFail}
 

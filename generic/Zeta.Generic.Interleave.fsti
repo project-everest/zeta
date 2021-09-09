@@ -107,27 +107,27 @@ let cond_idxfn_il #vspec #n (#b:eqtype) #f (m: T.cond_idxfn_t b f)
   : IF.cond_idxfn_t (elem_src b n) (idxfn f)
   = cond_idxfn_il_base #vspec #n #b #f m
 
-val lemma_cond_idxfn (#vspec #n:_) (#b: eqtype) (#f:_) (m: T.cond_idxfn_t b f)
+val lemma_cond_idxfn (#vspec #n:_) (#b: eqtype) (f:_) (m: T.cond_idxfn_t b f)
   (il: verifiable_log vspec n)
-  : Lemma (ensures (let fm_il = to_fm (cond_idxfn_il #vspec #n #_ #_ m) in
+  : Lemma (ensures (let fm_il = to_fm (idxfn f) (cond_idxfn_il #vspec #n #_ #_ m) in
                     let ilb = IF.filter_map fm_il il in
-                    let fm_s = to_fm (cond_idxfn #vspec #n #_ #_ m) in
+                    let fm_s = to_fm (idxfn f) (cond_idxfn #vspec #n #_ #_ m) in
                     let sb = IF.filter_map fm_s il in
                     sb = i_seq ilb))
 
 val lemma_filter_map (#vspec #n:_) (#b:eqtype) (#f:_) (m: T.cond_idxfn_t b f)
     (il: verifiable_log vspec n) (i: seq_index il)
-  : Lemma (ensures (let fmil = to_fm (cond_idxfn_il #vspec #n #_ #_ m) in
+  : Lemma (ensures (let fmil = to_fm (idxfn f) (cond_idxfn_il #vspec #n #_ #_ m) in
                     let ilb = IF.filter_map fmil il in
-                    let fm = to_fm m in
+                    let fm = to_fm f m in
                     let ssb = SF.filter_map (G.gen_sseq vspec) fm (to_glog il) in
                     ssb = s_seq ilb))
 
 val lemma_cond_idxfn_interleave (#vspec #n:_) (#b: eqtype) (#f:_) (m: T.cond_idxfn_t b f)
   (il: verifiable_log vspec n)
-  : Lemma (ensures (let fm_s = to_fm (cond_idxfn #vspec #n #_ #_ m) in
+  : Lemma (ensures (let fm_s = to_fm (idxfn f) (cond_idxfn #vspec #n #_ #_ m) in
                     let sb = IF.filter_map fm_s il in
-                    let fm = to_fm m in
+                    let fm = to_fm f m in
                     let ssb = SF.filter_map (G.gen_sseq vspec) fm (to_glog il) in
                     I.interleave #b sb ssb))
 
@@ -162,18 +162,18 @@ val lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{t
                     let st_post = IF.to_post_fn (thread_state tid) il i in
                     st_pre == st_post))
 
-let blum_add_elem #vspec #n (ep: epoch) = cond_idxfn #vspec #n #_ #_ (T.blum_add_elem #vspec #ep)
+let blum_add_elem #vspec #n = cond_idxfn #_ #n #_ #_ (T.blum_add_elem #vspec)
 
-let blum_evict_elem #vspec #n (ep: epoch) = cond_idxfn #vspec #n #_ #_ (T.blum_evict_elem #_ #ep)
+let blum_evict_elem #vspec #n = cond_idxfn #_ #n #_ #_ (T.blum_evict_elem #vspec)
 
 let add_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
   : mset_ms_hashfn_dom vspec.app
-  = let fm = IF.to_fm (blum_add_elem ep) in
+  = let fm = IF.to_fm (idxfn (T.is_blum_add_ep ep)) blum_add_elem in
     seq2mset (IF.filter_map fm il)
 
 let evict_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
   : mset_ms_hashfn_dom vspec.app
-  = let fm = IF.to_fm (blum_evict_elem ep) in
+  = let fm = IF.to_fm (idxfn (T.is_blum_evict_ep ep)) blum_evict_elem in
     seq2mset (IF.filter_map fm il)
 
 let aems_equal_for_epoch_prop #vspec #n (ep epmax: epoch) (il: verifiable_log vspec n)
@@ -187,11 +187,11 @@ val lemma_add_evict_set_identical_glog (#vspec #n:_) (epmax: epoch) (il: verifia
 
 let appfn_calls (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : seq (Zeta.AppSimulate.appfn_call_res vspec.app)
-  = let fm = IF.to_fm to_appfn_call_res in
+  = let fm = IF.to_fm (idxfn T.is_appfn) to_appfn_call_res in
     IF.filter_map fm il
 
 let appfn_calls_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
   = let ifn = cond_idxfn_il #vspec #n #_ #_ (T.to_appfn_call_res #vspec)  in
-    let fm = to_fm ifn in
+    let fm = to_fm (idxfn T.is_appfn) ifn in
     IF.filter_map fm il

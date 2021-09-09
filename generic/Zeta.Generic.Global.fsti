@@ -72,7 +72,7 @@ let add_set
   (gl: verifiable_log vspec): mset_ms_hashfn_dom vspec.app
   = let open Zeta.MultiSet.SSeq in
     (* filter map specification that filter by AddB? and maps them to blum add elem *)
-    let fm = to_fm (T.blum_add_elem #vspec #ep) in
+    let fm = to_fm (T.is_blum_add_ep ep) (T.blum_add_elem #vspec) in
     (* get a seq of seq of blum-add-elems and convert them to multiset *)
     sseq2mset (filter_map (gen_sseq vspec) fm gl)
 
@@ -82,7 +82,7 @@ let evict_set
   (ep: epoch)
   (gl: verifiable_log vspec): mset_ms_hashfn_dom vspec.app
   = let open Zeta.MultiSet.SSeq in
-    let fm = to_fm (T.blum_evict_elem #vspec #ep) in
+    let fm = to_fm (T.is_blum_evict_ep ep) (T.blum_evict_elem #vspec) in
     sseq2mset (filter_map (gen_sseq vspec) fm gl)
 
 (* verifiable log property that add- and evict sets are the same *)
@@ -111,12 +111,12 @@ let ms_verifiable_log #vspec (ep: epoch)
 let appfn_calls
   (#vspec: verifier_spec)
   (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
-  = let fm = to_fm (T.to_appfn_call_res #vspec) in
+  = let fm = to_fm (T.is_appfn #vspec) (T.to_appfn_call_res #vspec) in
     filter_map (gen_sseq vspec) fm gl
 
 let appfn_calls_within_ep
   (#vspec: verifier_spec)
   (ep: epoch)
   (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
-  = let fm = to_fm (T.to_appfn_call_res_ep #vspec ep) in
+  = let fm = to_fm (T.is_appfn_within_epoch #vspec ep) (T.to_appfn_call_res #vspec) in
     filter_map (gen_sseq vspec) fm gl
