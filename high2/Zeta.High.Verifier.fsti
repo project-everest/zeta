@@ -363,3 +363,17 @@ let add_method_of_entry (#app:_) (e: vlog_entry app{Zeta.GenericVerifier.is_add 
     match e with
     | AddM _ _ _ -> MAdd
     | AddB _ _ _ _ -> BAdd
+
+let refs_key #app (e: vlog_entry app) (k: base_key)
+  = let open Zeta.GenericVerifier in
+    let open FStar.Seq in
+    match e with
+    | AddM _ k' _ -> k' = k
+    | AddB _ k' _ _ -> k' = k
+    | EvictM k' _ -> k' = k
+    | EvictB k' _ -> k' = k
+    | EvictBM k' _ _ -> k' = k
+    | NextEpoch -> false
+    | VerifyEpoch -> false
+    | RunApp _ _ ks -> mem k ks
+

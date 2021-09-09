@@ -96,7 +96,8 @@ let is_blum_add (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_blum_add (index tl i)
 
 val blum_add_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
-  : ms_hashfn_dom vspec.app
+  : be:ms_hashfn_dom vspec.app{let e = index tl i in
+                               be.r = add_record e}
 
 let is_blum_add_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
   : bool
@@ -107,7 +108,11 @@ let is_blum_evict (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_blum_evict (index tl i)
 
 val blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
-  : ms_hashfn_dom vspec.app
+  : be:ms_hashfn_dom vspec.app {let e = index tl i in
+                                let s = evict_slot e in
+                                let vs_pre = state_pre tl i in
+                                Some? (vspec.get s vs_pre) /\
+                                be.r = Some?.v (vspec.get s vs_pre)}
 
 let is_blum_evict_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
   : bool

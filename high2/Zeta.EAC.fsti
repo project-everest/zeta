@@ -42,17 +42,6 @@ let is_eac_state_instore #app #k (s: eac_state app k): bool =
   | EACInStore _ _ _ -> true
   | _ -> false
 
-let refs_key #app (e: vlog_entry app) (k: base_key)
-  = match e with
-    | AddM _ k' _ -> k' = k
-    | AddB _ k' _ _ -> k' = k
-    | EvictM k' _ -> k' = k
-    | EvictB k' _ -> k' = k
-    | EvictBM k' _ _ -> k' = k
-    | NextEpoch -> false
-    | VerifyEpoch -> false
-    | RunApp _ _ ks -> mem k ks
-
 let to_vlog_entry #app (ee:vlog_entry_ext app): vlog_entry app =
   match ee with
   | EvictMerkle e _ -> e
@@ -273,8 +262,20 @@ let last_add_method (#app: app_params) (bk: base_key) (le: vlog_ext app {has_som
     let e  = to_vlog_entry ee in
     add_method_of_entry e
 
+let ee_refs_key (#app: app_params) (bk: base_key) (ee: vlog_entry_ext app)
+  = let e = to_vlog_entry ee in
+    e `refs_key` bk
+
+let has_some_ref_to_key (#app:_) (bk: base_key) (le: vlog_ext app)
+  : bool
+  = let open Zeta.SeqAux in
+    exists_sat_elems (ee_refs_key bk) le
+
 val eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le: eac_log app)
   : Lemma (ensures (let es = eac_state_of_key bk le in
                     let open Zeta.SeqAux in
                     (EACInStore? es ==> (has_some_add bk le /\
                                          eac_add_method es = last_add_method bk le))))
+
+val eac_init_implies_no_keyrefs (#app:_) (bk: base_key) (le: eac_log app {eac_state_of_key bk le = EACInit})
+  : Lemma (ensures (not (has_some_ref_to_key bk le)))

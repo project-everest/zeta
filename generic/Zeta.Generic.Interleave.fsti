@@ -117,33 +117,6 @@ let blum_evict_elem #vspec #n (il: verifiable_log vspec n) (i: seq_index il{is_b
   = let ti = i2s_map il i in
     G.blum_evict_elem (to_glog il) ti
 
-val add_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : interleaving (ms_hashfn_dom vspec.app) n
-
-let add_seq (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : S.seq (ms_hashfn_dom vspec.app)
-  = i_seq (add_il ep il)
-
-let add_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
-  : mset_ms_hashfn_dom vspec.app
-  = seq2mset (add_seq ep il)
-
-val evict_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : interleaving (ms_hashfn_dom vspec.app) n
-
-let evict_seq (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : S.seq (ms_hashfn_dom vspec.app)
-  = i_seq (evict_il ep il)
-
-let evict_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
-  : mset_ms_hashfn_dom vspec.app
-  = seq2mset (evict_seq ep il)
-
-let aems_equal_upto #vspec #n (epmax: epoch) (il: verifiable_log vspec n)
-  = forall (ep: epoch). ep <= epmax ==> add_set ep il == evict_set ep il
-
-val lemma_add_evict_set_identical_glog (#vspec #n:_) (epmax: epoch) (il: verifiable_log vspec n)
-  : Lemma (ensures (aems_equal_upto epmax il <==> G.aems_equal_upto epmax (to_glog il)))
 
 val appfn_calls_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n

@@ -46,14 +46,19 @@ let rec lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
     if n = 0 then ()
     else lemma_thread_id_state (prefix tl (n-1))
 
-let blum_add_elem #vspec (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
-  : ms_hashfn_dom vspec.app
+let blum_add_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
+  : be:ms_hashfn_dom vspec.app{let e = index tl i in
+                               be.r = add_record e}
   = match (index tl i) with
     | AddB r _ t tid ->
       MHDom r t tid
 
-let blum_evict_elem (#vspec: verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
-  : ms_hashfn_dom vspec.app
+let blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
+  : be:ms_hashfn_dom vspec.app {let e = index tl i in
+                                let s = evict_slot e in
+                                let vs_pre = state_pre tl i in
+                                Some? (vspec.get s vs_pre) /\
+                                be.r = Some?.v (vspec.get s vs_pre)}
   = let e = index tl i in
     let st' = state_pre tl i in
     let st = state_post tl i in

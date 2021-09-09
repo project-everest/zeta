@@ -7,6 +7,7 @@ open Zeta.High.Verifier
 open Zeta.Generic.Global
 open Zeta.Generic.Interleave
 open Zeta.Generic.TSLog
+open Zeta.Generic.Blum
 open Zeta.High.Global
 open Zeta.High.Interleave
 open Zeta.High.TSLog

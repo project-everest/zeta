@@ -625,3 +625,7 @@ let rec eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le
         lemma_last_index_last_elem_sat (is_add_of_key bk) le
       else ()
     )
+
+let eac_init_implies_no_keyrefs (#app:_) (bk: base_key) (le: eac_log app {eac_state_of_key bk le = EACInit})
+  : Lemma (ensures (not (has_some_ref_to_key bk le)))
+  = admit()

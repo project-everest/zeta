@@ -89,6 +89,10 @@ let eac_state_active_implies_prev_add (#app #n:_) (k: base_key) (il: eac_log app
   : Lemma (ensures (is_eac_state_active k il <==> has_some_add_of_key k il))
   = admit()
 
+let eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_log app n)
+  : Lemma (ensures (eac_state_of_key k il = EACInit ==> ~ (has_some_ref_to_key k il)))
+  = admit()
+
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
 let stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {EACInStore? (eac_state_of_key k il)})
   : tid:nat{tid < n /\ store_contains (thread_store tid il) k}
@@ -163,6 +167,8 @@ let eac_boundary_not_appfn (#app #n:_) (il: neac_log app n)
 
 let eac_fail_key (#app #n:_) (il: neac_log app n)
   : k:base_key {let i = eac_boundary il in
+                let e = I.index il i in
                 eac_state_of_key_post k il i = EACFail /\
-                eac_state_of_key_pre k il i <> EACFail}
+                eac_state_of_key_pre k il i <> EACFail /\
+                e `refs_key` k}
   = admit()

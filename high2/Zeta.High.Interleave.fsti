@@ -31,6 +31,9 @@ let thread_store (#app #n:_) (tid: nat{tid < n}) (il: verifiable_log app n)
 let has_some_add_of_key (#app #n:_) (bk: base_key) (il: verifiable_log app n)
   = exists i. HV.is_add_of_key bk (I.index il i)
 
+let has_some_ref_to_key (#app #n:_) (bk: base_key) (il: verifiable_log app n)
+  = exists i. HV.refs_key (I.index il i) bk
+
 let exists_in_some_store (#app #n:_) (bk: base_key)  (il: verifiable_log app n)
   = exists tid. store_contains (thread_store tid il) bk
 
@@ -112,6 +115,9 @@ val eac_state_of_root_init (#app #n:_) (il: eac_log app n)
 val eac_state_active_implies_prev_add (#app #n:_) (k: base_key) (il: eac_log app n)
   : Lemma (ensures (is_eac_state_active k il <==> has_some_add_of_key k il))
 
+val eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_log app n)
+  : Lemma (ensures (eac_state_of_key k il = EACInit ==> ~ (has_some_ref_to_key k il)))
+
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
 val stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {EACInStore? (eac_state_of_key k il)})
   : tid:nat{tid < n /\ store_contains (thread_store tid il) k}
@@ -169,5 +175,7 @@ val eac_boundary_not_appfn (#app #n:_) (il: neac_log app n)
 
 val eac_fail_key (#app #n:_) (il: neac_log app n)
   : k:base_key {let i = eac_boundary il in
+                let e = I.index il i in
                 eac_state_of_key_post k il i = EACFail /\
-                eac_state_of_key_pre k il i <> EACFail}
+                eac_state_of_key_pre k il i <> EACFail /\
+                e `refs_key` k}

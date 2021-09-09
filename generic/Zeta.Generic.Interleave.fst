@@ -21,23 +21,6 @@ let lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{t
                     st_pre == st_post))
   = admit()
 
-let add_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : interleaving (ms_hashfn_dom vspec.app) n
-  = admit()
-
-let evict_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : interleaving (ms_hashfn_dom vspec.app) n
-  = admit()
-
-let lemma_add_evict_set_identical_glog_aux (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : Lemma (ensures (add_set ep il == G.add_set ep (to_glog il) /\
-                    evict_set ep il == G.evict_set ep (to_glog il)))
-  = admit()
-
-let lemma_add_evict_set_identical_glog (#vspec #n:_) (epmax: epoch) (il: verifiable_log vspec n)
-  : Lemma (ensures (aems_equal_upto epmax il <==> G.aems_equal_upto epmax (to_glog il)))
-  = admit()
-
 let appfn_calls_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
   = admit()
