@@ -190,6 +190,12 @@ let eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key
                     stored_value gk il = v))
   = admit()
 
+let eac_add_method_is_stored_addm (#app #n:_) (il: eac_log app n) (bk: base_key)
+  : Lemma (requires (EACInStore? (eac_state_of_key bk il)))
+          (ensures (let EACInStore m _ _ = eac_state_of_key bk il in
+                    m = stored_add_method bk il))
+  = admit()
+
 (* the state of each key for an empty log is init *)
 let init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (bk: base_key):
   Lemma (eac_state_of_key bk il = EACInit)

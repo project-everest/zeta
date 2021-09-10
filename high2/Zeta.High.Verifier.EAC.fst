@@ -247,6 +247,31 @@ let lemma_non_eac_instore_evictm
 
     hash_collision_contra app
 
+let lemma_non_eac_instore_evictb
+  (#app #n:_)
+  (itsl: neac_log app n
+    {let fi = eac_failure itsl in
+     EACInStore? fi.es /\
+     EvictB? fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+    let itsli = prefix itsl i in
+    let tid = src itsl i in
+    let EACInStore m gk v = fi.es in
+    let EvictB k _ = fi.le in
+    let EvictBlum _ v' _ = fi.lee in
+
+    let st_pre = thread_store tid itsli in
+    assert(store_contains st_pre k);
+    let gks = stored_key st_pre k in
+    let vk = HV.stored_value st_pre k in
+    ext_evict_val_is_stored_val itsl i;
+    assert(v' = vk);
+
+    assert(AppV? v && v' <> v || m <> BAdd);
+    admit()
+
 let lemma_neac_implies_hash_collision
   (#app #n:_)
   (epmax: epoch)

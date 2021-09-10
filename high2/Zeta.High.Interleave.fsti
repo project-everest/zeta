@@ -153,10 +153,9 @@ let stored_value (#app #n:_) (gk: key app) (il: eac_log app n{EACInStore? (eac_s
     let st = thread_store tid il in
     stored_value st bk
 
-let stored_add_method (#app #n:_) (gk: key app) (il: eac_log app n{EACInStore? (eac_state_of_gkey gk il)})
+let stored_add_method (#app #n:_) (bk: base_key) (il: eac_log app n{EACInStore? (eac_state_of_key bk il)})
   : add_method
-  = let bk = to_base_key gk in
-    let tid = stored_tid bk il in
+  = let tid = stored_tid bk il in
     let st = thread_store tid il in
     add_method_of st bk
 
@@ -225,6 +224,13 @@ val eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key
           (ensures (let bk = to_base_key gk in
                     let EACInStore _ _ v = eac_state_of_key bk il in
                     stored_value gk il = v))
+
+(* for all keys, the add method stored in the store is the same as the add method associated
+ * with eac state *)
+val eac_add_method_is_stored_addm (#app #n:_) (il: eac_log app n) (bk: base_key)
+  : Lemma (requires (EACInStore? (eac_state_of_key bk il)))
+          (ensures (let EACInStore m _ _ = eac_state_of_key bk il in
+                    m = stored_add_method bk il))
 
 (* the state of each key for an empty log is init *)
 val init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (bk: base_key):
