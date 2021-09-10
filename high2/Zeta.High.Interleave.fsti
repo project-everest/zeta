@@ -130,7 +130,7 @@ val eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_log ap
 val stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {EACInStore? (eac_state_of_key k il)})
   : tid:nat{tid < n /\ store_contains (thread_store tid il) k}
 
-val lemma_instore (#app #n:_) (bk: base_key) (il: eac_log app n)
+val lemma_instore (#app #n:_) (bk: base_key{bk <> Zeta.BinTree.Root}) (il: eac_log app n)
   : Lemma (ensures (exists_in_some_store bk il <==> EACInStore? (eac_state_of_key bk il)))
 
 (* uniqueness: k is never in two stores *)
@@ -171,15 +171,12 @@ val lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: eac_
 val eac_value (#app #n:_) (k: key app) (il: eac_log app n)
   : value_t k
 
-let eac_value_from_base_key (#app #n:_) (bk: base_key) (il: eac_log app n {is_eac_state_active bk il})
-  : value_t (to_gen_key bk il)
-  = let gk = to_gen_key bk il in
-    eac_value gk il
-
-val eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (bk: base_key) (tid: nat {tid < n})
-  : Lemma (requires (store_contains (thread_store tid il) bk))
-          (ensures (EACInStore? (eac_state_of_key bk il) /\
-                    eac_value_from_base_key bk il = HV.stored_value (thread_store tid il) bk))
+val eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app) (tid: nat {tid < n})
+  : Lemma (requires (let bk = to_base_key gk in
+                     store_contains (thread_store tid il) bk))
+          (ensures (let bk = to_base_key gk in
+                    EACInStore? (eac_state_of_key bk il) /\
+                    eac_value gk il = HV.stored_value (thread_store tid il) bk))
 
 let eac_state_evicted_value (#app #bk:_) (es: eac_state app bk {EAC.is_eac_state_evicted es})
   : value app
@@ -187,10 +184,12 @@ let eac_state_evicted_value (#app #bk:_) (es: eac_state app bk {EAC.is_eac_state
     | EACEvictedBlum _ v _ _ -> v
     | EACEvictedMerkle _ v -> v
 
-val eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (bk: base_key):
-  Lemma (requires (is_eac_state_evicted bk il))
-        (ensures (let es = eac_state_of_key bk il in
-                  eac_state_evicted_value es = eac_value_from_base_key bk il))
+val eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (gk: key app):
+  Lemma (requires (let bk = to_base_key gk in
+                   is_eac_state_evicted bk il))
+        (ensures (let bk = to_base_key gk in
+                  let es = eac_state_of_key bk il in
+                  eac_state_evicted_value es = eac_value gk il))
 
 let value_ext (#app:_) (ee: vlog_entry_ext app {EvictMerkle? ee \/ EvictBlum? ee})
   = match ee with

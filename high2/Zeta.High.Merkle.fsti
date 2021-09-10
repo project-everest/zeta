@@ -44,12 +44,14 @@ val lemma_proving_ancestor_initial (#app #n:_) (il: eac_log app n) (k:base_key{k
                   not (is_desc k (pointed_key v' c))))
 
 (* when evicted as merkle the proving ancestor contains our hash *)
-val lemma_proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (k:base_key{k<> Root}):
-  Lemma (requires (EACEvictedMerkle? (eac_state_of_key k il)))
-        (ensures (let pk = proving_ancestor il k in
+val lemma_proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{gk <> IntK Root}):
+  Lemma (requires (let k = to_base_key gk in
+                   EACEvictedMerkle? (eac_state_of_key k il)))
+        (ensures (let k = to_base_key gk in
+                  let pk = proving_ancestor il k in
                   let mv = eac_value pk il in
                   let c = desc_dir k pk in
-                  let v = eac_value_from_base_key k il in
+                  let v = HI.eac_value gk il in
                   pointed_hash mv c = hashfn v))
 
 val lemma_addm_ancestor_is_proving (#app #n:_) (il: verifiable_log app n {length il > 0}):

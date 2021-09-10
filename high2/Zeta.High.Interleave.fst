@@ -98,7 +98,7 @@ let stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {EACInStore? (
   : tid:nat{tid < n /\ store_contains (thread_store tid il) k}
   = admit()
 
-let lemma_instore (#app #n:_) (bk: base_key) (il: eac_log app n)
+let lemma_instore (#app #n:_) (bk: base_key{bk <> Zeta.BinTree.Root}) (il: eac_log app n)
   : Lemma (ensures (exists_in_some_store bk il <==> EACInStore? (eac_state_of_key bk il)))
   = admit()
 
@@ -131,10 +131,6 @@ let eac_value (#app #n:_) (k: key app) (il: eac_log app n)
   : value_t k
   = admit()
 
-let eac_boundary (#app #n:_) (il: neac_log app n)
-  : (i: seq_index il{is_eac (prefix il i) /\
-                     ~ (is_eac (prefix il (i+1)))})
-  = admit()
  (*
   let open Zeta.IdxFn in
     let le = vlog_ext_of_il_log il in
@@ -143,6 +139,57 @@ let eac_boundary (#app #n:_) (il: neac_log app n)
     lemma_map_prefix mk_vlog_entry_ext il (i+1);
     i
     *)
+
+let eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app) (tid: nat {tid < n})
+  : Lemma (requires (let bk = to_base_key gk in
+                     store_contains (thread_store tid il) bk))
+          (ensures (let bk = to_base_key gk in
+                    EACInStore? (eac_state_of_key bk il) /\
+                    eac_value gk il = HV.stored_value (thread_store tid il) bk))
+  = admit()
+
+let eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (gk: key app):
+  Lemma (requires (let bk = to_base_key gk in
+                   is_eac_state_evicted bk il))
+        (ensures (let bk = to_base_key gk in
+                  let es = eac_state_of_key bk il in
+                  eac_state_evicted_value es = eac_value gk il))
+  = admit()
+
+let ext_evict_val_is_stored_val (#app #n:_) (il: eac_log app n) (i: seq_index il):
+  Lemma (requires (V.is_evict (I.index il i)))
+        (ensures (let tid = I.src il i in
+                  let st_pre = thread_store_pre tid il i in
+                  let e = I.index il i in
+                  let ee = mk_vlog_entry_ext il i in
+                  let bk = V.evict_slot e in
+                  store_contains st_pre bk /\
+                  HV.stored_value st_pre bk = value_ext ee))
+  = admit()
+
+let root_never_evicted (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
+  : Lemma (requires (V.is_evict (I.index il i)))
+          (ensures (let e = I.index il i in
+                    let bk = V.evict_slot e in
+                    bk <> Zeta.BinTree.Root))
+  = admit()
+
+let root_never_added (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
+  Lemma (requires (V.is_add (I.index il i)))
+        (ensures (let e = I.index il i in
+                  let bk = V.add_slot e in
+                  bk <> Zeta.BinTree.Root))
+  = admit()
+
+(* the state of each key for an empty log is init *)
+let init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (bk: base_key):
+  Lemma (eac_state_of_key bk il = EACInit)
+  = admit()
+
+let eac_boundary (#app #n:_) (il: neac_log app n)
+  : (i: seq_index il{is_eac (prefix il i) /\
+                     ~ (is_eac (prefix il (i+1)))})
+  = admit()
 
 let eac_boundary_not_appfn (#app #n:_) (il: neac_log app n)
   : Lemma (ensures (let i = eac_boundary il in
