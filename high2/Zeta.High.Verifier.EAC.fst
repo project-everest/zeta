@@ -219,18 +219,18 @@ let lemma_non_eac_instore_addm
       )
     )
 
-let lemma_non_eac_instore_evictm
+let lemma_non_eac_instore_evict
   (#app #n:_)
   (itsl: neac_log app n
     {let fi = eac_failure itsl in
      EACInStore? fi.es /\
-     EvictM? fi.le})
+     is_evict fi.le})
   : hash_collision app
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
     let tid = src itsl i in
-    let EvictM k k' = fi.le in
+    let k  =  evict_slot fi.le in
     let EACInStore _ gk _ = fi.es in
     //let EvictMerkle _ v' = fi.lee in
 
@@ -242,35 +242,47 @@ let lemma_non_eac_instore_evictm
     //assert(v' = vk);
 
     //assert(AppV? v && v' <> v);
+    eac_add_method_is_stored_addm itsli k;
     key_in_unique_store k itsli tid (stored_tid k itsli);
     eac_app_state_value_is_stored_value itsli gk;
 
     hash_collision_contra app
 
-let lemma_non_eac_instore_evictb
+let lemma_non_eac_evicted_merkle_addm
   (#app #n:_)
   (itsl: neac_log app n
     {let fi = eac_failure itsl in
-     EACInStore? fi.es /\
-     EvictB? fi.le})
+     EACEvictedMerkle? fi.es /\
+     AddM? fi.le})
   : hash_collision app
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
+    let itsli' = prefix itsl (i+1) in
     let tid = src itsl i in
-    let EACInStore m gk v = fi.es in
-    let EvictB k _ = fi.le in
-    let EvictBlum _ v' _ = fi.lee in
+    let AddM (gk,v) k k' = fi.le in
+    let EACEvictedMerkle gk_e v_e = fi.es in
 
-    let st_pre = thread_store tid itsli in
-    assert(store_contains st_pre k);
-    let gks = stored_key st_pre k in
-    let vk = HV.stored_value st_pre k in
-    ext_evict_val_is_stored_val itsl i;
-    assert(v' = vk);
+    (* k' is the proving ancestor of k *)
+    lemma_addm_ancestor_is_proving itsli';
+    // assert(k' = proving_ancestor itsli k);
 
-    assert(AppV? v && v' <> v || m <> BAdd);
-    admit()
+    (* the stored value of k' points to k *)
+    lemma_proving_ancestor_points_to_self itsli k;
+    eac_value_is_stored_value itsli (IntK k') tid;
+
+    (* invariant - the proving ancestors stores the hash of evicted value v_e *)
+    lemma_proving_ancestor_has_hash itsli gk;
+    eac_value_is_evicted_value itsli gk;
+
+    assert(gk <> gk_e || v <> v_e);
+    assert(to_base_key gk = to_base_key gk_e);
+    if gk <> gk_e then
+      let AppK k1 = gk in
+      let AppK k2 = gk_e in
+      KeyCollision k1 k2
+    else
+      ValueCollision v v_e
 
 let lemma_neac_implies_hash_collision
   (#app #n:_)
@@ -294,8 +306,10 @@ let lemma_neac_implies_hash_collision
       match fi.le with
       | AddB _ _ _ _ -> lemma_non_eac_instore_addb epmax itsl
       | AddM _ _ _ -> lemma_non_eac_instore_addm itsl
-      | EvictM _ _ -> lemma_non_eac_instore_evictm itsl
-      | _ -> admit()
+      | EvictM _ _ -> lemma_non_eac_instore_evict itsl
+      | EvictB _ _ -> lemma_non_eac_instore_evict itsl
+      | EvictBM _ _ _ -> lemma_non_eac_instore_evict itsl
+      | _ -> hash_collision_contra app
     )
     | _ ->
 
