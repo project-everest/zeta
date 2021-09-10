@@ -29,6 +29,7 @@ module GTL=Zeta.Generic.TSLog
 module HI=Zeta.High.Interleave
 module HM = Zeta.High.Merkle
 module HTL=Zeta.High.TSLog
+module HV = Zeta.High.Verifier
 
 noeq
 type failure_info (app:app_params) (n:nat) = {
@@ -172,6 +173,79 @@ let lemma_non_eac_instore_addb
     hash_collision_contra app
 
 
+let lemma_non_eac_instore_addm
+  (#app #n:_)
+  (itsl: neac_log app n
+    {let fi = eac_failure itsl in
+     EACInStore? fi.es /\
+     AddM? fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+    let itsli = prefix itsl i in
+    let itsli' = prefix itsl (i+1) in
+    let tid = src itsl i in
+    let AddM (gk,_) k k' = fi.le in
+    let addm = EACInStore?.m fi.es in
+
+    let tid_stored = stored_tid fi.bk itsli in
+
+    (* if store already contains k, adding should cause verification failure *)
+    if tid = tid_stored then
+      hash_collision_contra app
+    else (
+
+      (* k' is the proving ancestor of k *)
+      lemma_addm_ancestor_is_proving itsli';
+
+      if addm = BAdd then (
+
+        (* this implies that the "blum bit" is set to false in k' *)
+        lemma_proving_ancestor_blum_bit itsli k;
+
+        (* this leads to a verification failure *)
+        eac_value_is_stored_value itsli (IntK k') tid;
+
+        hash_collision_contra app
+      )
+      else (
+        (* k' is in the store of tid_stored, since k is in tid_stored *)
+        lemma_store_contains_proving_ancestor itsli tid_stored k;
+
+        (* which gives a contradiction since k' has to be in a unique store *)
+        key_in_unique_store k' itsli tid tid_stored;
+
+        hash_collision_contra app
+      )
+    )
+
+let lemma_non_eac_instore_evictm
+  (#app #n:_)
+  (itsl: neac_log app n
+    {let fi = eac_failure itsl in
+     EACInStore? fi.es /\
+     EvictM? fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+    let itsli = prefix itsl i in
+    let itsli' = prefix itsl (i+1) in
+    let tid = src itsl i in
+    let EvictM k k' = fi.le in
+    let EACInStore _ _ v = fi.es in
+    let EvictMerkle _ v' = fi.lee in
+
+    let st_pre = thread_store tid itsli in
+    assert(store_contains st_pre k);
+    let gk = stored_key st_pre k in
+    let vk = HV.stored_value st_pre k in
+    ext_evict_val_is_stored_val itsl i;
+    assert(v' = vk);
+
+
+    assert(AppV? v && v' <> v || IntV? v && not (IntV? v'));
+    admit()
+
 let lemma_neac_implies_hash_collision
   (#app #n:_)
   (epmax: epoch)
@@ -193,6 +267,7 @@ let lemma_neac_implies_hash_collision
     | EACInStore _ _ _ -> (
       match fi.le with
       | AddB _ _ _ _ -> lemma_non_eac_instore_addb epmax itsl
+      | AddM _ _ _ -> lemma_non_eac_instore_addm itsl
       | _ -> admit()
     )
     | _ ->
