@@ -21,6 +21,22 @@ let lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{t
                     st_pre == st_post))
   = admit()
 
+let blum_add_elem_prefix_prop
+  (#vspec #n:_)
+  (il: verifiable_log vspec n)
+  (i: seq_index il{is_blum_add il i})
+  (j:nat{j <= length il /\ j > i})
+  : Lemma (ensures (blum_add_elem il i = blum_add_elem (prefix il j) i))
+  = admit()
+
+let blum_evict_elem_prefix_prop
+  (#vspec #n:_)
+  (il: verifiable_log vspec n)
+  (i: seq_index il{is_blum_evict il i})
+  (j:nat{j <= length il /\ j > i})
+  : Lemma (ensures (blum_evict_elem il i = blum_evict_elem (prefix il j) i))
+  = admit()
+
 let appfn_calls_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
   = admit()

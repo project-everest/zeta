@@ -2,12 +2,14 @@ module Zeta.Generic.Blum
 
 open Zeta.Interleave
 open Zeta.MultiSet
+open Zeta.GenKey
 open Zeta.Time
 open Zeta.MultiSetHashDomain
 open Zeta.GenericVerifier
 open Zeta.Generic.Interleave
 open Zeta.Generic.TSLog
 
+module I = Zeta.Interleave
 module S = FStar.Seq
 module SA = Zeta.SeqAux
 module G = Zeta.Generic.Global
@@ -74,3 +76,161 @@ val lemma_evict_before_add (#vspec #n:_) (itsl: its_log vspec n) (i:seq_index it
                   let ep = be.t.e in
                   not (evict_set ep itsl `contains` be) \/
                   evict_elem_idx itsl be < i))
+
+(* a slightly different version of of the previous lemma - the count of an add element
+ * in the evict set is the same in the prefix as the full sequence *)
+val lemma_evict_before_add2 (#vspec #n:_) (itsl: its_log vspec n) (i: seq_index itsl{is_blum_add itsl i}):
+   Lemma (ensures (let be = blum_add_elem itsl i in
+                   let ep = be.t.e in
+                   mem be (evict_set ep itsl) =
+                   mem be (evict_set ep (prefix itsl i))))
+
+val lemma_evict_before_add3 (#vspec #n:_) (itsl: its_log vspec n) (i: seq_index itsl) (j:seq_index itsl):
+  Lemma (requires (is_blum_add itsl i /\
+                   is_blum_evict itsl j /\
+                   blum_add_elem itsl i = blum_evict_elem itsl j))
+        (ensures (j < i))
+
+(* add elements of a specific key*)
+val k_add_il (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
+  : interleaving (ms_hashfn_dom vspec.app) n
+
+let k_add_seq (#vspec:verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
+  : S.seq (ms_hashfn_dom vspec.app)
+  = i_seq (k_add_il ep gk il)
+
+let k_add_set (#vspec:verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
+  : mset_ms_hashfn_dom vspec.app
+  = seq2mset (k_add_seq ep gk il)
+
+(* add elements of a specific key*)
+val k_evict_il (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
+  : interleaving (ms_hashfn_dom vspec.app) n
+
+let k_evict_seq (#vspec:verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
+  : S.seq (ms_hashfn_dom vspec.app)
+  = i_seq (k_evict_il ep gk il)
+
+let k_evict_set (#vspec:verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
+  : mset_ms_hashfn_dom vspec.app
+  = seq2mset (k_evict_seq ep gk il)
+
+val add_set_rel_k_add_set
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (be: ms_hashfn_dom vspec.app {let gkc,_ = be.r in gkc = gk})
+  : Lemma (ensures (mem be (k_add_set ep gk il) = mem be (add_set ep il)))
+
+val evict_set_rel_k_evict_set
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (be: ms_hashfn_dom vspec.app{let gkc,_ = be.r in gkc = gk})
+  : Lemma (ensures (mem be (k_evict_set ep gk il) = mem be (evict_set ep il)))
+
+let is_blum_add_of_key
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (i: seq_index il)
+  = is_blum_add il i &&
+    (let be = blum_add_elem il i in
+     let gkc,_ = be.r in
+     gkc = gk &&
+     be.t.e = ep)
+
+let is_blum_evict_of_key
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (i: seq_index il)
+  = is_blum_evict il i &&
+    (let be = blum_evict_elem il i in
+     let gkc,_ = be.r in
+     be.t.e = ep &&
+     gkc = gk)
+
+val k_add_set_correct
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0})
+  (be: ms_hashfn_dom vspec.app)
+  : Lemma (ensures (let gkc,_ = be.r in
+                    k_add_set ep gk il `contains` be ==> gkc = gk /\ be.t.e = ep))
+
+val k_evict_set_correct
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0})
+  (be: ms_hashfn_dom vspec.app)
+  : Lemma (ensures (let gkc,_ = be.r in
+                    k_evict_set ep gk il `contains` be ==> gkc = gk /\ be.t.e = ep))
+
+(* if the tail element is a blum add, then the add set is obtained by adding that
+ * blum add to the prefix *)
+val k_add_set_extend_sat
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0}):
+  Lemma (requires (let n = length il in
+                   is_blum_add_of_key ep gk il (n-1)))
+        (ensures (let n = length il in
+                  let be = blum_add_elem il (n-1) in
+                  let il' = prefix il (n - 1) in
+                  k_add_set ep gk il ==
+                  add_elem (k_add_set ep gk il') be))
+
+val k_add_set_extend_unsat
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0}):
+  Lemma (requires (let n = length il in
+                   not (is_blum_add_of_key ep gk il (n-1))))
+        (ensures (let n = length il in
+                  let il' = prefix il (n - 1) in
+                  k_add_set ep gk il ==
+                  k_add_set ep gk il'))
+
+val k_evict_set_extend_sat
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0}):
+  Lemma (requires (let n = length il in
+                   is_blum_evict_of_key ep gk il (n-1)))
+        (ensures (let n = length il in
+                  let be = blum_evict_elem il (n-1) in
+                  let il' = prefix il (n - 1) in
+                  k_evict_set ep gk il ==
+                  add_elem (k_evict_set ep gk il') be))
+
+val k_evict_set_extend_unsat
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0}):
+  Lemma (requires (let n = length il in
+                   not (is_blum_evict_of_key ep gk il (n-1))))
+        (ensures (let n = length il in
+                  let il' = prefix il (n - 1) in
+                  k_evict_set ep gk il ==
+                  k_evict_set ep gk il'))

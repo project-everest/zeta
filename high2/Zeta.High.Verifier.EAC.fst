@@ -17,6 +17,7 @@ open Zeta.High.Verifier
 open Zeta.High.Thread
 open Zeta.High.Interleave
 open Zeta.High.Merkle
+open Zeta.High.Blum
 
 module S = FStar.Seq
 module I = Zeta.Interleave
@@ -154,6 +155,23 @@ let lemma_non_eac_init_evict
     lemma_instore k itsli;
     hash_collision_contra app
 
+let lemma_non_eac_instore_addb
+  (#app #n:_)
+  (epmax: epoch)
+  (itsl: neac_before_epoch app n epmax
+    {let fi = eac_failure itsl in
+     GB.aems_equal_upto epmax itsl /\
+     EACInStore? fi.es /\ AddB? fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+
+    let be' = eac_instore_addb_diff_elem itsl i in
+    let ep = be'.t.e in
+    not_eq (add_set ep itsl) (evict_set ep itsl) be';
+    hash_collision_contra app
+
+
 let lemma_neac_implies_hash_collision
   (#app #n:_)
   (epmax: epoch)
@@ -171,6 +189,11 @@ let lemma_neac_implies_hash_collision
       | EvictB _ _ -> lemma_non_eac_init_evict itsl
       | EvictBM _ _ _ -> lemma_non_eac_init_evict itsl
       | _ -> hash_collision_contra app
+    )
+    | EACInStore _ _ _ -> (
+      match fi.le with
+      | AddB _ _ _ _ -> lemma_non_eac_instore_addb epmax itsl
+      | _ -> admit()
     )
     | _ ->
 

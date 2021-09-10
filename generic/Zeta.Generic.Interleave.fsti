@@ -107,6 +107,14 @@ let blum_add_elem #vspec #n (il: verifiable_log vspec n) (i: seq_index il{is_blu
   = let ti = i2s_map il i in
     G.blum_add_elem (to_glog il) ti
 
+val blum_add_elem_prefix_prop
+  (#vspec #n:_)
+  (il: verifiable_log vspec n)
+  (i: seq_index il{is_blum_add il i})
+  (j:nat{j <= length il /\ j > i})
+  : Lemma (ensures (blum_add_elem il i = blum_add_elem (prefix il j) i))
+          [SMTPat (blum_add_elem (prefix il j) i)]
+
 let is_blum_evict  (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
   : bool
   = let ti = i2s_map il i in
@@ -117,6 +125,13 @@ let blum_evict_elem #vspec #n (il: verifiable_log vspec n) (i: seq_index il{is_b
   = let ti = i2s_map il i in
     G.blum_evict_elem (to_glog il) ti
 
+val blum_evict_elem_prefix_prop
+  (#vspec #n:_)
+  (il: verifiable_log vspec n)
+  (i: seq_index il{is_blum_evict il i})
+  (j:nat{j <= length il /\ j > i})
+  : Lemma (ensures (blum_evict_elem il i = blum_evict_elem (prefix il j) i))
+          [SMTPat (blum_evict_elem (prefix il j) i)]
 
 val appfn_calls_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
