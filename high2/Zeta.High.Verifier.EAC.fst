@@ -44,8 +44,11 @@ let eac_failure (#app #n:_) (il: neac_log app n)
     let es = eac_state_of_key_pre bk il bi in
     let le = index il bi in
     let lee = mk_vlog_entry_ext il bi in
+    let vs_pre = cur_thread_state_pre il bi in
+    let vs_post = cur_thread_state_post il bi in
+    lemma_cur_thread_state_extend il bi;
     eac_state_transition bk il bi;
-    { bi; bk; es; le; lee}
+    { bi; bk; es; le; lee; vs_pre; vs_post }
 
 let lemma_non_eac_init_addb
   (#app #n:_)
@@ -95,16 +98,14 @@ let lemma_non_eac_init_addm
     let itsli = prefix itsl i in
     let itsli' = prefix itsl (i+1) in
     let tid = src itsl i in
-    let vs_pre = cur_thread_state_pre itsl i in
-    let vs_post = cur_thread_state_post itsl i in
-    lemma_cur_thread_state_extend itsl i;
-    assert(vs_post == verify_step (index itsl i) vs_pre);
 
     assert(eac_add fi.lee fi.es = EACFail);
-    assert(v <> init_value gk || to_base_key gk <> fi.bk);
+    assert(v <> init_value gk);
 
     lemma_addm_ancestor_is_proving itsli';
     assert(k' = proving_ancestor itsli k);
+
+
 
     (* k' is in the verifier cache *)
     //assert(store_contains (thread_store tid ))

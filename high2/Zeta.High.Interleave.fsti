@@ -28,6 +28,14 @@ let thread_store (#app #n:_) (tid: nat{tid < n}) (il: verifiable_log app n)
   = let vs = thread_state tid il in
     vs.st
 
+let thread_store_pre (#app #n:_) (tid: nat{tid < n}) (il: verifiable_log app n) (i: seq_index il)
+  = let vs = thread_state_pre tid il i in
+    vs.st
+
+let thread_store_post (#app #n:_) (tid: nat{tid < n}) (il: verifiable_log app n) (i: seq_index il)
+  = let vs = thread_state_post tid il i in
+    vs.st
+
 let has_some_add_of_key (#app #n:_) (bk: base_key) (il: verifiable_log app n)
   = exists i. HV.is_add_of_key bk (I.index il i)
 
@@ -167,6 +175,53 @@ let eac_value_from_base_key (#app #n:_) (bk: base_key) (il: eac_log app n {is_ea
   : value_t (to_gen_key bk il)
   = let gk = to_gen_key bk il in
     eac_value gk il
+
+val eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (bk: base_key) (tid: nat {tid < n})
+  : Lemma (requires (store_contains (thread_store tid il) bk))
+          (ensures (EACInStore? (eac_state_of_key bk il) /\
+                    eac_value_from_base_key bk il = HV.stored_value (thread_store tid il) bk))
+
+let eac_state_evicted_value (#app #bk:_) (es: eac_state app bk {EAC.is_eac_state_evicted es})
+  : value app
+  = match es with
+    | EACEvictedBlum _ v _ _ -> v
+    | EACEvictedMerkle _ v -> v
+
+val eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (bk: base_key):
+  Lemma (requires (is_eac_state_evicted bk il))
+        (ensures (let es = eac_state_of_key bk il in
+                  eac_state_evicted_value es = eac_value_from_base_key bk il))
+
+let value_ext (#app:_) (ee: vlog_entry_ext app {EvictMerkle? ee \/ EvictBlum? ee})
+  = match ee with
+    | EvictMerkle _ v -> v
+    | EvictBlum _ v _ -> v
+
+val ext_evict_val_is_stored_val (#app #n:_) (il: eac_log app n) (i: seq_index il):
+  Lemma (requires (V.is_evict (I.index il i)))
+        (ensures (let tid = I.src il i in
+                  let st_pre = thread_store_pre tid il i in
+                  let e = I.index il i in
+                  let ee = mk_vlog_entry_ext il i in
+                  let bk = V.evict_slot e in
+                  store_contains st_pre bk /\
+                  HV.stored_value st_pre bk = value_ext ee))
+
+val root_never_evicted (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
+  : Lemma (requires (V.is_evict (I.index il i)))
+          (ensures (let e = I.index il i in
+                    let bk = V.evict_slot e in
+                    bk <> Zeta.BinTree.Root))
+
+val root_never_added (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
+  Lemma (requires (V.is_add (I.index il i)))
+        (ensures (let e = I.index il i in
+                  let bk = V.add_slot e in
+                  bk <> Zeta.BinTree.Root))
+
+(* the state of each key for an empty log is init *)
+val init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (bk: base_key):
+  Lemma (eac_state_of_key bk il = EACInit)
 
 val eac_boundary (#app #n:_) (il: neac_log app n)
   : (i: seq_index il{is_eac (prefix il i) /\
