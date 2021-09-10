@@ -229,22 +229,23 @@ let lemma_non_eac_instore_evictm
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
-    let itsli' = prefix itsl (i+1) in
     let tid = src itsl i in
     let EvictM k k' = fi.le in
-    let EACInStore _ _ v = fi.es in
-    let EvictMerkle _ v' = fi.lee in
+    let EACInStore _ gk _ = fi.es in
+    //let EvictMerkle _ v' = fi.lee in
 
-    let st_pre = thread_store tid itsli in
-    assert(store_contains st_pre k);
-    let gk = stored_key st_pre k in
-    let vk = HV.stored_value st_pre k in
+    //let st_pre = thread_store tid itsli in
+    //assert(store_contains st_pre k);
+    //let gks = stored_key st_pre k in
+    //let vk = HV.stored_value st_pre k in
     ext_evict_val_is_stored_val itsl i;
-    assert(v' = vk);
+    //assert(v' = vk);
 
+    //assert(AppV? v && v' <> v);
+    key_in_unique_store k itsli tid (stored_tid k itsli);
+    eac_app_state_value_is_stored_value itsli gk;
 
-    assert(AppV? v && v' <> v || IntV? v && not (IntV? v'));
-    admit()
+    hash_collision_contra app
 
 let lemma_neac_implies_hash_collision
   (#app #n:_)
@@ -268,6 +269,7 @@ let lemma_neac_implies_hash_collision
       match fi.le with
       | AddB _ _ _ _ -> lemma_non_eac_instore_addb epmax itsl
       | AddM _ _ _ -> lemma_non_eac_instore_addm itsl
+      | EvictM _ _ -> lemma_non_eac_instore_evictm itsl
       | _ -> admit()
     )
     | _ ->

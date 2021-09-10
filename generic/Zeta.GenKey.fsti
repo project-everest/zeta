@@ -14,3 +14,8 @@ let to_base_key #aprm (k: key aprm): base_key
   = match k with
     | AppK k -> aprm.keyhashfn k
     | IntK k -> k
+
+let lemma_key_type (#app:_) (gk: key app)
+  : Lemma (ensures (is_merkle_key (to_base_key gk) = IntK? gk))
+          [SMTPat (to_base_key gk)]
+  = ()

@@ -181,6 +181,15 @@ let root_never_added (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
                   bk <> Zeta.BinTree.Root))
   = admit()
 
+let eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app)
+  : Lemma (requires (let bk = to_base_key gk in
+                     let es = eac_state_of_key bk il in
+                     AppK? gk /\ EACInStore? es))
+          (ensures (let bk = to_base_key gk in
+                    let EACInStore _ _ v = eac_state_of_key bk il in
+                    stored_value gk il = v))
+  = admit()
+
 (* the state of each key for an empty log is init *)
 let init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (bk: base_key):
   Lemma (eac_state_of_key bk il = EACInit)
