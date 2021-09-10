@@ -163,6 +163,11 @@ val lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: eac_
 val eac_value (#app #n:_) (k: key app) (il: eac_log app n)
   : value_t k
 
+let eac_value_from_base_key (#app #n:_) (bk: base_key) (il: eac_log app n {is_eac_state_active bk il})
+  : value_t (to_gen_key bk il)
+  = let gk = to_gen_key bk il in
+    eac_value gk il
+
 val eac_boundary (#app #n:_) (il: neac_log app n)
   : (i: seq_index il{is_eac (prefix il i) /\
                      ~ (is_eac (prefix il (i+1)))})
