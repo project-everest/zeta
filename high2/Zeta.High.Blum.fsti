@@ -5,6 +5,7 @@ open Zeta.Interleave
 open Zeta.MultiSet
 open Zeta.MultiSetHashDomain
 open Zeta.Time
+open Zeta.Key
 open Zeta.GenKey
 open Zeta.EAC
 open Zeta.GenericVerifier
@@ -77,3 +78,15 @@ val eac_evictedb_addb_diff_elem
                            let be = blum_add_elem itsl i in
                            mem be' as > mem be' es /\
                            be.t.e = ep})
+
+(* when the eac store is evicted, there exists a previous evict *)
+val previous_evict_of_eac_evicted
+  (#app #n:_)
+  (itsl: eac_log app n)
+  (k: base_key {EACEvictedBlum? (eac_state_of_key k itsl)})
+  : i:seq_index itsl{is_blum_evict itsl i /\
+                     (let be = blum_evict_elem itsl i in
+                      let EACEvictedBlum gk v t j = eac_state_of_key k itsl in
+                      let gk',v' = be.r in
+                      let open Zeta.MultiSetHashDomain in
+                      gk = gk' /\ v = v' /\ be.t = t /\ be.tid = j)}

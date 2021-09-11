@@ -320,6 +320,61 @@ let lemma_non_eac_evicted_evict
     FStar.Classical.exists_intro (fun tid -> store_contains (thread_store tid itsli) fi.bk) tid;
     hash_collision_contra app
 
+let lemma_non_eac_evicted_blum_addm
+  (#app #n:_)
+  (itsl: neac_log app n
+    {let fi = eac_failure itsl in
+     EACEvictedBlum? fi.es /\
+     AddM? fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+    let itsli = prefix itsl i in
+    let itsli' = prefix itsl (i+1) in
+    let tid = src itsl i in
+    let AddM (gk,_) k k' = fi.le in
+
+    (* k' is the proving ancestor of k *)
+    lemma_addm_ancestor_is_proving itsli';
+    assert(k' = proving_ancestor itsli k);
+
+    lemma_proving_ancestor_points_to_self itsli k;
+    eac_value_is_stored_value itsli (IntK k') tid;
+    lemma_proving_ancestor_blum_bit itsli k;
+    hash_collision_contra app
+
+let lemma_non_eac_evicted_blum_addb
+  (#app #n:_)
+  (epmax: epoch)
+  (itsl: neac_before_epoch app n epmax
+    {let fi = eac_failure itsl in
+     GB.aems_equal_upto epmax itsl /\
+     EACEvictedBlum? fi.es /\
+     AddB? fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+    let EACEvictedBlum gk_e v_e t_e tid_e = fi.es in
+    let AddB (gk, v) k t_a tid_a = fi.le in
+    let itsli = prefix itsl i in
+    let itsli' = prefix itsl (i+1) in
+    let tid = src itsl i in
+    let be = blum_add_elem itsl i in
+
+    if gk <> gk_e then
+       let AppK k1 = gk in
+       let AppK k2 = gk_e in
+       KeyCollision k1 k2
+    else (
+      assert(v_e <> v || t_e <> t_a || tid_e <> tid_a);
+      let i' = previous_evict_of_eac_evicted itsli k in
+      let be' = blum_evict_elem itsl i' in
+      //assert(be <> be');
+      //assert(be.t = t_e);
+
+      admit()
+    )
+
 let lemma_neac_implies_hash_collision
   (#app #n:_)
   (epmax: epoch)
@@ -358,8 +413,8 @@ let lemma_neac_implies_hash_collision
     )
     | EACEvictedBlum _ _ _ _ -> (
       match fi.le with
-      | AddM _ _ _ -> admit()
-      | AddB _ _ _ _ -> admit()
+      | AddM _ _ _ -> lemma_non_eac_evicted_blum_addm itsl
+      | AddB _ _ _ _ -> lemma_non_eac_evicted_blum_addb epmax itsl
       | EvictM _ _ -> lemma_non_eac_evicted_evict itsl
       | EvictB _ _ -> lemma_non_eac_evicted_evict itsl
       | EvictBM _ _ _ -> lemma_non_eac_evicted_evict itsl
