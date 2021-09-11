@@ -30,6 +30,7 @@ module HI=Zeta.High.Interleave
 module HM = Zeta.High.Merkle
 module HTL=Zeta.High.TSLog
 module HV = Zeta.High.Verifier
+module EAC = Zeta.EAC
 
 noeq
 type failure_info (app:app_params) (n:nat) = {
@@ -300,6 +301,25 @@ let lemma_non_eac_evicted_merkle_addb
     not_eq (add_set ep itsl) (evict_set ep itsl) be';
     hash_collision_contra app
 
+let lemma_non_eac_evicted_evict
+  (#app #n:_)
+  (itsl: neac_log app n
+    {let fi = eac_failure itsl in
+     EAC.is_eac_state_evicted fi.es /\
+     is_evict fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+    let itsli = prefix itsl i in
+    let tid = src itsl i in
+    (* the following lemma says fi.bk does not exist in any store *)
+    lemma_instore fi.bk itsli;
+    assert(~ (exists_in_some_store fi.bk itsli));
+
+    (* for verification to succeed fi.bk needs to be in store tid, a contradictio *)
+    FStar.Classical.exists_intro (fun tid -> store_contains (thread_store tid itsli) fi.bk) tid;
+    hash_collision_contra app
+
 let lemma_neac_implies_hash_collision
   (#app #n:_)
   (epmax: epoch)
@@ -331,8 +351,17 @@ let lemma_neac_implies_hash_collision
       match fi.le with
       | AddM _ _ _ -> lemma_non_eac_evicted_merkle_addm itsl
       | AddB _ _ _ _ -> lemma_non_eac_evicted_merkle_addb epmax itsl
-      | _ -> admit()
+      | EvictM _ _ -> lemma_non_eac_evicted_evict itsl
+      | EvictB _ _ -> lemma_non_eac_evicted_evict itsl
+      | EvictBM _ _ _ -> lemma_non_eac_evicted_evict itsl
+      | _ -> hash_collision_contra app
     )
-    | _ ->
-
-    admit()
+    | EACEvictedBlum _ _ _ _ -> (
+      match fi.le with
+      | AddM _ _ _ -> admit()
+      | AddB _ _ _ _ -> admit()
+      | EvictM _ _ -> lemma_non_eac_evicted_evict itsl
+      | EvictB _ _ -> lemma_non_eac_evicted_evict itsl
+      | EvictBM _ _ _ -> lemma_non_eac_evicted_evict itsl
+      | _ -> hash_collision_contra app
+    )
