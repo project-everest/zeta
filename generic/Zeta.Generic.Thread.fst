@@ -46,19 +46,15 @@ let rec lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
     if n = 0 then ()
     else lemma_thread_id_state (prefix tl (n-1))
 
-let blum_add_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
-  : be:ms_hashfn_dom vspec.app{let e = index tl i in
-                               be.r = add_record e}
-  = match (index tl i) with
-    | AddB r _ t tid ->
-      MHDom r t tid
-
 let blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
   : be:ms_hashfn_dom vspec.app {let e = index tl i in
                                 let s = evict_slot e in
                                 let vs_pre = state_pre tl i in
+                                let open Zeta.MultiSetHashDomain in
                                 Some? (vspec.get s vs_pre) /\
-                                be.r = Some?.v (vspec.get s vs_pre)}
+                                be.r = Some?.v (vspec.get s vs_pre) /\
+                                be.t = blum_evict_timestamp e /\
+                                be.tid = fst tl}
   = let e = index tl i in
     let st' = state_pre tl i in
     let st = state_post tl i in
@@ -66,7 +62,7 @@ let blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_bl
     let t = blum_evict_timestamp e in
     lemma_state_transition tl i;
     let r = Some?.v (vspec.get s st') in
-    let tid = vspec.tid st' in
+    let tid = fst tl in
     MHDom r t tid
 
 let to_appfn_call_res (#vspec:_)

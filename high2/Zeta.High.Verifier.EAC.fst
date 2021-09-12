@@ -354,26 +354,11 @@ let lemma_non_eac_evicted_blum_addb
   : hash_collision app
   = let fi = eac_failure itsl in
     let i = fi.bi in
-    let EACEvictedBlum gk_e v_e t_e tid_e = fi.es in
-    let AddB (gk, v) k t_a tid_a = fi.le in
-    let itsli = prefix itsl i in
-    let itsli' = prefix itsl (i+1) in
-    let tid = src itsl i in
-    let be = blum_add_elem itsl i in
-
-    if gk <> gk_e then
-       let AppK k1 = gk in
-       let AppK k2 = gk_e in
-       KeyCollision k1 k2
-    else (
-      assert(v_e <> v || t_e <> t_a || tid_e <> tid_a);
-      let i' = previous_evict_of_eac_evicted itsli k in
-      let be' = blum_evict_elem itsl i' in
-      //assert(be <> be');
-      //assert(be.t = t_e);
-
-      admit()
-    )
+    let be = eac_evictedb_addb_diff_elem itsl i in
+    let ep = be.t.e in
+    //assert(be.t.e <= epmax);
+    not_eq (add_set ep itsl) (evict_set ep itsl) be;
+    hash_collision_contra app
 
 let lemma_neac_implies_hash_collision
   (#app #n:_)
