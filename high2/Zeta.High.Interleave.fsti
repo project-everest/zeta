@@ -138,8 +138,13 @@ val key_in_unique_store (#app #n:_) (k:base_key) (il: eac_log app n) (tid1 tid2:
   : Lemma (ensures (tid1 <> tid2 ==>
                     ~ (store_contains (thread_store tid1 il) k /\ store_contains (thread_store tid2 il) k)))
 
-val to_gen_key (#app #n:_) (bk: base_key) (il: eac_log app n {is_eac_state_active bk il})
+let to_gen_key (#app #n:_) (bk: base_key) (il: eac_log app n {is_eac_state_active bk il})
   : gk:key app {to_base_key gk = bk}
+  = let es = eac_state_of_key bk il in
+    match es with
+    | EACInStore _ gk _ -> gk
+    | EACEvictedBlum gk _ _ _ -> gk
+    | EACEvictedMerkle gk _ -> gk
 
 val stored_key_is_correct (#app #n:_) (bk: base_key) (il: eac_log app n{EACInStore? (eac_state_of_key bk il)})
   : Lemma (ensures (let tid = stored_tid bk il in
@@ -205,6 +210,17 @@ val ext_evict_val_is_stored_val (#app #n:_) (il: verifiable_log app n) (i: seq_i
                   store_contains st_pre bk /\
                   HV.stored_value st_pre bk = value_ext ee))
 
+val ext_app_records_is_stored_val
+  (#app #n:_)
+  (il: verifiable_log app n)
+  (i: seq_index il)
+  : Lemma (requires (V.is_appfn (I.index il i)))
+          (ensures (let open Zeta.GenericVerifier in
+                    let App (RunApp f p ss) rs = mk_vlog_entry_ext il i in
+                    let vs = cur_thread_state_pre il i in
+                    Some? (get_record_set ss vs) /\
+                    rs = get_record_set_succ ss vs))
+
 val root_never_evicted (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
   : Lemma (requires (V.is_evict (I.index il i)))
           (ensures (let e = I.index il i in
@@ -222,7 +238,7 @@ val eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key
                      let es = eac_state_of_key bk il in
                      AppK? gk /\ EACInStore? es))
           (ensures (let bk = to_base_key gk in
-                    let EACInStore _ _ v = eac_state_of_key bk il in
+                    let EACInStore _ gk' v = eac_state_of_key bk il in
                     stored_value gk il = v))
 
 (* for all keys, the add method stored in the store is the same as the add method associated
@@ -239,12 +255,6 @@ val init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (b
 val eac_boundary (#app #n:_) (il: neac_log app n)
   : (i: seq_index il{is_eac (prefix il i) /\
                      ~ (is_eac (prefix il (i+1)))})
-
-(* it can never happen that the verifier succeeds but eac fails in an app log entry *)
-val eac_boundary_not_appfn (#app #n:_) (il: neac_log app n)
-  : Lemma (ensures (let i = eac_boundary il in
-                    let e = I.index il i in
-                    not (V.is_appfn e)))
 
 val eac_fail_key (#app #n:_) (il: neac_log app n)
   : k:base_key {let i = eac_boundary il in

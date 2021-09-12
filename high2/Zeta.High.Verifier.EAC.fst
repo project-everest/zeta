@@ -56,6 +56,86 @@ let eac_failure (#app #n:_) (il: neac_log app n)
     eac_state_transition bk il bi;
     { bi; bk; es; le; lee; vs_pre; vs_post }
 
+let lemma_non_eac_appfn_non_refs
+  (#app #n:_)
+  (itsl: neac_log app n
+    {let fi = eac_failure itsl in
+     not (fi.le `refs_key` fi.bk) /\
+     RunApp? fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+    ext_app_records_is_stored_val itsl i;
+    hash_collision_contra app
+
+let lemma_non_eac_init_appfn
+  (#app #n:_)
+  (itsl: neac_log app n
+    {let fi = eac_failure itsl in
+     (fi.es = EACInit || EAC.is_eac_state_evicted fi.es)  /\
+     RunApp? fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+    let itsli = prefix itsl i in
+    let itsli' = prefix itsl (i+1) in
+    let tid = src itsl i in
+    let RunApp f p ss = fi. le in
+
+    if fi.le `refs_key` fi.bk then (
+      // parameter index of key fi.bk
+      let pi = S.index_mem fi.bk ss in
+
+      // k is the verifier store prior to processing ...
+      let vs_pre = thread_state_pre tid itsl i in
+      get_record_set_correct ss vs_pre pi;
+      let st_pre = thread_store tid itsli in
+      assert(store_contains st_pre fi.bk);
+      FStar.Classical.exists_intro (fun tid -> store_contains (thread_store tid itsli) fi.bk) tid;
+      lemma_instore fi.bk itsli;
+      hash_collision_contra app
+    )
+    else lemma_non_eac_appfn_non_refs itsl
+
+let lemma_non_eac_instore_appfn
+  (#app #n:_)
+  (itsl: neac_log app n
+    {let fi = eac_failure itsl in
+     EACInStore? fi.es /\
+     fi.le `refs_key` fi.bk /\
+     RunApp? fi.le})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    let i = fi.bi in
+    let itsli = prefix itsl i in
+    let itsli' = prefix itsl (i+1) in
+    let tid = src itsl i in
+    let App (RunApp f p ss) rs = fi.lee in
+    let EACInStore _ gk ev = fi.es in
+
+    if not (fi.le `refs_key` fi.bk) then
+      lemma_non_eac_appfn_non_refs itsl
+    else (
+      // parameter index of key fi.bk
+      let pi = S.index_mem fi.bk ss in
+      let vs_pre = cur_thread_state_pre itsl i in
+      let st_pre = thread_store_pre tid itsl i in
+      get_record_set_correct ss vs_pre pi;
+      ext_app_records_is_stored_val itsl i;
+
+      let ak,av = S.index rs pi in
+      assert(AppK ak = stored_key st_pre fi.bk);
+      assert(AppV av = HV.stored_value st_pre fi.bk);
+      stored_key_is_correct fi.bk itsli;
+      key_in_unique_store fi.bk itsli tid (stored_tid fi.bk itsli);
+      assert(AppK ak = gk);
+
+      eac_app_state_value_is_stored_value itsli gk;
+      assert(AppV av = ev);
+
+      hash_collision_contra app
+    )
+
 let lemma_non_eac_init_addb
   (#app #n:_)
   (epmax: epoch)
@@ -366,11 +446,11 @@ let lemma_neac_implies_hash_collision
   (itsl: neac_before_epoch app n epmax {GB.aems_equal_upto epmax itsl})
   : hash_collision app
   = let fi = eac_failure itsl in
-    eac_boundary_not_appfn itsl;
 
     match fi.es with
     | EACInit -> (
       match fi.le with
+      | RunApp _ _ _ -> lemma_non_eac_init_appfn itsl
       | AddB _ _ _ _ -> lemma_non_eac_init_addb epmax itsl
       | AddM _ _ _ -> lemma_non_eac_init_addm itsl
       | EvictM _ _ -> lemma_non_eac_init_evict itsl
@@ -380,6 +460,7 @@ let lemma_neac_implies_hash_collision
     )
     | EACInStore _ _ _ -> (
       match fi.le with
+      | RunApp _ _ _ -> lemma_non_eac_instore_appfn itsl
       | AddB _ _ _ _ -> lemma_non_eac_instore_addb epmax itsl
       | AddM _ _ _ -> lemma_non_eac_instore_addm itsl
       | EvictM _ _ -> lemma_non_eac_instore_evict itsl
@@ -389,6 +470,7 @@ let lemma_neac_implies_hash_collision
     )
     | EACEvictedMerkle _ _ -> (
       match fi.le with
+      | RunApp _ _ _ -> lemma_non_eac_init_appfn itsl
       | AddM _ _ _ -> lemma_non_eac_evicted_merkle_addm itsl
       | AddB _ _ _ _ -> lemma_non_eac_evicted_merkle_addb epmax itsl
       | EvictM _ _ -> lemma_non_eac_evicted_evict itsl
@@ -398,6 +480,7 @@ let lemma_neac_implies_hash_collision
     )
     | EACEvictedBlum _ _ _ _ -> (
       match fi.le with
+      | RunApp _ _ _ -> lemma_non_eac_init_appfn itsl
       | AddM _ _ _ -> lemma_non_eac_evicted_blum_addm itsl
       | AddB _ _ _ _ -> lemma_non_eac_evicted_blum_addb epmax itsl
       | EvictM _ _ -> lemma_non_eac_evicted_evict itsl

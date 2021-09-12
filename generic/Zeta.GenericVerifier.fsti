@@ -154,11 +154,44 @@ let get_record_set_succ #vspec
   (vtls: vspec.vtls_t{vspec.valid vtls /\ Some? (get_record_set ss vtls)})
   = Some?.v (get_record_set ss vtls)
 
+val get_record_set_correct
+  (#vspec: _)
+  (ss: S.seq (vspec.slot_t))
+  (vtls: vspec.vtls_t {vspec.valid vtls})
+  (i: SA.seq_index ss)
+  : Lemma (requires (Some? (get_record_set ss vtls)))
+          (ensures (let rs = get_record_set_succ ss vtls in
+                    let s = S.index ss i in
+                    let ak,av = S.index rs i in
+                    Some? (vspec.get s vtls) /\
+                    (let gk,gv = Some?.v (vspec.get s vtls) in
+                     let open Zeta.GenKey in
+                     gk = AppK ak /\
+                     gv = AppV av)))
+
 val update_record_set (#vspec: verifier_spec_base)
                       (ss: S.seq (vspec.slot_t))
                       (vtls: vspec.vtls_t {vspec.valid vtls /\ Some? (get_record_set ss vtls)})
                       (ws: S.seq (app_value_nullable vspec.app.adm) {let rs = get_record_set_succ ss vtls in
-                                                                     S.length ws = S.length rs}): vspec.vtls_t
+                                                                     S.length ws = S.length rs})
+  : vtls':vspec.vtls_t{vspec.valid vtls'}
+
+val update_record_set_valid
+  (#vspec: _)
+  (ss: S.seq (vspec.slot_t))
+  (vtls: vspec.vtls_t {vspec.valid vtls /\ Some? (get_record_set ss vtls)})
+  (ws: S.seq (app_value_nullable vspec.app.adm) {let rs = get_record_set_succ ss vtls in
+                                                 S.length ws = S.length rs})
+  (i: SA.seq_index ss)
+  : Lemma (ensures (let rs = get_record_set_succ ss vtls in
+                    let vtls' = update_record_set ss vtls ws in
+                    let s = S.index ss i in
+                    let ak,_ = S.index rs i in
+                    Some? (vspec.get s vtls') /\
+                    (let gk,gv = Some?.v (vspec.get s vtls') in
+                     let open Zeta.GenKey in
+                     gk = AppK ak /\
+                     gv = AppV (S.index ws i))))
 
 let verify_step (#vspec: verifier_spec_base)
                 (e: verifier_log_entry vspec)

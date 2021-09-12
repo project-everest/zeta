@@ -108,10 +108,6 @@ let key_in_unique_store (#app #n:_) (k:base_key) (il: eac_log app n) (tid1 tid2:
                     ~ (store_contains (thread_store tid1 il) k /\ store_contains (thread_store tid2 il) k)))
   = admit()
 
-let to_gen_key (#app #n:_) (bk: base_key) (il: eac_log app n {is_eac_state_active bk il})
-  : gk:key app {to_base_key gk = bk}
-  = admit()
-
 let stored_key_is_correct (#app #n:_) (bk: base_key) (il: eac_log app n{EACInStore? (eac_state_of_key bk il)})
   : Lemma (ensures (let tid = stored_tid bk il in
                     let st = thread_store tid il in
@@ -167,6 +163,18 @@ let ext_evict_val_is_stored_val (#app #n:_) (il: verifiable_log app n) (i: seq_i
                   HV.stored_value st_pre bk = value_ext ee))
   = admit()
 
+let ext_app_records_is_stored_val
+  (#app #n:_)
+  (il: verifiable_log app n)
+  (i: seq_index il)
+  : Lemma (requires (V.is_appfn (I.index il i)))
+          (ensures (let open Zeta.GenericVerifier in
+                    let App (RunApp f p ss) rs = mk_vlog_entry_ext il i in
+                    let vs = cur_thread_state_pre il i in
+                    Some? (get_record_set ss vs) /\
+                    rs = get_record_set_succ ss vs))
+  = admit()
+
 let root_never_evicted (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
   : Lemma (requires (V.is_evict (I.index il i)))
           (ensures (let e = I.index il i in
@@ -205,27 +213,6 @@ let eac_boundary (#app #n:_) (il: neac_log app n)
   : (i: seq_index il{is_eac (prefix il i) /\
                      ~ (is_eac (prefix il (i+1)))})
   = admit()
-
-let eac_boundary_not_appfn (#app #n:_) (il: neac_log app n)
-  : Lemma (ensures (let i = eac_boundary il in
-                    let e = I.index il i in
-                    not (V.is_appfn e)))
-  = let i = eac_boundary il in
-    let e = I.index il i in
-    let ee = mk_vlog_entry_ext il i in
-    let le = vlog_ext_of_il_log il in
-    let k = eac_fail_key le in
-    let smk = eac_smk app k in
-    let lei = SA.prefix le i in
-    let lei' = SA.prefix le (i+1) in
-    let open Zeta.SeqMachine in
-    assert(valid smk lei);
-    assert(~ (valid smk lei'));
-
-    if V.is_appfn e then (
-      admit()
-    )
-    else ()
 
 let eac_fail_key (#app #n:_) (il: neac_log app n)
   : k:base_key {let i = eac_boundary il in
