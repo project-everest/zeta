@@ -156,15 +156,12 @@ val frame: l:B.loc -> s:state -> h0:HS.mem -> h1:HS.mem -> Lemma
 
 // ---
 
-val create_in: r:HS.rid -> k:B.buffer u8 -> ST state
+val create_in: r:HS.rid -> ST state
   (requires (fun h0 ->
-    B.length k == blake2_key_length /\
-    B.live h0 k /\
     HyperStack.ST.is_eternal_region r))
   (ensures (fun h0 s h1 ->
     invariant h1 s /\
     seen h1 s == [] /\
-    key (B.deref h1 s) == B.as_seq h0 k /\
     B.(modifies loc_none h0 h1) /\
     B.fresh_loc (footprint h1 s) h0 h1 /\
     B.(loc_includes (loc_region_only true r) (footprint h1 s))))
@@ -172,9 +169,9 @@ val create_in: r:HS.rid -> k:B.buffer u8 -> ST state
 val add: s:state -> b:B.buffer u8 -> l:U32.t -> Stack unit
   (requires (fun h0 ->
     invariant h0 s /\
-    B.len b == l /\
+    U32.v (B.len b) >= U32.v l /\
     B.live h0 b /\
-    B.length b <= blake2_max_input_length /\
+    U32.v l <= blake2_max_input_length /\
     // Note: this is blake2 specific.
     B.(loc_disjoint (loc_buffer b) (footprint h0 s))))
   (ensures (fun h0 _ h1 ->
@@ -182,7 +179,7 @@ val add: s:state -> b:B.buffer u8 -> l:U32.t -> Stack unit
     B.modifies (footprint_s (B.deref h0 s)) h0 h1 /\
     // FYI, no need to talk about a preserved footprint since I used footprint_s
     // which is not heap-dependent
-    seen h1 s == B.as_seq h0 b :: seen h0 s))
+    seen h1 s == B.as_seq h0 (B.gsub b 0ul l) :: seen h0 s))
 
 inline_for_extraction noextract
 let u256 = Veritas.Formats.Types.u256
