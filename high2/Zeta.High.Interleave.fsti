@@ -93,6 +93,19 @@ let is_eac_state_active_gk (#app #n:_) (gk: key app) (il: verifiable_log app n)
 val empty_implies_eac (#app #n:_) (il: verifiable_log app n)
   : Lemma (ensures (length il = 0 ==> is_eac il))
 
+val eac_state_empty (#app #n:_) (k: base_key)
+  (il: verifiable_log app n{length il = 0})
+  : Lemma (ensures (eac_state_of_key k il = EACInit))
+
+val eac_state_snoc (#app #n:_) (k: base_key)
+  (il: verifiable_log app n{length il > 0})
+  : Lemma (ensures (let i = length il - 1  in
+                    let il' = prefix il i in
+                    let es' = eac_state_of_key k il' in
+                    let es = eac_state_of_key k il in
+                    let ee = mk_vlog_entry_ext il i in
+                    es == eac_add ee es'))
+
 val eac_state_transition (#app #n:_) (k: base_key)
   (il: verifiable_log app n) (i: seq_index il)
   : Lemma (ensures (let es_pre =  eac_state_of_key_pre k il i in
@@ -116,6 +129,7 @@ val lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
 val eac_implies_eac_state_valid (#app #n:_) (k: base_key)
   (il: verifiable_log app n)
   : Lemma (ensures (is_eac il ==> eac_state_of_key k il <> EACFail))
+          [SMTPat (eac_state_of_key k il)]
 
 val eac_state_of_root_init (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (eac_state_of_key Zeta.BinTree.Root il = EACInit))

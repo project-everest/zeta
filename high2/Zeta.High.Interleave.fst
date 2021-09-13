@@ -58,6 +58,21 @@ let empty_implies_eac (#app #n:_) (il: verifiable_log app n)
     )
     else ()
 
+let eac_state_empty (#app #n:_) (k: base_key)
+  (il: verifiable_log app n{length il = 0})
+  : Lemma (ensures (eac_state_of_key k il = EACInit))
+  = admit()
+
+let eac_state_snoc (#app #n:_) (k: base_key)
+  (il: verifiable_log app n{length il > 0})
+  : Lemma (ensures (let i = length il - 1  in
+                    let il' = prefix il i in
+                    let es' = eac_state_of_key k il' in
+                    let es = eac_state_of_key k il in
+                    let ee = mk_vlog_entry_ext il i in
+                    es == eac_add ee es'))
+  = admit()
+
 let eac_state_transition (#app #n:_) (k: base_key)
   (il: verifiable_log app n) (i: seq_index il)
   : Lemma (ensures (let es_pre =  eac_state_of_key_pre k il i in

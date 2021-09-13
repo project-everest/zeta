@@ -14,18 +14,6 @@ open Zeta.Generic.Blum
 open Zeta.High.Interleave
 open Zeta.High.TSLog
 
-(* for an eac ts log, if the eac state of a key k is instore, the count of blum evicts
- * is the same of blum adds for that key for any epoch *)
-val lemma_evict_add_count_same
-  (#app #n:_)
-  (ep: epoch)
-  (il: eac_log app n)
-  (gk:key app):
-  Lemma (requires (let bk = to_base_key gk in
-                   let es = eac_state_of_key bk il in
-                   EACInStore? es))
-        (ensures (size (k_add_set ep gk il) = size (k_evict_set ep gk il)))
-
 val eac_instore_addb_diff_elem
   (#app #n:_)
   (itsl: its_log app n)

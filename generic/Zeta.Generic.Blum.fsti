@@ -79,11 +79,19 @@ val lemma_evict_before_add (#vspec #n:_) (itsl: its_log vspec n) (i:seq_index it
 
 (* a slightly different version of of the previous lemma - the count of an add element
  * in the evict set is the same in the prefix as the full sequence *)
-val lemma_evict_before_add2 (#vspec #n:_) (itsl: its_log vspec n) (i: seq_index itsl{is_blum_add itsl i}):
-   Lemma (ensures (let be = blum_add_elem itsl i in
-                   let ep = be.t.e in
-                   mem be (evict_set ep itsl) =
-                   mem be (evict_set ep (prefix itsl i))))
+val lemma_evict_before_add2
+  (#vspec #n:_)
+  (ep: epoch)
+  (itsl: its_log vspec n)
+  (i:nat{i <= length itsl})
+  (be: ms_hashfn_dom vspec.app)
+  : Lemma (requires (let itsli = prefix itsl i in
+                     let as = add_set ep itsli in
+                     let es = evict_set ep itsli in
+                     mem be as > mem be es))
+          (ensures (let as = add_set ep itsl in
+                    let es = evict_set ep itsl in
+                    mem be as > mem be es))
 
 val lemma_evict_before_add3 (#vspec #n:_) (itsl: its_log vspec n) (i: seq_index itsl) (j:seq_index itsl):
   Lemma (requires (is_blum_add itsl i /\
@@ -179,58 +187,49 @@ val k_evict_set_correct
   : Lemma (ensures (let gkc,_ = be.r in
                     k_evict_set ep gk il `contains` be ==> gkc = gk /\ be.t.e = ep))
 
+val k_add_set_empty
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il = 0})
+  : Lemma (ensures (k_add_set ep gk il == empty))
+
 (* if the tail element is a blum add, then the add set is obtained by adding that
  * blum add to the prefix *)
-val k_add_set_extend_sat
+val k_add_set_snoc
   (#vspec: verifier_spec)
   (#n:_)
   (ep: epoch)
   (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il > 0}):
-  Lemma (requires (let n = length il in
-                   is_blum_add_of_key ep gk il (n-1)))
-        (ensures (let n = length il in
-                  let be = blum_add_elem il (n-1) in
-                  let il' = prefix il (n - 1) in
-                  k_add_set ep gk il ==
-                  add_elem (k_add_set ep gk il') be))
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let b = is_blum_add_of_key ep gk il (n - 1) in
+                    let as' = k_add_set ep gk il' in
+                    let as = k_add_set ep gk il in
+                    (b ==> as == add_elem as' (blum_add_elem il (n - 1))) /\
+                    (~b ==> as == as')))
 
-val k_add_set_extend_unsat
+val k_evict_set_empty
   (#vspec: verifier_spec)
   (#n:_)
   (ep: epoch)
   (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il > 0}):
-  Lemma (requires (let n = length il in
-                   not (is_blum_add_of_key ep gk il (n-1))))
-        (ensures (let n = length il in
-                  let il' = prefix il (n - 1) in
-                  k_add_set ep gk il ==
-                  k_add_set ep gk il'))
+  (il: verifiable_log vspec n {length il = 0})
+  : Lemma (ensures (k_evict_set ep gk il == empty))
 
-val k_evict_set_extend_sat
+(* analogous theorem for evict sets*)
+val k_evict_set_snoc
   (#vspec: verifier_spec)
   (#n:_)
   (ep: epoch)
   (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il > 0}):
-  Lemma (requires (let n = length il in
-                   is_blum_evict_of_key ep gk il (n-1)))
-        (ensures (let n = length il in
-                  let be = blum_evict_elem il (n-1) in
-                  let il' = prefix il (n - 1) in
-                  k_evict_set ep gk il ==
-                  add_elem (k_evict_set ep gk il') be))
-
-val k_evict_set_extend_unsat
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il > 0}):
-  Lemma (requires (let n = length il in
-                   not (is_blum_evict_of_key ep gk il (n-1))))
-        (ensures (let n = length il in
-                  let il' = prefix il (n - 1) in
-                  k_evict_set ep gk il ==
-                  k_evict_set ep gk il'))
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let b = is_blum_evict_of_key ep gk il (n - 1) in
+                    let as' = k_evict_set ep gk il' in
+                    let as = k_evict_set ep gk il in
+                    (b ==> as == add_elem as' (blum_evict_elem il (n - 1))) /\
+                    (~b ==> as == as')))
