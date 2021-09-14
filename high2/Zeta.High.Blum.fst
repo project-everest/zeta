@@ -51,8 +51,8 @@ let eac_state_transition_snoc
     let es = eac_state_of_key bk il in
     let ee = mk_vlog_entry_ext il i in
     let e = index il i in
-    let tid_o = src il i in
-    let st_pre = thread_store_pre tid_o il i in
+    let tid = src il i in
+    let st_pre = thread_store_pre tid il i in
     eac_state_snoc bk il;
     if es = es' then ()
     else
@@ -65,7 +65,7 @@ let eac_state_transition_snoc
         | EvictBlum e v_e tid_e ->
           ext_evict_val_is_stored_val il i;
           stored_key_is_correct bk il';
-          key_in_unique_store bk il' tid_o (stored_tid bk il')
+          key_in_unique_store bk il' tid (stored_tid bk il')
         | _ ->  ()
       )
       | EACEvictedBlum _ _ _ _ ->
@@ -87,7 +87,10 @@ let eac_state_unchanged_snoc
                     let es = eac_state_of_key bk il in
                     es' = es ==> (not (is_blum_add_of_key ep gk il i) /\
                                   not (is_blum_evict_of_key ep gk il i))))
-  = admit()
+  = let bk = to_base_key gk in
+    eac_state_snoc bk il
+
+#push-options "--z3rlimit_factor 3"
 
 let rec evict_add_count_rel
   (#app #n:_)
@@ -125,6 +128,8 @@ let rec evict_add_count_rel
       if es = es' then eac_state_unchanged_snoc ep gk il
       else ()
     )
+
+#pop-options
 
 let evict_elem_fixes_eac_state_key
   (#app #n:_)
