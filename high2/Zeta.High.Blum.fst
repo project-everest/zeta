@@ -231,7 +231,7 @@ module SA = Zeta.SeqAux
 let rec last_evict_props
   (#app #n:_)
   (k: base_key)
-  (itsl: eac_log app n {Zeta.Generic.TSLog.clock_sorted itsl /\ EACEvictedBlum? (eac_state_of_key k itsl)})
+  (itsl: eac_log app n {EACEvictedBlum? (eac_state_of_key k itsl)})
   : Lemma (ensures (let l = i_seq itsl in
                     let EACEvictedBlum gke ve te tide = eac_state_of_key k itsl in
                     exists_elems_with_prop (is_blum_evict_refs_key k) l /\
@@ -268,18 +268,104 @@ let rec last_evict_props
 
 module S = FStar.Seq
 
+let to_blum_elem (#app:_) (#k: base_key) (es: eac_state app k{EACEvictedBlum? es})
+  = let EACEvictedBlum gk v t j = es in
+    let open Zeta.MultiSetHashDomain in
+    MHDom (gk,v) t j
+
+#push-options "--z3rlimit_factor 3"
+
+let rec last_entry_blum_evict_implies_eac_state
+  (#app #n:_)
+  (k: base_key)
+  (il: eac_log app n)
+  : Lemma (requires (let l = i_seq il in
+                     exists_elems_with_prop (refs_key k) l /\
+                     is_blum_evict il (last_idx (refs_key k) l)))
+          (ensures (let es = eac_state_of_key k il in
+                    let i = last_idx (refs_key k) (i_seq il) in
+                    let be = blum_evict_elem il i in
+                    EACEvictedBlum? es /\
+                    to_blum_elem es = be))
+          (decreases (length il))
+  = let p = refs_key #app k in
+    let l = i_seq il in
+    let i = last_idx p l in
+    let n = length il in
+    let es = eac_state_of_key k il in
+    let il' = prefix il (n-1) in
+    let l' = i_seq il' in
+    let es' = eac_state_of_key k il' in
+    let e = index il (n-1) in
+    last_idx_snoc p l;
+    eac_state_snoc k il;
+
+    if refs_key k e then (
+      assert(i = n - 1);
+      eac_state_transition_snoc k il;
+      ()
+    )
+    else
+      last_entry_blum_evict_implies_eac_state k il'
+
+#pop-options
+
+let eac_transition_out_of_blum_evict
+  (#app #n:_)
+  (k: base_key)
+  (il: eac_log app n)
+  (i: seq_index il)
+  : Lemma (requires (let es = eac_state_of_key_pre k il i in
+                     EACEvictedBlum? es /\
+                     refs_key k (index il i)))
+          (ensures (let es' = eac_state_of_key_pre k il i in
+                    let es = eac_state_of_key_post k il i in
+                    is_blum_add il i /\ blum_add_elem il i = to_blum_elem es' /\
+                    EACInStore? es))
+  = admit()
+
+let next_idx (#a:_) (p: a -> bool)
+  (s: S.seq a {exists_elems_with_prop p s})
+  (i: SA.seq_index s{i < last_idx p s})
+  : j:SA.seq_index s{p (S.index s j) /\ j > i /\ j <= (last_idx p s)}
+  = admit()
+
+let next_idx_correct (#a:_) (p: a -> bool)
+  (s: S.seq a {exists_elems_with_prop p s})
+  (i: SA.seq_index s {i < last_idx p s})
+  : Lemma (ensures (let j = next_idx p s i in
+                    let s' = SA.prefix s j in
+                    exists_elems_with_prop p s' ==> last_idx p s' <= i))
+          [SMTPat (next_idx p s i)]
+  = admit()
+
+#push-options "--z3rlimit_factor 3"
+
 let next_add
   (#app #n:_)
   (k: base_key)
-  (itsl: eac_log app n {EACEvictedBlum? (eac_state_of_key k itsl)})
+  (itsl: eac_log app n)
   (i: seq_index itsl {let l = i_seq itsl in
                       is_blum_evict_refs_key k (index itsl i) /\
-                      i <> last_idx (refs_key k) l})
-  : j:seq_index itsl{let l = i_seq itsl in
+                      i < last_idx (refs_key k) l})
+  : Tot(j:seq_index itsl{let l = i_seq itsl in
                      is_blum_add itsl j /\
                      blum_add_elem itsl j = blum_evict_elem itsl i /\
-                     j > i /\ j < last_idx (refs_key k) l}
-  = admit()
+                     j > i /\ j <= last_idx (refs_key k) l})
+    (decreases length itsl)
+  = let p = refs_key #app k in
+    let l = i_seq itsl in
+    let j = next_idx p l i in
+    let itsl_j = prefix itsl j in
+    let l_j = i_seq itsl_j in
+    exists_elems_with_prop_intro p l_j i;
+    last_idx_correct p l_j i;
+    assert(last_idx p l_j = i);
+    last_entry_blum_evict_implies_eac_state k itsl_j;
+    eac_transition_out_of_blum_evict k itsl j;
+    j
+
+#pop-options
 
 module GV = Zeta.GenericVerifier
 
