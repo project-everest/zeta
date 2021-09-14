@@ -68,6 +68,9 @@ val extract_log_entry_from (len: U32.t)
          valid_entry (A.asel buf h0) (U32.v pos) (U32.v pos') e
        | _ -> True))
 
+val serialize_stamped_record_spec (r:stamped_record)
+  : GTot (s:Seq.seq U8.t { Seq.length s <= 184 })
+
 val serialize_stamped_record
   (dst: A.array U8.t { 184 <= A.length dst })
   (r: stamped_record)
@@ -79,5 +82,7 @@ val serialize_stamped_record
     let s = h (A.varray dst) in
     let s' = h' (A.varray dst) in
     U32.v len <= A.length dst /\
-    Seq.slice s' (U32.v len) (Seq.length s') == Seq.slice s (U32.v len) (Seq.length s)
+    Seq.slice s' (U32.v len) (Seq.length s') == Seq.slice s (U32.v len) (Seq.length s) /\
+    (* Possible to add this? *)
+    Seq.slice s' 0 (U32.v len) == serialize_stamped_record_spec r
   )

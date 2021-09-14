@@ -43,54 +43,6 @@ let exor_bytes_pfx #l (s1 s2:elbytes l) (i:nat { i <= l })
       (exor_bytes #i (Seq.slice s1 0 i) (Seq.slice s2 0 i))
       (Seq.slice s1 i (Seq.length s1))
 
-// assume
-// val varray_pts_to (#t:Type) (a:A.array t) (x:elseq t (A.length a)) : vprop
-
-// assume
-// val intro_varray_pts_to (#t:_)
-//                         (#opened:inames)
-//                         (a:A.array t)
-//   : AT.SteelGhost (elseq t (A.length a)) opened
-//     (A.varray a)
-//     (fun x -> varray_pts_to a x)
-//     (requires fun _ -> True)
-//     (ensures fun h0 x h1 ->
-//       Ghost.reveal x == A.asel a h0)
-
-// assume
-// val elim_varray_pts_to (#t:_)
-//                        (#opened:inames)
-//                        (a:A.array t)
-//                        (c:elseq t (A.length a))
-//   : AT.SteelGhost unit opened
-//     (varray_pts_to a c)
-//     (fun _ -> A.varray a)
-//     (requires fun _ -> True)
-//     (ensures fun _ _ h1 ->
-//       A.asel a h1 == Ghost.reveal c)
-
-// assume
-// val read_pt (#t:_)
-//             (a:A.array t)
-//             (#r:elseq t (A.length a))
-//             (i:U32.t { U32.v i < A.length a })
-//   : Steel t
-//     (varray_pts_to a r)
-//     (fun _ -> varray_pts_to a r)
-//     (requires fun _ -> True)
-//     (ensures fun h0 v h1 ->
-//       v == Seq.index r (U32.v i))
-
-// assume
-// val write_pt (#t:_)
-//             (a:A.array t)
-//             (#r:elseq t (A.length a))
-//             (i:U32.t { U32.v i < A.length a })
-//             (v:t)
-//   : SteelT unit
-//     (varray_pts_to a r)
-//     (fun _ -> varray_pts_to a (Seq.upd r (U32.v i) v))
-
 let ehash_value_t = elbytes 32
 
 let upd_ehash_value (x:ehash_value_t) (i:nat{i < 32}) (v:U8.t)
