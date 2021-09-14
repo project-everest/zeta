@@ -68,6 +68,10 @@ let lemma_prefix_prefix_property (#a #n:_) (il:interleaving a n) (i:nat{i <= len
   Lemma (ensures (prefix (prefix il i) j == prefix il j))
   = ()
 
+let lemma_iseq_prefix_property (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
+  : Lemma (ensures (SA.prefix (i_seq il) i = i_seq (prefix il i)))
+  = admit()
+
 let lemma_i2s_prefix_property (#a:_) (#n:_) (il:interleaving a n)(i:nat{i <= length il})(j:nat{j < i}):
   Lemma (ensures (i2s_map (prefix il i) j = i2s_map il j))
   = let t = src il j in

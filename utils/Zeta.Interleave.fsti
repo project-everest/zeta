@@ -62,6 +62,10 @@ val lemma_prefix_prefix_property (#a:_) (#n:_) (il:interleaving a n) (i:nat{i <=
   Lemma (ensures (prefix (prefix il i) j == prefix il j))
         [SMTPat (prefix (prefix il i) j)]
 
+val lemma_iseq_prefix_property (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
+  : Lemma (ensures (SA.prefix (i_seq il) i = i_seq (prefix il i)))
+          [SMTPat (prefix il i)]
+
 val lemma_i2s_prefix_property (#a:_) (#n:_) (il:interleaving a n)(i:nat{i <= length il})(j:nat{j < i}):
   Lemma (ensures (i2s_map (prefix il i) j = i2s_map il j))
         [SMTPat (i2s_map (prefix il i) j)]

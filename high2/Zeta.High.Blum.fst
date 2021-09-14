@@ -131,18 +131,6 @@ let rec evict_add_count_rel
 
 #pop-options
 
-let evict_elem_fixes_eac_state_key
-  (#app #n:_)
-  (il: eac_log app n)
-  (i: seq_index il {is_blum_evict il i})
-  : Lemma (ensures (let be = blum_evict_elem il i in
-                    let gk,_ = be.r in
-                    let bk = to_base_key gk in
-                    let es = eac_state_of_key bk il in
-                    is_eac_state_active bk il /\
-                    to_gen_key bk il = gk))
-  = admit()
-
 let eac_instore_addb_diff_elem
   (#app #n:_)
   (itsl: its_log app n)
@@ -181,6 +169,8 @@ let eac_instore_addb_diff_elem
 
     lemma_evict_before_add2 ep itsl (i+1) be';
     be'
+
+#push-options "--z3rlimit_factor 3"
 
 let eac_evictedm_addb_diff_elem
   (#app #n:_)
@@ -221,6 +211,8 @@ let eac_evictedm_addb_diff_elem
     lemma_evict_before_add2 ep itsl (i+1) be';
     be'
 
+#pop-options
+
 open Zeta.High.Verifier
 
 let is_blum_evict_refs_key (#app:_) (k: base_key) (e: vlog_entry app)
@@ -232,10 +224,14 @@ let is_blum_evict_refs_key (#app:_) (k: base_key) (e: vlog_entry app)
 let refs_key (#app:_) (k: base_key) (e: vlog_entry app)
   = e `refs_key` k
 
-let last_evict_props
+module SA = Zeta.SeqAux
+
+#push-options "--z3rlimit_factor 3"
+
+let rec last_evict_props
   (#app #n:_)
   (k: base_key)
-  (itsl: eac_log app n {EACEvictedBlum? (eac_state_of_key k itsl)})
+  (itsl: eac_log app n {Zeta.Generic.TSLog.clock_sorted itsl /\ EACEvictedBlum? (eac_state_of_key k itsl)})
   : Lemma (ensures (let l = i_seq itsl in
                     let EACEvictedBlum gke ve te tide = eac_state_of_key k itsl in
                     exists_elems_with_prop (is_blum_evict_refs_key k) l /\
@@ -243,7 +239,32 @@ let last_evict_props
                      let MHDom (gk,v) t tid  = blum_evict_elem itsl j in
                      gk = gke /\ v = ve /\ t = te /\ tid = tide /\
                      j = last_idx (refs_key k) l)))
-  = admit()
+          (decreases length itsl)
+  = let n = length itsl in
+    if n = 0 then
+      eac_state_empty k itsl
+    else
+      let i = n - 1 in
+      let l = i_seq itsl in
+      let itsl' = prefix itsl i in
+      let l' = i_seq itsl' in
+      let es = eac_state_of_key k itsl in
+      //let EACEvictedBlum gke ve te tide = es in
+      let es' = eac_state_of_key k itsl' in
+      let e = index itsl i in
+      eac_state_transition_snoc k itsl;
+      eac_state_snoc k itsl;
+      if es = es' then (
+        last_evict_props k itsl';
+        last_idx_snoc (refs_key k) l;
+        last_idx_snoc (is_blum_evict_refs_key k) l
+      )
+      else (
+        last_idx_correct (is_blum_evict_refs_key k) l i;
+        last_idx_correct (refs_key k) l i
+      )
+
+#pop-options
 
 module S = FStar.Seq
 
