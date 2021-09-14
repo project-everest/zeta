@@ -74,25 +74,8 @@ let aggregate_hash_value (h0 h1: hash_value_t)
   : hash_value_t
   = xor_bytes h0 h1
 
-let state = a:A.array U8.t{ A.length a == 32 }
-
-[@@__steel_reduce__;__reduce__]
-let invariant (s:state) = A.varray s
-
-let v_hash
-     (#p:vprop)
-     (t:state)
-     (h:rmem p{
-       FStar.Tactics.with_tactic
-         selector_tactic
-         (can_be_split p (A.varray t) /\ True)
-     })
-  : GTot hash_value_t
-  = A.asel t h
-
-let create_in (_:unit)
-  = A.malloc 0uy 32ul
-open FStar.Ghost
+let create_in (_:unit) = A.malloc 0uy 32ul
+//open FStar.Ghost
 
 let exor_bytes_pfx #l (s1 s2:elbytes l) (i:nat { i <= l })
   : elbytes l
@@ -149,6 +132,7 @@ val write_pt (#t:_)
     (fun _ -> varray_pts_to a (Seq.upd r (U32.v i) v))
 
 let ehash_value_t = elbytes 32
+
 let upd_ehash_value (x:ehash_value_t) (i:nat{i < 32}) (v:U8.t)
   : ehash_value_t
   = Seq.upd x i v
@@ -279,25 +263,14 @@ val blake2b:
         (Seq.slice (A.asel d h0) 0 (U32.v ll))
         0 Seq.empty (UInt32.v nn))
 
-let add' (s:hash_value_buf) (input:hashable_buffer) (l:U32.t)
-  : Steel unit
-    (A.varray s `star` A.varray input)
-    (fun _ -> A.varray s `star` A.varray input)
-    (requires fun h0 ->
-      U32.v l <= A.length input)
-    (ensures fun h0 _ h1 ->
-      U32.v l <= A.length input /\
-      A.asel s h1 ==
-      aggregate_hash_value (A.asel s h0)
-                           (hash_value (Seq.slice (A.asel input h0) 0 (U32.v l))))
+let add (s:hash_value_buf) (input:hashable_buffer) (l:U32.t)
   = let tmp = A.malloc 0uy 32ul in
     blake2b 32ul tmp l input;
     aggregate_hash_value_buf s tmp;
     A.free tmp;
+    let h1 = AT.get() in //Weird to need this
+    assert (A.asel s h1 == v_hash s h1);
     AT.return ()
-
-let add (s:state) (input:hashable_buffer) (l:U32.t) =
-  add' s input l; AT.sladmit()
 
 
 (* Crashes F* *)
@@ -412,7 +385,8 @@ let get_ (s:state) (out:hash_value_buf)
     (fun _ -> A.varray s `star` A.varray out)
     (requires fun _ -> True)
     (ensures fun h0 _ h1 ->
-       v_hash s h0 == as_hash_value out h1)
+       v_hash s h0 == as_hash_value out h1 /\
+       v_hash s h1 == v_hash s h0)
   = let _ = intro_hpts_to s in
     let _ = intro_varray_pts_to out in
     get' s out;
@@ -420,8 +394,5 @@ let get_ (s:state) (out:hash_value_buf)
     elim_varray_pts_to out _;
     AT.return ()
 
-let free_ (s:state)
-  : SteelT unit
-    (A.varray s)
-    (fun _ -> emp)
-  = A.free s
+let get = get_
+let free (s:state) = A.free s

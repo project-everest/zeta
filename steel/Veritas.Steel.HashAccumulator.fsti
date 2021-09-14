@@ -34,20 +34,26 @@ let as_hash_value (#p:vprop) (r:hash_value_buf)
     (h:rmem p{FStar.Tactics.with_tactic selector_tactic (can_be_split p (A.varray r) /\ True)})
   = A.asel r h
 
-val state : Type0
+let state = hash_value_buf
 
-val invariant (s: state) : vprop
+(* Can't introduce an abbreviation here ...
+   else v_hash fails *)
+// [@@__steel_reduce__;__reduce__]
+// unfold
+// let invariant (s: state) 
+//   : vprop
+//   = A.varray s
 
-val v_hash
+let v_hash
      (#p:vprop)
      (t:state)
      (h:rmem p{
        FStar.Tactics.with_tactic
          selector_tactic
-         (can_be_split p (invariant t) /\ True)
+         (can_be_split p (A.varray t) /\ True)
      })
   : GTot hash_value_t
-
+  = A.asel t h
 
 (*** THE MAIN INTERFACE ***)
 
@@ -55,7 +61,7 @@ val v_hash
 val create_in (_:unit)
   : Steel state
     emp
-    (fun s -> invariant s)
+    (fun s -> A.varray s)
     (requires fun _ -> True)
     (ensures fun _ s h1 ->
        v_hash s h1 == initial_hash)
@@ -74,8 +80,8 @@ val aggregate_hash_value_buf (b1: hash_value_buf) (b2: hash_value_buf)
 (** Hash the (input[0, l)) into the hash accumulate s *)
 val add (s:state) (input:hashable_buffer) (l:U32.t)
   : Steel unit
-    (invariant s `star` A.varray input)
-    (fun _ -> invariant s `star` A.varray input)    
+    (A.varray s `star` A.varray input)
+    (fun _ -> A.varray s `star` A.varray input)    
     (requires fun h0 ->
       U32.v l <= A.length input)
     (ensures fun h0 _ h1 ->
@@ -87,14 +93,15 @@ val add (s:state) (input:hashable_buffer) (l:U32.t)
 (** Read the current value of the hash into out *)
 val get (s:state) (out:hash_value_buf)
   : Steel unit
-    (invariant s `star` A.varray out)
-    (fun _ -> invariant s `star` A.varray out)
+    (A.varray s `star` A.varray out)
+    (fun _ -> A.varray s `star` A.varray out)
     (requires fun h0 -> True)
     (ensures fun h0 r h1 ->
-      v_hash s h0 == as_hash_value out h1)
+      v_hash s h0 == as_hash_value out h1 /\
+      v_hash s h1 == v_hash s h0)
 
 (** Free the hash accumulator *)
 val free (s:state)
   : SteelT unit
-    (invariant s)
+    (A.varray s)
     (fun _ -> emp)
