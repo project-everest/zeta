@@ -9,45 +9,7 @@ open Steel.Effect
 open Steel.Reference
 module AT = Steel.Effect.Atomic
 module Blake = Hacl.Blake2b_32
-
-let nat_at_most (f:U32.t) = x:nat{ x <= U32.v f }
-let u32_between (s f:U32.t) = x:U32.t { U32.v s <= U32.v x /\ U32.v x < U32.v f}
-
-let rec for_loop (start:U32.t)
-                 (finish:U32.t { U32.v start <= U32.v finish })
-                 (inv: nat -> vprop)
-                 (body:
-                    (i:u32_between start finish ->
-                          SteelT unit
-                          (inv (U32.v i))
-                          (fun _ -> inv (U32.v i + 1))))
-  : SteelT unit
-      (inv (U32.v start))
-      (fun _ -> inv (U32.v finish))
-  = if start = finish then (
-       AT.change_equal_slprop (inv _) (inv _);
-       AT.return ()
-    )
-    else (
-      body start;
-      let start' = U32.(start +^ 1ul) in
-      AT.change_equal_slprop (inv _) (inv (U32.v start'));
-      for_loop start' finish inv body;
-      AT.return ()
-    )
-
-assume
-val for_loop' (start:U32.t)
-             (finish:U32.t { U32.v start <= U32.v finish })
-             (inv: nat_at_most finish -> vprop)
-             (body:
-                    (i:u32_between start finish ->
-                          SteelT unit
-                          (inv (U32.v i))
-                          (fun _ -> inv (U32.v i + 1))))
-  : SteelT unit
-      (inv (U32.v start))
-      (fun _ -> inv (U32.v finish))
+module Loops = Veritas.Steel.Loops
 
 let initial_hash
   = Seq.create 32 0uy
@@ -195,12 +157,13 @@ let aggregate_hash_value_pts
     (fun _ ->
      hpts_to b1 (exor_bytes s1 s2) `star`
      hpts_to b2 s2)
-  = let inv (i:nat_at_most 32ul)
+  = let inv (i:Loops.nat_at_most 32ul)
       : vprop
       = hpts_to b1 (exor_bytes_pfx s1 s2 i) `star`
         hpts_to b2 s2
     in
-    let body (i:u32_between 0ul 32ul)
+    [@@inline_let]
+    let body (i:Loops.u32_between 0ul 32ul)
       : SteelT unit
         (inv (U32.v i))
         (fun _ -> inv (U32.v i + 1))
@@ -225,7 +188,7 @@ let aggregate_hash_value_pts
     assert (exor_bytes_pfx s1 s2 0 `Seq.equal` s1);
     AT.change_equal_slprop (hpts_to b1 _ `star` hpts_to b2 _)
                            (inv 0);
-    for_loop' 0ul 32ul inv body;
+    Loops.for_loop 0ul 32ul inv body;
     assert (exor_bytes_pfx s1 s2 32 `Seq.equal` exor_bytes s1 s2);
     AT.change_equal_slprop (inv 32)
                            (hpts_to b1 _ `star` hpts_to b2 _);
@@ -273,37 +236,6 @@ let add (s:hash_value_buf) (input:hashable_buffer) (l:U32.t)
     AT.return ()
 
 
-(* Crashes F* *)
-// let for_loop (start:U32.t)
-//              (finish:U32.t)
-//              (inv: nat -> vprop)
-//              (body:
-//              (i:U32.t ->
-//                    Steel unit
-//                    (inv (U32.v i))
-//                    (fun _ -> inv (U32.v i + 1))
-//                    (requires fun _ -> U32.v start <= U32.v i /\
-//                                    U32.v start < U32.v finish)
-//                    (ensures fun _ _ _ -> True)))
-//   : Steel unit
-//       (inv (U32.v start))
-//       (fun _ -> inv (U32.v finish))
-//       (requires fun _ ->
-//         U32.v start <= U32.v finish)
-//       (ensures fun _ _ _ ->
-//         True)
-//   = let rec aux (i:U32.t)
-//       : Steel unit
-//         (inv (U32.v i))
-//         (fun _ -> inv (U32.v finish))
-//         (requires fun _ ->
-//           U32.v start <= U32.v i /\
-//           U32.v i <= U32.v finish)
-//         (ensures fun _ _ _ -> True)
-//       = AT.sladmit(); AT.return ()
-//     in
-//     aux start
-
 let coerce #t (#l0 #l1:_) (e:elseq t l0 { l0 = l1}) : elseq t l1 = e
 
 let prefix_copied #t #l0 #l1
@@ -330,12 +262,12 @@ let memcpy #t (a0 a1:A.array t)
   : SteelT unit
     (varray_pts_to a0 e0 `star` varray_pts_to a1 e1)
     (fun _ -> varray_pts_to a0 e0 `star` varray_pts_to a1 (coerce e0))
-  = let inv (j:nat_at_most i)
+  = let inv (j:Loops.nat_at_most i)
       : vprop
       = varray_pts_to a0 e0 `star`
         varray_pts_to a1 (prefix_copied e0 e1 j)
     in
-    let body (j:u32_between 0ul i)
+    let body (j:Loops.u32_between 0ul i)
       : SteelT unit
         (inv (U32.v j))
         (fun _ -> inv (U32.v j + 1))
@@ -356,7 +288,7 @@ let memcpy #t (a0 a1:A.array t)
                            (varray_pts_to a1 (prefix_copied e0 e1 (U32.v 0ul)));
     AT.change_equal_slprop (varray_pts_to a0 e0 `star` varray_pts_to a1 _)
                            (inv (U32.v 0ul));
-    for_loop' 0ul i inv body;
+    Loops.for_loop 0ul i inv body;
     AT.slassert (inv (U32.v i));
     AT.change_equal_slprop (inv (U32.v i))
                            (varray_pts_to a0 e0 `star`
@@ -379,7 +311,7 @@ let get' (#e0 #e1:ehash_value_t)
     AT.change_equal_slprop (varray_pts_to s _)
                           (hpts_to s _)
 
-let get_ (s:state) (out:hash_value_buf)
+let get (s:state) (out:hash_value_buf)
   : Steel unit
     (A.varray s `star` A.varray out)
     (fun _ -> A.varray s `star` A.varray out)
@@ -394,5 +326,4 @@ let get_ (s:state) (out:hash_value_buf)
     elim_varray_pts_to out _;
     AT.return ()
 
-let get = get_
 let free (s:state) = A.free s
