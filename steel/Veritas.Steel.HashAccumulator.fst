@@ -346,8 +346,7 @@ let slice_lem (#t:_)
               (e1:elseq t l1)
   : Lemma
     (requires l0 == l1)
-    (ensures Seq.append (Seq.slice e0 0 l0)
-                        (Seq.slice e1 l0 l1) `Seq.equal`
+    (ensures prefix_copied e0 e1 l0 `Seq.equal`
              coerce #t #l0 #l1 e0)
   = ()
 
@@ -361,49 +360,68 @@ let memcpy #t (a0 a1:A.array t)
   = let inv (j:nat_at_most i)
       : vprop
       = varray_pts_to a0 e0 `star`
-        varray_pts_to a1 (Seq.append (Seq.slice e0 0 j) (Seq.slice e1 j (Seq.length e1)))
+        varray_pts_to a1 (prefix_copied e0 e1 j)
     in
     let body (j:u32_between 0ul i)
       : SteelT unit
         (inv (U32.v j))
         (fun _ -> inv (U32.v j + 1))
-      = // let z = read_pt a0 j in
-        // write_pt a1 j z;
-        AT.sladmit();
+      = AT.change_equal_slprop
+            (inv (U32.v j))
+            (varray_pts_to a0 e0 `star`
+             varray_pts_to a1 (prefix_copied e0 e1 (U32.v j)));
+        let z = read_pt a0 j in
+        write_pt a1 j z;
+        assert (Seq.upd (prefix_copied e0 e1 (U32.v j)) (U32.v j) z `Seq.equal`
+                prefix_copied e0 e1 (U32.v j + 1));
+        AT.change_equal_slprop (varray_pts_to a0 e0 `star` varray_pts_to a1 _)
+                               (inv (U32.v j + 1));
         AT.return ()
     in
-    assert (Seq.append (Seq.slice e0 0 0) (Seq.slice e1 0 (Seq.length e1)) `Seq.equal`
-            e1);
+    assert (prefix_copied e0 e1 0 `Seq.equal` e1);
     AT.change_equal_slprop (varray_pts_to a1 _)
-                           (varray_pts_to a1
-                             (Seq.append (Seq.slice e0 0 (U32.v 0ul))
-                                         (Seq.slice e1 (U32.v 0ul) (Seq.length e1))));
+                           (varray_pts_to a1 (prefix_copied e0 e1 (U32.v 0ul)));
     AT.change_equal_slprop (varray_pts_to a0 e0 `star` varray_pts_to a1 _)
                            (inv (U32.v 0ul));
     for_loop' 0ul i inv body;
     AT.slassert (inv (U32.v i));
     AT.change_equal_slprop (inv (U32.v i))
                            (varray_pts_to a0 e0 `star`
-                            varray_pts_to a1
-                             (Seq.append (Seq.slice e0 0 (U32.v i))
-                                         (Seq.slice e1 (U32.v i) (Seq.length e1))));
+                            varray_pts_to a1 (prefix_copied e0 e1 (U32.v i)));
     slice_lem e0 e1;
-    AT.change_equal_slprop (varray_pts_to a1
-                                          (Seq.append (Seq.slice e0 0 (U32.v i))
-                                          (Seq.slice e1 (U32.v i) (Seq.length e1))))
+    AT.change_equal_slprop (varray_pts_to a1 (prefix_copied e0 e1 (U32.v i)))
                            (varray_pts_to a1 (coerce e0));
     AT.return ()
 
 let get' (#e0 #e1:ehash_value_t)
          (s:state)
          (out:hash_value_buf)
-  : Steel unit
-    (hpts_to s `star` A.varray out)
-    (fun _ -> invariant s `star` A.varray out)
-    (requires fun h0 -> True)
-    (ensures fun h0 r h1 ->
-      v_hash s h0 == as_hash_value out h1)
+  : SteelT unit
+    (hpts_to s e0 `star` varray_pts_to out e1)
+    (fun _ ->
+      hpts_to s e0 `star` varray_pts_to out (coerce e0))
+  = AT.change_equal_slprop (hpts_to s _)
+                           (varray_pts_to s e0);
+    memcpy s out 32ul;
+    AT.change_equal_slprop (varray_pts_to s _)
+                          (hpts_to s _)
 
-//     (
-let as_hash_value_pfx (b:hash_value_buf) (h:HS.mem) (n:nat { n <= 32 }) =
-  Seq.slice (as_hash_value b h) 0 n
+let get_ (s:state) (out:hash_value_buf)
+  : Steel unit
+    (A.varray s `star` A.varray out)
+    (fun _ -> A.varray s `star` A.varray out)
+    (requires fun _ -> True)
+    (ensures fun h0 _ h1 ->
+       v_hash s h0 == as_hash_value out h1)
+  = let _ = intro_hpts_to s in
+    let _ = intro_varray_pts_to out in
+    get' s out;
+    elim_hpts_to s;
+    elim_varray_pts_to out _;
+    AT.return ()
+
+let free_ (s:state)
+  : SteelT unit
+    (A.varray s)
+    (fun _ -> emp)
+  = A.free s
