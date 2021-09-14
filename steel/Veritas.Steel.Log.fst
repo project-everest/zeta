@@ -7,7 +7,7 @@ module EP = Veritas.Formats
 module R = Steel.Reference
 module AT = Steel.Effect.Atomic
 
-let contents #t (a:A.array t) = A.repr a
+//let contents #t (a:A.array t) = A.repr a
 
 // assume
 // val varray_pts_to (#t:_) (a:A.array t) (bs:Ghost.erased (contents a)) : vprop
@@ -36,7 +36,7 @@ let contents #t (a:A.array t) = A.repr a
 //     (ensures fun _ _ h1 ->
 //       A.asel a h1 == Ghost.reveal c)
 
-let bytes_repr (l:nat) = Ghost.erased (Seq.lseq U8.t l)
+let bytes_repr (l:nat) = A.elseq U8.t l
 
 let rec parsed_raw (s:Seq.seq U8.t) (r: repr)
   : Tot Type
