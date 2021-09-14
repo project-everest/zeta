@@ -434,7 +434,7 @@ let lemma_non_eac_evicted_blum_addb
   : hash_collision app
   = let fi = eac_failure itsl in
     let i = fi.bi in
-    let be = eac_evictedb_addb_diff_elem itsl i in
+    let be = eac_evictedb_addb_diff_elem itsl in
     let ep = be.t.e in
     //assert(be.t.e <= epmax);
     not_eq (add_set ep itsl) (evict_set ep itsl) be;
