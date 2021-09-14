@@ -13,6 +13,7 @@ module U16 = FStar.UInt16
 module BV = FStar.BV
 module L = FStar.List.Tot
 module BinTree = Veritas.BinTree
+module HA = Veritas.Steel.HashAccumulator
 #push-options "--using_facts_from '* -FStar.Seq.Properties.slice_slice'"
 
 let slot (n:U16.t) = x:T.slot_id{ U16.v x < U16.v n}
@@ -40,7 +41,7 @@ type record (n:U16.t) = {
 }
 
 let contents (n:U16.t) = Seq.lseq (option (record n)) (U16.v n)
-let model_hash = MSH.ms_hash_value
+let model_hash = HA.hash_value_t
 
 [@@erasable]
 noeq
@@ -54,8 +55,7 @@ type thread_state_model = {
   model_thread_id: T.thread_id
 }
 
-assume
-val init_hash : model_hash
+let init_hash = HA.initial_hash
 
 let init_thread_state_model tid store_size
   : thread_state_model
@@ -265,9 +265,11 @@ let related_clocks (s_clock:U64.t)
                    (i_clock:MSH.timestamp)
   = timestamp_of_clock s_clock == i_clock
 
-let related_hashes (s_hash:model_hash)
+assume
+val related_hashes (s_hash:model_hash)
                    (i_hash:MSH.ms_hash_value)
-  = s_hash == i_hash
+  : Type0
+//  = s_hash == i_hash
 
 let related_thread_id (s_id:T.thread_id)
                       (i_id:Verifier.thread_id)

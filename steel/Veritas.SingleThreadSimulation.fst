@@ -66,8 +66,8 @@ let related_hashfn (v:S_Types.value)
                    (m:Veritas.Record.value)
   : Lemma
     (requires related_value v m)
-    (ensures related_hashes (bitvec_of_u256 (S.hashfn v))
-                            (Veritas.Hash.hashfn m))
+    (ensures bitvec_of_u256 (S.hashfn v) ==
+             Veritas.Hash.hashfn m)
   = admit()
 
 let related_init_value (s_k:_) (i_k:_)
@@ -232,7 +232,7 @@ let related_update_merkle_value (s_v:_)
       related_merkle_value s_v i_v /\
       related_desc_dir s_d i_d /\
       related_key s_k i_k /\
-      related_hashes (bitvec_of_u256 s_h) i_h
+      bitvec_of_u256 s_h == i_h
   )
     (ensures
       related_merkle_value
@@ -762,7 +762,7 @@ let related_vaddm (#vcfg: _)
             let s_dh' = S.desc_hash_dir s_mv' s_d in
             let s_h = S.hashfn s_v in
             related_hashfn s_v i_v;
-            assert (related_hashes (bitvec_of_u256 s_h) i_h);
+            assert (bitvec_of_u256 s_h == i_h);
             related_desc_hash_dir s_mv' s_d i_mv' i_d;
             match s_dh' with
             | S_Types.Dh_vnone _ ->

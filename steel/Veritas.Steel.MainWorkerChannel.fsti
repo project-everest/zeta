@@ -23,8 +23,8 @@ let valid_epoch_hash_entry (a_ch:Awc.ch) (eh:Formats.epoch_hash_entry) : prop =
     (exists (n:nat). Awc.sent_s a_ch es n) /\
     (let tsm = Model.verify_model (initial_thread_state_model (UInt16.v eh.t_id)) es in
      not tsm.model_failed /\
-     tsm.model_hadd == TSM.bitvec_of_u256 eh.hadd /\
-     tsm.model_hevict == TSM.bitvec_of_u256 eh.hevict)
+     TSM.related_hashes tsm.model_hadd (TSM.bitvec_of_u256 eh.hadd) /\
+     TSM.related_hashes tsm.model_hevict (TSM.bitvec_of_u256 eh.hevict))
 
 val write (#a_ch:G.erased Awc.ch)
   (c:ch)

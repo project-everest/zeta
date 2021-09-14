@@ -12,11 +12,9 @@ module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 
 module T = Veritas.Formats.Types
-open Veritas.Steel.VerifierModel
-open Veritas.ThreadStateModel
+module VM = Veritas.Steel.VerifierModel
 module AT = Steel.Effect.Atomic
 module VFT = Veritas.Formats.Types
-module MSH = Veritas.MultiSetHash
 module A = Veritas.Steel.Array
 module HA = Veritas.Steel.HashAccumulator
 
@@ -26,15 +24,21 @@ val prf_set_hash
 val prf_set_hash_sl (_:prf_set_hash)
   : slprop u#1
 
+val prf_set_hash_repr
+  : Type0
+
+val hash_value_of (p:prf_set_hash_repr)
+  : HA.hash_value_t
+
 val prf_set_hash_sel (r:prf_set_hash)
-  : selector (HA.hash_value_t) (prf_set_hash_sl r)
+  : GTot (selector prf_set_hash_repr (prf_set_hash_sl r))
 
 [@@__steel_reduce__]
 noextract
 let prf_set_hash_inv' (r:prf_set_hash)
-  : vprop'
+  : GTot vprop'
   = { hp = prf_set_hash_sl r;
-      t = HA.hash_value_t;
+      t = prf_set_hash_repr;
       sel = prf_set_hash_sel r}
 
 unfold
@@ -48,7 +52,7 @@ let v_hash (#p:vprop)
            (h:rmem p{FStar.Tactics.with_tactic selector_tactic
                       (can_be_split p (prf_set_hash_inv r) /\ True)})
   : GTot HA.hash_value_t
-  = h (prf_set_hash_inv r)
+  = hash_value_of (h (prf_set_hash_inv r))
 
 val create (_:unit)
   : Steel prf_set_hash
@@ -62,12 +66,6 @@ val free (p:prf_set_hash)
     (prf_set_hash_inv p)
     (fun _ -> emp)
 
-val update_hash_value (ha:HA.hash_value_t)
-                      (r:T.record)
-                      (t:T.timestamp)
-                      (thread_id:T.thread_id)
-  : GTot HA.hash_value_t
-
 val prf_update_hash (p:prf_set_hash)
                     (r:T.record)
                     (t:T.timestamp)
@@ -77,7 +75,7 @@ val prf_update_hash (p:prf_set_hash)
     (fun _ -> prf_set_hash_inv p)
     (requires fun _ -> True)
     (ensures fun h0 _ h1 ->
-      v_hash p h1 == update_hash_value (v_hash p h0) r t thread_id)
+      v_hash p h1 == VM.update_hash_value (v_hash p h0) r t thread_id)
 
 val prf_read_hash (p:prf_set_hash) (out:A.array U8.t)
   : Steel unit

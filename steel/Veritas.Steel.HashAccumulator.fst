@@ -10,6 +10,7 @@ open Steel.Reference
 module AT = Steel.Effect.Atomic
 module Blake = Hacl.Blake2b_32
 module Loops = Veritas.Steel.Loops
+#push-options "--fuel 0 --ifuel 0"
 
 let initial_hash
   = Seq.create 32 0uy
@@ -49,6 +50,7 @@ let upd_ehash_value (x:ehash_value_t) (i:nat{i < 32}) (v:U8.t)
   : ehash_value_t
   = Seq.upd x i v
 
+#push-options "--z3rlimit_factor 3"
 let extend_ehash_value (s1 s2:ehash_value_t) (i:nat { i < 32 })
   : Lemma (upd_ehash_value
                      (exor_bytes_pfx s1 s2 i)
@@ -56,6 +58,7 @@ let extend_ehash_value (s1 s2:ehash_value_t) (i:nat { i < 32 })
                      (U8.logxor (Seq.index s1 i) (Seq.index s2 i)) `Seq.equal`
            exor_bytes_pfx s1 s2 (i + 1))
   = ()
+#pop-options
 
 let hpts_to (x:hash_value_buf) (s:ehash_value_t) =
   A.varray_pts_to x s

@@ -7,7 +7,9 @@ module U64 = FStar.UInt64
 
 module VSeq = Veritas.SeqAux
 
+module HA = Veritas.Steel.HashAccumulator
 module MSH = Veritas.MultiSetHashDomain
+module VF = Veritas.Formats
 module T = Veritas.Formats.Types
 open Veritas.ThreadStateModel
 
@@ -64,20 +66,21 @@ let mk_record #n (k:T.key) (v:T.value{is_value_of k v}) (a:T.add_method) : recor
 let model_update_clock (tsm:thread_state_model) (ts:T.timestamp)
   : thread_state_model
   = if FStar.UInt.fits (U64.v tsm.model_clock + U64.v ts) 64
-    then { tsm with model_clock = tsm.model_clock `U64.add` ts } //+1
+    then { tsm with model_clock = tsm.model_clock `U64.add` ts }
     else model_fail tsm
 
+let update_hash_value (ha:HA.hash_value_t)
+                      (r:T.record)
+                      (t:T.timestamp)
+                      (tid:T.thread_id)
+  : GTot HA.hash_value_t
+  = let b = VF.serialize_stamped_record_spec (T.({ sr_record = r; sr_timestamp = t; sr_thread_id = tid})) in
+    let h = HA.hash_value b in
+    HA.aggregate_hash_value ha h
+
 let model_update_hash (h:model_hash) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
-  : model_hash
-  = let open Veritas.ThreadStateModel in
-    match lift_key r.T.record_key, lift_value r.T.record_value with
-    | Some k, Some v ->
-      Veritas.MultiSetHash.ms_hashfn_upd
-        (Veritas.MultiSetHashDomain.MHDom (k, v) (timestamp_of_clock t) (U16.v thread_id))
-        h
-    | _ ->
-      //TODO: we need a better spec here, otherwise prf_update_hash will not be provable
-      h
+  : GTot model_hash
+  = update_hash_value h r t thread_id
 
 let model_update_hadd (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id) =
   ({tsm with model_hadd = model_update_hash tsm.model_hadd r t thread_id})

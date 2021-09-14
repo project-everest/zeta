@@ -72,14 +72,3 @@ val free (vs:thread_state_t)
   : SteelT unit
     (thread_state_inv vs)
     (fun _ -> emp)
-
-
-
-// module Awc = Veritas.Steel.ApplicationWorkerChannel
-// val verify (#n:erased nat) (vs:thread_state_t) (c:Awc.ch) (m:nat)
-//   : Steel unit
-//       (thread_state_inv vs `star` Awc.reader c n)
-//       (fun _ -> thread_state_inv vs `star` Awc.reader c m)
-//       (fun _ -> True)
-//       (fun h0 _ h1 ->
-//        v_thread vs h1 == verify_model (v_thread vs h0) (Awc.trace_n_m c n m))
