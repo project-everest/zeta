@@ -42,5 +42,6 @@ val serialize_stamped_record
   (requires (fun h -> B.live h dst /\ 184 <= B.length dst))
   (ensures (fun h0 len h1 ->
     U32.v len <= B.length dst /\
-    B.modifies (B.loc_buffer (B.gsub dst 0ul len)) h0 h1
+    B.modifies (B.loc_buffer (B.gsub dst 0ul len)) h0 h1 /\
+    B.as_seq h1 (B.gsub dst 0ul len) == serialize_stamped_record_spec r
   ))
