@@ -212,8 +212,10 @@ let next_add
   (i: seq_index itsl {let l = i_seq itsl in
                       is_blum_evict_refs_key k (index itsl i) /\
                       i <> last_idx (refs_key k) l})
-  : j:seq_index itsl{is_blum_add itsl j /\
-                     blum_add_elem itsl j = blum_evict_elem itsl i}
+  : j:seq_index itsl{let l = i_seq itsl in
+                     is_blum_add itsl j /\
+                     blum_add_elem itsl j = blum_evict_elem itsl i /\
+                     j > i /\ j < last_idx (refs_key k) l}
   = admit()
 
 module GV = Zeta.GenericVerifier
@@ -250,22 +252,32 @@ let eac_evictedb_addb_diff_elem
 
     if evict_set ep il `contains` be then (
       last_evict_props k itsli;
-      let j = last_idx (is_blum_evict_refs_key k) (i_seq itsli) in
+
+      let j = last_idx (is_blum_evict_refs_key #app k) (i_seq itsli) in
       let be' = blum_evict_elem il j in
       assert(be' <> be);
 
-      let i' = evict_elem_idx il be in
-      let e = index il i' in
-      let be2 = blum_evict_elem il i' in
+      let j' = evict_elem_idx il be in
+      let e = index il j' in
+      let be2 = blum_evict_elem il j' in
       assert(GV.is_blum_evict e);
-      assert(is_blum_evict_refs_key k e);
       lemma_evict_before_add il i;
+      assert(j' < i);
+      lemma_index_prefix_property il i j';
+      assert(index itsli j' = index il j');
 
-      assert(i' < i);
+      //assert(p (S.index s j'));
+      last_idx_correct (is_blum_evict_refs_key #app k) (i_seq itsli) j';
+      assert(j' < j);
 
-      //last_idx_correct (is_blum_evict_refs_key k) (i_seq itsli) i';
+      let i' = next_add k itsli j' in
+      //assert(be = blum_add_elem il i');
 
-      admit()
+      lemma_add_set_mem il i i';
+      // assert(mem be (add_set ep il) >= 2);
+
+      evict_set_is_a_set ep il;
+      be
     )
     else
       be

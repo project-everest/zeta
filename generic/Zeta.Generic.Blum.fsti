@@ -99,6 +99,13 @@ val lemma_evict_before_add3 (#vspec #n:_) (itsl: its_log vspec n) (i: seq_index 
                    blum_add_elem itsl i = blum_evict_elem itsl j))
         (ensures (j < i))
 
+val lemma_add_set_mem (#vspec #n:_) (il: verifiable_log vspec n) (i1 i2: seq_index il)
+  : Lemma (requires (i1 <> i2 /\ is_blum_add il i1 /\ is_blum_add il i2 /\
+                     blum_add_elem il i1 = blum_add_elem il i2))
+          (ensures (let be = blum_add_elem il i1 in
+                    let ep = be.t.e in
+                    mem be (add_set ep il) >= 2))
+
 (* add elements of a specific key*)
 val k_add_il (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
   : interleaving (ms_hashfn_dom vspec.app) n
