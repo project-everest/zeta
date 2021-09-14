@@ -21,6 +21,14 @@ let lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{t
                     st_pre == st_post))
   = admit()
 
+let is_blum_add_prefix_prop
+  (#vspec #n:_)
+  (il: verifiable_log vspec n)
+  (i: seq_index il)
+  (j:nat{j <= length il /\ j > i})
+  : Lemma (ensures (is_blum_add il i = is_blum_add (prefix il j) i))
+  = admit()
+
 let blum_add_elem_prefix_prop
   (#vspec #n:_)
   (il: verifiable_log vspec n)

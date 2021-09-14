@@ -322,22 +322,9 @@ let eac_transition_out_of_blum_evict
                     let es = eac_state_of_key_post k il i in
                     is_blum_add il i /\ blum_add_elem il i = to_blum_elem es' /\
                     EACInStore? es))
-  = admit()
-
-let next_idx (#a:_) (p: a -> bool)
-  (s: S.seq a {exists_elems_with_prop p s})
-  (i: SA.seq_index s{i < last_idx p s})
-  : j:SA.seq_index s{p (S.index s j) /\ j > i /\ j <= (last_idx p s)}
-  = admit()
-
-let next_idx_correct (#a:_) (p: a -> bool)
-  (s: S.seq a {exists_elems_with_prop p s})
-  (i: SA.seq_index s {i < last_idx p s})
-  : Lemma (ensures (let j = next_idx p s i in
-                    let s' = SA.prefix s j in
-                    exists_elems_with_prop p s' ==> last_idx p s' <= i))
-          [SMTPat (next_idx p s i)]
-  = admit()
+  = let ili = prefix il (i+1) in
+    eac_state_snoc k ili;
+    eac_state_transition_snoc k ili
 
 #push-options "--z3rlimit_factor 3"
 

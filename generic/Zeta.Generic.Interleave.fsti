@@ -102,6 +102,14 @@ let is_blum_add (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
   = let ti = i2s_map il i in
     G.is_blum_add (to_glog il) ti
 
+val is_blum_add_prefix_prop
+  (#vspec #n:_)
+  (il: verifiable_log vspec n)
+  (i: seq_index il)
+  (j:nat{j <= length il /\ j > i})
+  : Lemma (ensures (is_blum_add il i = is_blum_add (prefix il j) i))
+          [SMTPat (is_blum_add (prefix il j) i)]
+
 let blum_add_elem #vspec #n (il: verifiable_log vspec n) (i: seq_index il{is_blum_add il i})
   : ms_hashfn_dom vspec.app
   = let ti = i2s_map il i in

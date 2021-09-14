@@ -28,3 +28,15 @@ val last_idx_correct (#a:_) (p: a -> bool)
   : Lemma (ensures ((i > last_idx p s ==> ~ (p (index s i))) /\
                     (p (index s i) ==> i <= last_idx p s)))
 
+val next_idx (#a:_) (p: a -> bool)
+  (s: seq a {exists_elems_with_prop p s})
+  (i: seq_index s{i < last_idx p s})
+  : j:seq_index s{p (index s j) /\ j > i /\ j <= (last_idx p s)}
+
+val next_idx_correct (#a:_) (p: a -> bool)
+  (s: seq a {exists_elems_with_prop p s})
+  (i: seq_index s {i < last_idx p s})
+  : Lemma (ensures (let j = next_idx p s i in
+                    let s' = prefix s j in
+                    exists_elems_with_prop p s' ==> last_idx p s' <= i))
+          [SMTPat (next_idx p s i)]
