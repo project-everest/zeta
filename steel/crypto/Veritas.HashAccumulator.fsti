@@ -1,4 +1,4 @@
-module Veritas.HashSet
+module Veritas.HashAccumulator
 
 #set-options "--fuel 0 --ifuel 0"
 
@@ -31,6 +31,9 @@ let hashable_buffer = b:B.buffer U8.t { B.length b <= blake2_max_input_length }
 
 let hash_value_t = Seq.lseq U8.t 32
 
+val initial_hash
+  : hash_value_t
+
 val hash_value (_:hashable_bytes)
   : hash_value_t
 
@@ -43,7 +46,6 @@ let as_hash_value (b:hash_value_buf) (h:HS.mem)
   : GTot hash_value_t
   = B.as_seq h b
 
-[@CAbstractStruct]
 val state: Type0
 
 val invariant (s: state) (h:HS.mem) : Type0
@@ -71,7 +73,8 @@ val create_in: unit -> ST state
   (ensures fun h0 s h1 ->
     invariant s h1 /\
     B.(modifies loc_none h0 h1) /\
-    B.fresh_loc (footprint s) h0 h1)
+    B.fresh_loc (footprint s) h0 h1 /\
+    v_hash s h1 == initial_hash)
 
 (** Combine two hash values held in b1 and b2 into b1 *)
 val aggregate_hash_value_buf (b1: hash_value_buf) (b2: hash_value_buf)

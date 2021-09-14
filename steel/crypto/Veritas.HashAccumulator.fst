@@ -1,4 +1,4 @@
-module Veritas.HashSet
+module Veritas.HashAccumulator
 
 #set-options "--fuel 0 --ifuel 0"
 
@@ -14,9 +14,13 @@ module U64 = FStar.UInt64
 open FStar.HyperStack.ST
 open LowStar.BufferOps
 
+let initial_hash
+  = Seq.create 32 0uy
+
 let hash_value (s:Seq.seq U8.t { Seq.length s <= blake2_max_input_length })
   : hash_value_t
   = Hacl.Blake2b_32.spec s 0 Seq.empty 32
+
 
 noextract inline_for_extraction
 let xor_bytes (s1: Seq.seq U8.t)

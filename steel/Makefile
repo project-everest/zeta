@@ -1,7 +1,7 @@
 #INCLUDE_PATHS=..
 #include ../Makefile.common
 VERITAS_HOME = ..
-SRC_DIRS=$(VERITAS_HOME)/high $(VERITAS_HOME)/intermediate $(VERITAS_HOME)/steel/formats
+SRC_DIRS=$(VERITAS_HOME)/high $(VERITAS_HOME)/intermediate $(VERITAS_HOME)/steel/formats $(VERITAS_HOME)/steel/crypto
 FSTAR_FILES=$(wildcard *fst *fsti)
 
 all: verify

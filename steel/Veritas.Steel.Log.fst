@@ -1,40 +1,40 @@
 module Veritas.Steel.Log
 module T = Veritas.Formats.Types
-module A = Steel.Array
+module A = Veritas.Steel.Array
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32
 module EP = Veritas.Formats
 module R = Steel.Reference
 module AT = Steel.Effect.Atomic
 
-let contents #t (a:A.array t) = A.contents t (A.length a)
+let contents #t (a:A.array t) = A.repr a
 
-assume
-val varray_pts_to (#t:_) (a:A.array t) (bs:Ghost.erased (contents a)) : vprop
+// assume
+// val varray_pts_to (#t:_) (a:A.array t) (bs:Ghost.erased (contents a)) : vprop
 
 
-assume
-val intro_varray_pts_to (#t:_)
-                        (#opened:inames)
-                        (a:A.array t)
-  : AT.SteelGhost (Ghost.erased (contents a)) opened
-    (A.varray a)
-    (fun x -> varray_pts_to a x `star` emp)
-    (requires fun _ -> True)
-    (ensures fun h0 x h1 ->
-      Ghost.reveal x == A.asel a h0)
+// assume
+// val intro_varray_pts_to (#t:_)
+//                         (#opened:inames)
+//                         (a:A.array t)
+//   : AT.SteelGhost (Ghost.erased (contents a)) opened
+//     (A.varray a)
+//     (fun x -> varray_pts_to a x `star` emp)
+//     (requires fun _ -> True)
+//     (ensures fun h0 x h1 ->
+//       Ghost.reveal x == A.asel a h0)
 
-assume
-val elim_varray_pts_to (#t:_)
-                       (#opened:inames)
-                       (a:A.array t)
-                       (c:Ghost.erased (contents a))
-  : AT.SteelGhost unit opened
-    (varray_pts_to a c)
-    (fun _ -> A.varray a)
-    (requires fun _ -> True)
-    (ensures fun _ _ h1 ->
-      A.asel a h1 == Ghost.reveal c)
+// assume
+// val elim_varray_pts_to (#t:_)
+//                        (#opened:inames)
+//                        (a:A.array t)
+//                        (c:Ghost.erased (contents a))
+//   : AT.SteelGhost unit opened
+//     (varray_pts_to a c)
+//     (fun _ -> A.varray a)
+//     (requires fun _ -> True)
+//     (ensures fun _ _ h1 ->
+//       A.asel a h1 == Ghost.reveal c)
 
 let bytes_repr (l:nat) = Ghost.erased (Seq.lseq U8.t l)
 
@@ -179,12 +179,11 @@ let log_array l = l.arr
 let log_length l = U32.v (log_len l)
 
 
-
 let varray_pts_to_u8 (#len:_)
                      (a:EP.larray U8.t len)
                      (bs:bytes_repr (U32.v len))
   : vprop
-  = varray_pts_to a bs
+  = A.varray_pts_to a bs
 
 let intro_varray_pts_to_u8 (#opened:inames)
                            (#len: U32.t)
@@ -195,7 +194,7 @@ let intro_varray_pts_to_u8 (#opened:inames)
     (requires fun _ -> True)
     (ensures fun h0 x h1 ->
       Ghost.reveal x == A.asel arr h0)
-  = intro_varray_pts_to arr
+  = A.intro_varray_pts_to arr
 
 let elim_varray_pts_to_u8 (#opened:inames)
                           (#len: U32.t)
@@ -207,7 +206,7 @@ let elim_varray_pts_to_u8 (#opened:inames)
     (requires fun _ -> True)
     (ensures fun h0 x h1 ->
       Ghost.reveal b == A.asel arr h1)
-  = elim_varray_pts_to arr b
+  = A.elim_varray_pts_to arr b
 
 module Perm = Steel.FractionalPermission
 [@@__reduce__; __steel_reduce__]

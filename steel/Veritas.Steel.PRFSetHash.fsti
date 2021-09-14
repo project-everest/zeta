@@ -31,11 +31,14 @@ let prf_set_hash_inv' (r:prf_set_hash) : vprop' =
     sel = prf_set_hash_sel r}
 
 unfold
-let prf_set_hash_inv (r:prf_set_hash) : vprop = VUnit (prf_set_hash_inv' r)
+let prf_set_hash_inv (r:prf_set_hash)
+  : vprop
+  = VUnit (prf_set_hash_inv' r)
 
 [@@ __steel_reduce__]
-let v_hash (#p:vprop) (r:prf_set_hash)
-  (h:rmem p{FStar.Tactics.with_tactic selector_tactic (can_be_split p (prf_set_hash_inv r) /\ True)})
+let v_hash (#p:vprop)
+           (r:prf_set_hash)
+           (h:rmem p{FStar.Tactics.with_tactic selector_tactic (can_be_split p (prf_set_hash_inv r) /\ True)})
   : GTot model_hash
   = h (prf_set_hash_inv r)
 
@@ -51,23 +54,14 @@ val free (p:prf_set_hash)
     (prf_set_hash_inv p)
     (fun _ -> emp)
 
+module VFT = Veritas.Formats.Types
+
 val prf_update_hash (p:prf_set_hash) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
   : Steel unit
     (prf_set_hash_inv p)
     (fun _ -> prf_set_hash_inv p)
     (requires fun _ -> True)
     (ensures fun h0 _ h1 -> v_hash p h1 == model_update_hash (v_hash p h0) r t thread_id)
-
-let prf_update_hash p r t thread_id =
-  let open Veritas.Formats.Types in
-  let srec = {
-    sr_record = r;
-    sr_timestamp = t;
-    sr_thread_id = thread_id;
-  } in
-  let a = Steel.Array.malloc 0uy 184ul in
-  let n = Veritas.Formats.serialize_stamped_record a srec in
-  sladmit()
 
 module A = Steel.Array
 module U8 = FStar.UInt8
