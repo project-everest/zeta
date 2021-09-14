@@ -1,7 +1,14 @@
 module Zeta.High.Blum
 
+open Zeta.High.Verifier
 open Zeta.High.Thread
 open Zeta.SeqIdx
+
+module V = Zeta.GenericVerifier
+module G = Zeta.Generic.Global
+module T = Zeta.Generic.Thread
+module I = Zeta.Interleave
+module MSD = Zeta.MultiSetHashDomain
 
 let eac_state_transition_snoc
   (#app #n:_)
@@ -35,8 +42,44 @@ let eac_state_transition_snoc
                       )
                     | EACEvictedMerkle _ _, EACInStore _ _ _ ->
                       AddM? e
+                    | EACInStore _ _ _, EACInStore _ _ _ ->
+                      RunApp? e
                     | _ -> False)))
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let es' = eac_state_of_key bk il' in
+    let es = eac_state_of_key bk il in
+    let ee = mk_vlog_entry_ext il i in
+    let e = index il i in
+    let tid_o = src il i in
+    let st_pre = thread_store_pre tid_o il i in
+    eac_state_snoc bk il;
+    if es = es' then ()
+    else
+    (
+      assert(es <> EACFail);
+      assert(es = eac_add ee es');
+      match es' with
+      | EACInStore _ gk' _ -> (
+        match ee with
+        | EvictBlum e v_e tid_e ->
+          ext_evict_val_is_stored_val il i;
+          stored_key_is_correct bk il';
+          key_in_unique_store bk il' tid_o (stored_tid bk il')
+        | _ ->  ()
+      )
+      | EACEvictedBlum gk v t tid ->
+        assert(match es', es with EACEvictedBlum gk v t tid, EACInStore _ gk' _ ->
+                      gk = gk' /\ is_blum_add il i /\
+                      to_base_key gk = add_slot (index il i) /\
+                      (let be = blum_add_elem il i in
+                       let open Zeta.MultiSetHashDomain in
+                       let gke, ve = be.r in
+                       gke = gk /\ ve = v /\ be.t = t /\ be.tid = tid
+                      ));
+        ()
+      | _ -> ()
+    )
 
 let eac_state_unchanged_snoc
   (#app #n:_)

@@ -18,6 +18,7 @@ module I = Zeta.Interleave
 module S = FStar.Seq
 module SA = Zeta.SeqAux
 module EAC=Zeta.EAC
+module MSD = Zeta.MultiSetHashDomain
 
 let ilog (app: app_params) = Zeta.Generic.Interleave.ilog (high_verifier_spec app)
 
@@ -35,6 +36,23 @@ let thread_store_pre (#app #n:_) (tid: nat{tid < n}) (il: verifiable_log app n) 
 let thread_store_post (#app #n:_) (tid: nat{tid < n}) (il: verifiable_log app n) (i: seq_index il)
   = let vs = thread_state_post tid il i in
     vs.st
+
+val blum_evict_elem_props
+  (#app #n:_)
+  (il: verifiable_log app n)
+  (i: seq_index il {is_blum_evict il i})
+  : Lemma (ensures (let e = I.index il i in
+                    let MSD.MHDom (gk,vk) t_e tid_e = blum_evict_elem il i in
+                    let tid = I.src il i in
+                    let st_pre = thread_store_pre tid il i in
+                    let k = V.evict_slot e in
+                    k = to_base_key gk /\
+                    store_contains st_pre k /\
+                    gk = stored_key st_pre k /\
+                    vk = stored_value st_pre k /\
+                    t_e = V.blum_evict_timestamp e /\
+                    tid_e = tid))
+          [SMTPat (blum_evict_elem il i)]
 
 let has_some_add_of_key (#app #n:_) (bk: base_key) (il: verifiable_log app n)
   = exists i. HV.is_add_of_key bk (I.index il i)
@@ -223,6 +241,13 @@ val ext_evict_val_is_stored_val (#app #n:_) (il: verifiable_log app n) (i: seq_i
                   let bk = V.evict_slot e in
                   store_contains st_pre bk /\
                   HV.stored_value st_pre bk = value_ext ee))
+
+val ext_blum_timestamp_is_src (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
+  : Lemma (requires (is_blum_evict il i))
+          (ensures (let tid = I.src il i in
+                    let EvictBlum _ _ tid_e = mk_vlog_entry_ext il i in
+                    tid_e = tid))
+          [SMTPat (blum_evict_elem il i)]
 
 val ext_app_records_is_stored_val
   (#app #n:_)
