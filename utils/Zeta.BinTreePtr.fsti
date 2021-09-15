@@ -1,6 +1,6 @@
-module Veritas.BinTreePtr
+module Zeta.BinTreePtr
 
-open Veritas.BinTree
+open Zeta.BinTree
 
 (* 
  * ptrfn is a function that maps each node and a direction (left | right) to an 

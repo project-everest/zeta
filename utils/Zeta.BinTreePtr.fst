@@ -1,6 +1,4 @@
-module Veritas.BinTreePtr
-
-open Veritas.BinTree
+module Zeta.BinTreePtr
 
 (* pointer based descendant relation *)
 noeq type pdesc: ptrfn -> bin_tree_node -> bin_tree_node -> Type = 
