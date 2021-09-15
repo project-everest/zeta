@@ -130,7 +130,7 @@ let addm (#aprm: app_params)
       | Empty ->
         if is_init_record r
         then
-          let v' = update_value v' d k h false in
+          let v' = update_value v' d k Zeta.Hash.zero false in
           let st = update_store st k' (IntK k', IntV v') in
           let st = add_to_store st r MAdd in
           update_thread_store vs st
@@ -148,7 +148,7 @@ let addm (#aprm: app_params)
           let d2 = desc_dir k2 k in
           let mv = to_merkle_value v in
           let mv = update_value mv d2 k2 h2 b2 in
-          let v' = update_value v' d k h false in
+          let v' = update_value v' d k Zeta.Hash.zero false in
           let st = update_store st k' (IntK k', IntV  v') in
           let st = add_to_store st (IntK k, (IntV mv)) MAdd in
           update_thread_store vs st

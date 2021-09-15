@@ -197,7 +197,7 @@ let lemma_non_eac_init_addm
 
     let gk' = IntK #app k' in
     eac_value_is_stored_value itsli gk' tid;
-    let mv' = HM.eac_value k' itsli in
+    let mv' = eac_merkle_value k' itsli in
     let d = desc_dir k k' in
     let dh' = desc_hash mv' d in
 

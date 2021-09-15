@@ -1,21 +1,26 @@
 module Zeta.High.Merkle
 
 open FStar.Seq
+open Zeta.SeqAux
 open Zeta.BinTree
+open Zeta.BinTreePtr
+open Zeta.Interleave
 open Zeta.Key
+open Zeta.App
 open Zeta.HashFunction
 open Zeta.GenKey
 open Zeta.Record
 open Zeta.Merkle
 open Zeta.EAC
 open Zeta.GenericVerifier
+open Zeta.Generic.Interleave
 open Zeta.High.Verifier
 open Zeta.High.Interleave
 
 module I = Zeta.Interleave
 module HI = Zeta.High.Interleave
 
-let eac_value (#app #n:_) (k:merkle_key) (il: eac_log app n)
+let eac_merkle_value (#app #n:_) (k:merkle_key) (il: eac_log app n)
   : value
   = let gk = IntK k in
     let v = eac_value gk il in
@@ -30,7 +35,7 @@ val lemma_proving_ancestor_points_to_self (#app #n:_) (il: eac_log app n) (k:bas
   Lemma (requires (eac_state_of_key k il <> EACInit))
         (ensures (let pk = proving_ancestor il k in
                   let d = desc_dir k pk in
-                  let v = eac_value pk il in
+                  let v = eac_merkle_value pk il in
                   points_to v d k))
         [SMTPat (proving_ancestor il k)]
 
@@ -38,7 +43,7 @@ val lemma_proving_ancestor_points_to_self (#app #n:_) (il: eac_log app n) (k:bas
 val lemma_proving_ancestor_initial (#app #n:_) (il: eac_log app n) (k:base_key{k <> Root}):
   Lemma (requires (eac_state_of_key k il = EACInit))
         (ensures (let k' = proving_ancestor il k in
-                  let v' = eac_value k' il in
+                  let v' = eac_merkle_value k' il in
                   let c = desc_dir k k' in
                   points_to_none c v' \/
                   not (is_desc k (pointed_key v' c))))
@@ -49,7 +54,7 @@ val lemma_proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{
                    EACEvictedMerkle? (eac_state_of_key k il)))
         (ensures (let k = to_base_key gk in
                   let pk = proving_ancestor il k in
-                  let mv = eac_value pk il in
+                  let mv = eac_merkle_value pk il in
                   let c = desc_dir k pk in
                   let v = HI.eac_value gk il in
                   pointed_hash mv c = hashfn v))
@@ -74,7 +79,7 @@ let proving_ancestor_has_blum_bit (#app #n:_) (il: eac_log app n) (k:base_key {k
   = let es = eac_state_of_key k il in
     let pk = proving_ancestor il k in
     let c = desc_dir k pk in
-    let mv = eac_value pk il in
+    let mv = eac_merkle_value pk il in
 
     es = EACInit ||
     evicted_to_blum mv c = is_in_blum es
@@ -100,7 +105,7 @@ val lemma_points_to_implies_proving_ancestor
   (k:base_key)
   (k':merkle_key)
   (d:bin_tree_dir):
-  Lemma (requires (let mv = eac_value k' il in
+  Lemma (requires (let mv = eac_merkle_value k' il in
                    points_to mv d k))
         (ensures (k <> Root /\ proving_ancestor il k = k'))
 
@@ -116,7 +121,7 @@ val lemma_init_ancestor_ancestor_of_proving
   Lemma (requires ((k' = Root \/ eac_state_of_key k' il <> EACInit) /\
                     k' <> proving_ancestor il k))
         (ensures (let d = desc_dir k k' in
-                  let mv = eac_value k' il in
+                  let mv = eac_merkle_value k' il in
                   let pk = proving_ancestor il k in
                   points_to_some mv d /\
                   is_desc pk (pointed_key mv d)))
@@ -124,9 +129,9 @@ val lemma_init_ancestor_ancestor_of_proving
 (* if a merkle value of key k points to a key kd in some direction d, then kd is a proper desc of
  * k in direction d *)
 val lemma_points_to_dir_correct (#app #n:_) (il: eac_log app n) (k:merkle_key) (d:bin_tree_dir):
-  Lemma (requires (let mv = eac_value k il in
+  Lemma (requires (let mv = eac_merkle_value k il in
                    points_to_some mv d))
-        (ensures (let mv = eac_value k il in
+        (ensures (let mv = eac_merkle_value k il in
                   let kd = pointed_key mv d in
                   is_proper_desc kd k /\
                   d = desc_dir kd k))
