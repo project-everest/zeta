@@ -1,7 +1,7 @@
 module Veritas.Steel.HashAccumulator
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32
-module A = Veritas.Steel.Array
+module A = Steel.Array
 
 open Steel.Memory
 open Steel.Effect.Common
@@ -9,7 +9,7 @@ open Steel.Effect
 open Steel.Reference
 module AT = Steel.Effect.Atomic
 module Blake = Hacl.Blake2b_32
-module Loops = Veritas.Steel.Loops
+module Loops = Steel.Loops
 #push-options "--fuel 0 --ifuel 0"
 
 let initial_hash
@@ -70,13 +70,20 @@ let read_hbuf (#s:ehash_value_t) (x:hash_value_buf) (i:U32.t{U32.v i < 32})
     (requires fun _ -> True)
     (ensures fun _ v _ ->
       v == Seq.index s (U32.v i))
-  = let v = A.read_pt x i in AT.return v
+  = A.elim_varray_pts_to x _;
+    let v = A.index x i in
+    let _ = A.intro_varray_pts_to x in
+    AT.change_equal_slprop (A.varray_pts_to _ _)
+                           (hpts_to x s);
+    AT.return v
 
 let write_hbuf (#s:ehash_value_t) (x:hash_value_buf) (i:U32.t{U32.v i < 32}) (v:U8.t)
   : SteelT unit
     (hpts_to x s)
     (fun _ -> hpts_to x (upd_ehash_value s (U32.v i) v))
-  = A.write_pt x i v;
+  = A.elim_varray_pts_to x _;
+    A.upd x i v;
+    let _ = A.intro_varray_pts_to x in
     AT.change_equal_slprop (A.varray_pts_to _ _)
                            (hpts_to _ _)
 
@@ -164,19 +171,6 @@ let add (s:hash_value_buf) (input:hashable_buffer) (l:U32.t)
     assert (A.asel s h1 == v_hash s h1);
     AT.return ()
 
-let get' (#e0 #e1:ehash_value_t)
-         (s:state)
-         (out:hash_value_buf)
-  : SteelT unit
-    (hpts_to s e0 `star` A.varray_pts_to out e1)
-    (fun _ ->
-      hpts_to s e0 `star` A.varray_pts_to out (A.coerce e0))
-  = AT.change_equal_slprop (hpts_to s _)
-                           (A.varray_pts_to s e0);
-    A.memcpy s out 32ul;
-    AT.change_equal_slprop (A.varray_pts_to s _)
-                           (hpts_to s _)
-
 let get (s:state) (out:hash_value_buf)
   : Steel unit
     (A.varray s `star` A.varray out)
@@ -185,11 +179,6 @@ let get (s:state) (out:hash_value_buf)
     (ensures fun h0 _ h1 ->
        v_hash s h0 == as_hash_value out h1 /\
        v_hash s h1 == v_hash s h0)
-  = let _ = intro_hpts_to s in
-    let _ = A.intro_varray_pts_to out in
-    get' s out;
-    elim_hpts_to s;
-    A.elim_varray_pts_to out _;
-    AT.return ()
+  = A.memcpy s out 32ul
 
 let free (s:state) = A.free s

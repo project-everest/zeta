@@ -15,7 +15,7 @@ module Hacl.Blake2b_32
 
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32
-module A = Veritas.Steel.Array
+module A = Steel.Array
 
 open Steel.Effect.Common
 open Steel.Effect

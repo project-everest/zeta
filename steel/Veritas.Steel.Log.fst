@@ -1,40 +1,11 @@
 module Veritas.Steel.Log
 module T = Veritas.Formats.Types
-module A = Veritas.Steel.Array
+module A = Steel.Array
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32
 module EP = Veritas.Formats
 module R = Steel.Reference
 module AT = Steel.Effect.Atomic
-
-//let contents #t (a:A.array t) = A.repr a
-
-// assume
-// val varray_pts_to (#t:_) (a:A.array t) (bs:Ghost.erased (contents a)) : vprop
-
-
-// assume
-// val intro_varray_pts_to (#t:_)
-//                         (#opened:inames)
-//                         (a:A.array t)
-//   : AT.SteelGhost (Ghost.erased (contents a)) opened
-//     (A.varray a)
-//     (fun x -> varray_pts_to a x `star` emp)
-//     (requires fun _ -> True)
-//     (ensures fun h0 x h1 ->
-//       Ghost.reveal x == A.asel a h0)
-
-// assume
-// val elim_varray_pts_to (#t:_)
-//                        (#opened:inames)
-//                        (a:A.array t)
-//                        (c:Ghost.erased (contents a))
-//   : AT.SteelGhost unit opened
-//     (varray_pts_to a c)
-//     (fun _ -> A.varray a)
-//     (requires fun _ -> True)
-//     (ensures fun _ _ h1 ->
-//       A.asel a h1 == Ghost.reveal c)
 
 let bytes_repr (l:nat) = A.elseq U8.t l
 

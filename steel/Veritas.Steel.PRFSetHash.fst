@@ -44,7 +44,6 @@ let prf_set_hash_sel (r:prf_set_hash)
   : GTot (selector prf_set_hash_repr (prf_set_hash_sl r))
   = sel_of (prf_set_hash_vprop r)
 
-//how to prove these?
 let intro_set_hash_inv #o (s:prf_set_hash)
   : SteelGhost unit o
     (A.varray s.ha_state `star` A.varray s.serialization_buf)
@@ -52,7 +51,11 @@ let intro_set_hash_inv #o (s:prf_set_hash)
     (requires fun _ -> True)
     (ensures fun h0 _ h1 ->
       v_hash s h1 == A.asel s.ha_state h0)
-  = AT.sladmit()
+  = AT.change_slprop_rel (A.varray s.ha_state `star` A.varray s.serialization_buf)
+                         (prf_set_hash_inv s)
+                         (fun x y -> x == y)
+                         (fun m -> ())
+
 let elim_set_hash_inv #o (s:prf_set_hash)
   : SteelGhost unit o
     (prf_set_hash_inv s)
@@ -60,9 +63,11 @@ let elim_set_hash_inv #o (s:prf_set_hash)
     (requires fun _ -> True)
     (ensures fun h0 _ h1 ->
       v_hash s h0 == A.asel s.ha_state h1)
-  = AT.sladmit()
+  = AT.change_slprop_rel (prf_set_hash_inv s)
+                         (A.varray s.ha_state `star` A.varray s.serialization_buf)
+                         (fun x y -> x == y)
+                         (fun m -> ())
 
-//#push-options "--query_stats"
 let create () =
   let x = HA.create_in () in
   let buf = A.malloc 0uy 184ul in

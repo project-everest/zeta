@@ -15,7 +15,7 @@ module T = Veritas.Formats.Types
 module VM = Veritas.Steel.VerifierModel
 module AT = Steel.Effect.Atomic
 module VFT = Veritas.Formats.Types
-module A = Veritas.Steel.Array
+module A = Steel.Array
 module HA = Veritas.Steel.HashAccumulator
 
 val prf_set_hash
