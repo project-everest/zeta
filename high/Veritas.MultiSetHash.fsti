@@ -8,6 +8,10 @@ open Veritas.Record
 open Veritas.SeqAux
 include Veritas.MultiSetHashDomain
 
+let u8_hash_value = Seq.lseq UInt8.t 32
+val as_ms_hash_value (_:u8_hash_value) : ms_hash_value
+val as_u8_hash_value (_:ms_hash_value) : u8_hash_value
+
 (*
  * incremental multiset hash function - update the
  * hash given a new element
