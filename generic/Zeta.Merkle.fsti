@@ -20,7 +20,7 @@ let desc_hash (v:value) (d:bin_tree_dir) =
   | Left -> v.left
   | Right -> v.right
 
-let points_to_none (d:bin_tree_dir) (v: value) : bool =
+let points_to_none (v: value) (d:bin_tree_dir)  : bool =
   desc_hash v d = Empty
 
 let points_to_some (v:value) (d:bin_tree_dir): bool =

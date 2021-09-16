@@ -45,7 +45,7 @@ val lemma_proving_ancestor_initial (#app #n:_) (il: eac_log app n) (k:base_key{k
         (ensures (let k' = proving_ancestor il k in
                   let v' = eac_merkle_value k' il in
                   let c = desc_dir k k' in
-                  points_to_none c v' \/
+                  points_to_none v' c \/
                   not (is_desc k (pointed_key v' c))))
 
 (* when evicted as merkle the proving ancestor contains our hash *)
