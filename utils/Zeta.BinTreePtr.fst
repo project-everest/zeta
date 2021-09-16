@@ -198,23 +198,190 @@ let lemma_non_reachable_desc_of_none (pf: ptrfn)
   )
   else ()
 
-let rec lemma_extend_reachable_aux 
+let rec lemma_desc_of_prev_not_reachable (pf:ptrfn)
+                                             (d1:bin_tree_node)
+                                             (a:bin_tree_node)
+                                             (d2:bin_tree_node):
+  Lemma (requires (reachable pf d1 a /\ d1 <> a /\
+                   is_proper_desc d1 d2 /\
+                   is_proper_desc d2 (prev_in_path pf d1 a)))
+        (ensures (not (reachable pf d2 a)))
+        (decreases (depth d2)) =
+  let pd1 = prev_in_path pf d1 a in
+  if reachable pf d2 a then (
+    lemma_reachable_implies_desc pf pd1 a;
+    lemma_proper_desc_transitive1 d2 pd1 a;
+    let pd2 = prev_in_path pf d2 a in
+    lemma_two_ancestors_related d2 pd1 pd2;
+    if pd1 = pd2 then (
+      assert(points_to pf d1 pd1);
+      assert(points_to pf d2 pd1);
+      let c1 = desc_dir d1 pd1 in
+      let c2 = desc_dir d2 pd2 in
+      if c1 = c2 then ()
+      else (
+        lemma_desc_transitive d1 d2 (child c2 pd1);
+        lemma_two_ancestors_related d1 (child c2 pd1) (child c1 pd1);
+        lemma_siblings_non_anc_desc pd1
+      )
+    )
+    else if is_desc pd2 pd1 then (
+      assert(is_proper_desc pd2 pd1);
+      lemma_proper_desc_depth_monotonic d2 pd2;
+      lemma_proper_desc_transitive1 d1 d2 pd2;
+      lemma_desc_of_prev_not_reachable pf d1 a pd2;
+      ()
+    )
+    else (
+      assert(is_proper_desc pd1 pd2);
+      lemma_proper_desc_depth_monotonic d2 pd1;
+      lemma_desc_of_prev_not_reachable pf d2 a pd1;
+      ()
+    )
+  )
+  else ()
+
+let rec lemma_points_to_not_reachable_between (pf:ptrfn)
+                                                  (d:bin_tree_node)
+                                                  (a:bin_tree_node)
+                                                  (pd:bin_tree_node)
+                                                  (n:bin_tree_node)
+  : Lemma (requires (reachable pf pd a /\
+                     is_proper_desc d pd /\
+                     points_to pf d pd /\
+                     is_proper_desc d n /\
+                     is_proper_desc n pd))
+          (ensures (not (reachable pf n a)))
+          (decreases (depth n)) =
+
+  lemma_reachable_implies_desc pf pd a;
+  lemma_proper_desc_transitive1 n pd a;
+  assert(is_proper_desc n a);
+
+  if reachable pf n a then (
+    let pn = prev_in_path pf n a in
+    lemma_two_ancestors_related n pn pd;
+    if pn = pd then (
+      let c1 = desc_dir d pd in
+      let c2 = desc_dir n pn in
+      if c1 = c2 then()
+      else (
+        lemma_desc_transitive d n (child c2 pn);
+        lemma_two_ancestors_related d (child c1 pn) (child c2 pn);
+        lemma_siblings_non_anc_desc pn
+      )
+    )
+    else if is_desc pn pd then (
+      lemma_proper_desc_depth_monotonic n pn;
+      lemma_proper_desc_transitive1 d n pn;
+      lemma_points_to_not_reachable_between pf d a pd pn
+    )
+    else
+      lemma_desc_of_prev_not_reachable pf n a pd
+  )
+  else ()
+
+let lemma_points_to_is_prev (pf:ptrfn)
+                            (d:bin_tree_node)
+                            (a:bin_tree_node)
+                            (pd:bin_tree_node):
+  Lemma (requires (reachable pf d a /\
+                   reachable pf pd a /\
+                   is_proper_desc d pd /\
+                   d <> a /\
+                   points_to pf d pd))
+        (ensures (prev_in_path pf d a = pd)) =
+  let pd' = prev_in_path pf d a in
+  lemma_two_ancestors_related d pd' pd;
+  if pd' = pd then ()
+  else if is_desc pd' pd then
+    lemma_points_to_not_reachable_between pf d a pd pd'
+  else
+    lemma_points_to_not_reachable_between pf d a pd' pd
+
+(*
+ * The setup is (Root -> a) and (Root -> d) and d is a proper descendant of a,
+ * then a points to some ancestor of d
+ *)
+let rec lemma_reachable_between (pf: ptrfn) (d: bin_tree_node) (a: bin_tree_node):
+  Lemma (requires (root_reachable pf d /\ is_proper_desc d a /\ root_reachable pf a))
+        (ensures (let c = desc_dir d a in
+                  points_to_some pf a c /\
+                  is_desc d (pointed_node pf a c)))
+        (decreases (depth d)) =
+  let c = desc_dir d a in
+
+  (* pd is the prev node in the path Root -> d *)
+  lemma_proper_desc_depth_monotonic d a;
+  let pd = prev_in_path pf d Root in
+
+  (* two ancestors of d - pd and a - are ancestor-descendants of one another *)
+  lemma_two_ancestors_related d pd a;
+
+  if a = pd then
+    //assert(points_to_some pf a c);
+    //assert(pointed_node pf a c = d);
+    lemma_desc_reflexive d
+
+  else if is_desc pd a then (
+    (* depth of pd > depth a *)
+    lemma_proper_desc_depth_monotonic pd a;
+
+    (* pd and (child c a) are ancestor-descendants *)
+    lemma_two_ancestors_related d pd (child c a);
+    //assert(is_anc_desc_sym pd (child c a));
+
+    (* if pd is a descendant of (child c a) then, apply induction *)
+    if is_desc pd (child c a) then (
+      lemma_proper_desc_depth_monotonic d pd;
+      lemma_reachable_between pf pd a;
+      lemma_desc_transitive d pd (pointed_node pf a c)
+    )
+    else (
+      lemma_desc_reflexive pd;
+      lemma_proper_desc_depth_monotonic (child c a) pd
+    )
+  )
+  else
+    lemma_points_to_not_reachable_between pf d Root pd a
+
+let rooted_implies_root_reachable_dest (pf:ptrfn {rooted pf}) (d a: _)
+  : Lemma (ensures (points_to pf d a ==> root_reachable pf d))
+  = if points_to pf d a then
+      //assert(root_reachable pf a);
+      //assert(reachable pf d a);
+      lemma_reachable_transitive pf d a Root
+
+(* characterize points to in extend_ptrfn *)
+let extend_ptrfn_edges
+  (pf:ptrfn)
+  (d:bin_tree_node{points_to_none pf d})
+  (a:bin_tree_node{is_proper_desc d a /\
+                   not (points_to_some pf a (desc_dir d a))})
+  (d' a': bin_tree_node)
+  : Lemma (ensures (let pfe = extend_ptrfn pf d a in
+                    (points_to pf d' a' ==> points_to pfe d' a') /\
+                    (points_to pfe d' a' ==> ~ (points_to pf d' a') ==> d' = d /\ a' = a)))
+  = ()
+
+let rec lemma_extend_reachable
   (pf:ptrfn) 
   (d:bin_tree_node{points_to_none pf d}) 
   (a:bin_tree_node{is_proper_desc d a /\ 
-                   not (points_to_some pf a (desc_dir d a)) /\
-                   root_reachable pf a})
+                   not (points_to_some pf a (desc_dir d a))})
   (n: bin_tree_node):
-  Lemma (requires (root_reachable pf n))
-        (ensures (root_reachable (extend_ptrfn pf d a) n))  
-        (decreases (depth n)) = 
-  let pfe = extend_ptrfn pf d a in  
+  Lemma (ensures (root_reachable pf n ==> root_reachable (extend_ptrfn pf d a) n))
+        (decreases (depth n)) 
+  = 
+  let pfe = extend_ptrfn pf d a in
+  if not (root_reachable pf n) then ()
+  else
   if n = Root then 
     lemma_reachable_reflexive pfe n
   else (
     let n' = prev_in_path pf n Root in
     lemma_proper_desc_depth_monotonic n n';
-    lemma_extend_reachable_aux pf d a n';
+    lemma_extend_reachable pf d a n';
     assert(root_reachable pfe n');
 
     if n' = a && desc_dir d a = desc_dir n n' then ()
@@ -224,33 +391,25 @@ let rec lemma_extend_reachable_aux
       lemma_reachable_transitive pfe n n' Root
     )
   )
-  
-let lemma_extend_reachable 
-  (pf:ptrfn) 
-  (d:bin_tree_node{points_to_none pf d}) 
-  (a:bin_tree_node{is_proper_desc d a /\ 
-                   not (points_to_some pf a (desc_dir d a)) /\
-                   root_reachable pf a})
-  (n: bin_tree_node):
-  Lemma (requires (root_reachable pf n))
-        (ensures (root_reachable (extend_ptrfn pf d a) n)) = 
-  lemma_extend_reachable_aux pf d a n
 
-let lemma_extend_reachable_new
-  (pf:ptrfn) 
-  (d:bin_tree_node{points_to_none pf d}) 
-  (a:bin_tree_node{is_proper_desc d a /\ 
-                   not (points_to_some pf a (desc_dir d a)) /\
-                   root_reachable pf a}):
-  Lemma (root_reachable (extend_ptrfn pf d a) d) = 
-  let pfe = extend_ptrfn pf d a in
-  
-  lemma_extend_reachable pf d a a;
-  assert(root_reachable pfe a);
-
-  assert(points_to pfe d a);
-  lemma_points_to_reachable pfe d a;
-  lemma_reachable_transitive pfe d a Root
+let lemma_extend_rooted
+  (pf:ptrfn{rooted pf})
+  (d:bin_tree_node{points_to_none pf d})
+  (a:bin_tree_node{is_proper_desc d a /\
+                   not (points_to_some pf a (desc_dir d a))})
+  : Lemma (ensures (root_reachable pf a ==> rooted (extend_ptrfn pf d a)))
+  = let pfe = extend_ptrfn pf d a in
+    if root_reachable pf a then (
+      let aux (d' a':bin_tree_node)
+        : Lemma (ensures (points_to pfe d' a' ==> root_reachable pfe a'))
+        = if points_to pfe d' a' then (
+             lemma_extend_reachable pf d a a';
+             if d' = d && a' = a then ()
+             else assert(points_to pf d' a')
+           )
+      in
+      FStar.Classical.forall_intro_2 aux
+    )
 
 (* extends confers reachability only to the new node *)
 let rec lemma_extend_not_reachable_aux
@@ -435,58 +594,6 @@ let lemma_reachable_feq (pf1: ptrfn) (pf2: ptrfn) (d: bin_tree_node) (a: bin_tre
     lemma_reachable_feq_aux pf2 pf1 d a
   else ()
 
-let rec lemma_desc_of_prev_not_reachable_aux (pf:ptrfn)
-                                             (d1:bin_tree_node)
-                                             (a:bin_tree_node)
-                                             (d2:bin_tree_node):
-  Lemma (requires (reachable pf d1 a /\ d1 <> a /\
-                   is_proper_desc d1 d2 /\
-                   is_proper_desc d2 (prev_in_path pf d1 a)))
-        (ensures (not (reachable pf d2 a))) 
-        (decreases (depth d2)) = 
-  let pd1 = prev_in_path pf d1 a in
-  if reachable pf d2 a then (
-    lemma_reachable_implies_desc pf pd1 a;
-    lemma_proper_desc_transitive1 d2 pd1 a;
-    let pd2 = prev_in_path pf d2 a in
-    lemma_two_ancestors_related d2 pd1 pd2;
-    if pd1 = pd2 then (
-      assert(points_to pf d1 pd1);
-      assert(points_to pf d2 pd1);
-      let c1 = desc_dir d1 pd1 in
-      let c2 = desc_dir d2 pd2 in
-      if c1 = c2 then ()
-      else (
-        lemma_desc_transitive d1 d2 (child c2 pd1);
-        lemma_two_ancestors_related d1 (child c2 pd1) (child c1 pd1);
-        lemma_siblings_non_anc_desc pd1
-      )
-    )
-    else if is_desc pd2 pd1 then (
-      assert(is_proper_desc pd2 pd1);
-      lemma_proper_desc_depth_monotonic d2 pd2;
-      lemma_proper_desc_transitive1 d1 d2 pd2;
-      lemma_desc_of_prev_not_reachable_aux pf d1 a pd2;      
-      ()
-    )
-    else (
-      assert(is_proper_desc pd1 pd2);
-      lemma_proper_desc_depth_monotonic d2 pd1;
-      lemma_desc_of_prev_not_reachable_aux pf d2 a pd1;
-      ()
-    )
-  )
-  else ()
-
-let lemma_desc_of_prev_not_reachable (pf:ptrfn)
-                                     (d1:bin_tree_node)
-                                     (a:bin_tree_node)
-                                     (d2:bin_tree_node):
-  Lemma (requires (reachable pf d1 a /\ d1 <> a /\
-                   is_proper_desc d1 d2 /\
-                   is_proper_desc d2 (prev_in_path pf d1 a)))
-        (ensures (not (reachable pf d2 a))) = 
-  lemma_desc_of_prev_not_reachable_aux pf d1 a d2
 
 let lemma_prev_in_path_feq (pf1: ptrfn) 
                            (pf2: ptrfn) 
@@ -503,45 +610,6 @@ let lemma_prev_in_path_feq (pf1: ptrfn)
    else 
      lemma_desc_of_prev_not_reachable pf1 d a pd2
 
-let rec lemma_points_to_not_reachable_between_aux (pf:ptrfn)
-                                                  (d:bin_tree_node)
-                                                  (a:bin_tree_node)
-                                                  (pd:bin_tree_node)
-                                                  (n:bin_tree_node)
-  : Lemma (requires (reachable pf pd a /\
-                     is_proper_desc d pd /\
-                     points_to pf d pd /\
-                     is_proper_desc d n /\
-                     is_proper_desc n pd))
-          (ensures (not (reachable pf n a)))
-          (decreases (depth n)) = 
-          
-  lemma_reachable_implies_desc pf pd a;
-  lemma_proper_desc_transitive1 n pd a;
-  assert(is_proper_desc n a);
-
-  if reachable pf n a then (
-    let pn = prev_in_path pf n a in
-    lemma_two_ancestors_related n pn pd;
-    if pn = pd then (
-      let c1 = desc_dir d pd in
-      let c2 = desc_dir n pn in
-      if c1 = c2 then()
-      else (
-        lemma_desc_transitive d n (child c2 pn);
-        lemma_two_ancestors_related d (child c1 pn) (child c2 pn);
-        lemma_siblings_non_anc_desc pn
-      )
-    )
-    else if is_desc pn pd then (
-      lemma_proper_desc_depth_monotonic n pn;
-      lemma_proper_desc_transitive1 d n pn;
-      lemma_points_to_not_reachable_between_aux pf d a pd pn
-    )
-    else 
-      lemma_desc_of_prev_not_reachable pf n a pd    
-  )
-  else ()
 
 let lemma_points_to_not_reachable_between (pf:ptrfn)
                                           (d:bin_tree_node)
@@ -556,23 +624,6 @@ let lemma_points_to_not_reachable_between (pf:ptrfn)
           (ensures (not (reachable pf n a))) = 
  lemma_points_to_not_reachable_between_aux pf d a pd n
 
-let lemma_points_to_is_prev (pf:ptrfn)
-                            (d:bin_tree_node)
-                            (a:bin_tree_node)
-                            (pd:bin_tree_node):
-  Lemma (requires (reachable pf d a /\ 
-                   reachable pf pd a /\ 
-                   is_proper_desc d pd /\
-                   d <> a /\
-                   points_to pf d pd))
-        (ensures (prev_in_path pf d a = pd)) = 
-  let pd' = prev_in_path pf d a in
-  lemma_two_ancestors_related d pd' pd;
-  if pd' = pd then ()
-  else if is_desc pd' pd then 
-    lemma_points_to_not_reachable_between pf d a pd pd'
-  else
-    lemma_points_to_not_reachable_between pf d a pd' pd
 
 let lemma_extend_prev
   (pf:ptrfn)
@@ -694,50 +745,3 @@ let lemma_parent_child (n:bin_tree_node{n <> Root}):
   lemma_desc_reflexive n
 
 
-(* 
- * The setup is (Root -> a) and (Root -> d) and d is a proper descendant of a, 
- * then a points to some ancestor of d 
- *)
-let rec lemma_reachable_between_aux (pf: ptrfn) (d: bin_tree_node) (a: bin_tree_node):
-  Lemma (requires (root_reachable pf d /\ is_proper_desc d a /\ root_reachable pf a))
-        (ensures (let c = desc_dir d a in
-                  points_to_some pf a c /\ 
-                  is_desc d (pointed_node pf a c))) 
-        (decreases (depth d)) = 
-  let c = desc_dir d a in
-
-  (* pd is the prev node in the path Root -> d *)
-  lemma_proper_desc_depth_monotonic d a;
-  let pd = prev_in_path pf d Root in
-
-  (* two ancestors of d - pd and a - are ancestor-descendants of one another *)
-  lemma_two_ancestors_related d pd a;
-
-  if a = pd then 
-    //assert(points_to_some pf a c);
-    //assert(pointed_node pf a c = d);
-    lemma_desc_reflexive d
-  
-  else if is_desc pd a then (
-    (* depth of pd > depth a *)
-    lemma_proper_desc_depth_monotonic pd a;
-
-    (* pd and (child c a) are ancestor-descendants *)
-    lemma_two_ancestors_related d pd (child c a);
-    //assert(is_anc_desc_sym pd (child c a));
-
-    (* if pd is a descendant of (child c a) then, apply induction *)
-    if is_desc pd (child c a) then (
-      lemma_proper_desc_depth_monotonic d pd;
-      lemma_reachable_between_aux pf pd a;
-      lemma_desc_transitive d pd (pointed_node pf a c)
-    )
-    else (
-      lemma_desc_reflexive pd;
-      lemma_proper_desc_depth_monotonic (child c a) pd
-    )
-  )
-  else 
-    lemma_points_to_not_reachable_between pf d Root pd a
-
-let lemma_reachable_between = lemma_reachable_between_aux
