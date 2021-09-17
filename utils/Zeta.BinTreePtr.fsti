@@ -281,3 +281,11 @@ val lemma_extendcut_prev2
                   root_reachable (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) /\
                   d = prev_in_path (extendcut_ptrfn pf d a) (pointed_node pf a (desc_dir d a)) Root)
 
+val first_root_reachable_ancestor (pf:ptrfn) (n:bin_tree_node):
+  Tot (n':bin_tree_node{root_reachable pf n' /\ is_desc n n'})
+
+val lemma_first_root_reachable_ancestor_greatest_depth
+  (pf:ptrfn)
+  (k: bin_tree_node) (k2: _{is_proper_desc k k2}):
+  Lemma (requires (root_reachable pf k2))
+        (ensures (depth k2 <= depth (first_root_reachable_ancestor pf k)))

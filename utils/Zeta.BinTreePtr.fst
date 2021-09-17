@@ -721,3 +721,52 @@ let lemma_extendcut_prev2
   lemma_proper_desc_depth_monotonic d' d;
   assert(Root <> d');
   lemma_points_to_is_prev pfe d' Root d
+
+let rec first_root_reachable_ancestor (pf:ptrfn) (n:bin_tree_node):
+  Tot (n':bin_tree_node{root_reachable pf n' /\ is_desc n n'})
+  (decreases (depth n)) =
+
+  if root_reachable pf n then (
+    lemma_desc_reflexive n;
+    n
+  )
+  else (
+    (* so, k has a parent *)
+    let np = parent n in
+
+    (* recurse ... *)
+    let n' = first_root_reachable_ancestor pf np in
+
+    lemma_parent_ancestor n;
+    lemma_desc_transitive n np n';
+    n'
+  )
+
+let rec lemma_first_root_reachable_ancestor_greatest_depth 
+  (pf:ptrfn) 
+  (k: bin_tree_node) (k2: _{is_proper_desc k k2}):
+  Lemma (requires (root_reachable pf k2))
+        (ensures (depth k2 <= depth (first_root_reachable_ancestor pf k)))
+        (decreases (depth k)) =
+  let krr = first_root_reachable_ancestor pf k in
+  lemma_proper_desc_depth_monotonic k k2;
+
+  if root_reachable pf k then ()
+
+  else (
+    let kp = parent k in
+    lemma_parent_ancestor k;
+    // assert(krr == first_root_reachable_ancestor itsl kp);
+
+    lemma_two_ancestors_related k kp k2;
+    if is_desc k2 kp then (
+      //assert(depth k = depth kp + 1);
+      lemma_desc_depth_monotonic k2 kp;
+      //assert(depth kp = depth k2);
+
+      if k2 = kp then ()
+      else lemma_proper_desc_depth_monotonic k2 kp
+    )
+    else
+      lemma_first_root_reachable_ancestor_greatest_depth pf kp k2
+  )
