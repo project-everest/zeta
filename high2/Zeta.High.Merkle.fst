@@ -198,7 +198,7 @@ let eac_ptrfn_base
   (il: eac_log app n)
   (k: bin_tree_node)
   (c: bin_tree_dir)
-  : option(kd:bin_tree_node{is_desc kd (child c k)})
+  : o:(option bin_tree_node){None = o \/ is_desc (Some?.v o) (child c k)}
   = if depth k >= key_size then None
     else
       let or = eac_ptrfn_aux il k c in
@@ -211,26 +211,6 @@ let eac_ptrfn
   (#app #n:_)
   (il: eac_log app n): ptrfn =
   eac_ptrfn_base il
-
-let lemma_eac_ptrfn
-  (#app #n:_)
-  (il: eac_log app n)
-  (k: merkle_key)
-  (c:bin_tree_dir)
-  : Lemma (ensures (let pf = eac_ptrfn il in
-                    let v = eac_merkle_value k il in
-                    points_to_none v c /\ pf k c = None \/
-                    points_to_some v c /\ is_desc (pointed_key v c) (child c k) /\
-                    pf k c = Some (pointed_key v c)))
-          [SMTPat (eac_ptrfn il k c)]
-  = let pf = eac_ptrfn il in
-    let v = eac_merkle_value k il in
-    if points_to_none v c then ()
-    else (
-      let kd = pointed_key v c in
-      eac_ptrfn_empty_or_points_to_desc il k c;
-      ()
-    )
 
 let eac_ptrfn_snoc
   (#app #n:_)
@@ -275,7 +255,7 @@ let rec lemma_not_init_equiv_root_reachable
       lemma_root_is_univ_ancestor k;
       let c = desc_dir k Root in
 
-      lemma_eac_ptrfn il Root c;
+      //lemma_eac_ptrfn il Root c;
       assert(None = pf Root c);
       lemma_non_reachable_desc_of_none pf k Root
     )

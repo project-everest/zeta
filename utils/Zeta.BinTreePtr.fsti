@@ -223,7 +223,7 @@ val lemma_extendcut_not_reachable
 
 (* Two pointer functions are equal on all inputs *)
 let feq_ptrfn (pf1: ptrfn) (pf2: ptrfn) = 
-  forall n. forall c. {:pattern (pf1 n c) \/ (pf2 n c)} pf1 n c == pf2 n c
+  forall n c. {:pattern (pf1 n c) \/ (pf2 n c)} pf1 n c == pf2 n c
 
 val lemma_feq_implies_equal (pf1 pf2:_)
   : Lemma (ensures (feq_ptrfn pf1 pf2 ==> pf1 == pf2))
