@@ -48,6 +48,18 @@ val lemma_proving_ancestor_initial (#app #n:_) (il: eac_log app n) (k:base_key{k
                   points_to_none v' c \/
                   not (is_desc k (pointed_key v' c))))
 
+(* if a key pk points to key k, then pk is the proving ancestor of k; (inverse of
+ * lemma_proving_ancestor_points_to_self *)
+val lemma_points_to_implies_proving_ancestor
+  (#app #n:_)
+  (il: eac_log app n)
+  (k:base_key)
+  (k':merkle_key)
+  (d:bin_tree_dir):
+  Lemma (requires (let mv = eac_merkle_value k' il in
+                   points_to mv d k))
+        (ensures (k <> Root /\ proving_ancestor il k = k'))
+
 (* when evicted as merkle the proving ancestor contains our hash *)
 val lemma_proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{gk <> IntK Root}):
   Lemma (requires (let k = to_base_key gk in
@@ -96,18 +108,6 @@ val lemma_store_contains_proving_ancestor (#app #n:_) (il: eac_log app n) (tid:n
         (ensures (let pk = proving_ancestor il k in
                   let st = thread_store tid il in
                   store_contains st k ==> store_contains st pk))
-
-(* if a key pk points to key k, then pk is the proving ancestor of k; (inverse of
- * lemma_proving_ancestor_points_to_self *)
-val lemma_points_to_implies_proving_ancestor
-  (#app #n:_)
-  (il: eac_log app n)
-  (k:base_key)
-  (k':merkle_key)
-  (d:bin_tree_dir):
-  Lemma (requires (let mv = eac_merkle_value k' il in
-                   points_to mv d k))
-        (ensures (k <> Root /\ proving_ancestor il k = k'))
 
 (* precond: k' is a proper ancestor of k, but not the proving ancestor.
  *          k' is also initialized (previously added)
