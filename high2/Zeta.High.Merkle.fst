@@ -839,8 +839,7 @@ let is_in_blum_snoc
                     | AddB _ _ _ _ -> is_in_blum es = is_in_blum es'
                     | EvictM k _ -> if bk = k then not (is_in_blum es)
                                     else is_in_blum es = is_in_blum es'
-                    | EvictB k _ -> if bk = k then is_in_blum es
-                                    else is_in_blum es = is_in_blum es'
+                    | EvictB k _ -> is_in_blum es = is_in_blum es'
                     | EvictBM k _ _ -> if bk = k then is_in_blum es
                                        else is_in_blum es = is_in_blum es'
                     | _ -> is_in_blum es = is_in_blum es'))
@@ -996,9 +995,148 @@ let rec lemma_proving_ancestor_blum_bit (#app #n:_) (il: eac_log app n) (ki:base
       lemma_proving_ancestor_snoc il ki;
       is_in_blum_snoc ki il;
       lemma_proving_ancestor_blum_bit il' ki;
+      eac_value_snoc (IntK pk') il;
+
       match e with
       | AddM _ _ _ -> lemma_proving_ancestor_blum_bit_addm_extend il ki
-      | _ -> admit()
+      | EvictBM _ _ _ ->
+        lemma_evictm_ancestor_is_proving il i
+      | RunApp _ _ _ ->
+        runapp_refs_only_leafkeys il i pk'
+      | _ -> ()
+    )
+
+let store_contains_snoc
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  (ki: base_key)
+  (ti: nat{ti < n})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let e = index il i in
+                    let t = src il i in
+                    let st = thread_store ti il in
+                    let st' = thread_store ti il' in
+
+                    match e with
+                    | AddM _ k _
+                    | AddB _ k _ _ -> if ki = k && t = ti then store_contains st ki
+                                     else store_contains st ki = store_contains st' ki
+                    | EvictB k _
+                    | EvictBM k _ _
+                    | EvictM k _ -> if ki = k && t = ti then not (store_contains st ki)
+                                     else store_contains st ki = store_contains st' ki
+                    | _ -> store_contains st ki = store_contains st' ki))
+  = admit()
+
+let store_contains_addm_ancestor
+  (#app #n:_)
+  (il: eac_log app n)
+  (i: seq_index il {AddM? (index il i)})
+  : Lemma (ensures (let AddM _ _ k' = index il i in
+                    let t = src il i in
+                    let st_pre = thread_store_pre t il i in
+                    let st_post = thread_store_post t il i in
+                    store_contains st_pre k' /\ store_contains st_post k'))
+          [SMTPat (index il i)]
+  = admit()
+
+let store_contains_evictm_ancestor
+  (#app #n:_)
+  (il: eac_log app n)
+  (i: seq_index il {is_merkle_evict (index il i)})
+  : Lemma (ensures (let k' = ancestor_slot (index il i) in
+                    let t = src il i in
+                    let st_pre = thread_store_pre t il i in
+                    let st_post = thread_store_post t il i in
+                    store_contains st_pre k' /\ store_contains st_post k'))
+          [SMTPat (index il i)]
+  = admit()
+
+let proving_ancestor_of_merkle_instore
+  (#app #n:_)
+  (il: eac_log app n)
+  (k: base_key)
+  (t: nat{t < n})
+  = let es = eac_state_of_key k il in
+    let st = thread_store t il in
+    k <> Root ==>
+    EACInStore? es ==>
+    EACInStore?.m es = MAdd ==>
+    store_contains st k ==>
+    store_contains st (proving_ancestor il k)
+
+let lemma_store_contains_proving_ancestor_addm_extend
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  (t:nat {t < n})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     AddM? (index il i) /\
+                     proving_ancestor_of_merkle_instore il' ki t))
+          (ensures (proving_ancestor_of_merkle_instore il ki t))
+  = let st = thread_store t il in
+    let es = eac_state_of_key ki il in
+    let i = length il - 1 in
+    let il' = prefix il i in
+    let st' = thread_store t il' in
+    let AddM _ k k' = index il i in
+
+    eac_state_unchanged_snoc ki il;
+    eac_state_transition_snoc ki il;
+    store_contains_snoc il ki t;
+
+    if ki <> Root && EACInStore? es && EACInStore?.m es = MAdd && store_contains st ki then (
+      lemma_proving_ancestor_snoc il ki;
+      let pk' = proving_ancestor il' ki in
+      store_contains_snoc il pk' t;
+
+      if ki = k then (
+        lemma_addm_ancestor_is_proving il;
+        assume(store_contains st k');
+        ()
+      )
+      else
+
+      admit()
+    )
+
+let rec lemma_store_contains_proving_ancestor_aux
+  (#app #n:_)
+  (il: eac_log app n)
+  (k: base_key)
+  (t:nat {t < n})
+  : Lemma (ensures (proving_ancestor_of_merkle_instore il k t))
+          (decreases (length il))
+  = let st = thread_store t il in
+    let es = eac_state_of_key k il in
+    if length il = 0 then
+      eac_state_empty k il
+    else (
+      let i = length il - 1 in
+      let il' = prefix il i in
+      let st' = thread_store t il' in
+      let e = index il i in
+
+      eac_state_unchanged_snoc k il;
+      eac_state_transition_snoc k il;
+      store_contains_snoc il k t;
+      lemma_store_contains_proving_ancestor_aux il' k t;
+
+      if k <> Root && EACInStore? es && EACInStore?.m es = MAdd && store_contains st k then (
+        lemma_proving_ancestor_snoc il k;
+        let pk' = proving_ancestor il' k in
+        store_contains_snoc il pk' t;
+
+        match e with
+        | AddM _ _ _ ->
+          lemma_addm_ancestor_is_proving il;
+          admit()
+        | _ ->
+
+        admit()
+      )
     )
 
 (* if the store contains a k, it contains its proving ancestor *)
@@ -1009,7 +1147,7 @@ let lemma_store_contains_proving_ancestor (#app #n:_) (il: eac_log app n) (tid:n
         (ensures (let pk = proving_ancestor il k in
                   let st = thread_store tid il in
                   store_contains st k ==> store_contains st pk))
-  = admit()
+  = lemma_store_contains_proving_ancestor_aux il k tid
 
 (* precond: k' is a proper ancestor of k, but not the proving ancestor.
  *          k' is also initialized (previously added)
