@@ -52,19 +52,30 @@ let cutedge_desc (#app #n:_) (il: eac_log app n) (i:_{addm_type il i = CutEdge})
 let evictm_props (#app #n:_) (il: eac_log app n) (i: seq_index il{EvictM? (index il i)})
   : Lemma (ensures (let EvictM k k' = index il i in
                     let il' = prefix il i in
-                    let esk = eac_state_of_key_pre k il i in
-                    let esk' = eac_state_of_key_pre k' il i in
-                    is_proper_desc k k' /\ EACInStore? esk /\ EACInStore? esk'))
+                    let esk_pre = eac_state_of_key_pre k il i in
+                    let esk_post = eac_state_of_key_post k il i in
+                    let esk'_pre = eac_state_of_key_pre k' il i in
+                    let esk'_post = eac_state_of_key_post k' il i in
+                    is_proper_desc k k' /\ EACInStore? esk_pre /\ EACInStore? esk'_pre /\
+                    EACInStore? esk'_post /\ EACEvictedMerkle? esk_post))
           [SMTPat (index il i)]
   = admit()
 
 let evictbm_props (#app #n:_) (il: eac_log app n) (i: seq_index il{EvictBM? (index il i)})
   : Lemma (ensures (let EvictBM k k' _ = index il i in
                     let il' = prefix il i in
-                    let esk = eac_state_of_key_pre k il i in
-                    let esk' = eac_state_of_key_pre k' il i in
-                    is_proper_desc k k' /\ EACInStore? esk /\ EACInStore? esk'))
+                    let esk_pre = eac_state_of_key_pre k il i in
+                    let esk_post = eac_state_of_key_post k il i in
+                    let esk'_pre = eac_state_of_key_pre k' il i in
+                    let esk'_post = eac_state_of_key_post k' il i in
+                    is_proper_desc k k' /\ EACInStore? esk_pre /\ EACInStore? esk'_pre /\
+                    EACInStore? esk'_post /\ EACEvictedMerkle? esk_post))
           [SMTPat (index il i)]
+  = admit()
+
+let runapp_refs_only_leafkeys (#app #n:_) (il: eac_log app n) (i:_ {RunApp? (index il i)}) (k: base_key)
+  : Lemma (ensures (let e = index il i in
+                    e `refs_key` k ==> is_leaf_key k))
   = admit()
 
 let only_data_keys_ref_runapp (#app #n:_) (il: eac_log app n) (i: seq_index il{RunApp? (index il i)}) (k: base_key)
@@ -153,14 +164,15 @@ let eac_state_transition_snoc
                     let es = eac_state_of_key bk il in
                     let e = index il i in
                     es' <> es ==> (
-                    match es', es with
+                    e `refs_key` bk /\
+                    (match es', es with
                     | EACInit, EACInStore _ _ _ -> AddM? e
                     | EACInStore _ _ _ , EACEvictedBlum _ _ _ _ -> V.is_blum_evict e
-                    | EACInStore _ _ _ , EACEvictedMerkle _ _ -> EvictM? e
+                    | EACInStore _ gk1 _ , EACEvictedMerkle gk2 _ -> EvictM? e /\ gk1 = gk2
                     | EACEvictedBlum _ _ _ _, EACInStore _ _ _ -> AddB? e
                     | EACEvictedMerkle _ _, EACInStore _ _ _ -> AddM? e
                     | EACInStore _ _ _, EACInStore _ _ _ -> RunApp? e
-                    | _ -> False)))
+                    | _ -> False))))
   = admit()
 
 let eac_state_unchanged_snoc
@@ -174,7 +186,7 @@ let eac_state_unchanged_snoc
                     let e = index il i in
                     es = es' ==>
                     (e `refs_key` bk) ==>
-                    RunApp? e))
+                    RunApp? e /\ EACInStore? es))
   = admit()
 
 let eac_ptrfn_aux (#app #n:_) (il: eac_log app n) (k:merkle_key) (c:bin_tree_dir)
@@ -449,7 +461,9 @@ let proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{gk <> 
     let mv = eac_merkle_value pk il in
     let c = desc_dir k pk in
     let v = eac_value gk il in
-    EACEvictedMerkle? es ==> pointed_hash mv c = hashfn v
+    EACEvictedMerkle? es ==>
+    EACEvictedMerkle?.gk es = gk ==>
+    pointed_hash mv c = hashfn v
 
 let lemma_proving_ancestor_has_hash_addm_newedge_extend
   (#app #n:_)
@@ -582,6 +596,25 @@ let lemma_proving_ancestor_has_hash_addm_extend
       | NewEdge -> lemma_proving_ancestor_has_hash_addm_newedge_extend il gki
       | CutEdge -> lemma_proving_ancestor_has_hash_addm_cutedge_extend il gki
 
+let is_merkle_evict (#app:_) (e: vlog_entry app)
+  = EvictM? e \/ EvictBM? e
+
+let ancestor_slot (#app) (e:vlog_entry app {is_merkle_evict e})
+  = match e with
+    | EvictM _ k' -> k'
+    | EvictBM _ k' _ -> k'
+
+let lemma_evictm_ancestor_is_proving
+  (#app #n:_)
+  (il: eac_log app n)
+  (i:_{is_merkle_evict (index il i)})
+  : Lemma (ensures (let e = index il i in
+                    let k' = ancestor_slot e in
+                    let k = evict_slot e in
+                    k' = proving_ancestor il k))
+          [SMTPat (index il i)]
+  = admit()
+
 let rec lemma_proving_ancestor_has_hash_aux (#app #n:_) (il: eac_log app n) (gk:key app{gk <> IntK Root}):
   Lemma (ensures proving_ancestor_has_hash il gk)
         (decreases (length il))
@@ -599,23 +632,19 @@ let rec lemma_proving_ancestor_has_hash_aux (#app #n:_) (il: eac_log app n) (gk:
       eac_value_snoc gk il;
       eac_state_transition_snoc bk il;
       eac_state_unchanged_snoc bk il;
+      eac_value_snoc (IntK pk') il;
       match e with
       | AddM _ _ _ -> lemma_proving_ancestor_has_hash_addm_extend il gk
-      | EvictM _ _ -> admit()
-      | EvictBM _ _ _ -> admit()
-      | AddB _ _ _ _
-      | EvictB _ _
-      | NextEpoch
-      | VerifyEpoch ->
-        eac_value_snoc (IntK pk') il
       | RunApp _ _ _ ->
-        admit()
+        runapp_refs_only_leafkeys il i pk'
+      | _ -> ()
     )
 
 (* when evicted as merkle the proving ancestor contains our hash *)
 let lemma_proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{gk <> IntK Root}):
   Lemma (requires (let k = to_base_key gk in
-                   EACEvictedMerkle? (eac_state_of_key k il)))
+                   EACEvictedMerkle? (eac_state_of_key k il) /\
+                   EACEvictedMerkle?.gk (eac_state_of_key k il) = gk))
         (ensures (let k = to_base_key gk in
                   let pk = proving_ancestor il k in
                   let mv = eac_merkle_value pk il in

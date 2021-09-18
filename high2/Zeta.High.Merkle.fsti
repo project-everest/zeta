@@ -63,7 +63,8 @@ val lemma_points_to_implies_proving_ancestor
 (* when evicted as merkle the proving ancestor contains our hash *)
 val lemma_proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{gk <> IntK Root}):
   Lemma (requires (let k = to_base_key gk in
-                   EACEvictedMerkle? (eac_state_of_key k il)))
+                   EACEvictedMerkle? (eac_state_of_key k il) /\
+                   EACEvictedMerkle?.gk (eac_state_of_key k il) = gk))
         (ensures (let k = to_base_key gk in
                   let pk = proving_ancestor il k in
                   let mv = eac_merkle_value pk il in

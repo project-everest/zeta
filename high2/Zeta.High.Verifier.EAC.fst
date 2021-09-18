@@ -352,9 +352,6 @@ let lemma_non_eac_evicted_merkle_addm
     lemma_proving_ancestor_points_to_self itsli k;
     eac_value_is_stored_value itsli (IntK k') tid;
 
-    (* invariant - the proving ancestors stores the hash of evicted value v_e *)
-    lemma_proving_ancestor_has_hash itsli gk;
-    eac_value_is_evicted_value itsli gk;
 
     assert(gk <> gk_e || v <> v_e);
     assert(to_base_key gk = to_base_key gk_e);
@@ -362,8 +359,12 @@ let lemma_non_eac_evicted_merkle_addm
       let AppK k1 = gk in
       let AppK k2 = gk_e in
       KeyCollision k1 k2
-    else
+    else (
+      (* invariant - the proving ancestors stores the hash of evicted value v_e *)
+      lemma_proving_ancestor_has_hash itsli gk;
+      eac_value_is_evicted_value itsli gk;
       ValueCollision v v_e
+    )
 
 let lemma_non_eac_evicted_merkle_addb
   (#app #n:_)
