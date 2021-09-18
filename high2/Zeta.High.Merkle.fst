@@ -1033,11 +1033,11 @@ let store_contains_addm_ancestor
   (#app #n:_)
   (il: eac_log app n)
   (i: seq_index il {AddM? (index il i)})
-  : Lemma (ensures (let AddM _ _ k' = index il i in
+  : Lemma (ensures (let AddM _ k k' = index il i in
                     let t = src il i in
                     let st_pre = thread_store_pre t il i in
                     let st_post = thread_store_post t il i in
-                    store_contains st_pre k' /\ store_contains st_post k'))
+                    store_contains st_pre k' /\ store_contains st_post k' /\ store_contains st_post k))
           [SMTPat (index il i)]
   = admit()
 
@@ -1046,10 +1046,11 @@ let store_contains_evictm_ancestor
   (il: eac_log app n)
   (i: seq_index il {is_merkle_evict (index il i)})
   : Lemma (ensures (let k' = ancestor_slot (index il i) in
+                    let k = evict_slot (index il i) in
                     let t = src il i in
                     let st_pre = thread_store_pre t il i in
                     let st_post = thread_store_post t il i in
-                    store_contains st_pre k' /\ store_contains st_post k'))
+                    store_contains st_pre k /\ store_contains st_pre k' /\ store_contains st_post k'))
           [SMTPat (index il i)]
   = admit()
 
@@ -1066,7 +1067,7 @@ let proving_ancestor_of_merkle_instore
     store_contains st k ==>
     store_contains st (proving_ancestor il k)
 
-let lemma_store_contains_proving_ancestor_addm_extend
+let lemma_store_contains_proving_ancestor_addm_newedge_extend
   (#app #n:_)
   (il: eac_log app n{length il > 0})
   (ki: base_key)
@@ -1074,14 +1075,20 @@ let lemma_store_contains_proving_ancestor_addm_extend
   : Lemma (requires (let i = length il - 1 in
                      let il' = prefix il i in
                      AddM? (index il i) /\
+                     addm_type il i = NewEdge /\
                      proving_ancestor_of_merkle_instore il' ki t))
           (ensures (proving_ancestor_of_merkle_instore il ki t))
   = let st = thread_store t il in
     let es = eac_state_of_key ki il in
     let i = length il - 1 in
+    let t' = src il i in
     let il' = prefix il i in
     let st' = thread_store t il' in
+    let es' = eac_state_of_key ki il' in
+    let pf' = eac_ptrfn il' in
+
     let AddM _ k k' = index il i in
+    let c = desc_dir k k' in
 
     eac_state_unchanged_snoc ki il;
     eac_state_transition_snoc ki il;
@@ -1093,14 +1100,136 @@ let lemma_store_contains_proving_ancestor_addm_extend
       store_contains_snoc il pk' t;
 
       if ki = k then (
-        lemma_addm_ancestor_is_proving il;
-        assume(store_contains st k');
+        key_in_unique_store k il t t';
+        lemma_addm_ancestor_is_proving il
+      )
+      else if ki <> k' then (
+        (* the proving ancestor remains unchanged except for descendants of k, but ki is not one of them as
+         * proved below *)
+        assert(es = es');
+
+        (* ki is root reachable since es' <> EACInit *)
+        lemma_not_init_equiv_root_reachable il' ki;
+        assert(root_reachable il' ki);
+
+        (* k' is also root reachable since it is in store (so not EACInit)*)
+        lemma_eac_instore_implies_root_reachable il' k';
+        assert(root_reachable il' k');
+
+        (* ki is not a descendant of k' along direction c since k' points to nothing along c *)
+        let aux()
+          : Lemma (ensures (not (is_desc ki (child c k'))))
+          = if is_desc ki (child c k') then
+               lemma_reachable_between pf' ki k'
+        in
+        aux();
+
+        let aux ()
+          : Lemma (ensures (not (is_proper_desc ki k)))
+          = if is_desc ki k then
+               lemma_desc_transitive ki k (child c k')
+        in
+        aux();
+
+        (* since ki is not descendant of k, its proving ancestor remains unchanged *)
+        assert(pk' = proving_ancestor il ki);
         ()
       )
-      else
-
-      admit()
     )
+
+let lemma_store_contains_proving_ancestor_addm_cutedge_extend
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  (t:nat {t < n})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     AddM? (index il i) /\
+                     addm_type il i = CutEdge /\
+                     proving_ancestor_of_merkle_instore il' ki t))
+          (ensures (proving_ancestor_of_merkle_instore il ki t))
+  = let st = thread_store t il in
+    let es = eac_state_of_key ki il in
+    let i = length il - 1 in
+    let t' = src il i in
+    let il' = prefix il i in
+
+    let AddM _ k k' = index il i in
+    let c = desc_dir k k' in
+
+    eac_state_unchanged_snoc ki il;
+    eac_state_transition_snoc ki il;
+    store_contains_snoc il ki t;
+
+    if ki <> Root && EACInStore? es && EACInStore?.m es = MAdd && store_contains st ki then (
+      lemma_proving_ancestor_snoc il ki;
+      let pk' = proving_ancestor il' ki in
+      store_contains_snoc il pk' t;
+
+      if ki = k then (
+        key_in_unique_store k il t t';
+        lemma_addm_ancestor_is_proving il
+      )
+      else if ki = cutedge_desc il i then (
+        lemma_eac_ptrfn il' k' c;
+        lemma_points_to_implies_proving_ancestor il' ki k' c;
+        //assert(proving_ancestor il ki = k);
+        //assert(proving_ancestor il' ki = k');
+        //assert(store_contains st' ki);
+        key_in_unique_store k' il' t t';
+        assert(t = t');
+        ()
+      )
+    )
+
+let lemma_store_contains_proving_ancestor_addm_nonewedge_extend
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  (t:nat {t < n})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     AddM? (index il i) /\
+                     addm_type il i = NoNewEdge /\
+                     proving_ancestor_of_merkle_instore il' ki t))
+          (ensures (proving_ancestor_of_merkle_instore il ki t))
+  = let st = thread_store t il in
+    let es = eac_state_of_key ki il in
+    let i = length il - 1 in
+    let t' = src il i in
+    let il' = prefix il i in
+
+    let AddM _ k k' = index il i in
+    let c = desc_dir k k' in
+
+    eac_state_unchanged_snoc ki il;
+    eac_state_transition_snoc ki il;
+    store_contains_snoc il ki t;
+
+    if ki <> Root && EACInStore? es && EACInStore?.m es = MAdd && store_contains st ki then (
+      lemma_proving_ancestor_snoc il ki;
+      let pk' = proving_ancestor il' ki in
+      store_contains_snoc il pk' t;
+      if ki = k then (
+        key_in_unique_store k il t t';
+        lemma_addm_ancestor_is_proving il
+      )
+    )
+
+let lemma_store_contains_proving_ancestor_addm_extend
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  (t:nat {t < n})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     AddM? (index il i) /\
+                     proving_ancestor_of_merkle_instore il' ki t))
+          (ensures (proving_ancestor_of_merkle_instore il ki t))
+  = match addm_type il (length il - 1)  with
+    | NoNewEdge -> lemma_store_contains_proving_ancestor_addm_nonewedge_extend il ki t
+    | NewEdge -> lemma_store_contains_proving_ancestor_addm_newedge_extend il ki t
+    | CutEdge -> lemma_store_contains_proving_ancestor_addm_cutedge_extend il ki t
 
 let rec lemma_store_contains_proving_ancestor_aux
   (#app #n:_)
@@ -1131,8 +1260,7 @@ let rec lemma_store_contains_proving_ancestor_aux
 
         match e with
         | AddM _ _ _ ->
-          lemma_addm_ancestor_is_proving il;
-          admit()
+          lemma_store_contains_proving_ancestor_addm_extend il k t
         | _ ->
 
         admit()
