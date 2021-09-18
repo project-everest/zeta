@@ -56,8 +56,12 @@ let evictm_props (#app #n:_) (il: eac_log app n) (i: seq_index il{EvictM? (index
                     let esk_post = eac_state_of_key_post k il i in
                     let esk'_pre = eac_state_of_key_pre k' il i in
                     let esk'_post = eac_state_of_key_post k' il i in
-                    is_proper_desc k k' /\ EACInStore? esk_pre /\ EACInStore? esk'_pre /\
-                    EACInStore? esk'_post /\ EACEvictedMerkle? esk_post))
+                    is_proper_desc k k' /\
+                    EACInStore? esk_pre /\ EACInStore? esk'_pre /\
+                    EACInStore? esk'_post /\ EACEvictedMerkle? esk_post /\
+                    (let v' = eac_merkle_value k' il' in
+                     let c = desc_dir k k' in
+                     points_to v' c k)))
           [SMTPat (index il i)]
   = admit()
 
@@ -68,8 +72,12 @@ let evictbm_props (#app #n:_) (il: eac_log app n) (i: seq_index il{EvictBM? (ind
                     let esk_post = eac_state_of_key_post k il i in
                     let esk'_pre = eac_state_of_key_pre k' il i in
                     let esk'_post = eac_state_of_key_post k' il i in
-                    is_proper_desc k k' /\ EACInStore? esk_pre /\ EACInStore? esk'_pre /\
-                    EACInStore? esk'_post /\ EACEvictedMerkle? esk_post))
+                    is_proper_desc k k' /\
+                    EACInStore? esk_pre /\ EACInStore? esk'_pre /\
+                    EACInStore? esk'_post /\ EACEvictedMerkle? esk_post /\
+                    (let v' = eac_merkle_value k' il' in
+                     let c = desc_dir k k' in
+                     points_to v' c k)))
           [SMTPat (index il i)]
   = admit()
 
@@ -452,7 +460,34 @@ let lemma_points_to_implies_proving_ancestor
   Lemma (requires (let mv = eac_merkle_value k' il in
                    points_to mv d k))
         (ensures (k <> Root /\ proving_ancestor il k = k'))
-  = admit()
+  = let pf = eac_ptrfn il in
+    assert(BP.points_to pf k k');
+    lemma_points_to_is_prev pf k Root k'
+
+let is_merkle_evict (#app:_) (e: vlog_entry app)
+  = EvictM? e \/ EvictBM? e
+
+let ancestor_slot (#app) (e:vlog_entry app {is_merkle_evict e})
+  = match e with
+    | EvictM _ k' -> k'
+    | EvictBM _ k' _ -> k'
+
+let lemma_evictm_ancestor_is_proving
+  (#app #n:_)
+  (il: eac_log app n)
+  (i:_{is_merkle_evict (index il i)})
+  : Lemma (ensures (let e = index il i in
+                    let k' = ancestor_slot e in
+                    let k = evict_slot e in
+                    let il' = prefix il i in
+                    k' = proving_ancestor il' k))
+          [SMTPat (index il i)]
+  = let il' = prefix il i in
+    let e = index il i in
+    let k' = ancestor_slot e in
+    let k = evict_slot e in
+    let c = desc_dir k k' in
+    lemma_points_to_implies_proving_ancestor il' k k' c
 
 let proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{gk <> IntK Root})
   = let k = to_base_key gk in
@@ -595,25 +630,6 @@ let lemma_proving_ancestor_has_hash_addm_extend
         if EACEvictedMerkle? es then eac_value_snoc (IntK pk') il
       | NewEdge -> lemma_proving_ancestor_has_hash_addm_newedge_extend il gki
       | CutEdge -> lemma_proving_ancestor_has_hash_addm_cutedge_extend il gki
-
-let is_merkle_evict (#app:_) (e: vlog_entry app)
-  = EvictM? e \/ EvictBM? e
-
-let ancestor_slot (#app) (e:vlog_entry app {is_merkle_evict e})
-  = match e with
-    | EvictM _ k' -> k'
-    | EvictBM _ k' _ -> k'
-
-let lemma_evictm_ancestor_is_proving
-  (#app #n:_)
-  (il: eac_log app n)
-  (i:_{is_merkle_evict (index il i)})
-  : Lemma (ensures (let e = index il i in
-                    let k' = ancestor_slot e in
-                    let k = evict_slot e in
-                    k' = proving_ancestor il k))
-          [SMTPat (index il i)]
-  = admit()
 
 let rec lemma_proving_ancestor_has_hash_aux (#app #n:_) (il: eac_log app n) (gk:key app{gk <> IntK Root}):
   Lemma (ensures proving_ancestor_has_hash il gk)
