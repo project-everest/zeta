@@ -13,11 +13,13 @@ type addm_t=
   | NewEdge           (* new edge added: k' points to none along k direction *)
   | CutEdge           (* cut an existing edge: k' points to k2, is_proper_desc k2 k *)
 
-let addm_props (#app #n:_) (il: eac_log app n) (i: seq_index il{AddM? (index il i)})
+let addm_props
+  (#app #n:_)
+  (il: verifiable_log app n )
+  (i: seq_index il{AddM? (index il i) /\ is_eac (prefix il i)})
   : Lemma (ensures (let AddM (gk, gv) k k' = index il i in
                     let il' = prefix il i in
                     EACInStore? (eac_state_of_key_pre k' il i) /\
-                    EACInStore? (eac_state_of_key_post k' il i) /\
                     is_proper_desc k k' /\
                     (let v' = eac_merkle_value k' il' in
                      let c = desc_dir k k' in
@@ -29,7 +31,10 @@ let addm_props (#app #n:_) (il: eac_log app n) (i: seq_index il{AddM? (index il 
           [SMTPat (index il i)]
   = admit()
 
-let addm_type (#app #n:_) (il: eac_log app n) (i: seq_index il{AddM? (index il i)})
+let addm_type
+  (#app #n:_)
+  (il: verifiable_log app n)
+  (i: seq_index il{AddM? (index il i) /\ is_eac (prefix il i)})
   : addm_t
   = let AddM (gk, gv) k k' = index il i in
     let il' = prefix il i in
@@ -40,7 +45,9 @@ let addm_type (#app #n:_) (il: eac_log app n) (i: seq_index il{AddM? (index il i
     | Empty -> NewEdge
     | Desc k2 h2 b2 -> if k2 = k then NoNewEdge else CutEdge
 
-let cutedge_desc (#app #n:_) (il: eac_log app n) (i:_{addm_type il i = CutEdge})
+let cutedge_desc
+  (#app #n:_)
+  (il: verifiable_log app n) (i:_{is_eac (prefix il i) /\ addm_type il i = CutEdge})
   = let AddM (gk, gv) k k' = index il i in
     let il' = prefix il i in
     let v' = eac_merkle_value k' il' in
@@ -669,6 +676,74 @@ let lemma_proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{
                   pointed_hash mv c = hashfn v))
   = lemma_proving_ancestor_has_hash_aux il gk
 
+
+let lemma_addm_ancestor_is_proving_nonewedge (#app #n:_) (il: verifiable_log app n {length il > 0}):
+  Lemma (requires (let n = length il in
+                   let il' = I.prefix il (n-1) in
+                   let e = I.index il (n-1) in
+                   is_eac il' /\ AddM? e /\ addm_type il (n-1) = NoNewEdge))
+        (ensures (let n = length il in
+                  let e = I.index il (n - 1) in
+                  let il' = I.prefix il (n - 1) in
+                  let AddM _ k k' = e in
+                  Root <> k /\ k' = proving_ancestor il' k))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let AddM _ k k' = index il i in
+    let c = desc_dir k k' in
+    lemma_points_to_implies_proving_ancestor il' k k' c
+
+let lemma_addm_ancestor_is_proving_newedge (#app #n:_) (il: verifiable_log app n {length il > 0}):
+  Lemma (requires (let n = length il in
+                   let il' = I.prefix il (n-1) in
+                   let e = I.index il (n-1) in
+                   is_eac il' /\ AddM? e /\ addm_type il (n-1) = NewEdge))
+        (ensures (let n = length il in
+                  let e = I.index il (n - 1) in
+                  let il' = I.prefix il (n - 1) in
+                  let AddM _ k k' = e in
+                  Root <> k /\ k' = proving_ancestor il' k))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let AddM _ k k' = index il i in
+    let c = desc_dir k k' in
+    let pf = eac_ptrfn il' in
+    assert(pf k' c = None);
+    let pk = proving_ancestor il' k in
+    let es = eac_state_of_key k il' in
+
+    assert(EACInStore? (eac_state_of_key k' il'));
+    lemma_eac_instore_implies_root_reachable il' k';
+    assert(root_reachable il' k');
+
+    lemma_not_init_equiv_root_reachable il' k;
+    if pk <> k' then
+
+      if es = EACInit then (
+        (* k is not root reachable since it is in EACInit *)
+        assert(not (root_reachable il' k));
+
+        assert(pk = first_root_reachable_ancestor pf k);
+
+        (* by construction pk is the ancestor with the greatest depth *)
+        lemma_first_root_reachable_ancestor_greatest_depth pf k k';
+        assert(depth k' <= depth pk);
+
+        let aux(): Lemma (is_proper_desc pk k')
+          = lemma_two_ancestors_related k k' pk;
+            if is_desc k' pk then
+              lemma_proper_desc_depth_monotonic k' pk
+        in
+        aux();
+        lemma_two_related_desc_same_dir k pk k';
+        lemma_reachable_between pf pk k'
+      )
+      else
+        (* k is root reachable since it is not EACInit *)
+        //assert(root_reachable il' k);
+
+        lemma_reachable_between pf k k'
+
 let lemma_addm_ancestor_is_proving (#app #n:_) (il: verifiable_log app n {length il > 0}):
   Lemma (requires (let n = length il in
                    let il' = I.prefix il (n-1) in
@@ -680,7 +755,6 @@ let lemma_addm_ancestor_is_proving (#app #n:_) (il: verifiable_log app n {length
                   let AddM _ k k' = e in
                   Root <> k /\ k' = proving_ancestor il' k))
   = admit()
-
 
 (* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
 let lemma_proving_ancestor_blum_bit (#app #n:_) (il: eac_log app n) (k:base_key{k <> Root}):
