@@ -181,11 +181,11 @@ let eac_state_transition_snoc
                     es' <> es ==> (
                     e `refs_key` bk /\
                     (match es', es with
-                    | EACInit, EACInStore _ _ _ -> AddM? e
+                    | EACInit, EACInStore m _ _ -> AddM? e /\ m = MAdd
                     | EACInStore _ _ _ , EACEvictedBlum _ _ _ _ -> V.is_blum_evict e
                     | EACInStore _ gk1 _ , EACEvictedMerkle gk2 _ -> EvictM? e /\ gk1 = gk2
-                    | EACEvictedBlum _ _ _ _, EACInStore _ _ _ -> AddB? e
-                    | EACEvictedMerkle _ _, EACInStore _ _ _ -> AddM? e
+                    | EACEvictedBlum _ _ _ _, EACInStore m _ _ -> AddB? e /\ m = BAdd
+                    | EACEvictedMerkle _ _, EACInStore m _ _ -> AddM? e /\ m = MAdd
                     | EACInStore _ _ _, EACInStore _ _ _ -> RunApp? e
                     | _ -> False))))
   = admit()
@@ -824,10 +824,182 @@ let lemma_addm_ancestor_is_proving (#app #n:_) (il: verifiable_log app n {length
     | NewEdge -> lemma_addm_ancestor_is_proving_newedge il
     | CutEdge -> lemma_addm_ancestor_is_proving_cutedge il
 
-(* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
-let lemma_proving_ancestor_blum_bit (#app #n:_) (il: eac_log app n) (k:base_key{k <> Root}):
-  Lemma (ensures (proving_ancestor_has_blum_bit il k))
+let is_in_blum_snoc
+  (#app #n:_)
+  (bk: base_key)
+  (il: eac_log app n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let es' = eac_state_of_key bk il' in
+                    let es = eac_state_of_key bk il in
+                    let e = index il i in
+                    match e with
+                    | AddM _ k _ -> if bk = k then not (is_in_blum es)
+                                    else is_in_blum es = is_in_blum es'
+                    | AddB _ _ _ _ -> is_in_blum es = is_in_blum es'
+                    | EvictM k _ -> if bk = k then not (is_in_blum es)
+                                    else is_in_blum es = is_in_blum es'
+                    | EvictB k _ -> if bk = k then is_in_blum es
+                                    else is_in_blum es = is_in_blum es'
+                    | EvictBM k _ _ -> if bk = k then is_in_blum es
+                                       else is_in_blum es = is_in_blum es'
+                    | _ -> is_in_blum es = is_in_blum es'))
   = admit()
+
+let lemma_proving_ancestor_blum_bit_addm_newedge_extend
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key {ki <> Root})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     AddM? (index il i) /\
+                     addm_type il i = NewEdge /\
+                     proving_ancestor_has_blum_bit il' ki))
+          (ensures (proving_ancestor_has_blum_bit il ki))
+  = let es = eac_state_of_key ki il in
+    let pk = proving_ancestor il ki in
+    let i = length il - 1 in
+
+    let il' = prefix il i in
+    let es' = eac_state_of_key ki il' in
+    let pk' = proving_ancestor il' ki in
+    let pf' = eac_ptrfn il' in
+
+    let AddM (gk,gv) k k' = index il i in
+    let c = desc_dir k k' in
+    let v' = eac_merkle_value k' il' in
+    let dh' = desc_hash v' c in
+
+    eac_state_unchanged_snoc ki il;
+    eac_state_transition_snoc ki il;
+    lemma_proving_ancestor_snoc il ki;
+    lemma_addm_ancestor_is_proving il;
+    is_in_blum_snoc ki il;
+
+    if es <> EACInit then (
+
+      if ki = k then
+        eac_value_snoc (IntK k') il
+      else if ki = k' then
+        eac_value_snoc (IntK pk') il
+      else (
+        (* the proving ancestor remains unchanged except for descendants of k, but ki is not one of them as
+         * proved below *)
+        assert(es = es');
+
+        (* ki is root reachable since es' <> EACInit *)
+        lemma_not_init_equiv_root_reachable il' ki;
+        assert(root_reachable il' ki);
+
+        (* k' is also root reachable since it is in store (so not EACInit)*)
+        lemma_eac_instore_implies_root_reachable il' k';
+        assert(root_reachable il' k');
+
+        (* ki is not a descendant of k' along direction c since k' points to nothing along c *)
+        let aux()
+          : Lemma (ensures (not (is_desc ki (child c k'))))
+          = if is_desc ki (child c k') then
+               lemma_reachable_between pf' ki k'
+        in
+        aux();
+
+        let aux ()
+          : Lemma (ensures (not (is_proper_desc ki k)))
+          = if is_desc ki k then
+               lemma_desc_transitive ki k (child c k')
+        in
+        aux();
+
+        (* since ki is not descendant of k, its proving ancestor remains unchanged *)
+        assert(pk' = pk);
+        eac_value_snoc (IntK pk') il
+      )
+    )
+
+let lemma_proving_ancestor_blum_bit_addm_cutedge_extend
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key {ki <> Root})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     AddM? (index il i) /\
+                     addm_type il i = CutEdge /\
+                     proving_ancestor_has_blum_bit il' ki))
+          (ensures (proving_ancestor_has_blum_bit il ki))
+  = let es = eac_state_of_key ki il in
+    let i = length il - 1 in
+    let il' = prefix il i in
+    let pk' = proving_ancestor il' ki in
+    let AddM (gk,gv) k k' = index il i in
+    let c = desc_dir k k' in
+
+    eac_state_unchanged_snoc ki il;
+    eac_state_transition_snoc ki il;
+    lemma_proving_ancestor_snoc il ki;
+    lemma_addm_ancestor_is_proving il;
+    is_in_blum_snoc ki il;
+
+    if es <> EACInit then (
+      if ki = cutedge_desc il i then (
+        eac_value_snoc (IntK k) il;
+        lemma_eac_ptrfn il' k' c;
+        lemma_points_to_implies_proving_ancestor il' ki k' c
+      )
+      else
+        eac_value_snoc (IntK pk') il
+    )
+
+let lemma_proving_ancestor_blum_bit_addm_extend
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key {ki <> Root})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     AddM? (index il i) /\
+                     proving_ancestor_has_blum_bit il' ki))
+          (ensures (proving_ancestor_has_blum_bit il ki))
+  = let es = eac_state_of_key ki il in
+    let i = length il - 1 in
+    let il' = prefix il i in
+    let pk' = proving_ancestor il' ki in
+    let AddM (gk,gv) k k' = index il i in
+    let c = desc_dir k k' in
+    let am = addm_type il i in
+
+    eac_state_unchanged_snoc ki il;
+    eac_state_transition_snoc ki il;
+    lemma_proving_ancestor_snoc il ki;
+    lemma_addm_ancestor_is_proving il;
+    is_in_blum_snoc ki il;
+
+    match am with
+    | NoNewEdge ->
+      if es <> EACInit then eac_value_snoc (IntK pk') il
+    | NewEdge -> lemma_proving_ancestor_blum_bit_addm_newedge_extend il ki
+    | CutEdge -> lemma_proving_ancestor_blum_bit_addm_cutedge_extend il ki
+
+(* when evicted as blum the proving ancestor contains a bit indicating the eviction *)
+let rec lemma_proving_ancestor_blum_bit (#app #n:_) (il: eac_log app n) (ki:base_key{ki <> Root}):
+  Lemma (ensures (proving_ancestor_has_blum_bit il ki))
+        (decreases (length il))
+  = let es = eac_state_of_key ki il in
+    if length il = 0 then
+      eac_state_empty ki il
+    else (
+      let i = length il - 1 in
+      let il' = prefix il i in
+      let pk' = proving_ancestor il' ki in
+      let e = index il i in
+
+      eac_state_unchanged_snoc ki il;
+      eac_state_transition_snoc ki il;
+      lemma_proving_ancestor_snoc il ki;
+      is_in_blum_snoc ki il;
+      lemma_proving_ancestor_blum_bit il' ki;
+      match e with
+      | AddM _ _ _ -> lemma_proving_ancestor_blum_bit_addm_extend il ki
+      | _ -> admit()
+    )
 
 (* if the store contains a k, it contains its proving ancestor *)
 let lemma_store_contains_proving_ancestor (#app #n:_) (il: eac_log app n) (tid:nat{tid < n}) (k:base_key{k <> Root}):
@@ -838,7 +1010,6 @@ let lemma_store_contains_proving_ancestor (#app #n:_) (il: eac_log app n) (tid:n
                   let st = thread_store tid il in
                   store_contains st k ==> store_contains st pk))
   = admit()
-
 
 (* precond: k' is a proper ancestor of k, but not the proving ancestor.
  *          k' is also initialized (previously added)
