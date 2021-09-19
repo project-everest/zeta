@@ -1411,33 +1411,3 @@ let lemma_store_contains_proving_ancestor (#app #n:_) (il: eac_log app n) (tid:n
                   store_contains st k ==> store_contains st pk))
   = lemma_store_contains_proving_ancestor_aux il k tid
 
-(* precond: k' is a proper ancestor of k, but not the proving ancestor.
- *          k' is also initialized (previously added)
- * ensures: k' points to something along direction (k' -> k) and that something is an ancestor of pk
- *)
- (*
-let lemma_init_ancestor_ancestor_of_proving
-  (#app #n:_)
-  (il: eac_log app n)
-  (k:base_key)
-  (k':base_key{is_proper_desc k k'}):
-  Lemma (requires ((k' = Root \/ eac_state_of_key k' il <> EACInit) /\
-                    k' <> proving_ancestor il k))
-        (ensures (let d = desc_dir k k' in
-                  let mv = eac_merkle_value k' il in
-                  let pk = proving_ancestor il k in
-                  points_to_some mv d /\
-                  is_desc pk (pointed_key mv d)))
-  = admit()
- *)
-
-(* if a merkle value of key k points to a key kd in some direction d, then kd is a proper desc of
- * k in direction d *)
-let lemma_points_to_dir_correct (#app #n:_) (il: eac_log app n) (k:merkle_key) (d:bin_tree_dir):
-  Lemma (requires (let mv = eac_merkle_value k il in
-                   points_to_some mv d))
-        (ensures (let mv = eac_merkle_value k il in
-                  let kd = pointed_key mv d in
-                  is_proper_desc kd k /\
-                  d = desc_dir kd k))
-  = admit()
