@@ -184,6 +184,13 @@ let eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (gk: key app):
                   eac_state_evicted_value es = eac_value gk il))
   = admit()
 
+let eac_value_init
+  (#app #n:_)
+  (gk: key app)
+  (il: eac_log app n {length il = 0})
+  : Lemma (ensures (eac_value gk il = init_value gk))
+  = admit()
+
 let ext_evict_val_is_stored_val (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
   Lemma (requires (V.is_evict (I.index il i)))
         (ensures (let tid = I.src il i in

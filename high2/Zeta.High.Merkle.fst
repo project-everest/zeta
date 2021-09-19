@@ -171,19 +171,13 @@ let merkle_evict_ancestor_props
 let runapp_refs_only_leafkeys (#app #n:_) (il: eac_log app n) (i:_ {RunApp? (index il i)}) (k: base_key)
   : Lemma (ensures (let e = index il i in
                     e `refs_key` k ==> is_leaf_key k))
-  = admit()
-
-let only_data_keys_ref_runapp (#app #n:_) (il: eac_log app n) (i: seq_index il{RunApp? (index il i)}) (k: base_key)
-  : Lemma (ensures (let e = index il i in
-                    e `refs_key` k ==> is_leaf_key k))
-  = admit()
-
-let eac_value_init
-  (#app #n:_)
-  (gk: key app)
-  (il: eac_log app n {length il = 0})
-  : Lemma (ensures (eac_value gk il = init_value gk))
-  = admit()
+  = let e = index il i in
+    lemma_cur_thread_state_extend il i;
+    let RunApp f p ss = e in
+    let vs_pre = thread_state_pre (src il i) il i in
+    if e `refs_key` k then
+      let idx = index_mem k ss in
+      get_record_set_correct ss vs_pre idx
 
 let eac_value_snoc
   (#app #n:_)
@@ -247,7 +241,11 @@ let eac_value_snoc
                                       else
                                        eac_value gkf il = eac_value gkf il'
   ))
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let e = index il i in
+    let bkf = to_base_key gkf in
+    admit()
 
 let eac_state_transition_snoc
   (#app #n:_)
@@ -309,7 +307,7 @@ let rec eac_ptrfn_empty_or_points_to_desc
       eac_ptrfn_empty_or_points_to_desc il' k c;
       eac_value_snoc (IntK k) il;
       match e with
-      | RunApp _ _ _ -> only_data_keys_ref_runapp il i k
+      | RunApp _ _ _ -> runapp_refs_only_leafkeys il i k
       | _ -> ()
 
 let eac_ptrfn_base

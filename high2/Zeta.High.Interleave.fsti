@@ -229,6 +229,12 @@ val eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (gk: key app):
                   let es = eac_state_of_key bk il in
                   eac_state_evicted_value es = eac_value gk il))
 
+val eac_value_init
+  (#app #n:_)
+  (gk: key app)
+  (il: eac_log app n {length il = 0})
+  : Lemma (ensures (eac_value gk il = init_value gk))
+
 let value_ext (#app:_) (ee: vlog_entry_ext app {EvictMerkle? ee \/ EvictBlum? ee})
   = match ee with
     | EvictMerkle _ v -> v
