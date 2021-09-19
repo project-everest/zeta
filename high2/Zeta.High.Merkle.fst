@@ -19,7 +19,6 @@ let addm_props
   (i: seq_index il{AddM? (index il i) /\ is_eac (prefix il i)})
   : Lemma (ensures (let AddM (gk, gv) k k' = index il i in
                     let il' = prefix il i in
-                    EACInStore? (eac_state_of_key_pre k' il i) /\
                     is_proper_desc k k' /\
                     (let v' = eac_merkle_value k' il' in
                      let c = desc_dir k k' in
@@ -29,7 +28,31 @@ let addm_props
                      | Desc k2 h2 b2 -> (k2 = k /\ h2 = hashfn gv /\ b2 = false) \/
                                         (is_proper_desc k2 k /\ gv = init_value gk))))
           [SMTPat (index il i)]
-  = admit()
+  = let il' = prefix il i in
+    let AddM _ _ k' = index il i in
+    lemma_cur_thread_state_extend il i;
+    eac_value_is_stored_value il' (IntK k') (src il i)
+
+let addm_es_props
+  (#app #n:_)
+  (il: verifiable_log app n )
+  (i: seq_index il{AddM? (index il i) /\ is_eac (prefix il i)})
+  : Lemma (ensures (let AddM _ k k' = index il i in
+                    let il' = prefix il i in
+                    let es' = eac_state_of_key_pre k' il i in
+                    k' = Root /\ es' = EACInit \/
+                    k' <> Root /\  EACInStore? es'))
+          [SMTPat (index il i)]
+  = let il' = prefix il i in
+    let AddM _ _ k' = index il i in
+    lemma_cur_thread_state_extend il i;
+    let es' = eac_state_of_key_pre k' il i in
+    if k' = Root then
+      eac_state_of_root_init il'
+    else (
+      FStar.Classical.exists_intro (fun tid -> store_contains (thread_store tid il') k')  (src il i);
+      lemma_instore k' il'
+    )
 
 let addm_type
   (#app #n:_)
@@ -547,8 +570,12 @@ let lemma_proving_ancestor_has_hash_addm_newedge_extend
       lemma_not_init_equiv_root_reachable il' bk;
       assert(root_reachable il' bk);
 
-      lemma_eac_instore_implies_root_reachable il' k';
-      assert(root_reachable il' k');
+      let aux()
+        : Lemma (ensures (root_reachable il' k'))
+        = if k' = Root then lemma_reachable_reflexive pf' Root
+          else lemma_eac_instore_implies_root_reachable il' k'
+      in
+      aux();
 
       let aux()
         : Lemma (ensures (not (is_desc bk (child c k'))))
@@ -714,9 +741,12 @@ let lemma_addm_ancestor_is_proving_newedge
     let pk = proving_ancestor il' k in
     let es = eac_state_of_key k il' in
 
-    assert(EACInStore? (eac_state_of_key k' il'));
-    lemma_eac_instore_implies_root_reachable il' k';
-    assert(root_reachable il' k');
+    let aux()
+      : Lemma (root_reachable il' k')
+      =  if k' = Root then lemma_reachable_reflexive pf Root
+          else lemma_eac_instore_implies_root_reachable il' k'
+    in
+    aux();
 
     lemma_not_init_equiv_root_reachable il' k;
     if pk <> k' then
@@ -1144,8 +1174,12 @@ let lemma_store_contains_proving_ancestor_addm_newedge_extend
         assert(root_reachable il' ki);
 
         (* k' is also root reachable since it is in store (so not EACInit)*)
-        lemma_eac_instore_implies_root_reachable il' k';
-        assert(root_reachable il' k');
+        let aux()
+          : Lemma (root_reachable il' k')
+          =  if k' = Root then lemma_reachable_reflexive pf' Root
+            else lemma_eac_instore_implies_root_reachable il' k'
+        in
+        aux();
 
         (* ki is not a descendant of k' along direction c since k' points to nothing along c *)
         let aux()
