@@ -186,7 +186,7 @@ let eac_state_transition_snoc
                     | EACInStore _ gk1 _ , EACEvictedMerkle gk2 _ -> EvictM? e /\ gk1 = gk2
                     | EACEvictedBlum _ _ _ _, EACInStore m _ _ -> AddB? e /\ m = BAdd
                     | EACEvictedMerkle _ _, EACInStore m _ _ -> AddM? e /\ m = MAdd
-                    | EACInStore _ _ _, EACInStore _ _ _ -> RunApp? e
+                    | EACInStore m1 _ _, EACInStore m2 _ _ -> RunApp? e /\ m1 = m2
                     | _ -> False))))
   = admit()
 
@@ -1041,6 +1041,22 @@ let store_contains_addm_ancestor
           [SMTPat (index il i)]
   = admit()
 
+let has_instore_merkle_desc
+  (#app #n:_)
+  (il: eac_log app n)
+  (k: base_key)
+  (c: bin_tree_dir)
+  (t: nat{t < n})
+  : bool
+  = let st = thread_store t il in
+    is_merkle_key k &&
+    (
+      let mv = eac_merkle_value k il in
+      points_to_some mv c &&
+      (let kd = pointed_key mv c in
+      store_contains st kd &&
+      add_method_of st kd = MAdd))
+
 let store_contains_evictm_ancestor
   (#app #n:_)
   (il: eac_log app n)
@@ -1050,7 +1066,22 @@ let store_contains_evictm_ancestor
                     let t = src il i in
                     let st_pre = thread_store_pre t il i in
                     let st_post = thread_store_post t il i in
-                    store_contains st_pre k /\ store_contains st_pre k' /\ store_contains st_post k'))
+                    let il' = prefix il i in
+                    store_contains st_pre k /\ store_contains st_pre k' /\ store_contains st_post k' /\
+                    not (has_instore_merkle_desc il' k Left t) /\
+                    not (has_instore_merkle_desc il' k Right t)))
+          [SMTPat (index il i)]
+  = admit()
+
+let store_contains_no_merkle_desc
+  (#app #n:_)
+  (il: eac_log app n)
+  (i: seq_index il {is_evict (index il i)})
+  : Lemma (ensures (let k = evict_slot (index il i) in
+                    let t = src il i in
+                    let il' = prefix il i in
+                    not (has_instore_merkle_desc il' k Left t) /\
+                    not (has_instore_merkle_desc il' k Right t)))
           [SMTPat (index il i)]
   = admit()
 
@@ -1231,6 +1262,104 @@ let lemma_store_contains_proving_ancestor_addm_extend
     | NewEdge -> lemma_store_contains_proving_ancestor_addm_newedge_extend il ki t
     | CutEdge -> lemma_store_contains_proving_ancestor_addm_cutedge_extend il ki t
 
+let lemma_store_contains_proving_ancestor_evictm_extend
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  (t: nat{ t < n })
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     is_merkle_evict (index il i) /\
+                     proving_ancestor_of_merkle_instore il' ki t))
+          (ensures (proving_ancestor_of_merkle_instore il ki t))
+  = let st = thread_store t il in
+    let es = eac_state_of_key ki il in
+    let i = length il - 1 in
+    let t' = src il i in
+    let il' = prefix il i in
+    let k = evict_slot (index il i) in
+    let k'  = ancestor_slot (index il i) in
+    let c = desc_dir k k' in
+
+    eac_state_unchanged_snoc ki il;
+    eac_state_transition_snoc ki il;
+    store_contains_snoc il ki t;
+    if ki <> Root && EACInStore? es && EACInStore?.m es = MAdd && store_contains st ki then (
+      lemma_proving_ancestor_snoc il ki;
+      let pk' = proving_ancestor il' ki in
+      let pf' = eac_ptrfn il' in
+      store_contains_snoc il pk' t;
+
+      if ki = k then
+        lemma_evictm_ancestor_is_proving il i
+      else if pk' = k then (
+        (* k is being evicted but it is the proving ancestor of ki, which is in store of thread t *)
+        let st' = thread_store t il' in
+
+        (* we know that k is in store t' before evicting, so t = t' *)
+        key_in_unique_store k il' t t';
+        //assert(t = t');
+
+        // since k is the proving ancestor of ki, it points to ki
+        //assert(BP.points_to pf' ki k);
+
+        // since eac add method of ki is MAdd (from es), it follows that
+        // k has a merkle descendant in store, which is a contradiction since
+        // this should have verification failure
+        key_in_unique_store ki il' t (stored_tid ki il');
+        assert(t = stored_tid ki il');
+        eac_add_method_is_stored_addm il' ki;
+        ()
+      )
+    )
+
+let lemma_store_contains_proving_ancestor_evictb_extend
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  (t: nat{ t < n })
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     EvictB? (index il i) /\
+                     proving_ancestor_of_merkle_instore il' ki t))
+          (ensures (proving_ancestor_of_merkle_instore il ki t))
+  = let st = thread_store t il in
+    let es = eac_state_of_key ki il in
+    let i = length il - 1 in
+    let t' = src il i in
+    let il' = prefix il i in
+    let k = evict_slot (index il i) in
+
+    eac_state_unchanged_snoc ki il;
+    eac_state_transition_snoc ki il;
+    store_contains_snoc il ki t;
+    if ki <> Root && EACInStore? es && EACInStore?.m es = MAdd && store_contains st ki then (
+      lemma_proving_ancestor_snoc il ki;
+      let pk' = proving_ancestor il' ki in
+      let pf' = eac_ptrfn il' in
+      store_contains_snoc il pk' t;
+
+      if pk' = k then (
+        (* k is being evicted but it is the proving ancestor of ki, which is in store of thread t *)
+        let st' = thread_store t il' in
+
+        (* we know that k is in store t' before evicting, so t = t' *)
+        key_in_unique_store k il' t t';
+        //assert(t = t');
+
+        // since k is the proving ancestor of ki, it points to ki
+        //assert(BP.points_to pf' ki k);
+
+        // since eac add method of ki is MAdd (from es), it follows that
+        // k has a merkle descendant in store, which is a contradiction since
+        // this should have verification failure
+        key_in_unique_store ki il' t (stored_tid ki il');
+        assert(t = stored_tid ki il');
+        eac_add_method_is_stored_addm il' ki;
+        ()
+      )
+    )
+
 let rec lemma_store_contains_proving_ancestor_aux
   (#app #n:_)
   (il: eac_log app n)
@@ -1261,9 +1390,14 @@ let rec lemma_store_contains_proving_ancestor_aux
         match e with
         | AddM _ _ _ ->
           lemma_store_contains_proving_ancestor_addm_extend il k t
-        | _ ->
-
-        admit()
+        | EvictBM _ _ _
+        | EvictM _ _ ->
+          lemma_store_contains_proving_ancestor_evictm_extend il k t
+        | EvictB _ _ ->
+          lemma_store_contains_proving_ancestor_evictb_extend il k t
+        | RunApp _ _ _ ->
+          runapp_refs_only_leafkeys il i pk'
+        | _ -> ()
       )
     )
 
@@ -1281,6 +1415,7 @@ let lemma_store_contains_proving_ancestor (#app #n:_) (il: eac_log app n) (tid:n
  *          k' is also initialized (previously added)
  * ensures: k' points to something along direction (k' -> k) and that something is an ancestor of pk
  *)
+ (*
 let lemma_init_ancestor_ancestor_of_proving
   (#app #n:_)
   (il: eac_log app n)
@@ -1294,6 +1429,7 @@ let lemma_init_ancestor_ancestor_of_proving
                   points_to_some mv d /\
                   is_desc pk (pointed_key mv d)))
   = admit()
+ *)
 
 (* if a merkle value of key k points to a key kd in some direction d, then kd is a proper desc of
  * k in direction d *)

@@ -114,7 +114,7 @@ val lemma_store_contains_proving_ancestor (#app #n:_) (il: eac_log app n) (tid:n
  *          k' is also initialized (previously added)
  * ensures: k' points to something along direction (k' -> k) and that something is an ancestor of pk
  *)
-val lemma_init_ancestor_ancestor_of_proving
+(*val lemma_init_ancestor_ancestor_of_proving
   (#app #n:_)
   (il: eac_log app n)
   (k:base_key)
@@ -126,6 +126,7 @@ val lemma_init_ancestor_ancestor_of_proving
                   let pk = proving_ancestor il k in
                   points_to_some mv d /\
                   is_desc pk (pointed_key mv d)))
+*)
 
 (* if a merkle value of key k points to a key kd in some direction d, then kd is a proper desc of
  * k in direction d *)
