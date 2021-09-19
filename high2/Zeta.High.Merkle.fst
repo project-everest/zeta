@@ -179,6 +179,200 @@ let runapp_refs_only_leafkeys (#app #n:_) (il: eac_log app n) (i:_ {RunApp? (ind
       let idx = index_mem k ss in
       get_record_set_correct ss vs_pre idx
 
+let eac_ptrfn_aux (#app #n:_) (il: eac_log app n) (k:merkle_key) (c:bin_tree_dir)
+  : option (base_key)
+  = let v = eac_merkle_value k il in
+    if M.points_to_none v c
+    then None
+    else Some (M.pointed_key v c)
+
+let eac_state_transition_snoc
+  (#app #n:_)
+  (bk: base_key)
+  (il: eac_log app n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let es' = eac_state_of_key bk il' in
+                    let es = eac_state_of_key bk il in
+                    let e = index il i in
+                    es' <> es ==> (
+                    e `refs_key` bk /\
+                    (match es', es with
+                    | EACInit, EACInStore m _ _ -> AddM? e /\ m = MAdd
+                    | EACInStore _ _ _ , EACEvictedBlum _ _ _ _ -> V.is_blum_evict e
+                    | EACInStore _ gk1 _ , EACEvictedMerkle gk2 _ -> EvictM? e /\ gk1 = gk2
+                    | EACEvictedBlum _ _ _ _, EACInStore m _ _ -> AddB? e /\ m = BAdd
+                    | EACEvictedMerkle _ _, EACInStore m _ _ -> AddM? e /\ m = MAdd
+                    | EACInStore m1 _ _, EACInStore m2 _ _ -> RunApp? e /\ m1 = m2
+                    | _ -> False))))
+  = eac_state_snoc bk il
+
+let eac_state_unchanged_snoc
+  (#app #n:_)
+  (bk: base_key)
+  (il: eac_log app n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let es' = eac_state_of_key bk il' in
+                    let es = eac_state_of_key bk il in
+                    let e = index il i in
+                    es = es' ==>
+                    (e `refs_key` bk) ==>
+                    RunApp? e /\ EACInStore? es))
+  = eac_state_snoc bk il
+
+let eac_value_snoc
+  (#app #n:_)
+  (gkf: key app)
+  (il: eac_log app n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let e = index il i in
+                    let bkf = to_base_key gkf in
+                    match e with
+                    | AddM (gk,gv) k k' -> if bkf <> k && bkf <> k' then
+                                             eac_value gkf il = eac_value gkf il'
+                                           else True
+                    | AddB _ _ _ _ -> eac_value gkf il = eac_value gkf il'
+                    | EvictM k k' -> if k' = bkf then
+                                       let v' = eac_merkle_value k' il' in
+                                       let gk = to_gen_key k il' in
+                                       let v = eac_value gk il' in
+                                       let c = desc_dir k k' in
+                                       let v' = update_value v' c k (hashfn v) false in
+                                       eac_value gkf il = IntV v'
+                                     else
+                                       eac_value gkf il = eac_value gkf il'
+                    | EvictB _ _ -> eac_value gkf il = eac_value gkf il'
+                    | EvictBM k k' _ -> if k' = bkf then
+                                       let v' = eac_merkle_value k' il' in
+                                       let gk = to_gen_key k il' in
+                                       let v = eac_value gk il' in
+                                       let c = desc_dir k k' in
+                                       let v' = update_value v' c k (hashfn v) false in
+                                       eac_value gkf il = IntV v'
+                                     else
+                                       eac_value gkf il = eac_value gkf il'
+                    | VerifyEpoch -> eac_value gkf il = eac_value gkf il'
+                    | NextEpoch -> eac_value gkf il = eac_value gkf il'
+                    | RunApp _ _ _ -> if e `refs_key` bkf then
+                                        True
+                                      else
+                                       eac_value gkf il = eac_value gkf il'
+  ))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let e = index il i in
+    let bkf = to_base_key gkf in
+    admit()
+
+let empty_or_points_to_desc
+  (#app #n:_)
+  (il: eac_log app n)
+  (k:merkle_key)
+  (c:bin_tree_dir)
+  = match eac_ptrfn_aux il k c with
+    | None -> true
+    | Some k2 -> is_desc k2 (child c k)
+
+
+#push-options "--z3rlimit_factor 3"
+
+let eac_ptrfn_empty_or_points_desc_addm_extend
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  (ki: merkle_key)
+  (c: bin_tree_dir)
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     let il' = prefix il i in
+                     AddM? e /\
+                     empty_or_points_to_desc il' ki c))
+          (ensures (empty_or_points_to_desc il ki c))
+  = let i = length il - 1 in
+    let e = index il i in
+    let il' = prefix il i in
+    let es = eac_state_of_key ki il in
+    let es' = eac_state_of_key ki il' in
+    let AddM (gk,gv) k k' = e in
+    let t = src il i in
+
+    eac_value_snoc (IntK ki) il;
+    lemma_cur_thread_state_extend il i;
+    eac_state_snoc ki il;
+
+    if ki = k then (
+      match es', es with
+      | EACInit, EACInStore _ _ _ ->
+        store_contains_implies ki il t;
+        eac_value_is_stored_value il (IntK ki) t
+      | EACEvictedMerkle _ _, EACInStore _ _ _ ->
+        store_contains_implies ki il t;
+        eac_value_is_stored_value il (IntK ki) t;
+        eac_value_is_evicted_value il' (IntK ki)
+    )
+    else if ki = k' then (
+      store_contains_implies ki il t;
+      store_contains_implies ki il' t;
+      eac_value_is_stored_value il' (IntK ki) t;
+      eac_value_is_stored_value il (IntK ki) t
+    )
+
+#pop-options
+
+let rec eac_ptrfn_empty_or_points_to_desc
+  (#app #n:_)
+  (il: eac_log app n)
+  (k: merkle_key)
+  (c: bin_tree_dir)
+  : Lemma (ensures (empty_or_points_to_desc il k c))
+          (decreases (length il))
+  = if length il = 0 then
+      eac_value_init (IntK k) il
+    else
+      let i = length il - 1  in
+      let il' = prefix il i in
+      let e = index il i in
+      eac_ptrfn_empty_or_points_to_desc il' k c;
+      eac_value_snoc (IntK k) il;
+      match e with
+      | AddM _ _ _ -> eac_ptrfn_empty_or_points_desc_addm_extend il k c
+      | RunApp _ _ _ -> runapp_refs_only_leafkeys il i k
+      | _ -> ()
+
+let eac_ptrfn_base
+  (#app #n:_)
+  (il: eac_log app n)
+  (k: bin_tree_node)
+  (c: bin_tree_dir)
+  : o:(option bin_tree_node){None = o \/ is_desc (Some?.v o) (child c k)}
+  = if depth k >= key_size then None
+    else
+      let or = eac_ptrfn_aux il k c in
+      eac_ptrfn_empty_or_points_to_desc il k c;
+      if or = None then None
+      else Some (Some?.v or)
+
+(* eac pointer function *)
+let eac_ptrfn
+  (#app #n:_)
+  (il: eac_log app n): ptrfn =
+  eac_ptrfn_base il
+
+(* eac_ptrfn value is the same as the eac_value *)
+let lemma_eac_ptrfn
+  (#app #n:_)
+  (il: eac_log app n) (k: merkle_key) (c:bin_tree_dir) :
+  Lemma (ensures (let pf = eac_ptrfn il in
+                  let mv = eac_merkle_value k il in
+                  points_to_none mv c /\ pf k c = None \/
+                  points_to_some mv c /\ is_desc (pointed_key mv c) (child c k) /\
+                  pf k c = Some (pointed_key mv c)))
+        [SMTPat (pointed_key (eac_merkle_value k il) c)]
+  = let mv = eac_merkle_value k il in
+    if points_to_some mv c then
+      eac_ptrfn_empty_or_points_to_desc il k c
+
 let eac_value_snoc
   (#app #n:_)
   (gkf: key app)
@@ -246,102 +440,6 @@ let eac_value_snoc
     let e = index il i in
     let bkf = to_base_key gkf in
     admit()
-
-let eac_state_transition_snoc
-  (#app #n:_)
-  (bk: base_key)
-  (il: eac_log app n {length il > 0})
-  : Lemma (ensures (let i = length il - 1 in
-                    let il' = prefix il i in
-                    let es' = eac_state_of_key bk il' in
-                    let es = eac_state_of_key bk il in
-                    let e = index il i in
-                    es' <> es ==> (
-                    e `refs_key` bk /\
-                    (match es', es with
-                    | EACInit, EACInStore m _ _ -> AddM? e /\ m = MAdd
-                    | EACInStore _ _ _ , EACEvictedBlum _ _ _ _ -> V.is_blum_evict e
-                    | EACInStore _ gk1 _ , EACEvictedMerkle gk2 _ -> EvictM? e /\ gk1 = gk2
-                    | EACEvictedBlum _ _ _ _, EACInStore m _ _ -> AddB? e /\ m = BAdd
-                    | EACEvictedMerkle _ _, EACInStore m _ _ -> AddM? e /\ m = MAdd
-                    | EACInStore m1 _ _, EACInStore m2 _ _ -> RunApp? e /\ m1 = m2
-                    | _ -> False))))
-  = admit()
-
-let eac_state_unchanged_snoc
-  (#app #n:_)
-  (bk: base_key)
-  (il: eac_log app n {length il > 0})
-  : Lemma (ensures (let i = length il - 1 in
-                    let il' = prefix il i in
-                    let es' = eac_state_of_key bk il' in
-                    let es = eac_state_of_key bk il in
-                    let e = index il i in
-                    es = es' ==>
-                    (e `refs_key` bk) ==>
-                    RunApp? e /\ EACInStore? es))
-  = admit()
-
-let eac_ptrfn_aux (#app #n:_) (il: eac_log app n) (k:merkle_key) (c:bin_tree_dir)
-  : option (base_key)
-  = let v = eac_merkle_value k il in
-    if M.points_to_none v c
-    then None
-    else Some (M.pointed_key v c)
-
-let rec eac_ptrfn_empty_or_points_to_desc
-  (#app #n:_)
-  (il: eac_log app n)
-  (k: merkle_key)
-  (c: bin_tree_dir)
-  : Lemma (ensures (eac_ptrfn_aux il k c = None \/
-                    (let k' = Some?.v (eac_ptrfn_aux il k c) in
-                     is_desc k' (child c k))))
-          (decreases (length il))
-  = if length il = 0 then
-      eac_value_init (IntK k) il
-    else
-      let i = length il - 1  in
-      let il' = prefix il i in
-      let e = index il i in
-      eac_ptrfn_empty_or_points_to_desc il' k c;
-      eac_value_snoc (IntK k) il;
-      match e with
-      | RunApp _ _ _ -> runapp_refs_only_leafkeys il i k
-      | _ -> ()
-
-let eac_ptrfn_base
-  (#app #n:_)
-  (il: eac_log app n)
-  (k: bin_tree_node)
-  (c: bin_tree_dir)
-  : o:(option bin_tree_node){None = o \/ is_desc (Some?.v o) (child c k)}
-  = if depth k >= key_size then None
-    else
-      let or = eac_ptrfn_aux il k c in
-      eac_ptrfn_empty_or_points_to_desc il k c;
-      if or = None then None
-      else Some (Some?.v or)
-
-(* eac pointer function *)
-let eac_ptrfn
-  (#app #n:_)
-  (il: eac_log app n): ptrfn =
-  eac_ptrfn_base il
-
-(* eac_ptrfn value is the same as the eac_value *)
-let lemma_eac_ptrfn
-  (#app #n:_)
-  (il: eac_log app n) (k: merkle_key) (c:bin_tree_dir) :
-  Lemma (ensures (let pf = eac_ptrfn il in
-                  let mv = eac_merkle_value k il in
-                  points_to_none mv c /\ pf k c = None \/
-                  points_to_some mv c /\ is_desc (pointed_key mv c) (child c k) /\
-                  pf k c = Some (pointed_key mv c)))
-        [SMTPat (pointed_key (eac_merkle_value k il) c)]
-  = let mv = eac_merkle_value k il in
-    if points_to_some mv c then
-      eac_ptrfn_empty_or_points_to_desc il k c
 
 let eac_ptrfn_snoc
   (#app #n:_)
