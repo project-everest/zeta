@@ -33,6 +33,31 @@ let addm_props
     lemma_cur_thread_state_extend il i;
     eac_value_is_stored_value il' (IntK k') (src il i)
 
+(* the property satisfied by all base keys used as an ancestor in addm/evictm/evictbm *)
+let ancestor_es_prop (#app:_)
+  (bk: base_key)
+  (es: eac_state app bk)
+  = bk = Root /\ es = EACInit \/
+    bk <> Root /\ EACInStore? es
+
+(* TODO: Migrate to interleave? *)
+let store_contains_implies
+  (#app #n:_)
+  (bk: base_key)
+  (il: eac_log app n)
+  (t:nat{t < n})
+  : Lemma (ensures (let st = thread_store t il in
+                    store_contains st bk ==>
+                    bk <> Root ==>
+                    EACInStore? (eac_state_of_key bk il) /\
+                    stored_tid bk il = t))
+  = let st = thread_store t il in
+    if bk <> Root && store_contains st bk then (
+      FStar.Classical.exists_intro (fun tid -> store_contains (thread_store tid il) bk) t;
+      lemma_instore bk il;
+      key_in_unique_store bk il t (stored_tid bk il)
+    )
+
 let addm_es_props
   (#app #n:_)
   (il: verifiable_log app n )
@@ -40,19 +65,15 @@ let addm_es_props
   : Lemma (ensures (let AddM _ k k' = index il i in
                     let il' = prefix il i in
                     let es' = eac_state_of_key_pre k' il i in
-                    k' = Root /\ es' = EACInit \/
-                    k' <> Root /\  EACInStore? es'))
+                    ancestor_es_prop k' es'))
           [SMTPat (index il i)]
   = let il' = prefix il i in
     let AddM _ _ k' = index il i in
     lemma_cur_thread_state_extend il i;
     let es' = eac_state_of_key_pre k' il i in
+    store_contains_implies k' il' (src il i);
     if k' = Root then
       eac_state_of_root_init il'
-    else (
-      FStar.Classical.exists_intro (fun tid -> store_contains (thread_store tid il') k')  (src il i);
-      lemma_instore k' il'
-    )
 
 let addm_type
   (#app #n:_)
@@ -79,37 +100,73 @@ let cutedge_desc
     match dh' with
     | Desc k2 h2 b2 -> k2
 
-let evictm_props (#app #n:_) (il: eac_log app n) (i: seq_index il{EvictM? (index il i)})
-  : Lemma (ensures (let EvictM k k' = index il i in
-                    let il' = prefix il i in
-                    let esk_pre = eac_state_of_key_pre k il i in
-                    let esk_post = eac_state_of_key_post k il i in
-                    let esk'_pre = eac_state_of_key_pre k' il i in
-                    let esk'_post = eac_state_of_key_post k' il i in
-                    is_proper_desc k k' /\
-                    EACInStore? esk_pre /\ EACInStore? esk'_pre /\
-                    EACInStore? esk'_post /\ EACEvictedMerkle? esk_post /\
-                    (let v' = eac_merkle_value k' il' in
-                     let c = desc_dir k k' in
-                     points_to v' c k)))
-          [SMTPat (index il i)]
-  = admit()
+let is_merkle_evict (#app:_) (e: vlog_entry app)
+  = EvictM? e \/ EvictBM? e
 
-let evictbm_props (#app #n:_) (il: eac_log app n) (i: seq_index il{EvictBM? (index il i)})
-  : Lemma (ensures (let EvictBM k k' _ = index il i in
+let ancestor_slot (#app) (e:vlog_entry app {is_merkle_evict e})
+  = match e with
+    | EvictM _ k' -> k'
+    | EvictBM _ k' _ -> k'
+
+let evictm_props (#app #n:_) (il: eac_log app n) (i: seq_index il{is_merkle_evict (index il i)})
+  : Lemma (ensures (let k = evict_slot (index il i) in
+                    let k' = ancestor_slot (index il i) in
                     let il' = prefix il i in
-                    let esk_pre = eac_state_of_key_pre k il i in
-                    let esk_post = eac_state_of_key_post k il i in
-                    let esk'_pre = eac_state_of_key_pre k' il i in
-                    let esk'_post = eac_state_of_key_post k' il i in
                     is_proper_desc k k' /\
-                    EACInStore? esk_pre /\ EACInStore? esk'_pre /\
-                    EACInStore? esk'_post /\ EACEvictedMerkle? esk_post /\
                     (let v' = eac_merkle_value k' il' in
                      let c = desc_dir k k' in
                      points_to v' c k)))
           [SMTPat (index il i)]
-  = admit()
+  = let il' = prefix il i in
+    let k = evict_slot (index il i) in
+    let k' = ancestor_slot (index il i) in
+    lemma_cur_thread_state_extend il i;
+    eac_value_is_stored_value il' (IntK k') (src il i)
+
+let evictm_es_props (#app #n:_) (il: eac_log app n) (i:_ {EvictM? (index il i)})
+  : Lemma (ensures (let EvictM k _ = index il i in
+                    let es_pre = eac_state_of_key_pre k il i in
+                    let es_post = eac_state_of_key_post k il i in
+                    EACInStore? es_pre /\ EACEvictedMerkle? es_post))
+          [SMTPat (index il i)]
+  = let e = index il i in
+    let EvictM k _ = e in
+    let il' = prefix il i in
+    let ee = mk_vlog_entry_ext il i in
+    lemma_cur_thread_state_extend il i;
+    store_contains_implies k il' (src il i);
+    eac_state_transition k il i
+
+let evictbm_es_props (#app #n:_) (il: eac_log app n) (i:_ {EvictBM? (index il i)})
+  : Lemma (ensures (let EvictBM k _ _ = index il i in
+                    let es_pre = eac_state_of_key_pre k il i in
+                    let es_post = eac_state_of_key_post k il i in
+                    EACInStore? es_pre /\ EACEvictedBlum? es_post))
+          [SMTPat (index il i)]
+  = let e = index il i in
+    let EvictBM k _ _ = e in
+    let il' = prefix il i in
+    let ee = mk_vlog_entry_ext il i in
+    lemma_cur_thread_state_extend il i;
+    store_contains_implies k il' (src il i);
+    eac_state_transition k il i
+
+let merkle_evict_ancestor_props
+  (#app #n:_)
+  (il: eac_log app n) (i:_ {is_merkle_evict (index il i)})
+  : Lemma (ensures (let k = ancestor_slot (index il i) in
+                    let es_pre = eac_state_of_key_pre k il i in
+                    let es_post = eac_state_of_key_post k il i in
+                    es_pre = es_post /\ ancestor_es_prop k es_pre))
+          [SMTPat (index il i)]
+  = let k = ancestor_slot (index il i) in
+    let _ = mk_vlog_entry_ext il i in
+    let il' = prefix il i in
+    lemma_cur_thread_state_extend il i;
+    store_contains_implies k il' (src il i);
+    eac_state_transition k il i;
+    if k = Root then
+      eac_state_of_root_init il'
 
 let runapp_refs_only_leafkeys (#app #n:_) (il: eac_log app n) (i:_ {RunApp? (index il i)}) (k: base_key)
   : Lemma (ensures (let e = index il i in
@@ -494,13 +551,6 @@ let lemma_points_to_implies_proving_ancestor
     assert(BP.points_to pf k k');
     lemma_points_to_is_prev pf k Root k'
 
-let is_merkle_evict (#app:_) (e: vlog_entry app)
-  = EvictM? e \/ EvictBM? e
-
-let ancestor_slot (#app) (e:vlog_entry app {is_merkle_evict e})
-  = match e with
-    | EvictM _ k' -> k'
-    | EvictBM _ k' _ -> k'
 
 let lemma_evictm_ancestor_is_proving
   (#app #n:_)
@@ -1030,7 +1080,8 @@ let rec lemma_proving_ancestor_blum_bit (#app #n:_) (il: eac_log app n) (ki:base
       match e with
       | AddM _ _ _ -> lemma_proving_ancestor_blum_bit_addm_extend il ki
       | EvictBM _ _ _ ->
-        lemma_evictm_ancestor_is_proving il i
+        //lemma_evictm_ancestor_is_proving il i
+        admit()
       | RunApp _ _ _ ->
         runapp_refs_only_leafkeys il i pk'
       | _ -> ()

@@ -170,13 +170,15 @@ val key_in_unique_store (#app #n:_) (k:base_key) (il: eac_log app n) (tid1 tid2:
   : Lemma (ensures (tid1 <> tid2 ==>
                     ~ (store_contains (thread_store tid1 il) k /\ store_contains (thread_store tid2 il) k)))
 
-let to_gen_key (#app #n:_) (bk: base_key) (il: eac_log app n {is_eac_state_active bk il})
+let to_gen_key (#app #n:_) (bk: base_key) (il: eac_log app n {is_eac_state_active bk il \/ is_merkle_key bk})
   : gk:key app {to_base_key gk = bk}
-  = let es = eac_state_of_key bk il in
-    match es with
-    | EACInStore _ gk _ -> gk
-    | EACEvictedBlum gk _ _ _ -> gk
-    | EACEvictedMerkle gk _ -> gk
+  = if is_merkle_key bk then IntK bk
+    else
+      let es = eac_state_of_key bk il in
+      match es with
+      | EACInStore _ gk _ -> gk
+      | EACEvictedBlum gk _ _ _ -> gk
+      | EACEvictedMerkle gk _ -> gk
 
 val stored_key_is_correct (#app #n:_) (bk: base_key) (il: eac_log app n{EACInStore? (eac_state_of_key bk il)})
   : Lemma (ensures (let tid = stored_tid bk il in
