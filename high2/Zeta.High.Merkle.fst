@@ -898,13 +898,32 @@ let eac_ptrfn_snoc_evictm
   : Lemma (requires (let i = length il - 1 in
                      let il' = prefix il i in
                      let e = index il i in
-                     EvictM? e))
+                     is_merkle_evict e))
           (ensures (let i = length il - 1 in
                     let il' = prefix il i in
                     let pf = eac_ptrfn il in
                     let pf' = eac_ptrfn il' in
                     pf == pf'))
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let pf = eac_ptrfn il in
+    let pf' = eac_ptrfn il' in
+    let t = src il i in
+    let k' = ancestor_slot (index il i) in
+    lemma_cur_thread_state_extend il i;
+    lemma_fullprefix_equal il;
+    eac_value_is_stored_value il' (IntK k') t;
+
+    let aux (ki c:_)
+      : Lemma (ensures (pf ki c == pf' ki c))
+      = if depth ki < key_size then (
+          lemma_eac_ptrfn il ki c;
+          lemma_eac_ptrfn il' ki c;
+          eac_value_snoc_simple (IntK ki) il
+        )
+    in
+    FStar.Classical.forall_intro_2 aux;
+    assert(feq_ptrfn pf pf')
 
 let eac_ptrfn_snoc
   (#app #n:_)
@@ -928,7 +947,19 @@ let eac_ptrfn_snoc
                                    pf == extendcut_ptrfn pf' k k'
                       )
                     | _ -> feq_ptrfn pf pf'))
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let e = index il i in
+    match e with
+    | AddM _ _ _ ->
+      (match addm_type il i with
+      | NoNewEdge -> eac_ptrfn_snoc_addm_nonewedge il
+      | NewEdge -> eac_ptrfn_snoc_addm_newedge il
+      | CutEdge -> eac_ptrfn_snoc_addm_cutedge il
+      )
+    | EvictM _ _
+    | EvictBM _ _ _ -> eac_ptrfn_snoc_evictm il
+    | _ -> eac_ptrfn_snoc_non_ancestor il
 
 let root_reachable (#app #n:_) (il: eac_log app n) (k:base_key)
   : bool
