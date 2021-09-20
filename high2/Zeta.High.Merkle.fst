@@ -355,7 +355,8 @@ let eac_value_snoc_simple
                     | AddB _ _ _ _ -> eac_value gkf il = eac_value gkf il'
                     | EvictM k k' -> if k' = bkf then
                                        let v' = eac_merkle_value k' il' in
-                                       let gk = to_gen_key k il' in
+                                       let es = eac_state_of_key k il' in
+                                       let gk = to_gen_key es in
                                        let v = eac_value gk il' in
                                        let c = desc_dir k k' in
                                        let v' = update_value v' c k (hashfn v) false in
@@ -365,7 +366,8 @@ let eac_value_snoc_simple
                     | EvictB _ _ -> eac_value gkf il = eac_value gkf il'
                     | EvictBM k k' _ -> if k' = bkf then
                                        let v' = eac_merkle_value k' il' in
-                                       let gk = to_gen_key k il' in
+                                       let es = eac_state_of_key k il' in
+                                       let gk = to_gen_key es in
                                        let v = eac_value gk il' in
                                        let c = desc_dir k k' in
                                        let v' = update_value v' c k (hashfn v) false in
@@ -538,7 +540,7 @@ let eac_value_snoc
                     | AddB _ _ _ _ -> eac_value gkf il = eac_value gkf il'
                     | EvictM k k' -> if k' = bkf then
                                        let v' = eac_merkle_value k' il' in
-                                       let gk = to_gen_key k il' in
+                                       let gk = to_gen_key (eac_state_of_key k il') in
                                        let v = eac_value gk il' in
                                        let c = desc_dir k k' in
                                        let v' = update_value v' c k (hashfn v) false in
@@ -548,7 +550,7 @@ let eac_value_snoc
                     | EvictB _ _ -> eac_value gkf il = eac_value gkf il'
                     | EvictBM k k' _ -> if k' = bkf then
                                        let v' = eac_merkle_value k' il' in
-                                       let gk = to_gen_key k il' in
+                                       let gk = to_gen_key (eac_state_of_key k il') in
                                        let v = eac_value gk il' in
                                        let c = desc_dir k k' in
                                        let v' = update_value v' c k (hashfn v) false in

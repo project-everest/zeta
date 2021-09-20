@@ -377,3 +377,16 @@ let refs_key #app (e: vlog_entry app) (k: base_key)
     | VerifyEpoch -> false
     | RunApp _ _ ks -> mem k ks
 
+(* an expanded variant of "referencing" that includes the ancestor keys as well *)
+let exp_refs_key #app (e: vlog_entry app) (k: base_key)
+  = let open Zeta.GenericVerifier in
+    let open FStar.Seq in
+    match e with
+    | AddM _ k1 k2 -> k1 = k || k2 = k
+    | AddB _ k' _ _ -> k' = k
+    | EvictM k1 k2 -> k1 = k || k2 = k
+    | EvictB k' _ -> k' = k
+    | EvictBM k1 k2 _ -> k1 = k2
+    | NextEpoch -> false
+    | VerifyEpoch -> false
+    | RunApp _ _ ks -> mem k ks

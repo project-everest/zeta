@@ -42,6 +42,21 @@ let is_eac_state_instore #app #k (s: eac_state app k): bool =
   | EACInStore _ _ _ -> true
   | _ -> false
 
+let is_eac_state_active #app #k (s: eac_state app k)
+  = s <> EACInit && s <> EACFail
+
+let gen_key_inferrable #app #k (s: eac_state app k)
+  = is_merkle_key k ||
+    is_eac_state_active s
+
+let to_gen_key #app #k (s: eac_state app k{gen_key_inferrable s})
+  = if is_merkle_key k then IntK k
+    else
+    match s with
+    | EACInStore _ gk _ -> gk
+    | EACEvictedMerkle gk _ -> gk
+    | EACEvictedBlum gk _ _ _ -> gk
+
 let to_vlog_entry #app (ee:vlog_entry_ext app): vlog_entry app =
   match ee with
   | EvictMerkle e _ -> e

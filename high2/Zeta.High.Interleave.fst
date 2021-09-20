@@ -1,5 +1,15 @@
 module Zeta.High.Interleave
 
+let not_refs_implies_store_unchanged  (#app #n:_) (k:base_key) (t:nat{t < n})
+  (il: verifiable_log app n) (i:seq_index il)
+  : Lemma (ensures (let e = I.index il i in
+                    let st_pre = thread_store_pre t il i in
+                    let st_post = thread_store_post t il i in
+                    not (e `exp_refs_key` k) ==>
+                    store_contains st_pre k ==>
+                    (store_contains st_post k /\ st_pre k == st_post k)))
+  = admit()
+
 let blum_evict_elem_props
   (#app #n:_)
   (il: verifiable_log app n)
@@ -126,15 +136,16 @@ let eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_log ap
   = admit()
 
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
-let stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {EACInStore? (eac_state_of_key k il)})
+let stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {is_eac_state_instore k il})
   : tid:nat{tid < n /\
           (let st = thread_store tid il in
-           let gk = to_gen_key k il in
+           let es = eac_state_of_key k il in
+           let gk = to_gen_key es in
            store_contains st k /\ gk = stored_key st k)}
   = admit()
 
-let lemma_instore (#app #n:_) (bk: base_key{bk <> Zeta.BinTree.Root}) (il: eac_log app n)
-  : Lemma (ensures (exists_in_some_store bk il <==> EACInStore? (eac_state_of_key bk il)))
+let lemma_instore (#app #n:_) (bk: base_key) (il: eac_log app n)
+  : Lemma (ensures (exists_in_some_store bk il <==> is_eac_state_instore bk il))
   = admit()
 
 (* uniqueness: k is never in two stores *)
@@ -180,8 +191,9 @@ let eac_value_is_stored_value_int (#app #n:_) (il: eac_log app n) (k: merkle_key
 
 let eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (gk: key app):
   Lemma (requires (let bk = to_base_key gk in
+                   let es = eac_state_of_key bk il in
                    is_eac_state_evicted bk il /\
-                   gk = to_gen_key bk il))
+                   gk = to_gen_key es))
         (ensures (let bk = to_base_key gk in
                   let es = eac_state_of_key bk il in
                   eac_state_evicted_value es = eac_value gk il))
@@ -189,9 +201,9 @@ let eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (gk: key app):
 
 let eac_value_init_state_is_init (#app #n:_) (il: eac_log app n) (gk: key app):
   Lemma (requires (let bk = to_base_key gk in
-                   let es = eac_state_of_key bk il in
-                   bk <> Zeta.BinTree.Root /\
-                   (es = EACInit \/ to_gen_key bk il <> gk)))
+                   let es = eac_state_of_genkey gk il in
+                   es = EACInit /\
+                   bk <> Zeta.BinTree.Root))
         (ensures (eac_value gk il = init_value gk))
   = admit()
 
@@ -248,10 +260,10 @@ let root_never_added (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
 
 let eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app)
   : Lemma (requires (let bk = to_base_key gk in
-                     let es = eac_state_of_key bk il in
+                     let es = eac_state_of_genkey gk il in
                      AppK? gk /\ EACInStore? es))
           (ensures (let bk = to_base_key gk in
-                    let EACInStore _ _ v = eac_state_of_key bk il in
+                    let EACInStore _ gk' v = eac_state_of_key bk il in
                     stored_value gk il = v))
   = admit()
 

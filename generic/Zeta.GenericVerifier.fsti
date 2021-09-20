@@ -142,6 +142,23 @@ let add_slot #vspec (e: verifier_log_entry vspec {is_add e})
     | AddM _ s _ -> s
     | AddB _ s _ _ -> s
 
+let involves_ancestor #vspec (e: verifier_log_entry vspec)
+  : bool
+  = match e with
+    | AddM _ _ _ -> true
+    | EvictM _ _ -> true
+    | EvictBM _ _ _ -> true
+    | _ -> false
+
+let ancestor_slot #vspec (e: verifier_log_entry vspec {involves_ancestor e})
+  = match e with
+    | AddM _ _ k -> k
+    | EvictM _ k -> k
+    | EvictBM _ k _ -> k
+
+let is_ancestor_evict #vspec (e: verifier_log_entry vspec)
+  = is_evict e && involves_ancestor e
+
 val get_record_set (#vspec: verifier_spec_base) (ss: S.seq (vspec.slot_t)) (vtls: vspec.vtls_t {vspec.valid vtls}):
   (let record_t = app_record vspec.app.adm in
    ors: option (S.seq record_t) {Some? ors ==> (let rs = Some?.v ors in

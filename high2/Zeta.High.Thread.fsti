@@ -40,3 +40,12 @@ val lemma_blum_evict_elem_key (#app:_) (tl: verifiable_log app) (i: seq_index tl
                     be.t = blum_evict_timestamp (index tl i) /\
                     be.tid = fst tl))
           [SMTPat (blum_evict_elem tl i)]
+
+val not_refs_implies_store_unchanged  (#app:_) (k:Zeta.Key.base_key)
+  (tl: verifiable_log app) (i:seq_index tl)
+  : Lemma (ensures (let e = index tl i in
+                    let st_pre = store_pre tl i in
+                    let st_post = store_post tl i in
+                    not (e `exp_refs_key` k) ==>
+                    store_contains st_pre k ==>
+                    (store_contains st_post k /\ st_pre k == st_post k)))

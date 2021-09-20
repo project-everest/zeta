@@ -96,7 +96,7 @@ let rec evict_add_count_rel
   (ep: epoch)
   (gk: key app)
   (il: eac_log app n)
-  : Lemma (ensures(match eac_state_of_gkey gk il with
+  : Lemma (ensures(match eac_state_of_genkey gk il with
                    | EACFail -> False
                    | EACInit
                    | EACInStore _ _ _
