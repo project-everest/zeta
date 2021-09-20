@@ -221,7 +221,7 @@ let eac_state_unchanged_snoc
                     RunApp? e /\ EACInStore? es))
   = eac_state_snoc bk il
 
-let eac_value_snoc
+let eac_value_snoc_simple
   (#app #n:_)
   (gkf: key app)
   (il: eac_log app n {length il > 0})
@@ -264,7 +264,21 @@ let eac_value_snoc
     let il' = prefix il i in
     let e = index il i in
     let bkf = to_base_key gkf in
-    admit()
+    let es = eac_state_of_key bkf il in
+    let es' = eac_state_of_key bkf il' in
+    eac_state_snoc bkf il;
+    lemma_cur_thread_state_extend il i;
+
+    match e with
+    | AddM _ k k' ->
+      if bkf <> k && bkf <> k' then (
+        assert(es = es');
+        match es with
+        | EACInit -> admit()
+        | _ -> admit()
+      )
+    | _ -> admit()
+
 
 let empty_or_points_to_desc
   (#app #n:_)
@@ -297,7 +311,7 @@ let eac_ptrfn_empty_or_points_desc_addm_extend
     let AddM (gk,gv) k k' = e in
     let t = src il i in
 
-    eac_value_snoc (IntK ki) il;
+    eac_value_snoc_simple (IntK ki) il;
     lemma_cur_thread_state_extend il i;
     eac_state_snoc ki il;
 
@@ -334,7 +348,7 @@ let rec eac_ptrfn_empty_or_points_to_desc
       let il' = prefix il i in
       let e = index il i in
       eac_ptrfn_empty_or_points_to_desc il' k c;
-      eac_value_snoc (IntK k) il;
+      eac_value_snoc_simple (IntK k) il;
       match e with
       | AddM _ _ _ -> eac_ptrfn_empty_or_points_desc_addm_extend il k c
       | RunApp _ _ _ -> runapp_refs_only_leafkeys il i k

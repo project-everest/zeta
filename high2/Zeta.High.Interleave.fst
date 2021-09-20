@@ -170,7 +170,8 @@ let eac_value (#app #n:_) (k: key app) (il: eac_log app n)
 
 let eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app) (tid: nat {tid < n})
   : Lemma (requires (let bk = to_base_key gk in
-                     store_contains (thread_store tid il) bk))
+                     store_contains (thread_store tid il) bk /\
+                     stored_key (thread_store tid il) bk = gk))
           (ensures (let bk = to_base_key gk in
                     EACInStore? (eac_state_of_key bk il) /\
                     eac_value gk il = HV.stored_value (thread_store tid il) bk))
