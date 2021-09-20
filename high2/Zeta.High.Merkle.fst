@@ -824,6 +824,8 @@ let eac_ptrfn_snoc_addm_newedge
     FStar.Classical.forall_intro_2 aux;
     assert(feq_ptrfn pf pfe)
 
+#push-options "--z3rlimit_factor 3"
+
 let eac_ptrfn_snoc_addm_cutedge
   (#app #n:_)
   (il: eac_log app n {length il > 0})
@@ -851,6 +853,10 @@ let eac_ptrfn_snoc_addm_cutedge
     lemma_cur_thread_state_extend il i;
     lemma_fullprefix_equal il;
     eac_value_is_stored_value il' (IntK k') t;
+    assert(BP.points_to_some pf' k' c);
+    let k2 = BP.pointed_node pf' k' c in
+    assert(is_proper_desc k2 k);
+    let c2 = desc_dir k2 k in
 
     let aux1 ()
       : Lemma (ensures (BP.points_to_none pf' k))
@@ -873,20 +879,32 @@ let eac_ptrfn_snoc_addm_cutedge
       = if depth ki < key_size then (
           lemma_eac_ptrfn il ki c;
           lemma_eac_ptrfn il' ki c;
-          if ki = k then (
-            eac_value_is_stored_value il (IntK k) t;
-            admit()
-          )
-          else if ki = k' then (
-            eac_value_is_stored_value il (IntK k') t;
-            admit()
-          )
+          if ki = k then
+            eac_value_is_stored_value il (IntK k) t
+          else if ki = k' then
+            eac_value_is_stored_value il (IntK k') t
           else
-          admit()
+            eac_value_snoc_simple (IntK ki) il
         )
     in
     FStar.Classical.forall_intro_2 aux;
     assert(feq_ptrfn pf pfe)
+
+#pop-options
+
+let eac_ptrfn_snoc_evictm
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     EvictM? e))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let pf = eac_ptrfn il in
+                    let pf' = eac_ptrfn il' in
+                    pf == pf'))
+  = admit()
 
 let eac_ptrfn_snoc
   (#app #n:_)
