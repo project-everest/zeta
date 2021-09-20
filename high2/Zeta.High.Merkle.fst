@@ -689,7 +689,7 @@ let lemma_eac_ptrfn
     if points_to_some mv c then
       eac_ptrfn_empty_or_points_to_desc il k c
 
-let eac_ptrfn_snoc_addb
+let eac_ptrfn_snoc_non_ancestor
   (#app #n:_)
   (il: eac_log app n {length il > 0})
   : Lemma (requires (let i = length il - 1 in
@@ -737,12 +737,7 @@ let eac_ptrfn_snoc_addm_nonewedge
     let t = src il i in
     let AddM (gk,gv) k k' = index il i in
     lemma_cur_thread_state_extend il i;
-    let st = thread_store t il in
     lemma_fullprefix_equal il;
-    let vs' = thread_state_pre t il i in
-    let vs = thread_state_post t il i in
-    assert(st == vs.st);
-    assert(vs == addm (gk,gv) k k' vs');
     eac_value_is_stored_value il' (IntK k') t;
 
     let aux (ki c:_)
@@ -771,6 +766,128 @@ let eac_ptrfn_snoc_addm_nonewedge
     FStar.Classical.forall_intro_2 aux;
     assert(feq_ptrfn pf pf')
 
+let eac_ptrfn_snoc_addm_newedge
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     AddM? e /\ addm_type il i = NewEdge))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let AddM _ k k' = index il i in
+                    let c = desc_dir k k' in
+                    let pf = eac_ptrfn il in
+                    let pf' = eac_ptrfn il' in
+                    not (BP.points_to_some pf' k' c) /\
+                    BP.points_to_none pf' k /\
+                    pf == extend_ptrfn pf' k k'))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let pf = eac_ptrfn il in
+    let pf' = eac_ptrfn il' in
+    let t = src il i in
+    let AddM (gk,gv) k k' = index il i in
+    let c = desc_dir k k' in
+    lemma_cur_thread_state_extend il i;
+    lemma_fullprefix_equal il;
+    eac_value_is_stored_value il' (IntK k') t;
+
+    let aux1 ()
+      : Lemma (ensures (BP.points_to_none pf' k))
+      = if depth k < key_size then (
+          let es' = eac_state_of_key k il' in
+          eac_state_snoc k il;
+          match es' with
+          | EACInit ->
+            eac_value_init_state_is_init il' (IntK k)
+
+          | EACEvictedMerkle _ _  ->
+            eac_value_is_evicted_value il' (IntK k)
+        )
+    in
+    aux1();
+    let pfe = extend_ptrfn pf' k k' in
+    let aux (ki c:_)
+      : Lemma (ensures (pf ki c == pfe ki c))
+      = if depth ki < key_size then (
+          lemma_eac_ptrfn il ki c;
+          lemma_eac_ptrfn il' ki c;
+          if ki = k then
+            eac_value_is_stored_value il (IntK k) t
+          else if ki = k' then
+            eac_value_is_stored_value il (IntK k') t
+          else
+            eac_value_snoc_simple (IntK ki) il
+        )
+    in
+    FStar.Classical.forall_intro_2 aux;
+    assert(feq_ptrfn pf pfe)
+
+let eac_ptrfn_snoc_addm_cutedge
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     AddM? e /\ addm_type il i = CutEdge))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let AddM _ k k' = index il i in
+                    let c = desc_dir k k' in
+                    let pf = eac_ptrfn il in
+                    let pf' = eac_ptrfn il' in
+                    BP.points_to_none pf' k /\
+                    BP.points_to_some pf' k' c /\
+                    is_proper_desc (BP.pointed_node pf' k' c) k /\
+                    pf == extendcut_ptrfn pf' k k'))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let pf = eac_ptrfn il in
+    let pf' = eac_ptrfn il' in
+    let t = src il i in
+    let AddM (gk,gv) k k' = index il i in
+    let c = desc_dir k k' in
+    lemma_cur_thread_state_extend il i;
+    lemma_fullprefix_equal il;
+    eac_value_is_stored_value il' (IntK k') t;
+
+    let aux1 ()
+      : Lemma (ensures (BP.points_to_none pf' k))
+      = if depth k < key_size then (
+          let es' = eac_state_of_key k il' in
+          eac_state_snoc k il;
+          match es' with
+          | EACInit ->
+            eac_value_init_state_is_init il' (IntK k)
+
+          | EACEvictedMerkle _ _  ->
+            eac_value_is_evicted_value il' (IntK k)
+        )
+    in
+    aux1();
+    let pfe = extendcut_ptrfn pf' k k' in
+
+    let aux (ki c:_)
+      : Lemma (ensures (pf ki c == pfe ki c))
+      = if depth ki < key_size then (
+          lemma_eac_ptrfn il ki c;
+          lemma_eac_ptrfn il' ki c;
+          if ki = k then (
+            eac_value_is_stored_value il (IntK k) t;
+            admit()
+          )
+          else if ki = k' then (
+            eac_value_is_stored_value il (IntK k') t;
+            admit()
+          )
+          else
+          admit()
+        )
+    in
+    FStar.Classical.forall_intro_2 aux;
+    assert(feq_ptrfn pf pfe)
+
 let eac_ptrfn_snoc
   (#app #n:_)
   (il: eac_log app n {length il > 0})
@@ -788,7 +905,7 @@ let eac_ptrfn_snoc
                                     BP.points_to_none pf' k /\
                                     pf == extend_ptrfn pf' k k'
                       | CutEdge -> BP.points_to_none pf' k /\
-                                   BP.points_to_some pf' k c /\
+                                   BP.points_to_some pf' k' c /\
                                    is_proper_desc (BP.pointed_node pf' k' c) k /\
                                    pf == extendcut_ptrfn pf' k k'
                       )
