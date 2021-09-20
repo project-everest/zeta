@@ -386,7 +386,7 @@ let exp_refs_key #app (e: vlog_entry app) (k: base_key)
     | AddB _ k' _ _ -> k' = k
     | EvictM k1 k2 -> k1 = k || k2 = k
     | EvictB k' _ -> k' = k
-    | EvictBM k1 k2 _ -> k1 = k2
+    | EvictBM k1 k2 _ -> k1 = k || k2 = k
     | NextEpoch -> false
     | VerifyEpoch -> false
     | RunApp _ _ ks -> mem k ks

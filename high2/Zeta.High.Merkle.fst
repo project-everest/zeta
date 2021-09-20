@@ -262,83 +262,93 @@ let eac_value_root_snoc
       if t = 0 then ()
       else
         lemma_non_cur_thread_state_extend 0 il i
-    | _ -> admit()
+    | RunApp _ _ _ ->
+      runapp_refs_only_leafkeys il i Root;
+      not_refs_implies_store_unchanged Root 0 il i
 
 #pop-options
 
-#push-options "--z3rlimit_factor 3"
+let not_refs_implies_eac_value_unchanged_snoc (#app #n:_)
+  (gki: key app)
+  (il: eac_log app n{length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let e = index il i in
+                    let il' = prefix il i in
+                    let ev = eac_value gki il in
+                    let ev' = eac_value gki il' in
+                    let ki = to_base_key gki in
+                    not (e `exp_refs_key` ki) ==>
+                    ev = ev'))
+  = let i = length il - 1 in
+    let t = src il i in
+    let e = index il i in
+    let il' = prefix il i in
+    let ev = eac_value gki il in
+    let ev' = eac_value gki il' in
+    let ki = to_base_key gki in
+    let es = eac_state_of_genkey gki il in
+    let es' = eac_state_of_genkey gki il' in
+    eac_state_snoc ki il;
 
-let eac_value_snoc_simple_addm
+    if not (e `exp_refs_key` ki) then (
+      assert(es = es');
+      if ki = Root then
+        eac_value_root_snoc il
+      else match es with
+      | EACInit ->
+        eac_value_init_state_is_init il gki;
+        eac_value_init_state_is_init il' gki
+      | EACInStore m gk v ->
+        let t' = stored_tid ki il' in
+        not_refs_implies_store_unchanged ki t' il i;
+        eac_value_is_stored_value il gki t';
+        eac_value_is_stored_value il' gki t'
+      | _ ->
+        eac_value_is_evicted_value il gki;
+        eac_value_is_evicted_value il' gki
+    )
+
+let eac_value_snoc_simple_addb
   (#app #n:_)
   (gkf: key app)
   (il: eac_log app n {length il > 0})
   : Lemma (requires (let i = length il - 1 in
                      let il' = prefix il i in
                      let e = index il i in
-                     AddM? e))
+                     AddB? e))
           (ensures (let i = length il - 1 in
                     let il' = prefix il i in
                     let e = index il i in
                     let bkf = to_base_key gkf in
                     match e with
-                    | AddM (gk,gv) k k' -> if bkf <> k && bkf <> k' then
-                                             eac_value gkf il = eac_value gkf il'
-                                           else True))
+                    | AddB (gk,gv) k _ _ -> eac_value gkf il = eac_value gkf il'))
   = let i = length il - 1 in
+    let t = src il i in
     let il' = prefix il i in
     let e = index il i in
-    let bkf = to_base_key gkf in
-    let es = eac_state_of_key bkf il in
-    let es' = eac_state_of_key bkf il' in
-    let t = src il i in
-    eac_state_snoc bkf il;
+    let ee = mk_vlog_entry_ext il i in
+    let ki = to_base_key gkf in
+    let es = eac_state_of_key ki il in
+    let es' = eac_state_of_key ki il' in
+
+    not_refs_implies_eac_value_unchanged_snoc gkf il;
+    eac_state_snoc ki il;
     lemma_cur_thread_state_extend il i;
-    lemma_fullprefix_equal il;
 
     match e with
-    | AddM (gk,gv) k k' ->
-      if bkf <> k && bkf <> k' then
-
-        (* if bkf is Root, its eac_value is stored value in store 0, which remains unchanged *)
-        if bkf = Root then
-          eac_value_root_snoc il
-        else match es with
-        | EACInit ->
-          eac_value_init_state_is_init il gkf;
-          eac_value_init_state_is_init il' gkf
-        | EACInStore m gk v ->
-          if gk <> gkf then (
+    | AddB (gk,gv) k _ _ ->
+      if k = ki then
+        match es', es with
+        | EACEvictedBlum gk' gv' _ _, EACInStore _ _ _ ->
+          assert(gk' = gk /\ gv = gv');
+          if gkf = gk then (
+            eac_value_is_evicted_value il' gkf;
+            eac_value_is_stored_value il gkf t
+          )
+          else (
             eac_value_init_state_is_init il gkf;
             eac_value_init_state_is_init il' gkf
           )
-          else (
-            let t' = stored_tid bkf il' in
-            if t' = t then (
-              eac_value_is_stored_value il' gkf t;
-              store_contains_implies bkf il t;
-              eac_value_is_stored_value il gkf t;
-              ()
-            )
-            else (
-              lemma_non_cur_thread_state_extend t' il i;
-              eac_value_is_stored_value il' gkf t';
-              store_contains_implies bkf il t';
-              eac_value_is_stored_value il gkf t';
-              ()
-            )
-          )
-        | EACEvictedBlum gk _ _ _
-        | EACEvictedMerkle gk _ ->
-          if gk <> gkf then (
-            eac_value_init_state_is_init il gkf;
-            eac_value_init_state_is_init il' gkf
-          )
-          else (
-            eac_value_is_evicted_value il gkf;
-            eac_value_is_evicted_value il' gkf
-          )
-
-#pop-options
 
 let eac_value_snoc_simple
   (#app #n:_)
@@ -389,9 +399,11 @@ let eac_value_snoc_simple
     let es' = eac_state_of_key bkf il' in
     eac_state_snoc bkf il;
     lemma_cur_thread_state_extend il i;
+    not_refs_implies_eac_value_unchanged_snoc gkf il;
 
     match e with
-    | AddM _ k k' -> eac_value_snoc_simple_addm gkf il
+    | AddM _ k k' -> ()
+    | AddB _ _ _ _ -> eac_value_snoc_simple_addb gkf il
     | _ -> admit()
 
 
