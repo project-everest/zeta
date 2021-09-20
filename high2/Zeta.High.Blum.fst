@@ -64,7 +64,6 @@ let eac_state_transition_snoc
         match ee with
         | EvictBlum e v_e tid_e ->
           ext_evict_val_is_stored_val il i;
-          stored_key_is_correct bk il';
           key_in_unique_store bk il' tid (stored_tid bk il')
         | _ ->  ()
       )

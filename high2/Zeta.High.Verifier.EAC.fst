@@ -126,7 +126,7 @@ let lemma_non_eac_instore_appfn
       let ak,av = S.index rs pi in
       assert(AppK ak = stored_key st_pre fi.bk);
       assert(AppV av = HV.stored_value st_pre fi.bk);
-      stored_key_is_correct fi.bk itsli;
+      //stored_key_is_correct fi.bk itsli;
       key_in_unique_store fi.bk itsli tid (stored_tid fi.bk itsli);
       assert(AppK ak = gk);
 
