@@ -575,12 +575,11 @@ let eac_value_snoc_simple
     not_refs_implies_eac_value_unchanged_snoc gkf il;
 
     match e with
-    | AddM _ k k' -> ()
     | AddB _ _ _ _ -> eac_value_snoc_simple_addb gkf il
     | EvictM _ _ -> eac_value_snoc_simple_evictm gkf il
     | EvictB _ _ -> eac_value_snoc_simple_evictb gkf il
     | EvictBM _ _ _ -> eac_value_snoc_simple_evictbm gkf il
-    | _ -> admit()
+    | _ -> ()
 
 
 let empty_or_points_to_desc
@@ -690,76 +689,85 @@ let lemma_eac_ptrfn
     if points_to_some mv c then
       eac_ptrfn_empty_or_points_to_desc il k c
 
-let eac_value_snoc
+let eac_ptrfn_snoc_addb
   (#app #n:_)
-  (gkf: key app)
   (il: eac_log app n {length il > 0})
-  : Lemma (ensures (let i = length il - 1 in
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     not (involves_ancestor e)))
+          (ensures (let i = length il - 1 in
                     let il' = prefix il i in
-                    let e = index il i in
-                    let bkf = to_base_key gkf in
-                    match e with
-                    | AddM (gk,gv) k k' -> (
-                      let c = desc_dir k k' in
-                      match (addm_type il i) with
-                      | NoNewEdge -> eac_value gkf il = eac_value gkf il'
-                      | NewEdge -> if k' = bkf then
-                                     let v' = eac_merkle_value k' il' in
-                                     let v' = update_value v' c k Zeta.Hash.zero false in
-                                     eac_value gkf il = IntV v'
-                                   else if k = bkf then
-                                     eac_value gkf il = init_value gkf
-                                   else
-                                     eac_value gkf il = eac_value gkf il'
-                      | CutEdge -> if k = bkf then
-                                     let v = eac_merkle_value k il' in
-                                     let v' = eac_merkle_value k' il' in
-                                     let Desc k2 h2 b2 = desc_hash v' c in
-                                     let c2 = desc_dir k2 k in
-                                     let v = update_value v c2 k2 h2 b2 in
-                                     eac_value gkf il = IntV v
-                                   else if k' = bkf then
-                                     let v' = eac_merkle_value k' il' in
-                                     let v' = update_value v' c k Zeta.Hash.zero false in
-                                     eac_value gkf il = IntV v'
-                                   else
-                                     eac_value gkf il = eac_value gkf il'
-                      )
-                    | AddB _ _ _ _ -> eac_value gkf il = eac_value gkf il'
-                    | EvictM k k' -> if k' = bkf then
-                                       let v' = eac_merkle_value k' il' in
-                                       let gk = to_gen_key (eac_state_of_key k il') in
-                                       let v = eac_value gk il' in
-                                       let c = desc_dir k k' in
-                                       let v' = update_value v' c k (hashfn v) false in
-                                       eac_value gkf il = IntV v'
-                                     else
-                                       eac_value gkf il = eac_value gkf il'
-                    | EvictB _ _ -> eac_value gkf il = eac_value gkf il'
-                    | EvictBM k k' _ -> if k' = bkf then
-                                       let v' = eac_merkle_value k' il' in
-                                       let es = eac_state_of_key k il' in
-                                       let gk = to_gen_key es in
-                                       let v = eac_value gk il' in
-                                       let c = desc_dir k k' in
-                                       let dh' = desc_hash v' c in
-                                       let Desc k2 h2 b2 = dh' in
-                                       let v' = update_value v' c k h2 true in
-                                       eac_value gkf il = IntV v'
-                                     else
-                                       eac_value gkf il = eac_value gkf il'
-                    | VerifyEpoch -> eac_value gkf il = eac_value gkf il'
-                    | NextEpoch -> eac_value gkf il = eac_value gkf il'
-                    | RunApp _ _ _ -> if e `refs_key` bkf then
-                                        True
-                                      else
-                                       eac_value gkf il = eac_value gkf il'
-  ))
+                    let pf = eac_ptrfn il in
+                    let pf' = eac_ptrfn il' in
+                    pf == pf'))
   = let i = length il - 1 in
     let il' = prefix il i in
-    let e = index il i in
-    let bkf = to_base_key gkf in
-    admit()
+    let pf = eac_ptrfn il in
+    let pf' = eac_ptrfn il' in
+    let aux (n c:_)
+      : Lemma (ensures (pf n c == pf' n c))
+      = if depth n < key_size then (
+          lemma_eac_ptrfn il n c;
+          lemma_eac_ptrfn il' n c;
+          eac_value_snoc_simple (IntK n) il;
+          if RunApp? (index il i) then
+            runapp_refs_only_leafkeys il i n
+        )
+    in
+    FStar.Classical.forall_intro_2 aux;
+    assert(feq_ptrfn pf pf')
+
+let eac_ptrfn_snoc_addm_nonewedge
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     AddM? e /\ addm_type il i = NoNewEdge))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let pf = eac_ptrfn il in
+                    let pf' = eac_ptrfn il' in
+                    pf == pf'))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let pf = eac_ptrfn il in
+    let pf' = eac_ptrfn il' in
+    let t = src il i in
+    let AddM (gk,gv) k k' = index il i in
+    lemma_cur_thread_state_extend il i;
+    let st = thread_store t il in
+    lemma_fullprefix_equal il;
+    let vs' = thread_state_pre t il i in
+    let vs = thread_state_post t il i in
+    assert(st == vs.st);
+    assert(vs == addm (gk,gv) k k' vs');
+    eac_value_is_stored_value il' (IntK k') t;
+
+    let aux (ki c:_)
+      : Lemma (ensures (pf ki c == pf' ki c))
+      = if depth ki < key_size then (
+          lemma_eac_ptrfn il ki c;
+          lemma_eac_ptrfn il' ki c;
+          if ki = k then (
+            let es' = eac_state_of_key ki il' in
+            let es = eac_state_of_key ki il in
+            eac_state_snoc ki il;
+            match es', es with
+            | EACInit, EACInStore _ _ _ ->
+              eac_value_init_state_is_init il' (IntK k);
+              eac_value_is_stored_value il (IntK k) (src il i)
+            | EACEvictedMerkle _ _, EACInStore _ _ _ ->
+            admit()
+          )
+          else if ki = k' then admit()
+          else
+            eac_value_snoc_simple (IntK ki) il
+        )
+    in
+    FStar.Classical.forall_intro_2 aux;
+    assert(feq_ptrfn pf pf')
 
 let eac_ptrfn_snoc
   (#app #n:_)
@@ -995,6 +1003,80 @@ let proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{gk <> 
     EACEvictedMerkle? es ==>
     EACEvictedMerkle?.gk es = gk ==>
     pointed_hash mv c = hashfn v
+
+let eac_value_snoc
+  (#app #n:_)
+  (gkf: key app)
+  (il: eac_log app n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let e = index il i in
+                    let bkf = to_base_key gkf in
+                    match e with
+                    | AddM (gk,gv) k k' -> (
+                      let c = desc_dir k k' in
+                      match (addm_type il i) with
+                      | NoNewEdge -> eac_value gkf il = eac_value gkf il'
+                      | NewEdge -> if k' = bkf then
+                                     let v' = eac_merkle_value k' il' in
+                                     let v' = update_value v' c k Zeta.Hash.zero false in
+                                     eac_value gkf il = IntV v'
+                                   else if k = bkf then
+                                     eac_value gkf il = init_value gkf
+                                   else
+                                     eac_value gkf il = eac_value gkf il'
+                      | CutEdge -> if k = bkf then
+                                     let v = eac_merkle_value k il' in
+                                     let v' = eac_merkle_value k' il' in
+                                     let Desc k2 h2 b2 = desc_hash v' c in
+                                     let c2 = desc_dir k2 k in
+                                     let v = update_value v c2 k2 h2 b2 in
+                                     eac_value gkf il = IntV v
+                                   else if k' = bkf then
+                                     let v' = eac_merkle_value k' il' in
+                                     let v' = update_value v' c k Zeta.Hash.zero false in
+                                     eac_value gkf il = IntV v'
+                                   else
+                                     eac_value gkf il = eac_value gkf il'
+                      )
+                    | AddB _ _ _ _ -> eac_value gkf il = eac_value gkf il'
+                    | EvictM k k' -> if k' = bkf then
+                                       let v' = eac_merkle_value k' il' in
+                                       let gk = to_gen_key (eac_state_of_key k il') in
+                                       let v = eac_value gk il' in
+                                       let c = desc_dir k k' in
+                                       let v' = update_value v' c k (hashfn v) false in
+                                       eac_value gkf il = IntV v'
+                                     else
+                                       eac_value gkf il = eac_value gkf il'
+                    | EvictB _ _ -> eac_value gkf il = eac_value gkf il'
+                    | EvictBM k k' _ -> if k' = bkf then
+                                       let v' = eac_merkle_value k' il' in
+                                       let es = eac_state_of_key k il' in
+                                       let gk = to_gen_key es in
+                                       let v = eac_value gk il' in
+                                       let c = desc_dir k k' in
+                                       let dh' = desc_hash v' c in
+                                       let Desc k2 h2 b2 = dh' in
+                                       let v' = update_value v' c k h2 true in
+                                       eac_value gkf il = IntV v'
+                                     else
+                                       eac_value gkf il = eac_value gkf il'
+                    | VerifyEpoch -> eac_value gkf il = eac_value gkf il'
+                    | NextEpoch -> eac_value gkf il = eac_value gkf il'
+                    | RunApp _ _ _ -> if e `refs_key` bkf then
+                                        True
+                                      else
+                                       eac_value gkf il = eac_value gkf il'
+  ))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let e = index il i in
+    let bkf = to_base_key gkf in
+    eac_value_snoc_simple gkf il;
+    match e with
+    | AddM _ _ _ -> admit()
+    | _ -> ()
 
 let lemma_proving_ancestor_has_hash_addm_newedge_extend
   (#app #n:_)
