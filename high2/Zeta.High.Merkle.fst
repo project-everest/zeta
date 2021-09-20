@@ -350,6 +350,110 @@ let eac_value_snoc_simple_addb
             eac_value_init_state_is_init il' gkf
           )
 
+let eac_value_snoc_simple_evictm
+  (#app #n:_)
+  (gki: key app)
+  (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     EvictM? e))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let e = index il i in
+                    let ki = to_base_key gki in
+                    match e with
+                    | EvictM k k' -> if k' = ki then
+                                       let v' = eac_merkle_value k' il' in
+                                       let es = eac_state_of_key k il' in
+                                       let gk = to_gen_key es in
+                                       let v = eac_value gk il' in
+                                       let c = desc_dir k k' in
+                                       let v' = update_value v' c k (hashfn v) false in
+                                       eac_value gki il = IntV v'
+                                     else
+                                       eac_value gki il = eac_value gki il'))
+  = let i = length il - 1 in
+    let t = src il i in
+    let il' = prefix il i in
+    let e = index il i in
+    let ee = mk_vlog_entry_ext il i in
+    let ki = to_base_key gki in
+    let es = eac_state_of_key ki il in
+    let es' = eac_state_of_key ki il' in
+
+    not_refs_implies_eac_value_unchanged_snoc gki il;
+    eac_state_snoc ki il;
+    lemma_cur_thread_state_extend il i;
+
+    match e with
+    | EvictM k k' ->
+     if ki = k then (
+       match es', es with
+       | EACInStore _ gk _, EACEvictedMerkle _ _ ->
+         if gk <> gki then (
+           eac_value_init_state_is_init il gki;
+           eac_value_init_state_is_init il' gki
+         )
+         else (
+           key_in_unique_store ki il' t (stored_tid ki il');
+           assert(stored_tid ki il' = t);
+           eac_value_is_stored_value il' gki t;
+           eac_value_is_evicted_value il gki;
+           ext_evict_val_is_stored_val il i
+         )
+     )
+     else if ki = k' then (
+       eac_value_is_stored_value_int il' ki t;
+       eac_value_is_stored_value_int il ki t;
+       store_contains_implies k il' t;
+       eac_value_is_stored_value il' (to_gen_key (eac_state_of_key k il')) t
+     )
+
+let eac_value_snoc_simple_evictb
+  (#app #n:_)
+  (gki: key app)
+  (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     EvictB? e))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let e = index il i in
+                    let ki = to_base_key gki in
+                    match e with
+                    | EvictB  _ _  -> eac_value gki il = eac_value gki il'))
+  = let i = length il - 1 in
+    let t = src il i in
+    let il' = prefix il i in
+    let e = index il i in
+    let ee = mk_vlog_entry_ext il i in
+    let ki = to_base_key gki in
+    let es = eac_state_of_key ki il in
+    let es' = eac_state_of_key ki il' in
+
+    not_refs_implies_eac_value_unchanged_snoc gki il;
+    eac_state_snoc ki il;
+    lemma_cur_thread_state_extend il i;
+
+    match e with
+    | EvictB k _ ->
+      if k = ki then (
+        match es', es with
+        | EACInStore _ gk _, EACEvictedBlum _ _ _ _ ->
+          if gki = gk then (
+            key_in_unique_store ki il' t (stored_tid ki il');
+            eac_value_is_stored_value il' gki t;
+            eac_value_is_evicted_value il gki;
+            ext_evict_val_is_stored_val il i
+          )
+          else (
+            eac_value_init_state_is_init il gki;
+            eac_value_init_state_is_init il' gki
+          )
+      )
+
 let eac_value_snoc_simple
   (#app #n:_)
   (gkf: key app)
@@ -404,6 +508,8 @@ let eac_value_snoc_simple
     match e with
     | AddM _ k k' -> ()
     | AddB _ _ _ _ -> eac_value_snoc_simple_addb gkf il
+    | EvictM _ _ -> eac_value_snoc_simple_evictm gkf il
+    | EvictB _ _ -> eac_value_snoc_simple_evictb gkf il
     | _ -> admit()
 
 
