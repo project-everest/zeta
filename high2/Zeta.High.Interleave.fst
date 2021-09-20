@@ -179,7 +179,8 @@ let eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app) (tid
 
 let eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (gk: key app):
   Lemma (requires (let bk = to_base_key gk in
-                   is_eac_state_evicted bk il))
+                   is_eac_state_evicted bk il /\
+                   gk = to_gen_key bk il))
         (ensures (let bk = to_base_key gk in
                   let es = eac_state_of_key bk il in
                   eac_state_evicted_value es = eac_value gk il))
