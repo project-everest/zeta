@@ -759,9 +759,11 @@ let eac_ptrfn_snoc_addm_nonewedge
               eac_value_init_state_is_init il' (IntK k);
               eac_value_is_stored_value il (IntK k) (src il i)
             | EACEvictedMerkle _ _, EACInStore _ _ _ ->
-            admit()
+              eac_value_is_evicted_value il' (IntK k);
+              eac_value_is_stored_value il (IntK k) (src il i)
           )
-          else if ki = k' then admit()
+          else if ki = k' then
+            eac_value_is_stored_value il (IntK k') t
           else
             eac_value_snoc_simple (IntK ki) il
         )
