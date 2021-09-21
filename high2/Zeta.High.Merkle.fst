@@ -1003,12 +1003,32 @@ let rec lemma_not_init_equiv_root_reachable
       lemma_not_init_equiv_root_reachable il' k;
 
       match e with
-      | AddM _ _ _ ->
+      | AddM _ k1 k2 ->
+        lemma_not_init_equiv_root_reachable il' k2;
+        let aux ()
+          : Lemma (ensures (root_reachable il' k2))
+          = admit()
+        in
+        aux();
         let add_type = addm_type il i in
         (
         match add_type with
-        | NoNewEdge -> admit()
-        | NewEdge -> admit()
+        | NoNewEdge ->
+          assert(pf == pf');
+          if k1 = k && es' = EACInit then (
+            assert(BP.points_to pf' k1 k2);
+            lemma_reachable_transitive pf' k k2 Root
+          )
+        | NewEdge ->
+          if k = k1 then admit()
+          else if k = k2 then admit()
+          else (
+            assert(es = es');
+            lemma_extend_reachable pf' k1 k2 k;
+            assert(BP.root_reachable pf' k ==> BP.root_reachable pf k);
+            //lemma_extend_not_reachable pf' k1 k2 k;
+            admit()
+          )
         | CutEdge -> admit()
         )
       | _ -> ()
