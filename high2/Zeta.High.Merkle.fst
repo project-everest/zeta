@@ -1478,6 +1478,147 @@ let eac_value_nonewedge_snoc
           eac_value_init_state_is_init il' gki
         )
 
+let addm_ancestor_root_reachable
+  (#app #n:_)
+  (il: eac_log app n)
+  (i: seq_index il {AddM? (index il i)})
+  : Lemma (ensures (let AddM _ _ k' = index il i in
+                    let il' = prefix il i in
+                    root_reachable il' k'))
+  = let il' = prefix il i in
+    let pf' = eac_ptrfn il' in
+    let AddM _ _ k' = index il i in
+    if k' = Root then lemma_reachable_reflexive pf' Root
+    else lemma_not_init_equiv_root_reachable il' k'
+
+let eac_value_newedge_snoc
+  (#app #n:_)
+  (gki: key app)
+  (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     AddM? e /\ addm_type il i = NewEdge))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let AddM _ k k' = index il i in
+                    let ki = to_base_key gki in
+                    let c = desc_dir k k' in
+                    if k' = ki then
+                      let v' = eac_merkle_value k' il' in
+                      let v' = update_value v' c k Zeta.Hash.zero false in
+                      eac_value gki il = IntV v'
+                    else if k = ki then
+                      eac_value gki il = init_value gki
+                    else
+                      eac_value gki il = eac_value gki il'))
+  = let i = length il - 1 in
+    let ki = to_base_key gki in
+    let il' = prefix il i in
+    let pf' = eac_ptrfn il' in
+    let AddM (gka,gva) k k' = index il i in
+    let c = desc_dir k k' in
+    let t = src il i in
+    let es' = eac_state_of_key k il' in
+
+    eac_value_snoc_simple gki il;
+    eac_state_snoc ki il;
+    eac_state_transition_snoc ki il;
+    eac_state_unchanged_snoc ki il;
+    addm_ancestor_root_reachable il i;
+    lemma_cur_thread_state_extend il i;
+
+    lemma_not_init_equiv_root_reachable il' k;
+    eac_value_is_stored_value_int il' k' t;
+    eac_value_is_stored_value_int il k' t;
+    assert(not (BP.points_to_some pf' k' c));
+
+    if ki = k then (
+      match es' with
+      | EACInit ->
+        if gki = gka then
+          eac_value_is_stored_value il gki t
+        else (
+          eac_value_init_state_is_init il gki;
+          eac_value_init_state_is_init il' gki
+        )
+      | EACEvictedMerkle _ _ ->
+        lemma_reachable_between pf' k k'
+    )
+
+#push-options "--z3rlimit_factor 3"
+
+let eac_value_cutedge_snoc
+  (#app #n:_)
+  (gki: key app)
+  (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     AddM? e /\ addm_type il i = CutEdge))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let AddM _ k k' = index il i in
+                    let ki = to_base_key gki in
+                    let c = desc_dir k k' in
+                    if k = ki then
+                      let v = eac_merkle_value k il' in
+                      let v' = eac_merkle_value k' il' in
+                      let Desc k2 h2 b2 = desc_hash v' c in
+                      let c2 = desc_dir k2 k in
+                      let v = update_value v c2 k2 h2 b2 in
+                      eac_value gki il = IntV v
+                    else if k' = ki then
+                      let v' = eac_merkle_value k' il' in
+                      let v' = update_value v' c k Zeta.Hash.zero false in
+                      eac_value gki il = IntV v'
+                    else
+                      eac_value gki il = eac_value gki il'))
+  = let i = length il - 1 in
+    let ki = to_base_key gki in
+    let il' = prefix il i in
+    let pf' = eac_ptrfn il' in
+    let AddM (gka,gva) k k' = index il i in
+    let c = desc_dir k k' in
+    let t = src il i in
+    let es' = eac_state_of_key k il' in
+    let k2 = cutedge_desc il i in
+
+    eac_value_snoc_simple gki il;
+    eac_state_snoc ki il;
+    addm_ancestor_root_reachable il i;
+    lemma_cur_thread_state_extend il i;
+    eac_value_is_stored_value_int il' k' t;
+    eac_value_is_stored_value_int il k' t;
+
+    let v' = eac_merkle_value k' il' in
+    let dh' = desc_hash v' c in
+    assert(k2 = Desc?.k dh');
+    //lemma_eac_ptrfn il' k' c;
+    assert(is_desc k2 (child c k') /\ pf' k' c = Some k2);
+    assert(BP.points_to pf' k2 k');
+    assert(BP.pointed_node pf' k' c = k2);
+    assert(is_proper_desc k2 k);
+    lemma_proper_desc_depth_monotonic k2 k;
+
+    if ki = k then (
+      match es' with
+      | EACInit ->
+        if gki = gka then (
+          eac_value_init_state_is_init il' gki;
+          eac_value_is_stored_value il gki t;
+          ()
+        )
+        else (
+          eac_value_init_state_is_init il gki;
+          eac_value_init_state_is_init il' gki
+        )
+      | EACEvictedMerkle _ _ ->
+        lemma_not_init_equiv_root_reachable il' k;
+        lemma_reachable_between pf' k k';
+        lemma_desc_depth_monotonic k k2
+    )
+
+
+#pop-options
 
 let eac_value_snoc
   (#app #n:_)
@@ -1550,7 +1691,13 @@ let eac_value_snoc
     let bkf = to_base_key gkf in
     eac_value_snoc_simple gkf il;
     match e with
-    | AddM _ _ _ -> admit()
+    | AddM _ _ _ ->
+      (
+      match addm_type il i with
+      | NoNewEdge ->  eac_value_nonewedge_snoc gkf il
+      | NewEdge -> eac_value_newedge_snoc gkf il
+      | CutEdge -> eac_value_cutedge_snoc gkf il
+      )
     | _ -> ()
 
 let lemma_proving_ancestor_has_hash_addm_newedge_extend
