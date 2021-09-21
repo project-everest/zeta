@@ -1435,6 +1435,50 @@ let proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{gk <> 
     EACEvictedMerkle?.gk es = gk ==>
     pointed_hash mv c = hashfn v
 
+let eac_value_nonewedge_snoc
+  (#app #n:_)
+  (gki: key app)
+  (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     AddM? e /\ addm_type il i = NoNewEdge))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    eac_value gki il = eac_value gki il'))
+  = let i = length il - 1 in
+    let ki = to_base_key gki in
+    let il' = prefix il i in
+    let pf' = eac_ptrfn il' in
+    let AddM (gka,gva) k k' = index il i in
+    let c = desc_dir k k' in
+    let t = src il i in
+
+    eac_value_snoc_simple gki il;
+    eac_state_snoc ki il;
+    eac_state_transition_snoc ki il;
+    eac_state_unchanged_snoc ki il;
+    lemma_cur_thread_state_extend il i;
+
+    lemma_eac_ptrfn il' k' c;
+    assert(BP.points_to pf' k k');
+    lemma_not_init_equiv_root_reachable il' k;
+    eac_value_is_stored_value_int il' k' t;
+    eac_value_is_stored_value_int il k' t;
+
+    if ki = k then
+      let es' = eac_state_of_key k il' in
+      match es' with
+      | EACEvictedMerkle gk gv ->
+        if gki = gk then (
+          eac_value_is_evicted_value il' gki;
+          eac_value_is_stored_value il gki t
+        )
+        else (
+          eac_value_init_state_is_init il gki;
+          eac_value_init_state_is_init il' gki
+        )
+
+
 let eac_value_snoc
   (#app #n:_)
   (gkf: key app)
@@ -1584,11 +1628,12 @@ let lemma_proving_ancestor_has_hash_addm_cutedge_extend
                      addm_type il i = CutEdge /\
                      proving_ancestor_has_hash il' gki))
           (ensures (proving_ancestor_has_hash il gki))
-  = assume(False);
+  =
     let bk = to_base_key gki in
     let es = eac_state_of_key bk il in
     let i = length il - 1 in
-
+    let pk = proving_ancestor il bk in
+    let pf = eac_ptrfn il in
 
     let il' = prefix il i in
     let pk' = proving_ancestor il' bk in
@@ -1598,22 +1643,27 @@ let lemma_proving_ancestor_has_hash_addm_cutedge_extend
     let c = desc_dir k k' in
     let v' = eac_merkle_value k' il' in
     let dh' = desc_hash v' c in
+    let k2 = cutedge_desc il i in
 
     eac_state_unchanged_snoc bk il;
     eac_state_transition_snoc bk il;
     eac_value_snoc gki il;
     lemma_proving_ancestor_snoc il bk;
+    eac_ptrfn_snoc il;
 
     if EACEvictedMerkle? es then (
       (* neither k or k' have EACEvictedMerkle state *)
       assert(k <> bk);
       assert(k' <> bk);
-
-      if bk = cutedge_desc il i then (
+      if bk = k2 then (
         eac_value_snoc (IntK k) il;
         lemma_eac_ptrfn il' k' c;
         lemma_points_to_implies_proving_ancestor il' bk k' c
       )
+      else if is_proper_desc bk k2 then
+        eac_value_snoc (IntK pk') il
+      else if is_proper_desc bk k then
+        lemma_not_init_equiv_root_reachable il bk
       else
         //assert(pk' = proving_ancestor il bk);
         eac_value_snoc (IntK pk') il
@@ -1935,26 +1985,31 @@ let lemma_proving_ancestor_blum_bit_addm_cutedge_extend
                      addm_type il i = CutEdge /\
                      proving_ancestor_has_blum_bit il' ki))
           (ensures (proving_ancestor_has_blum_bit il ki))
-  = assume(False);
-    let es = eac_state_of_key ki il in
+  = let es = eac_state_of_key ki il in
     let i = length il - 1 in
     let il' = prefix il i in
     let pk' = proving_ancestor il' ki in
     let AddM (gk,gv) k k' = index il i in
     let c = desc_dir k k' in
+    let k2 = cutedge_desc il i in
 
     eac_state_unchanged_snoc ki il;
     eac_state_transition_snoc ki il;
     lemma_proving_ancestor_snoc il ki;
     lemma_addm_ancestor_is_proving il;
+    eac_ptrfn_snoc il;
     is_in_blum_snoc ki il;
 
     if es <> EACInit then (
-      if ki = cutedge_desc il i then (
+      if ki = k2 then (
         eac_value_snoc (IntK k) il;
         lemma_eac_ptrfn il' k' c;
         lemma_points_to_implies_proving_ancestor il' ki k' c
       )
+      else if is_proper_desc ki k2 then
+        eac_value_snoc (IntK pk') il
+      else if is_proper_desc ki k then
+        lemma_not_init_equiv_root_reachable il ki
       else
         eac_value_snoc (IntK pk') il
     )
@@ -2184,6 +2239,8 @@ let lemma_store_contains_proving_ancestor_addm_newedge_extend
       )
     )
 
+#push-options "--z3rlimit_factor 3"
+
 let lemma_store_contains_proving_ancestor_addm_cutedge_extend
   (#app #n:_)
   (il: eac_log app n{length il > 0})
@@ -2195,12 +2252,13 @@ let lemma_store_contains_proving_ancestor_addm_cutedge_extend
                      addm_type il i = CutEdge /\
                      proving_ancestor_of_merkle_instore il' ki t))
           (ensures (proving_ancestor_of_merkle_instore il ki t))
-  = assume(False);
-    let st = thread_store t il in
+  = let st = thread_store t il in
     let es = eac_state_of_key ki il in
     let i = length il - 1 in
     let t' = src il i in
     let il' = prefix il i in
+    let k2 = cutedge_desc il i in
+    let pf = eac_ptrfn il in
 
     let AddM _ k k' = index il i in
     let c = desc_dir k k' in
@@ -2208,17 +2266,19 @@ let lemma_store_contains_proving_ancestor_addm_cutedge_extend
     eac_state_unchanged_snoc ki il;
     eac_state_transition_snoc ki il;
     store_contains_snoc il ki t;
+    eac_ptrfn_snoc il;
 
     if ki <> Root && EACInStore? es && EACInStore?.m es = MAdd && store_contains st ki then (
       lemma_proving_ancestor_snoc il ki;
       let pk' = proving_ancestor il' ki in
+      let pk = proving_ancestor il ki in
       store_contains_snoc il pk' t;
 
       if ki = k then (
         key_in_unique_store k il t t';
         lemma_addm_ancestor_is_proving il
       )
-      else if ki = cutedge_desc il i then (
+      else if ki = k2 then (
         lemma_eac_ptrfn il' k' c;
         lemma_points_to_implies_proving_ancestor il' ki k' c;
         //assert(proving_ancestor il ki = k);
@@ -2228,7 +2288,15 @@ let lemma_store_contains_proving_ancestor_addm_cutedge_extend
         assert(t = t');
         ()
       )
+      else if is_proper_desc ki k2 then ()
+      else if is_proper_desc ki k then (
+        lemma_not_init_equiv_root_reachable il ki;
+        ()
+      )
+      else ()
     )
+
+#pop-options
 
 let lemma_store_contains_proving_ancestor_addm_nonewedge_extend
   (#app #n:_)
