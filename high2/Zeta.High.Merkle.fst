@@ -2316,11 +2316,9 @@ let store_contains_evictm_ancestor
                     let st_pre = thread_store_pre t il i in
                     let st_post = thread_store_post t il i in
                     let il' = prefix il i in
-                    store_contains st_pre k /\ store_contains st_pre k' /\ store_contains st_post k' /\
-                    //not (has_instore_merkle_desc il' k Left t) /\
-                    not (has_instore_merkle_desc il' k Right t)))
+                    store_contains st_pre k /\ store_contains st_pre k' /\ store_contains st_post k'))
           [SMTPat (index il i)]
-  = admit()
+  = lemma_cur_thread_state_extend il i
 
 let store_contains_no_merkle_desc
   (#app #n:_)
@@ -2332,7 +2330,12 @@ let store_contains_no_merkle_desc
                     not (has_instore_merkle_desc il' k Left t) /\
                     not (has_instore_merkle_desc il' k Right t)))
           [SMTPat (index il i)]
-  = admit()
+  = let k = evict_slot (index il i) in
+    let il' = prefix il i in
+    let t = src il i in
+    lemma_cur_thread_state_extend il i;
+    if is_merkle_key k then
+      eac_value_is_stored_value_int il' k t
 
 let proving_ancestor_of_merkle_instore
   (#app #n:_)
