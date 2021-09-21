@@ -970,7 +970,50 @@ let not_init_equiv_root_reachable (#app #n:_) (il: eac_log app n) (k: base_key)
   = k <> Root ==>
     ((eac_state_of_key k il <> EACInit) <==> root_reachable il k)
 
-let rec lemma_not_init_equiv_root_reachable
+let init_eac_ptrfn_rooted (#app #n:_) (il: eac_log app n{length il = 0})
+  : Lemma (ensures (rooted (eac_ptrfn il)))
+  = let pf = eac_ptrfn il in
+    let aux (d a:bin_tree_node)
+      : Lemma (ensures (BP.points_to pf d a ==> BP.root_reachable pf a))
+      = if depth a < key_size then
+          eac_value_init (IntK a) il
+    in
+    FStar.Classical.forall_intro_2 aux
+
+let rec eac_ptrfn_rooted (#app #n:_) (il: eac_log app n)
+  : Lemma (ensures (rooted (eac_ptrfn il)))
+          (decreases (length il))
+          [SMTPat (eac_ptrfn il)]
+  = let pf = eac_ptrfn il in
+    if length il = 0 then
+      init_eac_ptrfn_rooted il
+    else (
+      let i = length il - 1 in
+      let e = index il i in
+      let il' = prefix il i in
+      let pf' = eac_ptrfn il' in
+      eac_ptrfn_rooted il';
+      eac_ptrfn_snoc il;
+      match e with
+      | AddM _ k k' ->
+        (
+        let es' = eac_state_of_key k' il' in
+        let aux ()
+          : Lemma (ensures (root_reachable il' k'))
+          = if k' = Root then lemma_reachable_reflexive pf' Root
+            else
+              lemma_not_init_equiv_root_reachable il' k'
+        in
+        aux();
+        match (addm_type il i) with
+        | NoNewEdge -> ()
+        | NewEdge -> lemma_extend_rooted pf' k k'
+        | CutEdge -> lemma_extendcut_rooted pf' k k'
+        )
+      | _ -> ()
+    )
+
+and lemma_not_init_equiv_root_reachable
   (#app #n:_)
   (il: eac_log app n)
   (k: base_key)
@@ -1001,13 +1044,15 @@ let rec lemma_not_init_equiv_root_reachable
       eac_state_transition_snoc k il;
       eac_ptrfn_snoc il;
       lemma_not_init_equiv_root_reachable il' k;
+      eac_ptrfn_rooted il';
 
       match e with
       | AddM _ k1 k2 ->
         lemma_not_init_equiv_root_reachable il' k2;
         let aux ()
           : Lemma (ensures (root_reachable il' k2))
-          = admit()
+          = if k2 = Root then lemma_reachable_reflexive pf' Root
+            else lemma_not_init_equiv_root_reachable il' k2
         in
         aux();
         let add_type = addm_type il i in
@@ -1020,16 +1065,32 @@ let rec lemma_not_init_equiv_root_reachable
             lemma_reachable_transitive pf' k k2 Root
           )
         | NewEdge ->
-          if k = k1 then admit()
-          else if k = k2 then admit()
-          else (
-            assert(es = es');
-            lemma_extend_reachable pf' k1 k2 k;
-            assert(BP.root_reachable pf' k ==> BP.root_reachable pf k);
-            //lemma_extend_not_reachable pf' k1 k2 k;
-            admit()
+          if k = k1 then (
+            lemma_extend_reachable pf' k1 k2 k2;
+            assert(BP.root_reachable pf k2);
+            assert(BP.points_to pf k1 k2);
+            lemma_reachable_transitive pf k1 k2 Root
           )
-        | CutEdge -> admit()
+          else if k = k2 then
+            lemma_extend_reachable pf' k1 k2 k
+          else (
+            lemma_extend_reachable pf' k1 k2 k;
+            if not (root_reachable il' k) then
+              lemma_extend_not_reachable pf' k1 k2 k
+          )
+        | CutEdge ->
+          if k = k1 then (
+            lemma_extendcut_reachable pf' k1 k2 k2;
+            assert(BP.points_to pf k1 k2);
+            lemma_reachable_transitive pf k1 k2 Root
+          )
+          else if k = k2 then
+            lemma_extendcut_reachable pf' k1 k2 k
+          else (
+            lemma_extendcut_reachable pf' k1 k2 k;
+            lemma_extendcut_not_reachable pf' k1 k2 k;
+            ()
+          )
         )
       | _ -> ()
     )
@@ -1045,10 +1106,6 @@ let lemma_eac_instore_implies_root_reachable
     else
       lemma_not_init_equiv_root_reachable il k
 
-let eac_ptrfn_rooted (#app #n:_) (il: eac_log app n)
-  : Lemma (ensures (rooted (eac_ptrfn il)))
-          [SMTPat (eac_ptrfn il)]
-  = admit()
 
 (* the ancestor who holds the proof of the value of key k *)
 let proving_ancestor (#app #n:_) (il: eac_log app n) (k:base_key{k <> Root}):

@@ -191,8 +191,7 @@ val lemma_extendcut_reachable
                     points_to_some pf a (desc_dir d a) /\
                     is_proper_desc (pointed_node pf a (desc_dir d a)) d})
   (n: bin_tree_node):
-  Lemma (requires (root_reachable pf n))
-        (ensures (root_reachable (extendcut_ptrfn pf d a) n))
+  Lemma (ensures (root_reachable pf n ==> root_reachable (extendcut_ptrfn pf d a) n))
 
 val lemma_extendcut_rooted
   (pf:_{rooted pf})
@@ -218,8 +217,8 @@ val lemma_extendcut_not_reachable
                     points_to_some pf a (desc_dir d a) /\
                     is_proper_desc (pointed_node pf a (desc_dir d a)) d})
   (n: bin_tree_node):
-  Lemma (requires (not (root_reachable pf n) /\ n <> d))
-        (ensures (not (root_reachable (extendcut_ptrfn pf d a) n)))
+  Lemma (requires (n <> d))
+        (ensures (not (root_reachable pf n) ==> not (root_reachable (extendcut_ptrfn pf d a) n)))
 
 (* Two pointer functions are equal on all inputs *)
 let feq_ptrfn (pf1: ptrfn) (pf2: ptrfn) = 

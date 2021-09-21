@@ -439,10 +439,10 @@ let rec lemma_extendcut_reachable
                     points_to_some pf a (desc_dir d a) /\
                     is_proper_desc (pointed_node pf a (desc_dir d a)) d})
   (n: bin_tree_node):
-  Lemma (requires (root_reachable pf n))
-        (ensures (root_reachable (extendcut_ptrfn pf d a) n)) 
+  Lemma (ensures (root_reachable pf n ==> root_reachable (extendcut_ptrfn pf d a) n))
         (decreases (depth n)) = 
   let pfe = extendcut_ptrfn pf d a in
+  if root_reachable pf n then
   if n = Root then
     lemma_reachable_reflexive pfe n
   else (
@@ -530,10 +530,11 @@ let rec lemma_extendcut_not_reachable
                     points_to_some pf a (desc_dir d a) /\
                     is_proper_desc (pointed_node pf a (desc_dir d a)) d})
   (n: bin_tree_node):
-  Lemma (requires (not (root_reachable pf n) /\ n <> d))
-        (ensures (not (root_reachable (extendcut_ptrfn pf d a) n)))
+  Lemma (requires (n <> d))
+        (ensures (not (root_reachable pf n) ==> not (root_reachable (extendcut_ptrfn pf d a) n)))
         (decreases (depth n)) = 
   let pfe = extendcut_ptrfn pf d a in
+  if not (root_reachable pf n) then
   if root_reachable pfe n then (
     let n' = prev_in_path pfe n Root in
     assert(points_to pfe n n');
