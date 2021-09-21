@@ -419,10 +419,11 @@ let rec lemma_extend_not_reachable
                    not (points_to_some pf a (desc_dir d a)) /\
                    root_reachable pf a})
   (n: bin_tree_node):
-  Lemma (requires (not (root_reachable pf n) /\ n <> d))
-        (ensures (not (root_reachable (extend_ptrfn pf d a) n)))
+  Lemma (requires (n <> d))
+        (ensures (not (root_reachable pf n) ==> not (root_reachable (extend_ptrfn pf d a) n)))
         (decreases (depth n))
-  = let pfe = extend_ptrfn pf d a in
+  = if not (root_reachable pf n) then
+    let pfe = extend_ptrfn pf d a in
     if root_reachable pfe n then
       let n' = prev_in_path pfe n Root in
       //assert(n' <> d);

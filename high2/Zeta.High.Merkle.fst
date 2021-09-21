@@ -1175,10 +1175,179 @@ let lemma_proving_ancestor_initial (#app #n:_) (il: eac_log app n) (k:base_key{k
         lemma_proving_ancestor_greatest_depth il k k2
       )
 
-(* initially root is the proving ancestor for all keys *)
-let lemma_proving_ancestor_empty (#app #n:_) (il: eac_log app n {length il = 0}) (k: base_key {k <> Root})
-  : Lemma (ensures (proving_ancestor il k = Root))
-  = admit()
+let lemma_proving_ancestor_newedge_snoc (#app #n:_) (il: eac_log app n {length il > 0}) (ki: base_key {ki <> Root})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     AddM? e /\ addm_type il i = NewEdge))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let AddM _ k k' = index il i in
+                    if is_proper_desc ki k then
+                      proving_ancestor il ki = k
+                    else
+                      proving_ancestor il ki = proving_ancestor il' ki))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let AddM _ k k' = index il i in
+    let pf = eac_ptrfn il in
+    let pk = proving_ancestor il ki in
+    let pf' = eac_ptrfn il' in
+    let pk' = proving_ancestor il' ki in
+
+    eac_ptrfn_snoc il;
+    eac_state_transition_snoc k il;
+    eac_state_unchanged_snoc k il;
+    assert(EACInStore? (eac_state_of_key k il));
+    assert(BP.points_to_none pf k);
+
+    if is_proper_desc ki k then (
+      if pk <> k then (
+        lemma_not_init_equiv_root_reachable il k;
+        lemma_proving_ancestor_greatest_depth il ki k;
+        assert(depth k <= depth pk);
+        let aux ()
+          : Lemma (ensures (is_proper_desc pk k))
+          = lemma_two_ancestors_related ki pk k;
+            if is_desc k pk then
+              lemma_proper_desc_depth_monotonic k pk
+        in
+        aux();
+        lemma_reachable_between pf pk k
+      )
+    )
+    else if pk <> pk' then (
+      lemma_extend_reachable pf' k k' pk';
+      lemma_proving_ancestor_greatest_depth il ki pk';
+      assert(depth pk' <= depth pk);
+      let aux()
+        : Lemma (ensures (is_proper_desc pk pk'))
+        = lemma_two_ancestors_related ki pk pk';
+          if is_desc pk' pk then
+            lemma_proper_desc_depth_monotonic pk' pk
+      in
+      aux();
+      assert(pk <> k);
+      let aux()
+        : Lemma (ensures (root_reachable il' k'))
+        = if k' = Root then lemma_reachable_reflexive pf' Root
+          else lemma_not_init_equiv_root_reachable il' k'
+      in
+      aux();
+      lemma_extend_not_reachable pf' k k' pk;
+      assert(root_reachable il' pk);
+
+      lemma_proving_ancestor_greatest_depth il' ki pk;
+      assert(depth pk <= depth pk');
+
+      lemma_proper_desc_depth_monotonic pk pk'
+    )
+
+let lemma_proving_ancestor_cutedge_snoc (#app #n:_) (il: eac_log app n {length il > 0}) (ki: base_key {ki <> Root})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     AddM? e /\ addm_type il i = CutEdge))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let AddM _ k k' = index il i in
+                    let k2 = cutedge_desc il i in
+                    if is_proper_desc ki k2 then
+                      proving_ancestor il ki = proving_ancestor il' ki
+                    else if is_proper_desc ki k then
+                      proving_ancestor il ki = k
+                    else
+                      proving_ancestor il ki = proving_ancestor il' ki))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let AddM _ k k' = index il i in
+    let pf = eac_ptrfn il in
+    let pk = proving_ancestor il ki in
+    let pf' = eac_ptrfn il' in
+    let pk' = proving_ancestor il' ki in
+    let k2 = cutedge_desc il i in
+
+    eac_ptrfn_snoc il;
+    eac_state_transition_snoc k il;
+    eac_state_unchanged_snoc k il;
+
+    assert(is_proper_desc k2 k);
+    lemma_proper_desc_depth_monotonic k2 k;
+    assert(BP.points_to pf k2 k);
+
+    if is_proper_desc ki k2 && pk <> pk' then (
+      lemma_extendcut_reachable pf' k k' pk';
+      lemma_proving_ancestor_greatest_depth il ki pk';
+      lemma_proving_ancestor_greatest_depth il ki k2;
+      assert(depth pk' <= depth pk);
+      assert(depth k2 <= depth pk);
+      let aux()
+        : Lemma (ensures (is_proper_desc pk pk'))
+        = lemma_two_ancestors_related ki pk pk';
+          if is_desc pk' pk then
+            lemma_proper_desc_depth_monotonic pk' pk
+      in
+      aux();
+      lemma_proper_desc_depth_monotonic pk pk';
+      assert(pk <> k);
+      let aux()
+        : Lemma (ensures (root_reachable il' k'))
+        = if k' = Root then lemma_reachable_reflexive pf' Root
+          else lemma_not_init_equiv_root_reachable il' k'
+      in
+      aux();
+      lemma_extendcut_not_reachable pf' k k' pk;
+      assert(root_reachable il' pk);
+
+      lemma_proving_ancestor_greatest_depth il' ki pk;
+      assert(depth pk <= depth pk');
+
+      lemma_proper_desc_depth_monotonic pk pk'
+    )
+    else if ki = k2 then
+      lemma_points_to_is_prev pf k2 Root k
+    else if is_proper_desc ki k then (
+      if pk <> k then (
+        lemma_not_init_equiv_root_reachable il k;
+        lemma_proving_ancestor_greatest_depth il ki k;
+        assert(depth k <= depth pk);
+        let aux ()
+          : Lemma (ensures (is_proper_desc pk k))
+          = lemma_two_ancestors_related ki pk k;
+            if is_desc k pk then
+              lemma_proper_desc_depth_monotonic k pk
+        in
+        aux();
+        lemma_reachable_between pf pk k;
+        lemma_proper_desc_transitive1 ki pk k2
+      )
+    )
+    else if pk <> pk' then (
+      lemma_extendcut_reachable pf' k k' pk';
+      lemma_proving_ancestor_greatest_depth il ki pk';
+      assert(depth pk' <= depth pk);
+      let aux()
+        : Lemma (ensures (is_proper_desc pk pk'))
+        = lemma_two_ancestors_related ki pk pk';
+          if is_desc pk' pk then
+            lemma_proper_desc_depth_monotonic pk' pk
+      in
+      aux();
+      assert(pk <> k);
+      let aux()
+        : Lemma (ensures (root_reachable il' k'))
+        = if k' = Root then lemma_reachable_reflexive pf' Root
+          else lemma_not_init_equiv_root_reachable il' k'
+      in
+      aux();
+      lemma_extendcut_not_reachable pf' k k' pk;
+      assert(root_reachable il' pk);
+
+      lemma_proving_ancestor_greatest_depth il' ki pk;
+      assert(depth pk <= depth pk');
+
+      lemma_proper_desc_depth_monotonic pk pk'
+    )
 
 let lemma_proving_ancestor_snoc (#app #n:_) (il: eac_log app n {length il > 0}) (ki: base_key {ki <> Root})
   : Lemma (ensures (let i = length il - 1 in
@@ -1196,14 +1365,31 @@ let lemma_proving_ancestor_snoc (#app #n:_) (il: eac_log app n {length il > 0}) 
                          else
                            proving_ancestor il ki = proving_ancestor il' ki
                        | CutEdge ->
-                         if ki = cutedge_desc il i then
+                         let k2 = cutedge_desc il i in
+                         if is_proper_desc ki k2 then
+                           proving_ancestor il ki = proving_ancestor il' ki
+                         else if is_proper_desc ki k then
                            proving_ancestor il ki = k
                          else
                            proving_ancestor il ki = proving_ancestor il' ki
                        | _ -> proving_ancestor il ki = proving_ancestor il' ki
                       )
                     | _ -> proving_ancestor il ki = proving_ancestor il' ki))
-  = admit()
+  = let i = length il - 1 in
+    let pf = eac_ptrfn il in
+    let il' = prefix il i in
+    let pf' = eac_ptrfn il' in
+    let e = index il i in
+    eac_ptrfn_snoc il;
+
+    match e with
+    | AddM _ k k' ->
+      let am = addm_type il i in
+      (match am with
+       | NewEdge -> lemma_proving_ancestor_newedge_snoc il ki
+       | CutEdge -> lemma_proving_ancestor_cutedge_snoc il ki
+       | NoNewEdge -> ())
+    | _ -> ()
 
 (* if a key pk points to key k, then pk is the proving ancestor of k; (inverse of
  * lemma_proving_ancestor_points_to_self *)
@@ -1398,7 +1584,8 @@ let lemma_proving_ancestor_has_hash_addm_cutedge_extend
                      addm_type il i = CutEdge /\
                      proving_ancestor_has_hash il' gki))
           (ensures (proving_ancestor_has_hash il gki))
-  = let bk = to_base_key gki in
+  = assume(False);
+    let bk = to_base_key gki in
     let es = eac_state_of_key bk il in
     let i = length il - 1 in
 
@@ -1748,7 +1935,8 @@ let lemma_proving_ancestor_blum_bit_addm_cutedge_extend
                      addm_type il i = CutEdge /\
                      proving_ancestor_has_blum_bit il' ki))
           (ensures (proving_ancestor_has_blum_bit il ki))
-  = let es = eac_state_of_key ki il in
+  = assume(False);
+    let es = eac_state_of_key ki il in
     let i = length il - 1 in
     let il' = prefix il i in
     let pk' = proving_ancestor il' ki in
@@ -2007,7 +2195,8 @@ let lemma_store_contains_proving_ancestor_addm_cutedge_extend
                      addm_type il i = CutEdge /\
                      proving_ancestor_of_merkle_instore il' ki t))
           (ensures (proving_ancestor_of_merkle_instore il ki t))
-  = let st = thread_store t il in
+  = assume(False);
+    let st = thread_store t il in
     let es = eac_state_of_key ki il in
     let i = length il - 1 in
     let t' = src il i in
