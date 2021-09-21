@@ -2050,7 +2050,7 @@ let is_in_blum_snoc
                     | EvictBM k _ _ -> if bk = k then is_in_blum es
                                        else is_in_blum es = is_in_blum es'
                     | _ -> is_in_blum es = is_in_blum es'))
-  = admit()
+  = eac_state_snoc bk il
 
 let lemma_proving_ancestor_blum_bit_addm_newedge_extend
   (#app #n:_)
@@ -2201,6 +2201,7 @@ let rec lemma_proving_ancestor_blum_bit (#app #n:_) (il: eac_log app n) (ki:base
       let i = length il - 1 in
       let il' = prefix il i in
       let pk' = proving_ancestor il' ki in
+      let pk = proving_ancestor il ki in
       let e = index il i in
 
       eac_state_unchanged_snoc ki il;
@@ -2212,13 +2213,33 @@ let rec lemma_proving_ancestor_blum_bit (#app #n:_) (il: eac_log app n) (ki:base
 
       match e with
       | AddM _ _ _ -> lemma_proving_ancestor_blum_bit_addm_extend il ki
-      | EvictBM _ _ _ ->
-        //lemma_evictm_ancestor_is_proving il i
-        admit()
+      | EvictBM k k' _ ->
+        lemma_evictm_ancestor_is_proving il i
       | RunApp _ _ _ ->
         runapp_refs_only_leafkeys il i pk'
       | _ -> ()
     )
+
+let store_contains_snoc_evictm
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  (ki: base_key)
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     EvictM? e))
+          (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let t = src il i in
+                    let st = thread_store t il in
+                    let st' = thread_store t il' in
+                    let EvictM k k' = index il i in
+                    if ki = k then not (store_contains st ki)
+                    else store_contains st ki = store_contains st' ki))
+  = let i = length il - 1 in
+    lemma_cur_thread_state_extend il i
+
+#push-options "--z3rlimit_factor 4"
 
 let store_contains_snoc
   (#app #n:_)
@@ -2241,7 +2262,21 @@ let store_contains_snoc
                     | EvictM k _ -> if ki = k && t = ti then not (store_contains st ki)
                                      else store_contains st ki = store_contains st' ki
                     | _ -> store_contains st ki = store_contains st' ki))
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let t = src il i in
+    let e = index il i in
+    lemma_cur_thread_state_extend il i;
+    not_refs_implies_store_unchanged ki ti il i;
+
+    if t = ti then (
+      match e with
+      | RunApp _ _ _ -> runapp_doesnot_change_store_keys ki il i
+      | _ -> ()
+    )
+    else lemma_non_cur_thread_state_extend ti il i
+
+#pop-options
 
 let store_contains_addm_ancestor
   (#app #n:_)
@@ -2253,7 +2288,7 @@ let store_contains_addm_ancestor
                     let st_post = thread_store_post t il i in
                     store_contains st_pre k' /\ store_contains st_post k' /\ store_contains st_post k))
           [SMTPat (index il i)]
-  = admit()
+  = lemma_cur_thread_state_extend il i
 
 let has_instore_merkle_desc
   (#app #n:_)
@@ -2282,7 +2317,7 @@ let store_contains_evictm_ancestor
                     let st_post = thread_store_post t il i in
                     let il' = prefix il i in
                     store_contains st_pre k /\ store_contains st_pre k' /\ store_contains st_post k' /\
-                    not (has_instore_merkle_desc il' k Left t) /\
+                    //not (has_instore_merkle_desc il' k Left t) /\
                     not (has_instore_merkle_desc il' k Right t)))
           [SMTPat (index il i)]
   = admit()

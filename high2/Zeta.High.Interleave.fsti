@@ -46,6 +46,13 @@ val not_refs_implies_store_unchanged  (#app #n:_) (k:base_key) (t:nat{t < n})
                     store_contains st_pre k ==>
                     (store_contains st_post k /\ st_pre k == st_post k)))
 
+val runapp_doesnot_change_store_keys (#app #n:_) (k:base_key)
+  (il: verifiable_log app n) (i: seq_index il {is_appfn il i})
+  : Lemma (ensures (let t = I.src il i in
+                    let st_pre = thread_store_pre t il i in
+                    let st_post = thread_store_post t il i in
+                    store_contains st_post k = store_contains st_pre k))
+
 val blum_evict_elem_props
   (#app #n:_)
   (il: verifiable_log app n)
