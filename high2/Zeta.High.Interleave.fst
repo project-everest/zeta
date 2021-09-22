@@ -1,5 +1,6 @@
 module Zeta.High.Interleave
 
+open FStar.Classical
 #push-options "--z3rlimit_factor 3"
 
 let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
@@ -91,9 +92,33 @@ let vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
                     e = to_vlog_entry ee))
   = ()
 
+let mk_vlog_entry_ext_pp (#app #n:_) (il: verifiable_log app n) (j:nat{j <= length il}) (i:nat{i < j})
+  : Lemma (ensures (let il' = prefix il j in
+                    mk_vlog_entry_ext il i = mk_vlog_entry_ext il' i))
+  = ()
+
 let vlog_ext_of_il_log (#app: app_params) (#n:nat) (il: verifiable_log app n)
   : seq (vlog_entry_ext app)
-  = admit()
+  = S.init (length il) (mk_vlog_entry_ext il)
+
+let vlog_ext_prefix_property (#app #n:_) (il: verifiable_log app n) (j:nat{j <= length il})
+  : Lemma (ensures (let il' = prefix il j in
+                    let le'1 = vlog_ext_of_il_log il' in
+                    let le = vlog_ext_of_il_log il in
+                    let le'2 = SA.prefix le j in
+                    le'1 = le'2))
+          [SMTPat (vlog_ext_of_il_log (prefix il j))]
+  = let il' = prefix il j in
+    let le1 = vlog_ext_of_il_log il' in
+    let le = vlog_ext_of_il_log il in
+    let le2 = SA.prefix le j in
+    assert(S.length le1 = S.length le2);
+    let aux (i: SA.seq_index le1)
+      : Lemma (ensures (S.index le1 i = S.index le2 i))
+      = ()
+    in
+    introduce forall i. (S.index le1 i = S.index le2 i) with aux i;
+    assert(equal le1 le2)
 
 let is_eac #app #n (il: verifiable_log app n)
   = is_eac_log (vlog_ext_of_il_log il)
@@ -101,7 +126,6 @@ let is_eac #app #n (il: verifiable_log app n)
 let lemma_eac_empty #app #n (il: verifiable_log app n{S.length il = 0})
   : Lemma (ensures (is_eac il))
   = let le = vlog_ext_of_il_log il in
-    assume(False);
     eac_empty_log le
 
 let eac_state_of_key (#app #n:_) (k: base_key) (il: verifiable_log app n)
@@ -110,17 +134,14 @@ let eac_state_of_key (#app #n:_) (k: base_key) (il: verifiable_log app n)
 
 let empty_implies_eac (#app #n:_) (il: verifiable_log app n)
   : Lemma (ensures (length il = 0 ==> is_eac il))
-  = if length il = 0 then (
+  = if length il = 0 then
       let le = vlog_ext_of_il_log il in
-      assume(S.length le = 0);
       eac_empty_log le
-    )
-    else ()
 
 let eac_state_empty (#app #n:_) (k: base_key)
   (il: verifiable_log app n{length il = 0})
   : Lemma (ensures (eac_state_of_key k il = EACInit))
-  = admit()
+  = empty_log_implies_init_state k (vlog_ext_of_il_log il)
 
 let eac_state_snoc (#app #n:_) (k: base_key)
   (il: verifiable_log app n{length il > 0})
@@ -130,7 +151,11 @@ let eac_state_snoc (#app #n:_) (k: base_key)
                     let es = eac_state_of_key k il in
                     let ee = mk_vlog_entry_ext il i in
                     es == eac_add ee es'))
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let le = vlog_ext_of_il_log il in
+    let le' = vlog_ext_of_il_log il' in
+    eac_state_transition k le
 
 let eac_state_transition (#app #n:_) (k: base_key)
   (il: verifiable_log app n) (i: seq_index il)
@@ -139,11 +164,12 @@ let eac_state_transition (#app #n:_) (k: base_key)
                     let smk = eac_smk app k in
                     let ee = mk_vlog_entry_ext il i in
                     es_post = eac_add ee es_pre))
-  = admit()
+  = let il2 = prefix il (i+1) in
+    eac_state_snoc k il2
 
 let lemma_eac_implies_prefix_eac (#app #n:_) (il: verifiable_log app n) (i: nat{i <= S.length il})
   : Lemma (ensures (is_eac il ==> is_eac (prefix il i)))
-  = admit()
+  = ()
 
 let lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (let gl = to_glog il in
@@ -153,15 +179,52 @@ let lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
 let eac_implies_eac_state_valid (#app #n:_) (k: base_key)
   (il: verifiable_log app n)
   : Lemma (ensures (is_eac il ==> eac_state_of_key k il <> EACFail))
-  = admit()
+  = ()
 
-let eac_state_of_root_init (#app #n:_) (il: eac_log app n)
+let rec eac_state_of_root_init (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (eac_state_of_key Zeta.BinTree.Root il = EACInit))
-  = admit()
+          (decreases (length il))
+  = let open Zeta.BinTree in
+    if length il = 0 then
+      eac_state_empty Root il
+    else (
+      let i = length il - 1  in
+      let il' = prefix il i in
+      eac_state_of_root_init il';
+      eac_state_snoc Root il;
+      lemma_cur_thread_state_extend il i
+    )
 
-let eac_state_active_implies_prev_add (#app #n:_) (k: base_key) (il: eac_log app n)
+open Zeta.SeqIdx
+
+let rec eac_state_active_implies_prev_add (#app #n:_) (k: base_key) (il: eac_log app n)
   : Lemma (ensures (is_eac_state_active k il <==> has_some_add_of_key k il))
-  = admit()
+          (decreases (length il))
+  = if length il = 0 then
+      eac_state_empty k il
+    else (
+      let i = length il - 1 in
+      let es = eac_state_of_key k il in
+      let il' = prefix il i in
+      let es' = eac_state_of_key k il' in
+      eac_state_snoc k il;
+      eac_state_active_implies_prev_add k il';
+
+      if is_eac_state_active k il' then
+        let j = last_idx (HV.is_add_of_key k) (i_seq il) in
+        exists_elems_with_prop_intro (HV.is_add_of_key k) (i_seq il) j
+      else if is_eac_state_active k il then
+        exists_elems_with_prop_intro (HV.is_add_of_key k) (i_seq il) i
+      else (
+        assert(forall i. not (HV.is_add_of_key k (index il' i)));
+        let aux (j: seq_index il)
+          : Lemma (ensures (not (HV.is_add_of_key k (index il j))))
+          = if j < i then
+              assert(not (HV.is_add_of_key k (index il' j)))
+        in
+        forall_intro aux
+      )
+    )
 
 let eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_log app n)
   : Lemma (ensures (eac_state_of_key k il = EACInit ==> ~ (has_some_ref_to_key k il)))
@@ -198,15 +261,6 @@ let lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: veri
 let eac_value (#app #n:_) (k: key app) (il: eac_log app n)
   : value_t k
   = admit()
-
- (*
-  let open Zeta.IdxFn in
-    let le = vlog_ext_of_il_log il in
-    let i = max_eac_prefix le in
-    lemma_map_prefix mk_vlog_entry_ext il i;
-    lemma_map_prefix mk_vlog_entry_ext il (i+1);
-    i
-    *)
 
 let eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app) (tid: nat {tid < n})
   : Lemma (requires (let bk = to_base_key gk in
