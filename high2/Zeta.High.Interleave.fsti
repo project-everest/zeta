@@ -1,13 +1,15 @@
 module Zeta.High.Interleave
 
 open FStar.Seq
+open Zeta.Interleave
 open Zeta.App
 open Zeta.Key
 open Zeta.GenKey
 open Zeta.Record
-open Zeta.Generic.Interleave
+open Zeta.GenericVerifier
 open Zeta.High.Verifier
 open Zeta.EAC
+open Zeta.Generic.Interleave
 
 module V = Zeta.GenericVerifier
 module T = Zeta.Generic.Thread
@@ -44,11 +46,13 @@ val not_refs_implies_store_unchanged  (#app #n:_) (k:base_key) (t:nat{t < n})
                     let st_post = thread_store_post t il i in
                     not (e `exp_refs_key` k) ==>
                     store_contains st_pre k ==>
-                    (store_contains st_post k /\ st_pre k == st_post k)))
+                    (store_contains st_post k /\
+                     stored_key st_post k == stored_key st_pre k /\
+                     stored_value st_post k == stored_value st_pre k)))
 
 val runapp_doesnot_change_store_keys (#app #n:_) (k:base_key)
   (il: verifiable_log app n) (i: seq_index il {is_appfn il i})
-  : Lemma (ensures (let t = I.src il i in
+  : Lemma (ensures (let t = src il i in
                     let st_pre = thread_store_pre t il i in
                     let st_post = thread_store_post t il i in
                     store_contains st_post k = store_contains st_pre k))

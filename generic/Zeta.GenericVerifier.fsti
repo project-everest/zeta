@@ -210,6 +210,7 @@ val update_record_set_valid
                      gk = AppK ak /\
                      gv = AppV (S.index ws i))))
 
+
 let verify_step (#vspec: verifier_spec_base)
                 (e: verifier_log_entry vspec)
                 (vtls: vspec.vtls_t): vspec.vtls_t =
@@ -307,3 +308,23 @@ let rec verify #vspec (tid: thread_id) (l: verifier_log vspec):
 
 let verifier_spec = vspec:verifier_spec_base
     {clock_monotonic_prop vspec /\ thread_id_constant_prop vspec /\ evict_prop vspec /\ add_prop vspec}
+
+val runapp_doesnot_change_nonref_slots
+  (#vspec: verifier_spec)
+  (e: verifier_log_entry vspec {is_appfn e})
+  (vs: vspec.vtls_t)
+  (s: vspec.slot_t)
+  : Lemma (requires (let RunApp _ _ ss = e in
+                     vspec.valid (verify_step e vs) /\ not (S.mem s ss)))
+          (ensures (let vs' = verify_step e vs in
+                    vspec.get s vs == vspec.get s vs'))
+
+val runapp_doesnot_change_slot_emptiness
+  (#vspec: verifier_spec)
+  (e: verifier_log_entry vspec {is_appfn e})
+  (vs: vspec.vtls_t)
+  (s: vspec.slot_t)
+  : Lemma (requires (let RunApp _ _ ss = e in
+                     vspec.valid (verify_step e vs)))
+          (ensures (let vs' = verify_step e vs in
+                    (None = vspec.get s vs) <==> (None = vspec.get s vs')))

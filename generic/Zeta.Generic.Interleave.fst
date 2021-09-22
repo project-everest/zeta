@@ -21,6 +21,13 @@ let lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{t
                     st_pre == st_post))
   = admit()
 
+let lemma_thread_state_prefix (#vspec: verifier_spec) (#n:_)
+  (il: verifiable_log vspec n) (i:seq_index il)
+  : Lemma (ensures (let t,j = i2s_map il i in
+                    let tl = G.index (to_glog il) t in
+                    cur_thread_state_pre il i == T.state_pre tl j))
+  = admit()
+
 let is_blum_add_prefix_prop
   (#vspec #n:_)
   (il: verifiable_log vspec n)

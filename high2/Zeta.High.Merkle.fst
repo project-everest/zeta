@@ -766,6 +766,8 @@ let eac_ptrfn_snoc_addm_nonewedge
     FStar.Classical.forall_intro_2 aux;
     assert(feq_ptrfn pf pf')
 
+#push-options "--z3rlimit_factor 3"
+
 let eac_ptrfn_snoc_addm_newedge
   (#app #n:_)
   (il: eac_log app n {length il > 0})
@@ -823,6 +825,8 @@ let eac_ptrfn_snoc_addm_newedge
     in
     FStar.Classical.forall_intro_2 aux;
     assert(feq_ptrfn pf pfe)
+
+#pop-options
 
 #push-options "--z3rlimit_factor 3"
 
@@ -1435,6 +1439,8 @@ let proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{gk <> 
     EACEvictedMerkle?.gk es = gk ==>
     pointed_hash mv c = hashfn v
 
+#push-options "--z3rlimit_factor 3"
+
 let eac_value_nonewedge_snoc
   (#app #n:_)
   (gki: key app)
@@ -1478,6 +1484,8 @@ let eac_value_nonewedge_snoc
           eac_value_init_state_is_init il' gki
         )
 
+#pop-options
+
 let addm_ancestor_root_reachable
   (#app #n:_)
   (il: eac_log app n)
@@ -1490,6 +1498,8 @@ let addm_ancestor_root_reachable
     let AddM _ _ k' = index il i in
     if k' = Root then lemma_reachable_reflexive pf' Root
     else lemma_not_init_equiv_root_reachable il' k'
+
+#push-options "--z3rlimit_factor 3"
 
 let eac_value_newedge_snoc
   (#app #n:_)
@@ -1544,6 +1554,8 @@ let eac_value_newedge_snoc
       | EACEvictedMerkle _ _ ->
         lemma_reachable_between pf' k k'
     )
+
+#pop-options
 
 #push-options "--z3rlimit_factor 3"
 

@@ -171,6 +171,8 @@ let lemma_non_eac_init_addb
       hash_collision_contra app
     )
 
+#push-options "--z3rlimit_factor 3"
+
 let lemma_non_eac_init_addm
   (#app #n:_)
   (itsl: neac_log app n
@@ -208,6 +210,8 @@ let lemma_non_eac_init_addm
     | Desc k2 _ _ ->
       lemma_desc_reflexive k;
       hash_collision_contra app
+
+#pop-options
 
 let lemma_non_eac_init_evict
   (#app #n:_)

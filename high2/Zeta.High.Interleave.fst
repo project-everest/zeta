@@ -1,14 +1,32 @@
 module Zeta.High.Interleave
 
-let not_refs_implies_store_unchanged  (#app #n:_) (k:base_key) (t:nat{t < n})
+#push-options "--z3rlimit_factor 3"
+
+let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
-  : Lemma (ensures (let e = I.index il i in
-                    let st_pre = thread_store_pre t il i in
-                    let st_post = thread_store_post t il i in
-                    not (e `exp_refs_key` k) ==>
-                    store_contains st_pre k ==>
-                    (store_contains st_post k /\ st_pre k == st_post k)))
-  = admit()
+  : Lemma (ensures (let e = index il i in
+                    let st_pre = thread_store_pre ti il i in
+                    let st_post = thread_store_post ti il i in
+                    not (e `exp_refs_key` ki) ==>
+                    store_contains st_pre ki ==>
+                    (store_contains st_post ki /\
+                     stored_key st_post ki == stored_key st_pre ki /\
+                     stored_value st_post ki == stored_value st_pre ki)))
+  = let e = index il i in
+    let t = src il i in
+    let st_pre = thread_store_pre ti il i in
+    let vs_pre = thread_state_pre ti il i in
+    lemma_cur_thread_state_extend il i;
+
+    if t <> ti then lemma_non_cur_thread_state_extend ti il i
+    else
+      if not (e `exp_refs_key` ki) && store_contains st_pre ki then
+        match e with
+        | RunApp _ _ _ ->
+          runapp_doesnot_change_nonref_slots e vs_pre ki
+        | _ -> ()
+
+#pop-options
 
 let runapp_doesnot_change_store_keys (#app #n:_) (k:base_key)
   (il: verifiable_log app n) (i: seq_index il {is_appfn il i})
@@ -16,7 +34,11 @@ let runapp_doesnot_change_store_keys (#app #n:_) (k:base_key)
                     let st_pre = thread_store_pre t il i in
                     let st_post = thread_store_post t il i in
                     store_contains st_post k = store_contains st_pre k))
-  = admit()
+  = let e = index il i in
+    let t = src il i in
+    let vs_pre = thread_state_pre t il i in
+    lemma_cur_thread_state_extend il i;
+    runapp_doesnot_change_slot_emptiness e vs_pre k
 
 let blum_evict_elem_props
   (#app #n:_)
@@ -33,7 +55,9 @@ let blum_evict_elem_props
                     vk = stored_value st_pre k /\
                     t_e = V.blum_evict_timestamp e /\
                     tid_e = tid))
-  = admit()
+  = let e = index il i in
+    let be = blum_evict_elem il i in
+    lemma_cur_thread_state_extend il i
 
 let mk_vlog_entry_ext #app #n (il: verifiable_log app n) (i: seq_index il)
   = let vle = I.index il i in
@@ -67,9 +91,27 @@ let vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
                     e = to_vlog_entry ee))
   = ()
 
+open Zeta.IdxFnInt
+module IF = Zeta.IdxFnInt
+
+let prefix (#app #n:_) (il: verifiable_log app n) (i:nat{i <= S.length il})
+  : il':verifiable_log app n{S.length il' = i}
+  = prefix il i
+
+let gen_seq (app:_) (n:_) =
+  {
+    seq_t = verifiable_log app n;
+    IF.length = S.length;
+    IF.prefix = prefix;
+  }
+
+let mk_vlog_entry_idxfn (#app #n:_)
+  : idxfn_t (gen_seq app n) (vlog_entry_ext app)
+  = mk_vlog_entry_ext
+
 let vlog_ext_of_il_log (#app: app_params) (#n:nat) (il: verifiable_log app n)
   : seq (vlog_entry_ext app)
-  = admit()
+  = map mk_vlog_entry_idxfn il
 
 let is_eac #app #n (il: verifiable_log app n)
   = is_eac_log (vlog_ext_of_il_log il)
@@ -77,7 +119,6 @@ let is_eac #app #n (il: verifiable_log app n)
 let lemma_eac_empty #app #n (il: verifiable_log app n{S.length il = 0})
   : Lemma (ensures (is_eac il))
   = let le = vlog_ext_of_il_log il in
-    assume(S.length le = 0);
     eac_empty_log le
 
 let eac_state_of_key (#app #n:_) (k: base_key) (il: verifiable_log app n)
