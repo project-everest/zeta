@@ -91,27 +91,9 @@ let vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
                     e = to_vlog_entry ee))
   = ()
 
-open Zeta.IdxFnInt
-module IF = Zeta.IdxFnInt
-
-let prefix (#app #n:_) (il: verifiable_log app n) (i:nat{i <= S.length il})
-  : il':verifiable_log app n{S.length il' = i}
-  = prefix il i
-
-let gen_seq (app:_) (n:_) =
-  {
-    seq_t = verifiable_log app n;
-    IF.length = S.length;
-    IF.prefix = prefix;
-  }
-
-let mk_vlog_entry_idxfn (#app #n:_)
-  : idxfn_t (gen_seq app n) (vlog_entry_ext app)
-  = mk_vlog_entry_ext
-
 let vlog_ext_of_il_log (#app: app_params) (#n:nat) (il: verifiable_log app n)
   : seq (vlog_entry_ext app)
-  = map mk_vlog_entry_idxfn il
+  = admit()
 
 let is_eac #app #n (il: verifiable_log app n)
   = is_eac_log (vlog_ext_of_il_log il)
@@ -119,11 +101,12 @@ let is_eac #app #n (il: verifiable_log app n)
 let lemma_eac_empty #app #n (il: verifiable_log app n{S.length il = 0})
   : Lemma (ensures (is_eac il))
   = let le = vlog_ext_of_il_log il in
+    assume(False);
     eac_empty_log le
 
 let eac_state_of_key (#app #n:_) (k: base_key) (il: verifiable_log app n)
   : eac_state app k
-  = admit()
+  = EAC.eac_state_of_key k (vlog_ext_of_il_log il)
 
 let empty_implies_eac (#app #n:_) (il: verifiable_log app n)
   : Lemma (ensures (length il = 0 ==> is_eac il))
