@@ -802,6 +802,8 @@ let root_never_added (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
                   bk <> Zeta.BinTree.Root))
   = lemma_cur_thread_state_extend il i
 
+#push-options "--z3rlimit_factor 3"
+
 let rec eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app)
   : Lemma (requires (let bk = to_base_key gk in
                      let es = eac_state_of_genkey gk il in
@@ -817,13 +819,27 @@ let rec eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk:
       let i = length il - 1 in
       let il' = prefix il i in
       let e = index il i in
+      let es = eac_state_of_key ki il in
+      let es' = eac_state_of_key ki il' in
       eac_state_snoc ki il;
+      SA.lemma_fullprefix_equal il;
 
-      if e `refs_key` ki then admit()
-      else
+      if e `refs_key` ki then (
 
-      admit()
+        admit()
+      )
+      else (
+        assert(es = es');
+        assume(not (e `exp_refs_key` ki));
+        eac_app_state_value_is_stored_value il' gk;
+        assume(stored_tid ki il = stored_tid ki il');
+        let t = stored_tid ki il in
+        not_refs_implies_store_unchanged ki t il i;
+        ()
+      )
     )
+
+#pop-options
 
 let eac_add_method_is_stored_addm (#app #n:_) (il: eac_log app n) (bk: base_key)
   : Lemma (requires (EACInStore? (eac_state_of_key bk il)))
