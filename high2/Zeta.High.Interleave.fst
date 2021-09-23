@@ -336,6 +336,64 @@ let eac_storage_prop_implies_store_contains_implies
 
 #push-options "--z3rlimit_factor 3"
 
+let eac_storage_prop_snoc_appfn
+  (#app #n:_)
+  (ki: base_key {ki <> Zeta.BinTree.Root}) (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let e = index il i in
+                     RunApp? e /\ e `refs_key` ki /\ eac_storage_prop ki il'))
+          (ensures (eac_storage_prop ki il))
+  = let i = length il - 1 in
+    let is = i_seq il in
+    let t = src il i in
+    let es = eac_state_of_key ki il in
+    let st = thread_store t il in
+    let vs = thread_state t il in
+
+    let il' = prefix il i in
+    let is' = i_seq il' in
+    let es' = eac_state_of_key ki il' in
+    let st' = thread_store t il' in
+    let vs' = thread_state t il' in
+    let e = index il i in
+
+    eac_state_snoc ki il;
+    lemma_cur_thread_state_extend il i;
+    SA.lemma_fullprefix_equal il;
+
+    assert(vs' == cur_thread_state_pre il i);
+    assert(vs == cur_thread_state_post il i);
+    assert(vs == verify_step e vs');
+
+    runapp_implies_slot_contains e vs' ki;
+    assert(store_contains st' ki);
+    runapp_doesnot_change_slot_key e vs' ki;
+    assert(store_contains st ki);
+    assert(stored_key st ki = stored_key st' ki);
+
+    assert(EACInStore? es');
+    let j = last_idx (HV.is_add_of_key ki) is' in
+    assert(EACInStore? es);
+    last_idx_snoc (HV.is_add_of_key ki) is;
+    assert(j = last_idx (HV.is_add_of_key ki) is);
+
+    let aux ()
+      : Lemma (ensures (t = src il j))
+      = let tj = src il j in
+        if tj <> t then
+          eliminate forall t'. t' <> tj ==> not (store_contains (thread_store t' il') ki) with t
+    in
+    aux();
+
+    let aux (t':_)
+      : Lemma (ensures (t' <> t ==> not (store_contains (thread_store t' il) ki)))
+      = if t' <> t then
+          //assert(not (store_contains (thread_store t' il') ki));
+          lemma_non_cur_thread_state_extend t' il i
+    in
+    forall_intro aux
+
 let eac_storage_prop_snoc_evict
   (#app #n:_)
   (ki: base_key {ki <> Zeta.BinTree.Root}) (il: eac_log app n {length il > 0})
@@ -464,81 +522,13 @@ let eac_storage_prop_snoc_add
 
 #pop-options
 
-#push-options "--z3rlimit_factor 3"
-
-let eac_storage_prop_snoc_appfn
-  (#app #n:_)
-  (ki: base_key {ki <> Zeta.BinTree.Root}) (il: eac_log app n {length il > 0})
-  : Lemma (requires (let i = length il - 1 in
-                     let il' = prefix il i in
-                     let e = index il i in
-                     RunApp? e /\ e `refs_key` ki /\ eac_storage_prop ki il'))
-          (ensures (eac_storage_prop ki il))
-  = let i = length il - 1 in
-    let is = i_seq il in
-    let t = src il i in
-    let es = eac_state_of_key ki il in
-    let il' = prefix il i in
-    let is' = i_seq il' in
-    let es' = eac_state_of_key ki il' in
-    let e = index il i in
-
-    eac_state_snoc ki il;
-    lemma_cur_thread_state_extend il i;
-
-    let st' = thread_store t il' in
-    let vs' = thread_state t il' in
-    let st = thread_store t il in
-    runapp_implies_slot_contains e vs' ki;
-    assert(store_contains st' ki);
-    runapp_doesnot_change_store_keys ki il i;
-    assert(let k = ki in
-            let t = I.src il i in
-                    let st_pre = thread_store_pre t il i in
-                    let st_post = thread_store_post t il i in
-                    store_contains st_post k = store_contains st_pre k /\
-                    (store_contains st_pre k ==> stored_key st_pre k = stored_key st_post k));
-    //assert(store_contains st ki /\ stored_key st' ki = stored_key st ki);
-
-    (*
-    assert(EACInStore? es /\ EACInStore? es');
-    let j = last_idx (HV.is_add_of_key ki) is' in
-    last_idx_snoc (HV.is_add_of_key ki) is;
-    assert(j = last_idx (HV.is_add_of_key ki) is);
-
-    let aux ()
-      : Lemma (ensures (t = src il j))
-      = admit()
-    in
-    aux();
-
-    let aux (t':_)
-      : Lemma (ensures (t' <> t ==> not (store_contains (thread_store t' il) ki)))
-      = if t' <> t then (
-          lemma_non_cur_thread_state_extend t' il i;
-          admit()
-        )
-    in
-    forall_intro aux;
-
-    assert(eac_storage_prop ki il');
-    //assert(store_contains (thread_store t il) k);
-    assert(
-    let k = ki in
-    let is = i_seq il in
-    match es' with
-      | EACInStore _ gk _ ->
-        //let i = last_idx (HV.is_add_of_key k) is' in
-        //let t = src il' j in
-        store_contains (thread_store t il') k /\
-        stored_key (thread_store t il') k = gk /\
-        (forall t'. t' <> t ==> not (store_contains (thread_store t' il') k)));
-    *)
-
-    admit()
-
-
-#pop-options
+let init_thread_store_contains_no_key (#app #n:_)
+  (t:nat{t < n})
+  (k: base_key {k <> Root})
+  (il: eac_log app n {length il = 0})
+  : Lemma (ensures (let st = thread_store t il in
+                    not (store_contains st k)))
+  = admit()
 
 let rec eac_storage_lemma (#app #n:_) (k: base_key {k <> Zeta.BinTree.Root}) (il: eac_log app n)
   : Lemma (ensures (eac_storage_prop k il))
@@ -549,7 +539,7 @@ let rec eac_storage_lemma (#app #n:_) (k: base_key {k <> Zeta.BinTree.Root}) (il
       eac_state_empty k il;
       let aux (t:_)
         : Lemma (ensures (not (store_contains (thread_store t il) k)))
-        = admit()
+        = init_thread_store_contains_no_key t k il
       in
       forall_intro aux
     )
@@ -561,8 +551,17 @@ let rec eac_storage_lemma (#app #n:_) (k: base_key {k <> Zeta.BinTree.Root}) (il
       let es' = eac_state_of_key k il' in
       eac_state_snoc k il;
       eac_storage_lemma k il';
-      if e `refs_key` k then
-        admit()
+      if e `refs_key` k then (
+        match e with
+        | AddB _ _ _ _
+        | AddM _ _ _ -> eac_storage_prop_snoc_add k il
+        | EvictBM _ _ _
+        | EvictB _ _
+        | EvictM _ _ -> eac_storage_prop_snoc_evict k il
+        | NextEpoch
+        | VerifyEpoch -> eac_storage_prop_snoc_non_ref k il
+        | RunApp _ _ _ -> eac_storage_prop_snoc_appfn k il
+      )
       else
         eac_storage_prop_snoc_non_ref k il
     )
