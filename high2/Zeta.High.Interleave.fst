@@ -802,7 +802,141 @@ let root_never_added (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
                   bk <> Zeta.BinTree.Root))
   = lemma_cur_thread_state_extend il i
 
+let app_key_not_ancestor (#app #n:_) (gk: key app) (il: eac_log app n) (i: seq_index il)
+  : Lemma (requires (let ki = to_base_key gk in
+                     let e = index il i in
+                     AppK? gk /\
+                     not (e `refs_key` ki)))
+          (ensures (let ki = to_base_key gk in
+                    let e = index il i in
+                    not (e `exp_refs_key` ki)))
+  = lemma_cur_thread_state_extend il i
+
+let ev_is_sv_prop
+  (#app #n:_)
+  (il: eac_log app n)
+  (gk: key app {AppK? gk})
+  = let es = eac_state_of_genkey gk il in
+    EACInStore? es ==>
+    (let EACInStore _ _ v = es in
+     stored_value gk il = v)
+
+let ev_is_sv_init
+  (#app #n:_)
+  (il: eac_log app n {length il = 0})
+  (gk: key app {AppK? gk})
+  : Lemma (ensures (ev_is_sv_prop il gk))
+  = eac_state_empty (to_base_key gk)  il
+
+let ev_is_sv_snoc_nonrefs
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  (gk: key app {AppK? gk})
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     let k = to_base_key gk in
+                     not (e `refs_key` k) /\
+                     ev_is_sv_prop (prefix il i) gk))
+          (ensures (ev_is_sv_prop il gk))
+  = let i = length il - 1 in
+    let ki = to_base_key gk in
+    let il' = prefix il i in
+    let e = index il i in
+    let es = eac_state_of_key ki il in
+    let es' = eac_state_of_key ki il' in
+
+    if EACInStore? es then (
+      eac_state_snoc ki il;
+      lemma_cur_thread_state_extend il i;
+      SA.lemma_fullprefix_equal il;
+
+      assert(es = es');
+      app_key_not_ancestor gk il i;
+      assert(not (e `exp_refs_key` ki));
+      assert(stored_tid ki il' = src il' (last_idx (HV.is_add_of_key ki) (i_seq il')));
+      last_idx_snoc (HV.is_add_of_key ki) (i_seq il);
+      assert(stored_tid ki il = stored_tid ki il');
+      let t = stored_tid ki il in
+      not_refs_implies_store_unchanged ki t il i
+    )
+
 #push-options "--z3rlimit_factor 3"
+
+let ev_is_sv_snoc_add
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  (gk: key app {AppK? gk})
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     let k = to_base_key gk in
+                     is_add e /\ k = add_slot e /\
+                     ev_is_sv_prop (prefix il i) gk))
+          (ensures (ev_is_sv_prop il gk))
+  = let i = length il - 1 in
+    let t = src il i in
+    let ki = to_base_key gk in
+    let e = index il i in
+    let gk2,gv = add_record e in
+
+    eac_state_snoc ki il;
+    lemma_cur_thread_state_extend il i;
+    SA.lemma_fullprefix_equal il;
+
+    if gk = gk2 then
+      key_in_unique_store ki il t (stored_tid ki il)
+
+#pop-options
+
+let ev_is_sv_snoc_evict
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  (gk: key app {AppK? gk})
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     let k = to_base_key gk in
+                     is_evict e /\ k = evict_slot e /\
+                     ev_is_sv_prop (prefix il i) gk))
+          (ensures (ev_is_sv_prop il gk))
+  = let ki = to_base_key gk in
+    eac_state_snoc ki il
+
+let ev_is_sv_snoc
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  (gk: key app {AppK? gk})
+  : Lemma (requires (let i = length il - 1 in
+                     ev_is_sv_prop (prefix il i) gk))
+          (ensures (ev_is_sv_prop il gk))
+  = admit()
+
+let rec ev_is_sv
+  (#app #n:_)
+  (il: eac_log app n)
+  (gk: key app {AppK? gk})
+  : Lemma (ensures (ev_is_sv_prop il gk))
+          (decreases (length il))
+  = if length il = 0 then ev_is_sv_init il gk
+    else (
+      let i = length il - 1 in
+      let il' = prefix il i in
+      ev_is_sv il' gk;
+      ev_is_sv_snoc il gk
+    )
+
+#push-options "--z3rlimit_factor 3"
+
+let eac_app_state_value_is_stored_value_non_refs_snoc
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  (gk: key app)
+  : Lemma (requires (let bk = to_base_key gk in
+                     let es = eac_state_of_genkey gk il in
+                     AppK? gk /\ EACInStore? es))
+          (ensures (let bk = to_base_key gk in
+                    let EACInStore _ gk' v = eac_state_of_key bk il in
+                    stored_value gk il = v))
+  = admit()
+
 
 let rec eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app)
   : Lemma (requires (let bk = to_base_key gk in
@@ -822,20 +956,22 @@ let rec eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk:
       let es = eac_state_of_key ki il in
       let es' = eac_state_of_key ki il' in
       eac_state_snoc ki il;
+      lemma_cur_thread_state_extend il i;
       SA.lemma_fullprefix_equal il;
 
       if e `refs_key` ki then (
-
         admit()
       )
       else (
         assert(es = es');
-        assume(not (e `exp_refs_key` ki));
+        app_key_not_ancestor gk il i;
+        assert(not (e `exp_refs_key` ki));
         eac_app_state_value_is_stored_value il' gk;
-        assume(stored_tid ki il = stored_tid ki il');
+        assert(stored_tid ki il' = src il' (last_idx (HV.is_add_of_key ki) (i_seq il')));
+        last_idx_snoc (HV.is_add_of_key ki) (i_seq il);
+        assert(stored_tid ki il = stored_tid ki il');
         let t = stored_tid ki il in
-        not_refs_implies_store_unchanged ki t il i;
-        ()
+        not_refs_implies_store_unchanged ki t il i
       )
     )
 
