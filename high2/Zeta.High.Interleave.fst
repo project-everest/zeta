@@ -625,34 +625,61 @@ let rec lemma_root_storage_prop (#app:_) (#n:pos) (il: eac_log app n)
     )
 
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
-let stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {is_eac_state_instore k il})
+let stored_tid (#app:_) (#n:pos) (k: base_key) (il: eac_log app n {is_eac_state_instore k il})
   : Tot (tid:nat{tid < n /\
           (let st = thread_store tid il in
            let es = eac_state_of_key k il in
            let gk = to_gen_key es in
            store_contains st k /\ gk = stored_key st k)})
-  = if k = Root then
-      admit()
-    else admit()
+  = if k = Root then (
+      lemma_root_storage_prop il;
+      0
+    )
+    else (
+      eac_storage_lemma k il;
+      let i = last_idx (HV.is_add_of_key k) (i_seq il) in
+      src il i
+    )
 
-let lemma_instore (#app #n:_) (bk: base_key) (il: eac_log app n)
+let lemma_instore (#app:_) (#n:pos) (bk: base_key) (il: eac_log app n)
   : Lemma (ensures (exists_in_some_store bk il <==> is_eac_state_instore bk il))
-  = admit()
+  = eac_state_of_root_init il;
+    let es = eac_state_of_key bk il in
+    if is_eac_state_instore bk il then
+      exists_intro (fun t -> store_contains (thread_store t il) bk) (stored_tid bk il)
+    else
+      //assert(bk <> Root);
+      eac_storage_lemma bk il
 
 (* uniqueness: k is never in two stores *)
 let key_in_unique_store (#app #n:_) (k:base_key) (il: eac_log app n) (tid1 tid2: thread_id il)
   : Lemma (ensures (tid1 <> tid2 ==>
                     ~ (store_contains (thread_store tid1 il) k /\ store_contains (thread_store tid2 il) k)))
-  = admit()
+  = lemma_root_storage_prop il;
 
-let lemma_root_in_store0 (#app #n:_) (il: verifiable_log app n)
+    if tid1 <> tid2 && store_contains (thread_store tid1 il) k then (
+      if k = Root then (
+        if tid1 = 0 then
+          eliminate forall t. t <> 0 ==> not (store_contains (thread_store t il) Root) with tid2
+        else
+          eliminate forall t. t <> 0 ==> not (store_contains (thread_store t il) Root) with tid1
+      )
+      else (
+        eac_storage_lemma k il;
+        eac_storage_prop_implies_store_contains_implies k il tid1;
+        eliminate forall t. t <> tid1 ==> not (store_contains (thread_store t il) k) with tid2
+      )
+    )
+
+let lemma_root_in_store0 (#app #n:_) (il: eac_log app n)
   : Lemma (requires (n > 0))
           (ensures (store_contains (thread_store 0 il) Zeta.BinTree.Root))
-  = admit()
+  = lemma_root_storage_prop il
 
-let lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: verifiable_log app n)
+let lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: eac_log app n)
   : Lemma (not (store_contains (thread_store tid il) Zeta.BinTree.Root))
-  = admit()
+  = lemma_root_storage_prop il;
+    eliminate forall t. t <> 0 ==> not (store_contains (thread_store t il) Root) with tid
 
 let eac_value (#app #n:_) (k: key app) (il: eac_log app n)
   : value_t k

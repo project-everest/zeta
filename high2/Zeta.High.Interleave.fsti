@@ -188,14 +188,14 @@ val eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_log ap
   : Lemma (ensures (eac_state_of_key k il = EACInit ==> ~ (has_some_ref_to_key k il)))
 
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
-val stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {is_eac_state_instore k il})
+val stored_tid (#app:_) (#n:pos) (k: base_key) (il: eac_log app n {is_eac_state_instore k il})
   : tid:nat{tid < n /\
           (let st = thread_store tid il in
            let es = eac_state_of_key k il in
            let gk = to_gen_key es in
            store_contains st k /\ gk = stored_key st k)}
 
-val lemma_instore (#app #n:_) (bk: base_key) (il: eac_log app n)
+val lemma_instore (#app:_) (#n:pos) (bk: base_key) (il: eac_log app n)
   : Lemma (ensures (exists_in_some_store bk il <==> is_eac_state_instore bk il))
 
 (* uniqueness: k is never in two stores *)
@@ -203,7 +203,7 @@ val key_in_unique_store (#app #n:_) (k:base_key) (il: eac_log app n) (tid1 tid2:
   : Lemma (ensures (tid1 <> tid2 ==>
                     ~ (store_contains (thread_store tid1 il) k /\ store_contains (thread_store tid2 il) k)))
 
-let stored_value (#app #n:_)
+let stored_value (#app:_) (#n:pos)
   (gk: key app)
   (il: eac_log app n{let k = to_base_key gk in
                      let es = eac_state_of_key k il in
@@ -215,7 +215,7 @@ let stored_value (#app #n:_)
     let st = thread_store tid il in
     stored_value st bk
 
-let stored_add_method (#app #n:_) (bk: base_key) (il: eac_log app n{EACInStore? (eac_state_of_key bk il)})
+let stored_add_method (#app:_) (#n:pos) (bk: base_key) (il: eac_log app n{EACInStore? (eac_state_of_key bk il)})
   : add_method
   = let tid = stored_tid bk il in
     let st = thread_store tid il in
@@ -316,7 +316,7 @@ val root_never_added (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
                   let bk = V.add_slot e in
                   bk <> Zeta.BinTree.Root))
 
-val eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app)
+val eac_app_state_value_is_stored_value (#app:_) (#n:pos) (il: eac_log app n) (gk: key app)
   : Lemma (requires (let bk = to_base_key gk in
                      let es = eac_state_of_genkey gk il in
                      AppK? gk /\ EACInStore? es))
@@ -326,7 +326,7 @@ val eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key
 
 (* for all keys, the add method stored in the store is the same as the add method associated
  * with eac state *)
-val eac_add_method_is_stored_addm (#app #n:_) (il: eac_log app n) (bk: base_key)
+val eac_add_method_is_stored_addm (#app:_) (#n:pos) (il: eac_log app n) (bk: base_key)
   : Lemma (requires (EACInStore? (eac_state_of_key bk il)))
           (ensures (let EACInStore m _ _ = eac_state_of_key bk il in
                     m = stored_add_method bk il))

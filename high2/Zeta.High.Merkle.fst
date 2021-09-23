@@ -2221,6 +2221,8 @@ let rec lemma_proving_ancestor_blum_bit (#app #n:_) (il: eac_log app n) (ki:base
       | _ -> ()
     )
 
+#push-options "--z3rlimit_factor 3"
+
 let store_contains_snoc_evictm
   (#app #n:_)
   (il: eac_log app n {length il > 0})
@@ -2239,6 +2241,8 @@ let store_contains_snoc_evictm
                     else store_contains st ki = store_contains st' ki))
   = let i = length il - 1 in
     lemma_cur_thread_state_extend il i
+
+#pop-options
 
 #push-options "--z3rlimit_factor 4"
 
