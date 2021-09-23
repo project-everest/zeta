@@ -72,3 +72,27 @@ let runapp_doesnot_change_slot_emptiness
           (ensures (let vs' = verify_step e vs in
                     (None = vspec.get s vs) <==> (None = vspec.get s vs')))
   = admit()
+
+let runapp_doesnot_change_slot_key
+  (#vspec: verifier_spec)
+  (e: verifier_log_entry vspec {is_appfn e})
+  (vs: vspec.vtls_t)
+  (s: vspec.slot_t)
+  : Lemma (requires (let RunApp _ _ ss = e in
+                     vspec.valid (verify_step e vs)))
+          (ensures (let vs' = verify_step e vs in
+                    Some? (vspec.get s vs) ==>
+                    Some? (vspec.get s vs') /\
+                    key_of (Some?.v (vspec.get s vs)) =
+                    key_of (Some?.v (vspec.get s vs'))))
+  = admit()
+
+let runapp_implies_slot_contains
+  (#vspec: verifier_spec)
+  (e: verifier_log_entry vspec {is_appfn e})
+  (vs: vspec.vtls_t)
+  (s: vspec.slot_t)
+  : Lemma (requires (vspec.valid (verify_step e vs)))
+          (ensures (let RunApp _ _ ss = e in
+                    S.mem s ss ==> Some? (vspec.get s vs)))
+  = admit()
