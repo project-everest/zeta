@@ -22,7 +22,7 @@ module HG = Zeta.High.Global
 let lemma_verifier_correct
   (#app:_)
   (epmax: epoch)
-  (gl: HG.ms_verifiable_log app epmax{~ (seq_consistent (appfn_calls_within_ep epmax gl))})
+  (gl: HG.ms_verifiable_log app epmax{~ (seq_consistent (appfn_calls_within_ep epmax gl)) /\ S.length gl > 0})
   : hash_collision app
   = (* sequence of sequence of app fn calls and results *)
     let app_calls_ss = appfn_calls_within_ep epmax gl in

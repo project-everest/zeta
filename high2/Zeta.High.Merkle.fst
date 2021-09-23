@@ -14,7 +14,8 @@ type addm_t=
   | CutEdge           (* cut an existing edge: k' points to k2, is_proper_desc k2 k *)
 
 let addm_props
-  (#app #n:_)
+  (#app:_)
+  (#n:pos)
   (il: verifiable_log app n )
   (i: seq_index il{AddM? (index il i) /\ is_eac (prefix il i)})
   : Lemma (ensures (let AddM (gk, gv) k k' = index il i in
@@ -76,7 +77,8 @@ let addm_es_props
       eac_state_of_root_init il'
 
 let addm_type
-  (#app #n:_)
+  (#app:_)
+  (#n:pos)
   (il: verifiable_log app n)
   (i: seq_index il{AddM? (index il i) /\ is_eac (prefix il i)})
   : addm_t
@@ -90,7 +92,7 @@ let addm_type
     | Desc k2 h2 b2 -> if k2 = k then NoNewEdge else CutEdge
 
 let cutedge_desc
-  (#app #n:_)
+  (#app:_) (#n:pos)
   (il: verifiable_log app n) (i:_{is_eac (prefix il i) /\ addm_type il i = CutEdge})
   = let AddM (gk, gv) k k' = index il i in
     let il' = prefix il i in
@@ -1881,8 +1883,7 @@ let lemma_proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{
                   pointed_hash mv c = hashfn v))
   = lemma_proving_ancestor_has_hash_aux il gk
 
-
-let lemma_addm_ancestor_is_proving_nonewedge (#app #n:_) (il: verifiable_log app n {length il > 0}):
+let lemma_addm_ancestor_is_proving_nonewedge (#app:_) (#n:pos) (il: verifiable_log app n {length il > 0}):
   Lemma (requires (let n = length il in
                    let il' = I.prefix il (n-1) in
                    let e = I.index il (n-1) in
@@ -1899,7 +1900,7 @@ let lemma_addm_ancestor_is_proving_nonewedge (#app #n:_) (il: verifiable_log app
     lemma_points_to_implies_proving_ancestor il' k k' c
 
 let lemma_addm_ancestor_is_proving_newedge
-  (#app #n:_)
+  (#app:_) (#n:pos)
   (il: verifiable_log app n {length il > 0}):
   Lemma (requires (let n = length il in
                    let il' = I.prefix il (n-1) in
@@ -1955,7 +1956,7 @@ let lemma_addm_ancestor_is_proving_newedge
         lemma_reachable_between pf k k'
 
 let lemma_addm_ancestor_is_proving_cutedge
-  (#app #n:_)
+  (#app:_) (#n:pos)
   (il: verifiable_log app n {length il > 0}):
   Lemma (requires (let n = length il in
                    let il' = I.prefix il (n-1) in
@@ -2016,7 +2017,9 @@ let lemma_addm_ancestor_is_proving_cutedge
       )
     )
 
-let lemma_addm_ancestor_is_proving (#app #n:_) (il: verifiable_log app n {length il > 0}):
+let lemma_addm_ancestor_is_proving
+  (#app:_) (#n:pos)
+  (il: verifiable_log app n {length il > 0}):
   Lemma (requires (let n = length il in
                    let il' = I.prefix il (n-1) in
                    let e = I.index il (n-1) in

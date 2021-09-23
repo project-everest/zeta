@@ -72,7 +72,7 @@ val lemma_proving_ancestor_has_hash (#app #n:_) (il: eac_log app n) (gk:key app{
                   let v = HI.eac_value gk il in
                   pointed_hash mv c = hashfn v))
 
-val lemma_addm_ancestor_is_proving (#app #n:_) (il: verifiable_log app n {length il > 0}):
+val lemma_addm_ancestor_is_proving (#app:_) (#n:pos) (il: verifiable_log app n {length il > 0}):
   Lemma (requires (let n = length il in
                    let il' = I.prefix il (n-1) in
                    let e = I.index il (n-1) in

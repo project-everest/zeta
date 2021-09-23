@@ -683,7 +683,13 @@ let lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: eac_
 
 let eac_value (#app #n:_) (k: key app) (il: eac_log app n)
   : value_t k
-  = admit()
+  = eac_state_of_root_init il;
+    let bk = to_base_key k in
+    let es = eac_state_of_key bk in
+
+
+
+  admit()
 
 let eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app) (tid: nat {tid < n})
   : Lemma (requires (let bk = to_base_key gk in

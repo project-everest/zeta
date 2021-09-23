@@ -161,9 +161,9 @@ val eac_state_transition (#app #n:_) (k: base_key)
                     let ee = mk_vlog_entry_ext il i in
                     es_post = eac_add ee es_pre))
 
-let eac_log (app: app_params) (n:nat) = il: verifiable_log app n {is_eac il}
+let eac_log (app: app_params) (n:pos) = il: verifiable_log app n {is_eac il}
 
-let neac_log (app: app_params) (n:nat) = il: verifiable_log app n {not (is_eac il)}
+let neac_log (app: app_params) (n:pos) = il: verifiable_log app n {not (is_eac il)}
 
 val lemma_eac_implies_prefix_eac (#app #n:_) (il: verifiable_log app n) (i: nat{i <= S.length il})
   : Lemma (ensures (is_eac il ==> is_eac (prefix il i)))
