@@ -2,6 +2,17 @@ module Zeta.High.Interleave
 
 open FStar.Classical
 
+let runapp_refs_only_leafkeys (#app #n:_) (il: verifiable_log app n) (i:_ {RunApp? (index il i)}) (k: base_key)
+  : Lemma (ensures (let e = index il i in
+                    e `refs_key` k ==> is_leaf_key k))
+  = let e = index il i in
+    lemma_cur_thread_state_extend il i;
+    let RunApp f p ss = e in
+    let vs_pre = thread_state_pre (src il i) il i in
+    if e `refs_key` k then
+      let idx = index_mem k ss in
+      get_record_set_correct ss vs_pre idx
+
 #push-options "--z3rlimit_factor 3"
 
 let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
@@ -30,7 +41,7 @@ let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
 
 #pop-options
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--z3rlimit_factor 4"
 
 let not_refs_implies_store_containment_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
@@ -568,15 +579,61 @@ let rec eac_storage_lemma (#app #n:_) (k: base_key {k <> Zeta.BinTree.Root}) (il
         eac_storage_prop_snoc_non_ref k il
     )
 
+let root_storage_prop (#app:_) (#n:nat{n > 0}) (il: eac_log app n)
+  = store_contains (thread_store 0 il) Root /\
+    stored_key (thread_store 0 il) Root = IntK Root /\
+    (forall t. t <> 0 ==> not (store_contains (thread_store t il) Root))
+
+let root_storage_prop_init (#app:_) (#n:pos) (il: eac_log app n{length il = 0})
+  : Lemma (ensures (root_storage_prop il))
+  = let vspec = high_verifier_spec app in
+    lemma_length0_implies_empty il;
+    lemma_empty_sseq (verifier_log_entry vspec) n 0;
+    let aux (t:_)
+      : Lemma (ensures (t <> 0 ==> not (store_contains (thread_store t il) Root)))
+      = lemma_empty_sseq (verifier_log_entry vspec) n t
+    in
+    forall_intro aux
+
+let root_storage_prop_snoc (#app:_) (#n:pos) (il: eac_log app n{length il > 0})
+  : Lemma (requires (root_storage_prop (prefix il (length il - 1))))
+          (ensures (root_storage_prop il))
+  = let i = length il - 1 in
+    let e = index il i in
+    let t = src il i in
+    let il' = prefix il i in
+    eac_state_snoc Root il;
+    eac_state_of_root_init il;
+
+    not_refs_implies_store_key_unchanged Root 0 il i;
+    let aux (t:_)
+      : Lemma (ensures(t <> 0 ==> not (store_contains (thread_store t il) Root)))
+      = if t <> 0 then
+          not_refs_implies_store_containment_unchanged Root t il i
+    in
+    forall_intro aux
+
+let rec lemma_root_storage_prop (#app:_) (#n:pos) (il: eac_log app n)
+  : Lemma (ensures (root_storage_prop il))
+          (decreases (length il))
+  = if length il = 0 then root_storage_prop_init il
+    else (
+      let i = length il - 1 in
+      let il' = prefix il i in
+      lemma_root_storage_prop il';
+      root_storage_prop_snoc il
+    )
+
 (* when the eac_state of k is instore, then k is in the store of a unique verifier thread *)
-let rec stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {is_eac_state_instore k il})
+let stored_tid (#app:_) (#n:nat) (k: base_key) (il: eac_log app n {is_eac_state_instore k il})
   : Tot (tid:nat{tid < n /\
           (let st = thread_store tid il in
            let es = eac_state_of_key k il in
            let gk = to_gen_key es in
            store_contains st k /\ gk = stored_key st k)})
-    (decreases (length il))
-  = admit()
+  = if k = Root then
+      admit()
+    else admit()
 
 let lemma_instore (#app #n:_) (bk: base_key) (il: eac_log app n)
   : Lemma (ensures (exists_in_some_store bk il <==> is_eac_state_instore bk il))

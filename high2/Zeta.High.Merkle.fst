@@ -168,17 +168,6 @@ let merkle_evict_ancestor_props
     if k = Root then
       eac_state_of_root_init il'
 
-let runapp_refs_only_leafkeys (#app #n:_) (il: eac_log app n) (i:_ {RunApp? (index il i)}) (k: base_key)
-  : Lemma (ensures (let e = index il i in
-                    e `refs_key` k ==> is_leaf_key k))
-  = let e = index il i in
-    lemma_cur_thread_state_extend il i;
-    let RunApp f p ss = e in
-    let vs_pre = thread_state_pre (src il i) il i in
-    if e `refs_key` k then
-      let idx = index_mem k ss in
-      get_record_set_correct ss vs_pre idx
-
 let eac_ptrfn_aux (#app #n:_) (il: eac_log app n) (k:merkle_key) (c:bin_tree_dir)
   : option (base_key)
   = let v = eac_merkle_value k il in

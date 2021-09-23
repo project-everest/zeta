@@ -39,6 +39,10 @@ let thread_store_post (#app #n:_) (tid: nat{tid < n}) (il: verifiable_log app n)
   = let vs = thread_state_post tid il i in
     vs.st
 
+val runapp_refs_only_leafkeys (#app #n:_) (il: verifiable_log app n) (i:_ {RunApp? (index il i)}) (k: base_key)
+  : Lemma (ensures (let e = index il i in
+                    e `refs_key` k ==> is_leaf_key k))
+
 val not_refs_implies_store_unchanged  (#app #n:_) (k:base_key) (t:nat{t < n})
   (il: verifiable_log app n) (i:seq_index il)
   : Lemma (ensures (let e = I.index il i in
