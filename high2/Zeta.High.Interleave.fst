@@ -528,7 +528,9 @@ let init_thread_store_contains_no_key (#app #n:_)
   (il: eac_log app n {length il = 0})
   : Lemma (ensures (let st = thread_store t il in
                     not (store_contains st k)))
-  = admit()
+  = let vspec = high_verifier_spec app in
+    lemma_length0_implies_empty il;
+    lemma_empty_sseq (verifier_log_entry vspec) n t
 
 let rec eac_storage_lemma (#app #n:_) (k: base_key {k <> Zeta.BinTree.Root}) (il: eac_log app n)
   : Lemma (ensures (eac_storage_prop k il))
