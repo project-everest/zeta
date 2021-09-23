@@ -685,11 +685,20 @@ let eac_value (#app #n:_) (k: key app) (il: eac_log app n)
   : value_t k
   = eac_state_of_root_init il;
     let bk = to_base_key k in
-    let es = eac_state_of_key bk in
-
-
-
-  admit()
+    let es = eac_state_of_key bk il in
+    match es with
+    | EACInit ->
+      if k = IntK Root then stored_value k il
+      else init_value k
+    | EACInStore _ gk _ ->
+      if gk = k then stored_value k il
+      else init_value k
+    | EACEvictedMerkle gk gv ->
+      if gk = k then gv
+      else init_value k
+    | EACEvictedBlum gk gv _ _ ->
+      if gk = k then gv
+      else init_value k
 
 let eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app) (tid: nat {tid < n})
   : Lemma (requires (let bk = to_base_key gk in
@@ -697,12 +706,23 @@ let eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app) (tid
                      stored_key (thread_store tid il) bk = gk))
           (ensures (let bk = to_base_key gk in
                     eac_value gk il = HV.stored_value (thread_store tid il) bk))
-  = admit()
+  = eac_state_of_root_init il;
+    lemma_root_storage_prop il;
+
+    let k = to_base_key gk in
+    let es = eac_state_of_key k il in
+    if k = Root then
+      key_in_unique_store k il tid 0
+    else (
+      eac_storage_lemma k il;
+      eac_storage_prop_implies_store_contains_implies k il tid;
+      key_in_unique_store k il tid (stored_tid k il)
+    )
 
 let eac_value_is_stored_value_int (#app #n:_) (il: eac_log app n) (k: merkle_key) (tid: nat{ tid < n })
   : Lemma (requires (store_contains (thread_store tid il) k))
           (ensures (eac_value (IntK k) il = HV.stored_value (thread_store tid il) k))
-  = admit()
+  = eac_value_is_stored_value il (IntK k) tid
 
 let eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (gk: key app):
   Lemma (requires (let bk = to_base_key gk in
@@ -712,7 +732,7 @@ let eac_value_is_evicted_value (#app #n:_) (il: eac_log app n) (gk: key app):
         (ensures (let bk = to_base_key gk in
                   let es = eac_state_of_key bk il in
                   eac_state_evicted_value es = eac_value gk il))
-  = admit()
+  = ()
 
 let eac_value_init_state_is_init (#app #n:_) (il: eac_log app n) (gk: key app):
   Lemma (requires (let bk = to_base_key gk in
@@ -720,14 +740,24 @@ let eac_value_init_state_is_init (#app #n:_) (il: eac_log app n) (gk: key app):
                    es = EACInit /\
                    bk <> Zeta.BinTree.Root))
         (ensures (eac_value gk il = init_value gk))
-  = admit()
+  = ()
 
 let eac_value_init
   (#app #n:_)
   (gk: key app)
   (il: eac_log app n {length il = 0})
   : Lemma (ensures (eac_value gk il = init_value gk))
-  = admit()
+  = let bk = to_base_key gk in
+    let vspec = high_verifier_spec app in
+    eac_state_empty bk il;
+    lemma_root_storage_prop il;
+
+    if bk = Root then (
+      eac_value_is_stored_value il gk 0;
+      lemma_length0_implies_empty il;
+      lemma_empty_sseq (verifier_log_entry vspec) n 0
+    )
+    else ()
 
 let ext_evict_val_is_stored_val (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
   Lemma (requires (V.is_evict (I.index il i)))
@@ -738,14 +768,15 @@ let ext_evict_val_is_stored_val (#app #n:_) (il: verifiable_log app n) (i: seq_i
                   let bk = V.evict_slot e in
                   store_contains st_pre bk /\
                   HV.stored_value st_pre bk = value_ext ee))
-  = admit()
+  = lemma_cur_thread_state_extend il i
 
 let ext_blum_timestamp_is_src (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
   : Lemma (requires (is_blum_evict il i))
           (ensures (let tid = I.src il i in
                     let EvictBlum _ _ tid_e = mk_vlog_entry_ext il i in
                     tid_e = tid))
-  = admit()
+  = lemma_cur_thread_state_extend il i;
+    admit()
 
 let ext_app_records_is_stored_val
   (#app #n:_)
