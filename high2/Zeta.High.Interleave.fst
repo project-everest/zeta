@@ -126,6 +126,7 @@ let mk_vlog_entry_ext #app #n (il: verifiable_log app n) (i: seq_index il)
     let open Zeta.GenericVerifier in
     let open Zeta.High.Verifier in
     let vs = cur_thread_state_pre il i in
+    let tid = src il i in
     lemma_cur_thread_state_extend il i;
 
     match vle with
@@ -134,11 +135,9 @@ let mk_vlog_entry_ext #app #n (il: verifiable_log app n) (i: seq_index il)
       EvictMerkle vle v
     | EvictB k ts ->
       let v = stored_value vs.st k in
-      let tid = vs.tid in
       EvictBlum vle v tid
     | EvictBM k _ ts ->
       let v = stored_value vs.st k in
-      let tid = vs.tid in
       EvictBlum vle v tid
     | RunApp f p ss ->
       assert(Some? (get_record_set ss vs));
@@ -775,8 +774,7 @@ let ext_blum_timestamp_is_src (#app #n:_) (il: verifiable_log app n) (i: seq_ind
           (ensures (let tid = I.src il i in
                     let EvictBlum _ _ tid_e = mk_vlog_entry_ext il i in
                     tid_e = tid))
-  = lemma_cur_thread_state_extend il i;
-    admit()
+  = lemma_cur_thread_state_extend il i
 
 let ext_app_records_is_stored_val
   (#app #n:_)
@@ -788,30 +786,44 @@ let ext_app_records_is_stored_val
                     let vs = cur_thread_state_pre il i in
                     Some? (get_record_set ss vs) /\
                     rs = get_record_set_succ ss vs))
-  = admit()
+  = lemma_cur_thread_state_extend il i
 
 let root_never_evicted (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
   : Lemma (requires (V.is_evict (I.index il i)))
           (ensures (let e = I.index il i in
                     let bk = V.evict_slot e in
                     bk <> Zeta.BinTree.Root))
-  = admit()
+  = lemma_cur_thread_state_extend il i
 
 let root_never_added (#app #n:_) (il: verifiable_log app n) (i: seq_index il):
   Lemma (requires (V.is_add (I.index il i)))
         (ensures (let e = I.index il i in
                   let bk = V.add_slot e in
                   bk <> Zeta.BinTree.Root))
-  = admit()
+  = lemma_cur_thread_state_extend il i
 
-let eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app)
+let rec eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app)
   : Lemma (requires (let bk = to_base_key gk in
                      let es = eac_state_of_genkey gk il in
                      AppK? gk /\ EACInStore? es))
           (ensures (let bk = to_base_key gk in
                     let EACInStore _ gk' v = eac_state_of_key bk il in
                     stored_value gk il = v))
-  = admit()
+          (decreases (length il))
+  = let ki = to_base_key gk in
+    if length il = 0 then
+      eac_state_empty ki il
+    else (
+      let i = length il - 1 in
+      let il' = prefix il i in
+      let e = index il i in
+      eac_state_snoc ki il;
+
+      if e `refs_key` ki then admit()
+      else
+
+      admit()
+    )
 
 let eac_add_method_is_stored_addm (#app #n:_) (il: eac_log app n) (bk: base_key)
   : Lemma (requires (EACInStore? (eac_state_of_key bk il)))
@@ -822,7 +834,7 @@ let eac_add_method_is_stored_addm (#app #n:_) (il: eac_log app n) (bk: base_key)
 (* the state of each key for an empty log is init *)
 let init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (bk: base_key):
   Lemma (eac_state_of_key bk il = EACInit)
-  = admit()
+  = eac_state_empty bk il
 
 let eac_boundary (#app #n:_) (il: neac_log app n)
   : (i: seq_index il{is_eac (prefix il i) /\
