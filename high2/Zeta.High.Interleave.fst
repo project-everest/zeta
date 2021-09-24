@@ -981,11 +981,99 @@ let eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key
                     stored_value gk il = v))
   = ev_is_sv il gk
 
+let em_is_sm_prop
+  (#app #n:_)
+  (il: eac_log app n)
+  (k: base_key)
+  = let es = eac_state_of_key k il in
+    match es with
+    | EACInStore m _ _ -> stored_add_method k il = m
+    | _ -> true
+
+let em_is_sm_init
+  (#app #n:_)
+  (il: eac_log app n{length il = 0})
+  (k: base_key)
+  : Lemma (ensures (em_is_sm_prop il k))
+  = eac_state_empty k il
+
+let em_is_sm_snoc_add
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     let il' = prefix il i in
+                     is_add e /\ add_slot e = ki /\
+                     em_is_sm_prop il' ki))
+          (ensures (em_is_sm_prop il ki))
+  = admit()
+
+let em_is_sm_snoc_evict
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     let il' = prefix il i in
+                     is_evict e /\ evict_slot e = ki /\
+                     em_is_sm_prop il' ki))
+          (ensures (em_is_sm_prop il ki))
+  = admit()
+
+let em_is_sm_snoc_appfn
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     let il' = prefix il i in
+                     RunApp? e /\ e `refs_key` ki /\
+                     em_is_sm_prop il' ki))
+          (ensures (em_is_sm_prop il ki))
+  = admit()
+
+let em_is_sm_snoc_nonrefs
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     let il' = prefix il i in
+                     not (e `refs_key` ki) /\
+                     em_is_sm_prop il' ki))
+          (ensures (em_is_sm_prop il ki))
+  = admit()
+
+let em_is_sm_snoc
+  (#app #n:_)
+  (il: eac_log app n{length il > 0})
+  (ki: base_key)
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     em_is_sm_prop il' ki))
+          (ensures (em_is_sm_prop il ki))
+  = admit()
+
+let rec em_is_sm
+  (#app #n:_)
+  (il: eac_log app n)
+  (ki: base_key)
+  : Lemma (ensures (em_is_sm_prop il ki))
+          (decreases (length il))
+  = if length il = 0 then em_is_sm_init il ki
+    else (
+      let i = length il - 1  in
+      let il' = prefix il i in
+      em_is_sm il' ki;
+      em_is_sm_snoc il ki
+    )
+
 let eac_add_method_is_stored_addm (#app #n:_) (il: eac_log app n) (bk: base_key)
   : Lemma (requires (EACInStore? (eac_state_of_key bk il)))
           (ensures (let EACInStore m _ _ = eac_state_of_key bk il in
                     m = stored_add_method bk il))
-  = admit()
+  = em_is_sm il bk
 
 (* the state of each key for an empty log is init *)
 let init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (bk: base_key):
