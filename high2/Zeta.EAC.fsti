@@ -240,7 +240,27 @@ let to_fncall (#app: app_params) (ee: vlog_entry_ext app {App? ee})
 val appfn_call_seq
   (#app: app_params)
   (le: vlog_ext app)
-  : l:seq (appfn_call app){length le = length l}
+  : seq (appfn_call app)
+
+val appfn_call_empty
+  (#app:_)
+  (le: vlog_ext app)
+  : Lemma (ensures (length le = 0 ==> length (appfn_call_seq le) = 0))
+          [SMTPat (appfn_call_seq le)]
+
+val appfn_call_snoc
+  (#app:_)
+  (le: vlog_ext app {length le > 0})
+  : Lemma (ensures (let open Zeta.SeqAux in
+                    let i = length le - 1 in
+                    let le' = prefix le i in
+                    let ee = index le i in
+                    let acs = appfn_call_seq le in
+                    let acs' = appfn_call_seq le' in
+                    if App? ee then
+                      acs == append1 acs' (to_fncall ee)
+                    else
+                      acs == acs'))
 
 let eac_app_state #app (l: eac_log app) (ak: app_key app.adm)
   = let gk = AppK ak in
@@ -265,26 +285,18 @@ let is_add_of_key #app (bk: base_key) (ee: vlog_entry_ext app)
     is_add_of_key bk e
 
 let has_some_add (#app: app_params) (bk: base_key) (le: vlog_ext app)
-  : bool
-  = let open Zeta.SeqAux in
-    exists_sat_elems (is_add_of_key bk) le
+  = exists i. is_add_of_key bk (index le i)
 
 let last_add_method (#app: app_params) (bk: base_key) (le: vlog_ext app {has_some_add bk le})
   : add_method
-  = let open Zeta.SeqAux in
-    let i = last_index (is_add_of_key bk) le in
+  = let open Zeta.SeqIdx in
+    let i = last_idx (is_add_of_key bk) le in
     let ee = index le i in
     let e  = to_vlog_entry ee in
     add_method_of_entry e
 
-let ee_refs_key (#app: app_params) (bk: base_key) (ee: vlog_entry_ext app)
-  = let e = to_vlog_entry ee in
-    e `refs_key` bk
-
 let has_some_ref_to_key (#app:_) (bk: base_key) (le: vlog_ext app)
-  : bool
-  = let open Zeta.SeqAux in
-    exists_sat_elems (ee_refs_key bk) le
+  = exists i. to_vlog_entry (index le i) `refs_key` bk
 
 val eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le: eac_log app)
   : Lemma (ensures (let es = eac_state_of_key bk le in
@@ -292,5 +304,5 @@ val eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le: ea
                     (EACInStore? es ==> (has_some_add bk le /\
                                          eac_add_method es = last_add_method bk le))))
 
-val eac_init_implies_no_keyrefs (#app:_) (bk: base_key) (le: eac_log app {eac_state_of_key bk le = EACInit})
-  : Lemma (ensures (not (has_some_ref_to_key bk le)))
+val eac_init_implies_no_keyrefs (#app:_) (bk: base_key) (le: eac_log app)
+  : Lemma (ensures (eac_state_of_key bk le = EACInit ==>  ~ (has_some_ref_to_key bk le)))

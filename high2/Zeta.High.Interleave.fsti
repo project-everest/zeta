@@ -169,9 +169,6 @@ val lemma_eac_implies_prefix_eac (#app #n:_) (il: verifiable_log app n) (i: nat{
   : Lemma (ensures (is_eac il ==> is_eac (prefix il i)))
           [SMTPat (prefix il i)]
 
-val lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
-  : Lemma (ensures (let gl = to_glog il in
-                    Zeta.AppSimulate.seq_consistent (G.appfn_calls gl)))
 
 val eac_implies_eac_state_valid (#app #n:_) (k: base_key)
   (il: verifiable_log app n)
@@ -345,3 +342,7 @@ val eac_fail_key (#app #n:_) (il: neac_log app n)
                 eac_state_of_key_post k il i = EACFail /\
                 eac_state_of_key_pre k il i <> EACFail /\
                 e `refs_key` k}
+
+val lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
+  : Lemma (ensures (let gl = to_glog il in
+                    Zeta.AppSimulate.seq_consistent (G.appfn_calls gl)))

@@ -1,5 +1,7 @@
 module Zeta.EAC
 
+open FStar.Classical
+
 open Zeta.SeqMachine
 open Zeta.SeqAux
 
@@ -253,7 +255,28 @@ let eac_value (#app: app_params) (k: key app) (l: eac_log app)
 let appfn_call_seq
   (#app: app_params)
   (le: vlog_ext app)
-  : l:seq (appfn_call app) {length l = length le}
+  : seq (appfn_call app)
+  = admit()
+
+let appfn_call_empty
+  (#app:_)
+  (le: vlog_ext app)
+  : Lemma (ensures (length le = 0 ==> length (appfn_call_seq le) = 0))
+  =admit()
+
+let appfn_call_snoc
+  (#app:_)
+  (le: vlog_ext app {length le > 0})
+  : Lemma (ensures (let open Zeta.SeqAux in
+                    let i = length le - 1 in
+                    let le' = prefix le i in
+                    let ee = index le i in
+                    let acs = appfn_call_seq le in
+                    let acs' = appfn_call_seq le' in
+                    if App? ee then
+                      acs == append1 acs' (to_fncall ee)
+                    else
+                      acs == acs'))
   = admit()
 
 open Zeta.AppSimulate.Helper
@@ -281,23 +304,12 @@ let eac_valid_helper_init #app (l: eac_log app{length l = 0})
     assert(app_state_feq ste sta);
     ()
 
-let appfn_call_seq_unchanged #app (l: eac_log app)
-  : Lemma (requires (length l > 0 /\ not (App? (telem l))))
-          (ensures (appfn_call_seq l == appfn_call_seq (hprefix l)))
-  = admit()
-
-let appfn_call_seq_append #app (l: eac_log app)
-  : Lemma (requires (length l > 0 /\ App? (telem l)))
-          (ensures (let fc = to_fncall (telem l) in
-          appfn_call_seq l == append1 (appfn_call_seq (hprefix l)) fc))
-  = admit()
-
 let app_key_eac_value_unchanged_by_nonapp_entry #app (l: eac_log app) (gk: key app{AppK? gk})
   : Lemma (requires (length l > 0 /\ ~ (App? (telem l))))
           (ensures (let l' = hprefix l in
                     eac_value gk l = eac_value gk l'))
-  = admit()
-
+  = let bk = to_base_key gk in
+    eac_state_transition bk l
 
 let eac_refs_is_app_refs (#app: app_params) (l: eac_log app) (ak: app_key app.adm)
   : Lemma (requires (length l > 0 /\ App? (telem l)))
@@ -452,7 +464,7 @@ let eac_valid_helper_nonapp (#app: app_params) (l: eac_log app)
                      not (App? (telem l)) /\
                      eac_valid_prop (hprefix l)))
           (ensures (eac_valid_prop l))
-  = appfn_call_seq_unchanged l;
+  = appfn_call_snoc l;
     let fs = appfn_call_seq l in
     let app_state = post_state fs in
     let aux (k: app_key app.adm)
@@ -540,7 +552,7 @@ let eac_valid_helper_app (#app: app_params) (l: eac_log app)
     let fc = to_fncall ee in
     let fs = appfn_call_seq l in
     let fs' = appfn_call_seq l' in
-    appfn_call_seq_append l;
+    appfn_call_snoc l;
     assert(fs == append1 fs' fc);
 
     (* since l is eac, every function call within l is "correct" - does not return failure *)
@@ -626,6 +638,23 @@ let rec eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le
       else ()
     )
 
-let eac_init_implies_no_keyrefs (#app:_) (bk: base_key) (le: eac_log app {eac_state_of_key bk le = EACInit})
-  : Lemma (ensures (not (has_some_ref_to_key bk le)))
-  = admit()
+#push-options "--z3rlimit_factor 3"
+
+let rec eac_init_implies_no_keyrefs (#app:_) (bk: base_key) (le: eac_log app)
+  : Lemma (ensures (eac_state_of_key bk le = EACInit ==>  ~ (has_some_ref_to_key bk le)))
+          (decreases (length le))
+  = if length le > 0 && eac_state_of_key bk le = EACInit then (
+      let i = length le - 1 in
+      let le' = prefix le i in
+      eac_init_implies_no_keyrefs bk le';
+      eac_state_transition bk le;
+      assert(not (to_vlog_entry (index le i) `refs_key` bk));
+      let aux(j:seq_index le)
+        : Lemma (ensures (not (to_vlog_entry (index le j) `refs_key` bk)))
+        = if j < i then
+            eliminate forall i. not (to_vlog_entry (index le' i) `refs_key` bk) with j
+      in
+      FStar.Classical.forall_intro aux
+    )
+
+#pop-options

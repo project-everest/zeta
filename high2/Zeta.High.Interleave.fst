@@ -248,10 +248,6 @@ let lemma_eac_implies_prefix_eac (#app #n:_) (il: verifiable_log app n) (i: nat{
   : Lemma (ensures (is_eac il ==> is_eac (prefix il i)))
   = ()
 
-let lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
-  : Lemma (ensures (let gl = to_glog il in
-                    Zeta.AppSimulate.seq_consistent (G.appfn_calls gl)))
-  = admit()
 
 let eac_implies_eac_state_valid (#app #n:_) (k: base_key)
   (il: verifiable_log app n)
@@ -311,6 +307,8 @@ let eac_state_active_implies_prev_add2 (#app #n:_) (k: base_key) (il: eac_log ap
           [SMTPat (eac_state_of_key k il)]
   = eac_state_active_implies_prev_add k il
 
+#push-options "--z3rlimit_factor 3"
+
 let rec eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_log app n)
   : Lemma (ensures (eac_state_of_key k il = EACInit ==> ~ (has_some_ref_to_key k il)))
           (decreases (length il))
@@ -335,6 +333,8 @@ let rec eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_lo
         forall_intro aux
       )
     )
+
+#pop-options
 
 open Zeta.BinTree
 
@@ -1186,3 +1186,8 @@ let eac_fail_key (#app #n:_) (il: neac_log app n)
     eac_state_transition k il i;
     lemma_cur_thread_state_extend il i;
     k
+
+let lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
+  : Lemma (ensures (let gl = to_glog il in
+                    Zeta.AppSimulate.seq_consistent (G.appfn_calls gl)))
+  = admit()
