@@ -66,6 +66,8 @@ let not_refs_implies_store_containment_unchanged  (#app #n:_) (ki:base_key) (ti:
 
 #pop-options
 
+#push-options "--z3rlimit_factor 3"
+
 let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
   : Lemma (ensures (let e = index il i in
@@ -74,7 +76,8 @@ let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti <
                     not (e `refs_key` ki) ==>
                     store_contains st_pre ki ==>
                     store_contains st_post ki /\
-                    stored_key st_pre ki = stored_key st_post ki))
+                    stored_key st_pre ki = stored_key st_post ki /\
+                    add_method_of st_pre ki = add_method_of st_post ki))
   = let e = index il i in
     let t = src il i in
     let st_pre = thread_store_pre ti il i in
@@ -85,22 +88,36 @@ let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti <
     if t <> ti then lemma_non_cur_thread_state_extend ti il i
     else
       match e with
-      | RunApp _ _ _ -> runapp_doesnot_change_slot_key e vs_pre ki
+      | RunApp _ _ _ -> runapp_doesnot_change_slot_key e vs_pre ki;
+                        admit()
       | _ -> ()
 
-let runapp_doesnot_change_store_keys (#app #n:_) (k:base_key)
+#pop-options
+
+let runapp_doesnot_change_store_keys_extended (#app #n:_) (k:base_key)
   (il: verifiable_log app n) (i: seq_index il {is_appfn il i})
   : Lemma (ensures (let t = I.src il i in
                     let st_pre = thread_store_pre t il i in
                     let st_post = thread_store_post t il i in
                     store_contains st_post k = store_contains st_pre k /\
-                    (store_contains st_pre k ==> stored_key st_pre k = stored_key st_post k)))
+                    (store_contains st_pre k ==>
+                    (stored_key st_pre k = stored_key st_post k /\
+                     add_method_of st_pre k = add_method_of st_post k))))
   = let e = index il i in
     let t = src il i in
     let vs_pre = thread_state_pre t il i in
     lemma_cur_thread_state_extend il i;
     runapp_doesnot_change_slot_emptiness e vs_pre k;
-    runapp_doesnot_change_slot_key e vs_pre k
+    runapp_doesnot_change_slot_key e vs_pre k;
+    admit()
+
+let runapp_doesnot_change_store_keys (#app #n:_) (k:base_key)
+  (il: verifiable_log app n) (i: seq_index il {is_appfn il i})
+  : Lemma (ensures (let t = src il i in
+                    let st_pre = thread_store_pre t il i in
+                    let st_post = thread_store_post t il i in
+                    store_contains st_post k = store_contains st_pre k))
+  = runapp_doesnot_change_store_keys_extended k il i
 
 let blum_evict_elem_props
   (#app #n:_)
@@ -997,6 +1014,8 @@ let em_is_sm_init
   : Lemma (ensures (em_is_sm_prop il k))
   = eac_state_empty k il
 
+#push-options "--z3rlimit_factor 3"
+
 let em_is_sm_snoc_add
   (#app #n:_)
   (il: eac_log app n{length il > 0})
@@ -1007,7 +1026,17 @@ let em_is_sm_snoc_add
                      is_add e /\ add_slot e = ki /\
                      em_is_sm_prop il' ki))
           (ensures (em_is_sm_prop il ki))
-  = admit()
+  = let i = length il - 1 in
+    let t = src il i in
+    let e = index il i in
+    let es = eac_state_of_key ki il in
+
+    eac_state_snoc ki il;
+    lemma_cur_thread_state_extend il i;
+    SA.lemma_fullprefix_equal il;
+    key_in_unique_store ki il t (stored_tid ki il)
+
+#pop-options
 
 let em_is_sm_snoc_evict
   (#app #n:_)
@@ -1019,7 +1048,9 @@ let em_is_sm_snoc_evict
                      is_evict e /\ evict_slot e = ki /\
                      em_is_sm_prop il' ki))
           (ensures (em_is_sm_prop il ki))
-  = admit()
+  = eac_state_snoc ki il
+
+#push-options "--z3rlimit_factor 3"
 
 let em_is_sm_snoc_appfn
   (#app #n:_)
@@ -1031,7 +1062,34 @@ let em_is_sm_snoc_appfn
                      RunApp? e /\ e `refs_key` ki /\
                      em_is_sm_prop il' ki))
           (ensures (em_is_sm_prop il ki))
-  = admit()
+  = let i = length il - 1 in
+    let t = src il i in
+    let e = index il i in
+    let RunApp f p ss = e in
+    let vs_pre = thread_state_pre t il i in
+    let vs_post = thread_state_post t il i in
+    let il' = prefix il i in
+
+    eac_state_snoc ki il;
+    lemma_cur_thread_state_extend il i;
+    SA.lemma_fullprefix_equal il;
+    runapp_implies_slot_contains e vs_pre ki;
+    assert(store_contains vs_pre.st ki);
+    runapp_doesnot_change_store_keys_extended ki il i;
+    assert(add_method_of vs_pre.st ki = add_method_of vs_post.st ki);
+    assert(store_contains vs_post.st ki);
+    let st = thread_store t il in
+    assert(st == vs_post.st);
+
+    key_in_unique_store ki il' t (stored_tid ki il');
+    assert(t = stored_tid ki il');
+
+    key_in_unique_store ki il t (stored_tid ki il);
+    assert(t = stored_tid ki il);
+
+    ()
+
+#pop-options
 
 let em_is_sm_snoc_nonrefs
   (#app #n:_)
@@ -1043,7 +1101,26 @@ let em_is_sm_snoc_nonrefs
                      not (e `refs_key` ki) /\
                      em_is_sm_prop il' ki))
           (ensures (em_is_sm_prop il ki))
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let is' = i_seq il' in
+    let e = index il i in
+    let es = eac_state_of_key ki il in
+    let es' = eac_state_of_key ki il' in
+    eac_state_of_root_init il';
+
+    if EACInStore? es then (
+      eac_state_snoc ki il;
+      lemma_cur_thread_state_extend il i;
+      SA.lemma_fullprefix_equal il;
+
+      assert(es = es');
+      assert(stored_tid ki il' = src il' (last_idx (HV.is_add_of_key ki) (i_seq il')));
+      last_idx_snoc (HV.is_add_of_key ki) (i_seq il);
+      assert(stored_tid ki il = stored_tid ki il');
+      let t = stored_tid ki il in
+      not_refs_implies_store_key_unchanged ki t il i
+    )
 
 let em_is_sm_snoc
   (#app #n:_)
@@ -1053,7 +1130,18 @@ let em_is_sm_snoc
                      let il' = prefix il i in
                      em_is_sm_prop il' ki))
           (ensures (em_is_sm_prop il ki))
-  = admit()
+  = let i = length il - 1 in
+    let e = index il i in
+    if e `refs_key` ki then (
+      match e with
+      | AddB _ _ _ _
+      | AddM _ _ _ -> em_is_sm_snoc_add il ki
+      | EvictBM _ _ _
+      | EvictB _ _
+      | EvictM _ _ -> em_is_sm_snoc_evict il ki
+      | RunApp _ _ _ -> em_is_sm_snoc_appfn il ki
+    )
+    else em_is_sm_snoc_nonrefs il ki
 
 let rec em_is_sm
   (#app #n:_)
