@@ -1171,7 +1171,8 @@ let init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (b
 let eac_boundary (#app #n:_) (il: neac_log app n)
   : (i: seq_index il{is_eac (prefix il i) /\
                      ~ (is_eac (prefix il (i+1)))})
-  = admit()
+  = let le = vlog_ext_of_il_log il in
+    max_eac_prefix le
 
 let eac_fail_key (#app #n:_) (il: neac_log app n)
   : k:base_key {let i = eac_boundary il in
@@ -1179,4 +1180,9 @@ let eac_fail_key (#app #n:_) (il: neac_log app n)
                 eac_state_of_key_post k il i = EACFail /\
                 eac_state_of_key_pre k il i <> EACFail /\
                 e `refs_key` k}
-  = admit()
+  = let le = vlog_ext_of_il_log il in
+    let i = eac_boundary il in
+    let k = EAC.eac_fail_key le in
+    eac_state_transition k il i;
+    lemma_cur_thread_state_extend il i;
+    k
