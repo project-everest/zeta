@@ -900,6 +900,43 @@ let ev_is_sv_snoc_evict
   = let ki = to_base_key gk in
     eac_state_snoc ki il
 
+#push-options "--z3rlimit_factor 3"
+
+let ev_is_sv_snoc_appfn
+  (#app #n:_)
+  (il: eac_log app n {length il > 0})
+  (gk: key app {AppK? gk})
+  : Lemma (requires (let i = length il - 1 in
+                     let e = index il i in
+                     let k = to_base_key gk in
+                     RunApp? e /\ e `refs_key` k /\
+                     ev_is_sv_prop (prefix il i) gk))
+          (ensures (ev_is_sv_prop il gk))
+  = let i = length il - 1 in
+    let t = src il i in
+    let ki = to_base_key gk in
+    let e = index il i in
+    let RunApp f p ss = e in
+
+    eac_state_snoc ki il;
+    lemma_cur_thread_state_extend il i;
+    SA.lemma_fullprefix_equal il;
+
+    let idx = index_mem ki ss in
+    let fn = appfn f in
+    let vs' = thread_state_pre t il i in
+    let vs = thread_state_post t il i in
+
+    let rs = get_record_set_succ ss vs' in
+    let _,_,ws = fn p rs in
+    update_record_set_valid ss vs' ws idx;
+    assert(HV.stored_value vs.st ki = AppV (S.index ws idx));
+
+
+    key_in_unique_store ki il t (stored_tid ki il)
+
+#pop-options
+
 let ev_is_sv_snoc
   (#app #n:_)
   (il: eac_log app n {length il > 0})
@@ -907,7 +944,19 @@ let ev_is_sv_snoc
   : Lemma (requires (let i = length il - 1 in
                      ev_is_sv_prop (prefix il i) gk))
           (ensures (ev_is_sv_prop il gk))
-  = admit()
+  = let i = length il - 1 in
+    let ki = to_base_key gk in
+    let e = index il i in
+    if e `refs_key` ki then (
+      match e with
+      | AddB _ _ _ _
+      | AddM _ _ _ -> ev_is_sv_snoc_add il gk
+      | EvictBM _ _ _
+      | EvictB _ _
+      | EvictM _ _ -> ev_is_sv_snoc_evict il gk
+      | RunApp _ _ _ -> ev_is_sv_snoc_appfn il gk
+    )
+    else ev_is_sv_snoc_nonrefs il gk
 
 let rec ev_is_sv
   (#app #n:_)
@@ -923,59 +972,14 @@ let rec ev_is_sv
       ev_is_sv_snoc il gk
     )
 
-#push-options "--z3rlimit_factor 3"
-
-let eac_app_state_value_is_stored_value_non_refs_snoc
-  (#app #n:_)
-  (il: eac_log app n {length il > 0})
-  (gk: key app)
+let eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app)
   : Lemma (requires (let bk = to_base_key gk in
                      let es = eac_state_of_genkey gk il in
                      AppK? gk /\ EACInStore? es))
           (ensures (let bk = to_base_key gk in
                     let EACInStore _ gk' v = eac_state_of_key bk il in
                     stored_value gk il = v))
-  = admit()
-
-
-let rec eac_app_state_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app)
-  : Lemma (requires (let bk = to_base_key gk in
-                     let es = eac_state_of_genkey gk il in
-                     AppK? gk /\ EACInStore? es))
-          (ensures (let bk = to_base_key gk in
-                    let EACInStore _ gk' v = eac_state_of_key bk il in
-                    stored_value gk il = v))
-          (decreases (length il))
-  = let ki = to_base_key gk in
-    if length il = 0 then
-      eac_state_empty ki il
-    else (
-      let i = length il - 1 in
-      let il' = prefix il i in
-      let e = index il i in
-      let es = eac_state_of_key ki il in
-      let es' = eac_state_of_key ki il' in
-      eac_state_snoc ki il;
-      lemma_cur_thread_state_extend il i;
-      SA.lemma_fullprefix_equal il;
-
-      if e `refs_key` ki then (
-        admit()
-      )
-      else (
-        assert(es = es');
-        app_key_not_ancestor gk il i;
-        assert(not (e `exp_refs_key` ki));
-        eac_app_state_value_is_stored_value il' gk;
-        assert(stored_tid ki il' = src il' (last_idx (HV.is_add_of_key ki) (i_seq il')));
-        last_idx_snoc (HV.is_add_of_key ki) (i_seq il);
-        assert(stored_tid ki il = stored_tid ki il');
-        let t = stored_tid ki il in
-        not_refs_implies_store_unchanged ki t il i
-      )
-    )
-
-#pop-options
+  = ev_is_sv il gk
 
 let eac_add_method_is_stored_addm (#app #n:_) (il: eac_log app n) (bk: base_key)
   : Lemma (requires (EACInStore? (eac_state_of_key bk il)))
