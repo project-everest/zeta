@@ -56,10 +56,10 @@ let is_appfn (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
   = let ti = i2s_map il i in
     G.is_appfn (to_glog il) ti
 
-let to_appfn_call_res (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il{is_appfn il i})
+let to_app_fcr (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il{is_appfn il i})
   : appfn_call_res vspec.app
   = let ti = i2s_map il i in
-    G.to_appfn_call_res (to_glog il) ti
+    G.to_app_fcr (to_glog il) ti
 
 let thread_state (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n}) (il: verifiable_log vspec n)
   = let gl = to_glog il in
@@ -148,9 +148,9 @@ val blum_evict_elem_prefix_prop
   : Lemma (ensures (blum_evict_elem il i = blum_evict_elem (prefix il j) i))
           [SMTPat (blum_evict_elem (prefix il j) i)]
 
-val appfn_calls_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
+val app_fcrs_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
 
-let appfn_calls (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
+let app_fcrs (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : seq (Zeta.AppSimulate.appfn_call_res vspec.app)
-  = i_seq (appfn_calls_il il)
+  = i_seq (app_fcrs_il il)

@@ -35,10 +35,6 @@ type appfn_call_res (aprm: app_params) = {
   res_cr: appfn_res fid_cr;
 }
 
-(* drop the result from a function call result *)
-let to_appfn_call #aprm (r: appfn_call_res aprm) =
-  {fid_c = r.fid_cr; arg_c = r.arg_cr; inp_c = r.inp_cr }
-
 (* the (full) application state  *)
 let app_state (adm: app_data_model) = (k: app_key adm) -> app_value_nullable adm
 
@@ -123,9 +119,18 @@ let rec simulate #aprm (fs: S.seq (appfn_call aprm)):
         Some (st, rs)
       )
 
+(* drop the result from a function call result *)
+let to_app_fc #aprm (rs: S.seq (appfn_call_res aprm)) (i: SA.seq_index rs)
+  = let r = S.index rs i in
+  {fid_c = r.fid_cr; arg_c = r.arg_cr; inp_c = r.inp_cr }
+
+let app_fcs #app (rs: S.seq (appfn_call_res app))
+  : S.seq (appfn_call app)
+  = S.init (S.length rs) (to_app_fc rs)
+
 (* a function-call-result sequence is valid if we get the result when run simulation on the call parameters *)
 let valid_call_result #aprm (rs: S.seq (appfn_call_res aprm)) =
-  let fs = SA.map to_appfn_call rs in
+  let fs = app_fcs rs in
   Some? (simulate fs) /\
     (let Some (_,rs2) = simulate fs in
      rs2 = rs)

@@ -270,7 +270,7 @@ let rec eac_state_of_root_init (#app #n:_) (il: eac_log app n)
 
 open Zeta.SeqIdx
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--z3rlimit_factor 4"
 
 let rec eac_state_active_implies_prev_add (#app #n:_) (k: base_key) (il: eac_log app n)
   : Lemma (ensures (is_eac_state_active k il <==> has_some_add_of_key k il))
@@ -420,6 +420,10 @@ let eac_storage_prop_snoc_appfn
           lemma_non_cur_thread_state_extend t' il i
     in
     forall_intro aux
+
+#pop-options
+
+#push-options "--z3rlimit_factor 5"
 
 let eac_storage_prop_snoc_evict
   (#app #n:_)
@@ -1091,6 +1095,8 @@ let em_is_sm_snoc_appfn
 
 #pop-options
 
+#push-options "--z3rlimit_factor 3"
+
 let em_is_sm_snoc_nonrefs
   (#app #n:_)
   (il: eac_log app n{length il > 0})
@@ -1121,6 +1127,8 @@ let em_is_sm_snoc_nonrefs
       let t = stored_tid ki il in
       not_refs_implies_store_key_unchanged ki t il i
     )
+
+#pop-options
 
 let em_is_sm_snoc
   (#app #n:_)
@@ -1189,5 +1197,5 @@ let eac_fail_key (#app #n:_) (il: neac_log app n)
 
 let lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (let gl = to_glog il in
-                    Zeta.AppSimulate.seq_consistent (G.appfn_calls gl)))
+                    Zeta.AppSimulate.seq_consistent (G.app_fcrs gl)))
   = admit()

@@ -124,9 +124,9 @@ let prefix_within_epoch_correct (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n
                     (i >= l' ==> (clock itsl i).e > ep)))
   = admit()
 
-let lemma_appfn_calls_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
+let lemma_fcrs_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
   : Lemma (ensures (let itsl_ep = prefix_within_epoch ep itsl in
                     let gl_ep = to_glog itsl_ep in
                     let gl = to_glog itsl in
-                    G.appfn_calls gl_ep = G.appfn_calls_within_ep ep gl))
+                    G.app_fcrs gl_ep = G.app_fcrs_within_ep ep gl))
   = admit()

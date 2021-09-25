@@ -52,7 +52,7 @@ let blum_evict_elem_prefix_prop
   : Lemma (ensures (blum_evict_elem il i = blum_evict_elem (prefix il j) i))
   = admit()
 
-let appfn_calls_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
+let app_fcrs_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
   = admit()
 

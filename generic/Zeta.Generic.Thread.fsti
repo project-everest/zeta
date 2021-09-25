@@ -134,8 +134,13 @@ let is_appfn_within_epoch #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_
   = is_appfn tl i && is_within_epoch ep tl i
 
 (* for an appfn entry, return the function call params and result *)
-val to_appfn_call_res (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
+let to_app_fcr (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
   : appfn_call_res vspec.app
+  = let e = index tl i in
+    let st' = state_pre tl i in
+    let st = state_post tl i in
+    assert(vspec.valid st);
+    GV.appfn_result e st'
 
 val lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
   : Lemma (ensures (let be = blum_add_elem tl i in

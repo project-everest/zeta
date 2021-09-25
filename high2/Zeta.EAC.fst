@@ -626,16 +626,11 @@ let rec eac_instore_implies_equiv_some_add (#app: app_params) (bk: base_key) (le
     if n = 0 then
       empty_log_implies_init_state bk le
     else (
+      let open Zeta.SeqIdx in
       let le' = prefix le (n - 1) in
-      let ee = index le (n - 1) in
-      let e = to_vlog_entry ee in
-      let open Zeta.SeqAux in
       eac_instore_implies_equiv_some_add bk le';
-      if App? ee || not (e `refs_key` bk) then
-        lemma_last_index_opt_last_elem_nsat (is_add_of_key bk) le
-      else if is_add_of_key bk ee then
-        lemma_last_index_last_elem_sat (is_add_of_key bk) le
-      else ()
+      eac_state_transition bk le;
+      last_idx_snoc (is_add_of_key bk) le
     )
 
 #push-options "--z3rlimit_factor 3"

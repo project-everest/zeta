@@ -65,14 +65,6 @@ let blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_bl
     let tid = fst tl in
     MHDom r t tid
 
-let to_appfn_call_res (#vspec:_)
-    (tl: verifiable_log vspec) (i: seq_index tl {is_appfn tl i})
-  = let e = index tl i in
-    let st' = state_pre tl i in
-    let st = state_post tl i in
-    assert(vspec.valid st);
-    GV.appfn_result e st'
-
 let lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
   : Lemma (ensures (let be = blum_add_elem tl i in
                     be.t `ts_lt` clock tl i))

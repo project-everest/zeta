@@ -58,11 +58,11 @@ let is_appfn (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl)
 
 open Zeta.AppSimulate
 
-let to_appfn_call_res (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl{is_appfn gl i})
+let to_app_fcr (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl{is_appfn gl i})
   : appfn_call_res vspec.app
   = let t,j = i in
     let tl = index gl t in
-    T.to_appfn_call_res tl j
+    T.to_app_fcr tl j
 
 let is_blum_add (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl)
   : bool
@@ -127,11 +127,11 @@ let ms_verifiable_log #vspec (ep: epoch)
   = gl:verifiable_log vspec{aems_equal_upto ep gl}
 
 (* filter-mapped sequence of sequence app-function-call results *)
-val appfn_calls
+val app_fcrs
   (#vspec: verifier_spec)
   (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
 
-val appfn_calls_within_ep
+val app_fcrs_within_ep
   (#vspec: verifier_spec)
   (ep: epoch)
   (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
