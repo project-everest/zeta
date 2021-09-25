@@ -25,6 +25,7 @@ module SA = Zeta.SeqAux
 module EAC=Zeta.EAC
 module MSD = Zeta.MultiSetHashDomain
 
+let eac_value_snoc (#app #n:_) = Zeta.High.Merkle.eac_value_snoc_appkey #app #n
 
 (* TODO: Move to Generic.Interleave *)
 let lemma_appfn_calls_interleave (#app #n:_) (il: verifiable_log app n)
@@ -82,15 +83,101 @@ let empty_call_result_valid (#app) (rs: seq (appfn_call_res app))
 let eac_app_prop_empty (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (length il = 0 ==> eac_app_prop il))
   = if length il = 0 then (
+      let fcrs = app_fcrs il in
+      let fcs = app_fcs fcrs in
+
+      (* app call sequence is empty *)
       app_fcrs_empty il;
+      assert(S.length fcs = 0);
+
+      (* an empty call sequence is valid *)
       empty_call_result_valid (app_fcrs il);
 
-      let aux (ak:key app)
-        : Lemma (ensures (True))
-        = admit()
+      (* the app state per the simulator - the initial state where everything is null *)
+      let sta = post_state fcs in
+
+      (* the eac state of the keys *)
+      let ste = eac_app_state il in
+
+      let aux (ak:app_key app.adm)
+        : Lemma (ensures (ste ak = sta ak))
+        = lemma_init_value_null fcs ak;
+          let bk = to_base_key (AppK ak) in
+          eac_state_empty bk il;
+          eac_value_init (AppK ak) il
       in
-      admit()
+      FStar.Classical.forall_intro aux;
+      assert(app_state_feq ste sta)
     )
+
+let app_refs_is_log_entry_refs
+  (#app #n:_)
+  (il: eac_log app n)
+  (i: seq_index il)
+  (ak: app_key app.adm)
+  : Lemma (requires (RunApp? (index il i)))
+          (ensures (let gk = AppK ak in
+                    let bk = to_base_key gk in
+                    let fc = to_fc il i in
+                    let e = index il i in
+                    let RunApp _ _ ss = e in
+                    fc `refs` ak ==>
+                    e `refs_key` bk /\ index_mem bk ss = refkey_idx fc ak))
+  = let RunApp _ _ refkeys = index il i in
+
+    let fc = to_fc il i in
+    if fc `refs_comp` ak then
+      (* the param index of ak *)
+      let idx = refkey_idx fc ak in
+
+      (* the key at location idx - we don't bk' = bk yet *)
+      let bk' = S.index refkeys idx in
+
+      (* relate the eac states before and after i for key bk' - the solver figures out the rest ... *)
+      eac_state_transition bk' il i
+
+let log_entry_refs_is_app_refs
+  (#app #n:_)
+  (il: eac_log app n)
+  (i: seq_index il)
+  (ak: app_key app.adm)
+  : Lemma (requires (RunApp? (index il i)))
+          (ensures (let gk = AppK ak in
+                    let bk = to_base_key gk in
+                    let fc = to_fc il i in
+                    let e = index il i in
+                    let il' = prefix il i in
+                    let il'' = prefix il (i+1) in
+                    let RunApp _ _ ss = e in
+                    e `refs_key` bk ==>
+                    ~ (fc `refs` ak) ==>
+                    eac_state_of_genkey gk il' = EACInit /\
+                    eac_state_of_genkey gk il'' = EACInit))
+  = let gk = AppK ak in
+    let bk = to_base_key gk in
+    let e = index il i in
+    let RunApp _ _ refkeys = e in
+    let fc = to_fc il i in
+    eac_state_transition bk il i;
+
+    if e `refs_key` bk && not (fc `refs_comp` ak) then
+      let idx = index_mem bk refkeys in
+      let ak',av' = S.index fc.inp_c idx in
+      let es' = eac_state_of_key_pre bk il i in
+      match es' with
+      | EACInStore _ gk' _ ->
+        assert(AppK ak' = gk');
+        if ak' = ak then refs_witness fc ak idx
+
+let eac_app_state_key_snoc_refs_key
+  (#app #n:_)
+  (il: eac_log app n {length il > 0}) (ak: app_key app.adm)
+  : Lemma (requires (let i = length il - 1 in
+                     RunApp? (index il i) /\
+                     to_fc il i `refs` ak))
+          (ensures (let i = length il - 1 in
+                    eac_app_state il ak = write (to_fc il i) ak))
+  = admit()
 
 let eac_app_state_key_snoc (#app #n:_) (il: eac_log app n {length il > 0}) (ak: app_key app.adm)
   : Lemma (ensures (let i = length il - 1 in
@@ -104,7 +191,28 @@ let eac_app_state_key_snoc (#app #n:_) (il: eac_log app n {length il > 0}) (ak: 
                       else
                         eac_app_state il ak = eac_app_state il' ak
                     | _ -> eac_app_state il ak = eac_app_state il' ak))
-  = admit()
+  = let i = length il - 1 in
+    let e = index il i in
+    let ee = mk_vlog_entry_ext il i in
+    let il' = prefix il i in
+    let gk = AppK ak in
+    let bk = to_base_key gk in
+    eac_value_snoc gk il;
+    eac_state_snoc bk il;
+    SA.lemma_fullprefix_equal il;
+
+    match e with
+    | RunApp f p ss ->
+      app_refs_is_log_entry_refs il i ak;
+      log_entry_refs_is_app_refs il i ak;
+      let fc = to_fc il i in
+      if fc `refs_comp` ak then
+        eac_app_state_key_snoc_refs_key il ak
+      else if e `refs_key` bk then (
+        eac_value_init_state_is_init il gk;
+        eac_value_init_state_is_init il' gk
+      )
+    | _ -> ()
 
 let eac_app_state_nonapp_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in

@@ -110,3 +110,17 @@ val lemma_store_contains_proving_ancestor (#app #n:_) (il: eac_log app n) (tid:n
                   let st = thread_store tid il in
                   store_contains st k ==> store_contains st pk))
 
+val eac_value_snoc_appkey
+  (#app #n:_)
+  (gkf: key app {AppK? gkf})
+  (il: eac_log app n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let e = index il i in
+                    let bkf = to_base_key gkf in
+                    match e with
+                    | RunApp _ _ _ -> if e `refs_key` bkf then
+                                        True
+                                      else
+                                       eac_value gkf il = eac_value gkf il'
+                    | _ -> eac_value gkf il = eac_value gkf il'))

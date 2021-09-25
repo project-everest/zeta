@@ -1509,7 +1509,8 @@ let eac_value_newedge_snoc
                       let v' = update_value v' c k Zeta.Hash.zero false in
                       eac_value gki il = IntV v'
                     else if k = ki then
-                      eac_value gki il = init_value gki
+                      eac_value gki il = init_value gki /\
+                      eac_value gki il = eac_value gki il'
                     else
                       eac_value gki il = eac_value gki il'))
   = let i = length il - 1 in
@@ -1536,12 +1537,11 @@ let eac_value_newedge_snoc
     if ki = k then (
       match es' with
       | EACInit ->
+        eac_value_init_state_is_init il' gki;
         if gki = gka then
           eac_value_is_stored_value il gki t
-        else (
-          eac_value_init_state_is_init il gki;
-          eac_value_init_state_is_init il' gki
-        )
+        else
+          eac_value_init_state_is_init il gki
       | EACEvictedMerkle _ _ ->
         lemma_reachable_between pf' k k'
     )
@@ -1641,7 +1641,8 @@ let eac_value_snoc
                                      let v' = update_value v' c k Zeta.Hash.zero false in
                                      eac_value gkf il = IntV v'
                                    else if k = bkf then
-                                     eac_value gkf il = init_value gkf
+                                     eac_value gkf il = init_value gkf /\
+                                     eac_value gkf il = eac_value gkf il'
                                    else
                                      eac_value gkf il = eac_value gkf il'
                       | CutEdge -> if k = bkf then
@@ -2689,3 +2690,18 @@ let lemma_store_contains_proving_ancestor (#app #n:_) (il: eac_log app n) (tid:n
                   store_contains st k ==> store_contains st pk))
   = lemma_store_contains_proving_ancestor_aux il k tid
 
+let eac_value_snoc_appkey
+  (#app #n:_)
+  (gkf: key app {AppK? gkf})
+  (il: eac_log app n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let e = index il i in
+                    let bkf = to_base_key gkf in
+                    match e with
+                    | RunApp _ _ _ -> if e `refs_key` bkf then
+                                        True
+                                      else
+                                       eac_value gkf il = eac_value gkf il'
+                    | _ -> eac_value gkf il = eac_value gkf il'))
+  = eac_value_snoc gkf il
