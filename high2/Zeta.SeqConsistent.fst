@@ -177,7 +177,13 @@ let eac_app_state_key_snoc_refs_key
                      to_fc il i `refs` ak))
           (ensures (let i = length il - 1 in
                     eac_app_state il ak = write (to_fc il i) ak))
-  = admit()
+  = let i = length il - 1 in
+    let gk = AppK ak in
+    let bk = to_base_key gk in
+    eac_state_snoc bk il;
+    app_refs_is_log_entry_refs il i ak;
+    eac_app_state_value_is_stored_value il gk;
+    eac_value_is_stored_value il gk (stored_tid bk il)
 
 let eac_app_state_key_snoc (#app #n:_) (il: eac_log app n {length il > 0}) (ak: app_key app.adm)
   : Lemma (ensures (let i = length il - 1 in
