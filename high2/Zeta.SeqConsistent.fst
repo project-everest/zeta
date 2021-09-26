@@ -294,6 +294,30 @@ let eac_implies_input_consistent
   in
   FStar.Classical.forall_intro aux
 
+(* TODO migrate to appsimulate.helper *)
+let app_fcs_empty (#app:_) (fcrs: S.seq (appfn_call_res app))
+  : Lemma (ensures (S.length fcrs = 0 ==> S.length (app_fcs fcrs) = 0))
+   = ()
+
+(* TODO migrate to appsimulate.helper *)
+let app_fcs_snoc (#app:_) (fcrs: S.seq (appfn_call_res app) {S.length fcrs > 0})
+  : Lemma (ensures (let i = S.length fcrs - 1 in
+                    let fcrs' = SA.prefix fcrs i in
+                    let fc = to_app_fc fcrs i in
+                    app_fcs fcrs = SA.append1 (app_fcs fcrs') fc))
+  = let i = S.length fcrs - 1 in
+    let fcrs' = SA.prefix fcrs i in
+    let fcs = app_fcs fcrs in
+    let fcs' = app_fcs fcrs' in
+    let fc = to_app_fc fcrs i in
+    let fcs2 = SA.append1 fcs' fc in
+    let aux (i:_)
+      : Lemma (ensures (S.index fcs i = S.index fcs2 i))
+      = ()
+    in
+    FStar.Classical.forall_intro aux;
+    assert(equal fcs fcs2)
+
 let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (requires (let i = length il - 1  in
                      let il' = prefix il i in
@@ -313,8 +337,8 @@ let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
 
     appfn_calls_snoc il;
     ext_app_records_is_stored_val il i;
-    assert(fcrs == SA.append1 fcrs' fcr);
-    assume(fcs = SA.append1 fcs' fc);
+    app_fcs_snoc fcrs;
+    SA.lemma_prefix1_append fcrs' fcr;
     SA.lemma_prefix1_append fcs' fc;
 
     let st' = post_state fcs' in
@@ -348,7 +372,9 @@ let eac_implies_app_prop_snoc (#app #n:_) (il: eac_log app n {length il > 0})
     eac_app_state_nonapp_snoc il;
 
     match e with
-    | RunApp f p ss -> admit()
+    | RunApp f p ss ->
+      eac_app_state_app_snoc il;
+      admit()
     | _ -> ()
 
 let rec eac_implies_app_prop (#app #n:_) (il: eac_log app n)
