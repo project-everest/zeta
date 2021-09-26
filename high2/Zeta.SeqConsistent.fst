@@ -56,6 +56,24 @@ let eac_app_state (#app #n:_) (il: eac_log app n) (ak: app_key app.adm)
   = let gk = AppK ak in
     AppV?.v (eac_value gk il)
 
+let eac_value_is_eac_state_value (#app #n:_) (il: eac_log app n) (ak: app_key app.adm)
+  : Lemma (ensures (let gk = AppK ak in
+                    let es = eac_state_of_genkey gk il in
+                    match es with
+                    | EACInStore _ _ gv -> eac_value gk il = gv
+                    | EACEvictedMerkle _ gv -> eac_value gk il = gv
+                    | EACEvictedBlum _ gv _ _ -> eac_value gk il = gv
+                    | EACInit -> eac_value gk il = init_value gk))
+  = let gk = AppK ak in
+    let bk = to_base_key gk in
+    let es = eac_state_of_genkey gk il in
+    match es with
+    | EACInit -> eac_value_init_state_is_init il gk
+    | EACInStore _ _ gv ->
+      eac_app_state_value_is_stored_value il gk;
+      eac_value_is_stored_value il gk (stored_tid bk il)
+    | _ -> eac_value_is_evicted_value il gk
+
 let to_fc (#app #n:_) (il: eac_log app n) (i: seq_index il {RunApp? (index il i)})
   : appfn_call app
   = let App (RunApp fid_c arg_c _) inp_c = mk_vlog_entry_ext il i in
@@ -236,6 +254,85 @@ let eac_app_state_nonapp_snoc (#app #n:_) (il: eac_log app n {length il > 0})
       FStar.Classical.forall_intro aux;
       assert(app_state_feq (eac_app_state il) (eac_app_state il'))
     )
+
+let eac_implies_input_consistent_key
+  (#app #n:_)
+  (il: eac_log app n)
+  (i: seq_index il)
+  (ak: app_key app.adm)
+  : Lemma (requires (RunApp? (index il i)))
+          (ensures (let il' = prefix il i in
+                    let fc = to_fc il i in
+                    let st = eac_app_state il' in
+                    fc `refs` ak ==>
+                    refkey_inp_val fc ak = st ak))
+  = let gk = AppK ak in
+    let bk = to_base_key gk in
+    let il' = prefix il i in
+    let fc = to_fc il i in
+    app_refs_is_log_entry_refs il i ak;
+    eac_state_transition bk il i;
+    if fc `refs_comp` ak then
+      eac_value_is_eac_state_value il' ak
+
+let eac_implies_input_consistent
+  (#app #n:_)
+  (il: eac_log app n)
+  (i: seq_index il)
+  : Lemma (requires (RunApp? (index il i)))
+          (ensures (let il' = prefix il i in
+                    let fc = to_fc il i in
+                    let st = eac_app_state il' in
+                    input_consistent fc st))
+  = let fc = to_fc il i in
+    let il' = prefix il i in
+    let st = eac_app_state il' in
+
+  let aux (ak: app_key app.adm)
+    : Lemma (ensures (fc `refs` ak ==> refkey_inp_val fc ak = st ak))
+    = eac_implies_input_consistent_key il i ak
+  in
+  FStar.Classical.forall_intro aux
+
+let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
+  : Lemma (requires (let i = length il - 1  in
+                     let il' = prefix il i in
+                     RunApp? (index il i) /\ eac_app_prop il'))
+          (ensures (let fcs = app_fcs (app_fcrs il) in
+                    valid fcs /\
+                    eac_app_state il == post_state fcs))
+  = let i = length il - 1 in
+    let fcr = to_app_fcr il i in
+    let il' = prefix il i in
+
+    let fcrs = app_fcrs il in
+    let fcs = app_fcs fcrs in
+    let fcrs' = app_fcrs il' in
+    let fcs' = app_fcs fcrs' in
+    let fc = to_fc il i in
+
+    appfn_calls_snoc il;
+    ext_app_records_is_stored_val il i;
+    assert(fcrs == SA.append1 fcrs' fcr);
+    assume(fcs = SA.append1 fcs' fc);
+    SA.lemma_prefix1_append fcs' fc;
+
+    let st' = post_state fcs' in
+    assert(st' == eac_app_state il');
+    eac_implies_input_consistent il i;
+    correct_succeeds_if_input_consistent fc st';
+    assert(valid fcs);
+
+    let sts = post_state fcs in
+    let ste = eac_app_state il in
+    let aux (ak: app_key app.adm)
+      : Lemma (ensures (sts ak = ste ak))
+      = app_refs_is_log_entry_refs il i ak;
+        lemma_post_state fc st' ak;
+        eac_app_state_key_snoc il ak
+    in
+    FStar.Classical.forall_intro aux;
+    assert(app_state_feq sts ste)
 
 let eac_implies_app_prop_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (requires (let i = length il - 1 in
