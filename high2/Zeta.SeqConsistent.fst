@@ -27,31 +27,6 @@ module MSD = Zeta.MultiSetHashDomain
 
 let eac_value_snoc (#app #n:_) = Zeta.High.Merkle.eac_value_snoc_appkey #app #n
 
-(* TODO: Move to Generic.Interleave *)
-let lemma_appfn_calls_interleave (#app #n:_) (il: verifiable_log app n)
-  : Lemma (ensures (let fcrs_il = app_fcrs_il il in
-                    let gl = to_glog il in
-                    s_seq fcrs_il = G.app_fcrs gl))
-          [SMTPat (app_fcrs_il il)]
-  = admit()
-
-(* TODO: Move to Generic.Interleave *)
-let app_fcrs_empty (#app #n:_) (il: verifiable_log app n)
-  : Lemma (ensures (length il = 0 ==> S.length (app_fcrs il) = 0))
-  = admit()
-
-(* TODO: Move to Generic.Interleave *)
-let appfn_calls_snoc (#app #n:_) (il: verifiable_log app n {length il > 0})
-  : Lemma (ensures (let i = length il - 1 in
-                    let e = index il i in
-                    let il' = prefix il i in
-                    let cr = app_fcrs il in
-                    let cr' = app_fcrs il' in
-                    match e with
-                    | RunApp _ _ _ -> cr == SA.append1 cr' (to_app_fcr il i)
-                    | _ -> cr == cr'))
-  = admit()
-
 let eac_app_state (#app #n:_) (il: eac_log app n) (ak: app_key app.adm)
   = let gk = AppK ak in
     AppV?.v (eac_value gk il)
@@ -92,11 +67,6 @@ let eac_app_prop (#app #n:_) (il: eac_log app n)
     valid_call_result fcrs /\
     (* the app state as recorded by eac values is the same as the simulation state *)
     post_state fcs == eac_app_state il
-
-(* TODO: Move to AppSimulate.Helper *)
-let empty_call_result_valid (#app) (rs: seq (appfn_call_res app))
-  : Lemma (ensures (S.length rs = 0 ==> valid_call_result rs))
-  = admit()
 
 let eac_app_prop_empty (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (length il = 0 ==> eac_app_prop il))
@@ -294,30 +264,6 @@ let eac_implies_input_consistent
   in
   FStar.Classical.forall_intro aux
 
-(* TODO migrate to appsimulate.helper *)
-let app_fcs_empty (#app:_) (fcrs: S.seq (appfn_call_res app))
-  : Lemma (ensures (S.length fcrs = 0 ==> S.length (app_fcs fcrs) = 0))
-   = ()
-
-(* TODO migrate to appsimulate.helper *)
-let app_fcs_snoc (#app:_) (fcrs: S.seq (appfn_call_res app) {S.length fcrs > 0})
-  : Lemma (ensures (let i = S.length fcrs - 1 in
-                    let fcrs' = SA.prefix fcrs i in
-                    let fc = to_app_fc fcrs i in
-                    app_fcs fcrs = SA.append1 (app_fcs fcrs') fc))
-  = let i = S.length fcrs - 1 in
-    let fcrs' = SA.prefix fcrs i in
-    let fcs = app_fcs fcrs in
-    let fcs' = app_fcs fcrs' in
-    let fc = to_app_fc fcrs i in
-    let fcs2 = SA.append1 fcs' fc in
-    let aux (i:_)
-      : Lemma (ensures (S.index fcs i = S.index fcs2 i))
-      = ()
-    in
-    FStar.Classical.forall_intro aux;
-    assert(equal fcs fcs2)
-
 let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (requires (let i = length il - 1  in
                      let il' = prefix il i in
@@ -358,6 +304,8 @@ let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
     FStar.Classical.forall_intro aux;
     assert(app_state_feq sts ste)
 
+#push-options "--z3rlimit_factor 3"
+
 let eac_implies_app_prop_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (requires (let i = length il - 1 in
                      let il' = prefix il i in
@@ -366,16 +314,29 @@ let eac_implies_app_prop_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   = let i = length il - 1 in
     let il' = prefix il i in
     let fcrs = app_fcrs il in
+    let fcs = app_fcs fcrs in
     let fcrs' = app_fcrs il' in
+    let fcs' = app_fcs fcrs' in
     let e = index il i in
     appfn_calls_snoc il;
     eac_app_state_nonapp_snoc il;
 
     match e with
     | RunApp f p ss ->
+      let fcr = to_app_fcr il i in
+      let fc = to_fc il i in
+      let st' = post_state fcs' in
       eac_app_state_app_snoc il;
-      admit()
+      appfn_calls_snoc il;
+      SA.lemma_prefix1_append fcrs' fcr;
+      SA.lemma_prefix1_append fcs' fc;
+      ext_app_records_is_stored_val il i;
+      valid_call_result_snoc fcrs;
+      eac_implies_input_consistent il i;
+      correct_succeeds_if_input_consistent fc st'
     | _ -> ()
+
+#pop-options
 
 let rec eac_implies_app_prop (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (eac_app_prop il))

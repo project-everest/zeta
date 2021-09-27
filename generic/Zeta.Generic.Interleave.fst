@@ -56,6 +56,26 @@ let app_fcrs_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
   = admit()
 
+let lemma_app_fcrs_interleave (#app #n:_) (il: verifiable_log app n)
+  : Lemma (ensures (let fcrs_il = app_fcrs_il il in
+                    let gl = to_glog il in
+                    s_seq fcrs_il = G.app_fcrs gl))
+  = admit()
+
+let app_fcrs_empty (#app #n:_) (il: verifiable_log app n)
+  : Lemma (ensures (length il = 0 ==> S.length (app_fcrs il) = 0))
+  = admit()
+
+let appfn_calls_snoc (#app #n:_) (il: verifiable_log app n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let e = index il i in
+                    let il' = prefix il i in
+                    let cr = app_fcrs il in
+                    let cr' = app_fcrs il' in
+                    match e with
+                    | RunApp _ _ _ -> cr == SA.append1 cr' (to_app_fcr il i)
+                    | _ -> cr == cr'))
+  = admit()
 (*
 let idxfn_base #vspec #n #b (tfn: T.idxfn_t vspec b)
   (il: verifiable_log vspec n) (i: seq_index il)
