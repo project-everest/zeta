@@ -13,7 +13,7 @@ let runapp_refs_only_leafkeys (#app #n:_) (il: verifiable_log app n) (i:_ {RunAp
       let idx = index_mem k ss in
       get_record_set_correct ss vs_pre idx
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--z3rlimit_factor 4"
 
 let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)

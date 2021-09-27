@@ -233,49 +233,6 @@ val is_eac_log (#app: app_params) (l:vlog_ext app): (r:bool{r <==> eac l})
 val eac_value (#app: app_params) (k: key app) (l: eac_log app)
   : value_t k
 
-let to_fncall (#app: app_params) (ee: vlog_entry_ext app {App? ee})
-  = let App (RunApp fid_c arg_c _) inp_c = ee in
-    {fid_c; arg_c; inp_c}
-
-val appfn_call_seq
-  (#app: app_params)
-  (le: vlog_ext app)
-  : seq (appfn_call app)
-
-val appfn_call_empty
-  (#app:_)
-  (le: vlog_ext app)
-  : Lemma (ensures (length le = 0 ==> length (appfn_call_seq le) = 0))
-          [SMTPat (appfn_call_seq le)]
-
-val appfn_call_snoc
-  (#app:_)
-  (le: vlog_ext app {length le > 0})
-  : Lemma (ensures (let open Zeta.SeqAux in
-                    let i = length le - 1 in
-                    let le' = prefix le i in
-                    let ee = index le i in
-                    let acs = appfn_call_seq le in
-                    let acs' = appfn_call_seq le' in
-                    if App? ee then
-                      acs == append1 acs' (to_fncall ee)
-                    else
-                      acs == acs'))
-
-let eac_app_state #app (l: eac_log app) (ak: app_key app.adm)
-  = let gk = AppK ak in
-    AppV?.v (eac_value gk l)
-
-val eac_implies_valid_simulation (#app: app_params) (l: eac_log app)
-  : Lemma (ensures (let fs = appfn_call_seq l in
-                    Some? (simulate fs)))
-          [SMTPat (eac l)]
-
-val eac_state_is_app_state (#app: app_params) (l: eac_log app)
-  : Lemma (ensures (let fs = appfn_call_seq l in
-                    let app_state,_ = Some?.v (simulate fs) in
-                    app_state == eac_app_state l))
-
 let eac_add_method (#app: app_params) (#k: base_key) (es: eac_state app k {EACInStore? es})
   = let EACInStore m _ _ = es in
     m
