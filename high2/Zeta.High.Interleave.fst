@@ -66,6 +66,7 @@ let not_refs_implies_store_containment_unchanged  (#app #n:_) (ki:base_key) (ti:
 
 #pop-options
 
+
 #push-options "--z3rlimit_factor 3"
 
 let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
@@ -89,7 +90,7 @@ let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti <
     else
       match e with
       | RunApp _ _ _ -> runapp_doesnot_change_slot_key e vs_pre ki;
-                        admit()
+                        runapp_doesnot_change_store_addmethod ki e vs_pre
       | _ -> ()
 
 #pop-options
@@ -109,7 +110,7 @@ let runapp_doesnot_change_store_keys_extended (#app #n:_) (k:base_key)
     lemma_cur_thread_state_extend il i;
     runapp_doesnot_change_slot_emptiness e vs_pre k;
     runapp_doesnot_change_slot_key e vs_pre k;
-    admit()
+    runapp_doesnot_change_store_addmethod k e vs_pre
 
 let runapp_doesnot_change_store_keys (#app #n:_) (k:base_key)
   (il: verifiable_log app n) (i: seq_index il {is_appfn il i})

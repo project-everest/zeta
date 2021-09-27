@@ -390,3 +390,14 @@ let exp_refs_key #app (e: vlog_entry app) (k: base_key)
     | NextEpoch -> false
     | VerifyEpoch -> false
     | RunApp _ _ ks -> mem k ks
+
+val runapp_doesnot_change_store_addmethod
+  (#app:_)
+  (ki: base_key)
+  (e: vlog_entry app {Zeta.GenericVerifier.RunApp? e})
+  (vs: vtls_t app)
+  : Lemma (ensures (let vs_post = Zeta.GenericVerifier.verify_step e vs in
+                    vs_post.valid ==>
+                    store_contains vs.st ki ==>
+                    store_contains vs_post.st ki /\
+                    add_method_of vs.st ki = add_method_of vs_post.st ki))
