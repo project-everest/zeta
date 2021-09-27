@@ -1194,8 +1194,3 @@ let eac_fail_key (#app #n:_) (il: neac_log app n)
     eac_state_transition k il i;
     lemma_cur_thread_state_extend il i;
     k
-
-let lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
-  : Lemma (ensures (let gl = to_glog il in
-                    Zeta.AppSimulate.seq_consistent (G.app_fcrs gl)))
-  = admit()

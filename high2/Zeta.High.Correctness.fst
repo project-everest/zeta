@@ -11,6 +11,7 @@ open Zeta.Generic.Blum
 open Zeta.High.Global
 open Zeta.High.Interleave
 open Zeta.High.TSLog
+open Zeta.High.SeqConsistent
 open Zeta.HashCollision
 
 module S = FStar.Seq

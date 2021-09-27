@@ -343,6 +343,3 @@ val eac_fail_key (#app #n:_) (il: neac_log app n)
                 eac_state_of_key_pre k il i <> EACFail /\
                 e `refs_key` k}
 
-val lemma_eac_implies_appfn_calls_seq_consistent (#app #n:_) (il: eac_log app n)
-  : Lemma (ensures (let gl = to_glog il in
-                    Zeta.AppSimulate.seq_consistent (G.app_fcrs gl)))
