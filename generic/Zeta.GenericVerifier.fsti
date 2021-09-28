@@ -260,7 +260,7 @@ let verifier_failure_propagating (#vspec: _) (e: verifier_log_entry vspec) (vtls
 
 (* clock is monotonic property *)
 let clock_monotonic_prop (vspec: verifier_spec_base) =
-  forall (e: verifier_log_entry vspec). forall (vtls: vspec.vtls_t).
+  forall (e: verifier_log_entry vspec) (vtls: vspec.vtls_t).
     {:pattern verify_step e vtls}
     let vtls_post = verify_step e vtls in
     vspec.valid vtls_post ==> (let clock_pre = vspec.clock vtls in
@@ -269,7 +269,7 @@ let clock_monotonic_prop (vspec: verifier_spec_base) =
 
 (* thread_id is constant *)
 let thread_id_constant_prop (vspec: verifier_spec_base) =
-  forall (e: verifier_log_entry vspec). forall (vtls: vspec.vtls_t).
+  forall (e: verifier_log_entry vspec) (vtls: vspec.vtls_t).
     {:pattern verify_step e vtls}
     let tid_pre = vspec.tid vtls in
     let tid_post = vspec.tid (verify_step e vtls) in
