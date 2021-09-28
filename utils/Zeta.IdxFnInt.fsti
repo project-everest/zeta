@@ -110,19 +110,18 @@ val fidx2idx_monotonic (#gs:_)
   : Lemma (ensures ((i1 < i2 ==> fidx2idx f s i1 < fidx2idx f s i2) /\
                     (i2 < i1 ==> fidx2idx f s i1 > fidx2idx f s i2)))
 
-val lemma_fextend_sat (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{gs.length s > 0})
-  : Lemma (requires (f s (gs.length s - 1)))
-          (ensures (let n = gs.length s in
-                    let s' = gs.prefix s (n-1) in
-                    flen f s = flen f s' + 1 /\
-                    idx2fidx f s (n - 1) = flen f s' /\
-                    fidx2idx f s (flen f s') = (n-1)))
+val lemma_fextend_snoc (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t {gs.length s > 0})
+  : Lemma (ensures (let i = gs.length s - 1 in
+                    let s' = gs.prefix s i in
+                    if f s i then
+                      flen f s = flen f s' + 1 /\
+                      idx2fidx f s i  = flen f s' /\
+                      fidx2idx f s (flen f s') = i
+                    else
+                      flen f s = flen f s'))
 
-val lemma_fextend_unsat (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{gs.length s > 0})
-  : Lemma (requires (not (f s (gs.length s - 1))))
-          (ensures (let n = gs.length s in
-                    let s' = gs.prefix s (n-1) in
-                    flen f s = flen f s'))
+val lemma_idx2fidx_idem (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{flen f s = gs.length s}) (i: seq_index s)
+  : Lemma (ensures (f s i /\ idx2fidx f s i = i))
 
 (* a specification of a filter-map *)
 noeq

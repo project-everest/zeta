@@ -158,3 +158,6 @@ val valid_call_result_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs
                     succeeds fc st' ==>
                     fcr.res_cr = result fc ==>
                     valid_call_result fcrs))
+
+val distinct_keys_comp (#app:_) (sk: FStar.Seq.seq (app_record app))
+  : b:bool {b <==> distinct_keys sk}

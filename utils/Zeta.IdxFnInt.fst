@@ -85,21 +85,24 @@ let fidx2idx_monotonic (#gs:_)
                     (i2 < i1 ==> fidx2idx f s i1 > fidx2idx f s i2)))
   = idx2fidx_monotonic f s (fidx2idx f s i1) (fidx2idx f s i2)
 
-let lemma_fextend_sat (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{gs.length s > 0})
-  : Lemma (requires (f s (gs.length s - 1)))
-          (ensures (let n = gs.length s in
-                    let s' = gs.prefix s (n-1) in
-                    flen f s = flen f s' + 1 /\
-                    idx2fidx f s (n - 1) = flen f s' /\
-                    fidx2idx f s (flen f s') = (n-1)))
+let lemma_fextend_snoc (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t {gs.length s > 0})
+  : Lemma (ensures (let i = gs.length s - 1 in
+                    let s' = gs.prefix s i in
+                    if f s i then
+                      flen f s = flen f s' + 1 /\
+                      idx2fidx f s i  = flen f s' /\
+                      fidx2idx f s (flen f s') = i
+                    else
+                      flen f s = flen f s'))
   = ()
 
-let lemma_fextend_unsat (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{gs.length s > 0})
-  : Lemma (requires (not (f s (gs.length s - 1))))
-          (ensures (let n = gs.length s in
-                    let s' = gs.prefix s (n-1) in
-                    flen f s = flen f s'))
-  = ()
+let rec lemma_idx2fidx_idem (#gs:_) (f: idxfn_t gs bool) (s: gs.seq_t{flen f s = gs.length s}) (i: seq_index s)
+  : Lemma (ensures (f s i /\ idx2fidx f s i = i))
+          (decreases (gs.length s))
+  = let j = gs.length s - 1 in
+    let s' = gs.prefix s j in
+    if i <> j then
+      lemma_idx2fidx_idem f s' i
 
 let lemma_filter_map_extend_sat
   (#gs:_)
