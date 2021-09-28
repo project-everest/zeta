@@ -170,33 +170,14 @@ let vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
                     e = to_vlog_entry ee))
   = ()
 
-open Zeta.IdxFnInt
-
-module IF = Zeta.IdxFnInt
-
-let prefix2 (#app #n:_) (il: verifiable_log app n) (i:nat{i <= length il})
-  : il': verifiable_log app n{length il' = i}
-  = prefix il i
-
-let gen_seq (app n:_) =
-  {
-    seq_t = verifiable_log app n;
-    IF.length = S.length;
-    IF.prefix = prefix2;
-  }
-
 let mk_vlog_entry_ext_pp (#app #n:_) (il: verifiable_log app n) (j:nat{j <= length il}) (i:nat{i < j})
   : Lemma (ensures (let il' = prefix il j in
                     mk_vlog_entry_ext il i = mk_vlog_entry_ext il' i))
   = ()
 
-let mk_vlog_idxfn (#app #n:_): idxfn_t (gen_seq app n) (vlog_entry_ext app)
-  = mk_vlog_entry_ext #app #n
-
 let vlog_ext_of_il_log (#app: app_params) (#n:nat) (il: verifiable_log app n)
   : seq (vlog_entry_ext app)
-//  = S.init (length il) (mk_vlog_entry_ext il)
-  = IF.map (mk_vlog_idxfn #app #n) il
+  = S.init (length il) (mk_vlog_entry_ext il)
 
 let vlog_ext_prefix_property (#app #n:_) (il: verifiable_log app n) (j:nat{j <= length il})
   : Lemma (ensures (let il' = prefix il j in
@@ -205,8 +186,7 @@ let vlog_ext_prefix_property (#app #n:_) (il: verifiable_log app n) (j:nat{j <= 
                     let le'2 = SA.prefix le j in
                     le'1 = le'2))
           [SMTPat (vlog_ext_of_il_log (prefix il j))]
-  = admit ()
-    (*let il' = prefix il j in
+  = let il' = prefix il j in
     let le1 = vlog_ext_of_il_log il' in
     let le = vlog_ext_of_il_log il in
     let le2 = SA.prefix le j in
@@ -217,7 +197,6 @@ let vlog_ext_prefix_property (#app #n:_) (il: verifiable_log app n) (j:nat{j <= 
     in
     introduce forall i. (S.index le1 i = S.index le2 i) with aux i;
     assert(equal le1 le2)
-    *)
 
 let is_eac #app #n (il: verifiable_log app n)
   = is_eac_log (vlog_ext_of_il_log il)
