@@ -495,6 +495,9 @@ val each_index_mem (#a: eqtype) (l: seq a) (i: seq_index l)
 let distinct_elems (#a: eqtype) (s: seq a)
   = forall (i1 i2: seq_index s). i1 <> i2 ==> (index s i1) <> (index s i2)
 
+val distinct_elems_comp (#a: eqtype) (s: seq a)
+  : b:bool {b <==> distinct_elems s}
+
 val lemma_elem_idx_uniq (#a: eqtype) (s: seq a{distinct_elems s}) (i: seq_index s)
   : Lemma (ensures (let e = index s i in
                     index_mem e s = i))

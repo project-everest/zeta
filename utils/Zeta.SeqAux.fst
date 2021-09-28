@@ -976,6 +976,63 @@ let each_index_mem (#a: eqtype) (l: seq a) (i: seq_index l)
   : Lemma (ensures (mem (index l i) l))
   = ()
 
+let rec find_dupl_idx (#a: eqtype) (s: seq a)
+  : Tot (o: option (nat * nat) { (None = o <==> distinct_elems s) /\
+                               (Some? o ==>
+                               (let i,j = Some?.v o in
+                                i < length s /\ j < length s /\
+                                i <> j /\ index s i = index s j))})
+    (decreases (length s))
+  = if length s = 0 then None
+    else (
+      let i = length s - 1 in
+      let s' = prefix s i in
+      let x = index s i in
+      let os' = find_dupl_idx s' in
+
+      if Some? os' then (
+        let i,j = Some?.v os' in
+        let f: squash (index s' i = index s' j /\ i <> j) = () in
+        introduce exists i1 i2. index s i1 = index s i2 /\ i1 <> i2 with i j and f;
+        assert(~(distinct_elems s));
+        Some (i,j)
+      )
+      else (
+        assert(distinct_elems s');
+
+        if mem x s' then (
+          let j = index_mem x s' in
+          let f: squash (index s i = index s j /\ i <> j) = () in
+          introduce exists i1 i2. index s i1 = index s i2 /\ i1 <> i2 with i j and f;
+          assert(~(distinct_elems s));
+          Some (i,j)
+        )
+        else (
+          let aux (i1 i2:_)
+            : Lemma (ensures (i1 <> i2 ==> index s i1 <> index s i2))
+            = if i1 <> i2 && index s i1 = index s i2 then (
+                 if i1 = i then
+                   each_index_mem s' i2
+                 else if i2 = i then
+                   each_index_mem s' i1
+                 else (
+                   let f: squash (index s' i1 = index s' i2 /\ i1 <> i2) = () in
+                   introduce exists i1 i2. index s' i1 = index s' i2 /\ i1 <> i2 with i1 i2 and f;
+                   assert(~(distinct_elems s'));
+                   ()
+                 )
+              )
+          in
+          introduce forall i1 i2. (i1 <> i2 ==> index s i1 <> index s i2) with aux i1 i2;
+          None
+        )
+      )
+    )
+
+let distinct_elems_comp (#a: eqtype) (s: seq a)
+  : Tot (b:bool {b <==> distinct_elems s})
+  = None = find_dupl_idx s
+
 let lemma_elem_idx_uniq (#a: eqtype) (s: seq a{distinct_elems s}) (i: seq_index s)
   : Lemma (ensures (let e = index s i in
                     index_mem e s = i))
