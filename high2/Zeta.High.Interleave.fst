@@ -2,6 +2,10 @@ module Zeta.High.Interleave
 
 open FStar.Classical
 
+let root : r:Zeta.BinTree.bin_tree_node { Zeta.BinTree.depth r = 0 } = Zeta.BinTree.Root
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
 let runapp_refs_only_leafkeys (#app #n:_) (il: verifiable_log app n) (i:_ {RunApp? (index il i)}) (k: base_key)
   : Lemma (ensures (let e = index il i in
                     e `refs_key` k ==> is_leaf_key k))
@@ -12,8 +16,6 @@ let runapp_refs_only_leafkeys (#app #n:_) (il: verifiable_log app n) (i:_ {RunAp
     if e `refs_key` k then
       let idx = index_mem k ss in
       get_record_set_correct ss vs_pre idx
-
-#push-options "--z3rlimit_factor 4"
 
 let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
@@ -39,10 +41,6 @@ let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
           runapp_doesnot_change_nonref_slots e vs_pre ki
         | _ -> ()
 
-#pop-options
-
-#push-options "--z3rlimit_factor 4"
-
 let not_refs_implies_store_containment_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
   : Lemma (ensures (let e = index il i in
@@ -63,11 +61,6 @@ let not_refs_implies_store_containment_unchanged  (#app #n:_) (ki:base_key) (ti:
           runapp_doesnot_change_slot_emptiness e vs_pre ki
       | _ ->
         ()
-
-#pop-options
-
-
-#push-options "--z3rlimit_factor 3"
 
 let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
@@ -92,8 +85,6 @@ let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti <
       | RunApp _ _ _ -> runapp_doesnot_change_slot_key e vs_pre ki;
                         runapp_doesnot_change_store_addmethod ki e vs_pre
       | _ -> ()
-
-#pop-options
 
 let runapp_doesnot_change_store_keys_extended (#app #n:_) (k:base_key)
   (il: verifiable_log app n) (i: seq_index il {is_appfn il i})
@@ -255,23 +246,25 @@ let eac_implies_eac_state_valid (#app #n:_) (k: base_key)
   : Lemma (ensures (is_eac il ==> eac_state_of_key k il <> EACFail))
   = ()
 
+#push-options "--fuel 1"
+
 let rec eac_state_of_root_init (#app #n:_) (il: eac_log app n)
-  : Lemma (ensures (eac_state_of_key Zeta.BinTree.Root il = EACInit))
+  : Lemma (ensures (eac_state_of_key root il = EACInit))
           (decreases (length il))
   = let open Zeta.BinTree in
     if length il = 0 then
-      eac_state_empty Root il
+      eac_state_empty root il
     else (
       let i = length il - 1  in
       let il' = prefix il i in
       eac_state_of_root_init il';
-      eac_state_snoc Root il;
+      eac_state_snoc root il;
       lemma_cur_thread_state_extend il i
     )
 
-open Zeta.SeqIdx
+#pop-options
 
-#push-options "--z3rlimit_factor 4"
+open Zeta.SeqIdx
 
 let rec eac_state_active_implies_prev_add (#app #n:_) (k: base_key) (il: eac_log app n)
   : Lemma (ensures (is_eac_state_active k il <==> has_some_add_of_key k il))
@@ -301,14 +294,11 @@ let rec eac_state_active_implies_prev_add (#app #n:_) (k: base_key) (il: eac_log
         forall_intro aux
       )
     )
-#pop-options
 
 let eac_state_active_implies_prev_add2 (#app #n:_) (k: base_key) (il: eac_log app n)
   : Lemma (ensures (is_eac_state_active k il <==> has_some_add_of_key k il))
           [SMTPat (eac_state_of_key k il)]
   = eac_state_active_implies_prev_add k il
-
-#push-options "--z3rlimit_factor 3"
 
 let rec eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_log app n)
   : Lemma (ensures (eac_state_of_key k il = EACInit ==> ~ (has_some_ref_to_key k il)))
@@ -335,8 +325,6 @@ let rec eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_lo
       )
     )
 
-#pop-options
-
 open Zeta.BinTree
 
 let eac_storage_prop (#app #n:_)(k: base_key {k <> Root}) (il: eac_log app n)
@@ -362,11 +350,13 @@ let eac_storage_prop_implies_store_contains_implies
                     EACInStore? es))
   = ()
 
+#pop-options
+
 #push-options "--z3rlimit_factor 3"
 
 let eac_storage_prop_snoc_appfn
   (#app #n:_)
-  (ki: base_key {ki <> Zeta.BinTree.Root}) (il: eac_log app n {length il > 0})
+  (ki: base_key {ki <> root}) (il: eac_log app n {length il > 0})
   : Lemma (requires (let i = length il - 1 in
                      let il' = prefix il i in
                      let e = index il i in
