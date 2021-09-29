@@ -38,11 +38,6 @@ type appfn_call_res (aprm: app_params) = {
 (* the (full) application state  *)
 let app_state (adm: app_data_model) = (k: app_key adm) -> app_value_nullable adm
 
-(* update the value for a record *)
-let update #adm (st: app_state adm) (k: app_key adm) (v: app_value_nullable adm): app_state adm =
-  fun k' -> if k' = k then v
-          else st k'
-
 (* if a sequence has distinct keys, then a prefix of the sequence also has this property *)
 val prefix_of_distinct_distinct
   (#adm: app_data_model)
@@ -61,23 +56,28 @@ val input_correct (#adm: app_data_model)
                     let k,v = S.index inp i in
                     st k = v)})
 
-(* update the state with new values for a sequence of keys (specified as a record) *)
-let rec update_seq #adm
-  (st: app_state adm)
-  (inp: S.seq (app_record adm) {distinct_keys #adm inp})
-  (ws: S.seq (app_value_nullable adm) {S.length ws = S.length inp})
-  : Tot (app_state adm)
-  (decreases (S.length inp)) =
+(* does a function call reference a specific app key *)
+let refs #app (fc: appfn_call app) (k: app_key app.adm)
+  = let open FStar.Seq in
+  exists i. (let k',v = index fc.inp_c i in k = k')
 
-  let n = S.length inp in
-  if n = 0 then st
-  else
-    let inp' = SA.prefix inp (n - 1) in
-    let ws' = SA.prefix ws (n - 1) in
-    let st = update_seq st inp' ws' in
-    let k,_ = S.index inp (n - 1) in
-    let v = S.index ws (n - 1) in
-    update st k v
+val refs_comp (#app:_) (fc: appfn_call app) (k: app_key app.adm)
+  : b:bool { b <==> refs fc k }
+
+(* for a referenced key, return the parameter position index *)
+val refkey_idx (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k})
+  : i:_{let k',v = FStar.Seq.index fc.inp_c i in k' = k}
+
+(* update the state with new values for a sequence of keys (specified as a record) *)
+let update #app
+  (st: app_state app.adm)
+  (fc: appfn_call app)
+  (ws: S.seq (app_value_nullable app.adm) {S.length ws = S.length fc.inp_c})
+  : Tot (app_state app.adm)
+  = fun k -> if fc `refs_comp` k then
+             let i = refkey_idx fc k in
+             S.index ws i
+           else st k
 
 (* simulate a single step of an app state transition. return None on failure *)
 let simulate_step #aprm (fncall: appfn_call aprm) (st: app_state aprm.adm):
@@ -89,7 +89,7 @@ let simulate_step #aprm (fncall: appfn_call aprm) (st: app_state aprm.adm):
   (* if the function evaluation fails, fail the step *)
   else if rc = Fn_failure then None
   (* No failures: update the state *)
-  else Some (update_seq st fncall.inp_c ws, res)
+  else Some (update st fncall ws, res)
 
 (* initial state of the application *)
 let init_app_state (adm: app_data_model): app_state adm =

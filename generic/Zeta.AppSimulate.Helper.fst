@@ -11,17 +11,6 @@ let of_key (#adm:_) (ki: app_key adm) (r: app_record adm)
   = let k,_ = r in
     k = ki
 
-let refs_comp (#app:_) (fc: appfn_call app) (k: app_key app.adm)
-  : b:bool { b <==> refs fc k }
-  = let open Zeta.SeqIdx in
-    exists_elems_with_prop_comp (of_key k) fc.inp_c
-
-(* for a referenced key, return the parameter position index *)
-let refkey_idx (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k})
-  : i:_{let k',v = FStar.Seq.index fc.inp_c i in k' = k}
-  = let open Zeta.SeqIdx in
-    last_idx (of_key k) fc.inp_c
-
 let refs_witness (#app:_) (fc: appfn_call app) (k: app_key app.adm)
  (i: Zeta.SeqAux.seq_index fc.inp_c {k = fst (FStar.Seq.index fc.inp_c i)})
   : Lemma (ensures (refs fc k))
@@ -66,29 +55,34 @@ let lemma_post_state (#app:_) (fc: appfn_call app) (st: app_state app.adm {succe
                     fc `refs` k /\ write fc k = stpost k
                       \/
                     ~ (fc `refs` k) /\ stpost k = st k))
-  = admit()
+  = ()
 
-let prefix_of_valid_valid (#app:_) (fs: seq (appfn_call app) {valid fs}) (i: nat {i <= length fs})
-  : Lemma (ensures (valid (prefix fs i)))
-  = admit()
+let rec prefix_of_valid_valid (#app:_) (fs: seq (appfn_call app) {valid fs}) (l: nat {l <= length fs})
+  : Lemma (ensures (valid (prefix fs l)))
+          (decreases (S.length fs))
+  = if l < S.length fs then
+      if S.length fs > 0 then
+        let i = S.length fs - 1 in
+        let fs' = prefix fs i in
+        prefix_of_valid_valid fs' l
 
 let lemma_apply_trans (#app:_) (fs: seq (appfn_call app) {length fs > 0 /\ valid fs})
   : Lemma (ensures (let fs' = hprefix fs in
                     let fc = telem fs in
                     post_state fs == apply_trans fc (post_state fs')))
-  = admit()
+  = ()
 
 let lemma_valid_empty (#app:_) (fs: seq (appfn_call app){length fs = 0})
   : Lemma (ensures (valid fs))
-  = admit()
+  = ()
 
 let lemma_init_value_null (#app:_) (fs: seq (appfn_call app){length fs = 0}) (k: app_key app.adm)
   : Lemma (ensures (post_state fs k = Null))
-  = admit()
+  = ()
 
 let empty_call_result_valid (#app:_) (rs: seq (appfn_call_res app))
   : Lemma (ensures (length rs = 0 ==> valid_call_result rs))
-  = admit()
+  = S.lemma_empty rs
 
 let app_fcs_empty (#app:_) (fcrs: seq (appfn_call_res app))
   : Lemma (ensures (length fcrs = 0 ==> length (app_fcs fcrs) = 0))
@@ -112,6 +106,9 @@ let app_fcs_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs > 0})
     FStar.Classical.forall_intro aux;
     assert(equal fcs fcs2)
 
+#push-options "--z3rlimit_factor 4"
+
+(* TODO Fix the extremely unstable proof *)
 let valid_call_result_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs > 0})
   : Lemma (requires (let i = length fcrs - 1  in
                      let fcrs' = prefix fcrs i in
@@ -125,8 +122,42 @@ let valid_call_result_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs
                     succeeds fc st' ==>
                     fcr.res_cr = result fc ==>
                     valid_call_result fcrs))
-  = admit()
+  = let i = length fcrs - 1 in
+    let fcs = app_fcs fcrs in
+    let fcrs' = prefix fcrs i in
+    let fcs' = app_fcs fcrs' in
+    let st' = post_state fcs' in
+    let fc = to_app_fc fcrs i in
+    let fcr = index fcrs i in
 
-let distinct_keys_comp (#app:_) (sk: FStar.Seq.seq (app_record app))
-  : b:bool {b <==> distinct_keys sk}
-  = admit()
+    app_fcs_snoc fcrs;
+    lemma_prefix1_append fcs' fc;
+    assert(fcs == append1 fcs' fc);
+    assert(fcs' = prefix fcs i);
+
+    if succeeds fc st' && fcr.res_cr = result fc then (
+      assert(valid fcs);
+      let st1,rs1 = Some?.v (simulate fcs') in
+      let st2,rs2 = Some?.v (simulate fcs) in
+      assert(fc = index fcs i);
+      let r = {fid_cr = fc.fid_c; arg_cr = fc.arg_c; inp_cr = fc.inp_c; res_cr = result fc} in
+      assert(rs2 == append1 rs1 r);
+      lemma_prefix1_append rs1 r;
+      assert(fcrs' = rs1);
+      assert(length rs2 = length fcrs);
+      let aux(j:_)
+        : Lemma (ensures (index rs2 j = index fcrs j))
+        = if j = i then ()
+          else (
+            assert(index fcrs j = index fcrs' j);
+            assert(index rs2 j = index rs1 j);
+            assert(index rs1 j = index fcrs' j);
+            ()
+          )
+      in
+      FStar.Classical.forall_intro aux;
+      assert(equal rs2 fcrs);
+      ()
+    )
+
+#pop-options

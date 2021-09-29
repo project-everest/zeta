@@ -30,18 +30,6 @@ let writes #app (fc: appfn_call app{correct fc})
     let _,_,ws = fn fc.arg_c fc.inp_c in
     ws
 
-(* does a function call reference a specific app key *)
-let refs #app (fc: appfn_call app) (k: app_key app.adm)
-  = let open FStar.Seq in
-  exists i. (let k',v = index fc.inp_c i in k = k')
-
-val refs_comp (#app:_) (fc: appfn_call app) (k: app_key app.adm)
-  : b:bool { b <==> refs fc k }
-
-(* for a referenced key, return the parameter position index *)
-val refkey_idx (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k})
-  : i:_{let k',v = FStar.Seq.index fc.inp_c i in k' = k}
-
 val refs_witness (#app:_) (fc: appfn_call app) (k: app_key app.adm)
  (i: Zeta.SeqAux.seq_index fc.inp_c {k = fst (FStar.Seq.index fc.inp_c i)})
   : Lemma (ensures (refs fc k))
@@ -145,6 +133,3 @@ val valid_call_result_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs
                     succeeds fc st' ==>
                     fcr.res_cr = result fc ==>
                     valid_call_result fcrs))
-
-val distinct_keys_comp (#app:_) (sk: FStar.Seq.seq (app_record app))
-  : b:bool {b <==> distinct_keys sk}
