@@ -30,12 +30,69 @@ let puts (#app:_)
   = let st = puts_store vs.st ks ws in
     update_thread_store vs st
 
+let clock_is_monotonic
+  (#app:_)
+  (e: GV.verifier_log_entry (high_verifier_spec_base app))
+  (vs: vtls_t app)
+  : Lemma (ensures (let vs_post = GV.verify_step e vs in
+                    vs_post.valid ==> vs.clock `ts_leq` vs_post.clock))
+  = ()
+
+let lemma_high_verifier_clock_monotonic_prop (app:_)
+  : Lemma (ensures (GV.clock_monotonic_prop (high_verifier_spec_base app)))
+  = FStar.Classical.forall_intro_2 (clock_is_monotonic #app)
+
+let thread_id_is_constant
+  (#app:_)
+  (e: GV.verifier_log_entry (high_verifier_spec_base app))
+  (vs: vtls_t app)
+  : Lemma (ensures (let vs_post = GV.verify_step e vs in
+                    vs.tid = vs_post.tid))
+  = ()
+
+let lemma_high_verifier_thread_id_const_prop (app:_)
+  : Lemma (ensures (GV.thread_id_constant_prop (high_verifier_spec_base app)))
+  = FStar.Classical.forall_intro_2 (thread_id_is_constant #app)
+
+let evict_prop
+  (#app:_)
+  (e: GV.verifier_log_entry (high_verifier_spec_base app))
+  (vs: vtls_t app)
+  : Lemma (ensures (let vs_post = GV.verify_step e vs in
+                    GV.is_evict e ==>
+                    vs_post.valid ==>
+                    store_contains vs.st (GV.evict_slot e) /\
+                    not (store_contains vs_post.st (GV.evict_slot e))))
+  = ()
+
+let lemma_high_verifier_evict_prop (app:_)
+  : Lemma (ensures (GV.evict_prop (high_verifier_spec_base app)))
+  = FStar.Classical.forall_intro_2 (evict_prop #app)
+
+let add_prop
+  (#app:_)
+  (e: GV.verifier_log_entry (high_verifier_spec_base app))
+  (vs: vtls_t app)
+  : Lemma (ensures (let vs_post = GV.verify_step e vs in
+                    GV.is_add e ==>
+                    vs_post.valid ==>
+                    not (store_contains vs.st (GV.add_slot e)) /\
+                    store_contains vs_post.st (GV.add_slot e)))
+  = ()
+
+let lemma_high_verifier_add_prop (app:_)
+  : Lemma (ensures (GV.add_prop (high_verifier_spec_base app)))
+  = FStar.Classical.forall_intro_2 (add_prop #app)
+
 let lemma_high_verifier (aprm: app_params)
   : Lemma (ensures (GV.clock_monotonic_prop (high_verifier_spec_base aprm) /\
                     GV.thread_id_constant_prop (high_verifier_spec_base aprm) /\
                     GV.evict_prop (high_verifier_spec_base aprm) /\
                     GV.add_prop (high_verifier_spec_base aprm)))
-  = admit()
+  = lemma_high_verifier_clock_monotonic_prop aprm;
+    lemma_high_verifier_thread_id_const_prop aprm;
+    lemma_high_verifier_evict_prop aprm;
+    lemma_high_verifier_add_prop aprm
 
 let runapp_doesnot_change_nonref_slots
   (#app: _)
