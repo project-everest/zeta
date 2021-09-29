@@ -6,7 +6,12 @@ let prefix_of_distinct_distinct
   (i: nat { i <= S.length sk }) :
   Lemma (ensures (let sk' = SA.prefix sk i in
                   distinct_keys #adm sk'))
-  = admit()
+  = ()
+
+let input_incorrect_idx (#adm:_) (st: app_state adm) (r: app_record adm)
+  : bool
+  = let k,v = r in
+    st k <> v
 
 let input_correct (#adm: app_data_model)
   (st: app_state adm)
@@ -15,4 +20,5 @@ let input_correct (#adm: app_data_model)
                 (forall (i: SA.seq_index inp).
                     let k,v = S.index inp i in
                     st k = v)})
-  = admit()
+  = let open Zeta.SeqIdx in
+    not (exists_elems_with_prop_comp (input_incorrect_idx st) inp)
