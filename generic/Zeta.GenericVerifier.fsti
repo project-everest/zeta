@@ -46,11 +46,10 @@ type verifier_spec_base = {
   get: slot_t -> vtls: vtls_t {valid vtls} -> option (record app);
 
   (* update the record in a slot with a new value *)
-  put: s: slot_t -> vtls: vtls_t { valid vtls && Some? (get s vtls)} ->
-       v: (value_t (key_of (Some?.v (get s vtls)))) ->
-       vtls': vtls_t { let k,_ = Some?.v (get s vtls) in
-                       valid vtls' && Some? (get s vtls') &&
-                       (k,v) = Some?.v (get s vtls')};
+  puts: vtls: vtls_t { valid vtls } ->
+        ss: S.seq slot_t ->
+        ws: S.seq (app_value_nullable app.adm) ->
+        vtls': vtls_t { valid vtls };
 
   (* implementation of merkle add *)
   addm: record app -> slot_t -> slot_t -> vtls: vtls_t { valid vtls } -> vtls_t;
@@ -159,57 +158,62 @@ let ancestor_slot #vspec (e: verifier_log_entry vspec {involves_ancestor e})
 let is_ancestor_evict #vspec (e: verifier_log_entry vspec)
   = is_evict e && involves_ancestor e
 
-val get_record_set (#vspec: verifier_spec_base) (ss: S.seq (vspec.slot_t)) (vtls: vspec.vtls_t {vspec.valid vtls}):
-  (let record_t = app_record vspec.app.adm in
-   ors: option (S.seq record_t) {Some? ors ==> (let rs = Some?.v ors in
-                                                S.length rs = S.length ss /\
-                                                SA.distinct_elems ss /\
-                                                distinct_keys #vspec.app.adm rs)})
-
-let get_record_set_succ #vspec
-  (ss: S.seq (vspec.slot_t))
-  (vtls: vspec.vtls_t{vspec.valid vtls /\ Some? (get_record_set ss vtls)})
-  = Some?.v (get_record_set ss vtls)
-
-val get_record_set_correct
-  (#vspec: _)
-  (ss: S.seq (vspec.slot_t))
+(* does a slot contain an app key *)
+let contains_app_key
+  (#vspec: verifier_spec_base)
   (vtls: vspec.vtls_t {vspec.valid vtls})
+  (s: vspec.slot_t)
+  : bool
+  = Some? (vspec.get s vtls)  &&
+    (let gk, _ = Some?.v (vspec.get s vtls) in
+     Zeta.GenKey.AppK? gk)
+
+(* from a slot containing an app key, get the app record *)
+let to_app_record
+  (#vspec: verifier_spec_base)
+  (vtls: vspec.vtls_t {vspec.valid vtls})
+  (s: vspec.slot_t {contains_app_key vtls s})
+  : app_record vspec.app.adm
+  = let open Zeta.GenKey in
+    let open Zeta.Record in
+    let AppK ak, AppV av = Some?.v (vspec.get s vtls) in
+    ak, av
+
+let to_app_key
+  (#vspec: verifier_spec_base)
+  (vtls: vspec.vtls_t {vspec.valid vtls})
+  (s: vspec.slot_t {contains_app_key vtls s})
+  : app_key vspec.app.adm
+  = let open Zeta.GenKey in
+    let open Zeta.Record in
+    let AppK ak, _ = Some?.v (vspec.get s vtls) in
+    ak
+
+let contains_only_app_keys
+  (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls}) (ss: S.seq vspec.slot_t)
+  = forall i. contains_app_key vtls (S.index ss i)
+
+let contains_distinct_app_keys
+  (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls}) (ss: S.seq vspec.slot_t)
+  = contains_only_app_keys vtls ss /\
+    (forall i1 i2. i1 <> i2 ==> to_app_key vtls (S.index ss i1) <> to_app_key vtls (S.index ss i2))
+
+val contains_distinct_app_keys_comp
+  (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls}) (ss: S.seq vspec.slot_t)
+  : b:bool {b <==> contains_distinct_app_keys vtls ss}
+
+let read
+  (#vspec:_)
+  (vtls: vspec.vtls_t{vspec.valid vtls})
+  (ss: S.seq vspec.slot_t{contains_distinct_app_keys vtls ss})
   (i: SA.seq_index ss)
-  : Lemma (requires (Some? (get_record_set ss vtls)))
-          (ensures (let rs = get_record_set_succ ss vtls in
-                    let s = S.index ss i in
-                    let ak,av = S.index rs i in
-                    Some? (vspec.get s vtls) /\
-                    (let gk,gv = Some?.v (vspec.get s vtls) in
-                     let open Zeta.GenKey in
-                     gk = AppK ak /\
-                     gv = AppV av)))
+  = to_app_record vtls (S.index ss i)
 
-val update_record_set (#vspec: verifier_spec_base)
-                      (ss: S.seq (vspec.slot_t))
-                      (vtls: vspec.vtls_t {vspec.valid vtls /\ Some? (get_record_set ss vtls)})
-                      (ws: S.seq (app_value_nullable vspec.app.adm) {let rs = get_record_set_succ ss vtls in
-                                                                     S.length ws = S.length rs})
-  : vtls':vspec.vtls_t{vspec.valid vtls'}
-
-val update_record_set_valid
-  (#vspec: _)
-  (ss: S.seq (vspec.slot_t))
-  (vtls: vspec.vtls_t {vspec.valid vtls /\ Some? (get_record_set ss vtls)})
-  (ws: S.seq (app_value_nullable vspec.app.adm) {let rs = get_record_set_succ ss vtls in
-                                                 S.length ws = S.length rs})
-  (i: SA.seq_index ss)
-  : Lemma (ensures (let rs = get_record_set_succ ss vtls in
-                    let vtls' = update_record_set ss vtls ws in
-                    let s = S.index ss i in
-                    let ak,_ = S.index rs i in
-                    Some? (vspec.get s vtls') /\
-                    (let gk,gv = Some?.v (vspec.get s vtls') in
-                     let open Zeta.GenKey in
-                     gk = AppK ak /\
-                     gv = AppV (S.index ws i))))
-
+let reads
+  (#vspec: verifier_spec_base)
+  (vtls: vspec.vtls_t {vspec.valid vtls})
+  (ss: S.seq vspec.slot_t {contains_distinct_app_keys vtls ss})
+  = S.init (S.length ss) (read vtls ss)
 
 let verify_step (#vspec: verifier_spec_base)
                 (e: verifier_log_entry vspec)
@@ -225,22 +229,22 @@ let verify_step (#vspec: verifier_spec_base)
     | NextEpoch -> vspec.nextepoch vtls
     | VerifyEpoch -> vspec.verifyepoch vtls
     | RunApp f p ss ->
-      (* the app function to run *)
-      let fn = appfn f in
-      (* get the record set to run fn on from the log specification *)
-      let ors = get_record_set ss vtls in
-      (* failed to get the record set (e.g., duplicate keys) *)
-      if None = ors then vspec.fail vtls
+      (* slots do not point to distinct keys *)
+      if not (contains_distinct_app_keys_comp vtls ss) then vspec.fail vtls
       (* fails arity requirement *)
       else if S.length ss <> appfn_arity f then vspec.fail vtls
+
       else
-        let rs = Some?.v ors in
+        (* the app function to run *)
+        let fn = appfn f in
+        (* the records specified by ss *)
+        let rs = reads vtls ss in
         (* run the app function *)
         let rc, _, ws = fn p rs in
         (* if app function returns failure, verifier goes to failed state *)
         if rc = Fn_failure then vspec.fail vtls
         (* update the verifier store with the writes of the function *)
-        else update_record_set ss vtls ws
+        else vspec.puts vtls ss ws
 
 let appfn_result #vspec
   (e: verifier_log_entry vspec{is_appfn e})
@@ -250,7 +254,7 @@ let appfn_result #vspec
     match e with
     | RunApp f p ss ->
       let fn = appfn f in
-      let rs = Some?.v (get_record_set ss vtls) in
+      let rs = reads vtls ss in
       let _,o,_ = fn p rs in
       {fid_cr = f; arg_cr = p; inp_cr = rs; res_cr = o}
 
@@ -308,45 +312,3 @@ let rec verify #vspec (tid: thread_id) (l: verifier_log vspec):
 
 let verifier_spec = vspec:verifier_spec_base
     {clock_monotonic_prop vspec /\ thread_id_constant_prop vspec /\ evict_prop vspec /\ add_prop vspec}
-
-val runapp_doesnot_change_nonref_slots
-  (#vspec: verifier_spec)
-  (e: verifier_log_entry vspec {is_appfn e})
-  (vs: vspec.vtls_t)
-  (s: vspec.slot_t)
-  : Lemma (requires (let RunApp _ _ ss = e in
-                     vspec.valid (verify_step e vs) /\ not (S.mem s ss)))
-          (ensures (let vs' = verify_step e vs in
-                    vspec.get s vs == vspec.get s vs'))
-
-val runapp_doesnot_change_slot_emptiness
-  (#vspec: verifier_spec)
-  (e: verifier_log_entry vspec {is_appfn e})
-  (vs: vspec.vtls_t)
-  (s: vspec.slot_t)
-  : Lemma (requires (let RunApp _ _ ss = e in
-                     vspec.valid (verify_step e vs)))
-          (ensures (let vs' = verify_step e vs in
-                    (None = vspec.get s vs) <==> (None = vspec.get s vs')))
-
-val runapp_doesnot_change_slot_key
-  (#vspec: verifier_spec)
-  (e: verifier_log_entry vspec {is_appfn e})
-  (vs: vspec.vtls_t)
-  (s: vspec.slot_t)
-  : Lemma (requires (let RunApp _ _ ss = e in
-                     vspec.valid (verify_step e vs)))
-          (ensures (let vs' = verify_step e vs in
-                    Some? (vspec.get s vs) ==>
-                    Some? (vspec.get s vs') /\
-                    key_of (Some?.v (vspec.get s vs)) =
-                    key_of (Some?.v (vspec.get s vs'))))
-
-val runapp_implies_slot_contains
-  (#vspec: verifier_spec)
-  (e: verifier_log_entry vspec {is_appfn e})
-  (vs: vspec.vtls_t)
-  (s: vspec.slot_t)
-  : Lemma (requires (vspec.valid (verify_step e vs)))
-          (ensures (let RunApp _ _ ss = e in
-                    S.mem s ss ==> Some? (vspec.get s vs)))

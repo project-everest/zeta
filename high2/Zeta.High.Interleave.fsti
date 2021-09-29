@@ -298,8 +298,8 @@ val ext_app_records_is_stored_val
           (ensures (let open Zeta.GenericVerifier in
                     let App (RunApp f p ss) rs = mk_vlog_entry_ext il i in
                     let vs = cur_thread_state_pre il i in
-                    Some? (get_record_set ss vs) /\
-                    rs = get_record_set_succ ss vs))
+                    contains_distinct_app_keys vs ss /\
+                    rs = reads vs ss))
 
 val root_never_evicted (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
   : Lemma (requires (V.is_evict (I.index il i)))

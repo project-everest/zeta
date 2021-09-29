@@ -8,6 +8,10 @@ open Zeta.GenKey
 open Zeta.Record
 open Zeta.HashFunction
 
+module S = FStar.Seq
+module SA = Zeta.SeqAux
+module GV = Zeta.GenericVerifier
+
 (* for records in the store, how were they added? *)
 type add_method =
   | MAdd: add_method       (* AddM *)
@@ -297,6 +301,24 @@ let init_thread_state (aprm: app_params) (tid:thread_id): vtls_t aprm =
     update_thread_store vs st
   else vs
 
+(* does a slot contain an app key *)
+let contains_app_key (#app:_) (st: store_t app) (k: base_key)
+  = store_contains st k &&
+    AppK? (stored_key st k)
+
+(* a sequence of base keys contain only appln keys *)
+let contains_only_app_keys (#app:_) (st: store_t app) (ks: S.seq base_key)
+  = forall i. contains_app_key st (S.index ks i)
+
+val contains_only_app_keys_comp (#app:_) (st: store_t app) (ks: S.seq base_key)
+  : b:bool { b <==> contains_only_app_keys st ks }
+
+val puts (#app:_)
+  (vs: vtls_t app{vs.valid})
+  (ks: S.seq base_key)
+  (ws: S.seq (app_value_nullable app.adm))
+  : vs': vtls_t app{vs'.valid}
+
 (* the specification of the high level verifier *)
 let high_verifier_spec_base (app: app_params): Zeta.GenericVerifier.verifier_spec_base
   = let valid (vtls: vtls_t app): bool
@@ -323,19 +345,9 @@ let high_verifier_spec_base (app: app_params): Zeta.GenericVerifier.verifier_spe
         else None
     in
 
-    let put (s: slot_t)
-            (vtls: vtls_t app { valid vtls && Some? (get s vtls)})
-            (v: (value_t (key_of (Some?.v (get s vtls)))))
-            : (vtls': vtls_t app { let k,_ = Some?.v (get s vtls) in
-                       valid vtls' && Some? (get s vtls') &&
-                       (k,v) = Some?.v (get s vtls')})
-      = let k,_ = Some?.v (get s vtls) in
-        let st = update_store vtls.st s (k,v) in
-        update_thread_store vtls st
-    in
     let open Zeta.GenericVerifier in
     { vtls_t = vtls_t app; valid; fail; clock; tid; init; slot_t; app;
-      get; put; addm; addb; evictm; evictb; evictbm; nextepoch; verifyepoch }
+      get; puts; addm; addb; evictm; evictb; evictbm; nextepoch; verifyepoch }
 
 module GV = Zeta.GenericVerifier
 
@@ -393,6 +405,17 @@ let exp_refs_key #app (e: vlog_entry app) (k: base_key)
     | VerifyEpoch -> false
     | RunApp _ _ ks -> mem k ks
 
+val runapp_doesnot_change_nonref_slots
+  (#app: _)
+  (e: vlog_entry app {GV.RunApp? e})
+  (vs: vtls_t app)
+  (k: base_key)
+  : Lemma (requires (let GV.RunApp _ _ ks = e in
+                     let vs' = GV.verify_step e vs in
+                     vs'.valid /\ not (S.mem k ks)))
+          (ensures (let vs' = GV.verify_step e vs in
+                    vs.st k == vs'.st k))
+
 val runapp_doesnot_change_store_addmethod
   (#app:_)
   (ki: base_key)
@@ -403,3 +426,57 @@ val runapp_doesnot_change_store_addmethod
                     store_contains vs.st ki ==>
                     store_contains vs_post.st ki /\
                     add_method_of vs.st ki = add_method_of vs_post.st ki))
+
+val runapp_implies_store_contains
+  (#app: _)
+  (e: vlog_entry app {GV.is_appfn e})
+  (vs: vtls_t _)
+  (k: base_key)
+  : Lemma (ensures (let GV.RunApp _ _ ks = e in
+                    let vs_post = GV.verify_step e vs in
+                    vs_post.valid ==>
+                    S.mem k ks ==>
+                    (let rs = GV.reads vs ks in
+                     let i = S.index_mem k ks in
+                     let ak,av = S.index rs i in
+                     store_contains vs.st k /\
+                     stored_key vs.st k = AppK ak /\
+                     stored_value vs.st k = AppV av)))
+
+val runapp_doesnot_change_slot_emptiness
+  (#app: _)
+  (e: vlog_entry app {GV.is_appfn e})
+  (vs: vtls_t _)
+  (k: base_key)
+  : Lemma
+          (ensures (let vs_post = GV.verify_step e vs in
+                    vs_post.valid ==>
+                    ((store_contains vs.st k) <==> (store_contains vs_post.st k))))
+
+val runapp_doesnot_change_slot_key
+  (#app:_)
+  (ki: base_key)
+  (e: vlog_entry app {Zeta.GenericVerifier.RunApp? e})
+  (vs: vtls_t app)
+  : Lemma (ensures (let vs_post = Zeta.GenericVerifier.verify_step e vs in
+                    vs_post.valid ==>
+                    store_contains vs.st ki ==>
+                    store_contains vs_post.st ki /\
+                    stored_key vs.st ki = stored_key vs_post.st ki))
+
+val puts_valid
+  (#app:_)
+  (ki: base_key)
+  (e: vlog_entry app {GV.is_appfn e})
+  (vs: vtls_t app)
+  (i:nat)
+  : Lemma (ensures (let GV.RunApp f p ks = e in
+                    let vs_post = GV.verify_step e vs in
+                    vs_post.valid ==>
+                    i < S.length ks ==>
+                    (let rs = GV.reads vs ks in
+                     let fn = appfn f in
+                     let _,_,ws = fn p rs in
+                     let k = S.index ks i in
+                     store_contains vs_post.st k /\
+                     stored_value vs_post.st k = AppV (S.index ws i))))

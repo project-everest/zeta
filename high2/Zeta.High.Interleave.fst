@@ -15,7 +15,7 @@ let runapp_refs_only_leafkeys (#app #n:_) (il: verifiable_log app n) (i:_ {RunAp
     let vs_pre = thread_state_pre (src il i) il i in
     if e `refs_key` k then
       let idx = index_mem k ss in
-      get_record_set_correct ss vs_pre idx
+      runapp_implies_store_contains e vs_pre k
 
 let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
@@ -82,7 +82,7 @@ let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti <
     if t <> ti then lemma_non_cur_thread_state_extend ti il i
     else
       match e with
-      | RunApp _ _ _ -> runapp_doesnot_change_slot_key e vs_pre ki;
+      | RunApp _ _ _ -> runapp_doesnot_change_slot_key ki e vs_pre;
                         runapp_doesnot_change_store_addmethod ki e vs_pre
       | _ -> ()
 
@@ -100,7 +100,7 @@ let runapp_doesnot_change_store_keys_extended (#app #n:_) (k:base_key)
     let vs_pre = thread_state_pre t il i in
     lemma_cur_thread_state_extend il i;
     runapp_doesnot_change_slot_emptiness e vs_pre k;
-    runapp_doesnot_change_slot_key e vs_pre k;
+    runapp_doesnot_change_slot_key k e vs_pre;
     runapp_doesnot_change_store_addmethod k e vs_pre
 
 let runapp_doesnot_change_store_keys (#app #n:_) (k:base_key)
@@ -149,9 +149,7 @@ let mk_vlog_entry_ext #app #n (il: verifiable_log app n) (i: seq_index il)
       let v = stored_value vs.st k in
       EvictBlum vle v tid
     | RunApp f p ss ->
-      assert(Some? (get_record_set ss vs));
-      assert(SA.distinct_elems ss);
-      let rs = get_record_set_succ ss vs in
+      let rs = reads vs ss in
       App vle rs
     | v -> NEvict v
 
@@ -384,9 +382,9 @@ let eac_storage_prop_snoc_appfn
     assert(vs == cur_thread_state_post il i);
     assert(vs == verify_step e vs');
 
-    runapp_implies_slot_contains e vs' ki;
+    runapp_implies_store_contains e vs' ki;
     assert(store_contains st' ki);
-    runapp_doesnot_change_slot_key e vs' ki;
+    runapp_doesnot_change_slot_key ki e vs';
     assert(store_contains st ki);
     assert(stored_key st ki = stored_key st' ki);
 
@@ -796,8 +794,8 @@ let ext_app_records_is_stored_val
           (ensures (let open Zeta.GenericVerifier in
                     let App (RunApp f p ss) rs = mk_vlog_entry_ext il i in
                     let vs = cur_thread_state_pre il i in
-                    Some? (get_record_set ss vs) /\
-                    rs = get_record_set_succ ss vs))
+                    contains_distinct_app_keys vs ss /\
+                    rs = reads vs ss))
   = lemma_cur_thread_state_extend il i
 
 let root_never_evicted (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
@@ -939,12 +937,10 @@ let ev_is_sv_snoc_appfn
     let vs' = thread_state_pre t il i in
     let vs = thread_state_post t il i in
 
-    let rs = get_record_set_succ ss vs' in
+    let rs = reads vs' ss in
     let _,_,ws = fn p rs in
-    update_record_set_valid ss vs' ws idx;
+    puts_valid ki e vs' idx;
     assert(HV.stored_value vs.st ki = AppV (S.index ws idx));
-
-
     key_in_unique_store ki il t (stored_tid ki il)
 
 #pop-options
@@ -1068,7 +1064,7 @@ let em_is_sm_snoc_appfn
     eac_state_snoc ki il;
     lemma_cur_thread_state_extend il i;
     SA.lemma_fullprefix_equal il;
-    runapp_implies_slot_contains e vs_pre ki;
+    runapp_implies_store_contains e vs_pre ki;
     assert(store_contains vs_pre.st ki);
     runapp_doesnot_change_store_keys_extended ki il i;
     assert(add_method_of vs_pre.st ki = add_method_of vs_post.st ki);

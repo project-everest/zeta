@@ -88,11 +88,12 @@ let lemma_non_eac_init_appfn
 
       // k is the verifier store prior to processing ...
       let vs_pre = thread_state_pre tid itsl i in
-      get_record_set_correct ss vs_pre pi;
+      runapp_implies_store_contains fi.le vs_pre fi.bk;
       let st_pre = thread_store tid itsli in
       assert(store_contains st_pre fi.bk);
       FStar.Classical.exists_intro (fun tid -> store_contains (thread_store tid itsli) fi.bk) tid;
       lemma_instore fi.bk itsli;
+      runapp_refs_only_leafkeys itsl i fi.bk;
       hash_collision_contra app
     )
     else lemma_non_eac_appfn_non_refs itsl
@@ -120,7 +121,7 @@ let lemma_non_eac_instore_appfn
       let pi = S.index_mem fi.bk ss in
       let vs_pre = cur_thread_state_pre itsl i in
       let st_pre = thread_store_pre tid itsl i in
-      get_record_set_correct ss vs_pre pi;
+      runapp_implies_store_contains fi.le vs_pre fi.bk;
       ext_app_records_is_stored_val itsl i;
 
       let ak,av = S.index rs pi in

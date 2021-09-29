@@ -1,5 +1,7 @@
 module Zeta.High.Thread
 
+#push-options "--fuel 0 --ifuel 1"
+
 let lemma_blum_add_elem_props (#app:_) (tl: verifiable_log app) (i: seq_index tl {is_blum_add tl i})
   : Lemma (ensures (let open Zeta.MultiSetHashDomain in
                     let be = blum_add_elem tl i in
@@ -20,78 +22,6 @@ let lemma_blum_evict_elem_key (#app:_) (tl: verifiable_log app) (i: seq_index tl
                     be.t = blum_evict_timestamp (index tl i) /\
                     be.tid = fst tl))
   = ()
-
-#push-options "--z3rlimit_factor 3"
-
-let not_refs_implies_store_unchanged_addm  (#app:_) (ki:Zeta.Key.base_key)
-  (tl: verifiable_log app) (i:seq_index tl)
-  : Lemma (requires (let e = index tl i in
-                     let st_pre = store_pre tl i in
-                     let st_post = store_post tl i in
-                     AddM? (index tl i) /\
-                     not (e `exp_refs_key` ki) /\
-                     store_contains st_pre ki))
-          (ensures (let e = index tl i in
-                    let st_pre = store_pre tl i in
-                    let st_post = store_post tl i in
-                    store_contains st_post ki /\ st_pre ki == st_post ki))
-  = lemma_state_transition tl i
-
-let not_refs_implies_store_unchanged_addb  (#app:_) (ki:Zeta.Key.base_key)
-  (tl: verifiable_log app) (i:seq_index tl)
-  : Lemma (requires (let e = index tl i in
-                     let st_pre = store_pre tl i in
-                     let st_post = store_post tl i in
-                     AddB? (index tl i) /\
-                     not (e `exp_refs_key` ki) /\
-                     store_contains st_pre ki))
-          (ensures (let e = index tl i in
-                    let st_pre = store_pre tl i in
-                    let st_post = store_post tl i in
-                    store_contains st_post ki /\ st_pre ki == st_post ki))
-  = lemma_state_transition tl i
-
-let not_refs_implies_store_unchanged_evictm  (#app:_) (ki:Zeta.Key.base_key)
-  (tl: verifiable_log app) (i:seq_index tl)
-  : Lemma (requires (let e = index tl i in
-                     let st_pre = store_pre tl i in
-                     let st_post = store_post tl i in
-                     EvictM? (index tl i) /\
-                     not (e `exp_refs_key` ki) /\
-                     store_contains st_pre ki))
-          (ensures (let e = index tl i in
-                    let st_pre = store_pre tl i in
-                    let st_post = store_post tl i in
-                    store_contains st_post ki /\ st_pre ki == st_post ki))
-  = lemma_state_transition tl i
-
-let not_refs_implies_store_unchanged_evictb  (#app:_) (ki:Zeta.Key.base_key)
-  (tl: verifiable_log app) (i:seq_index tl)
-  : Lemma (requires (let e = index tl i in
-                     let st_pre = store_pre tl i in
-                     let st_post = store_post tl i in
-                     EvictB? (index tl i) /\
-                     not (e `exp_refs_key` ki) /\
-                     store_contains st_pre ki))
-          (ensures (let e = index tl i in
-                    let st_pre = store_pre tl i in
-                    let st_post = store_post tl i in
-                    store_contains st_post ki /\ st_pre ki == st_post ki))
-  = lemma_state_transition tl i
-
-let not_refs_implies_store_unchanged_evictbm  (#app:_) (ki:Zeta.Key.base_key)
-  (tl: verifiable_log app) (i:seq_index tl)
-  : Lemma (requires (let e = index tl i in
-                     let st_pre = store_pre tl i in
-                     let st_post = store_post tl i in
-                     EvictBM? (index tl i) /\
-                     not (e `exp_refs_key` ki) /\
-                     store_contains st_pre ki))
-          (ensures (let e = index tl i in
-                    let st_pre = store_pre tl i in
-                    let st_post = store_post tl i in
-                    store_contains st_post ki /\ st_pre ki == st_post ki))
-  = lemma_state_transition tl i
 
 let not_refs_implies_store_unchanged_runapp  (#app:_) (ki:Zeta.Key.base_key)
   (tl: verifiable_log app) (i:seq_index tl)
@@ -116,7 +46,7 @@ let not_refs_implies_store_unchanged_runapp  (#app:_) (ki:Zeta.Key.base_key)
     assert((Some?.v (vs_pre.st ki)).r = (Some?.v (vs_post.st ki)).r);
     runapp_doesnot_change_store_addmethod ki e vs_pre
 
-#pop-options
+#push-options "--z3rlimit_factor 3"
 
 let not_refs_implies_store_unchanged  (#app:_) (ki:Zeta.Key.base_key)
   (tl: verifiable_log app) (i:seq_index tl)
@@ -136,9 +66,4 @@ let not_refs_implies_store_unchanged  (#app:_) (ki:Zeta.Key.base_key)
     if not (e `exp_refs_key` ki) && store_contains vs_pre.st ki then (
       match e with
       | RunApp _ _ _ -> not_refs_implies_store_unchanged_runapp ki tl i
-      | AddM _ _ _ -> not_refs_implies_store_unchanged_addm ki tl i
-      | AddB _ _ _ _ -> not_refs_implies_store_unchanged_addb ki tl i
-      | EvictM _ _ -> not_refs_implies_store_unchanged_evictm ki tl i
-      | EvictB _ _ -> not_refs_implies_store_unchanged_evictb ki tl i
-      | EvictBM _ _ _ -> not_refs_implies_store_unchanged_evictbm ki tl i
       | _ -> ())
