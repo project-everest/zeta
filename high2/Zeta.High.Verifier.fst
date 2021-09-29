@@ -104,7 +104,7 @@ let runapp_doesnot_change_nonref_slots
                      vs'.valid /\ not (S.mem k ks)))
           (ensures (let vs' = GV.verify_step e vs in
                     vs.st k == vs'.st k))
-  = admit()
+  = ()
 
 let runapp_doesnot_change_store_addmethod
   (#app:_)
@@ -116,7 +116,9 @@ let runapp_doesnot_change_store_addmethod
                     store_contains vs.st ki ==>
                     store_contains vs_post.st ki /\
                     add_method_of vs.st ki = add_method_of vs_post.st ki))
-  = admit()
+  = ()
+
+#push-options "--fuel 0 --ifuel 1"
 
 let runapp_implies_store_contains
   (#app: _)
@@ -133,7 +135,14 @@ let runapp_implies_store_contains
                      store_contains vs.st k /\
                      stored_key vs.st k = AppK ak /\
                      stored_value vs.st k = AppV av)))
-  = admit()
+  = let GV.RunApp _ _ ks = e in
+    let vs_post = GV.verify_step e vs in
+    if vs_post.valid && S.mem k ks then (
+      let i = S.index_mem k ks in
+      ()
+    )
+
+#pop-options
 
 let runapp_doesnot_change_slot_emptiness
   (#app: _)
@@ -144,7 +153,7 @@ let runapp_doesnot_change_slot_emptiness
           (ensures (let vs_post = GV.verify_step e vs in
                     vs_post.valid ==>
                     ((store_contains vs.st k) <==> (store_contains vs_post.st k))))
-  = admit()
+  = ()
 
 let runapp_doesnot_change_slot_key
   (#app:_)
@@ -156,7 +165,7 @@ let runapp_doesnot_change_slot_key
                     store_contains vs.st ki ==>
                     store_contains vs_post.st ki /\
                     stored_key vs.st ki = stored_key vs_post.st ki))
-  = admit()
+  = ()
 
 let puts_valid
   (#app:_)
@@ -174,4 +183,4 @@ let puts_valid
                      let k = S.index ks i in
                      store_contains vs_post.st k /\
                      stored_value vs_post.st k = AppV (S.index ws i))))
-  = admit()
+  = ()
