@@ -201,26 +201,6 @@ let log_with_parsed_prefix (l:log) (s:repr)
     AT.h_exists (fun bs ->
     log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost p bs s))
 
-let coerce_bounded_u32 (l:log) (len:U32.t) (x:EP.bounded_u32 (U32.v len))
-  : Pure
-     (EP.bounded_u32 (U32.v l.len))
-     (requires l.len == len)
-     (fun _ -> True)
-  = x
-
-let coerce_bytes_repr (l:log) (len:U32.t) (x:bytes_repr (U32.v len))
-  : Pure
-     (bytes_repr (U32.v l.len))
-     (requires l.len == len)
-     (fun _ -> True)
-  = x
-
-let coerce_eq (#a:Type) (#t: a -> Type) (x:a) (y:a) (v:t x)
-  : Pure (t y)
-     (requires x==y)
-     (fun _ -> True)
-  = v
-
 //module T = FStar.Tactics
 let intro_log_with_parsed_prefix
      (l:log)
@@ -231,7 +211,6 @@ let intro_log_with_parsed_prefix
      (pos_val: EP.bounded_u32 (U32.v len))
      (bs : bytes_repr (U32.v len))
      (s  : repr)
-     (_  : squash (l.len == len))
  : Steel unit
    (log_with_parsed_prefix_raw len arr pos ghost pos_val bs s)
    (fun _ -> log_with_parsed_prefix l s)
@@ -242,23 +221,21 @@ let intro_log_with_parsed_prefix
      l.ghost == ghost)
    (ensures fun _ _ _ -> True)
  = let h = AT.get () in
-   assert (l.len == len);
-   let pos_val' : EP.bounded_u32 (U32.v l.len) = coerce_bounded_u32 l len pos_val in
-   let bs' : bytes_repr (U32.v l.len) = coerce_bytes_repr l len bs in
+   //TODO: Why do we need spinoff and why does it result in two queries?
    assert_spinoff(log_with_parsed_prefix_raw len arr pos ghost pos_val bs s ==
-                  log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val' bs' s);
+                  log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val bs s);
    AT.change_equal_slprop
      (log_with_parsed_prefix_raw len arr pos ghost pos_val bs s)
-     (log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val' bs' s);
-   AT.intro_exists bs'
-                   (fun bs' -> log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val' bs' s);
-   AT.intro_exists pos_val'
-                   (fun pos_val' ->
+     (log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val bs s);
+   AT.intro_exists bs
+                   (fun bs -> log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val bs s);
+   AT.intro_exists pos_val
+                   (fun pos_val ->
                      AT.h_exists
-                     (fun bs' -> log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val' bs' s));
+                     (fun bs -> log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val bs s));
    AT.return ()
 
-let initialize_log' (len:U32.t) (a:EP.larray U8.t len)
+let initialize_log (len:U32.t) a
   : Steel log
     (A.varray a)
     (fun l -> log_with_parsed_prefix l empty_log)
@@ -278,12 +255,8 @@ let initialize_log' (len:U32.t) (a:EP.larray U8.t len)
       pos = pos;
       ghost = ghost
     } in
-    AT.slassert (log_with_parsed_prefix_raw len a pos ghost 0ul contents (Ghost.hide Seq.empty));
-    let s : squash (log.len == len) = () in
-    intro_log_with_parsed_prefix log len a pos ghost 0ul contents (Ghost.hide Seq.empty) s;
+    intro_log_with_parsed_prefix log len a pos ghost 0ul contents (Ghost.hide Seq.empty);
     AT.return log
-
-let initialize_log len a = initialize_log' len a
 
 let parsed_log (l:log) (s:repr) : vprop =
    R.ghost_pts_to l.ghost Perm.full_perm s
@@ -322,34 +295,35 @@ let log_inv (l:log) (p: EP.bounded_u32 (U32.v l.len)) (bs: bytes_repr (U32.v l.l
 
 (* Unconditionally drop the log and ghost state and
    return permission to the underlying array *)
-val free (#s:repr)
+
+//TODO: if we add a val for free, and the let that does not have types, then we get 3 queries
+let free (#s:repr)
          (l:log)
          (#p:Ghost.erased (EP.bounded_u32 (U32.v l.len)))
          (#bs: bytes_repr (U32.v l.len))
          (_:unit)
   : SteelT unit
     (log_inv l p bs s)
-    (fun _ -> A.varray (log_array l))
-let free #s l #p #bs _ =
+    (fun _ -> A.varray (log_array l)) =
   AT.elim_pure _;
   R.ghost_free_pt l.ghost;
   R.free_pt l.pos;
   elim_varray_pts_to_u8 l.arr _
 
 let intro_read_next_provides_failed
+    (#opened:_)
     (s:repr)
     (r:read_result)
     (l:log)
-  : Steel unit
+  : AT.SteelGhost unit opened
     (A.varray (log_array l))
     (fun _ -> read_next_provides s l r)
     (requires fun _ -> Failed? r)
     (ensures fun _ _ _ -> True)
   = AT.change_equal_slprop (A.varray (log_array l))
-                           (read_next_provides s l r);
-    AT.return ()
+                           (read_next_provides s l r)
 
-val fail (#s:repr)
+let fail (#s:repr)
          (l:log)
          (#p:Ghost.erased (EP.bounded_u32 (U32.v l.len)))
          (#bs: bytes_repr (U32.v l.len))
@@ -358,18 +332,18 @@ val fail (#s:repr)
     (log_inv l p bs s)
     (fun r -> read_next_provides s l r)
     (requires fun _ -> U32.v pos <= U32.v l.len)
-    (ensures fun _ r _ -> Failed? r /\ Failed?.pos r == pos)
-let fail #s l #p #bs pos
-  = free l ();
-    let res = Failed pos "" in
-    intro_read_next_provides_failed s res l;
-    AT.return res
+    (ensures fun _ r _ -> Failed? r /\ Failed?.pos r == pos) =
+  free l ();
+  let res = Failed pos "" in
+  intro_read_next_provides_failed s res l;
+  AT.return res
 
 let read_pt (#a:Type) (#p:Perm.perm) (#v:Ghost.erased a) (r:R.ref a)
   : Steel a (R.pts_to r p v) (fun x -> R.pts_to r p v)
            (requires fun _ -> True)
            (ensures fun _ x _ -> x == Ghost.reveal v)
   = let x = R.read_pt r in
+    //TODO: why spinoff
     assert_spinoff (R.pts_to r p (Ghost.hide x) ==
                     R.pts_to r p v);
     AT.change_equal_slprop (R.pts_to r p (Ghost.hide x))
@@ -419,13 +393,14 @@ let parsed_array s l (h1:rmem (read_next_provides s l Finished)) =
   parsed (A.asel l.arr h1) s
 
 let coerce_rmem p q (h:rmem p) (_:squash (p==q)) : rmem q = h
+
 let read_next_ensures s l (o:read_result) (h1:rmem (read_next_provides s l o)) =
     match o with
     | Finished ->
       //The entries we parsed is stable and fixed to s
       parsed_log_inv l s /\
       //and s is the parse of the contents of the array in state h1
-      parsed_array s l (coerce_rmem _ _ h1 ())
+      parsed_array s l (coerce_rmem _ _ h1 ())  //TODO: this coerce goes away if rmem is unifier_hint_injective
     | Parsed_with_maybe_more e -> True
     | Failed pos _ -> U32.(pos <^ log_len l) == true
 
@@ -450,8 +425,7 @@ let read_next_maybe_more (#s:repr)
     (read_next_provides s l)
     (requires fun _ -> pos == Ghost.reveal p /\ U32.v pos < U32.v l.len)
     (ensures fun _ o h1 -> read_next_ensures s l o h1)
-  = let h = AT.get () in
-    assert (U32.v pos < U32.v l.len);
+  = assert (U32.v pos < U32.v l.len);  //TODO: why this assert
     let eopt = extract_log_entry_from l.len l.arr pos in
     match eopt with
     | Inr (p, _) ->
@@ -461,7 +435,7 @@ let read_next_maybe_more (#s:repr)
       st_extend_parsed_raw_util p _ s p' e;
       R.ghost_write_pt l.ghost (snoc_log s e);
       R.write_pt l.pos p';
-      intro_log_with_parsed_prefix l _ _ _ _ _ _ _ ();
+      intro_log_with_parsed_prefix l _ _ _ _ _ _ _;
       intro_read_next_provides_success l e
 
 val intro_read_next_provides_finished (#s:_) (l:log)
@@ -474,12 +448,11 @@ val intro_read_next_provides_finished (#s:_) (l:log)
     (ensures fun _ o h ->
       read_next_ensures s l o h)
 let intro_read_next_provides_finished #s l
-  = let h0 = AT.get () in
-    AT.change_equal_slprop (A.varray l.arr)
+  = AT.change_equal_slprop (A.varray l.arr)
                            (read_next_provides s l Finished);
     let h1 = AT.get () in
-    assert (parsed_array s l h1);
-    assert_spinoff (read_next_ensures s l Finished h1);
+    assert (parsed_array s l h1);  //TODO: why these two asserts
+    assert (read_next_ensures s l Finished h1);
     AT.return Finished
 
 let read_next_finished (#s:repr)
@@ -494,39 +467,24 @@ let read_next_finished (#s:repr)
     (ensures fun _ o h1 -> read_next_ensures s l o h1)
   =   AT.elim_pure (parsed_raw_until #(U32.v l.len) p bs s);
       parsed_raw_until_full pos bs s;
-      assert (parsed bs s);
+      //assert (parsed bs s);
       let i = AT.new_invariant (parsed_log l s) in
-      assert (parsed_log_inv l s);
+      //assert (parsed_log_inv l s);
       elim_varray_pts_to_u8 l.arr _;
-      let h = AT.get () in
-      assert (parsed (A.asel l.arr h) s);
-      let res = Finished in
+      //let h = AT.get () in
+      //assert (parsed (A.asel l.arr h) s);
       R.free_pt l.pos;
-      intro_read_next_provides_finished l
+      AT.change_equal_slprop (A.varray l.arr)
+                             (read_next_provides s l Finished);
+      AT.return Finished
 
-val read_next' (#s:repr) (l:log)
-  : Steel read_result
-    (log_with_parsed_prefix l s)
-    (read_next_provides s l)
-    (requires fun _ -> True)
-    (ensures fun _ o h1 -> read_next_ensures s l o h1)
-let read_next' #s l
-  = let h = AT.get () in
-    let pbs = elim_log_with_parsed_prefix l s in
+let read_next #s l
+  = let pbs = elim_log_with_parsed_prefix l s in
     let pos = read_pt l.pos in
     if pos = l.len
-    then (
-      let x = read_next_finished l pos in
-      AT.return x
-    )
-    else (
-      let x = read_next_maybe_more l pos in
-      AT.return x
-    )
-
-let read_next #s l = read_next' #s l
+    then AT.return (read_next_finished l pos)
+    else AT.return (read_next_maybe_more l pos)
 
 let dispose #s l =
-  let h = AT.get () in
-  let pbs = elim_log_with_parsed_prefix l s in
+  let _ = elim_log_with_parsed_prefix l s in
   free l ()
