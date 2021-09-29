@@ -1,9 +1,9 @@
-module Zeta.SIdxFnInt
+module Zeta.SIdxFn
 
 open FStar.Seq
 open Zeta.SeqAux
 open Zeta.SSeq
-open Zeta.IdxFnInt
+open Zeta.IdxFn
 
 module S = FStar.Seq
 module SA = Zeta.SeqAux
@@ -78,4 +78,4 @@ val lemma_filter_map_idx (#b:_) (gs:gen_sseq)
   (fm: fm_t gs.gsi b)
   (s: gs.gso.seq_t)
   (i: nat{i < gs.gso.length s})
-  : Lemma (ensures (S.index (filter_map gs fm s) i == Zeta.IdxFnInt.filter_map fm (gs.index s i)))
+  : Lemma (ensures (S.index (filter_map gs fm s) i == Zeta.IdxFn.filter_map fm (gs.index s i)))

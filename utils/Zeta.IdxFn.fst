@@ -1,4 +1,4 @@
-module Zeta.IdxFnInt
+module Zeta.IdxFn
 
 let conj_is_idxfn (#gs:_) (f1 f2: idxfn_t gs bool)
   : Lemma (ensures (prefix_property (conj f1 f2)))

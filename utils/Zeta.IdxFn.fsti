@@ -1,4 +1,4 @@
-module Zeta.IdxFnInt
+module Zeta.IdxFn
 
 open FStar.Seq
 open Zeta.SeqAux
