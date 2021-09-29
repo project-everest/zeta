@@ -67,7 +67,7 @@ let succeeds #app (fc: appfn_call app) (st: app_state app.adm)
 (* the inputs of a function call are consistent with a state, if the values of all referenced keys are those
  * in the state *)
 let input_consistent #app (fc: appfn_call app) (st: app_state app.adm)
-  = forall (k: app_key app.adm). {:pattern (refkey_inp_val fc k = st k)} fc `refs` k ==> (refkey_inp_val fc k = st k)
+  = forall (k: app_key app.adm). ((fc `refs` k) ==> (refkey_inp_val fc k = st k))
 
 val input_correct_is_input_consistent (#app:_) (fc: appfn_call app) (st: app_state app.adm)
   : Lemma (ensures (let rs = fc.inp_c in

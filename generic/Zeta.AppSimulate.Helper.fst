@@ -1,31 +1,64 @@
 module Zeta.AppSimulate.Helper
 
+module S = FStar.Seq
+
 let app_state_feq_implies_equal (#adm:_) (st1 st2: app_state adm)
   : Lemma (requires (app_state_feq st1 st2))
           (ensures (st1 == st2))
   = admit()
 
+let of_key (#adm:_) (ki: app_key adm) (r: app_record adm)
+  = let k,_ = r in
+    k = ki
+
 let refs_comp (#app:_) (fc: appfn_call app) (k: app_key app.adm)
   : b:bool { b <==> refs fc k }
-  = admit()
+  = let open Zeta.SeqIdx in
+    exists_elems_with_prop_comp (of_key k) fc.inp_c
 
 (* for a referenced key, return the parameter position index *)
 let refkey_idx (#app:_) (fc: appfn_call app) (k: app_key app.adm{fc `refs` k})
   : i:_{let k',v = FStar.Seq.index fc.inp_c i in k' = k}
-  = admit()
+  = let open Zeta.SeqIdx in
+    last_idx (of_key k) fc.inp_c
 
 let refs_witness (#app:_) (fc: appfn_call app) (k: app_key app.adm)
  (i: Zeta.SeqAux.seq_index fc.inp_c {k = fst (FStar.Seq.index fc.inp_c i)})
- = admit()
+  : Lemma (ensures (refs fc k))
+ = let open Zeta.SeqIdx in
+   exists_elems_with_prop_intro (of_key k) fc.inp_c i
+
+let record_incorrect (#adm:_) (st: app_state adm) (r: app_record adm)
+  : bool
+  = let k,v = r in
+    st k <> v
 
 let input_correct_is_input_consistent (#app:_) (fc: appfn_call app) (st: app_state app.adm)
   : Lemma (ensures (let rs = fc.inp_c in
                    input_consistent fc st <==> input_correct st rs))
-  = admit()
+  = let rs = fc.inp_c in
+    if input_correct st rs then (
+      let aux (k:_)
+        : Lemma (ensures (fc `refs` k ==> refkey_inp_val fc k = st k))
+        = if fc `refs_comp` k then (
+            let i = refkey_idx fc k in
+            ()
+          )
+      in
+      FStar.Classical.forall_intro aux
+    )
+    else (
+      let open Zeta.SeqIdx in
+      let i = last_idx (record_incorrect st) rs in
+      let k,v = S.index rs i in
+      FStar.Classical.exists_intro (fun i -> (let k',v = S.index fc.inp_c i in k' = k)) i;
+      assert(fc `refs` k);
+      FStar.Classical.exists_intro (fun k -> (fc `refs` k /\ ~ (refkey_inp_val fc k = st k))) k
+    )
 
 let correct_succeeds_if_input_consistent (#app:_) (fc: appfn_call app) (st: app_state app.adm)
   : Lemma (ensures (succeeds fc st <==> correct fc /\ input_consistent fc st))
-  = admit()
+  = ()
 
 let lemma_post_state (#app:_) (fc: appfn_call app) (st: app_state app.adm {succeeds fc st}) (k: app_key app.adm)
   : Lemma (ensures (let stpost = apply_trans fc st in
