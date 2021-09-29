@@ -42,7 +42,7 @@ let to_glog #vspec #n (il: verifiable_log vspec n): G.verifiable_log _
   = I.s_seq il
 
 let prefix #vspec #n (il: verifiable_log vspec n) (i:nat{i <= S.length il})
-  : verifiable_log vspec n
+  : il':verifiable_log vspec n {length il' = i}
   = I.prefix il i
 
 (* the clock value at every index *)
@@ -50,6 +50,18 @@ let clock (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
   : timestamp
   = let ti = i2s_map il i in
     G.clock (to_glog il) ti
+
+val clock_prefix_prop (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il) (j:nat{j <= length il /\ j > i})
+  : Lemma (ensures (clock il i = clock (prefix il j) i))
+          [SMTPat (clock (prefix il j) i)]
+
+let epoch_of (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
+  : epoch
+  = let t = clock il i in
+    t.e
+
+let is_within_epoch (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (i: seq_index il)
+  = epoch_of il i <= ep
 
 let is_appfn (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
   : bool

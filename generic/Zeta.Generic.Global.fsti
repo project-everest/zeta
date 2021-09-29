@@ -50,6 +50,14 @@ let clock (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl)
     let tl = index gl tid in
     T.clock tl j
 
+let epoch_of (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl)
+  = let tid,j = i in
+    let tl = index gl tid in
+    T.epoch_of tl j
+
+let is_within_epoch (#vspec:_) (ep: epoch) (gl: verifiable_log vspec) (i: sseq_index gl)
+  = epoch_of gl i <= ep
+
 let is_appfn (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl)
   : bool
   = let t,j = i in

@@ -22,6 +22,10 @@ let to_elem #a #n (il: interleaving a n) (i: seq_index il)
 let i_seq (#a:_) (#n:nat) (il: interleaving a n)
   = map #(gen_seq a n) (to_elem #a #n) il
 
+let index_prop (#a #n:_) (il: interleaving a n) (i: SA.seq_index il)
+  : Lemma (ensures ((S.index il i).e = index il i))
+  = admit()
+
 let seq_i_fm (a:eqtype) n (i:nat)
   : fm_t (gen_seq a n) a
   = FM (from_src i) to_elem

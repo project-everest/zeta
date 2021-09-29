@@ -4,6 +4,10 @@ let lemma_prefix_verifiable (#vspec:_) (n:_) (il:verifiable_log vspec n) (i:nat{
   Lemma (ensures (verifiable (I.prefix il i)))
   = admit()
 
+let clock_prefix_prop (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il) (j:nat{j <= length il /\ j > i})
+  : Lemma (ensures (clock il i = clock (prefix il j) i))
+  = admit()
+
 //#push-options "--query_stats --debug Zeta.Generic.Interleave --debug_level SMTQuery"
 let lemma_cur_thread_state_extend (#vspec: verifier_spec) (#n:_)
   (il: verifiable_log vspec n) (i: seq_index il)

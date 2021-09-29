@@ -29,6 +29,10 @@ let src (#a:_) (#n:_) (il: interleaving a n) (i: SA.seq_index il)
 let index (#a:_) (#n:_) (il: interleaving a n) (i: SA.seq_index il)
   = S.index (i_seq il) i
 
+val index_prop (#a #n:_) (il: interleaving a n) (i: SA.seq_index il)
+  : Lemma (ensures ((S.index il i).e = index il i))
+          [SMTPat (index il i)]
+
 val s_seq (#a:_) (#n:_) (il: interleaving a n): ss:sseq a{S.length ss = n}
 
 val per_thread_prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
