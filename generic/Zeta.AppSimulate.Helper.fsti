@@ -123,27 +123,14 @@ val lemma_init_value_null (#app:_) (fs: seq (appfn_call app){length fs = 0}) (k:
 val empty_call_result_valid (#app:_) (rs: seq (appfn_call_res app))
   : Lemma (ensures (length rs = 0 ==> valid_call_result rs))
 
-let app_fcs_empty (#app:_) (fcrs: seq (appfn_call_res app))
+val app_fcs_empty (#app:_) (fcrs: seq (appfn_call_res app))
   : Lemma (ensures (length fcrs = 0 ==> length (app_fcs fcrs) = 0))
-   = ()
 
-let app_fcs_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs > 0})
+val app_fcs_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs > 0})
   : Lemma (ensures (let i = length fcrs - 1 in
                     let fcrs' = prefix fcrs i in
                     let fc = to_app_fc fcrs i in
                     app_fcs fcrs = append1 (app_fcs fcrs') fc))
-  = let i = length fcrs - 1 in
-    let fcrs' = prefix fcrs i in
-    let fcs = app_fcs fcrs in
-    let fcs' = app_fcs fcrs' in
-    let fc = to_app_fc fcrs i in
-    let fcs2 = append1 fcs' fc in
-    let aux (i:_)
-      : Lemma (ensures (index fcs i = index fcs2 i))
-      = ()
-    in
-    FStar.Classical.forall_intro aux;
-    assert(equal fcs fcs2)
 
 val valid_call_result_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs > 0})
   : Lemma (requires (let i = length fcrs - 1  in
