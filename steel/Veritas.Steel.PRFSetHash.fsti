@@ -54,7 +54,7 @@ let v_hash (#p:vprop)
   : GTot HA.hash_value_t
   = hash_value_of (h (prf_set_hash_inv r))
 
-val create (_:unit)
+val create (ha:HA.ha)
   : Steel prf_set_hash
     emp
     (fun p -> prf_set_hash_inv p)
@@ -62,9 +62,13 @@ val create (_:unit)
     (ensures fun _ p h1 -> v_hash p h1 == HA.initial_hash)
 
 val free (p:prf_set_hash)
-  : SteelT unit
+  : Steel HA.ha
     (prf_set_hash_inv p)
-    (fun _ -> emp)
+    (fun x -> HA.ha_inv x)
+    (fun _ -> True)
+    (fun h0 x h1 ->
+      v_hash p h0 ==
+      HA.hash_value_of x h1)
 
 val prf_update_hash (p:prf_set_hash)
                     (r:T.record)
@@ -77,26 +81,26 @@ val prf_update_hash (p:prf_set_hash)
     (ensures fun h0 _ h1 ->
       v_hash p h1 == VM.update_hash_value (v_hash p h0) r t thread_id)
 
-val prf_read_hash (p:prf_set_hash) (out:A.array U8.t)
-  : Steel unit
-    (prf_set_hash_inv p `star` A.varray out)
-    (fun _ -> prf_set_hash_inv p `star` A.varray out)
-    (requires fun _ -> A.length out == 32)
-    (ensures fun h0 _ h1 ->
-      A.length out == 32 /\
-      v_hash p h0 == v_hash p h1 /\
-      A.asel out h1 == v_hash p h1)
+// val prf_read_hash (p:prf_set_hash) (out:A.array U8.t)
+//   : Steel unit
+//     (prf_set_hash_inv p `star` A.varray out)
+//     (fun _ -> prf_set_hash_inv p `star` A.varray out)
+//     (requires fun _ -> A.length out == 32)
+//     (ensures fun h0 _ h1 ->
+//       A.length out == 32 /\
+//       v_hash p h0 == v_hash p h1 /\
+//       A.asel out h1 == v_hash p h1)
 
-val prf_hash_agg (a0 a1:A.array U8.t)
-  : Steel unit
-    (A.varray a0 `star` A.varray a1)
-    (fun _ -> A.varray a0 `star` A.varray a1)
-    (requires fun _ ->
-      A.length a0 == 32 /\
-      A.length a1 == 32)
-    (ensures fun h0 _ h1 ->
-      A.length a0 == 32 /\
-      A.length a1 == 32 /\
-      A.asel a1 h0 == A.asel a1 h1 /\
-      A.asel a0 h1 ==
-        HA.aggregate_hash_value (A.asel a0 h0) (A.asel a1 h0))
+// val prf_hash_agg (a0 a1:A.array U8.t)
+//   : Steel unit
+//     (A.varray a0 `star` A.varray a1)
+//     (fun _ -> A.varray a0 `star` A.varray a1)
+//     (requires fun _ ->
+//       A.length a0 == 32 /\
+//       A.length a1 == 32)
+//     (ensures fun h0 _ h1 ->
+//       A.length a0 == 32 /\
+//       A.length a1 == 32 /\
+//       A.asel a1 h0 == A.asel a1 h1 /\
+//       A.asel a0 h1 ==
+//         HA.aggregate_hashes (A.asel a0 h0) (A.asel a1 h0))

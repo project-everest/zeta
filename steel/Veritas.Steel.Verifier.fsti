@@ -15,10 +15,11 @@ module T = Veritas.Formats.Types
 open Veritas.Steel.VCache
 open Veritas.Steel.VerifierModel
 open Veritas.ThreadStateModel
-module PRF = Veritas.Steel.PRFSetHash
+module HA = Veritas.Steel.HashAccumulator
 module L = Veritas.Steel.Log
 module U8 = FStar.UInt8
 module A = Steel.Array
+#push-options "--ide_id_info_off"
 
 val thread_state_t
   : Type0
@@ -60,15 +61,25 @@ val verify_array (vs:_)
     (ensures fun h0 sopt h1 ->
       verify_array_post a (v_thread vs h0) sopt (v_thread vs h1))
 
-val create (tid:T.thread_id) (store_size:U16.t)
+val create (hadd:HA.ha)
+           (hevict:HA.ha)
+           (tid:T.thread_id)
+           (store_size:U16.t)
   : Steel thread_state_t
-    emp
+    (HA.ha_inv hadd `star` HA.ha_inv hevict)
     (fun vs -> thread_state_inv vs)
-    (requires fun _ -> True)
+    (requires fun h ->
+      HA.hash_value_of hadd h == HA.initial_hash /\
+      HA.hash_value_of hevict h == HA.initial_hash)
     (ensures fun _ vs h1 ->
       v_thread vs h1 == init_thread_state_model tid store_size)
 
 val free (vs:thread_state_t)
-  : SteelT unit
+  : Steel (HA.ha & HA.ha)
     (thread_state_inv vs)
-    (fun _ -> emp)
+    (fun x -> HA.ha_inv (fst x) `star` HA.ha_inv (snd x))
+    (fun _ -> True)
+    (fun h0 x h1 ->
+      (let tsm = v_thread vs h0 in
+       tsm.model_hadd = HA.hash_value_of (fst x) h1 /\
+       tsm.model_hevict = HA.hash_value_of (snd x) h1))

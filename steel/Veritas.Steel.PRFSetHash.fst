@@ -18,7 +18,8 @@ module VFT = Veritas.Formats.Types
 module VF = Veritas.Formats
 module MSH = Veritas.MultiSetHash
 module HA = Veritas.Steel.HashAccumulator
-
+#push-options "--query_stats"
+#push-options "--fuel 2 --ifuel 1" //not sure why some proofs need fuel 2
 noeq
 type prf_set_hash = {
   ha_state : HA.state;

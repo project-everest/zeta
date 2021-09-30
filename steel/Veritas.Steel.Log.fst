@@ -220,10 +220,9 @@ let intro_log_with_parsed_prefix
      l.pos == pos /\
      l.ghost == ghost)
    (ensures fun _ _ _ -> True)
- = let h = AT.get () in
-   //TODO: Why do we need spinoff and why does it result in two queries?
-   assert_spinoff(log_with_parsed_prefix_raw len arr pos ghost pos_val bs s ==
-                  log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val bs s);
+ = //TODO: Why do we need spinoff and why does it result in two queries?
+   assert_spinoff (log_with_parsed_prefix_raw len arr pos ghost pos_val bs s ==
+                   log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val bs s);
    AT.change_equal_slprop
      (log_with_parsed_prefix_raw len arr pos ghost pos_val bs s)
      (log_with_parsed_prefix_raw l.len l.arr l.pos l.ghost pos_val bs s);

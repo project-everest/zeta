@@ -75,8 +75,8 @@ let update_hash_value (ha:HA.hash_value_t)
                       (tid:T.thread_id)
   : GTot HA.hash_value_t
   = let b = VF.serialize_stamped_record_spec (T.({ sr_record = r; sr_timestamp = t; sr_thread_id = tid})) in
-    let h = HA.hash_value b in
-    HA.aggregate_hash_value ha h
+    let h = HA.hash_one_value b in
+    HA.aggregate_hashes ha h
 
 let model_update_hash (h:model_hash) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id)
   : GTot model_hash
