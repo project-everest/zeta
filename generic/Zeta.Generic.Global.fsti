@@ -96,11 +96,13 @@ let blum_evict_elem (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl {is_
     let tl = index gl t in
     T.blum_evict_elem tl j
 
-val add_sseq (#vspec:_) (gl: verifiable_log vspec)
-  : ss:sseq (ms_hashfn_dom vspec.app) { S.length ss = S.length gl }
+let add_sseq (#vspec:_) (ep: epoch) (gl: verifiable_log vspec)
+  : sseq (ms_hashfn_dom vspec.app)
+  = S.init (S.length gl) (fun i -> T.add_seq ep (index gl i))
 
-val evict_sseq (#vspec:_) (gl: verifiable_log vspec)
-  : ss:sseq (ms_hashfn_dom vspec.app) { S.length ss = S.length gl }
+let evict_sseq (#vspec:_) (ep: epoch) (gl: verifiable_log vspec)
+  : sseq (ms_hashfn_dom vspec.app)
+  = S.init (S.length gl) (fun i -> T.evict_seq ep (index gl i))
 
 (* blum add set elements for a given epoch *)
 let add_set
@@ -108,7 +110,7 @@ let add_set
   (ep: epoch)
   (gl: verifiable_log vspec)
   : mset_ms_hashfn_dom vspec.app
-  = let as = add_sseq gl in
+  = let as = add_sseq ep gl in
     sseq2mset as
 
 (* blum evict set elements for a given epoch *)
@@ -116,7 +118,7 @@ let evict_set
   (#vspec: verifier_spec)
   (ep: epoch)
   (gl: verifiable_log vspec): mset_ms_hashfn_dom vspec.app
-  = let es = evict_sseq gl in
+  = let es = evict_sseq ep gl in
     sseq2mset es
 
 (* verifiable log property that add- and evict sets are the same *)

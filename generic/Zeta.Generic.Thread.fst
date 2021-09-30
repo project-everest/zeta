@@ -1,13 +1,15 @@
 module Zeta.Generic.Thread
 
+module IF = Zeta.IdxFn
+
 (* if a thread log is verifiable, its prefix is verifiable *)
 let rec verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
   (tl:verifiable_log vspec) (i:nat{i <= length tl}):
-  Lemma (ensures (verifiable (prefix tl i)))
+  Lemma (ensures (verifiable (prefix_base tl i)))
         (decreases (length tl))
   = let n = length tl in
     if n = i then ()
-    else verifiable_implies_prefix_verifiable (prefix tl (n-1)) i
+    else verifiable_implies_prefix_verifiable (prefix_base tl (n-1)) i
 
 (* the state after processing i'th entry is obtained by applying the verify
  * step to the state before processing the i'th entry *)
@@ -46,6 +48,69 @@ let rec lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
     if n = 0 then ()
     else lemma_thread_id_state (prefix tl (n-1))
 
+let gen_seq (vspec: verifier_spec) = {
+  IF.seq_t = verifiable_log vspec;
+  IF.length = length;
+  IF.prefix = prefix;
+}
+
+let is_blum_add_ifn (#vspec:_)
+  : IF.idxfn_t (gen_seq vspec) bool
+  = is_blum_add
+
+let is_blum_add_epoch_ifn (#vspec:_) (ep: epoch)
+  : IF.idxfn_t (gen_seq vspec) bool
+  = is_blum_add_ep ep
+
+let blum_add_elem_ifn (#vspec:_)
+  : IF.cond_idxfn_t (ms_hashfn_dom vspec.app) (is_blum_add_ifn #vspec)
+  = blum_add_elem #vspec
+
+let add_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  : S.seq (ms_hashfn_dom vspec.app)
+  = let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec ep) (blum_add_elem_ifn #vspec) in
+    IF.filter_map fm tl
+
+let add_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_add tl i})
+  : (let be = blum_add_elem tl i in
+     let ep = be.t.e in
+     let as = add_seq ep tl in
+     j: SA.seq_index as { S.index as j = be })
+  = let be = blum_add_elem tl i in
+    let ep = be.t.e in
+    let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec ep) (blum_add_elem_ifn #vspec) in
+    IF.filter_map_map fm tl i
+
+let add_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_index (add_seq ep tl))
+  : i:seq_index tl { is_blum_add tl i /\ add_seq_map tl i = j  }
+  = let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec ep) (blum_add_elem_ifn #vspec) in
+    IF.filter_map_invmap fm tl j
+
+let lemma_add_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_add tl i})
+  : Lemma (ensures (let be = blum_add_elem tl i in
+                    let ep = be.t.e in
+                    let as = add_seq ep tl in
+                    let j = add_seq_map tl i in
+                    add_seq_invmap ep tl j = i))
+  = ()
+
+let add_seq_map_monotonic (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i:seq_index tl {is_blum_add tl i}))
+  : Lemma (requires (let be1 = blum_add_elem tl i1 in
+                     let be2 = blum_add_elem tl i2 in
+                     be1.t.e = be2.t.e))
+          (ensures ((i1 <= i2 ==> add_seq_map tl i1 <= add_seq_map tl i2) /\
+                    (i2 <= i1 ==> add_seq_map tl i2 <= add_seq_map tl i1)))
+  = let be1 = blum_add_elem tl i1 in
+    let ep = be1.t.e in
+    let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec ep) (blum_add_elem_ifn #vspec) in
+    IF.lemma_filter_map_map_monotonic fm tl i1 i2
+
+let add_seq_invmap_monotonic (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (add_seq ep tl))
+  : Lemma (ensures ((j1 <= j2 ==> add_seq_invmap ep tl j1 <= add_seq_invmap ep tl j2) /\
+                    (j2 <= j1 ==> add_seq_invmap ep tl j2 <= add_seq_invmap ep tl j1)))
+  = let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec ep) (blum_add_elem_ifn #vspec) in
+    IF.filter_map_invmap_monotonic fm tl j1 j2
+
 let blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
   : be:ms_hashfn_dom vspec.app {let e = index tl i in
                                 let s = evict_slot e in
@@ -64,6 +129,71 @@ let blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_bl
     let r = Some?.v (vspec.get s st') in
     let tid = fst tl in
     MHDom r t tid
+
+let is_blum_evict_ifn (#vspec:_)
+  : IF.idxfn_t (gen_seq vspec) bool
+  = is_blum_evict
+
+let is_blum_evict_epoch_ifn (#vspec:_) (ep: epoch)
+  : IF.idxfn_t (gen_seq vspec) bool
+  = is_blum_evict_ep ep
+
+let blum_evict_elem_ifn (#vspec:_)
+  : IF.cond_idxfn_t (ms_hashfn_dom vspec.app) (is_blum_evict_ifn #vspec)
+  = blum_evict_elem #vspec
+
+let evict_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  : S.seq (ms_hashfn_dom vspec.app)
+  = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec ep) (blum_evict_elem_ifn #vspec) in
+    IF.filter_map fm tl
+
+let evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i})
+  : (let be = blum_evict_elem tl i in
+     let ep = be.t.e in
+     let es = evict_seq ep tl in
+     j: SA.seq_index es { S.index es j = be })
+  = let be = blum_evict_elem tl i in
+    let ep = be.t.e in
+    let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec ep) (blum_evict_elem_ifn #vspec) in
+    IF.filter_map_map fm tl i
+
+let evict_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_index (evict_seq ep tl))
+  : i:seq_index tl { is_blum_evict tl i /\ evict_seq_map tl i = j  }
+  = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec ep) (blum_evict_elem_ifn #vspec) in
+    IF.filter_map_invmap fm tl j
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let lemma_evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i})
+  : Lemma (ensures (let be = blum_evict_elem tl i in
+                    let ep = be.t.e in
+                    let as = evict_seq ep tl in
+                    let j = evict_seq_map tl i in
+                    evict_seq_invmap ep tl j = i))
+  = ()
+
+#pop-options
+
+let evict_seq_map_monotonic (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i:seq_index tl {is_blum_evict tl i}))
+  : Lemma (requires (let be1 = blum_evict_elem tl i1 in
+                     let be2 = blum_evict_elem tl i2 in
+                     be1.t.e = be2.t.e))
+          (ensures ((i1 <= i2 ==> evict_seq_map tl i1 <= evict_seq_map tl i2) /\
+                    (i2 <= i1 ==> evict_seq_map tl i2 <= evict_seq_map tl i1)))
+  = let be1 = blum_evict_elem tl i1 in
+    let ep = be1.t.e in
+    let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec ep) (blum_evict_elem_ifn #vspec) in
+    IF.lemma_filter_map_map_monotonic fm tl i1 i2
+
+let evict_seq_invmap_monotonic (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (evict_seq ep tl))
+  : Lemma (ensures ((j1 <= j2 ==> evict_seq_invmap ep tl j1 <= evict_seq_invmap ep tl j2) /\
+                    (j2 <= j1 ==> evict_seq_invmap ep tl j2 <= evict_seq_invmap ep tl j1)))
+  = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec ep) (blum_evict_elem_ifn #vspec) in
+    IF.filter_map_invmap_monotonic fm tl j1 j2
+
+let evict_elem_unique (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i: seq_index tl {is_blum_evict tl i}))
+  : Lemma (ensures (i1 <> i2 ==> blum_evict_elem tl i1 <> blum_evict_elem tl i2))
+  = admit()
 
 let lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
   : Lemma (ensures (let be = blum_add_elem tl i in
