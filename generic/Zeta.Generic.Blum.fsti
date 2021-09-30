@@ -106,6 +106,32 @@ val lemma_add_set_mem (#vspec #n:_) (il: verifiable_log vspec n) (i1 i2: seq_ind
                     let ep = be.t.e in
                     mem be (add_set ep il) >= 2))
 
+let is_blum_add_of_key
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (i: seq_index il)
+  = is_blum_add il i &&
+    (let be = blum_add_elem il i in
+     let gkc,_ = be.r in
+     gkc = gk &&
+     be.t.e = ep)
+
+let is_blum_evict_of_key
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (i: seq_index il)
+  = is_blum_evict il i &&
+    (let be = blum_evict_elem il i in
+     let gkc,_ = be.r in
+     be.t.e = ep &&
+     gkc = gk)
+
 (* add elements of a specific key*)
 val k_add_il (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
   : interleaving (ms_hashfn_dom vspec.app) n
@@ -148,31 +174,6 @@ val evict_set_rel_k_evict_set
   (be: ms_hashfn_dom vspec.app{let gkc,_ = be.r in gkc = gk})
   : Lemma (ensures (mem be (k_evict_set ep gk il) = mem be (evict_set ep il)))
 
-let is_blum_add_of_key
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n)
-  (i: seq_index il)
-  = is_blum_add il i &&
-    (let be = blum_add_elem il i in
-     let gkc,_ = be.r in
-     gkc = gk &&
-     be.t.e = ep)
-
-let is_blum_evict_of_key
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n)
-  (i: seq_index il)
-  = is_blum_evict il i &&
-    (let be = blum_evict_elem il i in
-     let gkc,_ = be.r in
-     be.t.e = ep &&
-     gkc = gk)
 
 val k_add_set_correct
   (#vspec: verifier_spec)

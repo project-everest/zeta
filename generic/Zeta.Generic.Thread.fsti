@@ -120,7 +120,7 @@ val add_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_
      j: SA.seq_index as { S.index as j = be })
 
 val add_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_index (add_seq ep tl))
-  : i:seq_index tl { is_blum_add tl i /\ add_seq_map tl i = j  }
+  : i:seq_index tl { is_blum_add_ep ep tl i /\ add_seq_map tl i = j  }
 
 val lemma_add_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_add tl i})
   : Lemma (ensures (let be = blum_add_elem tl i in
@@ -134,12 +134,12 @@ val add_seq_map_monotonic (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i:seq_i
   : Lemma (requires (let be1 = blum_add_elem tl i1 in
                      let be2 = blum_add_elem tl i2 in
                      be1.t.e = be2.t.e))
-          (ensures ((i1 <= i2 ==> add_seq_map tl i1 <= add_seq_map tl i2) /\
-                    (i2 <= i1 ==> add_seq_map tl i2 <= add_seq_map tl i1)))
+          (ensures ((i1 < i2 ==> add_seq_map tl i1 < add_seq_map tl i2) /\
+                    (i2 < i1 ==> add_seq_map tl i2 < add_seq_map tl i1)))
 
 val add_seq_invmap_monotonic (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (add_seq ep tl))
-  : Lemma (ensures ((j1 <= j2 ==> add_seq_invmap ep tl j1 <= add_seq_invmap ep tl j2) /\
-                    (j2 <= j1 ==> add_seq_invmap ep tl j2 <= add_seq_invmap ep tl j1)))
+  : Lemma (ensures ((j1 < j2 ==> add_seq_invmap ep tl j1 < add_seq_invmap ep tl j2) /\
+                    (j2 < j1 ==> add_seq_invmap ep tl j2 < add_seq_invmap ep tl j1)))
 
 let is_blum_evict (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_blum_evict (index tl i)
@@ -169,7 +169,7 @@ val evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blu
      j: SA.seq_index es { S.index es j = be })
 
 val evict_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_index (evict_seq ep tl))
-  : i:seq_index tl { is_blum_evict tl i /\ evict_seq_map tl i = j  }
+  : i:seq_index tl { is_blum_evict_ep ep tl i /\ evict_seq_map tl i = j  }
 
 val lemma_evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i})
   : Lemma (ensures (let be = blum_evict_elem tl i in
@@ -183,12 +183,12 @@ val evict_seq_map_monotonic (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i:seq
   : Lemma (requires (let be1 = blum_evict_elem tl i1 in
                      let be2 = blum_evict_elem tl i2 in
                      be1.t.e = be2.t.e))
-          (ensures ((i1 <= i2 ==> evict_seq_map tl i1 <= evict_seq_map tl i2) /\
-                    (i2 <= i1 ==> evict_seq_map tl i2 <= evict_seq_map tl i1)))
+          (ensures ((i1 < i2 ==> evict_seq_map tl i1 < evict_seq_map tl i2) /\
+                    (i2 < i1 ==> evict_seq_map tl i2 < evict_seq_map tl i1)))
 
 val evict_seq_invmap_monotonic (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (evict_seq ep tl))
-  : Lemma (ensures ((j1 <= j2 ==> evict_seq_invmap ep tl j1 <= evict_seq_invmap ep tl j2) /\
-                    (j2 <= j1 ==> evict_seq_invmap ep tl j2 <= evict_seq_invmap ep tl j1)))
+  : Lemma (ensures ((j1 < j2 ==> evict_seq_invmap ep tl j1 < evict_seq_invmap ep tl j2) /\
+                    (j2 < j1 ==> evict_seq_invmap ep tl j2 < evict_seq_invmap ep tl j1)))
 
 val evict_elem_unique (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i: seq_index tl {is_blum_evict tl i}))
   : Lemma (ensures (i1 <> i2 ==> blum_evict_elem tl i1 <> blum_evict_elem tl i2))

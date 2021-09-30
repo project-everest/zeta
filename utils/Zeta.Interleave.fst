@@ -50,12 +50,24 @@ let i2s_map (#a:_) (#n:_) (il:interleaving a n) (i:seq_index il)
     lemma_map_map #(gen_seq a n) (to_elem #a #n) il i;
     (t,j)
 
+let i2s_map_monotonic (#a #n:_) (il: interleaving a n) (i j: SA.seq_index il)
+  : Lemma (requires (src il i = src il j))
+          (ensures ((i < j ==> snd (i2s_map il i) < snd (i2s_map il j)) /\
+                    (j < i ==> snd (i2s_map il j) < snd (i2s_map il i))))
+  = admit()
+
 let s2i_map (#a:_) (#n:_) (il:interleaving a n) (si: sseq_index (s_seq il))
   = let t,j = si in
     let fm = seq_i_fm a n t in
     let i = filter_map_invmap fm il j in
     lemma_map_map #(gen_seq a n) (to_elem #a #n) il i;
     i
+
+let s2i_map_monotonic (#a #n:_) (il: interleaving a n) (i j: sseq_index (s_seq il))
+  : Lemma (requires (fst i = fst j))
+          (ensures ((snd i < snd j ==> s2i_map il i < s2i_map il j) /\
+                    (snd j < snd i ==> s2i_map il j < s2i_map il i)))
+  = admit()
 
 let lemma_i2s_s2i (#a:_) (#n:_) (il:interleaving a n) (i:seq_index il):
   Lemma (ensures (s2i_map il (i2s_map il i) = i))

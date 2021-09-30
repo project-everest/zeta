@@ -1,6 +1,10 @@
 module Zeta.Generic.Blum
 
+open Zeta.SMap
+open FStar.Classical
+
 module IF = Zeta.IdxFn
+module T = Zeta.Generic.Thread
 
 let gen_seq (vspec n:_) = {
   IF.seq_t = verifiable_log vspec n;
@@ -72,6 +76,154 @@ let evict_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
   : interleaving (ms_hashfn_dom vspec.app) n
   = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
     IF.filter_map fm il
+
+let t_add_seq_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat {t < n})
+  = let a_il = add_il ep il in
+    let a_ss = s_seq a_il in
+    S.index a_ss t
+
+let t_add_seq_gl (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t: nat{t < n})
+  = let gl = s_seq il in
+    let tl = G.index gl t in
+    T.add_seq ep tl
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let t_add_i2g (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t < n})
+  (i:SA.seq_index (t_add_seq_il ep il t))
+  : j:SA.seq_index (t_add_seq_gl ep il t){S.index (t_add_seq_il ep il t) i = S.index (t_add_seq_gl ep il t) j}
+  = let ta_il = t_add_seq_il ep il t in
+    let ta_gl = t_add_seq_gl ep il t in
+    let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
+    let a_il = add_il ep il in
+    let gl = to_glog il in
+    let tl = G.index gl t in
+
+    (* index in the add seq sequence *)
+    let i1 = s2i_map a_il (t,i) in
+    assert(i2s_map a_il i1 = (t,i));
+    assert(src a_il i1 = t);
+
+    (* index in the interleaved sequence il *)
+    let i2 = IF.filter_map_invmap fm il i1 in
+    assert(blum_add_elem il i2 = S.index ta_il i);
+    assert(src il i2 = t);
+
+    (* index in the original log of the t'th thread *)
+    let _,i3 = i2s_map il i2 in
+    assert(T.blum_add_elem tl i3 = blum_add_elem il i2);
+
+    (* map i3 to the add seq - the index with ta_gl *)
+    T.add_seq_map tl i3
+
+let t_add_i2g_mono (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t < n})
+  : Lemma (ensures (monotonic_prop (t_add_i2g ep il t)))
+          [SMTPat (t_add_i2g ep il t)]
+  = let ta_il = t_add_seq_il ep il t in
+    let ta_gl = t_add_seq_gl ep il t in
+    let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
+    let a_il = add_il ep il in
+    let gl = to_glog il in
+    let tl = G.index gl t in
+
+    let f = t_add_i2g ep il t in
+
+    let aux (i j: SA.seq_index ta_il)
+      : Lemma (ensures (i < j ==> f i < f j))
+      = if i < j then (
+          let i1 = s2i_map a_il (t,i) in
+          let j1 = s2i_map a_il (t,j) in
+          s2i_map_monotonic a_il (t,i) (t,j);
+          assert(i1 < j1);
+
+          let i2 = IF.filter_map_invmap fm il i1 in
+          let j2 = IF.filter_map_invmap fm il j1 in
+          IF.filter_map_invmap_monotonic fm il i1 j1;
+          assert(i2 < j2);
+
+          let _,i3 = i2s_map il i2 in
+          let _,j3 = i2s_map il j2 in
+          i2s_map_monotonic il i2 j2;
+          assert(i3 < j3);
+
+          T.add_seq_map_monotonic tl i3 j3
+        )
+    in
+    forall_intro_2 aux
+
+let t_add_g2i (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t < n})
+  (j:SA.seq_index (t_add_seq_gl ep il t))
+  : i:SA.seq_index (t_add_seq_il ep il t){S.index (t_add_seq_il ep il t) i = S.index (t_add_seq_gl ep il t) j}
+  = let ta_il = t_add_seq_il ep il t in
+    let ta_gl = t_add_seq_gl ep il t in
+    let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
+    let a_il = add_il ep il in
+    let gl = to_glog il in
+    let tl = G.index gl t in
+
+    let j1 = T.add_seq_invmap ep tl j in
+    let j2 = s2i_map il (t,j1) in
+    assert(is_blum_add il j2);
+    assert(blum_add_elem il j2 = T.blum_add_elem tl j1);
+    let j3 = IF.filter_map_map fm il j2 in
+    let _,j4 = i2s_map a_il j3 in
+    j4
+
+let t_add_g2i_mono (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t < n})
+  : Lemma (ensures (monotonic_prop (t_add_g2i ep il t)))
+  = let ta_il = t_add_seq_il ep il t in
+    let ta_gl = t_add_seq_gl ep il t in
+    let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
+    let a_il = add_il ep il in
+    let gl = to_glog il in
+    let tl = G.index gl t in
+
+    let f = t_add_g2i ep il t in
+    let aux (i j: SA.seq_index ta_gl)
+      : Lemma (ensures (i < j ==> f i < f j))
+      = if i < j then (
+          let i1 = T.add_seq_invmap ep tl i in
+          let j1 = T.add_seq_invmap ep tl j in
+          T.add_seq_invmap_monotonic ep tl i j;
+          assert(i1 < j1);
+
+          let i2 = s2i_map il (t,i1) in
+          let j2 = s2i_map il (t,j1) in
+          s2i_map_monotonic il (t,i1) (t,j1);
+          assert(i2 < j2);
+
+          let i3 = IF.filter_map_map fm il i2 in
+          let j3 = IF.filter_map_map fm il j2 in
+          IF.lemma_filter_map_map_monotonic fm il i2 j2;
+          assert(i3 < j3);
+
+          i2s_map_monotonic a_il i3 j3
+        )
+    in
+    forall_intro_2 aux
+
+#pop-options
+
+#push-options "--z3rlimit_factor 3"
+
+let add_seq_identical_thread (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t: nat{t < n})
+  : Lemma (ensures (t_add_seq_il ep il t == t_add_seq_gl ep il t))
+   = monotonic_bijection_implies_equal
+      (t_add_seq_il ep il t)
+      (t_add_seq_gl ep il t)
+      (t_add_i2g ep il t)
+      (t_add_g2i ep il t)
+
+#pop-options
+
+let add_sseq_identical (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
+  : Lemma (ensures (s_seq (add_il ep il) == G.add_sseq ep (to_glog il)))
+  = admit()
+
+let add_set_identical (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
+  : Lemma (ensures (add_set ep il == G.add_set ep (to_glog il)))
+  = add_sseq_identical ep il;
+    Zeta.MultiSet.SSeq.lemma_interleaving_multiset #_ #(ms_hashfn_dom_cmp vspec.app) (add_il ep il)
 
 let lemma_add_evict_set_identical_glog (#vspec #n:_) (epmax: epoch) (il: verifiable_log vspec n)
   : Lemma (ensures (aems_equal_upto epmax il <==> G.aems_equal_upto epmax (to_glog il)))
@@ -178,21 +330,9 @@ let lemma_add_set_mem (#vspec #n:_) (il: verifiable_log vspec n) (i1 i2: seq_ind
                     mem be (add_set ep il) >= 2))
   = admit()
 
-let is_blum_add_of_key (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app)
-  (il: verifiable_log vspec n) (i: seq_index il)
-  = is_blum_add il i &&
-    (let be = blum_add_elem il i in
-     be.t.e = ep && fst be.r = gk)
-
 let is_blum_add_of_key_ifn (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app)
   : IF.idxfn_t (gen_seq vspec n) bool
   = is_blum_add_of_key #vspec #n ep gk
-
-let is_blum_evict_of_key (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app)
-  (il: verifiable_log vspec n) (i: seq_index il)
-  = is_blum_evict il i &&
-    (let be = blum_evict_elem il i in
-     be.t.e = ep && fst be.r = gk)
 
 let is_blum_evict_of_key_ifn (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app)
   : IF.idxfn_t (gen_seq vspec n) bool
@@ -304,3 +444,5 @@ let k_evict_set_snoc
                     (b ==> as == add_elem as' (blum_evict_elem il (n - 1))) /\
                     (~b ==> as == as')))
   = admit()
+
+#pop-options
