@@ -191,8 +191,16 @@ let evict_seq_invmap_monotonic (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec ep) (blum_evict_elem_ifn #vspec) in
     IF.filter_map_invmap_monotonic fm tl j1 j2
 
-let evict_elem_unique (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i: seq_index tl {is_blum_evict tl i}))
-  : Lemma (ensures (i1 <> i2 ==> blum_evict_elem tl i1 <> blum_evict_elem tl i2))
+let evict_elem_unique (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i1 i2: SA.seq_index (evict_seq ep tl))
+  : Lemma (ensures (let es = evict_seq ep tl in
+                    i1 <> i2 ==>  S.index es i1 <> S.index es i2))
+  = admit()
+
+let evict_elem_tid (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: SA.seq_index (evict_seq ep tl))
+  : Lemma (ensures (let es = evict_seq ep tl in
+                    let be = S.index es i in
+                    let t,_ = tl in
+                    be.tid = t))
   = admit()
 
 let lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})

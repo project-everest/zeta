@@ -438,10 +438,12 @@ let lemma_add_evict_set_dir2 (#vspec #n:_) (epmax: epoch) (il: verifiable_log vs
     in
     forall_intro aux
 
-(* TODO: how? *)
 let lemma_add_evict_set_identical_glog (#vspec #n:_) (epmax: epoch) (il: verifiable_log vspec n)
   : Lemma (ensures (aems_equal_upto epmax il <==> G.aems_equal_upto epmax (to_glog il)))
-  = admit()
+  = introduce aems_equal_upto epmax il ==> G.aems_equal_upto epmax (to_glog il)
+    with _. lemma_add_evict_set_dir1 epmax il;
+    introduce G.aems_equal_upto epmax (to_glog il) ==> aems_equal_upto epmax il
+    with _. lemma_add_evict_set_dir2 epmax il
 
 let add_set_contains_each_add_elem (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il{is_blum_add il i})
   : Lemma (ensures (let be = blum_add_elem il i in
@@ -498,11 +500,45 @@ let rec index_mem_2 (#a:eqtype) (s: S.seq a) (x: a {S.count x s >= 2})
       let i,j = index_mem_2 (S.tail s) x in
       (i + 1, j + 1)
 
+#push-options "--fuel 0 --ifuel 1 --query_stats"
 
+let evict_elems_distinct (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
+  (i1 i2: SA.seq_index (evict_seq ep il))
+  : Lemma (ensures (let es = evict_seq ep il in
+                    i1 <> i2 ==> S.index es i1 <> S.index es i2))
+  = let evil = evict_il ep il in
+    let gl = to_glog il in
+    let t1 = src evil i1 in
+    let tl1 = G.index gl t1 in
+    let _,j1 = i2s_map evil i1 in
+    let t2 = src evil i2 in
+    let tl2 = G.index gl t2 in
+    let _,j2 = i2s_map evil i2 in
+    evict_seq_identical_thread ep il t1;
+    evict_seq_identical_thread ep il t2;
+
+    if i1 <> i2 then (
+      if t1 <> t2 then (
+        T.evict_elem_tid ep tl1 j1;
+        T.evict_elem_tid ep tl2 j2
+      )
+      else (
+        i2s_map_monotonic evil i1 i2;
+        assert(j1 <> j2);
+        T.evict_elem_unique ep tl1 j1 j2
+      )
+    )
 
 let evict_mem_atmost_one (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (be: ms_hashfn_dom vspec.app)
   : Lemma (ensures (mem be (evict_set ep il) <= 1))
-  = admit()
+  = let esq = evict_seq ep il in
+    let es = evict_set ep il in
+    seq2mset_mem #_ #(ms_hashfn_dom_cmp vspec.app) esq be;
+    if mem be es >= 2 then
+      let i,j = index_mem_2 esq be in
+      evict_elems_distinct ep il i j
+
+#pop-options
 
 let evict_set_is_a_set (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
   : Lemma (ensures (is_set (evict_set ep il)) )
@@ -677,4 +713,3 @@ let k_evict_set_snoc
                     (~b ==> as == as')))
   = admit()
 
-#pop-options
