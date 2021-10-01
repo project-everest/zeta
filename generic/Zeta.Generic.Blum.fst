@@ -720,6 +720,103 @@ let k_evict_il (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (i
   = let fm = IF.to_fm (is_blum_evict_of_key_ifn #vspec #n ep gk) (blum_evict_elem_src_ifn #vspec #n) in
     IF.filter_map fm il
 
+let k_add_set_correct
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0})
+  (be: ms_hashfn_dom vspec.app)
+  : Lemma (ensures (let gkc,_ = be.r in
+                    k_add_set ep gk il `contains` be ==> gkc = gk /\ be.t.e = ep))
+  = let kas = k_add_set ep gk il in
+    let kasq = k_add_seq ep gk il in
+    let kail = k_add_il ep gk il in
+    let fm = IF.to_fm (is_blum_add_of_key_ifn #vspec #n ep gk) (blum_add_elem_src_ifn #vspec #n) in
+
+    if kas `contains` be then (
+      seq2mset_mem #_ #(ms_hashfn_dom_cmp vspec.app) kasq be;
+      let j = S.index_mem be kasq in
+      index_prop kail j
+    )
+
+let k_evict_set_correct
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0})
+  (be: ms_hashfn_dom vspec.app)
+  : Lemma (ensures (let gkc,_ = be.r in
+                    k_evict_set ep gk il `contains` be ==> gkc = gk /\ be.t.e = ep))
+  = let kes = k_evict_set ep gk il in
+    let kesq = k_evict_seq ep gk il in
+    let keil = k_evict_il ep gk il in
+    let fm = IF.to_fm (is_blum_add_of_key_ifn #vspec #n ep gk) (blum_add_elem_src_ifn #vspec #n) in
+
+    if kes `contains` be then (
+      seq2mset_mem #_ #(ms_hashfn_dom_cmp vspec.app) kesq be;
+      let j = S.index_mem be kesq in
+      index_prop keil j
+    )
+
+let k_add_set_empty
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il = 0})
+  : Lemma (ensures (k_add_set ep gk il == empty))
+  = zero_length_implies_empty #_ #(ms_hashfn_dom_cmp vspec.app) (k_add_seq ep gk il)
+
+(* if the tail element is a blum add, then the add set is obtained by adding that
+ * blum add to the prefix *)
+let k_add_set_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let b = is_blum_add_of_key ep gk il (n - 1) in
+                    let as' = k_add_set ep gk il' in
+                    let as = k_add_set ep gk il in
+                    (b ==> as == add_elem as' (blum_add_elem il (n - 1))) /\
+                    (~b ==> as == as')))
+  = let fm = IF.to_fm (is_blum_add_of_key_ifn #vspec #n ep gk) (blum_add_elem_src_ifn #vspec #n) in
+    IF.lemma_filter_map_snoc fm il;
+    let i = length il - 1 in
+    if is_blum_add_of_key ep gk il i then (
+      admit()
+    )
+
+let k_evict_set_empty
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il = 0})
+  : Lemma (ensures (k_evict_set ep gk il == empty))
+  = zero_length_implies_empty #_ #(ms_hashfn_dom_cmp vspec.app) (k_evict_seq ep gk il)
+
+(* analogous theorem for evict sets*)
+let k_evict_set_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let b = is_blum_evict_of_key ep gk il (n - 1) in
+                    let as' = k_evict_set ep gk il' in
+                    let as = k_evict_set ep gk il in
+                    (b ==> as == add_elem as' (blum_evict_elem il (n - 1))) /\
+                    (~b ==> as == as')))
+  = admit()
+
+
 let add_set_rel_k_add_set
   (#vspec: verifier_spec)
   (#n:_)
@@ -741,77 +838,3 @@ let evict_set_rel_k_evict_set
   (be: ms_hashfn_dom vspec.app{let gkc,_ = be.r in gkc = gk})
   : Lemma (ensures (mem be (k_evict_set ep gk il) = mem be (evict_set ep il)))
   = admit()
-
-let k_add_set_correct
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il > 0})
-  (be: ms_hashfn_dom vspec.app)
-  : Lemma (ensures (let gkc,_ = be.r in
-                    k_add_set ep gk il `contains` be ==> gkc = gk /\ be.t.e = ep))
-  = admit()
-
-let k_evict_set_correct
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il > 0})
-  (be: ms_hashfn_dom vspec.app)
-  : Lemma (ensures (let gkc,_ = be.r in
-                    k_evict_set ep gk il `contains` be ==> gkc = gk /\ be.t.e = ep))
-  = admit()
-
-let k_add_set_empty
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il = 0})
-  : Lemma (ensures (k_add_set ep gk il == empty))
-  = admit()
-
-(* if the tail element is a blum add, then the add set is obtained by adding that
- * blum add to the prefix *)
-let k_add_set_snoc
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il > 0})
-  : Lemma (ensures (let n = length il in
-                    let il' = prefix il (n- 1 ) in
-                    let b = is_blum_add_of_key ep gk il (n - 1) in
-                    let as' = k_add_set ep gk il' in
-                    let as = k_add_set ep gk il in
-                    (b ==> as == add_elem as' (blum_add_elem il (n - 1))) /\
-                    (~b ==> as == as')))
-  = admit()
-
-let k_evict_set_empty
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il = 0})
-  : Lemma (ensures (k_evict_set ep gk il == empty))
-  = admit()
-
-(* analogous theorem for evict sets*)
-let k_evict_set_snoc
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n {length il > 0})
-  : Lemma (ensures (let n = length il in
-                    let il' = prefix il (n- 1 ) in
-                    let b = is_blum_evict_of_key ep gk il (n - 1) in
-                    let as' = k_evict_set ep gk il' in
-                    let as = k_evict_set ep gk il in
-                    (b ==> as == add_elem as' (blum_evict_elem il (n - 1))) /\
-                    (~b ==> as == as')))
-  = admit()
-

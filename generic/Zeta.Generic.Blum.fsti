@@ -150,25 +150,6 @@ let k_evict_set (#vspec:verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (i
   : mset_ms_hashfn_dom vspec.app
   = seq2mset (k_evict_seq ep gk il)
 
-val add_set_rel_k_add_set
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n)
-  (be: ms_hashfn_dom vspec.app {let gkc,_ = be.r in gkc = gk})
-  : Lemma (ensures (mem be (k_add_set ep gk il) = mem be (add_set ep il)))
-
-val evict_set_rel_k_evict_set
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (gk: key vspec.app)
-  (il: verifiable_log vspec n)
-  (be: ms_hashfn_dom vspec.app{let gkc,_ = be.r in gkc = gk})
-  : Lemma (ensures (mem be (k_evict_set ep gk il) = mem be (evict_set ep il)))
-
-
 val k_add_set_correct
   (#vspec: verifier_spec)
   (#n:_)
@@ -235,3 +216,21 @@ val k_evict_set_snoc
                     let as = k_evict_set ep gk il in
                     (b ==> as == add_elem as' (blum_evict_elem il (n - 1))) /\
                     (~b ==> as == as')))
+
+val add_set_rel_k_add_set
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (be: ms_hashfn_dom vspec.app {let gkc,_ = be.r in gkc = gk})
+  : Lemma (ensures (mem be (k_add_set ep gk il) = mem be (add_set ep il)))
+
+val evict_set_rel_k_evict_set
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (be: ms_hashfn_dom vspec.app{let gkc,_ = be.r in gkc = gk})
+  : Lemma (ensures (mem be (k_evict_set ep gk il) = mem be (evict_set ep il)))

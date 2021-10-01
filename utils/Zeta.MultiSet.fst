@@ -62,6 +62,9 @@ let rec seq2mset_aux (#a:eqtype) (#f:cmp a) (s:Seq.seq a)
 
 let seq2mset = seq2mset_aux
 
+let zero_length_implies_empty (#a:eqtype) (#f: cmp a) (s: Seq.seq a)
+  : Lemma (ensures (Seq.length s = 0 ==> seq2mset #a #f s == empty))
+  = ()
 
 /// Again defining an auxiliary function to maintain some invariants on the return type
 

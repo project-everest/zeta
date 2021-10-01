@@ -45,6 +45,10 @@ val add_elem (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a) : mset a f
 
 val seq2mset (#a:eqtype) (#f:cmp a) (s:Seq.seq a) : mset a f
 
+/// seq2mset of an length 0 sequence produces an empty multiset
+
+val zero_length_implies_empty (#a:eqtype) (#f: cmp a) (s: Seq.seq a)
+  : Lemma (ensures (Seq.length s = 0 ==> seq2mset #a #f s == empty))
 
 /// Union of two multisets
 
