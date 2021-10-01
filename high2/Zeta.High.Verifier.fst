@@ -84,15 +84,31 @@ let lemma_high_verifier_add_prop (app:_)
   : Lemma (ensures (GV.add_prop (high_verifier_spec_base app)))
   = FStar.Classical.forall_intro_2 (add_prop #app)
 
+let addb_prop
+  (#app:_)
+  (e: GV.verifier_log_entry (high_verifier_spec_base app))
+  (vs: vtls_t app)
+  : Lemma (ensures (let vs_post = GV.verify_step e vs in
+                    GV.is_blum_add e ==>
+                    vs_post.valid ==>
+                    GV.blum_add_timestamp e `ts_lt` vs_post.clock))
+  = ()
+
+let lemma_high_verifier_addb_prop (app:_)
+  : Lemma (ensures (GV.addb_prop (high_verifier_spec_base app)))
+  = FStar.Classical.forall_intro_2 (addb_prop #app)
+
 let lemma_high_verifier (aprm: app_params)
   : Lemma (ensures (GV.clock_monotonic_prop (high_verifier_spec_base aprm) /\
                     GV.thread_id_constant_prop (high_verifier_spec_base aprm) /\
                     GV.evict_prop (high_verifier_spec_base aprm) /\
-                    GV.add_prop (high_verifier_spec_base aprm)))
+                    GV.add_prop (high_verifier_spec_base aprm) /\
+                    GV.addb_prop (high_verifier_spec_base aprm)))
   = lemma_high_verifier_clock_monotonic_prop aprm;
     lemma_high_verifier_thread_id_const_prop aprm;
     lemma_high_verifier_evict_prop aprm;
-    lemma_high_verifier_add_prop aprm
+    lemma_high_verifier_add_prop aprm;
+    lemma_high_verifier_addb_prop aprm
 
 let runapp_doesnot_change_nonref_slots
   (#app: _)

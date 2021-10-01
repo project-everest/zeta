@@ -96,6 +96,11 @@ let is_internal #vspec (e: verifier_log_entry vspec)
 
 let is_blum_add #vspec (e: verifier_log_entry vspec) = AddB? e
 
+let blum_add_timestamp #vspec (e: verifier_log_entry vspec {is_blum_add e})
+  : timestamp
+  = match e with
+    | AddB _ _ t _ -> t
+
 let is_evict #vspec (e: verifier_log_entry vspec): bool =
   match e with
   | EvictM _ _ -> true
@@ -299,6 +304,15 @@ let add_prop (vspec: verifier_spec_base) =
     None? (vspec.get (add_slot e) vtls) /\
     Some? (vspec.get (add_slot e) vtls')
 
+(* the timestamp of blum add is lesser than the clock after processing the entry *)
+let addb_prop (vspec: verifier_spec_base)
+  = forall (e: verifier_log_entry vspec) (vtls: vspec.vtls_t).
+    {:pattern verify_step e vtls}
+    let vtls' = verify_step e vtls in
+    is_blum_add e ==>
+    vspec.valid vtls' ==>
+    blum_add_timestamp e `ts_lt` vspec.clock vtls'
+
 let verifier_log vspec = S.seq (verifier_log_entry vspec)
 
 let rec verify #vspec (tid: thread_id) (l: verifier_log vspec):
@@ -311,4 +325,5 @@ let rec verify #vspec (tid: thread_id) (l: verifier_log vspec):
     verify_step (S.index l (n-1)) vtls'
 
 let verifier_spec = vspec:verifier_spec_base
-    {clock_monotonic_prop vspec /\ thread_id_constant_prop vspec /\ evict_prop vspec /\ add_prop vspec}
+    {clock_monotonic_prop vspec /\ thread_id_constant_prop vspec /\ evict_prop vspec /\ add_prop vspec /\
+     addb_prop vspec}
