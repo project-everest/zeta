@@ -486,9 +486,27 @@ let evict_set_contains_each_evict_elem (#vspec #n:_) (il: verifiable_log vspec n
     index_prop eil j;
     mset_contains_seq_element #_ #(ms_hashfn_dom_cmp vspec.app) es j
 
+let rec index_mem_2 (#a:eqtype) (s: S.seq a) (x: a {S.count x s >= 2})
+  : Tot (ij:(SA.seq_index s * SA.seq_index s)
+         {let i,j = ij in
+          i <> j /\ S.index s i = x /\ S.index s j = x})
+    (decreases S.length s)
+  = assert(S.length s > 0);
+    if S.head s = x then
+      (0, 1 + (S.index_mem  x (S.tail s)))
+    else
+      let i,j = index_mem_2 (S.tail s) x in
+      (i + 1, j + 1)
+
+
+
+let evict_mem_atmost_one (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (be: ms_hashfn_dom vspec.app)
+  : Lemma (ensures (mem be (evict_set ep il) <= 1))
+  = admit()
+
 let evict_set_is_a_set (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
   : Lemma (ensures (is_set (evict_set ep il)) )
-  = admit()
+  = forall_intro (evict_mem_atmost_one ep il)
 
 let evict_elem_idx
   (#vspec #n:_)
