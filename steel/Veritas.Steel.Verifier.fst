@@ -25,7 +25,7 @@ type thread_state_t = {
   len          : U16.t;
   st           : vstore len;  //a map from keys (cache ids) to merkle leaf or internal nodes
   clock        : counter_t;
-  hadd         : PRF.prf_set_hash; //current incremental set hash values; TODO
+  hadd         : PRF.prf_set_hash; //current incremental set hash values
   hevict       : PRF.prf_set_hash;
   failed       : ref bool
 }
@@ -196,15 +196,16 @@ val vevictb_update_hash_clock
        (vs:_)
        (s:slot vs.len)
        (t:T.timestamp)
-   : Steel unit
+   : Steel bool
      (thread_state_inv vs)
      (fun _ -> thread_state_inv vs)
      (requires fun h0 ->
        VerifierModel.sat_evictb_checks (v_thread vs h0) s t)
-     (ensures fun h0 _ h1 ->
+     (ensures fun h0 b h1 ->
        VerifierModel.sat_evictb_checks (v_thread vs h0) s t /\
-       v_thread vs h1 ==
-       model_vevictb_update_hash_clock (v_thread vs h0) s t)
+       (b ==> (v_thread vs h1 ==
+               model_vevictb_update_hash_clock (v_thread vs h0) s t)))
+module AT = Steel.Effect.Atomic
 let vevictb_update_hash_clock vs s t
   = let h = get () in
     assert (VerifierModel.sat_evictb_checks (v_thread vs h) s t);
@@ -212,8 +213,9 @@ let vevictb_update_hash_clock vs s t
     let Some r = r in
     let record = { T.record_key = r.record_key;
                    T.record_value = r.record_value } in
-    PRF.prf_update_hash vs.hevict record t vs.id;
-    Steel.Reference.write vs.clock t
+    let b = PRF.prf_update_hash vs.hevict record t vs.id in
+    Steel.Reference.write vs.clock t;
+    AT.return b
 
 let bevict_from_store (vs:_) (s:slot vs.len)
   : Steel unit
@@ -275,6 +277,14 @@ let fail (vs:thread_state_t) (msg:string)
              (requires fun _ -> True)
              (ensures fun h0 _ h1 -> v_thread vs h1 == model_fail (v_thread vs h0))
   = write vs.failed true; ()
+
+let failT (vs:thread_state_t) (msg:string)
+  : SteelF bool
+           (thread_state_inv vs)
+           (fun _ -> thread_state_inv vs)
+           (requires fun _ -> True)
+           (ensures fun h0 _ h1 -> v_thread vs h1 == model_fail (v_thread vs h0))
+  = write vs.failed true; AT.return true
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -481,12 +491,12 @@ val vaddb (vs:thread_state_t)
           (r:T.record)
           (t:T.timestamp)
           (thread_id:T.thread_id)
-  : Steel unit
+  : Steel bool
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
     (requires fun h -> True)
-    (ensures fun h0 _ h1 ->
-      v_thread vs h1 == vaddb_model (v_thread vs h0) s r t thread_id)
+    (ensures fun h0 b h1 ->
+      b ==> v_thread vs h1 == vaddb_model (v_thread vs h0) s r t thread_id)
 
 let vaddb vs s r t thread_id
   = let h = get() in
@@ -496,18 +506,22 @@ let vaddb vs s r t thread_id
     (* check value type consistent with key k *)
     if not (is_value_of k v)
     then (
-      fail vs "vaddb: value is incompatible with key"
+      fail vs "vaddb: value is incompatible with key";
+      AT.return true
     )
     else (
       let ro = VCache.vcache_get_record vs.st s in
       if Some? ro
       then (
-        fail vs "vaddb: slot s already exists"
+        fail vs "vaddb: slot s already exists";
+        AT.return true
       )
       else (
-        PRF.prf_update_hash vs.hadd r t thread_id;// vs;
+        let b = PRF.prf_update_hash vs.hadd r t thread_id in
         update_clock t vs;
-        VCache.vcache_add_record vs.st s k v T.BAdd)
+        VCache.vcache_add_record vs.st s k v T.BAdd;
+        AT.return b
+      )
     )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -544,23 +558,31 @@ val vevictb (vs:thread_state_t)
             (s:slot vs.len)
             (t:T.timestamp)
 
-  : Steel unit
+  : Steel bool
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
     (requires fun h -> True)
-    (ensures  fun h0 _ h1 ->
-      v_thread vs h1 == vevictb_model (v_thread vs h0) s t)
+    (ensures  fun h0 b h1 ->
+      b ==> v_thread vs h1 == vevictb_model (v_thread vs h0) s t)
 
 let vevictb vs s t
   = let chk = sat_evictb_checks vs s t in
-    if not chk then fail vs "sat_evictb_checks failed"
+    if not chk
+    then (
+      fail vs "sat_evictb_checks failed";
+      AT.return true
+    )
     else (
       let Some r = VCache.vcache_get_record vs.st s in
       if r.record_add_method <> T.BAdd
-      then fail vs "Record is not a BAdd"
+      then (
+        fail vs "Record is not a BAdd";
+        AT.return true
+      )
       else (
-        vevictb_update_hash_clock vs s t;
-        bevict_from_store vs s
+        let b = vevictb_update_hash_clock vs s t in
+        bevict_from_store vs s;
+        AT.return b
       )
     )
 
@@ -569,55 +591,79 @@ let vevictb vs s t
 val vevictbm (vs:_)
              (s s':slot vs.len)
              (t:T.timestamp)
-  : Steel unit
+  : Steel bool
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
     (fun h0 -> True)
-    (fun h0 _ h1 ->
-      v_thread vs h1 == vevictbm_model (v_thread vs h0) s s' t)
-
+    (fun h0 b h1 ->
+      b ==> v_thread vs h1 == vevictbm_model (v_thread vs h0) s s' t)
 let vevictbm vs s s' t
   = let h = get() in
     assert (v_thread vs h == v_thread vs h);
-    if s = s' then fail vs "equal slots"
+    if s = s'
+    then (
+      failT vs "equal slots"
+    )
     else (
       let b = sat_evictb_checks vs s t in
-      if not b then fail vs "sat_evictb_checks"
+      if not b
+      then (
+        failT vs "sat_evictb_checks"
+      )
       else (
         let r' = VCache.vcache_get_record vs.st s' in
-        if None? r' then fail vs "s' does not exist"
+        if None? r'
+        then (
+          failT vs "s' does not exist"
+        )
         else (
           let r = VCache.vcache_get_record vs.st s in
           let Some r = r in
           let Some r' = r' in
           if r.record_add_method <> T.MAdd
-          then fail vs "not MAdd"
+          then (
+            failT vs "not MAdd"
+          )
           else (
             let k = r.record_key in
             let k' = r'.record_key in
             let v' = r'.record_value in
             if not (is_proper_descendent k k')
-            then fail vs "not proper desc"
+            then (
+              failT vs "not proper desc"
+            )
             else (
               let Some mv' = to_merkle_value v' in
               let d = desc_dir k k' in
               let dh' = desc_hash_dir mv' d in
               match dh' with
               | T.Dh_vnone _ ->
-                fail vs "dh' none"
+                failT vs "dh' none"
               | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
                 if (k2 <> k) || (b2 = T.Vtrue)
-                then fail vs "k2<>k || b2"
+                then (
+                  failT vs "k2<>k || b2"
+                )
                 else match r.record_parent_slot with
-                     | None -> fail vs "paren slot checks"
+                     | None ->
+                       failT vs "paren slot checks"
                      | Some (ps, pd) ->
                        if ps <> s' || pd <> d
-                       then fail vs "paren slot checks"
+                       then (
+                         failT vs "paren slot checks"
+                       )
                        else (
-                         vevictb_update_hash_clock vs s t;
-                         let mv'_upd = update_merkle_value mv' d k h2 true in
-                         update_value vs s' (T.V_mval mv'_upd);
-                         mevict_from_store vs s s' d
+                         let b = vevictb_update_hash_clock vs s t in
+                         if b
+                         then (
+                           let mv'_upd = update_merkle_value mv' d k h2 true in
+                           update_value vs s' (T.V_mval mv'_upd);
+                           mevict_from_store vs s s' d;
+                           AT.return true
+                         )
+                         else (
+                           AT.return false
+                         )
                        )
                 )
             )
@@ -628,13 +674,13 @@ let vevictbm vs s s' t
 ////////////////////////////////////////////////////////////////////////////////
 
 val verify_step (vs:_) (e:T.vlog_entry)
-  : Steel unit
+  : Steel bool
     (thread_state_inv vs)
     (fun _ -> thread_state_inv vs)
     (requires fun h0 ->
       not ((v_thread vs h0).model_failed))
-    (ensures fun h0 _ h1 ->
-      v_thread vs h1 == verify_step_model (v_thread vs h0) e)
+    (ensures fun h0 b h1 ->
+      b ==> v_thread vs h1 == verify_step_model (v_thread vs h0) e)
 
 let verify_step vs e
   = let h = get() in
@@ -644,35 +690,35 @@ let verify_step vs e
     match e with
     | Ve_Get ve ->
       if ve.vegp_s <^ vs.len
-      then vget vs ve.vegp_s ve.vegp_k ve.vegp_v
-      else fail vs "slot bounds check"
+      then (vget vs ve.vegp_s ve.vegp_k ve.vegp_v; AT.return true)
+      else failT vs "slot bounds check"
     | Ve_Put ve ->
       if ve.vegp_s <^ vs.len
-      then vput vs ve.vegp_s ve.vegp_k ve.vegp_v
-      else fail vs "slot bounds check"
+      then (vput vs ve.vegp_s ve.vegp_k ve.vegp_v; AT.return true)
+      else failT vs "slot bounds check"
     | Ve_AddM ve ->
       if ve.veam_s <^ vs.len &&
          ve.veam_s2 <^ vs.len
-      then vaddm vs ve.veam_s ve.veam_r ve.veam_s2
-      else fail vs "slot bounds check"
+      then (vaddm vs ve.veam_s ve.veam_r ve.veam_s2; AT.return true)
+      else failT vs "slot bounds check"
     | Ve_EvictM ve ->
       if ve.veem_s <^ vs.len &&
          ve.veem_s2 <^ vs.len
-      then vevictm vs ve.veem_s ve.veem_s2
-      else fail vs "slot bounds check"
+      then (vevictm vs ve.veem_s ve.veem_s2; AT.return true)
+      else failT vs "slot bounds check"
     | Ve_AddB ve ->
       if ve.veab_s <^ vs.len
       then vaddb vs ve.veab_s ve.veab_r ve.veab_t ve.veab_j
-      else fail vs "slot bounds check"
+      else failT vs "slot bounds check"
     | Ve_EvictB ve ->
       if ve.veeb_s <^ vs.len
       then vevictb vs ve.veeb_s ve.veeb_t
-      else fail vs "slot bounds check"
+      else failT vs "slot bounds check"
     | Ve_EvictBM ve ->
       if ve.veebm_s <^ vs.len &&
          ve.veebm_s2 <^ vs.len
       then vevictbm vs ve.veebm_s ve.veebm_s2 ve.veebm_t
-      else fail vs "slot bounds check"
+      else failT vs "slot bounds check"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -799,15 +845,24 @@ let rec verify_log #s vs l
         write vs.failed true;
         AT.return None
       | L.Parsed_with_maybe_more entry ->
-        verify_step vs entry;
+        let b = verify_step vs entry in
         change_equal_slprop (L.read_next_provides s l r)
                             (L.log_with_parsed_prefix l (L.snoc_log s entry));
-        let sopt = verify_log vs l in
-        match sopt with
-        | None ->
-          AT.return None
-        | Some s' ->
-          AT.return (Some (cons_log entry s'))
+        if b
+        then (
+          let sopt = verify_log vs l in
+          match sopt with
+          | None ->
+            AT.return None
+          | Some s' ->
+            AT.return (Some (cons_log entry s'))
+        ) else (
+           L.dispose l;
+           AT.slassert (A.varray (L.log_array l) `star`
+                        thread_state_inv vs);
+           write vs.failed true;
+           AT.return None
+        )
     )
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -836,11 +891,11 @@ let verify_array vs len a =
   relate_log_to_array l (v_thread vs h0) sopt (v_thread vs h2);
   AT.return sopt
 
-let create tid store_size
+let create hadd hevict tid store_size
   = let st = VCache.vcache_create store_size in
     let clock = Steel.Reference.malloc 0uL in
-    let hadd = PRF.create () in
-    let hevict = PRF.create () in
+    let hadd = PRF.create hadd in
+    let hevict = PRF.create hevict in
     let failed = Steel.Reference.malloc false in
     let vs = {
       id = tid;
@@ -857,5 +912,6 @@ let free vs
   = Steel.Reference.free vs.clock;
     Steel.Reference.free vs.failed;
     VCache.free vs.st;
-    PRF.free vs.hadd;
-    PRF.free vs.hevict
+    let hadd = PRF.free vs.hadd in
+    let hevict = PRF.free vs.hevict in
+    AT.return (hadd, hevict)
