@@ -93,12 +93,6 @@ val lemma_evict_before_add2
                     let es = evict_set ep itsl in
                     mem be as > mem be es))
 
-val lemma_evict_before_add3 (#vspec #n:_) (itsl: its_log vspec n) (i: seq_index itsl) (j:seq_index itsl):
-  Lemma (requires (is_blum_add itsl i /\
-                   is_blum_evict itsl j /\
-                   blum_add_elem itsl i = blum_evict_elem itsl j))
-        (ensures (j < i))
-
 val lemma_add_set_mem (#vspec #n:_) (il: verifiable_log vspec n) (i1 i2: seq_index il)
   : Lemma (requires (i1 <> i2 /\ is_blum_add il i1 /\ is_blum_add il i2 /\
                      blum_add_elem il i1 = blum_add_elem il i2))

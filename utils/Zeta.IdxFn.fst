@@ -149,6 +149,74 @@ let lemma_filter_map_extend_unsat
     assert(equal fms fms');
     ()
 
+let lemma_filter_map_snoc
+  (#gs:_)
+  (#b:_)
+  (fm: fm_t gs b)
+  (s: gs.seq_t {gs.length s > 0})
+  : Lemma (ensures (let fms = filter_map fm s in
+                    let i = gs.length s - 1 in
+                    let fms' = filter_map fm (gs.prefix s i) in
+                    if fm.f s i then
+                      let me = fm.m s i in
+                      fms == SA.append1 fms' me
+                    else
+                      fms == fms'))
+  = let i = gs.length s - 1 in
+    let s' = gs.prefix s i in
+    let fms = filter_map fm s in
+    let fms' = filter_map fm s' in
+    if fm.f s i then
+      lemma_filter_map_extend_sat fm s
+    else
+      lemma_filter_map_extend_unsat fm s
+
+module S = FStar.Seq
+
+let lemma_filter_map_prefix_len
+  (#gs:_)
+  (#b:eqtype)
+  (fm: fm_t gs b)
+  (s: gs.seq_t)
+  (l: nat{l <= gs.length s})
+  : Lemma (ensures (let fms = filter_map fm s in
+                    let s' = gs.prefix s l in
+                    let fms' = filter_map fm s' in
+                    S.length fms >= S.length fms'))
+  = let fms = filter_map fm s in
+    let s' = gs.prefix s l in
+    let fms' = filter_map fm s' in
+
+    if S.length fms < S.length fms' then
+      let j = S.length fms' - 1 in
+      let i = filter_map_invmap fm s' j in
+      filter_map_map_prefix_property fm s i l
+
+let lemma_filter_map_prefix
+  (#gs:_)
+  (#b:eqtype)
+  (fm: fm_t gs b)
+  (s: gs.seq_t)
+  (l: nat{l <= gs.length s})
+  : Lemma (ensures (let fms = filter_map fm s in
+                    let s' = gs.prefix s l in
+                    let fms' = filter_map fm s' in
+                    fms' `prefix_of` fms))
+  = let fms = filter_map fm s in
+    let s' = gs.prefix s l in
+    let fms' = filter_map fm s' in
+    lemma_filter_map_prefix_len fm s l;
+    assert(S.length fms' <= S.length fms);
+    let fms'' = SA.prefix fms (S.length fms') in
+    assert(S.length fms'' = S.length fms');
+    let aux(j:_)
+      : Lemma (ensures (S.index fms' j = S.index fms'' j))
+      = let i = filter_map_invmap fm s' j in
+        filter_map_map_prefix_property fm s i l
+    in
+    FStar.Classical.forall_intro aux;
+    assert(equal fms'' fms')
+
 let rec lemma_monotonic_filter_aux (#gs:_)
   (f: idxfn_t gs bool{monotonic f})
   (s: gs.seq_t {gs.length s > 0 /\ f s (gs.length s - 1)})

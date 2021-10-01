@@ -564,7 +564,72 @@ let lemma_evict_before_add (#vspec #n:_) (itsl: its_log vspec n) (i:seq_index it
                   let ep = be.t.e in
                   not (evict_set ep itsl `contains` be) \/
                   evict_elem_idx itsl be < i))
- = admit()
+ = let be = blum_add_elem itsl i in
+   let ep = be.t.e in
+   let es = evict_set ep itsl in
+
+   if es `contains` be then
+     let j = evict_elem_idx itsl be in
+     eliminate forall (i j: seq_index itsl). i <= j ==> clock itsl i `ts_leq` clock itsl j with i j
+
+(* the add seq of a prefix is the prefix of the evict sequence *)
+let prefix_add_commute
+  (#vspec #n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n)
+  (l: nat{ l <= length il })
+  : Lemma (ensures (let il' = prefix il l in
+                    let as = add_seq ep il in
+                    let as' = add_seq ep il' in
+                    as' `SA.prefix_of` as))
+  = let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
+    let il' = prefix il l in
+    let ail = add_il ep il in
+    let as = add_seq ep il in
+    let as' = add_seq ep il' in
+    let ail' = add_il ep il' in
+    IF.lemma_filter_map_prefix fm il l;
+    assert(ail' `SA.prefix_of` ail);
+    lemma_iseq_prefix_property ail (S.length ail')
+
+(* the evict seq of a prefix is the prefix of the evict sequence *)
+let prefix_evict_commute
+  (#vspec #n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n)
+  (l: nat{ l <= length il })
+  : Lemma (ensures (let il' = prefix il l in
+                    let es = evict_seq ep il in
+                    let es' = evict_seq ep il' in
+                    es' `SA.prefix_of` es))
+  = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
+    let il' = prefix il l in
+    let evil = evict_il ep il in
+    let es = evict_seq ep il in
+    let es' = evict_seq ep il' in
+    let evil' = evict_il ep il' in
+    IF.lemma_filter_map_prefix fm il l;
+    assert(evil' `SA.prefix_of` evil);
+    lemma_iseq_prefix_property evil (S.length evil')
+
+(* if an add set contains an element, then the epoch of the blum element is that of the add set*)
+let lemma_add_set_only_epoch
+  (#vspec #n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n)
+  (be: ms_hashfn_dom vspec.app)
+  : Lemma (ensures (let as = add_set ep il in
+                    as `contains` be ==> be.t.e = ep))
+  = let as = add_set ep il in
+    let asq = add_seq ep il in
+    let ail = add_il ep il in
+    let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
+
+    if as `contains` be then (
+      seq2mset_mem #_ #(ms_hashfn_dom_cmp vspec.app) asq be;
+      let j = S.index_mem be asq in
+      index_prop ail j
+    )
 
 (* a slightly different version of of the previous lemma - the count of an add element
  * in the evict set is the same in the prefix as the full sequence *)
@@ -572,23 +637,48 @@ let lemma_evict_before_add2
   (#vspec #n:_)
   (ep: epoch)
   (itsl: its_log vspec n)
-  (i:nat{i <= length itsl})
+  (l:nat{l <= length itsl})
   (be: ms_hashfn_dom vspec.app)
-  : Lemma (requires (let itsli = prefix itsl i in
+  : Lemma (requires (let itsli = prefix itsl l in
                      let as = add_set ep itsli in
                      let es = evict_set ep itsli in
                      mem be as > mem be es))
           (ensures (let as = add_set ep itsl in
                     let es = evict_set ep itsl in
                     mem be as > mem be es))
-  = admit()
+  = let itsl' = prefix itsl l in
+    let as = add_set ep itsl in
+    let asq = add_seq ep itsl in
+    let as' = add_set ep itsl' in
+    let asq' = add_seq ep itsl' in
+    let es = evict_set ep itsl in
+    let es' = evict_set ep itsl' in
+    let fma = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
 
-let lemma_evict_before_add3 (#vspec #n:_) (itsl: its_log vspec n) (i: seq_index itsl) (j:seq_index itsl):
-  Lemma (requires (is_blum_add itsl i /\
-                   is_blum_evict itsl j /\
-                   blum_add_elem itsl i = blum_evict_elem itsl j))
-        (ensures (j < i))
-  = admit()
+    assert(as' `contains` be);
+    lemma_add_set_only_epoch ep itsl' be;
+    assert(be.t.e = ep);
+
+    prefix_add_commute ep itsl l;
+    assert(asq' `SA.prefix_of` asq);
+    seq_prefix_mset_mem #_ #(ms_hashfn_dom_cmp vspec.app) asq asq' be;
+
+    let i = some_add_elem_idx itsl' be in
+    assert(blum_add_elem itsl i = be);
+
+    if es `contains` be then (
+      lemma_evict_before_add itsl i;
+      let j = evict_elem_idx itsl be in
+      assert(j < i);
+      evict_set_contains_each_evict_elem itsl' j;
+      assert(es' `contains` be);
+      assert(mem be as' >= 2);
+
+      evict_mem_atmost_one ep itsl be;
+      assert(mem be es <= 1);
+
+      ()
+    )
 
 let lemma_add_set_mem (#vspec #n:_) (il: verifiable_log vspec n) (i1 i2: seq_index il)
   : Lemma (requires (i1 <> i2 /\ is_blum_add il i1 /\ is_blum_add il i2 /\
@@ -596,7 +686,20 @@ let lemma_add_set_mem (#vspec #n:_) (il: verifiable_log vspec n) (i1 i2: seq_ind
           (ensures (let be = blum_add_elem il i1 in
                     let ep = be.t.e in
                     mem be (add_set ep il) >= 2))
-  = admit()
+  = let be = blum_add_elem il i1 in
+    let ep = be.t.e in
+    let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
+    let ail = add_il ep il in
+    let asq = add_seq ep il in
+
+    let j1 = IF.filter_map_map fm il i1 in
+    let j2 = IF.filter_map_map fm il i2 in
+    IF.lemma_filter_map_map_monotonic fm il i1 i2;
+    assert(j1 <> j2);
+
+    index_prop ail j1;
+    index_prop ail j2;
+    seq_mset_elem2 #_ #(ms_hashfn_dom_cmp vspec.app) asq j1 j2
 
 let is_blum_add_of_key_ifn (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app)
   : IF.idxfn_t (gen_seq vspec n) bool
@@ -628,7 +731,6 @@ let add_set_rel_k_add_set
   = let ast = add_set ep il in
     let astk = k_add_set ep gk il in
     admit()
-
 
 let evict_set_rel_k_evict_set
   (#vspec: verifier_spec)

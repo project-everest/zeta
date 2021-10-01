@@ -181,26 +181,31 @@ let filter_map_invmap_monotonic (#gs #b:_)
                    (j1 > j2 ==> filter_map_invmap fm s j1 > filter_map_invmap fm s j2))
   = fidx2idx_monotonic fm.f s j1 j2
 
-val lemma_filter_map_extend_sat
+val lemma_filter_map_snoc
   (#gs:_)
   (#b:_)
   (fm: fm_t gs b)
-  (s: gs.seq_t {gs.length s > 0 /\ fm.f s (gs.length s - 1)})
+  (s: gs.seq_t {gs.length s > 0})
   : Lemma (ensures (let fms = filter_map fm s in
-                    let fms' = filter_map fm (gs.prefix s (gs.length s - 1)) in
-                    let me = fm.m s (gs.length s - 1) in
-                    fms == SA.append1 fms' me))
+                    let i = gs.length s - 1 in
+                    let fms' = filter_map fm (gs.prefix s i) in
+                    if fm.f s i then
+                      let me = fm.m s i in
+                      fms == SA.append1 fms' me
+                    else
+                      fms == fms'))
           [SMTPat (filter_map fm s)]
 
-val lemma_filter_map_extend_unsat
+val lemma_filter_map_prefix
   (#gs:_)
-  (#b:_)
+  (#b:eqtype)
   (fm: fm_t gs b)
-  (s: gs.seq_t {gs.length s > 0 /\ not (fm.f s (gs.length s - 1))})
+  (s: gs.seq_t)
+  (i: nat{i <= gs.length s})
   : Lemma (ensures (let fms = filter_map fm s in
-                    let fms' = filter_map fm (gs.prefix s (gs.length s - 1)) in
-                    fms == fms'))
-          [SMTPat (filter_map fm s)]
+                    let s' = gs.prefix s i in
+                    let fms' = filter_map fm s' in
+                    fms' `prefix_of` fms))
 
 let monotonic (#gs:_) (f: idxfn_t gs bool)
   = forall (s:gs.seq_t) (i1 i2: seq_index s).
