@@ -270,10 +270,23 @@ let aggregate (b1 b2: ha)
       AT.return true
     )
 
-
 let compare (b1 b2:ha)
-  = AT.sladmit();
-    AT.return false
+  = elim_ha_inv b1;
+    elim_ha_inv b2;
+    let c1 = R.read b1.ctr in
+    let c2 = R.read b2.ctr in
+    if c1 <> c2
+    then (
+      intro_ha_inv b1;
+      intro_ha_inv b2;
+      AT.return false
+    )
+    else (
+      let b = A.compare b1.acc b2.acc 32ul in
+      intro_ha_inv b1;
+      intro_ha_inv b2;
+      AT.return b
+    )
 
 let add (s:ha) (input:hashable_buffer) (l:U32.t)
   = let acc = A.malloc 0uy 32ul in //TODO:would be nice to stack allocate this
