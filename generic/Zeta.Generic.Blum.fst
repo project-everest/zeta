@@ -401,7 +401,44 @@ let evict_set_identical (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
 
 #pop-options
 
-(* TODO: some ghost machinary required? *)
+let lemma_add_evict_ep_i2g (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
+  : Lemma (requires (add_set ep il == evict_set ep il))
+          (ensures (let gl = to_glog il in
+                    G.add_set ep gl == G.evict_set ep gl))
+  = add_set_identical ep il;
+    evict_set_identical ep il
+
+let lemma_add_evict_ep_g2i (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
+  : Lemma (requires (let gl = to_glog il in
+                     G.add_set ep gl == G.evict_set ep gl))
+          (ensures (add_set ep il == evict_set ep il))
+  = add_set_identical ep il;
+    evict_set_identical ep il
+
+let lemma_add_evict_set_dir1 (#vspec #n:_) (epmax: epoch) (il: verifiable_log vspec n)
+  : Lemma (requires (aems_equal_upto epmax il))
+          (ensures (G.aems_equal_upto epmax (to_glog il)))
+  = let gl = to_glog il in
+    let aux (ep:epoch)
+      : Lemma (ensures (ep <= epmax ==> G.add_set ep gl == G.evict_set ep gl))
+      = if ep <= epmax then
+          lemma_add_evict_ep_i2g ep il
+    in
+    forall_intro aux
+
+let lemma_add_evict_set_dir2 (#vspec #n:_) (epmax: epoch) (il: verifiable_log vspec n)
+  : Lemma (requires (G.aems_equal_upto epmax (to_glog il)))
+          (ensures (aems_equal_upto epmax il))
+
+  = let gl = to_glog il in
+    let aux (ep:epoch)
+      : Lemma (ensures (ep <= epmax ==> add_set ep il == evict_set ep il))
+      = if ep <= epmax then
+          lemma_add_evict_ep_g2i ep il
+    in
+    forall_intro aux
+
+(* TODO: how? *)
 let lemma_add_evict_set_identical_glog (#vspec #n:_) (epmax: epoch) (il: verifiable_log vspec n)
   : Lemma (ensures (aems_equal_upto epmax il <==> G.aems_equal_upto epmax (to_glog il)))
   = admit()
