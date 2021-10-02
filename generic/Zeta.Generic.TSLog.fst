@@ -1,6 +1,7 @@
 module Zeta.Generic.TSLog
 
 open Zeta.SSeq
+open FStar.Classical
 module T = Zeta.Generic.Thread
 
 (* clock is idxfn_t, so has the prefix property *)
@@ -51,7 +52,6 @@ let lemma_max_clock_in_thread_correct
 let max_clock_prop (#vspec) (gl: G.verifiable_log vspec) (tid: _)
   = non_empty_thread gl tid /\
     (forall tid'.
-      {:pattern (max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid)}
     (non_empty_thread gl tid' ==> max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid))
 
 let find_max_clock_thread (#vspec:_) (gl: G.verifiable_log vspec {flat_length gl > 0})
@@ -65,6 +65,8 @@ let gl_thread_prefix_verifiable
   : Lemma (ensures (G.verifiable (sseq_prefix gl tid)))
           [SMTPat (sseq_prefix gl tid)]
   = admit()
+
+#push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 3 --query_stats"
 
 let rec create
   (#vspec:_) 
@@ -102,16 +104,35 @@ let rec create
       assert(to_glog itsl = gl);
       assert(verifiable itsl);
       assert(clock_sorted itsl');
+      assume(m = length itsl);
 
       let aux(i j: seq_index itsl)
         : Lemma (ensures (i <= j ==> clock itsl i `ts_leq` clock itsl j))
-        = admit()
+        = if i < j then (
+            clock_prefix_prop itsl i (m-1);
+
+            if j = m - 1 then (
+              assume(i2s_map itsl j = (tid,tn-1));
+              let t',i' = i2s_map itsl i in
+              lemma_max_clock_in_thread_correct gl (t',i');
+              eliminate
+                forall tid'. (non_empty_thread gl tid' ==> max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid)
+              with t'
+            )
+            else (
+              clock_prefix_prop itsl j (m-1);
+              eliminate forall (i j: seq_index itsl'). i <= j ==> clock itsl' i `ts_leq` clock itsl' j
+              with i j
+            )
+          )
       in
       FStar.Classical.forall_intro_2 aux;
       assert(clock_sorted itsl);
 
       itsl
     )
+
+#pop-options
 
 let prefix_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
   : itsl': its_log vspec n {itsl' `prefix_of` itsl}
