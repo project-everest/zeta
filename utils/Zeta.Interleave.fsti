@@ -84,6 +84,10 @@ val lemma_i2s_prefix_property (#a:_) (#n:_) (il:interleaving a n)(i:nat{i <= len
   Lemma (ensures (i2s_map (prefix il i) j = i2s_map il j))
         [SMTPat (i2s_map (prefix il i) j)]
 
+val lemma_iseq_append1 (#a #n:_) (il: interleaving a n) (x: elem_src a n)
+  : Lemma (ensures (let il' = SA.append1 il x in
+                    i_seq il' = SA.append1 (i_seq il) x.e))
+
 let interleave (#a:eqtype) (s: seq a) (ss: sseq a)
   = exists (il: interleaving a (S.length ss)). (i_seq il = s) /\ (s_seq il = ss)
 

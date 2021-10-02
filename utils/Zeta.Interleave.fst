@@ -95,6 +95,11 @@ let lemma_i2s_prefix_property (#a:_) (#n:_) (il:interleaving a n)(i:nat{i <= len
     filter_map_map_prefix_property fm il j i;
     ()
 
+let lemma_iseq_append1 (#a #n:_) (il: interleaving a n) (x: elem_src a n)
+  : Lemma (ensures (let il' = SA.append1 il x in
+                    i_seq il' = SA.append1 (i_seq il) x.e))
+  = admit()
+
 let some_interleaving (#a:_) (ss: sseq a)
   : il: interleaving a (S.length ss) {s_seq il = ss}
   = admit()

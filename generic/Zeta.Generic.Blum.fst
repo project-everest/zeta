@@ -771,6 +771,55 @@ let k_add_set_empty
 
 (* if the tail element is a blum add, then the add set is obtained by adding that
  * blum add to the prefix *)
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let k_add_seq_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let as' = k_add_seq ep gk il' in
+                    let as = k_add_seq ep gk il in
+                    if is_blum_add_of_key ep gk il (n - 1) then
+                      as == SA.append1 as' (blum_add_elem il (n - 1))
+                    else
+                      as == as'))
+  = let fm = IF.to_fm (is_blum_add_of_key_ifn #vspec #n ep gk) (blum_add_elem_src_ifn #vspec #n) in
+    let i = length il - 1 in
+    let il' = prefix il i in
+    let kail' = k_add_il ep gk il' in
+    IF.lemma_filter_map_snoc fm il;
+    if is_blum_add_of_key ep gk il i then (
+      IF.lemma_filter_map_snoc fm il;
+      lemma_iseq_append1 kail' (blum_add_elem_src il i)
+    )
+
+let add_seq_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let as' = add_seq ep il' in
+                    let as = add_seq ep il in
+                    if is_blum_add_epoch ep il (n - 1) then
+                      as == SA.append1 as' (blum_add_elem il (n - 1))
+                    else
+                      as == as'))
+  = let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
+    let i = length il - 1 in
+    let il' = prefix il i in
+    let ail' = add_il ep il' in
+    IF.lemma_filter_map_snoc fm il;
+    if is_blum_add_epoch ep il i then (
+      IF.lemma_filter_map_snoc fm il;
+      lemma_iseq_append1 ail' (blum_add_elem_src il i)
+    )
+
 let k_add_set_snoc
   (#vspec: verifier_spec)
   (#n:_)
@@ -784,12 +833,11 @@ let k_add_set_snoc
                     let as = k_add_set ep gk il in
                     (b ==> as == add_elem as' (blum_add_elem il (n - 1))) /\
                     (~b ==> as == as')))
-  = let fm = IF.to_fm (is_blum_add_of_key_ifn #vspec #n ep gk) (blum_add_elem_src_ifn #vspec #n) in
-    IF.lemma_filter_map_snoc fm il;
-    let i = length il - 1 in
-    if is_blum_add_of_key ep gk il i then (
-      admit()
-    )
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    k_add_seq_snoc ep gk il;
+    if is_blum_add_of_key ep gk il i then
+      seq2mset_add_elem #_ #(ms_hashfn_dom_cmp vspec.app) (k_add_seq ep gk il') (blum_add_elem il i)
 
 let k_evict_set_empty
   (#vspec: verifier_spec)
@@ -799,6 +847,53 @@ let k_evict_set_empty
   (il: verifiable_log vspec n {length il = 0})
   : Lemma (ensures (k_evict_set ep gk il == empty))
   = zero_length_implies_empty #_ #(ms_hashfn_dom_cmp vspec.app) (k_evict_seq ep gk il)
+
+let k_evict_seq_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let as' = k_evict_seq ep gk il' in
+                    let as = k_evict_seq ep gk il in
+                    if is_blum_evict_of_key ep gk il (n - 1) then
+                      as == SA.append1 as' (blum_evict_elem il (n - 1))
+                    else
+                      as == as'))
+  = let fm = IF.to_fm (is_blum_evict_of_key_ifn #vspec #n ep gk) (blum_evict_elem_src_ifn #vspec #n) in
+    let i = length il - 1 in
+    let il' = prefix il i in
+    let kail' = k_evict_il ep gk il' in
+    IF.lemma_filter_map_snoc fm il;
+    if is_blum_evict_of_key ep gk il i then (
+      IF.lemma_filter_map_snoc fm il;
+      lemma_iseq_append1 kail' (blum_evict_elem_src il i)
+    )
+
+let evict_seq_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let as' = evict_seq ep il' in
+                    let as = evict_seq ep il in
+                    if is_blum_evict_epoch ep il (n - 1) then
+                      as == SA.append1 as' (blum_evict_elem il (n - 1))
+                    else
+                      as == as'))
+  = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
+    let i = length il - 1 in
+    let il' = prefix il i in
+    let ail' = evict_il ep il' in
+    IF.lemma_filter_map_snoc fm il;
+    if is_blum_evict_epoch ep il i then (
+      IF.lemma_filter_map_snoc fm il;
+      lemma_iseq_append1 ail' (blum_evict_elem_src il i)
+    )
 
 (* analogous theorem for evict sets*)
 let k_evict_set_snoc
@@ -814,8 +909,53 @@ let k_evict_set_snoc
                     let as = k_evict_set ep gk il in
                     (b ==> as == add_elem as' (blum_evict_elem il (n - 1))) /\
                     (~b ==> as == as')))
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    k_evict_seq_snoc ep gk il;
+    if is_blum_evict_of_key ep gk il i then
+      seq2mset_add_elem #_ #(ms_hashfn_dom_cmp vspec.app) (k_evict_seq ep gk il') (blum_evict_elem il i)
 
+#pop-options
+
+let lemma_count_append1 (#a:eqtype) (s: S.seq a) (x: a) (y: a)
+  : Lemma (ensures (let s1 = SA.append1 s x in
+                    if x = y then
+                      S.count y s1 = 1 + S.count y s
+                    else
+                      S.count y s1 = S.count y s))
+  = S.lemma_append_count s (S.create 1 x)
+
+let rec add_seq_rel_k_add_seq
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (be: ms_hashfn_dom vspec.app {let gkc,_ = be.r in gkc = gk})
+  : Lemma (ensures (S.count be (k_add_seq ep gk il) = S.count be (add_seq ep il)))
+          (decreases (length il))
+  = let kasq = k_add_seq ep gk il in
+    let asq = add_seq ep il in
+    if length il > 0 then (
+      let i = length il - 1 in
+      let il' = prefix il i in
+      let kasq' = k_add_seq ep gk il' in
+      let asq' = add_seq ep il' in
+      add_seq_rel_k_add_seq ep gk il' be;
+      k_add_seq_snoc ep gk il;
+      add_seq_snoc ep il;
+      if is_blum_add_of_key ep gk il i then (
+        assert(is_blum_add_epoch ep il i);
+        let be' = blum_add_elem il i in
+        lemma_count_append1 kasq' be' be;
+        lemma_count_append1 asq' be' be
+      )
+      else if is_blum_add_epoch ep il i then (
+        let be' = blum_add_elem il i in
+        assert(be' <> be);
+        lemma_count_append1 asq' be' be
+      )
+    )
 
 let add_set_rel_k_add_set
   (#vspec: verifier_spec)
@@ -827,7 +967,41 @@ let add_set_rel_k_add_set
   : Lemma (ensures (mem be (k_add_set ep gk il) = mem be (add_set ep il)))
   = let ast = add_set ep il in
     let astk = k_add_set ep gk il in
-    admit()
+    seq2mset_mem #_ #(ms_hashfn_dom_cmp vspec.app) (add_seq ep il) be;
+    seq2mset_mem #_ #(ms_hashfn_dom_cmp vspec.app) (k_add_seq ep gk il) be;
+    add_seq_rel_k_add_seq ep gk il be
+
+let rec evict_seq_rel_k_evict_seq
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (gk: key vspec.app)
+  (il: verifiable_log vspec n)
+  (be: ms_hashfn_dom vspec.app {let gkc,_ = be.r in gkc = gk})
+  : Lemma (ensures (S.count be (k_evict_seq ep gk il) = S.count be (evict_seq ep il)))
+          (decreases (length il))
+  = let kasq = k_evict_seq ep gk il in
+    let asq = evict_seq ep il in
+    if length il > 0 then (
+      let i = length il - 1 in
+      let il' = prefix il i in
+      let kasq' = k_evict_seq ep gk il' in
+      let asq' = evict_seq ep il' in
+      evict_seq_rel_k_evict_seq ep gk il' be;
+      k_evict_seq_snoc ep gk il;
+      evict_seq_snoc ep il;
+      if is_blum_evict_of_key ep gk il i then (
+        assert(is_blum_evict_epoch ep il i);
+        let be' = blum_evict_elem il i in
+        lemma_count_append1 kasq' be' be;
+        lemma_count_append1 asq' be' be
+      )
+      else if is_blum_evict_epoch ep il i then (
+        let be' = blum_evict_elem il i in
+        assert(be' <> be);
+        lemma_count_append1 asq' be' be
+      )
+    )
 
 let evict_set_rel_k_evict_set
   (#vspec: verifier_spec)
@@ -837,4 +1011,8 @@ let evict_set_rel_k_evict_set
   (il: verifiable_log vspec n)
   (be: ms_hashfn_dom vspec.app{let gkc,_ = be.r in gkc = gk})
   : Lemma (ensures (mem be (k_evict_set ep gk il) = mem be (evict_set ep il)))
-  = admit()
+  = let ast = evict_set ep il in
+    let astk = k_evict_set ep gk il in
+    seq2mset_mem #_ #(ms_hashfn_dom_cmp vspec.app) (evict_seq ep il) be;
+    seq2mset_mem #_ #(ms_hashfn_dom_cmp vspec.app) (k_evict_seq ep gk il) be;
+    evict_seq_rel_k_evict_seq ep gk il be
