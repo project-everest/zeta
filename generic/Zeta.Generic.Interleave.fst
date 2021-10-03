@@ -128,7 +128,7 @@ let lemma_app_fcrs_interleave (#app #n:_) (il: verifiable_log app n)
 
 let app_fcrs_empty (#app #n:_) (il: verifiable_log app n)
   : Lemma (ensures (length il = 0 ==> S.length (app_fcrs il) = 0))
-  = admit()
+  = ()
 
 let appfn_calls_snoc (#app #n:_) (il: verifiable_log app n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in
