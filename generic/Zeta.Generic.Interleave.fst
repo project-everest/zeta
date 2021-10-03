@@ -39,10 +39,12 @@ let lemma_cur_thread_state_extend (#vspec: verifier_spec) (#n:_)
   : Lemma (ensures (let st_pre = cur_thread_state_pre il i in
                     let st_post = cur_thread_state_post il i in
                     st_post == V.verify_step (I.index il i) st_pre))
-  = let il_post = prefix il (i+1) in
-    let il_pre = prefix il i in
-
-  admit()
+  = let gl = to_glog il in
+    let il_post = prefix il (i+1) in
+    interleaving_snoc il_post;
+    let t,j = i2s_map il i in
+    let tl = G.index gl t in
+    T.lemma_state_transition tl j
 //#pop-options
 
 let lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{tid < n})
@@ -51,14 +53,21 @@ let lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{t
           (ensures (let st_pre = thread_state_pre tid il i in
                     let st_post = thread_state_post tid il i in
                     st_pre == st_post))
-  = admit()
+  = let gl = to_glog il in
+    let il_post = prefix il (i+1) in
+    interleaving_snoc il_post
 
 let lemma_thread_state_prefix (#vspec: verifier_spec) (#n:_)
   (il: verifiable_log vspec n) (i:seq_index il)
   : Lemma (ensures (let t,j = i2s_map il i in
                     let tl = G.index (to_glog il) t in
                     cur_thread_state_pre il i == T.state_pre tl j))
-  = admit()
+  = let gl = to_glog il in
+    let il_post = prefix il (i+1) in
+    interleaving_snoc il_post;
+    let t,j = i2s_map il i in
+    let tl = G.index gl t in
+    T.lemma_state_transition tl j
 
 let is_blum_add_prefix_prop
   (#vspec #n:_)
@@ -66,7 +75,7 @@ let is_blum_add_prefix_prop
   (i: seq_index il)
   (j:nat{j <= length il /\ j > i})
   : Lemma (ensures (is_blum_add il i = is_blum_add (prefix il j) i))
-  = admit()
+  = ()
 
 let blum_add_elem_prefix_prop
   (#vspec #n:_)
@@ -74,7 +83,7 @@ let blum_add_elem_prefix_prop
   (i: seq_index il{is_blum_add il i})
   (j:nat{j <= length il /\ j > i})
   : Lemma (ensures (blum_add_elem il i = blum_add_elem (prefix il j) i))
-  = admit()
+  = ()
 
 let blum_evict_elem_prefix_prop
   (#vspec #n:_)
@@ -82,11 +91,34 @@ let blum_evict_elem_prefix_prop
   (i: seq_index il{is_blum_evict il i})
   (j:nat{j <= length il /\ j > i})
   : Lemma (ensures (blum_evict_elem il i = blum_evict_elem (prefix il j) i))
-  = admit()
+  = ()
+
+module IF = Zeta.IdxFn
+
+let gen_seq (vspec n:_) = {
+  IF.seq_t = verifiable_log vspec n;
+  IF.length = length;
+  IF.prefix = prefix;
+  }
+
+let is_appfn_ifn (#vspec #n:_)
+  : IF.idxfn_t (gen_seq vspec n) bool
+  = is_appfn #vspec #n
+
+let to_app_fcr_src (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il{is_appfn il i})
+  : elem_src (appfn_call_res vspec.app) n
+  = let e = to_app_fcr il i in
+    let s = src il i in
+    {e;s}
+
+let to_app_fcr_src_ifn (#vspec #n:_)
+  : IF.cond_idxfn_t (elem_src (appfn_call_res vspec.app) n) (is_appfn_ifn #vspec #n)
+  = to_app_fcr_src #vspec #n
 
 let app_fcrs_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
-  = admit()
+  = let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
+    IF.filter_map fm il
 
 let lemma_app_fcrs_interleave (#app #n:_) (il: verifiable_log app n)
   : Lemma (ensures (let fcrs_il = app_fcrs_il il in
