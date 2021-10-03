@@ -4,22 +4,53 @@ open Zeta.SSeq
 open FStar.Classical
 module T = Zeta.Generic.Thread
 
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
 (* clock is idxfn_t, so has the prefix property *)
 let lemma_prefix_clock_sorted (#vspec #n:_) (itsl: its_log vspec n) (i:nat{i <= length itsl}):
   Lemma (ensures (clock_sorted (prefix itsl i)))
-  = admit()
+  = let itsl' = prefix itsl i in
+    let aux (i j:_)
+      : Lemma (ensures (i <= j ==> clock itsl' i `ts_leq` clock itsl' j))
+      = ()
+    in
+    forall_intro_2 aux
+
+#pop-options
 
 let lemma_empty_verifiable_clock_sorted (vspec: verifier_spec) (n:_)
   : Lemma (ensures (let il = empty_interleaving (verifier_log_entry vspec) n in
                     verifiable il /\ clock_sorted il))
           [SMTPat (empty_interleaving (verifier_log_entry vspec) n)]
-  = admit()
+  = let il = empty_interleaving (verifier_log_entry vspec) n in
+    let gl = s_seq il in
+    let aux (t:_)
+      : Lemma (ensures (T.verifiable (t, S.index gl t)))
+      = lemma_empty_sseq (verifier_log_entry vspec) n t
+    in
+    forall_intro aux;
+    assert(verifiable il);
+
+    let aux (i j:_)
+      : Lemma (ensures (i <= j ==> clock il i `ts_leq` clock il j))
+      = ()
+    in
+    forall_intro_2 aux
 
 let lemma_empty_interleaving_empty_sseq (vspec: verifier_spec) (n:_)
   : Lemma (ensures (let il = empty_interleaving (verifier_log_entry vspec) n in
                     let gl = empty (verifier_log_entry vspec) n in
                     to_glog il == gl))
-  = admit()
+  = let il = empty_interleaving (verifier_log_entry vspec) n in
+    let gl = empty (verifier_log_entry vspec) n in
+    let gl2 = to_glog il in
+
+    let aux (i:_)
+      : Lemma (ensures (S.index gl i == S.index gl2 i))
+      = lemma_empty_sseq (verifier_log_entry vspec) n i
+    in
+    forall_intro aux;
+    assert(S.equal gl gl2)
 
 (* a thread with at least one entry *)
 let non_empty_thread
@@ -46,7 +77,10 @@ let lemma_max_clock_in_thread_correct
   : Lemma (ensures(let t,_ = ti in                        (* thread id*)
                    let c = G.clock gl ti in               (* clock of entry ti *)
                    c `ts_leq` max_clock_in_thread gl t))
-  = admit()
+  = let t,i = ti in
+    let tl = G.index gl t in
+    let n = T.length tl in
+    T.lemma_clock_monotonic tl i (n-1)
 
 (* a thread tid has max clock property if it has the max clock overall *)
 let max_clock_prop (#vspec) (gl: G.verifiable_log vspec) (tid: _)
