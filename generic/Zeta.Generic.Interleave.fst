@@ -1,6 +1,7 @@
 module Zeta.Generic.Interleave
 
 open FStar.Classical
+open Zeta.SMap
 module SS = Zeta.SSeq
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
@@ -120,17 +121,146 @@ let app_fcrs_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
   = let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
     IF.filter_map fm il
 
-let lemma_app_fcrs_interleave (#app #n:_) (il: verifiable_log app n)
+let t_fcrs_il (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
+  = let fcrs = app_fcrs_il il in
+    let ss = s_seq fcrs in
+    S.index ss t
+
+let t_fcrs_gl (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
+  = let gl = to_glog il in
+    let tl = G.index gl t in
+    T.app_fcrs tl
+
+let t_fcrs_i2g (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
+  (i: SA.seq_index (t_fcrs_il il t))
+  :j:SA.seq_index (t_fcrs_gl il t){S.index (t_fcrs_il il t) i = S.index (t_fcrs_gl il t) j}
+  = let tfcrs_il = t_fcrs_il il t in
+    let tfcrs_gl = t_fcrs_gl il t in
+    let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
+    let fcrs_il = app_fcrs_il il in
+    let gl = to_glog il in
+    let tl = G.index gl t in
+
+    let i1 = s2i_map fcrs_il (t,i) in
+    let i2 = IF.filter_map_invmap fm il i1 in
+    let _,i3 = i2s_map il i2 in
+    T.app_fcrs_map tl i3
+
+let t_fcrs_i2g_mono (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
+  : Lemma (ensures (monotonic_prop (t_fcrs_i2g il t)))
+          [SMTPat (t_fcrs_i2g il t)]
+  = let tfcrs_il = t_fcrs_il il t in
+    let tfcrs_gl = t_fcrs_gl il t in
+    let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
+    let fcrs_il = app_fcrs_il il in
+    let gl = to_glog il in
+    let tl = G.index gl t in
+
+    let f = t_fcrs_i2g il t in
+
+    let aux (i j: SA.seq_index tfcrs_il)
+      : Lemma (ensures (i < j ==> f i < f j))
+      = if i < j then (
+          let i1 = s2i_map fcrs_il (t,i) in
+          let j1 = s2i_map fcrs_il (t,j) in
+          s2i_map_monotonic fcrs_il (t,i) (t,j);
+          assert(i1 < j1);
+
+          let i2 = IF.filter_map_invmap fm il i1 in
+          let j2 = IF.filter_map_invmap fm il j1 in
+          IF.filter_map_invmap_monotonic fm il i1 j1;
+          assert(i2 < j2);
+
+          let _,i3 = i2s_map il i2 in
+          let _,j3 = i2s_map il j2 in
+          i2s_map_monotonic il i2 j2;
+          assert(i3 < j3);
+
+          T.app_fcrs_map_monotonic tl i3 j3
+        )
+    in
+    forall_intro_2 aux
+
+let t_fcrs_g2i (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
+  (j: SA.seq_index (t_fcrs_gl il t))
+  : i:SA.seq_index (t_fcrs_il il t){S.index (t_fcrs_il il t) i = S.index (t_fcrs_gl il t) j}
+  = let tfcrs_il = t_fcrs_il il t in
+    let tfcrs_gl = t_fcrs_gl il t in
+    let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
+    let fcrs_il = app_fcrs_il il in
+    let gl = to_glog il in
+    let tl = G.index gl t in
+    let j1 = T.app_fcrs_invmap tl j in
+    let j2 = s2i_map il (t,j1) in
+    let j3 = IF.filter_map_map fm il j2 in
+    let _,j4 = i2s_map fcrs_il j3 in
+    j4
+
+let t_fcrs_g2i_mono (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
+  : Lemma (ensures (monotonic_prop (t_fcrs_g2i il t)))
+  = let tfcrs_il = t_fcrs_il il t in
+    let tfcrs_gl = t_fcrs_gl il t in
+    let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
+    let fcrs_il = app_fcrs_il il in
+    let gl = to_glog il in
+    let tl = G.index gl t in
+
+    let f = t_fcrs_g2i il t in
+    let aux (i j: SA.seq_index tfcrs_gl)
+      : Lemma (ensures (i < j ==> f i < f j))
+      = if i < j then (
+          let i1 = T.app_fcrs_invmap tl i in
+          let j1 = T.app_fcrs_invmap tl j in
+          T.app_fcrs_invmap_monotonic tl i j;
+          assert(i1 < j1);
+
+          let i2 = s2i_map il (t,i1) in
+          let j2 = s2i_map il (t,j1) in
+          s2i_map_monotonic il (t,i1) (t,j1);
+          assert(i2 < j2);
+
+          let i3 = IF.filter_map_map fm il i2 in
+          let j3 = IF.filter_map_map fm il j2 in
+          IF.lemma_filter_map_map_monotonic fm il i2 j2;
+          assert(i3 < j3);
+
+          i2s_map_monotonic fcrs_il i3 j3
+        )
+    in
+    forall_intro_2 aux
+
+#push-options "--z3rlimit_factor 3"
+
+let fcrs_identical_thread (#vspec #n:_) (il: verifiable_log vspec n) (t: nat{t < n})
+  : Lemma (ensures (t_fcrs_il il t == t_fcrs_gl il t))
+   = monotonic_bijection_implies_equal
+      (t_fcrs_il il t)
+      (t_fcrs_gl il t)
+      (t_fcrs_i2g il t)
+      (t_fcrs_g2i il t)
+
+#pop-options
+
+let lemma_app_fcrs_interleave (#vspec #n:_) (il: verifiable_log vspec n)
   : Lemma (ensures (let fcrs_il = app_fcrs_il il in
                     let gl = to_glog il in
                     s_seq fcrs_il = G.app_fcrs gl))
-  = admit()
+  = let fcrs_il = app_fcrs_il il in
+    let gl = to_glog il in
+    let ss1 = s_seq fcrs_il in
+    let ss2 = G.app_fcrs gl in
+    let aux (t:_)
+      : Lemma (ensures (S.index ss1 t = S.index ss2 t))
+      = fcrs_identical_thread il t
+    in
+    forall_intro aux;
+    assert(S.equal ss1 ss2)
 
 let app_fcrs_empty (#app #n:_) (il: verifiable_log app n)
   : Lemma (ensures (length il = 0 ==> S.length (app_fcrs il) = 0))
   = ()
 
-let appfn_calls_snoc (#app #n:_) (il: verifiable_log app n {length il > 0})
+let appfn_calls_snoc (#vspec #n:_) (il: verifiable_log vspec n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in
                     let e = index il i in
                     let il' = prefix il i in
@@ -139,4 +269,13 @@ let appfn_calls_snoc (#app #n:_) (il: verifiable_log app n {length il > 0})
                     match e with
                     | RunApp _ _ _ -> cr == SA.append1 cr' (to_app_fcr il i)
                     | _ -> cr == cr'))
-  = admit()
+  = let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
+    IF.lemma_filter_map_snoc fm il;
+    let i = length il - 1 in
+    let e = index il i in
+    let il' = prefix il i in
+    let fcrs'_il = app_fcrs_il il' in
+    match e with
+    | RunApp _ _ _ ->
+      lemma_iseq_append1 fcrs'_il (fm.m il i)
+    | _ -> ()

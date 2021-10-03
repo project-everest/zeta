@@ -231,8 +231,63 @@ let to_app_fcr (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn t
 val app_fcrs (#vspec:_) (tl: verifiable_log vspec)
   : S.seq (appfn_call_res vspec.app)
 
+val app_fcrs_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
+  : j:SA.seq_index (app_fcrs tl) { to_app_fcr tl i = S.index (app_fcrs tl) j}
+
+val app_fcrs_invmap (#vspec:_) (tl: verifiable_log vspec) (j: SA.seq_index (app_fcrs tl))
+  : i: seq_index tl { is_appfn tl i /\ app_fcrs_map tl i = j}
+
+val lemma_add_fcrs_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
+  : Lemma (ensures (let fcrs = app_fcrs tl in
+                    let j = app_fcrs_map tl i in
+                    app_fcrs_invmap tl j = i))
+          [SMTPat (app_fcrs_map tl i)]
+
+val app_fcrs_map_monotonic (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i:seq_index tl{is_appfn tl i}))
+  : Lemma (ensures ((i1 < i2 ==> app_fcrs_map tl i1 < app_fcrs_map tl i2) /\
+                    (i2 < i1 ==> app_fcrs_map tl i2 < app_fcrs_map tl i1)))
+
+val app_fcrs_invmap_monotonic (#vspec:_) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (app_fcrs tl))
+  : Lemma (ensures ((j1 < j2 ==> app_fcrs_invmap tl j1 < app_fcrs_invmap tl j2) /\
+                    (j2 < j1 ==> app_fcrs_invmap tl j2 < app_fcrs_invmap tl j1)))
+
 val app_fcrs_within_ep
   (#vspec:_)
   (ep: epoch)
   (tl: verifiable_log vspec)
   : S.seq (appfn_call_res vspec.app)
+
+val app_fcrs_ep_map (#vspec:_)
+    (ep: epoch)
+    (tl: verifiable_log vspec)
+    (i: seq_index tl{is_appfn_within_epoch ep tl i})
+  : j:SA.seq_index (app_fcrs_within_ep ep tl) { to_app_fcr tl i = S.index (app_fcrs_within_ep ep tl) j}
+
+val app_fcrs_ep_invmap (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  (j: SA.seq_index (app_fcrs_within_ep ep tl))
+  : i: seq_index tl { is_appfn_within_epoch ep tl i /\ app_fcrs_ep_map ep tl i = j}
+
+val lemma_app_fcrs_ep_map (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  (i: seq_index tl{is_appfn_within_epoch ep tl i})
+  : Lemma (ensures (let fcrs = app_fcrs_within_ep ep tl in
+                    let j = app_fcrs_ep_map ep tl i in
+                    app_fcrs_ep_invmap ep tl j = i))
+          [SMTPat (app_fcrs_ep_map ep tl i)]
+
+val app_fcrs_ep_map_monotonic (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  (i1 i2: (i:seq_index tl{is_appfn_within_epoch ep tl i}))
+  : Lemma (ensures ((i1 < i2 ==> app_fcrs_ep_map ep tl i1 < app_fcrs_ep_map ep tl i2) /\
+                    (i2 < i1 ==> app_fcrs_ep_map ep tl i2 < app_fcrs_ep_map ep tl i1)))
+
+val app_fcrs_ep_invmap_monotonic (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  (j1 j2: SA.seq_index (app_fcrs_within_ep ep tl))
+  : Lemma (ensures ((j1 < j2 ==> app_fcrs_ep_invmap ep tl j1 < app_fcrs_ep_invmap ep tl j2) /\
+                    (j2 < j1 ==> app_fcrs_ep_invmap ep tl j2 < app_fcrs_ep_invmap ep tl j1)))

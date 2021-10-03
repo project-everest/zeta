@@ -253,6 +253,34 @@ let app_fcrs (#vspec:_) (tl: verifiable_log vspec)
   = let fm = IF.to_fm (is_appfn_ifn #vspec) (to_app_fcr #vspec) in
     IF.filter_map fm tl
 
+let app_fcrs_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
+  : j:SA.seq_index (app_fcrs tl) { to_app_fcr tl i = S.index (app_fcrs tl) j}
+  = let fm = IF.to_fm (is_appfn_ifn #vspec) (to_app_fcr #vspec) in
+    IF.filter_map_map fm tl i
+
+let app_fcrs_invmap (#vspec:_) (tl: verifiable_log vspec) (j: SA.seq_index (app_fcrs tl))
+  : i: seq_index tl { is_appfn tl i /\ app_fcrs_map tl i = j}
+  = let fm = IF.to_fm (is_appfn_ifn #vspec) (to_app_fcr #vspec) in
+    IF.filter_map_invmap fm tl j
+
+let lemma_add_fcrs_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
+  : Lemma (ensures (let fcrs = app_fcrs tl in
+                    let j = app_fcrs_map tl i in
+                    app_fcrs_invmap tl j = i))
+  = ()
+
+let app_fcrs_map_monotonic (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i:seq_index tl{is_appfn tl i}))
+  : Lemma (ensures ((i1 < i2 ==> app_fcrs_map tl i1 < app_fcrs_map tl i2) /\
+                    (i2 < i1 ==> app_fcrs_map tl i2 < app_fcrs_map tl i1)))
+  = let fm = IF.to_fm (is_appfn_ifn #vspec) (to_app_fcr #vspec) in
+    IF.lemma_filter_map_map_monotonic fm tl i1 i2
+
+let app_fcrs_invmap_monotonic (#vspec:_) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (app_fcrs tl))
+  : Lemma (ensures ((j1 < j2 ==> app_fcrs_invmap tl j1 < app_fcrs_invmap tl j2) /\
+                    (j2 < j1 ==> app_fcrs_invmap tl j2 < app_fcrs_invmap tl j1)))
+  = let fm = IF.to_fm (is_appfn_ifn #vspec) (to_app_fcr #vspec) in
+    IF.filter_map_invmap_monotonic fm tl j1 j2
+
 let is_appfn_within_ep_ifn (#vspec:_) (ep: epoch)
   : IF.idxfn_t (gen_seq vspec) bool
   = is_appfn_within_epoch ep
@@ -264,3 +292,46 @@ let app_fcrs_within_ep
   : S.seq (appfn_call_res vspec.app)
   = let fm = IF.to_fm (is_appfn_within_ep_ifn #vspec ep) (to_app_fcr #vspec) in
     IF.filter_map fm tl
+
+let app_fcrs_ep_map (#vspec:_)
+    (ep: epoch)
+    (tl: verifiable_log vspec)
+    (i: seq_index tl{is_appfn_within_epoch ep tl i})
+  : j:SA.seq_index (app_fcrs_within_ep ep tl) { to_app_fcr tl i = S.index (app_fcrs_within_ep ep tl) j}
+  = let fm = IF.to_fm (is_appfn_within_ep_ifn #vspec ep) (to_app_fcr #vspec) in
+    IF.filter_map_map fm tl i
+
+let app_fcrs_ep_invmap (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  (j: SA.seq_index (app_fcrs_within_ep ep tl))
+  : i: seq_index tl { is_appfn_within_epoch ep tl i /\ app_fcrs_ep_map ep tl i = j}
+  = let fm = IF.to_fm (is_appfn_within_ep_ifn #vspec ep) (to_app_fcr #vspec) in
+    IF.filter_map_invmap fm tl j
+
+let lemma_app_fcrs_ep_map (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  (i: seq_index tl{is_appfn_within_epoch ep tl i})
+  : Lemma (ensures (let j = app_fcrs_ep_map ep tl i in
+                    app_fcrs_ep_invmap ep tl j = i))
+  = let fm = IF.to_fm (is_appfn_within_ep_ifn #vspec ep) (to_app_fcr #vspec) in
+    ()
+
+let app_fcrs_ep_map_monotonic (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  (i1 i2: (i:seq_index tl{is_appfn_within_epoch ep tl i}))
+  : Lemma (ensures ((i1 < i2 ==> app_fcrs_ep_map ep tl i1 < app_fcrs_ep_map ep tl i2) /\
+                    (i2 < i1 ==> app_fcrs_ep_map ep tl i2 < app_fcrs_ep_map ep tl i1)))
+  = let fm = IF.to_fm (is_appfn_within_ep_ifn #vspec ep) (to_app_fcr #vspec) in
+    IF.lemma_filter_map_map_monotonic fm tl i1 i2
+
+let app_fcrs_ep_invmap_monotonic (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  (j1 j2: SA.seq_index (app_fcrs_within_ep ep tl))
+  : Lemma (ensures ((j1 < j2 ==> app_fcrs_ep_invmap ep tl j1 < app_fcrs_ep_invmap ep tl j2) /\
+                    (j2 < j1 ==> app_fcrs_ep_invmap ep tl j2 < app_fcrs_ep_invmap ep tl j1)))
+  = let fm = IF.to_fm (is_appfn_within_ep_ifn #vspec ep) (to_app_fcr #vspec) in
+    IF.filter_map_invmap_monotonic fm tl j1 j2
