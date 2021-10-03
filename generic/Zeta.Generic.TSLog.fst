@@ -220,19 +220,6 @@ let gl_thread_prefix_verifiable
 
 #pop-options
 
-let lemma_interleave_extend
-  (#a:eqtype) (#n:_)
-  (ss: sseq a{S.length ss = n})
-  (t: nat{t < n})
-  (il': interleaving a n)
-  : Lemma (requires (S.length (S.index ss t) > 0 /\ s_seq il' == sseq_prefix ss t))
-          (ensures (let s = S.index ss t in
-                    let i = S.length s - 1 in
-                    let e = S.index s i in
-                    let il = SA.append1 il' ({e;s=t}) in
-                    s_seq il == ss))
-  = admit()
-
 #push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 3 --query_stats"
 
 let rec create
