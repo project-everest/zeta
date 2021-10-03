@@ -54,9 +54,117 @@ let max_clock_prop (#vspec) (gl: G.verifiable_log vspec) (tid: _)
     (forall tid'.
     (non_empty_thread gl tid' ==> max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid))
 
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let rec find_max_clock_aux  (#vspec:_) (gl: G.verifiable_log vspec {flat_length gl > 0})
+  (i: nat{i <= S.length gl})
+  : ot:option nat {(None = ot ==> (forall tid. tid < i ==> S.length (S.index gl tid) = 0)) /\
+                 (Some? ot ==> (let tid = Some?.v ot in
+                                tid < i /\
+                                non_empty_thread gl tid /\
+                                (forall tid'.
+                                    tid' < i ==>
+                                    non_empty_thread gl tid' ==>
+                                    max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid)))}
+  = if i = 0 then None
+    else (
+      let i' = i - 1 in
+      let ot = find_max_clock_aux gl i' in
+      let s = S.index gl i' in
+
+      if S.length s = 0 then (
+        if ot = None then (
+          let aux(tid:_)
+            : Lemma (ensures (tid < i ==> S.length (S.index gl tid) = 0))
+            = if tid < i' then
+                eliminate forall tid. tid < i' ==> S.length (S.index gl tid) = 0
+                with tid
+          in
+          forall_intro aux;
+          None
+        )
+        else (
+          let tid = Some?.v ot in
+          let aux(tid':_)
+            : Lemma (ensures (tid' < i ==>
+                              non_empty_thread gl tid' ==>
+                              max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid))
+            = if tid' < i' && non_empty_thread gl tid' then
+                eliminate forall tid'. tid' < i' ==>
+                                   non_empty_thread gl tid' ==>
+                                   max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid
+                with tid'
+          in
+          forall_intro aux;
+          Some tid
+        )
+      )
+      else (
+        if ot = None then (
+          let tid = i' in
+
+          let aux(tid':_)
+            : Lemma (ensures (tid' < i ==>
+                              non_empty_thread gl tid' ==>
+                              max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid))
+            = if tid' < i' && non_empty_thread gl tid' then
+                eliminate forall tid'. tid' < i' ==>
+                                   non_empty_thread gl tid' ==>
+                                   max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid
+                with tid'
+          in
+          forall_intro aux;
+          Some tid
+        )
+        else (
+          let tid1 = Some?.v ot in
+          if max_clock_in_thread gl i' `ts_leq` max_clock_in_thread gl tid1 then (
+            let tid = tid1 in
+
+            let aux(tid':_)
+              : Lemma (ensures (tid' < i ==>
+                               non_empty_thread gl tid' ==>
+                               max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid))
+              = if tid' < i' && non_empty_thread gl tid' then
+                   eliminate forall tid'. tid' < i' ==>
+                                     non_empty_thread gl tid' ==>
+                                     max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid
+                   with tid'
+            in
+            forall_intro aux;
+            Some tid
+          )
+          else (
+            let tid = i' in
+
+            let aux(tid':_)
+              : Lemma (ensures (tid' < i ==>
+                               non_empty_thread gl tid' ==>
+                               max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid))
+              = if tid' < i' && non_empty_thread gl tid' then
+                   eliminate forall tid'. tid' < i' ==>
+                                     non_empty_thread gl tid' ==>
+                                     max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid
+                   with tid'
+            in
+            forall_intro aux;
+            Some tid
+          ))))
+
+#pop-options
+
 let find_max_clock_thread (#vspec:_) (gl: G.verifiable_log vspec {flat_length gl > 0})
   : tid: _ {max_clock_prop gl tid}
-  = admit()
+  = let ot = find_max_clock_aux gl (S.length gl) in
+    if None = ot then (
+      assert(forall tid. S.length (S.index gl tid) = 0);
+      nonzero_flatlen_implies_nonempty gl;
+      0
+    )
+    else
+      Some?.v ot
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
 
 let gl_thread_prefix_verifiable
   (#vspec:_)
@@ -64,6 +172,31 @@ let gl_thread_prefix_verifiable
   (tid: _ {non_empty_thread gl tid})
   : Lemma (ensures (G.verifiable (sseq_prefix gl tid)))
           [SMTPat (sseq_prefix gl tid)]
+  = let gl' = sseq_prefix gl tid in
+    let aux (t:_)
+      : Lemma (ensures (T.verifiable (t, S.index gl' t)))
+      = eliminate forall tid. T.verifiable (thread_log_base gl tid)
+        with t;
+        let s' = S.index gl' t in
+        if t = tid then
+          let tl = G.index gl tid in
+          T.verifiable_implies_prefix_verifiable tl (S.length s')
+    in
+    forall_intro aux
+
+#pop-options
+
+let lemma_interleave_extend
+  (#a:eqtype) (#n:_)
+  (ss: sseq a{S.length ss = n})
+  (t: nat{t < n})
+  (il': interleaving a n)
+  : Lemma (requires (S.length (S.index ss t) > 0 /\ s_seq il' == sseq_prefix ss t))
+          (ensures (let s = S.index ss t in
+                    let i = S.length s - 1 in
+                    let e = S.index s i in
+                    let il = SA.append1 il' ({e;s=t}) in
+                    s_seq il == ss))
   = admit()
 
 #push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 3 --query_stats"
@@ -99,12 +232,17 @@ let rec create
 
       (* recursively construct the interleaving for gl' *)
       let itsl' = create gl' in
+      let e = G.indexss gl (tid,tn-1) in
 
-      let itsl: interleaving _ n = interleaving_extend itsl' (G.indexss gl (tid,tn-1)) tid in
-      assert(to_glog itsl = gl);
-      assert(verifiable itsl);
+      (* interleaving we are interested in ... *)
+      let itsl: interleaving _ n = SA.append1 itsl' ({e; s = tid}) in
+      interleaving_snoc itsl;
+      interleaving_flat_length itsl;
+      lemma_prefix1_append itsl' ({e;s=tid});
+      lemma_interleave_extend gl tid itsl';
+
+      assert(s_seq itsl == gl);
       assert(clock_sorted itsl');
-      assume(m = length itsl);
 
       let aux(i j: seq_index itsl)
         : Lemma (ensures (i <= j ==> clock itsl i `ts_leq` clock itsl j))
@@ -112,7 +250,7 @@ let rec create
             clock_prefix_prop itsl i (m-1);
 
             if j = m - 1 then (
-              assume(i2s_map itsl j = (tid,tn-1));
+              assert(i2s_map itsl j = (tid,tn-1));
               let t',i' = i2s_map itsl i in
               lemma_max_clock_in_thread_correct gl (t',i');
               eliminate

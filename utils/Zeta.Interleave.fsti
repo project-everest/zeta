@@ -104,9 +104,18 @@ val lemma_empty_sseq (a:eqtype) (n:_) (i: nat{i < n})
   : Lemma (ensures (let il = empty_interleaving a n in
                     S.index (s_seq il) i = Seq.empty #a))
 
-val interleaving_extend (#a #n:_) (il: interleaving a n) (x: a) (t: nat{t < n})
-  : il': interleaving a n {length il' = length il + 1 /\
-                           index il' (length il) = x /\
-                           src il' (length il) = t /\
-                           prefix il' (length il) = il /\
-                           s_seq il' = sseq_extend (s_seq il) x t}
+val interleaving_snoc (#a #n:_) (il: interleaving a n{length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let ss = s_seq il in
+                    let is = i_seq il in
+                    let il' = prefix il i in
+                    let ss' = s_seq il' in
+                    let is' = i_seq il' in
+                    let x = index il i in
+                    let t = src il i in
+                    i2s_map il i = (t,S.length (S.index ss' t)) /\
+                    ss' == sseq_prefix ss t /\
+                    is' = SA.prefix is i))
+
+val interleaving_flat_length (#a #n:_) (il: interleaving a n)
+  : Lemma (ensures (flat_length (s_seq il) = length il))

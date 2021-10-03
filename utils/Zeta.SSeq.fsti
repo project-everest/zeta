@@ -62,13 +62,16 @@ val lemma_flat_length_emptyn (a:_) (n:nat)
 val lemma_flat_length_zero (#a:_) (ss: sseq a {flat_length ss = 0})
   : Lemma (ensures (ss == empty a (length ss)))
 
-val sseq_prefix (#a:eqtype) (ss: sseq a) (i: seq_index ss{length (index ss i) > 0})
-  : ss': sseq a
-    {
-      let si = index ss i in
-      let x = telem si in
-      length ss' = length ss /\
-      flat_length ss' = flat_length ss - 1 /\
-      index ss' i == hprefix (index ss i) /\
-      ss == sseq_extend ss' x i
-    }
+let sseq_prefix (#a:eqtype) (ss: sseq a) (i: seq_index ss{length (index ss i) > 0})
+  = let s = index ss i in
+    let l = length s in
+    let s' = prefix s (l - 1) in
+    upd ss i s'
+
+val sseq_prefix_flatlen (#a:eqtype) (ss: sseq a) (i: seq_index ss{length (index ss i) > 0})
+  : Lemma (ensures (let ss' = sseq_prefix ss i in
+                    flat_length ss = flat_length ss' + 1))
+          [SMTPat (sseq_prefix ss i)]
+
+val nonzero_flatlen_implies_nonempty (#a:_) (ss: sseq a)
+  : Lemma (ensures (flat_length ss > 0 ==> (exists i. (length (index ss i)) > 0)))
