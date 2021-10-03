@@ -199,7 +199,7 @@ let lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_bl
 let lemma_evict_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
   : Lemma (ensures (let be = blum_evict_elem tl i in
                     be.t = clock tl i))
-  = admit()
+  = ()
 
 #push-options "--z3rlimit_factor 4 --query_stats"
 
@@ -223,6 +223,8 @@ let evict_elem_unique_aux (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 
       assert(clock tl i1 `ts_lt` clock tl i2)
     )
 
+#pop-options
+
 let evict_elem_unique (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i1 i2: SA.seq_index (evict_seq ep tl))
   : Lemma (ensures (let es = evict_seq ep tl in
                     i1 <> i2 ==>  S.index es i1 <> S.index es i2))
@@ -238,13 +240,27 @@ let evict_elem_tid (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: SA.seq_
                     be.tid = t))
   = ()
 
+let is_appfn_ifn (#vspec:_)
+  : IF.idxfn_t (gen_seq vspec) bool
+  = is_appfn #vspec
+
+let to_app_fcr_ifn (#vspec:_)
+  : IF.cond_idxfn_t (appfn_call_res vspec.app) (is_appfn_ifn #vspec)
+  = to_app_fcr #vspec
+
 let app_fcrs (#vspec:_) (tl: verifiable_log vspec)
   : S.seq (appfn_call_res vspec.app)
-  = admit()
+  = let fm = IF.to_fm (is_appfn_ifn #vspec) (to_app_fcr #vspec) in
+    IF.filter_map fm tl
+
+let is_appfn_within_ep_ifn (#vspec:_) (ep: epoch)
+  : IF.idxfn_t (gen_seq vspec) bool
+  = is_appfn_within_epoch ep
 
 let app_fcrs_within_ep
   (#vspec:_)
   (ep: epoch)
   (tl: verifiable_log vspec)
   : S.seq (appfn_call_res vspec.app)
-  = admit()
+  = let fm = IF.to_fm (is_appfn_within_ep_ifn #vspec ep) (to_app_fcr #vspec) in
+    IF.filter_map fm tl

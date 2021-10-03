@@ -105,7 +105,8 @@ let evictb_prop
   : Lemma (ensures (let vs_post = GV.verify_step e vs in
                     GV.is_blum_evict e ==>
                     vs_post.valid ==>
-                    vs.clock `ts_lt` vs_post.clock))
+                    (vs.clock `ts_lt` vs_post.clock /\
+                     vs_post.clock = GV.blum_evict_timestamp e)))
   = ()
 
 let lemma_high_verifier_evictb_prop (app:_)

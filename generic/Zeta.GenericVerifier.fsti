@@ -321,7 +321,8 @@ let evictb_prop (vspec: verifier_spec_base)
     vspec.valid vtls' ==>
     (let clock_pre = vspec.clock vtls in
      let clock_post = vspec.clock vtls' in
-     clock_pre `ts_lt` clock_post)
+     clock_pre `ts_lt` clock_post /\
+     clock_post = blum_evict_timestamp e)
 
 let verifier_log vspec = S.seq (verifier_log_entry vspec)
 
