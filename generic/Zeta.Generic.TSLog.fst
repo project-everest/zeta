@@ -306,16 +306,57 @@ let rec create
 
 #pop-options
 
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let rec  find_epoch_boundary (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n) (i:seq_index itsl)
+  : Tot(o:option nat {(None = o ==> (clock itsl i).e <= ep) /\
+                (Some? o ==> (let j = Some?.v o in
+                              j <= i /\
+                              (clock itsl j).e > ep /\
+                              (j = 0 \/ (clock itsl (j-1)).e <= ep)))})
+    (decreases i)
+  = if i = 0 then
+      if (clock itsl i).e <= ep then None
+      else Some i
+    else
+      let i' = i - 1 in
+      let o = find_epoch_boundary ep itsl i' in
+      if None = o then
+        if (clock itsl i).e <= ep then None
+        else Some i
+      else o
+
 let prefix_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
   : itsl': its_log vspec n {itsl' `prefix_of` itsl}
-  = admit()
+  = if length itsl = 0 then itsl
+    else
+      let o = find_epoch_boundary ep itsl (length itsl - 1) in
+      if o = None then itsl
+      else
+        let j = Some?.v o in
+        prefix itsl j
 
 let prefix_within_epoch_correct (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n) (i: seq_index itsl)
   : Lemma (ensures (let il' = prefix_within_epoch ep itsl in
                     let l' = S.length il' in
                     (i < l' ==> (clock itsl i).e <= ep) /\
                     (i >= l' ==> (clock itsl i).e > ep)))
-  = admit()
+  = let n' = length itsl - 1 in
+    let o = find_epoch_boundary ep itsl n' in
+    let il' = prefix_within_epoch ep itsl in
+    let l' = S.length il' in
+    if o = None then
+      eliminate forall (i j: seq_index itsl). i <= j ==> clock itsl i `ts_leq` clock itsl j
+      with i n'
+    else (
+      assert((clock itsl l').e > ep);
+      if i >= l' then
+        eliminate forall (i j: seq_index itsl). i <= j ==> clock itsl i `ts_leq` clock itsl j
+        with l' i
+      else if l' > 0 then
+        eliminate forall (i j: seq_index itsl). i <= j ==> clock itsl i `ts_leq` clock itsl j
+        with i (l' - 1)
+    )
 
 let lemma_fcrs_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
   : Lemma (ensures (let itsl_ep = prefix_within_epoch ep itsl in
@@ -323,3 +364,5 @@ let lemma_fcrs_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
                     let gl = to_glog itsl in
                     G.app_fcrs gl_ep = G.app_fcrs_within_ep ep gl))
   = admit()
+
+#pop-options
