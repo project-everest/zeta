@@ -190,6 +190,16 @@ val evict_seq_invmap_monotonic (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   : Lemma (ensures ((j1 < j2 ==> evict_seq_invmap ep tl j1 < evict_seq_invmap ep tl j2) /\
                     (j2 < j1 ==> evict_seq_invmap ep tl j2 < evict_seq_invmap ep tl j1)))
 
+val lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
+  : Lemma (ensures (let be = blum_add_elem tl i in
+                    be.t `ts_lt` clock tl i))
+          [SMTPat (blum_add_elem tl i)]
+
+val lemma_evict_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
+  : Lemma (ensures (let be = blum_evict_elem tl i in
+                    be.t = clock tl i))
+          [SMTPat (blum_evict_elem tl i)]
+
 val evict_elem_unique (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i1 i2: SA.seq_index (evict_seq ep tl))
   : Lemma (ensures (let es = evict_seq ep tl in
                     i1 <> i2 ==>  S.index es i1 <> S.index es i2))
@@ -218,12 +228,11 @@ let to_app_fcr (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn t
     assert(vspec.valid st);
     GV.appfn_result e st'
 
-val lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
-  : Lemma (ensures (let be = blum_add_elem tl i in
-                    be.t `ts_lt` clock tl i))
-          [SMTPat (blum_add_elem tl i)]
+val app_fcrs (#vspec:_) (tl: verifiable_log vspec)
+  : S.seq (appfn_call_res vspec.app)
 
-val lemma_evict_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
-  : Lemma (ensures (let be = blum_evict_elem tl i in
-                    be.t = clock tl i))
-          [SMTPat (blum_evict_elem tl i)]
+val app_fcrs_within_ep
+  (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  : S.seq (appfn_call_res vspec.app)

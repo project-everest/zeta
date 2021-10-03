@@ -137,11 +137,13 @@ let ms_verifiable_log #vspec (ep: epoch)
   = gl:verifiable_log vspec{aems_equal_upto ep gl}
 
 (* filter-mapped sequence of sequence app-function-call results *)
-val app_fcrs
+let app_fcrs
   (#vspec: verifier_spec)
   (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
+  = S.init (S.length gl) (fun i -> T.app_fcrs (index gl i))
 
-val app_fcrs_within_ep
+let app_fcrs_within_ep
   (#vspec: verifier_spec)
   (ep: epoch)
   (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
+  = S.init (S.length gl) (fun i -> T.app_fcrs_within_ep ep (index gl i))

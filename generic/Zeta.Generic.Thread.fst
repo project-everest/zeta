@@ -191,24 +191,60 @@ let evict_seq_invmap_monotonic (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec ep) (blum_evict_elem_ifn #vspec) in
     IF.filter_map_invmap_monotonic fm tl j1 j2
 
+let lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
+  : Lemma (ensures (let be = blum_add_elem tl i in
+                    be.t `ts_lt` clock tl i))
+  = ()
+
+let lemma_evict_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
+  : Lemma (ensures (let be = blum_evict_elem tl i in
+                    be.t = clock tl i))
+  = admit()
+
+#push-options "--z3rlimit_factor 4 --query_stats"
+
+let evict_elem_unique_aux (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (evict_seq ep tl))
+  : Lemma (ensures (let es = evict_seq ep tl in
+                    j1 <  j2 ==>  S.index es j1 <> S.index es j2))
+  = if j1 < j2 then (
+      let i1 = evict_seq_invmap ep tl j1 in
+      let i2 = evict_seq_invmap ep tl j2 in
+      evict_seq_invmap_monotonic ep tl j1 j2;
+      assert(i1 < i2);
+
+      (* the clock increases during the evict processing *)
+      let i2' = i2 - 1 in
+      lemma_state_transition tl i2;
+      assert(clock tl i2' `ts_lt` clock tl i2);
+
+      (* the clock is monotonic => the clock after the first evict < clock after the second *)
+      assert(i1 <= i2');
+      lemma_clock_monotonic tl i1 i2';
+      assert(clock tl i1 `ts_lt` clock tl i2)
+    )
+
 let evict_elem_unique (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i1 i2: SA.seq_index (evict_seq ep tl))
   : Lemma (ensures (let es = evict_seq ep tl in
                     i1 <> i2 ==>  S.index es i1 <> S.index es i2))
-  = admit()
+  = if i1 < i2 then
+      evict_elem_unique_aux ep tl i1 i2
+    else if i2 < i1 then
+      evict_elem_unique_aux ep tl i2 i1
 
 let evict_elem_tid (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: SA.seq_index (evict_seq ep tl))
   : Lemma (ensures (let es = evict_seq ep tl in
                     let be = S.index es i in
                     let t,_ = tl in
                     be.tid = t))
+  = ()
+
+let app_fcrs (#vspec:_) (tl: verifiable_log vspec)
+  : S.seq (appfn_call_res vspec.app)
   = admit()
 
-let lemma_add_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_add tl i})
-  : Lemma (ensures (let be = blum_add_elem tl i in
-                    be.t `ts_lt` clock tl i))
-  = admit()
-
-let lemma_evict_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
-  : Lemma (ensures (let be = blum_evict_elem tl i in
-                    be.t = clock tl i))
+let app_fcrs_within_ep
+  (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  : S.seq (appfn_call_res vspec.app)
   = admit()

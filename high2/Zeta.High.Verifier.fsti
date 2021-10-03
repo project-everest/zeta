@@ -356,7 +356,8 @@ val lemma_high_verifier (aprm: app_params)
                     GV.thread_id_constant_prop (high_verifier_spec_base aprm) /\
                     GV.evict_prop (high_verifier_spec_base aprm) /\
                     GV.add_prop (high_verifier_spec_base aprm) /\
-                    GV.addb_prop (high_verifier_spec_base aprm)))
+                    GV.addb_prop (high_verifier_spec_base aprm) /\
+                    GV.evictb_prop (high_verifier_spec_base aprm)))
           [SMTPat (high_verifier_spec_base aprm)]
 
 let high_verifier_spec (app: app_params) : Zeta.GenericVerifier.verifier_spec
