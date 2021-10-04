@@ -1,6 +1,7 @@
 module Zeta.Generic.Thread
 
 open FStar.Classical
+open Zeta.SMap
 module IF = Zeta.IdxFn
 
 (* if a thread log is verifiable, its prefix is verifiable *)
@@ -386,9 +387,82 @@ let prefix_within_epoch_correct (#vspec:_) (ep: epoch) (tl: verifiable_log vspec
         lemma_clock_monotonic tl i (l' - 1)
     )
 
+let ep_pre_fcrs (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  = let tl' = prefix_within_epoch ep tl in
+    app_fcrs tl'
+
+let ep_pre_fcrs2ep_fcrs (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: SA.seq_index (ep_pre_fcrs ep tl))
+  : j: SA.seq_index (app_fcrs_within_ep ep tl) {S.index (ep_pre_fcrs ep tl) i = S.index (app_fcrs_within_ep ep tl) j}
+  = let tl' = prefix_within_epoch ep tl in
+    let ep_fcrs1 = ep_pre_fcrs ep tl in
+    let i1 = app_fcrs_invmap tl' i in
+    assert(i1 < length tl');
+    assert(is_appfn tl i1);
+    prefix_within_epoch_correct ep tl i1;
+    assert((clock tl i1).e <= ep);
+    assert(is_appfn_within_epoch ep tl i1);
+    let i2 = app_fcrs_ep_map ep tl i1 in
+    i2
+
+let ep_pre_fcrs2ep_fcrs_mono(#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  : Lemma (ensures (monotonic_prop (ep_pre_fcrs2ep_fcrs ep tl)))
+          [SMTPat (ep_pre_fcrs2ep_fcrs ep tl)]
+  = let tl' = prefix_within_epoch ep tl in
+    let ep_fcrs1 = ep_pre_fcrs ep tl in
+    let f = ep_pre_fcrs2ep_fcrs ep tl in
+    let aux (i j: SA.seq_index ep_fcrs1)
+      : Lemma (ensures (i < j ==> f i < f j))
+      = if i < j then (
+          let i1 = app_fcrs_invmap tl' i in
+          let j1 = app_fcrs_invmap tl' j in
+          app_fcrs_invmap_monotonic tl' i j;
+          assert(i1 < j1);
+          prefix_within_epoch_correct ep tl i1;
+          prefix_within_epoch_correct ep tl j1;
+          app_fcrs_ep_map_monotonic ep tl i1 j1
+        )
+    in
+    forall_intro_2 aux
+
+let ep_fcrs2ep_pre_fcrs (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  (j: SA.seq_index (app_fcrs_within_ep ep tl))
+  : i: SA.seq_index (ep_pre_fcrs ep tl) {S.index (ep_pre_fcrs ep tl) i = S.index (app_fcrs_within_ep ep tl) j}
+  = let tl' = prefix_within_epoch ep tl in
+    let i1 = app_fcrs_ep_invmap ep tl j in
+    prefix_within_epoch_correct ep tl i1;
+    assert(i1 < length tl');
+    let i = app_fcrs_map tl' i1 in
+    i
+
+let ep_fcrs2ep_pre_fcrs_mono (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  : Lemma (ensures (monotonic_prop (ep_fcrs2ep_pre_fcrs ep tl)))
+          [SMTPat (ep_fcrs2ep_pre_fcrs ep tl)]
+  = let tl' = prefix_within_epoch ep tl in
+    let ep_fcrs = app_fcrs_within_ep ep tl in
+    let f = ep_fcrs2ep_pre_fcrs ep tl in
+    let aux (i j: SA.seq_index ep_fcrs)
+      : Lemma (ensures (i < j ==> f i < f j))
+      = if i < j then (
+          let i1 = app_fcrs_ep_invmap ep tl i in
+          let j1 = app_fcrs_ep_invmap ep tl j in
+          app_fcrs_ep_invmap_monotonic ep tl i j;
+          assert(i1 < j1);
+          prefix_within_epoch_correct ep tl i1;
+          prefix_within_epoch_correct ep tl j1;
+          app_fcrs_map_monotonic tl' i1 j1
+        )
+    in
+    forall_intro_2 aux
+
 let lemma_app_fcrs_ep_prefix (#vspec:_)
   (ep: epoch)
   (tl: verifiable_log vspec)
   : Lemma (ensures (let tl' = prefix_within_epoch ep tl in
                     app_fcrs tl' == app_fcrs_within_ep ep tl))
-  = admit()
+  = monotonic_bijection_implies_equal
+    (ep_pre_fcrs ep tl)
+    (app_fcrs_within_ep ep tl)
+    (ep_pre_fcrs2ep_fcrs ep tl)
+    (ep_fcrs2ep_pre_fcrs ep tl)
+
+#pop-options
