@@ -1,11 +1,38 @@
 module Zeta.AppSimulate.Helper
 
+open FStar.Classical
 module S = FStar.Seq
 
-let app_state_feq_implies_equal (#adm:_) (st1 st2: app_state adm)
+let app_state_feq_comm_aux (#adm:_) (st1 st2: app_state adm)
   : Lemma (requires (app_state_feq st1 st2))
-          (ensures (st1 == st2))
-  = admit()
+          (ensures (app_state_feq st2 st1))
+  = let aux (k:_)
+      : Lemma (ensures (st2 k = st1 k))
+      = assert(st1 k = st2 k)
+    in
+    forall_intro aux
+
+let app_state_feq_commutative (#adm) (st1 st2: app_state adm)
+  : Lemma (ensures (app_state_feq st1 st2 <==> app_state_feq st2 st1))
+  = introduce (app_state_feq st1 st2) ==> (app_state_feq st2 st1)
+    with _. app_state_feq_comm_aux st1 st2;
+    introduce (app_state_feq st2 st1) ==> (app_state_feq st1 st2)
+    with _. app_state_feq_comm_aux st2 st1
+
+let app_state_feq_transitive_aux (#adm) (st1 st2 st3: app_state adm)
+  : Lemma (requires (app_state_feq st1 st2 /\ app_state_feq st2 st3))
+          (ensures (app_state_feq st1 st3))
+  = let aux(k:_)
+      : Lemma (ensures (st1 k = st3 k))
+      = assert(st1 k = st2 k);
+        assert(st2 k = st3 k)
+    in
+    forall_intro aux
+
+let app_state_feq_transitive (#adm)  (st1 st2 st3: app_state adm)
+  : Lemma (ensures (app_state_feq st1 st2 ==> app_state_feq st2 st3 ==> app_state_feq st1 st3))
+  = introduce (app_state_feq st1 st2 /\ app_state_feq st2 st3) ==> (app_state_feq st1 st3)
+    with _. app_state_feq_transitive_aux st1 st2 st3
 
 let of_key (#adm:_) (ki: app_key adm) (r: app_record adm)
   = let k,_ = r in
@@ -21,6 +48,26 @@ let record_incorrect (#adm:_) (st: app_state adm) (r: app_record adm)
   : bool
   = let k,v = r in
     st k <> v
+
+let feq_imnplies_input_consistent_identical_aux (#app:_) (fc: appfn_call app) (st1 st2: app_state app.adm)
+  : Lemma (requires (app_state_feq st1 st2 /\ input_consistent fc st1))
+          (ensures (input_consistent fc st2))
+  = let aux (k:_)
+      : Lemma (ensures (fc `refs` k ==> refkey_inp_val fc k = st2 k))
+      = if fc `refs_comp` k then (
+          assert(refkey_inp_val fc k = st1 k);
+          assert(st1 k = st2 k)
+        )
+    in
+    forall_intro aux
+
+let feq_implies_input_consistent_identical (#app:_) (fc: appfn_call app) (st1 st2: app_state app.adm)
+  : Lemma (requires (app_state_feq st1 st2))
+          (ensures (input_consistent fc st1 <==> input_consistent fc st2))
+  = introduce (input_consistent fc st1) ==> (input_consistent fc st2)
+    with _. feq_imnplies_input_consistent_identical_aux fc st1 st2;
+    introduce (input_consistent fc st2) ==> (input_consistent fc st1)
+    with _. feq_imnplies_input_consistent_identical_aux fc st2 st1
 
 let input_correct_is_input_consistent (#app:_) (fc: appfn_call app) (st: app_state app.adm)
   : Lemma (ensures (let rs = fc.inp_c in
@@ -106,7 +153,7 @@ let app_fcs_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs > 0})
     FStar.Classical.forall_intro aux;
     assert(equal fcs fcs2)
 
-#push-options "--z3rlimit_factor 4"
+#push-options "--z3rlimit_factor 6"
 
 (* TODO Fix the extremely unstable proof *)
 let valid_call_result_snoc (#app:_) (fcrs: seq (appfn_call_res app) {length fcrs > 0})

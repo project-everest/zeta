@@ -9,10 +9,12 @@ open Zeta.AppSimulate
 let app_state_feq #adm (st1 st2: app_state adm)
   = forall (k: app_key adm). {:pattern (st1 k = st2 k)} st1 k = st2 k
 
-val app_state_feq_implies_equal (#adm:_) (st1 st2: app_state adm)
-  : Lemma (requires (app_state_feq st1 st2))
-          (ensures (st1 == st2))
-          [SMTPat (app_state_feq st1 st2)]
+val app_state_feq_commutative (#adm:_) (st1 st2: app_state adm)
+  : Lemma (ensures (app_state_feq st1 st2 <==> app_state_feq st2 st1))
+          [SMTPat (app_state_feq st1 st2); SMTPat (app_state_feq st2 st1)]
+
+val app_state_feq_transitive (#adm:_)  (st1 st2 st3: app_state adm)
+  : Lemma (ensures (app_state_feq st1 st2 ==> app_state_feq st2 st3 ==> app_state_feq st1 st3))
 
 (* a correct function call is one which does not fail on the input *)
 let correct #app (fc: appfn_call app)
@@ -56,6 +58,10 @@ let succeeds #app (fc: appfn_call app) (st: app_state app.adm)
  * in the state *)
 let input_consistent #app (fc: appfn_call app) (st: app_state app.adm)
   = forall (k: app_key app.adm). ((fc `refs` k) ==> (refkey_inp_val fc k = st k))
+
+val feq_implies_input_consistent_identical (#app:_) (fc: appfn_call app) (st1 st2: app_state app.adm)
+  : Lemma (requires (app_state_feq st1 st2 /\ input_consistent fc st2))
+          (ensures (input_consistent fc st1))
 
 val input_correct_is_input_consistent (#app:_) (fc: appfn_call app) (st: app_state app.adm)
   : Lemma (ensures (let rs = fc.inp_c in

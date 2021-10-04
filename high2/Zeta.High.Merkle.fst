@@ -2248,7 +2248,7 @@ let store_contains_snoc_evictm
 
 #pop-options
 
-#push-options "--z3rlimit_factor 4"
+#push-options "--z3rlimit_factor 5"
 
 let store_contains_snoc
   (#app #n:_)

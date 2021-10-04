@@ -17,6 +17,8 @@ let runapp_refs_only_leafkeys (#app #n:_) (il: verifiable_log app n) (i:_ {RunAp
       let idx = index_mem k ss in
       runapp_implies_store_contains e vs_pre k
 
+#push-options "--z3rlimit_factor 3"
+
 let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
   : Lemma (ensures (let e = index il i in
@@ -40,6 +42,8 @@ let not_refs_implies_store_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
         | RunApp _ _ _ ->
           runapp_doesnot_change_nonref_slots e vs_pre ki
         | _ -> ()
+
+#pop-options
 
 let not_refs_implies_store_containment_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
@@ -298,6 +302,8 @@ let eac_state_active_implies_prev_add2 (#app #n:_) (k: base_key) (il: eac_log ap
           [SMTPat (eac_state_of_key k il)]
   = eac_state_active_implies_prev_add k il
 
+#push-options "--z3rlimit_factor 3"
+
 let rec eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_log app n)
   : Lemma (ensures (eac_state_of_key k il = EACInit ==> ~ (has_some_ref_to_key k il)))
           (decreases (length il))
@@ -322,6 +328,8 @@ let rec eac_state_init_implies_no_key_refs (#app #n:_) (k: base_key) (il: eac_lo
         forall_intro aux
       )
     )
+
+#pop-options
 
 open Zeta.BinTree
 
@@ -838,6 +846,8 @@ let ev_is_sv_init
   : Lemma (ensures (ev_is_sv_prop il gk))
   = eac_state_empty (to_base_key gk)  il
 
+#push-options "--z3rlimit_factor 3"
+
 let ev_is_sv_snoc_nonrefs
   (#app #n:_)
   (il: eac_log app n {length il > 0})
@@ -869,8 +879,6 @@ let ev_is_sv_snoc_nonrefs
       let t = stored_tid ki il in
       not_refs_implies_store_unchanged ki t il i
     )
-
-#push-options "--z3rlimit_factor 3"
 
 let ev_is_sv_snoc_add
   (#app #n:_)

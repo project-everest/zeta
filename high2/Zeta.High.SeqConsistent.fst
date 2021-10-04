@@ -41,7 +41,7 @@ let eac_app_prop (#app #n:_) (il: eac_log app n)
     (* the results are valid meaning the output corresponds to the input records *)
     valid_call_result fcrs /\
     (* the app state as recorded by eac values is the same as the simulation state *)
-    post_state fcs == eac_app_state il
+    app_state_feq (post_state fcs) (eac_app_state il)
 
 let eac_app_prop_empty (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (length il = 0 ==> eac_app_prop il))
@@ -187,7 +187,7 @@ let eac_app_state_nonapp_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in
                     let il' = prefix il i in
                     not (RunApp? (index il i)) ==>
-                    eac_app_state il == eac_app_state il'))
+                    app_state_feq (eac_app_state il) (eac_app_state il')))
   = let i = length il - 1 in
     let il' = prefix il i in
     let e = index il i in
@@ -239,7 +239,23 @@ let eac_implies_input_consistent
   in
   FStar.Classical.forall_intro aux
 
-#push-options "--z3rlimit_factor 3"
+//#push-options "--z3rlimit_factor 3"
+
+
+let app_state_feq_commutative (#adm) (st1 st2: app_state adm)
+  : Lemma (ensures (app_state_feq st1 st2 <==> app_state_feq st2 st1))
+          [SMTPat (app_state_feq st1 st2); SMTPat (app_state_feq st2 st1)]
+  = admit()
+
+let app_state_feq_transitive (#adm)  (st1 st2 st3: app_state adm)
+  : Lemma (ensures (app_state_feq st1 st2 ==> app_state_feq st2 st3 ==> app_state_feq st1 st3))
+  = admit()
+
+let feq_implies_input_consistent_identical (#app:_) (fc: appfn_call app) (st1 st2: app_state app.adm)
+  : Lemma (requires (app_state_feq st1 st2 /\ input_consistent fc st2))
+          (ensures (input_consistent fc st1))
+  = admit()
+#push-options "--fuel 1 --z3rlimit_factor 3 --ifuel 1 --query_stats"
 
 let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (requires (let i = length il - 1  in
@@ -247,7 +263,7 @@ let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
                      RunApp? (index il i) /\ eac_app_prop il'))
           (ensures (let fcs = app_fcs (app_fcrs il) in
                     valid fcs /\
-                    eac_app_state il == post_state fcs))
+                    app_state_feq (eac_app_state il) (post_state fcs)))
   = let i = length il - 1 in
     let fcr = to_app_fcr il i in
     let il' = prefix il i in
@@ -265,8 +281,11 @@ let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
     SA.lemma_prefix1_append fcs' fc;
 
     let st' = post_state fcs' in
-    assert(st' == eac_app_state il');
+    assert(app_state_feq st' (eac_app_state il'));
     eac_implies_input_consistent il i;
+    feq_implies_input_consistent_identical fc st' (eac_app_state il');
+    assert(input_consistent fc st');
+    assert(correct fc);
     correct_succeeds_if_input_consistent fc st';
     assert(valid fcs);
 
@@ -276,14 +295,16 @@ let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
       : Lemma (ensures (sts ak = ste ak))
       = app_refs_is_log_entry_refs il i ak;
         lemma_post_state fc st' ak;
-        eac_app_state_key_snoc il ak
+        eac_app_state_key_snoc il ak;
+        if not (fc `refs_comp` ak) then
+          assert(st' ak = eac_app_state il' ak)
     in
     FStar.Classical.forall_intro aux;
     assert(app_state_feq sts ste)
 
 #pop-options
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--fuel 1 --z3rlimit_factor 3 --ifuel 1 --query_stats"
 
 let eac_implies_app_prop_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (requires (let i = length il - 1 in
@@ -312,8 +333,13 @@ let eac_implies_app_prop_snoc (#app #n:_) (il: eac_log app n {length il > 0})
       ext_app_records_is_stored_val il i;
       valid_call_result_snoc fcrs;
       eac_implies_input_consistent il i;
-      correct_succeeds_if_input_consistent fc st'
-    | _ -> ()
+      feq_implies_input_consistent_identical fc st' (eac_app_state il');
+      correct_succeeds_if_input_consistent fc st';
+      assert(succeeds fc st');
+      assert(valid_call_result fcrs);
+      ()
+    | _ ->
+      app_state_feq_transitive (post_state fcs') (eac_app_state il') (eac_app_state il)
 
 #pop-options
 
