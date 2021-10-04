@@ -69,16 +69,33 @@ let rec search_level_1_aux (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
     })
     (decreases l)
   = if l = 0 then None
-    else (
+    else
       let i1 = l - 1 in
-      let ol' = search_level_2 vtls ss i1 in
-      if Some? ol' then (
-        admit()
+      let oi1 = search_level_2 vtls ss i1 in
+      let ol' = search_level_1_aux vtls ss i1 in
+      if Some? oi1 then
+        let i2 = Some?.v oi1 in
+        Some (i1,i2)
+      else if Some? ol' then
+        ol'
+      else (
+        let aux (j1:nat) (j2:_)
+          : Lemma (ensures (j1 < l ==> j1 <> j2 ==>
+                            to_app_key vtls (S.index ss j1) <> to_app_key vtls (S.index ss j2)))
+          = if j1 < l && j1 <> j2 then
+              if j1 = i1 then
+                eliminate
+                forall i2. i1 <> i2 ==> to_app_key vtls (S.index ss i1) <> to_app_key vtls (S.index ss i2)
+                with j2
+              else
+                eliminate
+                forall i1 i2. i1 < l ==> i1 <> i2 ==>
+                           to_app_key vtls (S.index ss i1) <> to_app_key vtls (S.index ss i2)
+                with j1 j2
+        in
+        forall_intro_2 aux;
+        None
       )
-      else
-
-      admit()
-    )
 
 let search_level_1 (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
   (ss: S.seq vspec.slot_t{contains_only_app_keys vtls ss})
