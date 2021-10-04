@@ -241,20 +241,6 @@ let eac_implies_input_consistent
 
 //#push-options "--z3rlimit_factor 3"
 
-
-let app_state_feq_commutative (#adm) (st1 st2: app_state adm)
-  : Lemma (ensures (app_state_feq st1 st2 <==> app_state_feq st2 st1))
-          [SMTPat (app_state_feq st1 st2); SMTPat (app_state_feq st2 st1)]
-  = admit()
-
-let app_state_feq_transitive (#adm)  (st1 st2 st3: app_state adm)
-  : Lemma (ensures (app_state_feq st1 st2 ==> app_state_feq st2 st3 ==> app_state_feq st1 st3))
-  = admit()
-
-let feq_implies_input_consistent_identical (#app:_) (fc: appfn_call app) (st1 st2: app_state app.adm)
-  : Lemma (requires (app_state_feq st1 st2 /\ input_consistent fc st2))
-          (ensures (input_consistent fc st1))
-  = admit()
 #push-options "--fuel 1 --z3rlimit_factor 3 --ifuel 1 --query_stats"
 
 let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
