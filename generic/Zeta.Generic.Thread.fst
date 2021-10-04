@@ -1,5 +1,6 @@
 module Zeta.Generic.Thread
 
+open FStar.Classical
 module IF = Zeta.IdxFn
 
 (* if a thread log is verifiable, its prefix is verifiable *)
@@ -335,3 +336,59 @@ let app_fcrs_ep_invmap_monotonic (#vspec:_)
                     (j2 < j1 ==> app_fcrs_ep_invmap ep tl j2 < app_fcrs_ep_invmap ep tl j1)))
   = let fm = IF.to_fm (is_appfn_within_ep_ifn #vspec ep) (to_app_fcr #vspec) in
     IF.filter_map_invmap_monotonic fm tl j1 j2
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let rec  find_epoch_boundary (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i:seq_index tl)
+  : Tot(o:option nat {(None = o ==> (clock tl i).e <= ep) /\
+                (Some? o ==> (let j = Some?.v o in
+                              j <= i /\
+                              (clock tl j).e > ep /\
+                              (j = 0 \/ (clock tl (j-1)).e <= ep)))})
+    (decreases i)
+  = if i = 0 then
+      if (clock tl i).e <= ep then None
+      else Some i
+    else
+      let i' = i - 1 in
+      let o = find_epoch_boundary ep tl i' in
+      if None = o then
+        if (clock tl i).e <= ep then None
+        else Some i
+      else o
+
+let prefix_within_epoch (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  : tl': verifiable_log vspec {tl' `prefix_of` tl}
+  = if length tl = 0 then tl
+    else
+      let o = find_epoch_boundary ep tl (length tl - 1) in
+      if o = None then tl
+      else
+        let j = Some?.v o in
+        prefix tl j
+
+let prefix_within_epoch_correct (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
+  : Lemma (ensures (let tl' = prefix_within_epoch ep tl in
+                    let l' = length tl' in
+                    (i < l' ==> (clock tl i).e <= ep) /\
+                    (i >= l' ==> (clock tl i).e > ep)))
+  = let n' = length tl - 1 in
+    let o = find_epoch_boundary ep tl n' in
+    let tl' = prefix_within_epoch ep tl in
+    let l' = length tl' in
+    if o = None then
+      lemma_clock_monotonic tl i n'
+    else (
+      assert((clock tl l').e > ep);
+      if i >= l' then
+        lemma_clock_monotonic tl l' i
+      else if l' > 0 then
+        lemma_clock_monotonic tl i (l' - 1)
+    )
+
+let lemma_app_fcrs_ep_prefix (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  : Lemma (ensures (let tl' = prefix_within_epoch ep tl in
+                    app_fcrs tl' == app_fcrs_within_ep ep tl))
+  = admit()

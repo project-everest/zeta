@@ -24,7 +24,7 @@ let lemma_prefix_verifiable (#vspec:_) (n:_) (il:verifiable_log vspec n) (i:nat{
       = let tl = G.index gl t in
         let tl' = t,S.index gl' t in
         eliminate
-        forall tid. (S.index gl' tid) `prefix_of` (S.index gl tid)
+        forall tid. (S.index gl' tid) `SA.prefix_of` (S.index gl tid)
         with t;
         T.verifiable_implies_prefix_verifiable tl (T.length tl')
     in

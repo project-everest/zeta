@@ -314,7 +314,7 @@ let rec  find_epoch_boundary (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n) (
       else o
 
 let prefix_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
-  : itsl': its_log vspec n {itsl' `prefix_of` itsl}
+  : itsl': its_log vspec n {itsl' `SA.prefix_of` itsl}
   = if length itsl = 0 then itsl
     else
       let o = find_epoch_boundary ep itsl (length itsl - 1) in
@@ -345,11 +345,70 @@ let prefix_within_epoch_correct (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n
         with i (l' - 1)
     )
 
+#push-options "--z3rlimit_factor 3"
+
+let lemma_thread_prefix_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n) (t:nat{t<n})
+  : Lemma (ensures (let itsl_ep = prefix_within_epoch ep itsl in
+                    let gl_ep = to_glog itsl_ep in
+                    let tl_ep = G.index gl_ep t in
+                    let gl = to_glog itsl in
+                    let tl = G.index gl t in
+                    tl_ep = T.prefix_within_epoch ep tl))
+  = let itsl_ep = prefix_within_epoch ep itsl in
+    let gl_ep = to_glog itsl_ep in
+    let tl_ep = G.index gl_ep t in
+    let l1 = T.length tl_ep in
+
+    let gl = to_glog itsl in
+    let tl = G.index gl t in
+    let tl' = T.prefix_within_epoch ep tl in
+    let l2 = T.length tl' in
+
+    per_thread_prefix itsl (length itsl_ep);
+    assert(tl_ep `T.prefix_of` tl);
+
+    if l1 < l2 then (
+      let l2' = l2 - 1 in
+      T.prefix_within_epoch_correct ep tl l2';
+      assert((T.clock tl l2').e <= ep);
+      let i2 = s2i_map itsl (t,l2') in
+      let _ = i2s_map itsl i2 in
+      assert(clock itsl i2 = T.clock tl l2');
+      prefix_within_epoch_correct ep itsl i2;
+      assert(i2 < length itsl_ep);
+      let _ = i2s_map itsl_ep i2 in
+      ()
+    )
+    else if l2 < l1 then (
+      let l1' = l1 - 1 in
+      T.prefix_within_epoch_correct ep tl l1';
+      assert((T.clock tl l1').e > ep);
+      let i1 = s2i_map itsl_ep (t,l1') in
+      let _ = i2s_map itsl_ep i1 in
+      let _ = i2s_map itsl i1 in
+      assert(clock itsl i1 = T.clock tl l1');
+      assert(i1 < length itsl_ep);
+      prefix_within_epoch_correct ep itsl i1
+    )
+
 let lemma_fcrs_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
   : Lemma (ensures (let itsl_ep = prefix_within_epoch ep itsl in
                     let gl_ep = to_glog itsl_ep in
                     let gl = to_glog itsl in
                     G.app_fcrs gl_ep = G.app_fcrs_within_ep ep gl))
-  = admit()
+  = let itsl_ep = prefix_within_epoch ep itsl in
+    let gl_ep = to_glog itsl_ep in
+    let gl = to_glog itsl in
+    let fcrs1 = G.app_fcrs gl_ep in
+    let fcrs2 = G.app_fcrs_within_ep ep gl in
+
+    let aux (t:_)
+      : Lemma (ensures (S.index fcrs1 t = S.index fcrs2 t))
+      = let tl = G.index gl t in
+        lemma_thread_prefix_within_epoch ep itsl t;
+        T.lemma_app_fcrs_ep_prefix ep tl
+    in
+    forall_intro aux;
+    assert(S.equal fcrs1 fcrs2)
 
 #pop-options

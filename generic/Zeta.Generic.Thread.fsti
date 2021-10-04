@@ -291,3 +291,22 @@ val app_fcrs_ep_invmap_monotonic (#vspec:_)
   (j1 j2: SA.seq_index (app_fcrs_within_ep ep tl))
   : Lemma (ensures ((j1 < j2 ==> app_fcrs_ep_invmap ep tl j1 < app_fcrs_ep_invmap ep tl j2) /\
                     (j2 < j1 ==> app_fcrs_ep_invmap ep tl j2 < app_fcrs_ep_invmap ep tl j1)))
+
+let prefix_of (#vspec:_) (tl1 tl2: verifiable_log vspec)
+  = length tl1 <= length tl2 &&
+    tl1 = prefix tl2 (length tl1)
+
+val prefix_within_epoch (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  : tl': verifiable_log vspec {tl' `prefix_of` tl}
+
+val prefix_within_epoch_correct (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
+  : Lemma (ensures (let tl' = prefix_within_epoch ep tl in
+                    let l' = length tl' in
+                    (i < l' ==> (clock tl i).e <= ep) /\
+                    (i >= l' ==> (clock tl i).e > ep)))
+
+val lemma_app_fcrs_ep_prefix (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec)
+  : Lemma (ensures (let tl' = prefix_within_epoch ep tl in
+                    app_fcrs tl' == app_fcrs_within_ep ep tl))

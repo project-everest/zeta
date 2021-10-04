@@ -27,7 +27,7 @@ val lemma_prefix_clock_sorted (#vspec #n:_) (itsl: its_log vspec n) (i:nat{i <= 
 val create (#vspec:_) (gl: G.verifiable_log vspec): (itsl:its_log vspec (S.length gl){to_glog itsl == gl})
 
 val prefix_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
-  : itsl': its_log vspec n {itsl' `prefix_of` itsl}
+  : itsl': its_log vspec n {itsl' `SA.prefix_of` itsl}
 
 val prefix_within_epoch_correct (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n) (i: seq_index itsl)
   : Lemma (ensures (let il' = prefix_within_epoch ep itsl in
