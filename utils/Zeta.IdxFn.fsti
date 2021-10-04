@@ -246,22 +246,6 @@ val lemma_map_map
   : Lemma (ensures (let fm = map_fm m in
                     filter_map_map fm s i = i))
 
-val lemma_filter_map_monotonic
-  (#gs:_)
-  (b:_)
-  (f:idxfn_t gs bool{monotonic f})
-  (fm: fm_t gs b)
-  (s: gs.seq_t)
-  : Lemma (ensures (filter_map (FM (conj fm.f f) fm.m) s == filter_map fm (gs.prefix s (flen f s))))
-
-val lemma_map_prefix
-  (#gs:_)
-  (#b:_)
-  (f: idxfn_t gs b)
-  (s: gs.seq_t)
-  (i:nat{i <= gs.length s})
-  : Lemma (ensures (SA.prefix (map f s) i == map f (gs.prefix s i)))
-
 let seq_basic (a:eqtype) : gen_seq_spec = {
   seq_t = seq a;
   length;

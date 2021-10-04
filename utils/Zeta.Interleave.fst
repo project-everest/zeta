@@ -1,5 +1,7 @@
 module Zeta.Interleave
+
 open Zeta.IdxFn
+open FStar.Classical
 
 module IF = Zeta.IdxFn
 
@@ -24,7 +26,7 @@ let i_seq (#a:_) (#n:nat) (il: interleaving a n)
 
 let index_prop (#a #n:_) (il: interleaving a n) (i: SA.seq_index il)
   : Lemma (ensures ((S.index il i).e = index il i))
-  = admit()
+  = IF.lemma_map_map #(gen_seq a n) #_ to_elem il i
 
 let seq_i_fm (a:eqtype) n (i:nat)
   : fm_t (gen_seq a n) a
@@ -41,7 +43,14 @@ let per_thread_prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il
            let il' = prefix il i in
            let ss' = s_seq il' in
            ss' `sseq_all_prefix_of` ss)
-  = admit()
+  = let ss = s_seq il in
+    let il' = prefix il i in
+    let ss' = s_seq il' in
+    let aux (t:_)
+      : Lemma (ensures (S.index ss' t `prefix_of` S.index ss t))
+      = IF.lemma_filter_map_prefix (seq_i_fm a n t) il i
+    in
+    forall_intro aux
 
 let i2s_map (#a:_) (#n:_) (il:interleaving a n) (i:seq_index il)
   = let t = src il i in
@@ -54,7 +63,9 @@ let i2s_map_monotonic (#a #n:_) (il: interleaving a n) (i j: SA.seq_index il)
   : Lemma (requires (src il i = src il j))
           (ensures ((i < j ==> snd (i2s_map il i) < snd (i2s_map il j)) /\
                     (j < i ==> snd (i2s_map il j) < snd (i2s_map il i))))
-  = admit()
+  = let t = src il i in
+    let fm = seq_i_fm a n t in
+    lemma_filter_map_map_monotonic fm il i j
 
 let s2i_map (#a:_) (#n:_) (il:interleaving a n) (si: sseq_index (s_seq il))
   = let t,j = si in
@@ -67,7 +78,9 @@ let s2i_map_monotonic (#a #n:_) (il: interleaving a n) (i j: sseq_index (s_seq i
   : Lemma (requires (fst i = fst j))
           (ensures ((snd i < snd j ==> s2i_map il i < s2i_map il j) /\
                     (snd j < snd i ==> s2i_map il j < s2i_map il i)))
-  = admit()
+  = let t = fst i in
+    let fm = seq_i_fm a n t in
+    filter_map_invmap_monotonic fm il (snd i) (snd j)
 
 let lemma_i2s_s2i (#a:_) (#n:_) (il:interleaving a n) (i:seq_index il):
   Lemma (ensures (s2i_map il (i2s_map il i) = i))
