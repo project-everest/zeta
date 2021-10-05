@@ -91,9 +91,6 @@ val lemma_iseq_append1 (#a #n:_) (il: interleaving a n) (x: elem_src a n)
 let interleave (#a:eqtype) (s: seq a) (ss: sseq a)
   = exists (il: interleaving a (S.length ss)). (i_seq il = s) /\ (s_seq il = ss)
 
-val some_interleaving (#a: eqtype) (ss: sseq a)
-  : il: interleaving a (S.length ss) {s_seq il = ss}
-
 let empty_interleaving (a:eqtype) (n:nat)
   = Seq.empty #(elem_src a n)
 
@@ -131,3 +128,6 @@ val lemma_interleave_extend
                     let e = S.index s i in
                     let il = SA.append1 il' ({e;s=t}) in
                     s_seq il == ss))
+
+val some_interleaving (#a: eqtype) (ss: sseq a)
+  : il: interleaving a (S.length ss) {s_seq il = ss}

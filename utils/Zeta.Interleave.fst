@@ -99,7 +99,8 @@ let lemma_prefix_prefix_property (#a #n:_) (il:interleaving a n) (i:nat{i <= len
 
 let lemma_iseq_prefix_property (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
   : Lemma (ensures (SA.prefix (i_seq il) i = i_seq (prefix il i)))
-  = admit()
+  = let fm = map_fm #(gen_seq a n) #_ (to_elem #a #n)   in
+    lemma_filter_map_prefix fm il i
 
 let lemma_i2s_prefix_property (#a:_) (#n:_) (il:interleaving a n)(i:nat{i <= length il})(j:nat{j < i}):
   Lemma (ensures (i2s_map (prefix il i) j = i2s_map il j))
@@ -108,14 +109,13 @@ let lemma_i2s_prefix_property (#a:_) (#n:_) (il:interleaving a n)(i:nat{i <= len
     filter_map_map_prefix_property fm il j i;
     ()
 
-let lemma_iseq_append1 (#a #n:_) (il: interleaving a n) (x: elem_src a n)
-  : Lemma (ensures (let il' = SA.append1 il x in
-                    i_seq il' = SA.append1 (i_seq il) x.e))
-  = admit()
-
-let some_interleaving (#a:_) (ss: sseq a)
-  : il: interleaving a (S.length ss) {s_seq il = ss}
-  = admit()
+let lemma_iseq_append1 (#a #n:_) (il': interleaving a n) (x: elem_src a n)
+  : Lemma (ensures (let il = SA.append1 il' x in
+                    i_seq il = SA.append1 (i_seq il') x.e))
+  = let il = SA.append1 il' x in
+    let fm = map_fm #(gen_seq a n) #_ (to_elem #a #n)   in
+    SA.lemma_prefix1_append il' x;
+    lemma_filter_map_snoc fm il
 
 let lemma_length0_implies_empty (#a #n:_) (il: interleaving a n{length il = 0})
   : Lemma (ensures (il == empty_interleaving a n))
@@ -156,3 +156,28 @@ let lemma_interleave_extend
                     let il = SA.append1 il' ({e;s=t}) in
                     s_seq il == ss))
   = admit()
+
+let coerce_succ (a:eqtype) (n:nat) (x: elem_src a n)
+  : elem_src a (n+1)
+  = {e = x.e; s = x.s}
+
+let coerce_il_succ (#a #n:_) (il: interleaving a n)
+  : interleaving a (n+1)
+  = S.init (length il) (fun i -> coerce_succ a n (S.index il i))
+
+let rec some_interleaving (#a:_) (ss: sseq a)
+  : Tot(il: interleaving a (S.length ss) {s_seq il = ss})
+    (decreases (S.length ss))
+  = let n = S.length ss in
+    if n = 0 then (
+      admit()
+    )
+    else (
+      let n' = n - 1 in
+      let ss' = SA.prefix ss n' in
+      let il' = coerce_il_succ (some_interleaving ss') in
+      let s = S.index ss n' in
+      let sn': S.seq (elem_src a n) = S.init (S.length s) (fun i -> {e = S.index s i; s = n'}) in
+      let il = append il' sn' in
+      admit()
+    )
