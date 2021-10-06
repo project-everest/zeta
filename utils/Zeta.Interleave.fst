@@ -2,6 +2,7 @@ module Zeta.Interleave
 
 open Zeta.IdxFn
 open FStar.Classical
+open Zeta.SeqIdx
 
 module IF = Zeta.IdxFn
 
@@ -119,12 +120,13 @@ let lemma_iseq_append1 (#a #n:_) (il': interleaving a n) (x: elem_src a n)
 
 let lemma_length0_implies_empty (#a #n:_) (il: interleaving a n{length il = 0})
   : Lemma (ensures (il == empty_interleaving a n))
-  = admit()
+  = S.lemma_empty il
 
 let lemma_empty_sseq (a:eqtype) (n:_) (i: nat{i < n})
   : Lemma (ensures (let il = empty_interleaving a n in
                     S.index (s_seq il) i = S.empty #a))
-  = admit()
+  = let il = empty_interleaving a n in
+    S.lemma_empty (S.index (s_seq il) i)
 
 let interleaving_snoc (#a #n:_) (il: interleaving a n{length il > 0})
   : Lemma (ensures (let i = length il - 1 in
@@ -140,9 +142,37 @@ let interleaving_snoc (#a #n:_) (il: interleaving a n{length il > 0})
                     is' = SA.prefix is i))
   = admit()
 
-let interleaving_flat_length (#a #n:_) (il: interleaving a n)
+let lemma_empty_interleaving_empty_sseq (a:eqtype) (n:nat)
+  : Lemma (ensures (let il = empty_interleaving a n in
+                    let ss = empty a n in
+                    ss == s_seq il))
+          [SMTPat (empty_interleaving a n)]
+  = let il = empty_interleaving a n in
+    let ss = empty a n in
+    let ss2 = s_seq il in
+    let aux(i:_)
+      : Lemma (ensures (S.index ss i == S.index ss2 i))
+      = lemma_empty_sseq a n i
+    in
+    forall_intro aux;
+    assert(S.equal ss ss2)
+
+let rec interleaving_flat_length (#a #n:_) (il: interleaving a n)
   : Lemma (ensures (flat_length (s_seq il) = length il))
-  = admit()
+          (decreases (length il))
+  = let ss = s_seq il in
+    if length il = 0 then (
+      lemma_length0_implies_empty il;
+      lemma_flat_length_emptyn a n
+    )
+    else (
+      let i = length il - 1 in
+      let t = src il i in
+      let il' = prefix il i in
+      interleaving_flat_length il';
+      interleaving_snoc il;
+      sseq_prefix_flatlen ss t
+    )
 
 let lemma_interleave_extend
   (#a:eqtype) (#n:_)
@@ -157,27 +187,44 @@ let lemma_interleave_extend
                     s_seq il == ss))
   = admit()
 
-let coerce_succ (a:eqtype) (n:nat) (x: elem_src a n)
-  : elem_src a (n+1)
-  = {e = x.e; s = x.s}
 
-let coerce_il_succ (#a #n:_) (il: interleaving a n)
-  : interleaving a (n+1)
-  = S.init (length il) (fun i -> coerce_succ a n (S.index il i))
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+
+let find_non_empty_seq (#a:_) (ss: sseq a {flat_length ss > 0})
+  : i:SA.seq_index ss {S.length (S.index ss i) > 0}
+  = nonzero_flatlen_implies_nonempty ss;
+    let p = fun (s: seq a) -> S.length s > 0 in
+    last_idx p ss
 
 let rec some_interleaving (#a:_) (ss: sseq a)
   : Tot(il: interleaving a (S.length ss) {s_seq il = ss})
-    (decreases (S.length ss))
-  = let n = S.length ss in
-    if n = 0 then (
-      admit()
+    (decreases (flat_length ss))
+  = let m = flat_length ss in
+    let n = S.length ss in
+    if m = 0 then (
+      (* if ss has flat length then it is empty *)
+      lemma_flat_length_zero ss;
+      assert(ss == empty _ n);
+
+      let il = empty_interleaving a n in
+      lemma_empty_interleaving_empty_sseq a n;
+      il
     )
     else (
-      let n' = n - 1 in
-      let ss' = SA.prefix ss n' in
-      let il' = coerce_il_succ (some_interleaving ss') in
-      let s = S.index ss n' in
-      let sn': S.seq (elem_src a n) = S.init (S.length s) (fun i -> {e = S.index s i; s = n'}) in
-      let il = append il' sn' in
-      admit()
+      let i = find_non_empty_seq ss in
+      let s = S.index ss i in
+      let sn = S.length s in
+
+      let ss' = sseq_prefix ss i in
+      let il' = some_interleaving ss' in
+      let e = S.index s (sn-1) in
+      let il: interleaving a n = SA.append1 il' ({e; s = i}) in
+      interleaving_snoc il;
+      interleaving_flat_length il;
+      lemma_prefix1_append il' ({e;s=i});
+      lemma_interleave_extend ss i il';
+      il
     )
+
+#pop-options
