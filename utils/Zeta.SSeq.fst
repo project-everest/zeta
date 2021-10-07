@@ -193,11 +193,55 @@ let rec lemma_flat_length_zero (#a:_) (ss: sseq a {flat_length ss = 0})
       assert(equal ss en)
     )
 
+let sseq_prefix_append (#a:eqtype) (ss: sseq a) (i: seq_index ss{length (index ss i) > 0})
+  : Lemma (ensures (let ss' = sseq_prefix ss i in
+                    let s = index ss i in
+                    let e = telem s in
+                    ss == sseq_extend ss' e i))
+  = let ss' = sseq_prefix ss i in
+    let s = index ss i in
+    let e = telem s in
+    let s' = index ss' i in
+    assert(s' = hprefix s);
+    lemma_hprefix_append_telem s;
+    assert(s = append1 s' e);
+    let ss2 = sseq_extend ss' e i in
+
+    let aux (t:_)
+      : Lemma (ensures (index ss t = index ss2 t))
+      = ()
+    in
+    FStar.Classical.forall_intro aux;
+    assert(equal ss ss2)
+
 let sseq_prefix_flatlen (#a:eqtype) (ss: sseq a) (i: seq_index ss{length (index ss i) > 0})
   : Lemma (ensures (let ss' = sseq_prefix ss i in
                     flat_length ss = flat_length ss' + 1))
-  = admit()
+  = let ss' = sseq_prefix ss i in
+    let s = index ss i in
+    let e = telem s in
+    sseq_prefix_append ss i;
+    lemma_sseq_extend_len ss' e i
+
+open Zeta.SeqIdx
 
 let nonzero_flatlen_implies_nonempty (#a:_) (ss: sseq a)
   : Lemma (ensures (flat_length ss > 0 ==> (exists i. (length (index ss i)) > 0)))
-  = admit()
+  = let n = length ss in
+    let sse = empty a n in
+    if flat_length ss > 0 then (
+      let p = fun (s: seq a) -> length s > 0 in
+      if not (exists_elems_with_prop_comp p ss) then (
+        let aux ()
+          : Lemma (ensures (ss == sse))
+          = let aux2(t:_)
+              : Lemma (ensures (index ss t == index sse t))
+              = assert(length (index ss t) = 0);
+                lemma_empty (index ss t)
+            in
+            FStar.Classical.forall_intro aux2;
+            assert(equal ss sse)
+        in
+        aux()
+      )
+   )
