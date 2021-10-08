@@ -212,7 +212,7 @@ let eac_state_unchanged_snoc
                     RunApp? e /\ EACInStore? es))
   = eac_state_snoc bk il
 
-#push-options "--z3rlimit_factor 4"
+#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 3 --query_stats"
 
 let eac_value_root_snoc
   (#app #n:_)
