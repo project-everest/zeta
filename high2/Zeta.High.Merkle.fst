@@ -2249,7 +2249,7 @@ let store_contains_snoc_evictm
 
 #pop-options
 
-#push-options "--z3rlimit_factor 5"
+#push-options "--z3rlimit_factor 5 --fuel 0 --ifuel 1"
 
 let store_contains_snoc
   (#app #n:_)
