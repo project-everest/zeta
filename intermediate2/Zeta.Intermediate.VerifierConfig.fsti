@@ -6,6 +6,7 @@ noeq
 type verifier_config =
   | VConfig: store_size: pos ->
              app: app_params ->
+             thread_count: pos ->
              verifier_config
 
 let store_size (vc: verifier_config): nat =
