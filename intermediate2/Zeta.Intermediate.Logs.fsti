@@ -1,10 +1,15 @@
 module Zeta.Intermediate.Logs
 
 open FStar.Seq
+open Zeta.SeqAux
+open Zeta.Key
+open Zeta.App
+open Zeta.GenKey
 open Zeta.Intermediate.VerifierConfig
 open Zeta.Intermediate.SlotKeyRel
-open Zeta.Intermediate.Verify
+open Zeta.Intermediate.Verifier
 
+module GV = Zeta.GenericVerifier
 module HV = Zeta.High.Verifier
 
 
@@ -14,61 +19,18 @@ module HV = Zeta.High.Verifier
    - logL: contains slot references & low-level data structures (TODO) *)
 
 
-let logK_entry = Spec.vlog_entry
-let logK = Spec.vlog
+let logK_entry = HV.vlog_entry
 
-type logS_entry (vcfg:verifier_config) =
-  | Get_S: s:slot_id vcfg -> k:data_key -> v:data_value -> logS_entry vcfg
-  | Put_S: s:slot_id vcfg -> k:data_key -> v:data_value -> logS_entry vcfg
-  | AddM_S: s:slot_id vcfg -> r:record -> s':slot_id vcfg -> logS_entry vcfg
-  | EvictM_S: s:slot_id vcfg -> s':slot_id vcfg -> logS_entry vcfg
-  | AddB_S: s:slot_id vcfg -> r:record -> t:timestamp -> j:thread_id -> logS_entry vcfg
-  | EvictB_S: s:slot_id vcfg -> t:timestamp -> logS_entry vcfg
-  | EvictBM_S: s:slot_id vcfg -> s':slot_id vcfg -> t:timestamp -> logS_entry vcfg
-  | NextEpoch: logS_entry vcfg
-  | VerifyEpoch: logS_entry vcfg
+let logS vcfg = seq (logS_entry vcfg)
 
-let logS vcfg = Seq.seq (logS_entry vcfg)
+let logK vcfg = seq (logK_entry vcfg.app)
 
-let is_state_op #vcfg (e: logS_entry vcfg): bool =
-  match e with
-  | Get_S _ _ _ | Put_S _ _ _ -> true
-  | _ -> false
+(* all slots in a seq associated with a key *)
+let all_slots_assoc (#vcfg:_) (ssm: slot_state_map vcfg) (ss: seq (slot_id vcfg))
+  = forall i. (is_assoc ssm (index ss i))
 
-let to_state_op #vcfg (e:logS_entry vcfg {is_state_op e}): state_op =
-  match e with
-  | Get_S _ k v -> Get k v
-  | Put_S _ k v -> Put k v
-
-let to_state_ops #vcfg (l: logS vcfg) =
-  map to_state_op (filter_refine is_state_op l)
-
-let is_blum_add #vcfg (e: logS_entry vcfg): bool =
-  match e with
-  | AddB_S _ _ _ _ -> true
-  | _ -> false
-
-let is_evict_to_blum #vcfg (e:logS_entry vcfg): bool =
-  match e with
-  | EvictB_S _ _ -> true
-  | EvictBM_S _ _ _ -> true
-  | _ -> false
-
-let is_keyed_entry #vcfg (e: logS_entry vcfg): bool =
-  match e with
-  | NextEpoch
-  | VerifyEpoch -> false
-  | _ -> true
-
-let slot_of #vcfg (e:logS_entry vcfg{is_keyed_entry e}): slot_id _ =
-  match e with
-  | Get_S s _ _ -> s
-  | Put_S s _ _ -> s
-  | AddM_S s _ _ -> s
-  | EvictM_S s _ -> s
-  | AddB_S s _ _ _ -> s
-  | EvictB_S s _ -> s
-  | EvictBM_S s _ _ -> s
+val all_slots_assoc_comp (#vcfg:_) (ssm: slot_state_map vcfg) (ss: seq (slot_id vcfg))
+  : b:bool{b <==> all_slots_assoc ssm ss}
 
 (*
  * Given a slot -> key mapping, we define a boolean whether a log entry is valid.
@@ -78,34 +40,48 @@ let slot_of #vcfg (e:logS_entry vcfg{is_keyed_entry e}): slot_id _ =
  * (c) We reference a slot in Get/Put and as an ancestor in Add/Evict only if it is associated with a key
  *)
 let valid_logS_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg): bool =
+  let open Zeta.GenericVerifier in
   match e with
-  | Get_S s k _
-  | Put_S s k _ ->
-    is_assoc_with ssm s k
-  | AddM_S s (k,_) s' ->
+  | AddM r s s' ->
     is_free ssm s && is_assoc ssm s'
-  | AddB_S s (k,_) _ _ ->
+  | AddB r s  _ _ ->
     is_free ssm s
-  | EvictM_S s s' ->
+  | EvictM s s' ->
     is_assoc ssm s && is_assoc ssm s'
-  | EvictB_S s _ ->
+  | EvictB s _ ->
     is_assoc ssm s
-  | EvictBM_S s s' _ ->
+  | EvictBM s s' _ ->
     is_assoc ssm s && is_assoc ssm s'
+  | RunApp _ _ ss ->
+    all_slots_assoc_comp ssm ss
   | VerifyEpoch
   | NextEpoch -> true
 
-let to_logK_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg{valid_logS_entry ssm e}): logK_entry =
-  match e with
-  | Get_S s k v -> Spec.Get k v
-  | Put_S s k v -> Spec.Put k v
-  | AddM_S s r s' -> Spec.AddM r (assoc_key ssm s')
-  | AddB_S s r t j -> Spec.AddB r t j
-  | EvictM_S s s' -> Spec.EvictM (assoc_key ssm s) (assoc_key ssm s')
-  | EvictB_S s t -> Spec.EvictB (assoc_key ssm s) t
-  | EvictBM_S s s' t -> Spec.EvictBM (assoc_key ssm s) (assoc_key ssm s') t
-  | VerifyEpoch -> Spec.VerifyEpoch
-  | NextEpoch -> Spec.NextEpoch
+let to_key (#vcfg:_) (ssm: slot_state_map vcfg) (ss: seq (slot_id vcfg) {all_slots_assoc ssm ss}) (i: seq_index ss)
+  : base_key
+  = let s = index ss i in
+    assert(is_assoc ssm s);
+    assoc_key ssm s
+
+let to_key_seq (#vcfg:_) (ssm: slot_state_map vcfg) (ss: seq (slot_id vcfg){all_slots_assoc ssm ss})
+  : seq base_key
+  = init (length ss) (to_key ssm ss)
+
+let to_logK_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg{valid_logS_entry ssm e})
+  : logK_entry vcfg.app
+  = let open Zeta.GenericVerifier in
+    let vspec = HV.high_verifier_spec vcfg.app in
+    match e with
+    | AddM (gk,gv) s s' -> AddM (gk,gv) (to_base_key gk)  (assoc_key ssm s')
+    | AddB (gk,gv) s t j -> AddB (gk,gv) (to_base_key gk) t j
+    | EvictM s s' -> EvictM (assoc_key ssm s) (assoc_key ssm s')
+    | EvictB s t -> EvictB (assoc_key ssm s) t
+    | EvictBM s s' t -> EvictBM (assoc_key ssm s) (assoc_key ssm s') t
+    | VerifyEpoch -> VerifyEpoch
+    | NextEpoch -> NextEpoch
+    | RunApp f p ss -> let ks: seq (vspec.slot_t) = to_key_seq ssm ss in
+                       let f: appfn_id vspec.app = f in
+                       RunApp f p ks
 
 (*
  * define a state machine over slot_states; to allow for "failures" where the log
@@ -113,27 +89,24 @@ let to_logK_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg{valid_log
  * we make the transition function return option slot_state, with None being failure.
  *)
 let slot_state_trans #vcfg (e:logS_entry vcfg) (s:slot_id vcfg) (sst: slot_state): option slot_state =
+  let open Zeta.GenericVerifier in
   match e with
-  | Get_S s1 k1 _
-  | Put_S s1 k1 _ ->
+  | AddM (gk,_) s1 s2 ->
+    let k = to_base_key gk in
     if s = s1 then
-      if Assoc? sst && Assoc?.k sst = k1 then Some sst
-      else None
-    else Some sst
-  | AddM_S s1 (k1,_) s2 ->
-    if s = s1 then
-      if Free? sst then Some (Assoc k1)
+      if Free? sst then Some (Assoc k)
       else None
     else if s = s2 then
       if Assoc? sst then Some sst
       else None
     else Some sst
-  | AddB_S s1 (k1,_) _ _ ->
+  | AddB (gk,_) s1  _ _ ->
+    let k = to_base_key gk in
     if s = s1 then
-      if Free? sst then Some (Assoc k1)
+      if Free? sst then Some (Assoc k)
       else None
     else Some sst
-  | EvictM_S s1 s2 ->
+  | EvictM s1 s2 ->
     if s = s1 then
       if Assoc? sst then Some Free
       else None
@@ -141,12 +114,12 @@ let slot_state_trans #vcfg (e:logS_entry vcfg) (s:slot_id vcfg) (sst: slot_state
       if Assoc? sst then Some sst
       else None
     else Some sst
-  | EvictB_S s1 _ ->
+  | EvictB s1 _ ->
     if s = s1 then
       if Assoc? sst then Some Free
       else None
     else Some sst
-  | EvictBM_S s1 s2 _ ->
+  | EvictBM s1 s2 _ ->
     if s = s1 then
       if Assoc? sst then Some Free
       else None
@@ -154,14 +127,16 @@ let slot_state_trans #vcfg (e:logS_entry vcfg) (s:slot_id vcfg) (sst: slot_state
       if Assoc? sst then Some sst
       else None
     else Some sst
+  | RunApp _ _ _
   | NextEpoch
   | VerifyEpoch -> Some sst
 
 let has_distinct_slots #vcfg (e: logS_entry vcfg): bool =
+  let open Zeta.GenericVerifier in
   match e with
-  | AddM_S s _ s' -> s <> s'
-  | EvictM_S s s' -> s <> s'
-  | EvictBM_S s s' _ -> s <> s'
+  | AddM _ s s' -> s <> s'
+  | EvictM s s' -> s <> s'
+  | EvictBM s s' _ -> s <> s'
   | _ -> true
 
 let rec slot_state_trans_closure #vcfg (s:slot_id vcfg) (l:logS vcfg) (sst_init: slot_state)
@@ -187,19 +162,24 @@ let rec slot_state_trans_closure #vcfg (s:slot_id vcfg) (l:logS vcfg) (sst_init:
  *      we want to start verifier thread 0 with Root in slot 0
  *)
 let consistent_log #vcfg (init_map: slot_state_map vcfg) (l:logS vcfg) =
-  forall (s:slot_id vcfg). {:pattern slot_state_trans_closure s l (init_map s)}  slot_state_trans_closure s l (init_map s) <> None
+  forall (s:slot_id vcfg). slot_state_trans_closure s l (init_map s) <> None
 
 (* a consistent log maps an initial slot_state_map to another slot_state_map *)
-let to_slot_state_map #vcfg (init_map: slot_state_map vcfg) (l:logS vcfg{consistent_log init_map l}): slot_state_map _ =
-  fun s -> Some?.v (slot_state_trans_closure s l (init_map s))
+let to_slot_state_map #vcfg
+  (init_map: slot_state_map vcfg)
+  (l:logS vcfg{consistent_log init_map l})
+  : slot_state_map _
+  = fun s -> Some?.v (slot_state_trans_closure s l (init_map s))
 
 (* prefix of a consistent log is consistent *)
-val lemma_consistent_log_prefix_consistent (#vcfg:_) (init_map: slot_state_map vcfg) (l:logS vcfg) (i:nat{i <= length l}):
-  Lemma (requires (consistent_log init_map l))
+val lemma_consistent_log_prefix_consistent (#vcfg:_)
+  (init_map: slot_state_map vcfg)
+  (l:logS vcfg) (i:nat{i <= length l})
+  : Lemma (requires (consistent_log init_map l))
         (ensures (consistent_log init_map (prefix l i)))
 
 (* consistent logs can be mapped to spec-level log by replacing all slot references to the assoc'ed keys *)
-val to_logk (#vcfg:_) (init_map: slot_state_map vcfg) (l:logS vcfg{consistent_log init_map l}): logK
+val to_logk (#vcfg:_) (init_map: slot_state_map vcfg) (l:logS vcfg{consistent_log init_map l}): logK vcfg
 
 val lemma_to_logk_length (#vcfg:_) (init_map: slot_state_map vcfg) (l:logS vcfg{consistent_log init_map l}):
   Lemma (ensures (length (to_logk init_map l) = length l))

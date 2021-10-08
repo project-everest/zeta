@@ -1,4 +1,4 @@
-module Zeta.Intermediate.Verify
+module Zeta.Intermediate.Verifier
 
 open Zeta.BinTree
 open Zeta.Hash
