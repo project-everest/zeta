@@ -5,7 +5,7 @@ noeq type pdesc: ptrfn -> bin_tree_node -> bin_tree_node -> Type =
   | PSelf: pf: ptrfn -> n:bin_tree_node -> pdesc pf n n
   | PTran: pf: ptrfn -> d:bin_tree_node -> d':bin_tree_node -> _:(pdesc pf d d') -> 
            a:bin_tree_node ->
-           c:bin_tree_dir{Some? (pf a c) /\ Some?.v (pf a c) = d'} ->
+           c:bin_tree_dir{Some? (pf (a, c)) /\ Some?.v (pf (a, c)) = d'} ->
            pdesc pf d a
 
 let rec reachable_aux 
@@ -14,7 +14,7 @@ let rec reachable_aux
   (a:bin_tree_node{is_proper_desc d a /\ depth d > depth a}): Tot bool
   (decreases (depth d - depth a)) = 
   let c = desc_dir d a in
-  match pf a c with
+  match pf (a, c) with
   | None -> false
   | Some d' -> if d' = d then true
                else if is_desc d d' then (
@@ -84,7 +84,7 @@ let rec lemma_pdesc_correct2_aux
   else (
     lemma_proper_desc_depth_monotonic d a;
     let c = desc_dir d a in    
-    let d' = Some?.v (pf a c) in
+    let d' = Some?.v (pf (a, c)) in
     if d' = d then PTran pf d d (PSelf pf d) a c
     else (
       lemma_desc_depth_monotonic d' (child c a);
@@ -143,7 +143,7 @@ let lemma_non_pdesc_desc_of_none (pf:ptrfn)
                                  (d:bin_tree_node)
                                  (a:bin_tree_node{is_proper_desc d a})
                                  (prf:pdesc pf d a):
-   Lemma (Some? (pf a (desc_dir d a))) = 
+   Lemma (Some? (pf (a, (desc_dir d a)))) = 
    match prf with
    | PSelf _ _ -> ()
    | PTran _ _ d' prfdd' _ c -> 
@@ -190,7 +190,7 @@ let prev_in_path (pf:ptrfn) (d: bin_tree_node) (a:bin_tree_node{reachable pf d a
 let lemma_non_reachable_desc_of_none (pf: ptrfn) 
                                      (d:bin_tree_node) 
                                      (a:bin_tree_node{is_proper_desc d a /\ 
-                                                      None? (pf a (desc_dir d a))}):
+                                                      None? (pf (a, (desc_dir d a)))}):
   Lemma (not (reachable pf d a)) = 
   if reachable pf d a then (
     let prfda = lemma_pdesc_correct2 pf d a in
@@ -561,7 +561,7 @@ let rec lemma_extendcut_not_reachable
 
 let lemma_feq_implies_equal (pf1 pf2:_)
   : Lemma (ensures (feq_ptrfn pf1 pf2 ==> pf1 == pf2))
-  = admit()
+  = FunctionalExtensionality.extensionality ptrfun_dom ptrfun_codom pf1 pf2
 
 let rec lemma_reachable_feq_aux (pf1: ptrfn) (pf2: ptrfn) (d: bin_tree_node) (a: bin_tree_node):
   Lemma (requires (feq_ptrfn pf1 pf2 /\ reachable pf1 d a))

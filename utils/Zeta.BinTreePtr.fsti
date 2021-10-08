@@ -2,19 +2,28 @@ module Zeta.BinTreePtr
 
 open Zeta.BinTree
 
+module FExt = FStar.FunctionalExtensionality
+
 (* 
  * ptrfn is a function that maps each node and a direction (left | right) to an 
  * optional descendant in the corresponing (left|right) subtree
  *)
-let ptrfn = n:bin_tree_node -> c:bin_tree_dir -> o:(option bin_tree_node){None = o \/ is_desc (Some?.v o) (child c n)}
+
+type ptrfun_dom = bin_tree_node & bin_tree_dir
+type ptrfun_codom =
+  fun (t:ptrfun_dom) -> o:(option bin_tree_node){None = o \/ is_desc (Some?.v o) (child (snd t) (fst t))}
+
+let ptrfn = FExt.restricted_t ptrfun_dom ptrfun_codom
+
+let create_ptrfn (f:FExt.arrow ptrfun_dom ptrfun_codom) : ptrfn = FExt.on_dom ptrfun_dom f
 
 (* does n point to some node along direction c *)
 let points_to_some (pf:ptrfn) (n:bin_tree_node) (c:bin_tree_dir): bool = 
-  Some? (pf n c)
+  Some? (pf (n, c))
 
 (* if n points to n' along c, return n' *)
 let pointed_node (pf:ptrfn) (n:bin_tree_node) (c:bin_tree_dir {points_to_some pf n c}): bin_tree_node = 
-  Some?.v (pf n c)
+  Some?.v (pf (n, c))
 
 (* does a point to d *)
 let points_to (pf: ptrfn) (d: bin_tree_node) (a: bin_tree_node): bool
@@ -68,7 +77,7 @@ val prev_in_path (pf:ptrfn) (d: bin_tree_node) (a:bin_tree_node{reachable pf d a
 val lemma_non_reachable_desc_of_none (pf: ptrfn) 
                                      (d:bin_tree_node) 
                                      (a:bin_tree_node{is_proper_desc d a /\ 
-                                                      None? (pf a (desc_dir d a))}):
+                                                      None? (pf (a, (desc_dir d a)))}):
   Lemma (not (reachable pf d a))
 
 val lemma_desc_of_prev_not_reachable (pf:ptrfn)
@@ -129,7 +138,7 @@ let extend_ptrfn
                    not (points_to_some pf a (desc_dir d a))})
   : ptrfn
   = let c = desc_dir d a in
-    fun n' c' -> if n' = a && c' = c then Some d else pf n' c'
+    create_ptrfn (fun (n', c') -> if n' = a && c' = c then Some d else pf (n', c'))
 
 (* characterize points to in extend_ptrfn *)
 val extend_ptrfn_edges
@@ -179,9 +188,9 @@ let extendcut_ptrfn
    let c1 = desc_dir d a in
    let d' = pointed_node pf a c1 in
    let c2 = desc_dir d' d in
-   fun n' c' -> if n' = a && c' = c1 then Some d 
-              else if n' = d && c' = c2 then Some d' 
-              else pf n' c'
+   create_ptrfn (fun (n', c') -> if n' = a && c' = c1 then Some d 
+                              else if n' = d && c' = c2 then Some d' 
+                              else pf (n', c'))
 
 (* Root reachability is preserved with extendcut *)
 val lemma_extendcut_reachable 
@@ -222,7 +231,7 @@ val lemma_extendcut_not_reachable
 
 (* Two pointer functions are equal on all inputs *)
 let feq_ptrfn (pf1: ptrfn) (pf2: ptrfn) = 
-  forall n c. {:pattern (pf1 n c) \/ (pf2 n c)} pf1 n c == pf2 n c
+  forall n c. {:pattern (pf1 (n, c)) \/ (pf2 (n, c))} pf1 (n, c) == pf2 (n, c)
 
 val lemma_feq_implies_equal (pf1 pf2:_)
   : Lemma (ensures (feq_ptrfn pf1 pf2 ==> pf1 == pf2))

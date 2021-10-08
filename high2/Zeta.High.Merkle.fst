@@ -212,7 +212,7 @@ let eac_state_unchanged_snoc
                     RunApp? e /\ EACInStore? es))
   = eac_state_snoc bk il
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--z3rlimit_factor 4"
 
 let eac_value_root_snoc
   (#app #n:_)
@@ -664,7 +664,8 @@ let eac_ptrfn_base
 let eac_ptrfn
   (#app #n:_)
   (il: eac_log app n): ptrfn =
-  eac_ptrfn_base il
+  
+  create_ptrfn (fun (n, c) -> eac_ptrfn_base il n c)
 
 (* eac_ptrfn value is the same as the eac_value *)
 let lemma_eac_ptrfn
@@ -672,9 +673,9 @@ let lemma_eac_ptrfn
   (il: eac_log app n) (k: merkle_key) (c:bin_tree_dir) :
   Lemma (ensures (let pf = eac_ptrfn il in
                   let mv = eac_merkle_value k il in
-                  points_to_none mv c /\ pf k c = None \/
+                  points_to_none mv c /\ pf (k, c) = None \/
                   points_to_some mv c /\ is_desc (pointed_key mv c) (child c k) /\
-                  pf k c = Some (pointed_key mv c)))
+                  pf (k, c) = Some (pointed_key mv c)))
         [SMTPat (pointed_key (eac_merkle_value k il) c)]
   = let mv = eac_merkle_value k il in
     if points_to_some mv c then
@@ -697,7 +698,7 @@ let eac_ptrfn_snoc_non_ancestor
     let pf = eac_ptrfn il in
     let pf' = eac_ptrfn il' in
     let aux (n c:_)
-      : Lemma (ensures (pf n c == pf' n c))
+      : Lemma (ensures (pf (n, c) == pf' (n, c)))
       = if depth n < key_size then (
           lemma_eac_ptrfn il n c;
           lemma_eac_ptrfn il' n c;
@@ -732,7 +733,7 @@ let eac_ptrfn_snoc_addm_nonewedge
     eac_value_is_stored_value il' (IntK k') t;
 
     let aux (ki c:_)
-      : Lemma (ensures (pf ki c == pf' ki c))
+      : Lemma (ensures (pf (ki, c) == pf' (ki, c)))
       = if depth ki < key_size then (
           lemma_eac_ptrfn il ki c;
           lemma_eac_ptrfn il' ki c;
@@ -802,7 +803,7 @@ let eac_ptrfn_snoc_addm_newedge
     aux1();
     let pfe = extend_ptrfn pf' k k' in
     let aux (ki c:_)
-      : Lemma (ensures (pf ki c == pfe ki c))
+      : Lemma (ensures (pf (ki, c) == pfe (ki, c)))
       = if depth ki < key_size then (
           lemma_eac_ptrfn il ki c;
           lemma_eac_ptrfn il' ki c;
@@ -870,7 +871,7 @@ let eac_ptrfn_snoc_addm_cutedge
     let pfe = extendcut_ptrfn pf' k k' in
 
     let aux (ki c:_)
-      : Lemma (ensures (pf ki c == pfe ki c))
+      : Lemma (ensures (pf (ki, c) == pfe (ki, c)))
       = if depth ki < key_size then (
           lemma_eac_ptrfn il ki c;
           lemma_eac_ptrfn il' ki c;
@@ -910,7 +911,7 @@ let eac_ptrfn_snoc_evictm
     eac_value_is_stored_value il' (IntK k') t;
 
     let aux (ki c:_)
-      : Lemma (ensures (pf ki c == pf' ki c))
+      : Lemma (ensures (pf (ki, c) == pf' (ki, c)))
       = if depth ki < key_size then (
           lemma_eac_ptrfn il ki c;
           lemma_eac_ptrfn il' ki c;
@@ -1024,7 +1025,7 @@ and lemma_not_init_equiv_root_reachable
       lemma_root_is_univ_ancestor k;
       let c = desc_dir k Root in
 
-      assert(None = pf Root c);
+      assert(None = pf (Root, c));
       lemma_non_reachable_desc_of_none pf k Root
     )
     else (
@@ -1596,7 +1597,7 @@ let eac_value_cutedge_snoc
     let dh' = desc_hash v' c in
     assert(k2 = Desc?.k dh');
     //lemma_eac_ptrfn il' k' c;
-    assert(is_desc k2 (child c k') /\ pf' k' c = Some k2);
+    assert(is_desc k2 (child c k') /\ pf' (k', c) = Some k2);
     assert(BP.points_to pf' k2 k');
     assert(BP.pointed_node pf' k' c = k2);
     assert(is_proper_desc k2 k);
@@ -1917,7 +1918,7 @@ let lemma_addm_ancestor_is_proving_newedge
     let AddM _ k k' = index il i in
     let c = desc_dir k k' in
     let pf = eac_ptrfn il' in
-    assert(pf k' c = None);
+    assert(pf (k', c) = None);
     let pk = proving_ancestor il' k in
     let es = eac_state_of_key k il' in
 
