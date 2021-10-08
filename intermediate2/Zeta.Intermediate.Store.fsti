@@ -58,6 +58,10 @@ let empty_slot_id #vcfg (st: vstore_raw vcfg) = s:slot_id vcfg{empty_slot st s}
 let stored_key #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) : key vcfg.app
   = key_of (VStoreE?.r (Some?.v (get_slot st s)))
 
+let stored_record #vcfg (st: vstore_raw vcfg) (s: inuse_slot_id st)
+  : record vcfg.app
+  = VStoreE?.r (Some?.v (get_slot st s))
+
 let stored_base_key #vcfg (st: vstore_raw vcfg) (s:inuse_slot_id st) : base_key
   = to_base_key (stored_key st s)
 
