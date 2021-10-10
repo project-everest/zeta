@@ -69,3 +69,6 @@ val elim_forall_store_ismap (#vcfg:_) (il: verifiable_log vcfg) (t:nat{t < vcfg.
 val forall_store_ismap_prefix (#vcfg:_) (il: verifiable_log vcfg) (l:nat{l <= length il})
   : Lemma (ensures (forall_store_ismap il ==> (let il' = prefix il l in
                                                forall_store_ismap il')))
+
+(* every state of every prefix is related to high-level state *)
+val forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg): prop

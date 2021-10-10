@@ -15,13 +15,7 @@ module HT = Zeta.High.TSLog
 let its_log (vcfg:_)
   = T.its_log (int_verifier_spec vcfg) (vcfg.thread_count)
 
-let same_shape #a #b #n (il:I.interleaving a n) (il':I.interleaving b n)
-  = let ss = s_seq il in
-    let ss' = s_seq il' in
-    (forall (i:nat{i < n}). Seq.length (Seq.index ss i) == Seq.length (Seq.index ss i))
 
-val to_logk (#vcfg:_) (il: its_log vcfg)
-  : sil:HT.its_log vcfg.app vcfg.thread_count { same_shape il sil }
 
 val lemma_to_logk_length (#vcfg:_) (il: its_log vcfg)
   : Lemma (ensures (length il = length (to_logk il)))
