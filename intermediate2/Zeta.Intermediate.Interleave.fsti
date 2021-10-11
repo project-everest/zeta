@@ -3,14 +3,18 @@ module Zeta.Intermediate.Interleave
 open FStar.Seq
 open Zeta.SeqAux
 open Zeta.Interleave
+open Zeta.Time
 open Zeta.Intermediate.VerifierConfig
 open Zeta.Intermediate.Store
 open Zeta.Intermediate.Verifier
 open Zeta.Intermediate.Logs
+open Zeta.Intermediate.StateRel
 open Zeta.Generic.Interleave
 
 module I = Zeta.Interleave
 module SA = Zeta.SeqAux
+module GG = Zeta.Generic.Global
+module GI = Zeta.Generic.Interleave
 module HI = Zeta.High.Interleave
 module IV = Zeta.Intermediate.Verifier
 module IG = Zeta.Intermediate.Global
@@ -69,6 +73,57 @@ val elim_forall_store_ismap (#vcfg:_) (il: verifiable_log vcfg) (t:nat{t < vcfg.
 val forall_store_ismap_prefix (#vcfg:_) (il: verifiable_log vcfg) (l:nat{l <= length il})
   : Lemma (ensures (forall_store_ismap il ==> (let il' = prefix il l in
                                                forall_store_ismap il')))
+          [SMTPat (prefix il l)]
 
 (* every state of every prefix is related to high-level state *)
 val forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg): prop
+
+(* vtls_rel implies every high-level thread is valid, so (to_logk il) is verifiable *)
+val lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (il: verifiable_log vcfg)
+  : Lemma (ensures (let ilk = to_logk il in
+                    forall_vtls_rel il ==> GI.verifiable (to_logk il)))
+          [SMTPat (forall_vtls_rel il)]
+
+(* the prefix function below is HI.verifiable_log -> HI.verifiable_log, so we need forall_vtls_rel  *)
+val lemma_to_logk_prefix_commute (#vcfg:_)
+  (il:verifiable_log vcfg {forall_vtls_rel il})
+  (i:nat{i <= length il})
+  : Lemma (to_logk (prefix il i) == prefix (to_logk il) i)
+          [SMTPat (prefix il i)]
+
+val elim_forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg) (t: nat{t < vcfg.thread_count})
+  : Lemma (requires (forall_vtls_rel il))
+          (ensures (let ilk = to_logk il in
+                    let vsi = thread_state t il in
+                    let vst = thread_state t ilk in
+                    vtls_rel vsi vst))
+
+val forall_vtls_rel_prefix (#vcfg:_) (il: verifiable_log vcfg) (i:nat{i <= length il})
+  : Lemma (ensures (let il' = prefix il i in
+                    forall_vtls_rel il ==> forall_vtls_rel il'))
+          [SMTPat (prefix il i)]
+
+val lemma_vtls_rel_implies_ms_verifiable (#vcfg:_) (ep: epoch) (ils:verifiable_log vcfg)
+  : Lemma (requires (forall_vtls_rel ils))
+          (ensures (let ilk = to_logk ils in
+                    GG.aems_equal_upto ep (to_glog ils) ==> GG.aems_equal_upto ep (to_glog ilk)))
+
+let spec_rel (#vcfg:_) (il: verifiable_log vcfg)
+  = forall_store_ismap il /\
+    forall_vtls_rel il
+
+val lemma_empty_implies_spec_rel (#vcfg:_) (il:verifiable_log vcfg)
+  : Lemma (ensures (length il = 0 ==> spec_rel il))
+
+val lemma_spec_rel_implies_prefix_spec_rel (#vcfg:_) (il:verifiable_log vcfg) (i:nat{i <= length il})
+ : Lemma (requires spec_rel il)
+         (ensures (let il' = prefix il i in
+                   spec_rel il'))
+         [SMTPat (prefix il i)]
+
+val lemma_spec_rel_implies_appfn_identical (#vcfg:_) (il: verifiable_log vcfg {spec_rel il})
+  : Lemma (ensures (let gl = to_glog il in
+                    let ilk = to_logk il in
+                    let glk = to_glog ilk in
+                    GG.app_fcrs gl = GG.app_fcrs glk))
+          [SMTPat (spec_rel il)]

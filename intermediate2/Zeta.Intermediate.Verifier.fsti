@@ -532,56 +532,14 @@ val lemma_verifyepoch_preserves_ismap
           (ensures (let intspec = int_verifier_spec vcfg in
                     let vs_: vtls_t vcfg = GV.verify_step #intspec GV.VerifyEpoch vs in
                     vs_.valid ==> is_map vs_.st))
-(*
-
-(* verifiability implies consistency of the log *)
-val lemma_verifiable_implies_consistent_log (#vcfg:_) (vsinit: vtls_t vcfg) (l: logS _{verifiable vsinit l}):
-  Lemma (ensures (let st = vs.stinit in
-                  let s2k = to_slot_state_map st in
-                  consistent_log s2k l))
-        [SMTPat (verifiable vsinit l)]
-
-(* the association of slot -> keys in store is what is mandated by the log *)
-(* TODO: do we really need this *)
-val lemma_s2k_store_eq_s2k_log (#vcfg:_) (vsinit: vtls_t vcfg) (l: logS _{verifiable vsinit l}):
-  Lemma (ensures (let stinit = vs.stinit in
-                  let s2kinit = S.to_slot_state_map stinit in
-                  let stend = thread_store (verify vsinit l) in
-                  let s2kend = S.to_slot_state_map stend in
-                  let s2klog = L.to_slot_state_map s2kinit l in
-                  FE.feq s2kend s2klog))
-        [SMTPat (verifiable vsinit l)]
-
 
 (* if there are no verification failures, slot_points to implies merkle points to property is
  * propagates *)
 val lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_)
                                                       (vs:vtls_t vcfg)
                                                       (e: logS_entry _):
-  Lemma (requires (vs.valid /\ slot_points_to_is_merkle_points_to (vs.st) /\
-                   Valid? (verify_step vs e)))
-        (ensures (slot_points_to_is_merkle_points_to (thread_store (verify_step vs e))))
+  Lemma (requires (vs.valid /\ slot_points_to_is_merkle_points_to vs.st /\
+                   (GV.verify_step e vs).valid))
+        (ensures (let vs_ = GV.verify_step e vs in
+                  slot_points_to_is_merkle_points_to vs_.st))
 
-let all_epoch_hashes_equal (h1 h2: epoch_hash) =
-  forall (ep: epoch). h1 ep = h2 ep
-
-
-
-
-
-
-
-let blum_evict_elem #vcfg (vs:vtls_t vcfg{vs.valid})
-                    (e:logS_entry _ {is_evict_to_blum e /\ Valid? (verify_step vs e)})
-                    (tid: thread_id): ms_hashfn_dom =
-  let st = vs.st in
-  match e with
-  | EvictB s t ->
-    let k = stored_key st s in
-    let v = stored_value st s in
-    MHDom (k,v) t tid
-  | EvictBM s _ t ->
-    let k = stored_key st s in
-    let v = stored_value st s in
-    MHDom (k,v) t tid
-*)

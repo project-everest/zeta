@@ -15,16 +15,8 @@ module HT = Zeta.High.TSLog
 let its_log (vcfg:_)
   = T.its_log (int_verifier_spec vcfg) (vcfg.thread_count)
 
-
-
-val lemma_to_logk_length (#vcfg:_) (il: its_log vcfg)
-  : Lemma (ensures (length il = length (to_logk il)))
-          [SMTPat (to_logk il)]
-
-val lemma_to_logk_prefix_commute (#vcfg:_) (il:its_log vcfg) (i:nat{i <= length il})
-  : Lemma (to_logk (prefix il i) == prefix (to_logk il) i)
-          [SMTPat (prefix il i)]
-
-val lemma_to_logk_src (#vcfg:_) (il: its_log vcfg) (i: seq_index il)
-  : Lemma (ensures (src il i = src (to_logk il) i))
-          [SMTPat (src il i)]
+val lemma_vtls_rel_implies_spec_clock_sorted (#vcfg:_) (ils:its_log vcfg)
+  : Lemma (requires (forall_vtls_rel ils))
+          (ensures (let ilk = to_logk ils  in
+                    T.clock_sorted ilk))
+          [SMTPat (forall_vtls_rel ils)]
