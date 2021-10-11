@@ -5,15 +5,17 @@ open Zeta.AppSimulate
 open Zeta.Time
 open Zeta.HashCollision
 open Zeta.Generic.Global
+open Zeta.Generic.Blum
+open Zeta.Intermediate.Global
+open Zeta.Interleave
 open Zeta.Generic.Interleave
 open Zeta.Generic.TSLog
-open Zeta.Generic.Blum
 open Zeta.High.Interleave
-open Zeta.Intermediate.Global
 open Zeta.Intermediate.Interleave
 open Zeta.Intermediate.TSLog
 
 module S = FStar.Seq
+module GV = Zeta.GenericVerifier
 module GG = Zeta.Generic.Global
 
 (*
@@ -26,14 +28,14 @@ module GG = Zeta.Generic.Global
  *)
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
-let induction_props #vcfg (ils: its_log vcfg) =
+let induction_props #vcfg (ils: verifiable_log vcfg) =
   let ilk = to_logk ils in
   spec_rel ils /\
   is_eac ilk
 
 #pop-options
 
-let induction_props_or_hash_collision #vcfg (ils: its_log vcfg) =
+let induction_props_or_hash_collision #vcfg (ils: verifiable_log vcfg) =
   o:option (hash_collision vcfg.app) {Some? o \/ induction_props ils}
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
@@ -45,6 +47,16 @@ let lemma_empty_implies_induction_props #vcfg (il: verifiable_log vcfg)
       empty_implies_eac (to_logk il)
     )
 
+let induction_props_snoc_verifyepoch
+  (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {let il' = prefix il i in
+                    let es = index il i in
+                    induction_props il' /\
+                    GV.VerifyEpoch? es})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = admit()
+
 let induction_props_snoc
   (#vcfg:_)
   (epmax: epoch)
@@ -53,7 +65,12 @@ let induction_props_snoc
                     (clock il i).e <= epmax /\
                     induction_props il'})
   : induction_props_or_hash_collision (prefix il (i+1))
-  = admit()
+  = let es = index il i in
+    let open Zeta.GenericVerifier in
+    match es with
+    | VerifyEpoch -> induction_props_snoc_verifyepoch il i
+    | _ ->
+  admit()
 
 
 #pop-options
