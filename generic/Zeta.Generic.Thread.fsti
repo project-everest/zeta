@@ -30,6 +30,26 @@ let verify #vspec (tl: vlog vspec): vspec.vtls_t =
   let tid, l = tl in
   Zeta.GenericVerifier.verify tid l
 
+(* the verifier state after processing a log *)
+let state #vspec (tl:vlog vspec)
+  : vspec.vtls_t
+  = verify tl
+
+let state_pre (#vspec: verifier_spec) (tl: vlog vspec) (i: seq_index tl)
+  = let tl' = prefix_base tl i in
+    state tl'
+
+let state_post (#vspec: verifier_spec) (tl: vlog vspec) (i: seq_index tl)
+  = let tl' = prefix_base tl (i+1) in
+    state tl'
+
+(* the state after processing i'th entry is obtained by applying the verify
+ * step to the state before processing the i'th entry *)
+val lemma_state_transition (#vspec:verifier_spec) (tl: vlog vspec) (i: seq_index tl):
+  Lemma (ensures (state_post tl i ==
+                  verify_step (index tl i) (state_pre tl i)))
+        [SMTPat (state_post tl i)]
+
 let verifiable #vspec (tl: vlog vspec) = vspec.valid (verify tl)
 
 let verifiable_log vspec = tl: vlog vspec { verifiable tl }
@@ -43,26 +63,6 @@ val verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
 let prefix #vspec (tl: verifiable_log vspec) (i: nat {i <= length tl})
   : tl': verifiable_log _ {length tl' = i}
   = prefix_base tl i
-
-(* the verifier state after processing a log *)
-let state #vspec (tl:verifiable_log vspec)
-  : (v:vspec.vtls_t{vspec.valid v})
-  = verify tl
-
-let state_pre (#vspec: verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl)
-  = let tl' = prefix tl i in
-    state tl'
-
-let state_post (#vspec: verifier_spec)(tl: verifiable_log vspec) (i: seq_index tl)
-  = let tl' = prefix tl (i+1) in
-    state tl'
-
-(* the state after processing i'th entry is obtained by applying the verify
- * step to the state before processing the i'th entry *)
-val lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl):
-  Lemma (ensures (state_post tl i ==
-                  verify_step (index tl i) (state_pre tl i)))
-        [SMTPat (state_post tl i)]
 
 val clock_base (#vspec:_) (tl: verifiable_log vspec): timestamp
 

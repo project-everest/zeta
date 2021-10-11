@@ -4,6 +4,14 @@ open FStar.Classical
 open Zeta.SMap
 module IF = Zeta.IdxFn
 
+(* the state after processing i'th entry is obtained by applying the verify
+ * step to the state before processing the i'th entry *)
+let lemma_state_transition (#vspec:verifier_spec) (tl: vlog vspec) (i: seq_index tl):
+  Lemma (ensures (state_post tl i ==
+                  verify_step (index tl i) (state_pre tl i)))
+        [SMTPat (state_post tl i)]
+  = ()
+
 (* if a thread log is verifiable, its prefix is verifiable *)
 let rec verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
   (tl:verifiable_log vspec) (i:nat{i <= length tl}):
@@ -12,14 +20,6 @@ let rec verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
   = let n = length tl in
     if n = i then ()
     else verifiable_implies_prefix_verifiable (prefix_base tl (n-1)) i
-
-(* the state after processing i'th entry is obtained by applying the verify
- * step to the state before processing the i'th entry *)
-let lemma_state_transition (#vspec:verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl):
-  Lemma (ensures (state_post tl i ==
-                  verify_step (index tl i) (state_pre tl i)))
-        [SMTPat (state_post tl i)]
-  = ()
 
 (* clock after processing i entries of the log *)
 let clock_base #vspec (tl: verifiable_log vspec)

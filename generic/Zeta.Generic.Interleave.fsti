@@ -27,6 +27,42 @@ let seq_index #vspec #n (il: ilog vspec n) = SA.seq_index il
 
 let length #vspec #n (il: ilog vspec n) = S.length il
 
+let thread_state (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n}) (il: ilog vspec n)
+  = let gl = s_seq il in
+    let tl = (tid, S.index gl tid) in
+    T.state tl
+
+let thread_state_pre (#vspec #n:_) (tid:nat{tid < n})
+  (il: ilog vspec n) (i: seq_index il)
+  = let il' = I.prefix il i in
+    thread_state tid il'
+
+let thread_state_post (#vspec #n:_) (tid:nat{tid < n})
+  (il: ilog vspec n) (i: seq_index il)
+  = let il' = I.prefix il (i+1) in
+    thread_state tid il'
+
+let cur_thread_state_pre (#vspec: verifier_spec) (#n:_) (il: ilog vspec n) (i: seq_index il)
+  = let t = src il i in
+    thread_state_pre t il i
+
+let cur_thread_state_post (#vspec: verifier_spec) (#n:_) (il: ilog vspec n) (i: seq_index il)
+  = let t = src il i in
+    thread_state_post t il i
+
+val lemma_cur_thread_state_extend (#vspec: verifier_spec) (#n:_)
+  (il: ilog vspec n) (i: seq_index il)
+  : Lemma (ensures (let st_pre = cur_thread_state_pre il i in
+                    let st_post = cur_thread_state_post il i in
+                    st_post == V.verify_step (I.index il i) st_pre))
+
+val lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{tid < n})
+  (il: ilog vspec n) (i: seq_index il)
+  : Lemma (requires (tid <> src il i))
+          (ensures (let st_pre = thread_state_pre tid il i in
+                    let st_post = thread_state_post tid il i in
+                    st_pre == st_post))
+
 (* an interleaving is verifiable is the source logs are verifiable *)
 let verifiable #vspec #n (il: ilog vspec n) =
   G.verifiable (I.s_seq il)
@@ -44,6 +80,18 @@ let to_glog #vspec #n (il: verifiable_log vspec n): G.verifiable_log _
 let prefix #vspec #n (il: verifiable_log vspec n) (i:nat{i <= S.length il})
   : il':verifiable_log vspec n {length il' = i}
   = I.prefix il i
+
+val lemma_state_valid (#vspec:_) (n:_) (tid:nat{tid < n}) (il: verifiable_log vspec n)
+  : Lemma (ensures (vspec.valid (thread_state tid il)))
+          [SMTPat (thread_state tid il)]
+
+val lemma_state_pre_valid (#vspec:_) (n:_) (tid:nat{tid < n}) (il: verifiable_log vspec n) (i: seq_index il)
+  : Lemma (ensures (vspec.valid (thread_state_pre tid il i)))
+          [SMTPat (thread_state_pre tid il i)]
+
+val lemma_state_post_valid (#vspec:_) (n:_) (tid:nat{tid < n}) (il: verifiable_log vspec n) (i: seq_index il)
+  : Lemma (ensures (vspec.valid (thread_state_post tid il i)))
+          [SMTPat (thread_state_post tid il i)]
 
 (* the clock value at every index *)
 let clock (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
@@ -73,41 +121,6 @@ let to_app_fcr (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il{is_ap
   = let ti = i2s_map il i in
     G.to_app_fcr (to_glog il) ti
 
-let thread_state (#vspec: verifier_spec) (#n:_) (tid:nat{tid < n}) (il: verifiable_log vspec n)
-  = let gl = to_glog il in
-    let tl = G.index gl tid in
-    T.state tl
-
-let thread_state_pre (#vspec #n:_) (tid:nat{tid < n})
-  (il: verifiable_log vspec n) (i: seq_index il)
-  = let il' = I.prefix il i in
-    thread_state tid il'
-
-let thread_state_post (#vspec #n:_) (tid:nat{tid < n})
-  (il: verifiable_log vspec n) (i: seq_index il)
-  = let il' = I.prefix il (i+1) in
-    thread_state tid il'
-
-let cur_thread_state_pre (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n) (i: seq_index il)
-  = let t = src il i in
-    thread_state_pre t il i
-
-let cur_thread_state_post (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n) (i: seq_index il)
-  = let t = src il i in
-    thread_state_post t il i
-
-val lemma_cur_thread_state_extend (#vspec: verifier_spec) (#n:_)
-  (il: verifiable_log vspec n) (i: seq_index il)
-  : Lemma (ensures (let st_pre = cur_thread_state_pre il i in
-                    let st_post = cur_thread_state_post il i in
-                    st_post == V.verify_step (I.index il i) st_pre))
-
-val lemma_non_cur_thread_state_extend (#vspec: verifier_spec) (#n:_) (tid: nat{tid < n})
-  (il: verifiable_log vspec n) (i: seq_index il)
-  : Lemma (requires (tid <> src il i))
-          (ensures (let st_pre = thread_state_pre tid il i in
-                    let st_post = thread_state_post tid il i in
-                    st_pre == st_post))
 
 val lemma_thread_state_prefix (#vspec: verifier_spec) (#n:_)
   (il: verifiable_log vspec n) (i:seq_index il)
