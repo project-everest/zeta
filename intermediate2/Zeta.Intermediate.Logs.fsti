@@ -67,7 +67,7 @@ let to_key_seq (#vcfg:_) (ssm: slot_state_map vcfg) (ss: seq (slot_id vcfg){all_
   : seq base_key
   = init (length ss) (to_key ssm ss)
 
-let to_logK_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg{valid_logS_entry ssm e})
+let to_logk_entry #vcfg (ssm: slot_state_map vcfg) (e: logS_entry vcfg{valid_logS_entry ssm e})
   : logK_entry vcfg.app
   = let open Zeta.GenericVerifier in
     let vspec = HV.high_verifier_spec vcfg.app in
@@ -197,4 +197,4 @@ val lemma_to_logk_index (#vcfg:_) (init_map: slot_state_map vcfg) (l:logS _{cons
                   lemma_consistent_log_prefix_consistent init_map l i;
                   let ssm' = to_slot_state_map init_map l' in
                   lemma_all_entries_valid init_map l i;
-                  index lk i = to_logK_entry ssm' (index l i)))
+                  index lk i = to_logk_entry ssm' (index l i)))

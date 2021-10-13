@@ -55,7 +55,8 @@ let induction_props_snoc_verifyepoch
                     induction_props il' /\
                     GV.VerifyEpoch? es})
   : induction_props_or_hash_collision (prefix il (i+1))
-  = admit()
+  = let _il = prefix il i in
+  admit()
 
 let induction_props_snoc
   (#vcfg:_)

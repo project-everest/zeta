@@ -63,6 +63,12 @@ val lemma_to_logk_index (#vcfg:_) (ils: verifiable_log vcfg) (i: seq_index ils)
   : Lemma (ensures (index (to_logk ils) i == to_logk_entry ils i))
           [SMTPat (index ils i)]
 
+val lemma_to_logk_prefix_commute (#vcfg:_)
+  (il:verifiable_log vcfg)
+  (i:nat{i <= length il})
+  : Lemma (to_logk (prefix il i) == SA.prefix (to_logk il) i)
+          [SMTPat (prefix il i)]
+
 (* every store of every prefix of every thread is a map *)
 val forall_store_ismap (#vcfg:_) (il: verifiable_log vcfg): prop
 
@@ -75,6 +81,14 @@ val forall_store_ismap_prefix (#vcfg:_) (il: verifiable_log vcfg) (l:nat{l <= le
                                                forall_store_ismap il')))
           [SMTPat (prefix il l)]
 
+val lemma_forall_store_ismap_snoc (#vcfg:_) (il: verifiable_log vcfg{length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let t = src il i in
+                     forall_store_ismap il' /\
+                     is_map (thread_store t il)))
+          (ensures forall_store_ismap il)
+
 (* every state of every prefix is related to high-level state *)
 val forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg): prop
 
@@ -83,13 +97,6 @@ val lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (il: verifiable_log 
   : Lemma (ensures (let ilk = to_logk il in
                     forall_vtls_rel il ==> GI.verifiable (to_logk il)))
           [SMTPat (forall_vtls_rel il)]
-
-(* the prefix function below is HI.verifiable_log -> HI.verifiable_log, so we need forall_vtls_rel  *)
-val lemma_to_logk_prefix_commute (#vcfg:_)
-  (il:verifiable_log vcfg {forall_vtls_rel il})
-  (i:nat{i <= length il})
-  : Lemma (to_logk (prefix il i) == prefix (to_logk il) i)
-          [SMTPat (prefix il i)]
 
 val elim_forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg) (t: nat{t < vcfg.thread_count})
   : Lemma (requires (forall_vtls_rel il))
@@ -102,6 +109,15 @@ val forall_vtls_rel_prefix (#vcfg:_) (il: verifiable_log vcfg) (i:nat{i <= lengt
   : Lemma (ensures (let il' = prefix il i in
                     forall_vtls_rel il ==> forall_vtls_rel il'))
           [SMTPat (prefix il i)]
+
+val forall_vtls_rel_snoc (#vcfg:_) (il: verifiable_log vcfg{length il > 0})
+  : Lemma (requires (let i = length il - 1 in
+                     let il' = prefix il i in
+                     let ilk = to_logk il in
+                     let t = src il i in
+                     forall_vtls_rel il' /\
+                     vtls_rel (thread_state t il) (thread_state t ilk)))
+          (ensures (forall_vtls_rel il))
 
 val lemma_vtls_rel_implies_ms_verifiable (#vcfg:_) (ep: epoch) (ils:verifiable_log vcfg)
   : Lemma (requires (forall_vtls_rel ils))
