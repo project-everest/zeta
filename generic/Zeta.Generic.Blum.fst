@@ -12,12 +12,6 @@ let gen_seq (vspec n:_) = {
   IF.prefix = prefix;
 }
 
-(* is this a blum add within epoch ep *)
-let is_blum_add_epoch (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (i: seq_index il)
-  = is_blum_add il i &&
-    (let be = blum_add_elem il i in
-     be.t.e = ep)
-
 let is_blum_add_epoch_ifn (#vspec #n:_) (ep: epoch)
   : IF.idxfn_t (gen_seq vspec n) bool
   = is_blum_add_epoch #vspec #n ep
@@ -45,10 +39,46 @@ let add_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
   = let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
     IF.filter_map fm il
 
-let is_blum_evict_epoch (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (i: seq_index il)
-  = is_blum_evict il i &&
-    (let be = blum_evict_elem il i in
-     be.t.e = ep)
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let add_seq_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let as' = add_seq ep il' in
+                    let as = add_seq ep il in
+                    if is_blum_add_epoch ep il (n - 1) then
+                      as == SA.append1 as' (blum_add_elem il (n - 1))
+                    else
+                      as == as'))
+  = let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
+    let i = length il - 1 in
+    let il' = prefix il i in
+    let ail' = add_il ep il' in
+    IF.lemma_filter_map_snoc fm il;
+    if is_blum_add_epoch ep il i then (
+      IF.lemma_filter_map_snoc fm il;
+      lemma_iseq_append1 ail' (blum_add_elem_src il i)
+    )
+
+let add_set_snoc (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let as = add_set ep il in
+                    let as' = add_set ep il' in
+                    if is_blum_add_epoch ep il i then
+                      as == add_elem as' (blum_add_elem il i)
+                    else as == as'))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    add_seq_snoc ep il;
+    if is_blum_add_epoch ep il i then
+      seq2mset_add_elem #_ #(ms_hashfn_dom_cmp vspec.app) (add_seq ep il') (blum_add_elem il i)
+
+#pop-options
 
 let is_blum_evict_epoch_ifn (#vspec #n:_) (ep: epoch)
   : IF.idxfn_t (gen_seq vspec n) bool
@@ -76,6 +106,43 @@ let evict_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
   : interleaving (ms_hashfn_dom vspec.app) n
   = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
     IF.filter_map fm il
+
+let evict_seq_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let as' = evict_seq ep il' in
+                    let as = evict_seq ep il in
+                    if is_blum_evict_epoch ep il (n - 1) then
+                      as == SA.append1 as' (blum_evict_elem il (n - 1))
+                    else
+                      as == as'))
+  = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
+    let i = length il - 1 in
+    let il' = prefix il i in
+    let ail' = evict_il ep il' in
+    IF.lemma_filter_map_snoc fm il;
+    if is_blum_evict_epoch ep il i then (
+      IF.lemma_filter_map_snoc fm il;
+      lemma_iseq_append1 ail' (blum_evict_elem_src il i)
+    )
+
+let evict_set_snoc (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let i = length il - 1 in
+                    let il' = prefix il i in
+                    let as = evict_set ep il in
+                    let as' = evict_set ep il' in
+                    if is_blum_evict_epoch ep il i then
+                      as == add_elem as' (blum_evict_elem il i)
+                    else as == as'))
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    evict_seq_snoc ep il;
+    if is_blum_evict_epoch ep il i then
+      seq2mset_add_elem #_ #(ms_hashfn_dom_cmp vspec.app) (evict_seq ep il') (blum_evict_elem il i)
 
 let t_add_seq_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat {t < n})
   = let a_il = add_il ep il in
@@ -797,29 +864,6 @@ let k_add_seq_snoc
       lemma_iseq_append1 kail' (blum_add_elem_src il i)
     )
 
-let add_seq_snoc
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (il: verifiable_log vspec n {length il > 0})
-  : Lemma (ensures (let n = length il in
-                    let il' = prefix il (n- 1 ) in
-                    let as' = add_seq ep il' in
-                    let as = add_seq ep il in
-                    if is_blum_add_epoch ep il (n - 1) then
-                      as == SA.append1 as' (blum_add_elem il (n - 1))
-                    else
-                      as == as'))
-  = let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec #n ep) (blum_add_elem_src_ifn #vspec #n) in
-    let i = length il - 1 in
-    let il' = prefix il i in
-    let ail' = add_il ep il' in
-    IF.lemma_filter_map_snoc fm il;
-    if is_blum_add_epoch ep il i then (
-      IF.lemma_filter_map_snoc fm il;
-      lemma_iseq_append1 ail' (blum_add_elem_src il i)
-    )
-
 let k_add_set_snoc
   (#vspec: verifier_spec)
   (#n:_)
@@ -872,28 +916,6 @@ let k_evict_seq_snoc
       lemma_iseq_append1 kail' (blum_evict_elem_src il i)
     )
 
-let evict_seq_snoc
-  (#vspec: verifier_spec)
-  (#n:_)
-  (ep: epoch)
-  (il: verifiable_log vspec n {length il > 0})
-  : Lemma (ensures (let n = length il in
-                    let il' = prefix il (n- 1 ) in
-                    let as' = evict_seq ep il' in
-                    let as = evict_seq ep il in
-                    if is_blum_evict_epoch ep il (n - 1) then
-                      as == SA.append1 as' (blum_evict_elem il (n - 1))
-                    else
-                      as == as'))
-  = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
-    let i = length il - 1 in
-    let il' = prefix il i in
-    let ail' = evict_il ep il' in
-    IF.lemma_filter_map_snoc fm il;
-    if is_blum_evict_epoch ep il i then (
-      IF.lemma_filter_map_snoc fm il;
-      lemma_iseq_append1 ail' (blum_evict_elem_src il i)
-    )
 
 (* analogous theorem for evict sets*)
 let k_evict_set_snoc

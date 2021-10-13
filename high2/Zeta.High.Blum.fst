@@ -3,12 +3,14 @@ module Zeta.High.Blum
 open Zeta.High.Verifier
 open Zeta.High.Thread
 open Zeta.SeqIdx
+open FStar.Classical
 
 module V = Zeta.GenericVerifier
 module G = Zeta.Generic.Global
 module T = Zeta.Generic.Thread
 module I = Zeta.Interleave
 module MSD = Zeta.MultiSetHashDomain
+module HV = Zeta.High.Verifier
 
 let eac_state_transition_snoc
   (#app #n:_)
@@ -416,5 +418,46 @@ let eac_evictedb_addb_diff_elem
     )
     else
       be
+
+#pop-options
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let eac_add_set_mem_atleast_evict_set_mem
+  (#app #n:_)
+  (il: eac_log app n)
+  (t:nat {t < n})
+  (be: ms_hashfn_dom app)
+  : Lemma (requires (let gk,_ = be.r in
+                     let k = to_base_key gk in
+                     let st = thread_store t il in
+                     Zeta.High.Verifier.store_contains st k))
+          (ensures (mem be (add_set be.t.e il) >= mem be (evict_set be.t.e il)))
+  = let gk,_ = be.r in
+    let k = to_base_key gk in
+    let st = thread_store t il in
+    let ep = be.t.e in
+    let l = i_seq il in
+
+    exists_intro (fun t -> HV.store_contains (thread_store t il) k) t;
+    lemma_instore k il;
+    assert(is_eac_state_instore k il);
+
+    if evict_set ep il `contains` be then (
+      let j = evict_elem_idx il be in
+      exists_elems_with_prop_intro (refs_key k) l j;
+      let i = last_idx (refs_key k) l in
+      let aux ()
+        : Lemma (ensures (i > j))
+        = last_idx_correct (refs_key k) l j;
+          if i = j then
+            last_entry_blum_evict_implies_eac_state k il
+      in
+      aux();
+      let j' = next_add k il j in
+      add_set_contains_each_add_elem il j';
+      assert(add_set ep il `contains` be);
+      evict_set_is_a_set ep il
+    )
 
 #pop-options

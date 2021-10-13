@@ -63,3 +63,12 @@ val eac_evictedb_addb_diff_elem
                            mem be' as > mem be' es /\
                            be.t.e = ep})
 
+val eac_add_set_mem_atleast_evict_set_mem
+  (#app #n:_)
+  (il: eac_log app n)
+  (t:nat {t < n})
+  (be: ms_hashfn_dom app)
+  : Lemma (requires (let gk,_ = be.r in
+                     let k = to_base_key gk in
+                     Zeta.High.Verifier.store_contains (thread_store t il) k))
+          (ensures (mem be (add_set be.t.e il) >= mem be (evict_set be.t.e il)))
