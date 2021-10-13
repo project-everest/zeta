@@ -494,3 +494,46 @@ let lemma_neac_implies_hash_collision
       | EvictBM _ _ _ -> lemma_non_eac_evicted_evict itsl
       | _ -> hash_collision_contra app
     )
+
+let lemma_neac_implies_hash_collision_simple
+  (#app #n:_)
+  (itsl: neac_log app n {provides_hash_collision itsl})
+  : hash_collision app
+  = let fi = eac_failure itsl in
+    match fi.es with
+    | EACInit -> (
+      match fi.le with
+      | RunApp _ _ _ -> lemma_non_eac_init_appfn itsl
+      | AddM _ _ _ -> lemma_non_eac_init_addm itsl
+      | EvictB _ _
+      | EvictBM _ _ _
+      | EvictM _ _ -> lemma_non_eac_init_evict itsl
+      | _ -> hash_collision_contra app
+    )
+    | EACInStore _ _ _ -> (
+      match fi.le with
+      | RunApp _ _ _ -> lemma_non_eac_instore_appfn itsl
+      | AddM _ _ _ -> lemma_non_eac_instore_addm itsl
+      | EvictM _ _ -> lemma_non_eac_instore_evict itsl
+      | EvictB _ _ -> lemma_non_eac_instore_evict itsl
+      | EvictBM _ _ _ -> lemma_non_eac_instore_evict itsl
+      | _ -> hash_collision_contra app
+    )
+    | EACEvictedMerkle _ _ -> (
+      match fi.le with
+      | RunApp _ _ _ -> lemma_non_eac_init_appfn itsl
+      | AddM _ _ _ -> lemma_non_eac_evicted_merkle_addm itsl
+      | EvictM _ _ -> lemma_non_eac_evicted_evict itsl
+      | EvictB _ _ -> lemma_non_eac_evicted_evict itsl
+      | EvictBM _ _ _ -> lemma_non_eac_evicted_evict itsl
+      | _ -> hash_collision_contra app
+    )
+    | EACEvictedBlum _ _ _ _ -> (
+      match fi.le with
+      | RunApp _ _ _ -> lemma_non_eac_init_appfn itsl
+      | AddM _ _ _ -> lemma_non_eac_evicted_blum_addm itsl
+      | EvictM _ _ -> lemma_non_eac_evicted_evict itsl
+      | EvictB _ _ -> lemma_non_eac_evicted_evict itsl
+      | EvictBM _ _ _ -> lemma_non_eac_evicted_evict itsl
+      | _ -> hash_collision_contra app
+    )

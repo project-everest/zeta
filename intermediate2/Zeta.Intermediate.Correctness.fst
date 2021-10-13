@@ -11,6 +11,9 @@ open Zeta.Interleave
 open Zeta.Generic.Interleave
 open Zeta.Generic.TSLog
 open Zeta.High.Interleave
+open Zeta.High.Verifier.EAC
+open Zeta.Intermediate.Verifier
+open Zeta.Intermediate.StateRel
 open Zeta.Intermediate.Interleave
 open Zeta.Intermediate.TSLog
 
@@ -18,6 +21,25 @@ module S = FStar.Seq
 module SA = Zeta.SeqAux
 module GV = Zeta.GenericVerifier
 module GG = Zeta.Generic.Global
+module HI = Zeta.High.Interleave
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let lemma_eac_boundary_inv (#app:_) (#n:pos) (il: HI.verifiable_log app n) (i: seq_index il)
+  : Lemma (requires (let _il = prefix il i in
+                     let il_ = prefix il (i+1) in
+                     is_eac _il /\ not (is_eac il_)))
+          (ensures (eac_boundary il = i))
+          [SMTPat (prefix il i)]
+  = let _il = prefix il i in
+    let il_ = prefix il (i+1) in
+    let i' = eac_boundary il in
+    if i' < i then
+      lemma_eac_implies_prefix_eac _il (i'+1)
+    else if i < i' then
+      lemma_eac_implies_prefix_eac (prefix il i') (i+1)
+
+#pop-options
 
 (*
  * A bunch of properties we use in the induction step:
@@ -74,16 +96,64 @@ let induction_props_snoc_verifyepoch
     let ilk_ = SA.prefix ilk (i+1) in
     let vsk_ = thread_state_post t ilk i in
 
-    (* prefix and to_logk commute *)
-    assert(_ilk = to_logk _il);
-    assert(ilk_ = to_logk il_);
-
     (* _vsk and vsk_ are identical since *)
     lemma_cur_thread_state_extend ilk i;
-    assert(_vsk == vsk_);
 
+    elim_forall_vtls_rel _il t;
+    lemma_verifyepoch_simulates_spec _vss _vsk;
+    forall_vtls_rel_snoc il_;
 
-    admit()
+    elim_forall_store_ismap _il t;
+    lemma_verifyepoch_preserves_ismap _vss;
+    lemma_forall_store_ismap_snoc il_;
+
+    if is_eac ilk_ then
+      None
+    else (
+      lemma_eac_boundary_inv ilk_ i;
+      Some (lemma_neac_implies_hash_collision_simple ilk_)
+    )
+
+let induction_props_snoc_next_epoch
+  (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {let il' = prefix il i in
+                    let es = index il i in
+                    induction_props il' /\
+                    GV.NextEpoch? es})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk = thread_state_pre t ilk i in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+
+    elim_forall_vtls_rel _il t;
+    lemma_nextepoch_simulates_spec _vss _vsk;
+    forall_vtls_rel_snoc il_;
+
+    elim_forall_store_ismap _il t;
+    lemma_nextepoch_preserves_ismap _vss;
+    lemma_forall_store_ismap_snoc il_;
+
+    if is_eac ilk_ then
+      None
+    else (
+      lemma_eac_boundary_inv ilk_ i;
+      Some (lemma_neac_implies_hash_collision_simple ilk_)
+    )
 
 let induction_props_snoc
   (#vcfg:_)
@@ -97,6 +167,7 @@ let induction_props_snoc
     let open Zeta.GenericVerifier in
     match es with
     | VerifyEpoch -> induction_props_snoc_verifyepoch il i
+    | NextEpoch -> induction_props_snoc_next_epoch il i
     | _ ->
   admit()
 
