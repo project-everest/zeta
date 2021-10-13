@@ -37,6 +37,10 @@ let thread_store_post (#vcfg:_) (tid: nat{tid < vcfg.thread_count}) (il: verifia
   = let vs = thread_state_post tid il i in
     vs.st
 
+val lemma_slot_is_merkle_points_to (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il):
+  Lemma (ensures (slot_points_to_is_merkle_points_to (thread_store_pre (src il i) il i)))
+        [SMTPat (prefix il i)]
+
 let to_logk_entry (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il)
   : logK_entry vcfg.app
   = let gl = to_glog il in

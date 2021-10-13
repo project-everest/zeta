@@ -12,6 +12,7 @@ open Zeta.Generic.Interleave
 open Zeta.Generic.TSLog
 open Zeta.High.Interleave
 open Zeta.High.Verifier.EAC
+open Zeta.Intermediate.Store
 open Zeta.Intermediate.Verifier
 open Zeta.Intermediate.StateRel
 open Zeta.Intermediate.Interleave
@@ -155,6 +156,113 @@ let induction_props_snoc_next_epoch
       Some (lemma_neac_implies_hash_collision_simple ilk_)
     )
 
+let induction_props_implies_merkle_points_to_desc #vcfg
+  (il: verifiable_log vcfg)
+  (i: seq_index il {let _il = prefix il i in
+                    induction_props _il})
+  : Lemma (ensures (let t = src il i in
+                    let _vss = thread_state_pre t il i in
+                    merkle_points_to_desc _vss.st))
+          [SMTPat (prefix il i)]
+  = admit()
+
+let induction_props_implies_proving_ancestor
+  (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {let _il = prefix il i in
+                    induction_props _il})
+  : Lemma (ensures (let t = src il i in
+                    let _vss = thread_state_pre t il i in
+                    merkle_points_to_uniq _vss.st))
+          [SMTPat (prefix il i)]
+  = admit()
+
+#push-options "--z3rlimit_factor 3"
+
+let induction_props_snoc_evictbm
+  (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {let il' = prefix il i in
+                    let es = index il i in
+                    induction_props il' /\
+                    GV.EvictBM? es})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk = thread_state_pre t ilk i in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+
+    elim_forall_vtls_rel _il t;
+    lemma_evictbm_simulates_spec _vss _vsk es;
+    forall_vtls_rel_snoc il_;
+
+    elim_forall_store_ismap _il t;
+    lemma_evictbm_preserves_ismap _vss es;
+    lemma_forall_store_ismap_snoc il_;
+
+    if is_eac ilk_ then
+      None
+    else (
+      lemma_eac_boundary_inv ilk_ i;
+      Some (lemma_neac_implies_hash_collision_simple ilk_)
+    )
+
+let induction_props_snoc_evictb
+  (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {let il' = prefix il i in
+                    let es = index il i in
+                    induction_props il' /\
+                    GV.EvictB? es})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk = thread_state_pre t ilk i in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+
+    elim_forall_vtls_rel _il t;
+    lemma_evictb_simulates_spec _vss _vsk es;
+    forall_vtls_rel_snoc il_;
+
+    elim_forall_store_ismap _il t;
+    lemma_evictb_preserves_ismap _vss es;
+    lemma_forall_store_ismap_snoc il_;
+
+    if is_eac ilk_ then
+      None
+    else (
+      lemma_eac_boundary_inv ilk_ i;
+      Some (lemma_neac_implies_hash_collision_simple ilk_)
+    )
+#pop-options
+
+
 let induction_props_snoc
   (#vcfg:_)
   (epmax: epoch)
@@ -168,6 +276,8 @@ let induction_props_snoc
     match es with
     | VerifyEpoch -> induction_props_snoc_verifyepoch il i
     | NextEpoch -> induction_props_snoc_next_epoch il i
+    | EvictBM _ _ _ -> induction_props_snoc_evictbm il i
+    | EvictB _ _ -> induction_props_snoc_evictb il i
     | _ ->
   admit()
 
