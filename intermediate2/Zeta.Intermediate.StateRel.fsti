@@ -29,12 +29,12 @@ let valid_logS_entry (#vcfg:_)
   let s2k = Store.to_slot_state_map st in
   Logs.valid_logS_entry s2k e
 
-let to_logK_entry (#vcfg:_)
+let to_logk_entry (#vcfg:_)
                   (vs: vtls_t vcfg{vs.valid})
                   (e: logS_entry _{valid_logS_entry vs e}) =
   let st = vs.st in
   let s2k = Store.to_slot_state_map st in
-  Logs.to_logK_entry s2k e
+  Logs.to_logk_entry s2k e
 
 val lemma_runapp_simulates_spec
       (#vcfg:_)
@@ -42,7 +42,7 @@ val lemma_runapp_simulates_spec
       (vs':_ {vtls_rel vs vs'})
       (e:logS_entry vcfg{GV.is_appfn e})
   : Lemma (requires (valid_logS_entry vs e))
-          (ensures (let ek = to_logK_entry vs e in
+          (ensures (let ek = to_logk_entry vs e in
                     vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
 
 (* adding a key not in store to vaddm preserves the spec relationship *)
@@ -57,7 +57,7 @@ val lemma_vaddm_preserves_spec_new_key
                      valid_logS_entry vs e /\
                      not (store_contains_key st k) /\
                      slot_points_to_is_merkle_points_to st))
-          (ensures (let ek = to_logK_entry vs e in
+          (ensures (let ek = to_logk_entry vs e in
                     vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
 
 (* addb preserves spec relationship if the kew is not in store *)
@@ -71,7 +71,7 @@ val lemma_vaddb_preserves_spec_new_key
                      let k = to_base_key gk in
                      valid_logS_entry vs e /\
                      not (store_contains_key st k)))
-          (ensures (let ek = to_logK_entry vs e in
+          (ensures (let ek = to_logk_entry vs e in
                     vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
 
 val lemma_evictb_simulates_spec
@@ -84,7 +84,7 @@ val lemma_evictb_simulates_spec
                      slot_points_to_is_merkle_points_to st /\
                      merkle_points_to_uniq st /\
                      merkle_points_to_desc st))
-          (ensures (let ek = to_logK_entry vs e in
+          (ensures (let ek = to_logk_entry vs e in
                     vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
 
 val lemma_evictm_simulates_spec
@@ -98,7 +98,7 @@ val lemma_evictm_simulates_spec
                      slot_points_to_is_merkle_points_to st /\
                      merkle_points_to_uniq st /\
                      merkle_points_to_desc st))
-          (ensures (let ek = to_logK_entry vs e in
+          (ensures (let ek = to_logk_entry vs e in
                     vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
 
 val lemma_evictbm_simulates_spec
@@ -112,7 +112,7 @@ val lemma_evictbm_simulates_spec
                      slot_points_to_is_merkle_points_to st /\
                      merkle_points_to_uniq st /\
                      merkle_points_to_desc st))
-          (ensures (let ek = to_logK_entry vs e in
+          (ensures (let ek = to_logk_entry vs e in
                     vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
 
 val lemma_nextepoch_simulates_spec

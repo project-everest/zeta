@@ -15,6 +15,7 @@ open Zeta.Intermediate.Interleave
 open Zeta.Intermediate.TSLog
 
 module S = FStar.Seq
+module SA = Zeta.SeqAux
 module GV = Zeta.GenericVerifier
 module GG = Zeta.Generic.Global
 
@@ -56,7 +57,33 @@ let induction_props_snoc_verifyepoch
                     GV.VerifyEpoch? es})
   : induction_props_or_hash_collision (prefix il (i+1))
   = let _il = prefix il i in
-  admit()
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
+
+    (* _vss and vss_ are identical since VerifyEpoch does not alter state *)
+    lemma_cur_thread_state_extend il i;
+    assert(vss_ == _vss);
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk = thread_state_pre t ilk i in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+
+    (* prefix and to_logk commute *)
+    assert(_ilk = to_logk _il);
+    assert(ilk_ = to_logk il_);
+
+    (* _vsk and vsk_ are identical since *)
+    lemma_cur_thread_state_extend ilk i;
+    assert(_vsk == vsk_);
+
+
+    admit()
 
 let induction_props_snoc
   (#vcfg:_)
