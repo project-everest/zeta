@@ -124,3 +124,18 @@ val eac_value_snoc_appkey
                                       else
                                        eac_value gkf il = eac_value gkf il'
                     | _ -> eac_value gkf il = eac_value gkf il'))
+
+(* precond: k' is a proper ancestor of k, but not the proving ancestor.
+ *          k' is also initialized (previously added)
+ * ensures: k' points to something along direction (k' -> k) and that something is an ancestor of pk
+ *)
+val lemma_init_ancestor_ancestor_of_proving
+  (#app #n:_)
+  (il: eac_log app n) (k:base_key) (k':base_key{is_proper_desc k k'}):
+  Lemma (requires ((k' = Root \/ not (EACInit? (eac_state_of_key k' il))) /\
+                   k' <> proving_ancestor il k))
+        (ensures (let d = desc_dir k k' in
+                  let mv = eac_merkle_value k' il in
+                  let pk = proving_ancestor il k in
+                  points_to_some mv d /\
+                  is_desc pk (pointed_key mv d)))

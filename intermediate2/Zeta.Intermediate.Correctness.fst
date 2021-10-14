@@ -1,11 +1,15 @@
 module Zeta.Intermediate.Correctness
 
 open FStar.Classical
+open Zeta.BinTree
 open Zeta.MultiSet
 open Zeta.SeqIdx
 open Zeta.App
 open Zeta.AppSimulate
+open Zeta.MultiSetHashDomain
+open Zeta.Key
 open Zeta.GenKey
+open Zeta.Record
 open Zeta.Time
 open Zeta.HashCollision
 open Zeta.Generic.Global
@@ -18,7 +22,9 @@ open Zeta.Generic.TSLog
 open Zeta.EAC
 open Zeta.High.Interleave
 open Zeta.High.Blum
+open Zeta.High.Merkle
 open Zeta.High.Verifier.EAC
+open Zeta.Intermediate.VerifierConfig
 open Zeta.Intermediate.Store
 open Zeta.Intermediate.Verifier
 open Zeta.Intermediate.StateRel
@@ -32,6 +38,7 @@ module GV = Zeta.GenericVerifier
 module GG = Zeta.Generic.Global
 module HI = Zeta.High.Interleave
 module HV = Zeta.High.Verifier
+module HM = Zeta.High.Merkle
 module EAC = Zeta.EAC
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
@@ -189,6 +196,29 @@ let induction_props_snoc_next_epoch
       lemma_eac_boundary_inv ilk_ i;
       Some (lemma_neac_implies_hash_collision_simple ilk_)
     )
+
+#pop-options
+
+let proving_ancestor (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il)
+  (s: slot_id vcfg {let _il = prefix il i in
+                    let t = src il i in
+                    let _vss = thread_state_pre t il i in
+                    let _sts = _vss.st in
+                    induction_props _il /\
+                    inuse_slot _sts s /\ stored_base_key _sts s <> Root})
+  : merkle_key
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let _sts = _vss.st in
+    let k = stored_base_key _sts s in
+    let ilk = to_logk il in
+    let _ilk = SA.prefix ilk i in
+    HM.proving_ancestor _ilk k
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
 
 let induction_props_implies_merkle_points_to_desc #vcfg
   (il: verifiable_log vcfg)
@@ -485,6 +515,8 @@ let induction_props_snoc_addb_neac_eacinit
 
 #pop-options
 
+#push-options "--z3rlimit_factor 3"
+
 let induction_props_snoc_addb_neac_eacinstore
   (#vcfg:_)
   (epmax: epoch)
@@ -493,7 +525,42 @@ let induction_props_snoc_addb_neac_eacinstore
                     (clock il i).e <= epmax /\
                     EACInStore? (addb_case_neac_eacstate il i)})
   : induction_props_or_hash_collision (prefix il (i+1))
-  = admit()
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
+    let GV.AddB (gk,gv) s ts td = es in
+    let k = to_base_key gk in
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk = thread_state_pre t ilk i in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+    let ee = mk_vlog_entry_ext ilk_ i in
+
+    lemma_cur_thread_state_extend il i;
+    lemma_cur_thread_state_extend ilk i;
+
+    let be = eac_instore_addb_diff_elem ilk_ i in
+    let ep = be.t.e in
+    lemma_spec_rel_implies_same_add_elem il_ i;
+    assert(ep <= epmax);
+
+    lemma_spec_rel_implies_same_add_set ep il_;
+    lemma_spec_rel_implies_same_evict_set ep il_;
+    assert(mem be (add_set ep il_) > mem be (evict_set ep il_));
+    lemma_evict_before_add2 ep il (i+1) be;
+    assert(mem be (add_set ep il) > mem be (evict_set ep il));
+    not_eq (add_set ep il) (evict_set ep il) be;
+    Some (hash_collision_contra vcfg.app)
+
+#pop-options
+
+#push-options "--z3rlimit_factor 3"
 
 let induction_props_snoc_addb_neac_eacevicted_merkle
   (#vcfg:_)
@@ -503,7 +570,40 @@ let induction_props_snoc_addb_neac_eacevicted_merkle
                     (clock il i).e <= epmax /\
                     EACEvictedMerkle? (addb_case_neac_eacstate il i)})
   : induction_props_or_hash_collision (prefix il (i+1))
-  = admit()
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
+    let GV.AddB (gk,gv) s ts td = es in
+    let k = to_base_key gk in
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk = thread_state_pre t ilk i in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+    let ee = mk_vlog_entry_ext ilk_ i in
+
+    lemma_cur_thread_state_extend il i;
+    lemma_cur_thread_state_extend ilk i;
+
+    let be = eac_evictedm_addb_diff_elem ilk_ i in
+    let ep = be.t.e in
+    lemma_spec_rel_implies_same_add_elem il_ i;
+    assert(ep <= epmax);
+
+    lemma_spec_rel_implies_same_add_set ep il_;
+    lemma_spec_rel_implies_same_evict_set ep il_;
+    assert(mem be (add_set ep il_) > mem be (evict_set ep il_));
+    lemma_evict_before_add2 ep il (i+1) be;
+    assert(mem be (add_set ep il) > mem be (evict_set ep il));
+    not_eq (add_set ep il) (evict_set ep il) be;
+    Some (hash_collision_contra vcfg.app)
+
+#pop-options
 
 let induction_props_snoc_addb_neac_eacevicted_blum
   (#vcfg:_)
@@ -513,7 +613,40 @@ let induction_props_snoc_addb_neac_eacevicted_blum
                     (clock il i).e <= epmax /\
                     EACEvictedBlum? (addb_case_neac_eacstate il i)})
   : induction_props_or_hash_collision (prefix il (i+1))
-  = admit()
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
+    let GV.AddB (gk,gv) s ts td = es in
+    let k = to_base_key gk in
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk = thread_state_pre t ilk i in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+    let ee = mk_vlog_entry_ext ilk_ i in
+
+    lemma_cur_thread_state_extend il i;
+    lemma_cur_thread_state_extend ilk i;
+
+    lemma_eac_boundary_inv ilk_ i;
+    assert(i = eac_boundary ilk_);
+    let be = eac_evictedb_addb_diff_elem ilk_  in
+    let ep = be.t.e in
+    lemma_spec_rel_implies_same_add_elem il_ i;
+    assert(ep <= epmax);
+
+    lemma_spec_rel_implies_same_add_set ep il_;
+    lemma_spec_rel_implies_same_evict_set ep il_;
+    assert(mem be (add_set ep il_) > mem be (evict_set ep il_));
+    lemma_evict_before_add2 ep il (i+1) be;
+    assert(mem be (add_set ep il) > mem be (evict_set ep il));
+    not_eq (add_set ep il) (evict_set ep il) be;
+    Some (hash_collision_contra vcfg.app)
 
 let induction_props_snoc_addb_neac
   (#vcfg:_)
@@ -638,6 +771,183 @@ let induction_props_snoc_addb
     else
       induction_props_snoc_addb_caseA epmax il i
 
+let addm_caseA (#vcfg)
+  (il: verifiable_log vcfg)
+  (i: seq_index il)
+  = let _il = prefix il i in
+    let es = index il i in
+    induction_props _il /\
+    GV.AddM? es /\
+    (let t = src il i in
+     let _vss = thread_state_pre t il i in
+     let _sts = _vss.st in
+     let GV.AddM (gk, gv) s s' = es in
+     let k = to_base_key gk in
+     not (store_contains_key _sts k)
+    )
+
+let induction_props_snoc_addm_caseA
+  (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addm_caseA il i})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = let _il = prefix il i in
+    let tid = src il i in
+    let _vss = thread_state_pre tid il i in
+    let _sts = _vss.st in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post tid il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk: HV.vtls_t vcfg.app = thread_state_pre tid ilk i in
+    let _stk = _vsk.st in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post tid ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+    lemma_vaddm_preserves_spec_new_key _vss _vsk es;
+    forall_vtls_rel_snoc il_;
+    lemma_vaddm_preserves_ismap_new_key _vss es;
+    lemma_forall_store_ismap_snoc il_;
+
+    if is_eac ilk_ then
+      None
+    else (
+      lemma_eac_boundary_inv ilk_ i;
+      Some (lemma_neac_implies_hash_collision_simple ilk_)
+    )
+
+#pop-options
+
+let addm_props (#vcfg)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {GV.AddM? (index il i)})
+  : Lemma (requires (let _il = prefix il i in
+                     let es = index il i in
+                     GV.AddM? (index il i) /\
+                     induction_props _il))
+          (ensures (let _il = prefix il i in
+                    let GV.AddM (gk,gv) s s' = index il i in
+                    let k = to_base_key gk in
+                    let t = src il i in
+                    let _vss = thread_state_pre t il i in
+                    let _sts = _vss.st in
+                    inuse_slot _sts s' /\ k <> Root))
+          [SMTPat (index il i)]
+  = lemma_cur_thread_state_extend il i
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let addm_caseB (#vcfg)
+  (il: verifiable_log vcfg)
+  (i: seq_index il)
+  = let _il = prefix il i in
+    let es = index il i in
+    induction_props _il /\
+    GV.AddM? es /\
+    (let t = src il i in
+     let _vss = thread_state_pre t il i in
+     let _sts = _vss.st in
+     let GV.AddM (gk, gv) s s' = es in
+     let k = to_base_key gk in
+     let k' = stored_base_key _sts s' in
+     store_contains_key _sts k /\
+     (let sk = slot_of_key _sts k in
+      let pk = proving_ancestor il i sk in
+      pk <> k'))
+
+#push-options "--z3rlimit_factor 3"
+
+let induction_props_snoc_addm_caseB
+  (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addm_caseB il i})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = let _il = prefix il i in
+    let tid = src il i in
+    let _vss = thread_state_pre tid il i in
+    let _sts = _vss.st in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post tid il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+    lemma_addm_props _vss es;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk: HV.vtls_t vcfg.app = thread_state_pre tid ilk i in
+    let _stk = _vsk.st in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post tid ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+    let GV.AddM (gk,gv) s s' = es in
+    let k' = stored_base_key _sts s' in
+    let k = to_base_key gk in
+    let sk = slot_of_key _sts k in
+    let pk = proving_ancestor il i sk in
+    let v' = to_merkle_value (stored_value _sts s') in
+    let d = desc_dir k k' in
+
+    let aux ()
+      : Lemma (ensures (k' = Root \/ not (EACInit? (eac_state_of_key k' _ilk))))
+      = admit()
+    in
+    aux();
+
+    //assume(k' = Root \/ not (EACInit? (eac_state_of_key k' _ilk)));
+    admit()
+
+#pop-options
+
+let induction_props_snoc_addm
+  (#vcfg:_)
+  (il: its_log vcfg)
+  (i: seq_index il {let il' = prefix il i in
+                    let es = index il i in
+                    induction_props il' /\
+                    GV.AddM? es})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = let _il = prefix il i in
+    let tid = src il i in
+    let _vss = thread_state_pre tid il i in
+    let _sts = _vss.st in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post tid il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk: HV.vtls_t vcfg.app = thread_state_pre tid ilk i in
+    let _stk = _vsk.st in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post tid ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+    let GV.AddM (gk,gv) s s' = es in
+    let k' = stored_base_key _sts s' in
+    let k = to_base_key gk in
+
+    if store_contains_key _sts k then
+      let sk = slot_of_key _sts k in
+      let pk = proving_ancestor il i sk in
+      if pk <> k' then
+        induction_props_snoc_addm_caseB il i
+      else
+      admit()
+    else
+      induction_props_snoc_addm_caseA il i
+
 let induction_props_snoc
   (#vcfg:_)
   (epmax: epoch)
@@ -656,9 +966,7 @@ let induction_props_snoc
     | EvictM _ _ -> induction_props_snoc_evictm il i
     | RunApp _ _ _ -> induction_props_snoc_runapp il i
     | AddB _ _ _ _ -> induction_props_snoc_addb epmax il i
-    | _ ->
-    admit()
-
+    | AddM _ _ _ -> induction_props_snoc_addm il i
 
 #pop-options
 

@@ -2706,3 +2706,34 @@ let eac_value_snoc_appkey
                                        eac_value gkf il = eac_value gkf il'
                     | _ -> eac_value gkf il = eac_value gkf il'))
   = eac_value_snoc gkf il
+
+let lemma_init_ancestor_ancestor_of_proving
+  (#app #n:_)
+  (il: eac_log app n) (k:base_key) (k':base_key{is_proper_desc k k'}):
+  Lemma (requires ((k' = Root \/ not (EACInit? (eac_state_of_key k' il))) /\
+                   k' <> proving_ancestor il k))
+        (ensures (let d = desc_dir k k' in
+                  let mv = eac_merkle_value k' il in
+                  let pk = proving_ancestor il k in
+                  points_to_some mv d /\
+                  is_desc pk (pointed_key mv d)))
+  = let pf = eac_ptrfn il in
+    let pk = proving_ancestor il k in
+    let aux()
+      : Lemma (ensures (root_reachable il k'))
+      = if k' = Root then lemma_reachable_reflexive pf Root
+        else lemma_not_init_equiv_root_reachable il k'
+    in
+    aux();
+    assert(root_reachable il k');
+    lemma_proving_ancestor_greatest_depth il k k';
+    assert(depth k' <= depth pk);
+
+    lemma_two_ancestors_related k k' pk;
+    if is_desc k' pk then
+      lemma_proper_desc_depth_monotonic k' pk
+    else (
+      let d = desc_dir pk k' in
+      lemma_desc_transitive k pk (child d k');
+      lemma_reachable_between pf pk k'
+    )
