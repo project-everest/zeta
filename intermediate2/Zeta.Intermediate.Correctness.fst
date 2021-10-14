@@ -1,6 +1,8 @@
 module Zeta.Intermediate.Correctness
 
+open FStar.Classical
 open Zeta.MultiSet
+open Zeta.SeqIdx
 open Zeta.App
 open Zeta.AppSimulate
 open Zeta.GenKey
@@ -421,20 +423,72 @@ let addb_case_neac_eacstate (#vcfg:_)
     let k = to_base_key gk in
     HI.eac_state_of_key k _ilk
 
+#push-options "--z3rlimit_factor 3"
+
 let induction_props_snoc_addb_neac_eacinit
   (#vcfg:_)
   (epmax: epoch)
-  (il: verifiable_log vcfg)
+  (il: its_log vcfg{aems_equal_upto epmax il})
   (i: seq_index il {addb_case_neac il i /\
                     (clock il i).e <= epmax /\
                     EACInit? (addb_case_neac_eacstate il i)})
   : induction_props_or_hash_collision (prefix il (i+1))
-  = admit()
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
+    let GV.AddB (gk,gv) s ts td = es in
+    let k = to_base_key gk in
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk = thread_state_pre t ilk i in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+    let ee = mk_vlog_entry_ext ilk_ i in
+
+    lemma_cur_thread_state_extend il i;
+    lemma_cur_thread_state_extend ilk i;
+
+    let be = blum_add_elem il i in
+    let ep = be.t.e in
+    assert(ep <= epmax);
+
+    if evict_set ep il `contains` be then (
+
+      (* the index of the evict element should be before i *)
+      let j = evict_elem_idx il be in
+      lemma_evict_before_add il i;
+      assert(j < i);
+
+      assert(index il j = index _il j);
+      assert(be = blum_evict_elem _il j);
+
+      lemma_spec_rel_implies_same_evict_elem _il j;
+      assert(be = blum_evict_elem _ilk j);
+
+      assert(eac_state_of_key k _ilk = EACInit);
+      eac_state_init_implies_no_key_refs k _ilk;
+      assert(~ (has_some_ref_to_key k _ilk));
+
+      assert(HV.refs_key (index _ilk j) k);
+      exists_intro (fun i -> HV.refs_key (index _ilk i) k) j;
+      Some (hash_collision_contra vcfg.app)
+    )
+    else (
+      not_eq (add_set ep il) (evict_set ep il) be;
+      Some (hash_collision_contra vcfg.app)
+    )
+
+#pop-options
 
 let induction_props_snoc_addb_neac_eacinstore
   (#vcfg:_)
   (epmax: epoch)
-  (il: verifiable_log vcfg)
+  (il: its_log vcfg {aems_equal_upto epmax il})
   (i: seq_index il {addb_case_neac il i /\
                     (clock il i).e <= epmax /\
                     EACInStore? (addb_case_neac_eacstate il i)})
@@ -444,7 +498,7 @@ let induction_props_snoc_addb_neac_eacinstore
 let induction_props_snoc_addb_neac_eacevicted_merkle
   (#vcfg:_)
   (epmax: epoch)
-  (il: verifiable_log vcfg)
+  (il: its_log vcfg {aems_equal_upto epmax il})
   (i: seq_index il {addb_case_neac il i /\
                     (clock il i).e <= epmax /\
                     EACEvictedMerkle? (addb_case_neac_eacstate il i)})
@@ -454,7 +508,7 @@ let induction_props_snoc_addb_neac_eacevicted_merkle
 let induction_props_snoc_addb_neac_eacevicted_blum
   (#vcfg:_)
   (epmax: epoch)
-  (il: verifiable_log vcfg)
+  (il: its_log vcfg {aems_equal_upto epmax il})
   (i: seq_index il {addb_case_neac il i /\
                     (clock il i).e <= epmax /\
                     EACEvictedBlum? (addb_case_neac_eacstate il i)})
