@@ -41,6 +41,7 @@ module HV = Zeta.High.Verifier
 module HM = Zeta.High.Merkle
 module EAC = Zeta.EAC
 module M = Zeta.Merkle
+module FE = FStar.FunctionalExtensionality
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
@@ -1018,7 +1019,62 @@ let addm_caseD (#vcfg)
      (let sk = slot_of_key _sts k in
       let pk = proving_ancestor il i sk in
       pk = k' /\
-      add_method_of _sts sk <> HV.MAdd))
+      add_method_of _sts sk = HV.BAdd))
+
+#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 3 --query_stats"
+
+let induction_props_snoc_addm_caseD
+  (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addm_caseD il i})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = let _il = prefix il i in
+    let tid = src il i in
+    let _vss = thread_state_pre tid il i in
+    let _sts = _vss.st in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post tid il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+    lemma_addm_props _vss es;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk: HV.vtls_t vcfg.app = thread_state_pre tid ilk i in
+    let _stk = _vsk.st in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post tid ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+    let GV.AddM (gk,gv) s s' = es in
+    let k' = stored_base_key _sts s' in
+    let k = to_base_key gk in
+    let v' = to_merkle_value (stored_value _sts s') in
+    let d = desc_dir k k' in
+    let sk = slot_of_key _sts k in
+
+    assert(is_map _sts);
+    let _stk2 = as_map _sts in
+    assert(FE.feq _stk2 _stk);
+    assert(HV.store_contains _stk k);
+    assert(add_method_of _sts sk = HV.BAdd);
+    assert(HV.add_method_of _stk k = HV.BAdd);
+    exists_intro (fun t -> HV.store_contains (HI.thread_store t _ilk) k) tid;
+    lemma_instore k _ilk;
+    assert(EACInStore? (eac_state_of_key k _ilk));
+    key_in_unique_store k _ilk tid (stored_tid k _ilk);
+    assert(tid = stored_tid k _ilk);
+    eac_add_method_is_stored_addm _ilk k;
+    assert(EACInStore?.m (eac_state_of_key k _ilk) = HV.BAdd);
+    lemma_proving_ancestor_blum_bit _ilk k;
+    eac_value_is_stored_value_int _ilk k' tid;
+    assert(False);
+    Some (hash_collision_contra vcfg.app)
+
+
+#pop-options
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
@@ -1060,7 +1116,8 @@ let induction_props_snoc_addm
         induction_props_snoc_addm_caseB il i
       else if add_method_of _sts sk = HV.MAdd then
         induction_props_snoc_addm_caseC il i
-      else admit()
+      else
+        induction_props_snoc_addm_caseD il i
     else
       induction_props_snoc_addm_caseA il i
 
