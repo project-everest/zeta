@@ -222,6 +222,8 @@ let proving_ancestor (#vcfg:_)
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
+#push-options "--z3rlimit_factor 3"
+
 let induction_props_implies_merkle_points_to_desc #vcfg
   (il: verifiable_log vcfg)
   (i: seq_index il {let _il = prefix il i in
@@ -230,7 +232,43 @@ let induction_props_implies_merkle_points_to_desc #vcfg
                     let _vss = thread_state_pre t il i in
                     merkle_points_to_desc _vss.st))
           [SMTPat (prefix il i)]
-  = admit()
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let _sts = _vss.st in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk: HV.vtls_t vcfg.app = thread_state_pre t ilk i in
+    let _stk = _vsk.st in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+
+    let aux (s:_) (d:_)
+      : Lemma (ensures (merkle_points_to_desc_local _sts s d))
+              [SMTPat (merkle_points_to_desc_local _sts s d)]
+      = if not (merkle_points_to_desc_local _sts s d) then (
+          let mv1 = to_merkle_value (stored_value _sts s) in
+          let k = stored_base_key _sts s in
+          let kd = M.pointed_key mv1 d in
+          assert(HV.store_contains _stk k);
+          assert(HV.stored_value _stk k = stored_value _sts s);
+          eac_value_is_stored_value_int _ilk k t;
+          lemma_mv_points_to_dir_correct _ilk k d;
+          ()
+        )
+    in
+    ()
+
+#pop-options
 
 let induction_props_implies_proving_ancestor
   (#vcfg:_)
