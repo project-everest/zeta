@@ -13,6 +13,7 @@ open Zeta.Interleave
 open Zeta.Generic.Interleave
 open Zeta.Generic.Blum
 open Zeta.Generic.TSLog
+open Zeta.EAC
 open Zeta.High.Interleave
 open Zeta.High.Blum
 open Zeta.High.Verifier.EAC
@@ -29,6 +30,7 @@ module GV = Zeta.GenericVerifier
 module GG = Zeta.Generic.Global
 module HI = Zeta.High.Interleave
 module HV = Zeta.High.Verifier
+module EAC = Zeta.EAC
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
@@ -389,37 +391,88 @@ let addb_caseA (#vcfg:_)
 
 let addb_case_neac (#vcfg:_)
   (il: verifiable_log vcfg)
-  (i: seq_index il {let il_ = prefix il (i+1) in
-                    let es = index il i in
-                    induction_props il_ /\
-                    GV.AddB? es})
-  : bool
-  = let il_ = prefix il (i+1) in
-    let ilk = to_logk il in
-    let ilk_ = SA.prefix ilk (i+1) in
+  (i: seq_index il)
+  = let _il = prefix il i in
+    let il_ = prefix il (i+1) in
+    let es = index il i in
+    induction_props _il /\
+    spec_rel il_ /\
+    GV.AddB? es /\
+    (let ilk = to_logk il in
+     let ilk_ = SA.prefix ilk (i+1) in
+     let _ilk = SA.prefix ilk i in
+     is_eac _ilk /\ not (is_eac ilk_))
+
+let addb_case_neac_key (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addb_case_neac il i})
+  = let ilk = to_logk il in
     let _ilk = SA.prefix ilk i in
-    forall_vtls_rel_prefix il_ i;
-    is_eac _ilk && not (is_eac ilk_)
+    let gk,_ = GV.add_record (index il i) in
+    to_base_key gk
+
+let addb_case_neac_eacstate (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addb_case_neac il i})
+  : EAC.eac_state vcfg.app (addb_case_neac_key il i)
+  = let ilk = to_logk il in
+    let _ilk = SA.prefix ilk i in
+    let gk,_ = GV.add_record (index il i) in
+    let k = to_base_key gk in
+    HI.eac_state_of_key k _ilk
+
+let induction_props_snoc_addb_neac_eacinit
+  (#vcfg:_)
+  (epmax: epoch)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addb_case_neac il i /\
+                    (clock il i).e <= epmax /\
+                    EACInit? (addb_case_neac_eacstate il i)})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = admit()
+
+let induction_props_snoc_addb_neac_eacinstore
+  (#vcfg:_)
+  (epmax: epoch)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addb_case_neac il i /\
+                    (clock il i).e <= epmax /\
+                    EACInStore? (addb_case_neac_eacstate il i)})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = admit()
+
+let induction_props_snoc_addb_neac_eacevicted_merkle
+  (#vcfg:_)
+  (epmax: epoch)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addb_case_neac il i /\
+                    (clock il i).e <= epmax /\
+                    EACEvictedMerkle? (addb_case_neac_eacstate il i)})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = admit()
+
+let induction_props_snoc_addb_neac_eacevicted_blum
+  (#vcfg:_)
+  (epmax: epoch)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addb_case_neac il i /\
+                    (clock il i).e <= epmax /\
+                    EACEvictedBlum? (addb_case_neac_eacstate il i)})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = admit()
 
 let induction_props_snoc_addb_neac
   (#vcfg:_)
   (epmax: epoch)
   (il: its_log vcfg {aems_equal_upto epmax il})
-  (i: seq_index il {let _il = prefix il i in
-                    let il_ = prefix il (i+1) in
-                    let ilk = to_logk il in
-                    let _ilk = SA.prefix ilk i in
-                    let ilk_ = SA.prefix ilk (i+1) in
-                    let es = index il i in
-                    induction_props il_ /\
-                    induction_props _il /\
-                    (clock il i).e <= epmax /\
-                    GV.AddB? es /\
-                    addb_caseA il i /\
-                    not (is_eac ilk_) /\
-                    eac_boundary ilk_ = i})
+  (i: seq_index il {addb_case_neac il i /\
+                    (clock il i).e <= epmax})
   : induction_props_or_hash_collision (prefix il (i+1))
-  = admit()
+  = match addb_case_neac_eacstate il i with
+    | EACInit -> induction_props_snoc_addb_neac_eacinit epmax il i
+    | EACInStore _ _ _ -> induction_props_snoc_addb_neac_eacinstore epmax il i
+    | EACEvictedMerkle _ _ -> induction_props_snoc_addb_neac_eacevicted_merkle epmax il i
+    | EACEvictedBlum _ _ _ _ -> induction_props_snoc_addb_neac_eacevicted_blum epmax il i
 
 #push-options "--z3rlimit_factor 3"
 
@@ -457,8 +510,7 @@ let induction_props_snoc_addb_caseA
     lemma_forall_store_ismap_snoc il_;
     if is_eac ilk_ then None
     else
-      //induction_props_snoc_addb_neac epmax il i
-      admit()
+      induction_props_snoc_addb_neac epmax il i
 
 let induction_props_snoc_addb_caseB
   (#vcfg:_)
