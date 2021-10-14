@@ -387,6 +387,42 @@ let addb_caseA (#vcfg:_)
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
+let addb_case_neac (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {let il_ = prefix il (i+1) in
+                    let es = index il i in
+                    induction_props il_ /\
+                    GV.AddB? es})
+  : bool
+  = let il_ = prefix il (i+1) in
+    let ilk = to_logk il in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let _ilk = SA.prefix ilk i in
+    forall_vtls_rel_prefix il_ i;
+    is_eac _ilk && not (is_eac ilk_)
+
+let induction_props_snoc_addb_neac
+  (#vcfg:_)
+  (epmax: epoch)
+  (il: its_log vcfg {aems_equal_upto epmax il})
+  (i: seq_index il {let _il = prefix il i in
+                    let il_ = prefix il (i+1) in
+                    let ilk = to_logk il in
+                    let _ilk = SA.prefix ilk i in
+                    let ilk_ = SA.prefix ilk (i+1) in
+                    let es = index il i in
+                    induction_props il_ /\
+                    induction_props _il /\
+                    (clock il i).e <= epmax /\
+                    GV.AddB? es /\
+                    addb_caseA il i /\
+                    not (is_eac ilk_) /\
+                    eac_boundary ilk_ = i})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = admit()
+
+#push-options "--z3rlimit_factor 3"
+
 let induction_props_snoc_addb_caseA
   (#vcfg:_)
   (epmax: epoch)
@@ -421,9 +457,8 @@ let induction_props_snoc_addb_caseA
     lemma_forall_store_ismap_snoc il_;
     if is_eac ilk_ then None
     else
-    admit()
-
-#push-options "--z3rlimit_factor 3"
+      //induction_props_snoc_addb_neac epmax il i
+      admit()
 
 let induction_props_snoc_addb_caseB
   (#vcfg:_)
