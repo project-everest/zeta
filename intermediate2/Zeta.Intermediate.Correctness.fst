@@ -1,5 +1,6 @@
 module Zeta.Intermediate.Correctness
 
+open Zeta.MultiSet
 open Zeta.App
 open Zeta.AppSimulate
 open Zeta.GenKey
@@ -10,14 +11,17 @@ open Zeta.Generic.Blum
 open Zeta.Intermediate.Global
 open Zeta.Interleave
 open Zeta.Generic.Interleave
+open Zeta.Generic.Blum
 open Zeta.Generic.TSLog
 open Zeta.High.Interleave
+open Zeta.High.Blum
 open Zeta.High.Verifier.EAC
 open Zeta.Intermediate.Store
 open Zeta.Intermediate.Verifier
 open Zeta.Intermediate.StateRel
 open Zeta.Intermediate.Interleave
 open Zeta.Intermediate.TSLog
+open Zeta.Intermediate.Blum
 
 module S = FStar.Seq
 module SA = Zeta.SeqAux
@@ -381,6 +385,8 @@ let addb_caseA (#vcfg:_)
                     GV.AddB? es})
   = not (addb_caseB il i)
 
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
 let induction_props_snoc_addb_caseA
   (#vcfg:_)
   (epmax: epoch)
@@ -388,25 +394,13 @@ let induction_props_snoc_addb_caseA
   (i: seq_index il {let il' = prefix il i in
                     let es = index il i in
                     induction_props il' /\
+                    (clock il i).e <= epmax /\
                     GV.AddB? es /\
                     addb_caseA il i})
-  : induction_props_or_hash_collision (prefix il (i+1))
-  = admit()
-
-let induction_props_snoc_addb_caseB
-  (#vcfg:_)
-  (epmax: epoch)
-  (il: its_log vcfg {aems_equal_upto epmax il})
-  (i: seq_index il {let il' = prefix il i in
-                    let es = index il i in
-                    induction_props il' /\
-                    GV.AddB? es /\
-                    addb_caseB il i})
   : induction_props_or_hash_collision (prefix il (i+1))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
-    let _sts = _vss.st in
     let il_ = prefix il (i+1) in
     let vss_ = thread_state_post t il i in
     let es = index il i in
@@ -416,10 +410,49 @@ let induction_props_snoc_addb_caseB
     let ilk = to_logk il in
     let ek = index ilk i in
     let _ilk = SA.prefix ilk i in
-    let _vsk: HV.vtls_t vcfg.app = thread_state_pre t ilk i in
-    let _stk = _vsk.st in
+    let _vsk = thread_state_pre t ilk i in
     let ilk_ = SA.prefix ilk (i+1) in
     let vsk_ = thread_state_post t ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+    lemma_vaddb_preserves_spec_new_key _vss _vsk es;
+    forall_vtls_rel_snoc il_;
+    lemma_vaddb_preserves_ismap_new_key _vss es;
+    lemma_forall_store_ismap_snoc il_;
+    if is_eac ilk_ then None
+    else
+    admit()
+
+#push-options "--z3rlimit_factor 3"
+
+let induction_props_snoc_addb_caseB
+  (#vcfg:_)
+  (epmax: epoch)
+  (il: its_log vcfg {aems_equal_upto epmax il})
+  (i: seq_index il {let il' = prefix il i in
+                    let es = index il i in
+                    induction_props il' /\
+                    (clock il i).e <= epmax /\
+                    GV.AddB? es /\
+                    addb_caseB il i})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = let _il = prefix il i in
+    let tid = src il i in
+    let _vss = thread_state_pre tid il i in
+    let _sts = _vss.st in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post tid il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk: HV.vtls_t vcfg.app = thread_state_pre tid ilk i in
+    let _stk = _vsk.st in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post tid ilk i in
 
     lemma_cur_thread_state_extend ilk i;
 
@@ -427,9 +460,21 @@ let induction_props_snoc_addb_caseB
     let k = to_base_key gk in
     assert(store_contains_key _sts k);
     assert(HV.store_contains _stk k);
-    admit()
+    let be = blum_add_elem il i in
+    let ep = be.t.e in
 
-#push-options "--fuel 0 --ifuel 1 --query_stats"
+    eac_add_set_mem_atleast_evict_set_mem _ilk tid be;
+    assert(mem be (add_set ep _il) >= mem be (evict_set ep _il));
+    add_set_snoc ep il_;
+    lemma_add_incr_mem #_ #_ (add_set ep _il) be;
+    assert(mem be (add_set ep _il) + 1 = mem be (add_set ep il_));
+    evict_set_snoc ep il_;
+    lemma_evict_before_add2 ep il (i+1) be;
+    assert(mem be (add_set ep il) > mem be (evict_set ep il));
+    not_eq (add_set ep il) (evict_set ep il) be;
+    Some (hash_collision_contra vcfg.app)
+
+#pop-options
 
 let induction_props_snoc_addb
   (#vcfg:_)
@@ -438,6 +483,7 @@ let induction_props_snoc_addb
   (i: seq_index il {let il' = prefix il i in
                     let es = index il i in
                     induction_props il' /\
+                    (clock il i).e <= epmax /\
                     GV.AddB? es})
   : induction_props_or_hash_collision (prefix il (i+1))
   = let _il = prefix il i in
