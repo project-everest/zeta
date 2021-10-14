@@ -139,3 +139,15 @@ val lemma_init_ancestor_ancestor_of_proving
                   let pk = proving_ancestor il k in
                   points_to_some mv d /\
                   is_desc pk (pointed_key mv d)))
+
+(* if a merkle value of key k points to a key kd in some direction d, then kd is a proper desc of
+ * k in direction d *)
+val lemma_mv_points_to_dir_correct
+  (#app #n:_)
+  (il: eac_log app n) (k:merkle_key) (d:bin_tree_dir):
+  Lemma (requires (let mv = eac_merkle_value k il in
+                   points_to_some mv d))
+        (ensures (let mv = eac_merkle_value k il in
+                  let kd = pointed_key mv d in
+                  is_proper_desc kd k /\
+                  d = desc_dir kd k))

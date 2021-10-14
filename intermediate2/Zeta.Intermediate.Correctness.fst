@@ -40,6 +40,7 @@ module HI = Zeta.High.Interleave
 module HV = Zeta.High.Verifier
 module HM = Zeta.High.Merkle
 module EAC = Zeta.EAC
+module M = Zeta.Merkle
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
@@ -896,16 +897,130 @@ let induction_props_snoc_addm_caseB
     let v' = to_merkle_value (stored_value _sts s') in
     let d = desc_dir k k' in
 
+    assert(HV.store_contains _stk k');
     let aux ()
       : Lemma (ensures (k' = Root \/ not (EACInit? (eac_state_of_key k' _ilk))))
-      = admit()
+      = if k' <> Root then (
+          exists_intro (fun t -> HV.store_contains (HI.thread_store t _ilk) k') tid;
+          lemma_instore k' _ilk
+        )
     in
     aux();
+    assert(k' = Root \/ not (EACInit? (eac_state_of_key k' _ilk)));
+    lemma_init_ancestor_ancestor_of_proving _ilk k k';
+    eac_value_is_stored_value _ilk (IntK k') tid;
 
-    //assume(k' = Root \/ not (EACInit? (eac_state_of_key k' _ilk)));
-    admit()
+    let k2 = M.pointed_key v' d in
+    lemma_proper_desc_depth_monotonic k pk;
+    assert(is_desc k2 k);
+    lemma_desc_depth_monotonic k2 k;
+    assert(is_desc pk k2);
+    lemma_desc_depth_monotonic pk k2;
+    Some (hash_collision_contra vcfg.app)
 
 #pop-options
+
+let addm_caseC (#vcfg)
+  (il: verifiable_log vcfg)
+  (i: seq_index il)
+  = let _il = prefix il i in
+    let es = index il i in
+    induction_props _il /\
+    GV.AddM? es /\
+    (let t = src il i in
+     let _vss = thread_state_pre t il i in
+     let _sts = _vss.st in
+     let GV.AddM (gk, gv) s s' = es in
+     let k = to_base_key gk in
+     let k' = stored_base_key _sts s' in
+     store_contains_key _sts k /\
+     (let sk = slot_of_key _sts k in
+      let pk = proving_ancestor il i sk in
+      pk = k' /\
+      add_method_of _sts sk = HV.MAdd))
+
+#pop-options
+
+#push-options "--z3rlimit_factor 3"
+
+let induction_props_snoc_addm_caseC
+  (#vcfg:_)
+  (il: verifiable_log vcfg)
+  (i: seq_index il {addm_caseC il i})
+  : induction_props_or_hash_collision (prefix il (i+1))
+  = let _il = prefix il i in
+    let tid = src il i in
+    let _vss = thread_state_pre tid il i in
+    let _sts = _vss.st in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post tid il i in
+    let es = index il i in
+
+    lemma_cur_thread_state_extend il i;
+    lemma_addm_props _vss es;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk: HV.vtls_t vcfg.app = thread_state_pre tid ilk i in
+    let _stk = _vsk.st in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post tid ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+    let GV.AddM (gk,gv) s s' = es in
+    let k' = stored_base_key _sts s' in
+    let k = to_base_key gk in
+    let d = desc_dir k k' in
+    let sk = slot_of_key _sts k in
+    let pk = proving_ancestor il i sk in
+
+    let sk_anc = pointing_slot _sts sk in
+    assert(inuse_slot _sts sk_anc);
+
+    let d_anc = if points_to_dir _sts sk_anc Left sk then Left else Right in
+    assert(slot_points_to_is_merkle_points_to_local _sts sk_anc sk d_anc);
+    let k_anc = stored_base_key _sts sk_anc in
+    eac_value_is_stored_value _ilk (IntK k_anc) tid;
+    lemma_points_to_implies_proving_ancestor _ilk k k_anc d_anc;
+    assert(pk = k');
+    assert(k' = k_anc);
+    lemma_mv_points_to_dir_correct _ilk k_anc d_anc;
+    lemma_ismap_correct _sts sk_anc s';
+    assert(s' = sk_anc);
+    assert(d_anc = d);
+    assert(points_to_dir _sts sk_anc d_anc sk);
+    assert(points_to_dir _sts s' d sk);
+    assert(inuse_slot _sts s' && points_to_some_slot _sts s' d);
+    (* super-fragile proof: uncommenting the following results in all kinds of weird errors *)
+    assert(Some? (points_to_info _sts s' d));
+    //assert(points_to_info _sts s' d <> None);
+    //assert(not (None? (points_to_info _sts s' d)));
+    //assert(not (points_to_none _sts s' d));
+    Some (hash_collision_contra vcfg.app)
+
+#pop-options
+
+let addm_caseD (#vcfg)
+  (il: verifiable_log vcfg)
+  (i: seq_index il)
+  = let _il = prefix il i in
+    let es = index il i in
+    induction_props _il /\
+    GV.AddM? es /\
+    (let t = src il i in
+     let _vss = thread_state_pre t il i in
+     let _sts = _vss.st in
+     let GV.AddM (gk, gv) s s' = es in
+     let k = to_base_key gk in
+     let k' = stored_base_key _sts s' in
+     store_contains_key _sts k /\
+     (let sk = slot_of_key _sts k in
+      let pk = proving_ancestor il i sk in
+      pk = k' /\
+      add_method_of _sts sk <> HV.MAdd))
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
 
 let induction_props_snoc_addm
   (#vcfg:_)
@@ -943,8 +1058,9 @@ let induction_props_snoc_addm
       let pk = proving_ancestor il i sk in
       if pk <> k' then
         induction_props_snoc_addm_caseB il i
-      else
-      admit()
+      else if add_method_of _sts sk = HV.MAdd then
+        induction_props_snoc_addm_caseC il i
+      else admit()
     else
       induction_props_snoc_addm_caseA il i
 
