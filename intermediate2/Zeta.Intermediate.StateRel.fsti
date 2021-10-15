@@ -36,6 +36,13 @@ let to_logk_entry (#vcfg:_)
   let s2k = Store.to_slot_state_map st in
   Logs.to_logk_entry s2k e
 
+val lemma_empty_vtls_rel
+  (#vcfg: verifier_config)
+  (t:nat{t < vcfg.thread_count})
+  : Lemma (ensures (let vss = init_thread_state vcfg t in
+                    let vsk = HV.init_thread_state vcfg.app t in
+                    vtls_rel vss vsk))
+
 val lemma_runapp_simulates_spec
       (#vcfg:_)
       (vs:vtls_t vcfg{vs.valid})

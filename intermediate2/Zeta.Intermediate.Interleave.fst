@@ -255,15 +255,54 @@ let lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (il: verifiable_log 
     forall_vtls_rel il ==> GI.verifiable (to_logk il)
     with _. (lemma_forall_vtls_rel_implies_spec_verifiable_aux il)
 
+module IT = Zeta.Intermediate.Thread
+module GT = Zeta.Generic.Thread
+module HV = Zeta.High.Verifier
+
+let lemma_empty_implies_ismap (#vcfg:_) (il: verifiable_log vcfg)
+  : Lemma (ensures (length il = 0 ==> forall_store_ismap il))
+  = let gl = to_glog il in
+    if length il = 0 then (
+      lemma_length0_implies_empty il;
+      let aux (t:_)
+        : Lemma (ensures (is_map (thread_store t il)))
+        = let tl = GG.index gl t in
+          lemma_empty_sseq (logS_entry vcfg) vcfg.thread_count t;
+          IT.empty_log_is_map tl
+      in
+      forall_intro aux
+    )
+
+let lemma_empty_implies_forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg)
+  : Lemma (ensures (length il = 0 ==> forall_vtls_rel il))
+  = let gl = to_glog il in
+    let ilk = to_logk il in
+    let glk = s_seq ilk in
+    if length il = 0 then (
+      lemma_length0_implies_empty il;
+      lemma_length0_implies_empty ilk;
+      let aux (t:_)
+        : Lemma (ensures (let vss = thread_state t il in
+                          let vsk = thread_state t ilk in
+                          vtls_rel vss vsk))
+        = lemma_empty_sseq (logS_entry vcfg) vcfg.thread_count t;
+          lemma_empty_sseq (logK_entry vcfg.app) vcfg.thread_count t;
+          lemma_empty_vtls_rel #vcfg t
+      in
+      forall_intro aux
+    )
+
 let lemma_empty_implies_spec_rel (#vcfg:_) (il:verifiable_log vcfg)
   : Lemma (ensures (length il = 0 ==> spec_rel il))
-  = admit()
+  = lemma_empty_implies_ismap il;
+    lemma_empty_implies_forall_vtls_rel il
 
 let lemma_spec_rel_implies_prefix_spec_rel (#vcfg:_) (il:verifiable_log vcfg) (i:nat{i <= length il})
  : Lemma (requires spec_rel il)
          (ensures (let il' = prefix il i in
                    spec_rel il'))
-  = admit()
+  = forall_vtls_rel_prefix il i;
+    forall_store_ismap_prefix il i
 
 let lemma_spec_rel_implies_appfn_identical (#vcfg:_) (il: verifiable_log vcfg {spec_rel il})
   : Lemma (ensures (let gl = to_glog il in

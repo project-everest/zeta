@@ -41,3 +41,6 @@ val lemma_slot_is_merkle_points_to (#vcfg:_) (tl: verifiable_log vcfg)
   : Lemma (ensures (let st = store tl in
                     slot_points_to_is_merkle_points_to st))
           [SMTPat (store tl)]
+
+val empty_log_is_map (#vcfg:_) (tl: verifiable_log vcfg)
+  : Lemma (ensures (length tl = 0 ==> is_map (store tl)))
