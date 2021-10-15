@@ -1158,18 +1158,377 @@ let as_map (#vcfg:_) (st:ismap_vstore vcfg) : Spec.store_t vcfg.app
   = find st
 
 (* updating a value preserves is_map *)
-let lemma_ismap_update_value (#vcfg:_)
+let lemma_ismap_update_value (#vcfg:verifier_config)
   (st:ismap_vstore vcfg)
   (s:inuse_slot_id st)
   (v:value vcfg.app {compatible (stored_key st s) v})
   : Lemma (ensures (is_map (update_value st s v)))
-  = let st1 = update_value st s v in
-    let aux (s1: inuse_slot_id st1)
-            (s2: inuse_slot_id st1{s2 <> s1})
-        : Lemma (ensures (stored_base_key st1 s1 <> stored_base_key st1 s2))
-    = admit()
+  = let st_ = update_value st s v in
+    let aux (s1 s2:slot_id vcfg)
+      : Lemma (ensures (inuse_slot st_ s1 ==>
+                        inuse_slot st_ s2 ==>
+                        s1 <> s2 ==>
+                        stored_base_key st_ s1 <> stored_base_key st_ s2))
+      = if inuse_slot st_ s1 && inuse_slot st_ s2 && s1 <> s2 then
+          eliminate
+            forall (s1 s2:slot_id vcfg).
+            (inuse_slot st s1 ==>
+             inuse_slot st s2 ==>
+             s1 <> s2 ==>
+             stored_base_key st s1 <> stored_base_key st s2)
+          with s1 s2
+    in
+    forall_intro_2 aux
+
+let rec seq_contains_key #vcfg (st: Seq.seq (option (vstore_entry vcfg))) (i: seq_index st)
+  : Lemma (requires (Some? (Seq.index st i)))
+          (ensures (let gk,gv = VStoreE?.r (Some?.v (Seq.index st i)) in
+                    let k = to_base_key gk in
+                    Spec.store_contains (find st) k))
+          (decreases (Seq.length st)) =
+  if i = 0 then ()
+  else
+    seq_contains_key (Seq.tail st) (i - 1)
+
+let store_contains_inuse_slot_keys #vcfg (st: ismap_vstore vcfg) (s: inuse_slot_id st)
+  : Lemma (ensures (store_contains_key st (stored_base_key st s))) =
+  seq_contains_key st s
+
+let lemma_ismap_madd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
+  (s:empty_slot_id st)
+  (r: record vcfg.app)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_none st s' d})
+  : Lemma (requires (let bk = to_base_key (key_of r) in
+                     not (store_contains_key st bk)))
+          (ensures (is_map (madd_to_store st s r s' d)))
+  = let st_ = madd_to_store st s r s' d in
+    let aux (s1 s2: slot_id vcfg)
+      : Lemma (ensures (inuse_slot st_ s1 ==>
+                        inuse_slot st_ s2 ==>
+                        s1 <> s2 ==>
+                        stored_base_key st_ s1 <> stored_base_key st_ s2))
+      = if inuse_slot st_ s1 && inuse_slot st_ s2 && s1 <> s2 then (
+          eliminate
+            forall (s1 s2:slot_id vcfg).
+            (inuse_slot st s1 ==>
+             inuse_slot st s2 ==>
+             s1 <> s2 ==>
+             stored_base_key st s1 <> stored_base_key st s2)
+          with s1 s2;
+          if s1 = s then
+            store_contains_inuse_slot_keys st s2
+          else if s2 = s then
+            store_contains_inuse_slot_keys st s1
+        )
+    in
+    forall_intro_2 aux
+
+let lemma_ismap_madd_to_store_split
+  (#vcfg: verifier_config)
+  (st:ismap_vstore vcfg)
+  (s:empty_slot_id st)
+  (r: record vcfg.app)
+  (s':merkle_slot_id st)
+  (d:bin_tree_dir {points_to_some_slot st s' d})
+  (d2:bin_tree_dir)
+  : Lemma (requires (let bk = to_base_key (key_of r) in
+                     not (store_contains_key st bk)))
+          (ensures (is_map (madd_to_store_split st s r s' d d2)))
+  = let st_ = madd_to_store_split st s r s' d d2 in
+    let aux (s1 s2: slot_id vcfg)
+      : Lemma (ensures (inuse_slot st_ s1 ==>
+                        inuse_slot st_ s2 ==>
+                        s1 <> s2 ==>
+                        stored_base_key st_ s1 <> stored_base_key st_ s2))
+      = if inuse_slot st_ s1 && inuse_slot st_ s2 && s1 <> s2 then (
+          eliminate
+            forall (s1 s2:slot_id vcfg).
+            (inuse_slot st s1 ==>
+             inuse_slot st s2 ==>
+             s1 <> s2 ==>
+             stored_base_key st s1 <> stored_base_key st s2)
+          with s1 s2;
+          if s1 = s then
+            store_contains_inuse_slot_keys st s2
+          else if s2 = s then
+            store_contains_inuse_slot_keys st s1
+        )
+    in
+    forall_intro_2 aux
+
+(* if two slots of an ismap store contain the same key, then the two slots should be identical *)
+let lemma_ismap_correct (#vcfg:_) (st:ismap_vstore vcfg) (s1 s2: inuse_slot_id st)
+  : Lemma (requires (stored_key st s1 = stored_key st s2))
+          (ensures (s1 = s2))
+  = ()
+
+(* if two slots of an ismap store contain the same key, then the two slots should be identical *)
+let lemma_ismap_correct2 (#vcfg:_) (st:ismap_vstore vcfg) (s1 s2: inuse_slot_id st)
+  : Lemma (requires (stored_base_key st s1 = stored_base_key st s2))
+          (ensures (s1 = s2))
+  = ()
+
+let lemma_empty_store_is_map (#vcfg:_):
+  Lemma (ensures (is_map (empty_store vcfg))) = ()
+
+let rec index_of_found #vcfg (st: Seq.seq (option (vstore_entry vcfg))) (k: base_key{Some? (find st k)}):
+  Tot (i: seq_index st{Some? (Seq.index st i) /\
+                       (let gk,gv = VStoreE?.r (Some?.v (Seq.index st i)) in
+                        let bk = to_base_key gk in
+                        bk = k /\
+                        Spec.stored_key (find st) k = gk /\
+                       Spec.stored_value (find st) k = gv /\
+                       Spec.add_method_of (find st) k = VStoreE?.am (Some?.v (Seq.index st i)))})
+  (decreases (Seq.length st)) =
+  match Seq.head st with
+  | None -> 1 + index_of_found (Seq.tail st) k
+  | Some (VStoreE (gk,gv) am1 _ _ _) ->
+    let bk = to_base_key gk in
+    if bk = k then 0
+    else 1 + index_of_found (Seq.tail st) k
+
+let lemma_empty_contains_nokey (#vcfg:_) (k:base_key):
+  Lemma (ensures (let st = empty_store vcfg in
+                  not (store_contains_key st k))) =
+  let st = empty_store vcfg in
+  if store_contains_key st k then (
+    let i = index_of_found st k in
+    ()
+  )
+  else ()
+
+let lemma_madd_root_to_store_is_map
+      (#vcfg:_)
+      (st:ismap_vstore vcfg{not (store_contains_key st Root)})
+      (s:empty_slot_id st)
+      (v:value vcfg.app {IntV? v})
+  : Lemma (ensures (is_map (madd_to_store_root st s v)))
+  = let st_ = madd_to_store_root st s v in
+    let aux (s1 s2: slot_id vcfg)
+      : Lemma (ensures (inuse_slot st_ s1 ==>
+                        inuse_slot st_ s2 ==>
+                        s1 <> s2 ==>
+                        stored_base_key st_ s1 <> stored_base_key st_ s2))
+      = if inuse_slot st_ s1 && inuse_slot st_ s2 && s1 <> s2 then (
+          eliminate
+            forall (s1 s2:slot_id vcfg).
+            (inuse_slot st s1 ==>
+             inuse_slot st s2 ==>
+             s1 <> s2 ==>
+             stored_base_key st s1 <> stored_base_key st s2)
+          with s1 s2;
+          if s1 = s then
+            store_contains_inuse_slot_keys st s2
+          else if s2 = s then
+            store_contains_inuse_slot_keys st s1
+        )
+    in
+    forall_intro_2 aux
+
+let lemma_as_map_empty (vcfg:_)
+  : Lemma (ensures (let st = empty_store vcfg in
+                     forall (k:base_key). as_map st k = None)) =
+  let st = empty_store vcfg in
+  let aux k: Lemma (ensures (as_map st k = None)) [SMTPat (as_map st k)] =
+    lemma_empty_contains_nokey #vcfg k;
+    ()
+  in
+  ()
+
+let lemma_as_map_slot_key_equiv (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id _)
+  : Lemma (ensures (let k = stored_base_key st s in
+                    let stk = as_map st in
+                    Spec.store_contains stk k /\
+                    stored_key st s = Spec.stored_key stk k /\
+                    stored_value st s = Spec.stored_value stk k /\
+                    add_method_of st s = Spec.add_method_of stk k)) =
+  store_contains_inuse_slot_keys st s;
+  let k = stored_base_key st s in
+  let stk = as_map st in
+  assert(Spec.store_contains stk k);
+  let s' = index_of_found st k in
+  lemma_ismap_correct2 st s s'
+
+let slot_of_key (#vcfg:_) (st:ismap_vstore vcfg) (k: base_key{let stk = as_map st in
+                                                              Spec.store_contains stk k})
+  : Tot (s: inuse_slot_id st {let stk = as_map st in
+                              k = stored_base_key st s /\
+                              stored_value st s = Spec.stored_value stk k /\
+                              add_method_of st s = Spec.add_method_of stk k})
+  = index_of_found st k
+
+let lemma_not_contains_after_mevict
+  (#vcfg: verifier_config)
+  (st:ismap_vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right})
+  (s':inuse_slot_id st{s <> s'})
+  (d:bin_tree_dir{not (has_parent st s) /\ points_to_none st s' d \/
+                  has_parent st s /\ parent_slot st s = s' /\ parent_dir st s = d}):
+  Lemma (ensures (let st' = mevict_from_store st s s' d in
+                  let k = stored_base_key st s in
+                  is_map st' /\
+                  not (store_contains_key st' k)))
+  = let st_ = mevict_from_store st s s' d  in
+    let k = stored_base_key st s in
+    let aux (s1 s2: slot_id vcfg)
+      : Lemma (ensures (inuse_slot st_ s1 ==>
+                        inuse_slot st_ s2 ==>
+                        s1 <> s2 ==>
+                        stored_base_key st_ s1 <> stored_base_key st_ s2))
+      = if inuse_slot st_ s1 && inuse_slot st_ s2 && s1 <> s2 then (
+          eliminate
+            forall (s1 s2:slot_id vcfg).
+            (inuse_slot st s1 ==>
+             inuse_slot st s2 ==>
+             s1 <> s2 ==>
+             stored_base_key st s1 <> stored_base_key st s2)
+          with s1 s2
+        )
     in
     forall_intro_2 aux;
-    assert(forall (s: inuse_slot_id st1) (s': inuse_slot_id st1{s' <> s}).
-     stored_base_key st1 s <> stored_base_key st1 s');
+    assert(is_map st_);
+    if store_contains_key st_ k then (
+      let s1 = index_of_found st_ k in
+      assert(s1 <> s);
+      assert(stored_base_key st s1 = k);
+      ()
+    )
+
+let lemma_not_contains_after_bevict
+  (#vcfg: verifier_config)
+  (st:ismap_vstore vcfg)
+  (s:inuse_slot_id st{points_to_none st s Left /\ points_to_none st s Right /\ add_method_of st s = Spec.BAdd})
+  : Lemma (ensures (let st' = bevict_from_store st s in
+                    let k = stored_base_key st s in
+                    is_map st' /\
+                    not (store_contains_key st' k)))
+  = let st_ = bevict_from_store st s in
+    let k = stored_base_key st s in
+    let aux (s1 s2: slot_id vcfg)
+      : Lemma (ensures (inuse_slot st_ s1 ==>
+                        inuse_slot st_ s2 ==>
+                        s1 <> s2 ==>
+                        stored_base_key st_ s1 <> stored_base_key st_ s2))
+      = if inuse_slot st_ s1 && inuse_slot st_ s2 && s1 <> s2 then (
+          eliminate
+            forall (s1 s2:slot_id vcfg).
+            (inuse_slot st s1 ==>
+             inuse_slot st s2 ==>
+             s1 <> s2 ==>
+             stored_base_key st s1 <> stored_base_key st s2)
+          with s1 s2
+        )
+    in
+    forall_intro_2 aux;
+    assert(is_map st_);
+    if store_contains_key st_ k then (
+      let s1 = index_of_found st_ k in
+      assert(s1 <> s);
+      assert(stored_base_key st s1 = k);
+      ()
+    )
+
+let madd_to_store_root_as_map_aux (#vcfg:_) (st:vstore vcfg) (s:empty_slot_id st)
+  (v:value vcfg.app{IntV? v})
+  : Lemma (requires (is_map st /\ ~ (store_contains_key st Root)))
+          (ensures (is_map (madd_to_store_root st s v) /\
+                    FE.feq (as_map (madd_to_store_root st s v))
+                           (Spec.add_to_store (as_map st) (IntK Root, v) Spec.MAdd)))
+  = let st1 = madd_to_store_root st s v in
+    lemma_madd_root_to_store_is_map st s v;
+    assert(is_map st1);
+    let stk = as_map st in
+    let stk1 = Spec.add_to_store stk (IntK Root, v) Spec.MAdd in
+    let stk1' = as_map st1 in
+    let aux (k:_):
+      Lemma (ensures (stk1' k = stk1 k))
+      [SMTPat (stk1' k); SMTPat (stk1 k)] =
+      if k = Root then ()
+      else if Spec.store_contains stk1' k then (
+        assert(store_contains_key st1 k);
+        let sk = slot_of_key st1 k in
+        assert(sk <> s);
+        assert(stored_base_key st sk = k);
+        lemma_as_map_slot_key_equiv st1 sk;
+
+        assert(stored_key st1 sk = Spec.stored_key stk1' k);
+        assert(stored_value st1 sk = Spec.stored_value stk1' k);
+        assert(add_method_of st1 sk = Spec.add_method_of stk1' k);
+
+        assert(stored_key st1 sk = stored_key st sk);
+        assert(stored_value st1 sk = stored_value st sk);
+        assert(add_method_of st1 sk = add_method_of st sk);
+
+        lemma_as_map_slot_key_equiv #vcfg st sk;
+        (* TODO: this is the expansion of lemma ensures above - why is it failing? *)
+        assume(let s = sk in
+               let k = stored_base_key st s in
+               let stk = as_map st in
+               Spec.store_contains stk k /\
+               stored_key st s = Spec.stored_key stk k /\
+               stored_value st s = Spec.stored_value stk k /\
+               add_method_of st s = Spec.add_method_of stk k);
+        ()
+      )
+      else if Spec.store_contains stk1 k then (
+        assert(Spec.store_contains stk k);
+        let sk = slot_of_key st k in
+        assert(stored_base_key st1 sk = k);
+        admit()
+      )
+      else
+        ()
+    in
+    ()
+
+
+let madd_to_store_root_as_map (#vcfg:_) (st:vstore vcfg) (s:empty_slot_id st)
+  (v:value vcfg.app{IntV? v})
+  : Lemma (is_map st /\ ~ (store_contains_key st Root) ==>
+                  is_map (madd_to_store_root st s v) /\
+                  FE.feq (as_map (madd_to_store_root st s v))
+                         (Spec.add_to_store (as_map st) (IntK Root, v) Spec.MAdd))
+  = introduce
+    is_map st /\ ~ (store_contains_key st Root) ==>
+                  is_map (madd_to_store_root st s v) /\
+                  FE.feq (as_map (madd_to_store_root st s v))
+                         (Spec.add_to_store (as_map st) (IntK Root, v) Spec.MAdd)
+    with _. (madd_to_store_root_as_map_aux st s v)
+
+let lemma_ismap_badd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
+  (s:empty_slot_id st)
+  (r: record vcfg.app)
+  : Lemma (requires (let bk = to_base_key (key_of r) in
+                     not (store_contains_key st bk)))
+          (ensures (is_map (badd_to_store st s r)))
+  = let st_ = badd_to_store st s r in
+
+    let aux (s1 s2: slot_id vcfg)
+      : Lemma (ensures (inuse_slot st_ s1 ==>
+                        inuse_slot st_ s2 ==>
+                        s1 <> s2 ==>
+                        stored_base_key st_ s1 <> stored_base_key st_ s2))
+      = if inuse_slot st_ s1 && inuse_slot st_ s2 && s1 <> s2 then (
+          eliminate
+            forall (s1 s2:slot_id vcfg).
+            (inuse_slot st s1 ==>
+             inuse_slot st s2 ==>
+             s1 <> s2 ==>
+             stored_base_key st s1 <> stored_base_key st s2)
+          with s1 s2;
+          if s1 = s then store_contains_inuse_slot_keys st s2
+          else if s2 = s then store_contains_inuse_slot_keys st s1
+        )
+    in
+    forall_intro_2 aux;
+    ()
+
+let store_rel_slot (#vcfg:_) (st: ismap_vstore vcfg) (st':_ {store_rel st st'}) (s: inuse_slot_id st)
+  : Lemma (ensures (let k = stored_base_key st s in
+                    Spec.store_contains st' k /\
+                    stored_key st s = Spec.stored_key st' k /\
+                    stored_value st s = Spec.stored_value st' k /\
+                    add_method_of st s = Spec.add_method_of st' k))
+  = lemma_as_map_slot_key_equiv st s;
     admit()

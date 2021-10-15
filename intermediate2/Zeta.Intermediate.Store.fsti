@@ -337,10 +337,12 @@ val pointing_slot (#vcfg:_)
 *)
 
 (* No duplicate keys in the store *)
-let is_map (#vcfg:_) (st:vstore vcfg) =
-  forall (s:inuse_slot_id st)
-     (s':inuse_slot_id st{s' <> s}).
-    stored_base_key st s <> stored_base_key st s'
+let is_map (#vcfg:verifier_config) (st:vstore vcfg) =
+  forall (s1 s2:slot_id vcfg).
+    (inuse_slot st s1 ==>
+     inuse_slot st s2 ==>
+     s1 <> s2 ==>
+     stored_base_key st s1 <> stored_base_key st s2)
 
 let elim_is_map (#vcfg:_) (st:vstore vcfg)
                 (s:inuse_slot_id st)
