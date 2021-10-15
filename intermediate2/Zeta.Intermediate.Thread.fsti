@@ -36,3 +36,8 @@ let to_logk_entry (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl)
     let s2k = Store.to_slot_state_map st in
     let e = index tl i in
     Logs.to_logk_entry s2k e
+
+val lemma_slot_is_merkle_points_to (#vcfg:_) (tl: verifiable_log vcfg)
+  : Lemma (ensures (let st = store tl in
+                    slot_points_to_is_merkle_points_to st))
+          [SMTPat (store tl)]
