@@ -50,7 +50,7 @@ let get_inuse_slot #vcfg (st:vstore_raw vcfg) (s:inuse_slot_id st) =
 
 (* is this an empty slot *)
 let empty_slot #vcfg (st:vstore_raw vcfg) (s:slot_id vcfg): bool
-  = None = get_slot st s
+  = not (inuse_slot st s)
 
 let empty_slot_id #vcfg (st: vstore_raw vcfg) = s:slot_id vcfg{empty_slot st s}
 
