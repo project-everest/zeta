@@ -35,6 +35,20 @@ let lemma_to_logk_index (#vcfg:_) (ils: verifiable_log vcfg) (i: seq_index ils)
   = ()
 
 module S = FStar.Seq
+module SS = Zeta.SSeq
+
+let apply_per_thread_prefix (#vcfg:_) (il: verifiable_log vcfg) (i:nat{i <= length il})
+  : Lemma (ensures (let ss = s_seq il in
+                    let il' = prefix il i in
+                    let ss' = s_seq il' in
+                    ss' `SS.sseq_all_prefix_of` ss))
+          [SMTPat (prefix il i)]
+  = per_thread_prefix il i
+
+let to_logk_entry_pp (#vcfg:_) (il: verifiable_log vcfg) (l:nat{l <= length il}) (i:nat{i < l})
+  : Lemma (ensures (let il' = prefix il l in
+                    to_logk_entry il i = to_logk_entry il' i))
+  = ()
 
 let lemma_to_logk_prefix_commute (#vcfg:_)
   (il:verifiable_log vcfg)
@@ -47,25 +61,55 @@ let lemma_to_logk_prefix_commute (#vcfg:_)
     assert(length ilk1 = length ilk2);
     let aux (j:_)
       : Lemma (ensures (S.index ilk1 j = S.index ilk2 j))
-      = assert(S.index ilk1 j = to_logk_src il' j);
-        admit()
+      = to_logk_entry_pp il i j
     in
     forall_intro aux;
     assert(S.equal ilk1 ilk2)
 
 (* every store of every prefix of every thread is a map *)
 let forall_store_ismap (#vcfg:_) (il: verifiable_log vcfg): prop
-  = admit()
+  = forall t. is_map (thread_store t il) /\
+    (forall l t. is_map (thread_store_pre t il l))
+
+let elim_forall_store_ismap_aux (#vcfg:_) (il: verifiable_log vcfg) (t:nat{t < vcfg.thread_count})
+  : Lemma (requires (forall_store_ismap il))
+          (ensures (let st = thread_store t il in
+                             is_map st))
+  = eliminate forall t. is_map (thread_store t il)
+    with t
 
 let elim_forall_store_ismap (#vcfg:_) (il: verifiable_log vcfg) (t:nat{t < vcfg.thread_count})
   : Lemma (ensures (forall_store_ismap il ==> (let st = thread_store t il in
                                                is_map st)))
-  = admit()
+  = introduce forall_store_ismap il ==> (let st = thread_store t il in is_map st)
+    with _. (elim_forall_store_ismap_aux il t)
+
+let forall_store_ismap_prefix_aux (#vcfg:_) (il: verifiable_log vcfg) (l:nat{l <= length il})
+  : Lemma (requires (forall_store_ismap il))
+          (ensures (let il' = prefix il l in
+                    forall_store_ismap il'))
+  = let il' = prefix il l in
+    let aux (t:_)
+      : Lemma (ensures (is_map (thread_store t il')))
+      = if l < length il then
+          eliminate forall l t. is_map (thread_store_pre t il l)
+          with l t
+    in
+    forall_intro aux;
+    let aux (l t:_)
+      : Lemma (ensures (is_map (thread_store_pre t il' l)))
+      = eliminate forall l t. is_map (thread_store_pre t il l)
+        with l t
+    in
+    forall_intro_2 aux
 
 let forall_store_ismap_prefix (#vcfg:_) (il: verifiable_log vcfg) (l:nat{l <= length il})
   : Lemma (ensures (forall_store_ismap il ==> (let il' = prefix il l in
                                                forall_store_ismap il')))
-  = admit()
+  = introduce forall_store_ismap il ==> (let il' = prefix il l in forall_store_ismap il')
+    with _. (forall_store_ismap_prefix_aux il l)
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
 
 let lemma_forall_store_ismap_snoc (#vcfg:_) (il: verifiable_log vcfg{length il > 0})
   : Lemma (requires (let i = length il - 1 in
@@ -74,11 +118,40 @@ let lemma_forall_store_ismap_snoc (#vcfg:_) (il: verifiable_log vcfg{length il >
                      forall_store_ismap il' /\
                      is_map (thread_store t il)))
           (ensures forall_store_ismap il)
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let t = src il i in
+    let aux (t':_)
+      : Lemma (ensures (is_map (thread_store t' il)))
+      = if t' <> t then
+          lemma_non_cur_thread_state_extend t' il i
+    in
+    forall_intro aux;
+    let aux (l t':_)
+      : Lemma (ensures (is_map (thread_store_pre t' il l)))
+      = if l = i then
+          elim_forall_store_ismap il' t'
+        else (
+          let il_l = prefix il l in
+          forall_store_ismap_prefix_aux il' l;
+          lemma_prefix_prefix_property il i l;
+          elim_forall_store_ismap il_l t'
+        )
+    in
+    forall_intro_2 aux
+
+#pop-options
+
+let forall_vtls_rel_base (#vcfg:_) (il: verifiable_log vcfg)
+  = let ilk = to_logk il in
+    forall t. (let vss = thread_state t il in
+          let vsk = thread_state t ilk in
+          vtls_rel vss vsk)
 
 (* every state of every prefix is related to high-level state *)
 let forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg): prop
-  = admit()
+  = forall_vtls_rel_base il /\
+    (forall l. forall_vtls_rel_base (prefix il l))
 
 (* vtls_rel implies every high-level thread is valid, so (to_logk il) is verifiable *)
 let lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (il: verifiable_log vcfg)
@@ -92,7 +165,12 @@ let elim_forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg) (t: nat{t < vcfg.th
                     let vsi = thread_state t il in
                     let vst = thread_state t ilk in
                     vtls_rel vsi vst))
-  = admit()
+  = let ilk = to_logk il in
+    eliminate
+    forall t. (let vss = thread_state t il in
+          let vsk = thread_state t ilk in
+          vtls_rel vss vsk)
+    with t
 
 let forall_vtls_rel_prefix (#vcfg:_) (il: verifiable_log vcfg) (i:nat{i <= length il})
   : Lemma (ensures (let il' = prefix il i in
