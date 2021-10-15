@@ -270,6 +270,10 @@ let induction_props_implies_merkle_points_to_desc #vcfg
 
 #pop-options
 
+#pop-options
+
+#push-options "--z3rlimit_factor 6 --query_stats"
+
 let induction_props_implies_proving_ancestor
   (#vcfg:_)
   (il: verifiable_log vcfg)
@@ -279,8 +283,59 @@ let induction_props_implies_proving_ancestor
                     let _vss = thread_state_pre t il i in
                     merkle_points_to_uniq _vss.st))
           [SMTPat (prefix il i)]
-  = admit()
+  = let _il = prefix il i in
+    let t = src il i in
+    let _vss = thread_state_pre t il i in
+    let _sts = _vss.st in
+    let il_ = prefix il (i+1) in
+    let vss_ = thread_state_post t il i in
+    let es = index il i in
 
+    lemma_cur_thread_state_extend il i;
+
+    let ilk = to_logk il in
+    let ek = index ilk i in
+    let _ilk = SA.prefix ilk i in
+    let _vsk: HV.vtls_t vcfg.app = thread_state_pre t ilk i in
+    let _stk = _vsk.st in
+    let ilk_ = SA.prefix ilk (i+1) in
+    let vsk_ = thread_state_post t ilk i in
+
+    lemma_cur_thread_state_extend ilk i;
+
+    assert(is_map _sts);
+    assert(store_rel _sts _stk);
+    let _stk2 = as_map _sts in
+    assert(FE.feq _stk2 _stk);
+
+    let aux (s1 s2:_) (k:_)
+      : Lemma (ensures (merkle_points_to_uniq_local _sts s1 s2 k))
+              [SMTPat (merkle_points_to_uniq_local _sts s1 s2 k)]
+      = if not (merkle_points_to_uniq_local _sts s1 s2 k) then (
+          let mv1 = to_merkle_value (stored_value _sts s1) in
+          let k1 = stored_base_key _sts s1 in
+          let d1 = if M.points_to mv1 Left k then Left else Right in
+          assert(M.points_to mv1 d1 k);
+
+
+          let mv2 = to_merkle_value (stored_value _sts s2) in
+          let k2 = stored_base_key _sts s2 in
+          let d2 = if M.points_to mv2 Left k then Left else Right in
+          assert(M.points_to mv2 d2 k);
+
+          elim_is_map2 _sts s1 s2;
+          assert(k1 <> k2);
+
+          assert(HV.store_contains _stk k1);
+          assert(HV.store_contains _stk k2);
+          admit()
+        )
+    in
+    ()
+
+#pop-options
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
 #push-options "--z3rlimit_factor 3"
 
 let induction_props_snoc_evictbm

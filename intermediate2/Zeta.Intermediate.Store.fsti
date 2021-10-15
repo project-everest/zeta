@@ -349,6 +349,13 @@ let elim_is_map (#vcfg:_) (st:vstore vcfg)
           (ensures stored_key st s ≠ stored_key st s')
   = ()
 
+let elim_is_map2 (#vcfg:_) (st:vstore vcfg)
+                (s:inuse_slot_id st)
+                (s':inuse_slot_id st{s' <> s})
+  : Lemma (requires is_map st)
+          (ensures stored_base_key st s ≠ stored_base_key st s')
+  = ()
+
 (* a store that is a map *)
 let ismap_vstore vcfg = st:vstore vcfg{is_map st}
 
