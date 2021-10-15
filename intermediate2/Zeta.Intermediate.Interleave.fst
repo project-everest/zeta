@@ -2,6 +2,10 @@ module Zeta.Intermediate.Interleave
 
 open FStar.Classical
 
+module S = FStar.Seq
+module SS = Zeta.SSeq
+module GT = Zeta.Generic.Thread
+
 let lemma_slot_is_merkle_points_to (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il):
   Lemma (ensures (slot_points_to_is_merkle_points_to (thread_store_pre (src il i) il i)))
   = let open Zeta.Intermediate.Thread in
@@ -33,9 +37,6 @@ let lemma_to_logk_src (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il)
 let lemma_to_logk_index (#vcfg:_) (ils: verifiable_log vcfg) (i: seq_index ils)
   : Lemma (ensures (index (to_logk ils) i == to_logk_entry ils i))
   = ()
-
-module S = FStar.Seq
-module SS = Zeta.SSeq
 
 let apply_per_thread_prefix (#vcfg:_) (il: verifiable_log vcfg) (i:nat{i <= length il})
   : Lemma (ensures (let ss = s_seq il in
@@ -153,13 +154,7 @@ let forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg): prop
   = forall_vtls_rel_base il /\
     (forall l. forall_vtls_rel_base (prefix il l))
 
-(* vtls_rel implies every high-level thread is valid, so (to_logk il) is verifiable *)
-let lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (il: verifiable_log vcfg)
-  : Lemma (ensures (let ilk = to_logk il in
-                    forall_vtls_rel il ==> GI.verifiable (to_logk il)))
-  = admit()
-
-let elim_forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg) (t: nat{t < vcfg.thread_count})
+let elim_forall_vtls_rel_aux (#vcfg:_) (il: verifiable_log vcfg) (t: nat{t < vcfg.thread_count})
   : Lemma (requires (forall_vtls_rel il))
           (ensures (let ilk = to_logk il in
                     let vsi = thread_state t il in
@@ -172,10 +167,37 @@ let elim_forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg) (t: nat{t < vcfg.th
           vtls_rel vss vsk)
     with t
 
+let elim_forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg) (t: nat{t < vcfg.thread_count})
+  : Lemma (requires (forall_vtls_rel il))
+          (ensures (let ilk = to_logk il in
+                    let vsi = thread_state t il in
+                    let vst = thread_state t ilk in
+                    vtls_rel vsi vst))
+  = elim_forall_vtls_rel_aux il t
+
+let forall_vtls_rel_prefix_aux (#vcfg:_) (il: verifiable_log vcfg) (i:nat{i <= length il})
+  : Lemma (requires (forall_vtls_rel il))
+          (ensures (let il' = prefix il i in
+                    forall_vtls_rel il'))
+  = let il' = prefix il i in
+    eliminate forall l. forall_vtls_rel_base (prefix il l)
+    with i;
+    let aux (l:_)
+      : Lemma (ensures (forall_vtls_rel_base (prefix il' l)))
+      = eliminate forall l. forall_vtls_rel_base (prefix il l)
+        with l;
+        lemma_prefix_prefix_property il i l
+    in
+    forall_intro aux
+
 let forall_vtls_rel_prefix (#vcfg:_) (il: verifiable_log vcfg) (i:nat{i <= length il})
   : Lemma (ensures (let il' = prefix il i in
                     forall_vtls_rel il ==> forall_vtls_rel il'))
-  = admit()
+  = let il' = prefix il i in
+    introduce forall_vtls_rel il ==> forall_vtls_rel il'
+    with _. (forall_vtls_rel_prefix_aux il i)
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
 
 let forall_vtls_rel_snoc (#vcfg:_) (il: verifiable_log vcfg{length il > 0})
   : Lemma (requires (let i = length il - 1 in
@@ -185,13 +207,53 @@ let forall_vtls_rel_snoc (#vcfg:_) (il: verifiable_log vcfg{length il > 0})
                      forall_vtls_rel il' /\
                      vtls_rel (thread_state t il) (thread_state t ilk)))
           (ensures (forall_vtls_rel il))
-  = admit()
+  = let i = length il - 1 in
+    let il' = prefix il i in
+    let t = src il i in
+    let ilk = to_logk il in
+    let aux (t':_)
+      : Lemma (ensures (vtls_rel (thread_state t' il) (thread_state t' ilk)))
+      = if t' <> t then (
+          lemma_non_cur_thread_state_extend t' il i;
+          lemma_non_cur_thread_state_extend t' ilk i
+        )
+    in
+    forall_intro aux;
+    assert(forall_vtls_rel_base il);
+    let aux (l:_)
+      : Lemma (ensures (forall_vtls_rel_base (prefix il l)))
+      = if l = length il then ()
+        else (
+          eliminate forall l. forall_vtls_rel_base (prefix il' l)
+          with l;
+          lemma_prefix_prefix_property il i l
+        )
+    in
+    forall_intro aux
 
-let lemma_vtls_rel_implies_ms_verifiable (#vcfg:_) (ep: epoch) (ils:verifiable_log vcfg)
-  : Lemma (requires (forall_vtls_rel ils))
-          (ensures (let ilk = to_logk ils in
-                    GG.aems_equal_upto ep (to_glog ils) ==> GG.aems_equal_upto ep (to_glog ilk)))
-  = admit()
+#pop-options
+
+let lemma_forall_vtls_rel_implies_spec_verifiable_aux (#vcfg:_) (il: verifiable_log vcfg)
+  : Lemma (requires (forall_vtls_rel il))
+          (ensures (let ilk = to_logk il in
+                    GI.verifiable ilk))
+  = let ilk = to_logk il in
+    let glk = s_seq ilk in
+    let aux (t:_)
+      : Lemma (ensures (let tl = t,S.index glk t in
+                        GT.verifiable tl))
+      = elim_forall_vtls_rel_aux il t
+    in
+    forall_intro aux
+
+(* vtls_rel implies every high-level thread is valid, so (to_logk il) is verifiable *)
+let lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (il: verifiable_log vcfg)
+  : Lemma (ensures (let ilk = to_logk il in
+                    forall_vtls_rel il ==> GI.verifiable (to_logk il)))
+  = let ilk = to_logk il in
+    introduce
+    forall_vtls_rel il ==> GI.verifiable (to_logk il)
+    with _. (lemma_forall_vtls_rel_implies_spec_verifiable_aux il)
 
 let lemma_empty_implies_spec_rel (#vcfg:_) (il:verifiable_log vcfg)
   : Lemma (ensures (length il = 0 ==> spec_rel il))

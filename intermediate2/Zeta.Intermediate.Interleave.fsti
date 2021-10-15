@@ -96,12 +96,6 @@ val lemma_forall_store_ismap_snoc (#vcfg:_) (il: verifiable_log vcfg{length il >
 (* every state of every prefix is related to high-level state *)
 val forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg): prop
 
-(* vtls_rel implies every high-level thread is valid, so (to_logk il) is verifiable *)
-val lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (il: verifiable_log vcfg)
-  : Lemma (ensures (let ilk = to_logk il in
-                    forall_vtls_rel il ==> GI.verifiable (to_logk il)))
-          [SMTPat (forall_vtls_rel il)]
-
 val elim_forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg) (t: nat{t < vcfg.thread_count})
   : Lemma (requires (forall_vtls_rel il))
           (ensures (let ilk = to_logk il in
@@ -123,10 +117,11 @@ val forall_vtls_rel_snoc (#vcfg:_) (il: verifiable_log vcfg{length il > 0})
                      vtls_rel (thread_state t il) (thread_state t ilk)))
           (ensures (forall_vtls_rel il))
 
-val lemma_vtls_rel_implies_ms_verifiable (#vcfg:_) (ep: epoch) (ils:verifiable_log vcfg)
-  : Lemma (requires (forall_vtls_rel ils))
-          (ensures (let ilk = to_logk ils in
-                    GG.aems_equal_upto ep (to_glog ils) ==> GG.aems_equal_upto ep (to_glog ilk)))
+(* vtls_rel implies every high-level thread is valid, so (to_logk il) is verifiable *)
+val lemma_forall_vtls_rel_implies_spec_verifiable (#vcfg:_) (il: verifiable_log vcfg)
+  : Lemma (ensures (let ilk = to_logk il in
+                    forall_vtls_rel il ==> GI.verifiable (to_logk il)))
+          [SMTPat (forall_vtls_rel il)]
 
 let spec_rel (#vcfg:_) (il: verifiable_log vcfg)
   = forall_store_ismap il /\

@@ -6,6 +6,8 @@ open Zeta.Generic.Blum
 open Zeta.High.Interleave
 open Zeta.Intermediate.Interleave
 
+module GG = Zeta.Generic.Global
+
 val lemma_spec_rel_implies_same_add_elem (#vcfg:_)
   (il: verifiable_log vcfg {spec_rel il})
   (i: seq_index il {is_blum_add il i})
@@ -45,3 +47,8 @@ val lemma_spec_rel_implies_same_evict_set (#vcfg:_) (ep: epoch) (il: verifiable_
           (ensures (let ilk = to_logk il in
                     evict_set ep il == evict_set ep ilk))
           [SMTPat (evict_set ep il)]
+
+val lemma_vtls_rel_implies_ms_verifiable (#vcfg:_) (ep: epoch) (ils:verifiable_log vcfg)
+  : Lemma (requires (forall_vtls_rel ils))
+          (ensures (let ilk = to_logk ils in
+                    GG.aems_equal_upto ep (to_glog ils) ==> GG.aems_equal_upto ep (to_glog ilk)))
