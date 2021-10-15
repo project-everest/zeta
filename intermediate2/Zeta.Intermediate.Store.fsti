@@ -523,3 +523,10 @@ val lemma_ismap_badd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
   : Lemma (requires (let bk = to_base_key (key_of r) in
                      not (store_contains_key st bk)))
           (ensures (is_map (badd_to_store st s r)))
+
+val store_rel_slot (#vcfg:_) (st: ismap_vstore vcfg) (st':_ {store_rel st st'}) (s: inuse_slot_id st)
+  : Lemma (ensures (let k = stored_base_key st s in
+                    Spec.store_contains st' k /\
+                    stored_key st s = Spec.stored_key st' k /\
+                    stored_value st s = Spec.stored_value st' k /\
+                    add_method_of st s = Spec.add_method_of st' k))
