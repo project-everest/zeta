@@ -485,6 +485,7 @@ val lemma_not_contains_after_mevict
                   let k = stored_base_key st s in
                   is_map st' /\
                   not (store_contains_key st' k)))
+        [SMTPat (mevict_from_store st s s' d)]
 
 val lemma_not_contains_after_bevict
   (#vcfg: verifier_config)
@@ -494,6 +495,7 @@ val lemma_not_contains_after_bevict
                     let k = stored_base_key st s in
                     is_map st' /\
                     not (store_contains_key st' k)))
+          [SMTPat (bevict_from_store st s)]
 
 val lemma_ismap_badd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
   (s:empty_slot_id st)
@@ -501,6 +503,7 @@ val lemma_ismap_badd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
   : Lemma (requires (let bk = to_base_key (key_of r) in
                      not (store_contains_key st bk)))
           (ensures (is_map (badd_to_store st s r)))
+          [SMTPat (badd_to_store st s r)]
 
 val store_rel_slot (#vcfg:_) (st: ismap_vstore vcfg) (st':_ {store_rel st st'}) (s: inuse_slot_id st)
   : Lemma (ensures (let k = stored_base_key st s in
@@ -508,3 +511,18 @@ val store_rel_slot (#vcfg:_) (st: ismap_vstore vcfg) (st':_ {store_rel st st'}) 
                     stored_key st s = Spec.stored_key st' k /\
                     stored_value st s = Spec.stored_value st' k /\
                     add_method_of st s = Spec.add_method_of st' k))
+
+module S = FStar.Seq
+
+val puts_store (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg))
+  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  : vstore vcfg
+
+val puts_preserve_ismap (#vcfg:_)
+  (st: ismap_vstore vcfg)
+  (ss: S.seq (slot_id vcfg))
+  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  : Lemma (ensures (is_map (puts_store st ss ws)))
+          [SMTPat (puts_store st ss ws)]

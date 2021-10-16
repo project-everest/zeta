@@ -1423,3 +1423,17 @@ let store_rel_slot (#vcfg:_) (st: ismap_vstore vcfg) (st':_ {store_rel st st'}) 
     lemma_ismap_correct st s (slot_of_key st k)
 
 #pop-options
+
+let puts_store (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg))
+  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  : vstore vcfg
+  = admit()
+
+let puts_preserve_ismap (#vcfg:_)
+  (st: ismap_vstore vcfg)
+  (ss: S.seq (slot_id vcfg))
+  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  : Lemma (ensures (is_map (puts_store st ss ws)))
+  = admit()
