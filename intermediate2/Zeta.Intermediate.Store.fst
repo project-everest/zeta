@@ -1438,11 +1438,11 @@ let puts_preserves (#vcfg:_)
   (s: slot_id vcfg)
   : Lemma (ensures (let st_ = puts_store st ss ws in
                     inuse_slot st s = inuse_slot st_ s /\
-                    inuse_slot st s ==> (
+                    (inuse_slot st s ==> (
                       stored_key st s = stored_key st_ s /\
                       add_method_of st s = add_method_of st_ s /\
                       points_to_info st s Left = points_to_info st_ s Left /\
-                      points_to_info st s Right = points_to_info st_ s Right)))
+                      points_to_info st s Right = points_to_info st_ s Right))))
   = admit()
 
 let puts_preserves_non_ref (#vcfg:_)
