@@ -1045,7 +1045,7 @@ let addm_caseC (#vcfg)
 
 #pop-options
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 3 --query_stats"
 
 let induction_props_snoc_addm_caseC
   (#vcfg:_)
@@ -1059,7 +1059,6 @@ let induction_props_snoc_addm_caseC
     let il_ = prefix il (i+1) in
     let vss_ = thread_state_post tid il i in
     let es = index il i in
-    assume(False);
     lemma_cur_thread_state_extend il i;
     lemma_addm_props _vss es;
 
@@ -1085,22 +1084,13 @@ let induction_props_snoc_addm_caseC
     let d_anc = if points_to_dir _sts sk_anc Left sk then Left else Right in
     assert(slot_points_to_is_merkle_points_to_local _sts sk_anc sk d_anc);
     let k_anc = stored_base_key _sts sk_anc in
+    store_rel_slot _sts _stk sk_anc;
     eac_value_is_stored_value _ilk (IntK k_anc) tid;
     lemma_points_to_implies_proving_ancestor _ilk k k_anc d_anc;
-    assert(pk = k');
-    assert(k' = k_anc);
+    //assert(pk = k');
+    //assert(k' = k_anc);
     lemma_mv_points_to_dir_correct _ilk k_anc d_anc;
     lemma_ismap_correct _sts sk_anc s';
-    assert(s' = sk_anc);
-    assert(d_anc = d);
-    assert(points_to_dir _sts sk_anc d_anc sk);
-    assert(points_to_dir _sts s' d sk);
-    assert(inuse_slot _sts s' && points_to_some_slot _sts s' d);
-    (* super-fragile proof: uncommenting the following results in all kinds of weird errors *)
-    assert(Some? (points_to_info _sts s' d));
-    //assert(points_to_info _sts s' d <> None);
-    //assert(not (None? (points_to_info _sts s' d)));
-    //assert(not (points_to_none _sts s' d));
     Some (hash_collision_contra vcfg.app)
 
 #pop-options
@@ -1157,14 +1147,8 @@ let induction_props_snoc_addm_caseD
     let v' = to_merkle_value (stored_value _sts s') in
     let d = desc_dir k k' in
     let sk = slot_of_key _sts k in
-    admit()
-    (*
     assert(is_map _sts);
-    let _stk2 = as_map _sts in
-    assert(FE.feq _stk2 _stk);
-    assert(HV.store_contains _stk k);
-    assert(add_method_of _sts sk = HV.BAdd);
-    assert(HV.add_method_of _stk k = HV.BAdd);
+    store_rel_slot _sts _stk sk;
     exists_intro (fun t -> HV.store_contains (HI.thread_store t _ilk) k) tid;
     lemma_instore k _ilk;
     assert(EACInStore? (eac_state_of_key k _ilk));
@@ -1176,7 +1160,6 @@ let induction_props_snoc_addm_caseD
     eac_value_is_stored_value_int _ilk k' tid;
     assert(False);
     Some (hash_collision_contra vcfg.app)
-    *)
 
 #pop-options
 
