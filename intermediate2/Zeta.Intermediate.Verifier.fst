@@ -221,7 +221,18 @@ let lemma_runapp_preserves_ismap
   : Lemma (requires (is_map (vs.st)))
           (ensures (let vs_ = GV.verify_step e vs in
                     vs_.valid ==> is_map vs_.st))
-  = ()
+  = let vs_ = GV.verify_step e vs in
+    if vs_.valid then (
+      let st = vs.st in
+      let st_ = vs_.st in
+      let GV.RunApp f p ss = e in
+      let fn = appfn f in
+      let rs = GV.reads vs ss in
+      let _,_,ws = fn p rs in
+      assert(contains_only_app_keys_comp st ss);
+      assert(st_ == puts_store st ss ws);
+      ()
+    )
 
 (* if the key is not present in store and store is a map, then store remains a map after add *)
 let lemma_vaddm_preserves_ismap_new_key
