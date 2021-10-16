@@ -11,7 +11,6 @@ open Zeta.Intermediate.SlotKeyRel
 
 module Spec = Zeta.High.Verifier
 module GV = Zeta.GenericVerifier
-module FE = FStar.FunctionalExtensionality
 module Merkle = Zeta.Merkle
 
 (*** General Definitions & Basic Facts ***)
@@ -348,24 +347,21 @@ let elim_is_map (#vcfg:_) (st:vstore vcfg)
                 (s:inuse_slot_id st)
                 (s':inuse_slot_id st{s' <> s})
   : Lemma (requires is_map st)
-          (ensures stored_key st s ≠ stored_key st s')
-  = ()
-
-let elim_is_map2 (#vcfg:_) (st:vstore vcfg)
-                (s:inuse_slot_id st)
-                (s':inuse_slot_id st{s' <> s})
-  : Lemma (requires is_map st)
           (ensures stored_base_key st s ≠ stored_base_key st s')
   = ()
 
 (* a store that is a map *)
 let ismap_vstore vcfg = st:vstore vcfg{is_map st}
 
-(* convert a slot-indexed store to a key-indexed store *)
-val as_map (#vcfg:_) (st:ismap_vstore vcfg) : Spec.store_t vcfg.app
+(* does the store contain a specified key *)
+val store_contains_key (#vcfg:_) (st:ismap_vstore vcfg) (k:base_key):
+  b:bool{b <==> (exists (s: slot_id vcfg). inuse_slot st s /\ stored_base_key st s = k)}
 
-let store_contains_key #vcfg (st:ismap_vstore vcfg) (k:base_key) =
-  Spec.store_contains (as_map st) k
+val slot_of_key
+  (#vcfg:_)
+  (st:ismap_vstore vcfg)
+  (k: base_key{store_contains_key st k})
+  : Tot (s: inuse_slot_id st {k = stored_base_key st s})
 
 (* updating a value preserves is_map *)
 val lemma_ismap_update_value (#vcfg:_)
@@ -400,7 +396,7 @@ val lemma_ismap_madd_to_store_split
 
 (* if two slots of an ismap store contain the same key, then the two slots should be identical *)
 val lemma_ismap_correct (#vcfg:_) (st:ismap_vstore vcfg) (s1 s2: inuse_slot_id st)
-  : Lemma (requires (stored_key st s1 = stored_key st s2))
+  : Lemma (requires (stored_base_key st s1 = stored_base_key st s2))
           (ensures (s1 = s2))
 
 val lemma_empty_store_is_map (#vcfg:_):
@@ -422,29 +418,16 @@ val lemma_madd_root_to_store_is_map
 
 (*** Relation w/ Spec-level Stores ***)
 
-val lemma_as_map_empty (vcfg:_)
-  : Lemma (ensures (let st = empty_store vcfg in
-                     forall (k:base_key). as_map st k = None))
-
-val lemma_as_map_slot_key_equiv (#vcfg:_) (st:ismap_vstore vcfg) (s:inuse_slot_id _)
-  : Lemma (ensures (let gk = stored_key st s in
-                    let bk = to_base_key gk in
-                    let stk = as_map st in
-                    Spec.store_contains stk bk /\
-                    stored_value st s = Spec.stored_value stk bk /\
-                    add_method_of st s = Spec.add_method_of stk bk))
-          [SMTPat (inuse_slot st s)]
-
-val slot_of_key (#vcfg:_) (st:ismap_vstore vcfg) (k: base_key{let stk = as_map st in
-                                                              Spec.store_contains stk k})
-  : Tot (s: inuse_slot_id st {let stk = as_map st in
-                              k = stored_base_key st s /\
-                              stored_value st s = Spec.stored_value stk k /\
-                              add_method_of st s = Spec.add_method_of stk k})
 
 (* Relation between stores *)
-let store_rel (#vcfg:_) (st:vstore vcfg) (st':Spec.store_t vcfg.app) : Type =
-  is_map st /\ FE.feq st' (as_map st)
+let store_rel (#vcfg:_) (st:vstore vcfg) (st':Spec.store_t vcfg.app)  =
+  is_map st /\
+  (forall (k:base_key). (store_contains_key st k = Spec.store_contains st' k) /\
+         (store_contains_key st k ==>
+         (let s = slot_of_key st k in
+          stored_key st s = Spec.stored_key st' k /\
+          stored_value st s = Spec.stored_value st' k /\
+          add_method_of st s = Spec.add_method_of st' k)))
 
 (** Any store can be viewed as an instance of slot-key map *)
 let to_slot_state_map #vcfg (st:vstore_raw vcfg): slot_state_map _ =
@@ -511,13 +494,6 @@ val lemma_not_contains_after_bevict
                     let k = stored_base_key st s in
                     is_map st' /\
                     not (store_contains_key st' k)))
-
-val madd_to_store_root_as_map (#vcfg:_) (st:vstore vcfg) (s:empty_slot_id st)
-  (v:value vcfg.app{IntV? v})
-  : Lemma (is_map st /\ ~ (store_contains_key st Root) ==>
-                  is_map (madd_to_store_root st s v) /\
-                  FE.feq (as_map (madd_to_store_root st s v))
-                         (Spec.add_to_store (as_map st) (IntK Root, v) Spec.MAdd))
 
 val lemma_ismap_badd_to_store (#vcfg:_) (st:ismap_vstore vcfg)
   (s:empty_slot_id st)

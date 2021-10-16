@@ -129,7 +129,7 @@ let induction_props_implies_proving_ancestor
           let d2 = if M.points_to mv2 Left k then Left else Right in
           assert(M.points_to mv2 d2 k);
 
-          elim_is_map2 _sts s1 s2;
+          elim_is_map _sts s1 s2;
           assert(k1 <> k2);
 
           store_rel_slot _sts _stk s1;
@@ -1059,7 +1059,7 @@ let induction_props_snoc_addm_caseC
     let il_ = prefix il (i+1) in
     let vss_ = thread_state_post tid il i in
     let es = index il i in
-
+    assume(False);
     lemma_cur_thread_state_extend il i;
     lemma_addm_props _vss es;
 
@@ -1157,7 +1157,8 @@ let induction_props_snoc_addm_caseD
     let v' = to_merkle_value (stored_value _sts s') in
     let d = desc_dir k k' in
     let sk = slot_of_key _sts k in
-
+    admit()
+    (*
     assert(is_map _sts);
     let _stk2 = as_map _sts in
     assert(FE.feq _stk2 _stk);
@@ -1175,7 +1176,7 @@ let induction_props_snoc_addm_caseD
     eac_value_is_stored_value_int _ilk k' tid;
     assert(False);
     Some (hash_collision_contra vcfg.app)
-
+    *)
 
 #pop-options
 
