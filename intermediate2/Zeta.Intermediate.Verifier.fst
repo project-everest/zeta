@@ -1,5 +1,7 @@
 module Zeta.Intermediate.Verifier
 
+open FStar.Classical
+
 #push-options "--z3rlimit_factor 3 --query_stats"
 
 let addm #vcfg (r:record vcfg.app) (s:slot_id vcfg)  (s':slot_id vcfg) (vs: vtls_t vcfg {vs.valid}):
@@ -81,8 +83,10 @@ let puts (#vcfg:_)
   (ss: S.seq (slot_id vcfg))
   (ws: S.seq (app_value_nullable vcfg.app.adm))
   : vs': vtls_t vcfg{vs'.valid}
-  = let st = puts_store vs.st ss ws in
-    update_thread_store vs st
+  = if contains_only_app_keys_comp vs.st ss && S.length ws = S.length ss then
+       let st = puts_store vs.st ss ws in
+       update_thread_store vs st
+    else vs
 
 let clock_is_monotonic
   (#vcfg:_)
@@ -288,6 +292,44 @@ let lemma_verifyepoch_preserves_ismap
                     let vs_: vtls_t vcfg = GV.verify_step #intspec GV.VerifyEpoch vs in
                     vs_.valid ==> is_map vs_.st))
   = ()
+
+#push-options "--z3rlimit_factor 4 --query_stats"
+
+let lemma_verifiable_implies_slot_is_merkle_points_to_appfn
+  (#vcfg:_)
+  (vs:vtls_t vcfg)
+  (e: logS_entry _ {GV.is_appfn e}):
+  Lemma (requires (vs.valid /\ slot_points_to_is_merkle_points_to vs.st /\
+                   (GV.verify_step e vs).valid))
+        (ensures (let vs_ = GV.verify_step e vs in
+                  slot_points_to_is_merkle_points_to vs_.st))
+  = let vs_ = GV.verify_step e vs in
+    let st = vs.st in
+    let st_ = vs_.st in
+    let GV.RunApp f p ss = e in
+    let fn = appfn f in
+    let rs = GV.reads vs ss in
+    let _,_,ws = fn p rs in
+    assert(contains_only_app_keys_comp st ss);
+    assert(st_ == puts_store st ss ws);
+
+    let aux (s1 s2 d:_)
+      : Lemma (ensures  (slot_points_to_is_merkle_points_to_local st_ s1 s2 d))
+      = eliminate
+        forall (s1 s2: slot_id _) (d:_). slot_points_to_is_merkle_points_to_local st s1 s2 d
+        with s1 s2 d;
+        puts_preserves st ss ws s1;
+        //assert(inuse_slot st s1 = inuse_slot st_ s1);
+        if points_to_dir st_ s1 d s2 then (
+          assert(inuse_slot st_ s1);
+          //assert(inuse_slot st s1);
+          let k1 = stored_base_key st_ s1 in
+          admit()
+        )
+    in
+    forall_intro_3 aux
+
+#pop-options
 
 let lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_)
                                                       (vs:vtls_t vcfg)

@@ -447,7 +447,7 @@ let slot_points_to_is_merkle_points_to_local
       Merkle.points_to v1 d k2))
 
 let slot_points_to_is_merkle_points_to (#vcfg:_) (st: vstore vcfg) =
-  forall (s1 s2: slot_id _). forall d. slot_points_to_is_merkle_points_to_local st s1 s2 d
+  forall (s1 s2: slot_id _) (d:_). slot_points_to_is_merkle_points_to_local st s1 s2 d
 
 let mv_points_to_in_some_dir (v: Merkle.value) (k:base_key): bool =
   Merkle.points_to v Left k ||
@@ -519,6 +519,30 @@ val puts_store (#vcfg:_)
   (ss: S.seq (slot_id vcfg))
   (ws: S.seq (app_value_nullable vcfg.app.adm))
   : vstore vcfg
+
+(* preserves everything but the value *)
+val puts_preserves (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg))
+  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (s: slot_id vcfg)
+  : Lemma (ensures (let st_ = puts_store st ss ws in
+                    inuse_slot st s = inuse_slot st_ s /\
+                    inuse_slot st s ==> (
+                      stored_key st s = stored_key st_ s /\
+                      add_method_of st s = add_method_of st_ s /\
+                      points_to_info st s Left = points_to_info st_ s Left /\
+                      points_to_info st s Right = points_to_info st_ s Right)))
+
+(* for non-referenced slots, it preserves everything ... *)
+val puts_preserves_non_ref (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg))
+  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (s: slot_id vcfg)
+  : Lemma (ensures (let st_ = puts_store st ss ws in
+                    not (S.mem s ss) ==>
+                    get_slot st s = get_slot st_ s))
 
 val puts_preserve_ismap (#vcfg:_)
   (st: ismap_vstore vcfg)
