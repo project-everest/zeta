@@ -419,6 +419,14 @@ val lemma_madd_root_to_store_is_map
 (*** Relation w/ Spec-level Stores ***)
 
 
+let store_rel_key (#vcfg:_) (st: ismap_vstore vcfg) (stk: Spec.store_t vcfg.app) (k: base_key)
+  = (store_contains_key st k = Spec.store_contains stk k) /\
+         (store_contains_key st k ==>
+         (let s = slot_of_key st k in
+          stored_key st s = Spec.stored_key stk k /\
+          stored_value st s = Spec.stored_value stk k /\
+          add_method_of st s = Spec.add_method_of stk k))
+
 (* Relation between stores *)
 let store_rel (#vcfg:_) (st:vstore vcfg) (st':Spec.store_t vcfg.app)  =
   is_map st /\
@@ -428,6 +436,11 @@ let store_rel (#vcfg:_) (st:vstore vcfg) (st':Spec.store_t vcfg.app)  =
           stored_key st s = Spec.stored_key st' k /\
           stored_value st s = Spec.stored_value st' k /\
           add_method_of st s = Spec.add_method_of st' k)))
+
+let elim_key_store_rel (#vcfg:_) (sts: vstore vcfg) (stk: Spec.store_t vcfg.app) (k: base_key)
+  : Lemma (requires (store_rel sts stk))
+          (ensures (store_rel_key sts stk k))
+  = ()
 
 (** Any store can be viewed as an instance of slot-key map *)
 let to_slot_state_map #vcfg (st:vstore_raw vcfg): slot_state_map _ =

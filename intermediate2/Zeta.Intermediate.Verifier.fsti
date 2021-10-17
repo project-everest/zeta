@@ -207,8 +207,13 @@ let addm_anc_val_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (mv: Merkle
   let d = addm_dir a in
   let od = other_dir d in
   desc_hash mv od = desc_hash mv' od /\               // merkle value unchanged in other direction
-  Merkle.points_to mv d (addm_base_key a) /\                           // merkle value points to k in addm direction
-  Merkle.evicted_to_blum mv d = false
+  Merkle.points_to mv d (addm_base_key a) /\          // merkle value points to k in addm direction
+  Merkle.evicted_to_blum mv d = false /\
+  Merkle.pointed_hash mv d =
+    (if (addm_anc_points_to_key a) then
+      Merkle.pointed_hash mv' d
+    else
+      Zeta.Hash.zero)
 
 let addm_anc_slot_points_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vcfg) =
   let st' = addm_store_pre a in
@@ -459,6 +464,23 @@ val lemma_addm_props (#vcfg:_)
                     let d = desc_dir k k' in
                     (Merkle.points_to_none mv' d ||
                      is_desc (Merkle.pointed_key mv' d) k)))))
+
+val lemma_addm_identical_except2
+  (#vcfg:_)
+  (vs':vtls_t vcfg{vs'.valid})
+  (e: logS_entry _ {GV.AddM? e})
+  (s1:_):
+  Lemma (requires (let GV.AddM _ s s' = e in
+                  s1 <> s /\ s1 <> s' /\
+                  (GV.verify_step e vs').valid))
+        (ensures (let st' = vs'.st in
+                  let vs = GV.verify_step e vs' in
+                  let st = vs.st in
+                  empty_slot st' s1 = empty_slot st s1 /\            // empty-ness unchanged
+                  (inuse_slot st' s1 ==>
+                   stored_key st' s1 = stored_key st s1 /\
+                   stored_value st' s1 = stored_value st s1 /\
+                   add_method_of st' s1 = add_method_of st s1)))
 
 val lemma_runapp_preserves_ismap
       (#vcfg:_)

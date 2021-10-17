@@ -214,6 +214,67 @@ let lemma_addm_props (#vcfg:_)
     | Desc k2 _ _  ->
       if k2 = k then lemma_desc_reflexive k
 
+let lemma_addm_identical_except2 #vcfg
+  (vs':vtls_t vcfg{vs'.valid})
+  (e: logS_entry _ {GV.AddM? e})
+  (s1:_):
+  Lemma (requires (let GV.AddM _ s s' = e in
+                  s1 <> s /\ s1 <> s' /\
+                  (GV.verify_step e vs').valid))
+        (ensures (let st' = vs'.st in
+                  let vs = GV.verify_step e vs' in
+                  let st = vs.st in
+                  empty_slot st' s1 = empty_slot st s1 /\            // empty-ness unchanged
+                  (inuse_slot st' s1 ==>
+                   stored_key st' s1 = stored_key st s1 /\
+                   stored_value st' s1 = stored_value st s1 /\
+                   add_method_of st' s1 = add_method_of st s1))) =
+  match e with
+  | GV.AddM r s s' ->
+    let amp = AMP s r s' vs' in
+    let vs = GV.verify_step e vs' in
+    let gk,gv = r in
+    let k = to_base_key gk in
+
+    (* precond is satisfied since verify_step succeeds *)
+    assert(addm_precond amp);
+
+    let st' = addm_store_pre amp in
+    let st = vs.st in
+    let d = addm_dir amp in
+    let mv' = addm_anc_val_pre amp in
+
+    if Merkle.points_to_some mv' d then (
+      if Merkle.points_to mv' d k then (
+        assert(identical_except2 st' st s s');
+        assert(get_slot st' s1 = get_slot st s1);
+        ()
+      )
+      else (
+        assert(addm_anc_points_to_desc amp);
+        if points_to_some_slot st' s' d then  (
+          assert(addm_has_desc_slot amp);
+          let sd = addm_desc_slot amp in
+          assert(identical_except3 st' st s s' sd);
+          if sd = s1 then (
+            ()
+          )
+          else
+            assert(get_slot st' s1 = get_slot st s1)
+        )
+        else (
+          assert(identical_except2 st' st s s');
+          assert(get_slot st' s1 = get_slot st s1);
+          ()
+        )
+      )
+    )
+    else (
+      assert(identical_except2 st' st s s');
+      assert(get_slot st' s1 = get_slot st s1);
+      ()
+    )
+
 let lemma_runapp_preserves_ismap
       (#vcfg:_)
       (vs:vtls_t vcfg{vs.valid})
@@ -353,66 +414,6 @@ let lemma_verifiable_implies_slot_is_merkle_points_to_appfn
 
 #pop-options
 
-let lemma_addm_identical_except2 #vcfg
-  (vs':vtls_t vcfg{vs'.valid})
-  (e: logS_entry _ {GV.AddM? e})
-  (s1:_):
-  Lemma (requires (let GV.AddM _ s s' = e in
-                  s1 <> s /\ s1 <> s' /\
-                  (GV.verify_step e vs').valid))
-        (ensures (let st' = vs'.st in
-                  let vs = GV.verify_step e vs' in
-                  let st = vs.st in
-                  empty_slot st' s1 = empty_slot st s1 /\            // empty-ness unchanged
-                  (inuse_slot st' s1 ==>
-                   stored_key st' s1 = stored_key st s1 /\
-                   stored_value st' s1 = stored_value st s1 /\
-                   add_method_of st' s1 = add_method_of st s1))) =
-  match e with
-  | GV.AddM r s s' ->
-    let amp = AMP s r s' vs' in
-    let vs = GV.verify_step e vs' in
-    let gk,gv = r in
-    let k = to_base_key gk in
-
-    (* precond is satisfied since verify_step succeeds *)
-    assert(addm_precond amp);
-
-    let st' = addm_store_pre amp in
-    let st = vs.st in
-    let d = addm_dir amp in
-    let mv' = addm_anc_val_pre amp in
-
-    if Merkle.points_to_some mv' d then (
-      if Merkle.points_to mv' d k then (
-        assert(identical_except2 st' st s s');
-        assert(get_slot st' s1 = get_slot st s1);
-        ()
-      )
-      else (
-        assert(addm_anc_points_to_desc amp);
-        if points_to_some_slot st' s' d then  (
-          assert(addm_has_desc_slot amp);
-          let sd = addm_desc_slot amp in
-          assert(identical_except3 st' st s s' sd);
-          if sd = s1 then (
-            ()
-          )
-          else
-            assert(get_slot st' s1 = get_slot st s1)
-        )
-        else (
-          assert(identical_except2 st' st s s');
-          assert(get_slot st' s1 = get_slot st s1);
-          ()
-        )
-      )
-    )
-    else (
-      assert(identical_except2 st' st s s');
-      assert(get_slot st' s1 = get_slot st s1);
-      ()
-    )
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
