@@ -331,6 +331,8 @@ let lemma_vaddm_preserves_spec_new_key
     else
       lemma_vaddm_preserves_spec_case_fail vs vs' e
 
+#push-options "--fuel 1 --ifuel 1 --query_stats"
+
 let lemma_vaddb_preserves_spec_new_key
       (#vcfg:_)
       (vs:vtls_t vcfg{vs.valid})
@@ -343,4 +345,402 @@ let lemma_vaddb_preserves_spec_new_key
                      not (store_contains_key st k)))
           (ensures (let ek = to_logk_entry vs e in
                     vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
-  = admit()
+  = let vss = vs in
+    let sts = vs.st in
+
+    (* explicit cast needed to help resolve .st below *)
+    let vsk: HV.vtls_t vcfg.app = vs' in
+    let stk = vsk.st in
+    let GV.AddB r s t j = e in
+    let gk,gv = r in
+    let k = to_base_key gk in
+    let ek = to_logk_entry vss e in
+
+    (* otherwise, not valid_logS_entry e *)
+    assert(empty_slot sts s);
+
+    if k <> Root then (
+      let vss_ = GV.verify_step e vss in
+      let sts_ = vss_.st in
+      lemma_vaddb_preserves_ismap_new_key vss e;
+
+      let vsk_: HV.vtls_t vcfg.app  = GV.verify_step ek vsk in
+      let stk_ = vsk_.st in
+      let aux (ki:_)
+        : Lemma (ensures (store_rel_key sts_ stk_ ki))
+        = if ki <> k then (
+            elim_key_store_rel sts stk ki;
+            if HV.store_contains stk_ ki then (
+              assert(HV.store_contains stk ki);
+              let si = slot_of_key sts ki in
+              assert (si <> s);
+
+              assert(get_slot sts si = get_slot sts_ si)
+            )
+          )
+      in
+      forall_intro aux
+    )
+
+let lemma_points_to_some_implies_has_instore_merkle_desc
+  (#vcfg:_)
+  (sts: vstore vcfg)
+  (stk: HV.store_t vcfg.app)
+  (s: inuse_slot_id sts)
+  : Lemma (requires (store_rel sts stk /\
+                     slot_points_to_is_merkle_points_to sts /\
+                     merkle_points_to_uniq sts /\
+                     merkle_points_to_desc sts /\
+                     (points_to_some_slot sts s Left || points_to_some_slot sts s Right)))
+          (ensures (let k = stored_base_key sts s in
+                    HV.has_instore_merkle_desc stk k)) =
+  let k = stored_base_key sts s in
+  let d = if points_to_some_slot sts s Left then Left else Right in
+  let sd = pointed_slot sts s d in
+  assert(slot_points_to_is_merkle_points_to_local sts s sd d);
+  assert(points_to_dir sts s d sd);
+  assert(inuse_slot sts sd);
+
+  let mv = to_merkle_value (stored_value sts s) in
+  let kd = stored_base_key sts sd in
+  assert(Merkle.points_to mv d kd);
+  assert(HV.store_contains stk kd);
+  assert(mv = to_merkle_value (HV.stored_value stk k));
+  assert(add_method_of sts sd = HV.MAdd);
+  ()
+
+let lemma_has_instore_merkle_desc_implies_slot_points_to
+  (#vcfg:_)
+  (sts: vstore vcfg)
+  (stk: HV.store_t vcfg.app)
+  (s: inuse_slot_id sts)
+  : Lemma (requires (let k = stored_base_key sts s in
+                     store_rel sts stk /\
+                     slot_points_to_is_merkle_points_to sts /\
+                     merkle_points_to_uniq sts /\
+                     merkle_points_to_desc sts /\
+                     HV.store_contains stk k /\
+                     HV.has_instore_merkle_desc stk k))
+          (ensures (points_to_some_slot sts s Left || points_to_some_slot sts s Right )) =
+  let k = stored_base_key sts s in
+  assert(HV.has_instore_merkle_desc stk k);
+  assert(is_merkle_key k);
+  let mv = to_merkle_value (HV.stored_value stk k) in
+  assert(mv = to_merkle_value (stored_value sts s));
+  let ld = Merkle.desc_hash mv Left in
+  let rd = Merkle.desc_hash mv Right in
+
+  assert(Merkle.Desc? ld && HV.is_instore_madd stk (Merkle.Desc?.k ld) ||
+    Merkle.Desc? rd && HV.is_instore_madd stk (Merkle.Desc?.k rd));
+
+  let d = if Merkle.Desc? ld && HV.is_instore_madd stk (Merkle.Desc?.k ld) then Left else Right in
+  let kd = Merkle.pointed_key mv d in
+
+  assert(HV.store_contains stk kd /\ HV.add_method_of stk kd = HV.MAdd);
+  let sd = slot_of_key sts kd in
+  assert(stored_base_key sts sd = kd /\ add_method_of sts sd = HV.MAdd);
+  assert(merkle_points_to_desc_local sts s d);
+
+  assert(kd <> Root);
+  let s2 = pointing_slot sts sd in
+  assert(points_to sts s2 sd);
+
+  let d2 = if points_to_dir sts s2 Left sd then Left else Right in
+  assert(points_to_dir sts s2 d2 sd);
+  assert(slot_points_to_is_merkle_points_to_local sts s2 sd d2);
+  let mv2 = to_merkle_value (stored_value sts s2) in
+
+  assert(Merkle.points_to mv2 d2 kd);
+  assert(Merkle.points_to mv d kd);
+
+  if s2 = s then ()
+  else (
+    assert(merkle_points_to_uniq_local sts s s2 kd);
+    ()
+  )
+
+let lemma_evictb_simulates_spec
+      (#vcfg:_)
+      (vs:vtls_t vcfg{vs.valid})
+      (vs':_ {vtls_rel vs vs'})
+      (e:logS_entry vcfg{GV.EvictB? e})
+  : Lemma (requires (let st = vs.st in
+                     valid_logS_entry vs e /\
+                     slot_points_to_is_merkle_points_to st /\
+                     merkle_points_to_uniq st /\
+                     merkle_points_to_desc st))
+          (ensures (let ek = to_logk_entry vs e in
+                    vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
+  = let vss = vs in
+    let sts = vs.st in
+
+    (* explicit cast needed to help resolve .st below *)
+    let vsk: HV.vtls_t vcfg.app = vs' in
+    let stk = vsk.st in
+    let GV.EvictB s t = e in
+    assert(inuse_slot sts s);
+    let clk = vss.clock in
+    let open Zeta.Time in
+
+    let k = stored_base_key sts s in
+    let ek = to_logk_entry vss e in
+    let vss_ = GV.verify_step e vss in
+    let sts_ = vss_.st in
+    let vsk_: HV.vtls_t vcfg.app = GV.verify_step ek vsk in
+    if k <> Root && clk `ts_lt` t then
+      if points_to_some_slot sts s Left || points_to_some_slot sts s Right then
+        lemma_points_to_some_implies_has_instore_merkle_desc sts stk s
+      else if add_method_of sts s = HV.BAdd then
+        if HV.has_instore_merkle_desc stk k then
+          lemma_has_instore_merkle_desc_implies_slot_points_to sts stk s
+        else (
+          assert(vsk_.valid);
+          let stk_ = vsk_.st in
+          let aux (ki:_)
+            : Lemma (ensures (store_rel_key sts_ stk_ ki))
+            = elim_key_store_rel sts stk ki;
+              if ki = k then lemma_not_contains_after_bevict sts s
+              else if HV.store_contains stk_ ki then (
+                assert(stk_ ki = stk ki);
+                let si = slot_of_key sts ki in
+                assert(si <> s);
+                assert(get_slot sts si = get_slot sts_ si);
+                ()
+              )
+          in
+          forall_intro aux
+        )
+
+#pop-options
+
+#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 4 --query_stats"
+
+let lemma_evictm_simulates_spec
+      (#vcfg:_)
+      (vs:vtls_t vcfg{vs.valid})
+      (vs':_ {vtls_rel vs vs'})
+      (e:logS_entry vcfg{GV.EvictM? e})
+  : Lemma (requires (let st = vs.st in
+                     vtls_rel vs vs' /\
+                     valid_logS_entry vs e /\
+                     slot_points_to_is_merkle_points_to st /\
+                     merkle_points_to_uniq st /\
+                     merkle_points_to_desc st))
+          (ensures (let ek = to_logk_entry vs e in
+                    vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
+  = let vss = vs in
+    let sts = vs.st in
+
+    (* explicit cast needed to help resolve .st below *)
+    let vsk: HV.vtls_t vcfg.app = vs' in
+    let stk = vsk.st in
+    let GV.EvictM s s' = e in
+    (* valid log entry e implies s and s' are inuse slots *)
+    assert(inuse_slot sts s /\ inuse_slot sts s');
+
+    let k = stored_base_key sts s in
+    let k' = stored_base_key sts s' in
+    let vss_ = GV.verify_step e vss in
+    let sts_ = vss_.st in
+    let ek = to_logk_entry vss e in
+    let vsk_: HV.vtls_t vcfg.app = GV.verify_step ek vsk in
+    let stk_ = vsk_.st in
+
+    if is_proper_desc k k' then
+
+      if points_to_some_slot sts s Left || points_to_some_slot sts s Right then
+        lemma_points_to_some_implies_has_instore_merkle_desc sts stk s
+      else (
+        let d = desc_dir k k' in
+        let v' = to_merkle_value (stored_value sts s') in
+        let dh' = Merkle.desc_hash v' d in
+        match dh' with
+        | Merkle.Empty -> ()
+        | Merkle.Desc k2 h2 b2 ->
+          if k2 = k then (
+            if has_parent sts s && (parent_slot sts s <> s' || parent_dir sts s <> d) then (
+              assert(parent_props_local sts s);
+              if parent_slot sts s <> s' then (
+                let sp = parent_slot sts s in
+                let dp = parent_dir sts s in
+                assert(points_to_dir sts sp dp s);
+                let kp = stored_base_key sts sp in
+                assert(kp <> k');
+                assert(slot_points_to_is_merkle_points_to_local sts sp s dp);
+                let vp = to_merkle_value (stored_value sts sp) in
+                assert(Merkle.points_to vp dp k);
+                assert(slot_points_to_is_merkle_points_to_local sts s' s d);
+                assert(Merkle.points_to v' d k);
+                assert(merkle_points_to_uniq_local sts sp s' k);
+                ()
+              )
+              else (
+                let od = parent_dir sts s in
+                assert(points_to_dir sts s' od s);
+                assert(slot_points_to_is_merkle_points_to_local sts s' s od);
+                assert(Merkle.points_to v' od k);
+                assert(merkle_points_to_desc_local sts s' od);
+                //assert(False);
+                ()
+              )
+            )
+            else if not (has_parent sts s) && (points_to_some_slot sts s' d) then (
+              let s2 = pointed_slot sts s' d in
+              if s2 = s then assert(points_to_inuse_local sts s' s)
+              else (
+                assert(slot_points_to_is_merkle_points_to_local sts s' s2 d);
+                assert(points_to_inuse_local sts s' s2);
+                assert(inuse_slot sts s2);
+                assert(Merkle.points_to v' d (stored_base_key sts s2));
+                assert(Merkle.points_to v' d k);
+                assert(k = stored_base_key sts s2);
+                ()
+              )
+            )
+            else if HV.has_instore_merkle_desc stk k then
+              lemma_has_instore_merkle_desc_implies_slot_points_to sts stk s
+            else (
+              lemma_evictm_preserves_ismap vss e;
+              assert(s <> s');
+              let h = hashfn (stored_value sts s) in
+              let v'_upd = Merkle.update_value v' d k h false in
+              let st_upd = update_value sts s' (IntV v'_upd) in
+              assert(sts_ == mevict_from_store st_upd s s' d);
+              let aux (ki:_)
+                : Lemma (ensures (store_rel_key sts_ stk_ ki))
+                = elim_key_store_rel sts stk ki;
+                  if ki = k then
+                    lemma_not_contains_after_mevict st_upd s s' d
+                  else if ki <> k' then (
+                    if HV.store_contains stk_ ki then (
+                      assert(stk_ ki = stk ki);
+                      let si = slot_of_key sts ki in
+                      assert(si <> s /\ si <> s');
+                      assert(get_slot sts si = get_slot sts_ si);
+                      ()
+                    )
+                  )
+              in
+              forall_intro aux
+            )
+          )
+      )
+
+let lemma_evictbm_simulates_spec
+      (#vcfg:_)
+      (vs:vtls_t vcfg{vs.valid})
+      (vs':_ {vtls_rel vs vs'})
+      (e:logS_entry vcfg{GV.EvictBM? e})
+  : Lemma (requires (let st = vs.st in
+                     vtls_rel vs vs' /\
+                     valid_logS_entry vs e /\
+                     slot_points_to_is_merkle_points_to st /\
+                     merkle_points_to_uniq st /\
+                     merkle_points_to_desc st))
+          (ensures (let ek = to_logk_entry vs e in
+                    vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs')))
+  = let vss = vs in
+    let sts = vs.st in
+
+    (* explicit cast needed to help resolve .st below *)
+    let vsk: HV.vtls_t vcfg.app = vs' in
+    let stk = vsk.st in
+    let GV.EvictBM s s' t = e in
+
+    (* otherwise valid_logS_entry would be false *)
+    assert(inuse_slot sts s /\ inuse_slot sts s');
+
+    let vss_ = GV.verify_step e vss in
+    let sts_ = vss_.st in
+    let ek = to_logk_entry vss e in
+    let vsk_: HV.vtls_t vcfg.app = GV.verify_step ek vsk in
+    let stk_ = vsk_.st in
+    let k = stored_base_key sts s in
+    let k' = stored_base_key sts s' in
+    let open Zeta.Time in
+
+    if k <> Root && vss.clock `ts_lt` t then
+      if points_to_some_slot sts s Left || points_to_some_slot sts s Right then
+        lemma_points_to_some_implies_has_instore_merkle_desc sts stk s
+      else if HV.has_instore_merkle_desc stk k then
+        lemma_has_instore_merkle_desc_implies_slot_points_to sts stk s
+      else if add_method_of sts s = HV.MAdd && is_proper_desc k k' then
+        let v' = to_merkle_value (stored_value sts s') in
+        let d = desc_dir k k' in
+        let dh' = Merkle.desc_hash v' d in
+        match dh' with
+        | Merkle.Empty -> ()
+        | Merkle.Desc k2 h2 b2 ->
+          if k2 = k && not b2 then (
+            if not (points_to_dir sts s' d s) then (
+              (* since s was added using merkle, our invariants say there is some slot that points to s *)
+              let sa = pointing_slot sts s in
+              assert(inuse_slot sts sa);
+
+              (* sa points to s along direction da *)
+              let da = if points_to_dir sts sa Left s then Left else Right in
+              assert(points_to_dir sts sa da s);
+
+              assert(slot_points_to_is_merkle_points_to_local sts sa s da);
+              let ka = stored_base_key sts sa in
+              let va = to_merkle_value (stored_value sts sa) in
+              assert(Merkle.points_to va da k);
+              assert(merkle_points_to_desc_local sts sa da);
+              assert(not (empty_slot sts sa));
+              assert(is_proper_desc k ka);
+              assert(Merkle.points_to v' d k);
+              assert(merkle_points_to_uniq_local sts s' sa k);
+              assert(sa = s');
+
+              ()
+            )
+            else (
+              assert(vss_.valid && vsk_.valid);
+              lemma_evictbm_preserves_ismap vss e;
+              let v'_upd = Merkle.update_value v' d k h2 true in
+              let sts_upd = update_value sts s' (IntV v'_upd) in
+              assert(sts_ == mevict_from_store sts_upd s s' d);
+              let aux (ki:_)
+                : Lemma (ensures (store_rel_key sts_ stk_ ki))
+                = elim_key_store_rel sts stk ki;
+                  if ki = k then
+                    lemma_not_contains_after_mevict sts_upd s s' d
+                  else if ki <> k' then (
+                    if HV.store_contains stk_ ki then (
+                      assert(stk ki = stk_ ki);
+                      let si = slot_of_key sts ki in
+                      assert(si <> s /\ si <> s');
+                      assert(get_slot sts si = get_slot sts_ si);
+                      ()
+                    )
+                  )
+              in
+              forall_intro aux
+            )
+          )
+
+#pop-options
+
+
+let lemma_nextepoch_simulates_spec
+      (#vcfg:_)
+      (vs:vtls_t vcfg{vs.valid})
+      (vs':_ {vtls_rel vs vs'})
+  : Lemma (requires (vtls_rel vs vs' /\
+                     valid_logS_entry vs GV.NextEpoch))
+          (ensures (let intspec = int_verifier_spec vcfg in
+                    let hispec = HV.high_verifier_spec vcfg.app in
+            vtls_rel #vcfg (GV.verify_step #intspec GV.NextEpoch vs) (GV.verify_step #hispec GV.NextEpoch vs')))
+  = ()
+
+let lemma_verifyepoch_simulates_spec
+      (#vcfg:_)
+      (vs:vtls_t vcfg{vs.valid})
+      (vs':_ {vtls_rel vs vs'})
+  : Lemma (requires (vtls_rel vs vs' /\
+                     valid_logS_entry vs GV.VerifyEpoch))
+          (ensures (let intspec = int_verifier_spec vcfg in
+                    let hispec = HV.high_verifier_spec vcfg.app in
+                    vtls_rel #vcfg (GV.verify_step #intspec GV.VerifyEpoch vs)
+                                   (GV.verify_step #hispec GV.VerifyEpoch vs')))
+  = ()
