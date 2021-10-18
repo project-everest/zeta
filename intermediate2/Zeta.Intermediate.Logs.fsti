@@ -127,7 +127,10 @@ let slot_state_trans #vcfg (e:logS_entry vcfg) (s:slot_id vcfg) (sst: slot_state
       if Assoc? sst then Some sst
       else None
     else Some sst
-  | RunApp _ _ _
+  | RunApp _ _ ss ->
+    if mem s ss then
+      if Assoc? sst then Some sst else None
+    else Some sst
   | NextEpoch
   | VerifyEpoch -> Some sst
 
