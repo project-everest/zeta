@@ -41,6 +41,15 @@ let add_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
+let add_seq_empty
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il = 0})
+  : Lemma (ensures (add_seq ep il == S.empty))
+  = let as = add_seq ep il in
+    S.lemma_empty as
+
 let add_seq_snoc
   (#vspec: verifier_spec)
   (#n:_)
@@ -106,6 +115,14 @@ let evict_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
   : interleaving (ms_hashfn_dom vspec.app) n
   = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
     IF.filter_map fm il
+
+let evict_seq_empty
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il = 0})
+  : Lemma (ensures (evict_seq ep il == S.empty))
+  = S.lemma_empty (evict_seq ep il)
 
 let evict_seq_snoc
   (#vspec: verifier_spec)

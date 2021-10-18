@@ -36,6 +36,13 @@ let add_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
   : mset_ms_hashfn_dom vspec.app
   = seq2mset (add_seq ep il)
 
+val add_seq_empty
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il = 0})
+  : Lemma (ensures (add_seq ep il == S.empty))
+
 val add_seq_snoc
   (#vspec: verifier_spec)
   (#n:_)
@@ -69,6 +76,13 @@ let evict_seq (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
 let evict_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
   : mset_ms_hashfn_dom vspec.app
   = seq2mset (evict_seq ep il)
+
+val evict_seq_empty
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il = 0})
+  : Lemma (ensures (evict_seq ep il == S.empty))
 
 val evict_seq_snoc
   (#vspec: verifier_spec)

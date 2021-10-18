@@ -49,7 +49,3 @@ val lemma_spec_rel_implies_same_evict_set (#vcfg:_) (ep: epoch) (il: verifiable_
                     evict_set ep il == evict_set ep ilk))
           [SMTPat (evict_set ep il)]
 
-val lemma_vtls_rel_implies_ms_verifiable (#vcfg:_) (ep: epoch) (ils:verifiable_log vcfg)
-  : Lemma (requires (forall_vtls_rel ils))
-          (ensures (let ilk = to_logk ils in
-                    GG.aems_equal_upto ep (to_glog ils) ==> GG.aems_equal_upto ep (to_glog ilk)))
