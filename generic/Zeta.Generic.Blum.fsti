@@ -36,6 +36,20 @@ let add_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
   : mset_ms_hashfn_dom vspec.app
   = seq2mset (add_seq ep il)
 
+val add_seq_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let as' = add_seq ep il' in
+                    let as = add_seq ep il in
+                    if is_blum_add_epoch ep il (n - 1) then
+                      as == SA.append1 as' (blum_add_elem il (n - 1))
+                    else
+                      as == as'))
+
 val add_set_snoc (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in
                     let il' = prefix il i in
@@ -55,6 +69,20 @@ let evict_seq (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
 let evict_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
   : mset_ms_hashfn_dom vspec.app
   = seq2mset (evict_seq ep il)
+
+val evict_seq_snoc
+  (#vspec: verifier_spec)
+  (#n:_)
+  (ep: epoch)
+  (il: verifiable_log vspec n {length il > 0})
+  : Lemma (ensures (let n = length il in
+                    let il' = prefix il (n- 1 ) in
+                    let as' = evict_seq ep il' in
+                    let as = evict_seq ep il in
+                    if is_blum_evict_epoch ep il (n - 1) then
+                      as == SA.append1 as' (blum_evict_elem il (n - 1))
+                    else
+                      as == as'))
 
 val evict_set_snoc (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in
