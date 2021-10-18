@@ -1,6 +1,7 @@
 module Zeta.Intermediate.Blum
 
 open Zeta.Time
+open Zeta.Interleave
 open Zeta.Generic.Interleave
 open Zeta.Generic.Blum
 open Zeta.High.Interleave
