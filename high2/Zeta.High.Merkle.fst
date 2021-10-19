@@ -341,6 +341,8 @@ let eac_value_snoc_simple_addb
             eac_value_init_state_is_init il' gkf
           )
 
+#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 3 --query_stats"
+
 let eac_value_snoc_simple_evictm
   (#app #n:_)
   (gki: key app)
@@ -400,6 +402,8 @@ let eac_value_snoc_simple_evictm
        store_contains_implies k il' t;
        eac_value_is_stored_value il' (to_gen_key (eac_state_of_key k il')) t
      )
+
+#pop-options
 
 let eac_value_snoc_simple_evictb
   (#app #n:_)

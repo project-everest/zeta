@@ -64,7 +64,9 @@ let prefix #vspec (tl: verifiable_log vspec) (i: nat {i <= length tl})
   : tl': verifiable_log _ {length tl' = i}
   = prefix_base tl i
 
-val clock_base (#vspec:_) (tl: verifiable_log vspec): timestamp
+let clock_base (#vspec:_) (tl: verifiable_log vspec): timestamp
+  = let vs = state tl in
+    vspec.clock vs
 
 let clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
   = let tl' = prefix tl (i+1) in

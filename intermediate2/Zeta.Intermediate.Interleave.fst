@@ -21,9 +21,8 @@ let to_logk_src (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il)
     let s = src il i in
     {e; s}
 
-(* TODO: Odd, how did F* figure out the same_shape part? *)
 let to_logk (#vcfg:_) (il: verifiable_log vcfg)
-  : hil:HI.ilog vcfg.app vcfg.thread_count {same_shape il hil}
+  : HI.ilog vcfg.app vcfg.thread_count
   = init (length il) (to_logk_src il)
 
 let lemma_to_logk_length (#vcfg:_) (il: verifiable_log vcfg)
@@ -310,3 +309,72 @@ let lemma_spec_rel_implies_appfn_identical (#vcfg:_) (il: verifiable_log vcfg {s
                     let glk = to_glog ilk in
                     GG.app_fcrs gl = GG.app_fcrs glk))
   = admit()
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let rec lemma_same_shape (#vcfg:_) (il: verifiable_log vcfg) (t:nat{t < vcfg.thread_count})
+  : Lemma (ensures (let ilk = to_logk il in
+                    let ss = S.index (s_seq il) t in
+                    let sk = S.index (s_seq ilk) t in
+                    S.length ss = S.length sk))
+          (decreases (length il))
+  = let ilk = to_logk il in
+    if length il = 0 then (
+      lemma_length0_implies_empty il;
+      lemma_length0_implies_empty ilk;
+      lemma_empty_sseq (logS_entry vcfg) vcfg.thread_count t;
+      lemma_empty_sseq (logK_entry vcfg.app) vcfg.thread_count t
+    )
+    else (
+      let i = length il - 1 in
+      let il' = prefix il i in
+      lemma_same_shape il' t;
+      interleaving_snoc il;
+      interleaving_snoc ilk
+    )
+
+let rec lemma_to_logk_i2smap (#vcfg:_) (ils: verifiable_log vcfg) (i: seq_index ils)
+  : Lemma (ensures (let ilk = to_logk ils in
+                    i2s_map ils i = i2s_map ilk i))
+          (decreases (length ils))
+  = let n' = length ils - 1 in
+    let t = src ils n' in
+    let ils' = prefix ils n' in
+    let ilk = to_logk ils in
+
+    if i < n' then (
+      lemma_to_logk_i2smap ils' i;
+      lemma_i2s_prefix_property ils n' i;
+      lemma_i2s_prefix_property ilk n' i
+    )
+    else (
+      interleaving_snoc ils;
+      interleaving_snoc ilk;
+      lemma_same_shape ils' t
+    )
+
+#pop-options
+
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let lemma_vtls_rel_implies_same_clock (#vcfg:_) (ils: verifiable_log vcfg) (i: seq_index ils)
+  : Lemma (requires (forall_vtls_rel ils))
+          (ensures (let ilk = to_logk ils in
+                    clock ils i = clock ilk i))
+  = let t = src ils i in
+    let ils_ = prefix ils (i+1) in
+    interleaving_snoc ils_;
+    let vss_ = thread_state_post t ils i in
+    assert(clock ils i = vss_.clock);
+
+
+    let ilk = to_logk ils in
+    let ilk_ = prefix ilk (i+1) in
+    interleaving_snoc ilk_;
+    let vsk_:HV.vtls_t vcfg.app = thread_state_post t ilk i in
+    per_thread_prefix ilk (i+1);
+    assert(clock ilk i = vsk_.clock);
+
+    ()
+
+#pop-options

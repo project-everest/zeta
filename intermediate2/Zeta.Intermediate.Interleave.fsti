@@ -47,13 +47,8 @@ let to_logk_entry (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il)
     let ti = i2s_map il i in
     IG.to_logk_entry gl ti
 
-let same_shape #a #b #n (il: interleaving a n) (il': interleaving b n)
-  = let ss = s_seq il in
-    let ss' = s_seq il' in
-    (forall (i:SA.seq_index ss). Seq.length (Seq.index ss i) == Seq.length (Seq.index ss i))
-
 val to_logk (#vcfg:_) (il: verifiable_log vcfg)
-  : hil:HI.ilog vcfg.app vcfg.thread_count {same_shape il hil}
+  : HI.ilog vcfg.app vcfg.thread_count
 
 val lemma_to_logk_length (#vcfg:_) (il: verifiable_log vcfg)
   : Lemma (ensures (length il = length (to_logk il)))
@@ -142,3 +137,9 @@ val lemma_spec_rel_implies_appfn_identical (#vcfg:_) (il: verifiable_log vcfg {s
                     let glk = to_glog ilk in
                     GG.app_fcrs gl = GG.app_fcrs glk))
           [SMTPat (spec_rel il)]
+
+val lemma_vtls_rel_implies_same_clock (#vcfg:_) (ils: verifiable_log vcfg) (i: seq_index ils)
+  : Lemma (requires (forall_vtls_rel ils))
+          (ensures (let ilk = to_logk ils in
+                    clock ils i = clock ilk i))
+          [SMTPat (clock ils i)]

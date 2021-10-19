@@ -73,7 +73,7 @@ let lemma_spec_rel_implies_same_evict_elem (#vcfg:_)
 
 #pop-options
 
-#push-options "--fuel 0 --ifuel 1 --query_stats"
+#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 3 --query_stats"
 
 let rec lemma_spec_rel_implies_same_add_seq (#vcfg:_) (ep: epoch) (il: verifiable_log vcfg)
   : Lemma (requires (spec_rel il))

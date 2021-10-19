@@ -21,11 +21,6 @@ let rec verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
     if n = i then ()
     else verifiable_implies_prefix_verifiable (prefix_base tl (n-1)) i
 
-(* clock after processing i entries of the log *)
-let clock_base #vspec (tl: verifiable_log vspec)
-  = let vs = state tl in
-    vspec.clock vs
-
 #push-options "--z3rlimit_factor 3"
 
 let rec lemma_clock_monotonic (#vspec:verifier_spec)
