@@ -1424,17 +1424,70 @@ let store_rel_slot (#vcfg:_) (st: ismap_vstore vcfg) (st':_ {store_rel st st'}) 
 
 #pop-options
 
+module SA = Zeta.SeqAux
+
+let update_value_preserves_keys
+  (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (s:inuse_slot_id st)
+  (v:value vcfg.app {compatible (stored_key st s) v})
+  : Lemma (ensures (contains_only_app_keys (update_value st s v) ss))
+  = let st_ = update_value st s v in
+    let aux (i:_)
+      : Lemma (ensures (contains_app_key st_ (S.index ss i)))
+      = ()
+    in
+    forall_intro aux
+
+#push-options "--fuel 0 --ifuel 0 --query_stats"
+
+let rec puts_store_aux (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ss = S.length ws})
+  (l:nat{l <= S.length ss})
+  : Tot (st_:vstore vcfg{contains_only_app_keys st_ ss})
+    (decreases l)
+  = if l = 0 then st
+    else (
+      let l' = l - 1 in
+      let st = puts_store_aux st ss ws l' in
+      let s = S.index ss l' in
+      let v = S.index ws l' in
+      update_value st s (AppV v)
+    )
+
 let puts_store (#vcfg:_)
   (st: vstore vcfg)
-  (ss: S.seq (slot_id vcfg))
-  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ss = S.length ws})
   : vstore vcfg
-  = admit()
+  = puts_store_aux st ss ws (S.length ss)
+
+#pop-options
+
+let rec puts_preserves_aux (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
+  (s: slot_id vcfg)
+  (l: nat{l <= S.length ss})
+  : Lemma (ensures (let st_ = puts_store_aux st ss ws l in
+                    inuse_slot st s = inuse_slot st_ s /\
+                    (inuse_slot st s ==> (
+                      stored_key st s = stored_key st_ s /\
+                      add_method_of st s = add_method_of st_ s /\
+                      points_to_info st s Left = points_to_info st_ s Left /\
+                      points_to_info st s Right = points_to_info st_ s Right))))
+          (decreases l)
+  = if l > 0 then
+      puts_preserves_aux st ss ws s (l-1)
 
 let puts_preserves (#vcfg:_)
   (st: vstore vcfg)
-  (ss: S.seq (slot_id vcfg))
-  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
   (s: slot_id vcfg)
   : Lemma (ensures (let st_ = puts_store st ss ws in
                     inuse_slot st s = inuse_slot st_ s /\
@@ -1443,21 +1496,45 @@ let puts_preserves (#vcfg:_)
                       add_method_of st s = add_method_of st_ s /\
                       points_to_info st s Left = points_to_info st_ s Left /\
                       points_to_info st s Right = points_to_info st_ s Right))))
-  = admit()
+  = puts_preserves_aux st ss ws s (S.length ss)
 
+let rec puts_preserves_non_ref_aux (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
+  (s: slot_id vcfg)
+  (l: nat{l <= S.length ss})
+  : Lemma (ensures (let st_ = puts_store_aux st ss ws l in
+                    not (S.mem s ss) ==>
+                    get_slot st s = get_slot st_ s))
+          (decreases l)
+  = if l > 0 then
+      puts_preserves_non_ref_aux st ss ws s (l - 1)
+
+(* for non-referenced slots, it preserves everything ... *)
 let puts_preserves_non_ref (#vcfg:_)
   (st: vstore vcfg)
-  (ss: S.seq (slot_id vcfg))
-  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
   (s: slot_id vcfg)
   : Lemma (ensures (let st_ = puts_store st ss ws in
                     not (S.mem s ss) ==>
                     get_slot st s = get_slot st_ s))
-  = admit()
+  = puts_preserves_non_ref_aux st ss ws s (S.length ss)
+
+let rec puts_preserve_ismap_aux (#vcfg:_)
+  (st: ismap_vstore vcfg)
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
+  (l: nat{l <= S.length ss})
+  : Lemma (ensures (is_map (puts_store_aux st ss ws l)))
+          (decreases l)
+  = if l > 0 then
+      puts_preserve_ismap_aux st ss ws (l-1)
 
 let puts_preserve_ismap (#vcfg:_)
   (st: ismap_vstore vcfg)
-  (ss: S.seq (slot_id vcfg))
-  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
   : Lemma (ensures (is_map (puts_store st ss ws)))
-  = admit()
+  = puts_preserve_ismap_aux st ss ws (S.length ss)

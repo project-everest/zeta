@@ -527,17 +527,31 @@ val store_rel_slot (#vcfg:_) (st: ismap_vstore vcfg) (st':_ {store_rel st st'}) 
 
 module S = FStar.Seq
 
+(* does a slot contain an app key *)
+let contains_app_key (#vcfg:_) (st: vstore vcfg) (s: slot_id vcfg)
+  = inuse_slot st s &&
+    AppK? (stored_key st s)
+
+(* a sequence of base keys contain only appln keys *)
+let contains_only_app_keys (#vcfg:_) (st: vstore vcfg) (ss: S.seq (slot_id vcfg))
+  = forall i. contains_app_key st (S.index ss i)
+
+let contains_only_app_keys_comp (#vcfg:_) (st: vstore vcfg) (ss: S.seq (slot_id vcfg))
+  : b:bool {b <==> contains_only_app_keys st ss}
+  = let open Zeta.SeqIdx in
+    not (exists_elems_with_prop_comp (fun s -> not (contains_app_key st s)) ss)
+
 val puts_store (#vcfg:_)
   (st: vstore vcfg)
-  (ss: S.seq (slot_id vcfg))
-  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (ss: S.seq (slot_id vcfg) {contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
   : vstore vcfg
 
 (* preserves everything but the value *)
 val puts_preserves (#vcfg:_)
   (st: vstore vcfg)
-  (ss: S.seq (slot_id vcfg))
-  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
   (s: slot_id vcfg)
   : Lemma (ensures (let st_ = puts_store st ss ws in
                     inuse_slot st s = inuse_slot st_ s /\
@@ -550,8 +564,8 @@ val puts_preserves (#vcfg:_)
 (* for non-referenced slots, it preserves everything ... *)
 val puts_preserves_non_ref (#vcfg:_)
   (st: vstore vcfg)
-  (ss: S.seq (slot_id vcfg))
-  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
   (s: slot_id vcfg)
   : Lemma (ensures (let st_ = puts_store st ss ws in
                     not (S.mem s ss) ==>
@@ -559,7 +573,7 @@ val puts_preserves_non_ref (#vcfg:_)
 
 val puts_preserve_ismap (#vcfg:_)
   (st: ismap_vstore vcfg)
-  (ss: S.seq (slot_id vcfg))
-  (ws: S.seq (app_value_nullable vcfg.app.adm))
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
   : Lemma (ensures (is_map (puts_store st ss ws)))
           [SMTPat (puts_store st ss ws)]

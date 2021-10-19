@@ -64,20 +64,6 @@ let addm #vcfg (r:record vcfg.app) (s:slot_id vcfg)  (s':slot_id vcfg) (vs: vtls
 
 #pop-options
 
-(* does a slot contain an app key *)
-let contains_app_key (#vcfg:_) (st: vstore vcfg) (s: slot_id vcfg)
-  = inuse_slot st s &&
-    AppK? (stored_key st s)
-
-(* a sequence of base keys contain only appln keys *)
-let contains_only_app_keys (#vcfg:_) (st: vstore vcfg) (ss: S.seq (slot_id vcfg))
-  = forall i. contains_app_key st (S.index ss i)
-
-let contains_only_app_keys_comp (#vcfg:_) (st: vstore vcfg) (ss: S.seq (slot_id vcfg))
-  : b:bool {b <==> contains_only_app_keys st ss}
-  = let open Zeta.SeqIdx in
-    not (exists_elems_with_prop_comp (fun s -> not (contains_app_key st s)) ss)
-
 let puts (#vcfg:_)
   (vs: vtls_t vcfg{vs.valid})
   (ss: S.seq (slot_id vcfg))
