@@ -480,7 +480,9 @@ val lemma_addm_identical_except2
                   (inuse_slot st' s1 ==>
                    stored_key st' s1 = stored_key st s1 /\
                    stored_value st' s1 = stored_value st s1 /\
-                   add_method_of st' s1 = add_method_of st s1)))
+                   add_method_of st' s1 = add_method_of st s1 /\
+                   points_to_info st' s1 Left = points_to_info st s1 Left /\
+                   points_to_info st' s1 Right = points_to_info st s1 Right)))
 
 val lemma_runapp_preserves_ismap
       (#vcfg:_)

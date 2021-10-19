@@ -214,7 +214,8 @@ let lemma_addm_props (#vcfg:_)
     | Desc k2 _ _  ->
       if k2 = k then lemma_desc_reflexive k
 
-let lemma_addm_identical_except2 #vcfg
+let lemma_addm_identical_except2
+  (#vcfg:_)
   (vs':vtls_t vcfg{vs'.valid})
   (e: logS_entry _ {GV.AddM? e})
   (s1:_):
@@ -228,7 +229,9 @@ let lemma_addm_identical_except2 #vcfg
                   (inuse_slot st' s1 ==>
                    stored_key st' s1 = stored_key st s1 /\
                    stored_value st' s1 = stored_value st s1 /\
-                   add_method_of st' s1 = add_method_of st s1))) =
+                   add_method_of st' s1 = add_method_of st s1 /\
+                   points_to_info st' s1 Left = points_to_info st s1 Left /\
+                   points_to_info st' s1 Right = points_to_info st s1 Right))) =
   match e with
   | GV.AddM r s s' ->
     let amp = AMP s r s' vs' in

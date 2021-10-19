@@ -512,7 +512,7 @@ let sp_is_mp_empty (#vcfg:_) (tl: verifiable_log vcfg)
   : Lemma (ensures (length tl = 0 ==> sp_is_mp tl))
   = ()
 
-#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 3 --query_stats"
+#push-options "--fuel 2 --ifuel 2 --z3rlimit_factor 4"
 
 let sp_is_mp_snoc_addm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
   : Lemma (requires (let i = length tl - 1 in
@@ -540,7 +540,6 @@ let sp_is_mp_snoc_addm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
       = assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
         if points_to_dir st1 s1 dx s2 then (
           if s1 = s then (
-            assume(False); (**)
             assert(points_to_dir st s' (addm_dir a) s2);
             assert(slot_points_to_is_merkle_points_to_local st (addm_anc_slot a) s2 (addm_dir a));
             assert(s2 <> s);
@@ -553,9 +552,8 @@ let sp_is_mp_snoc_addm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
               let d = addm_dir a in
               assert(addm_anc_val_postcond a mv1');
 
-              if d = dx then admit() (**)
+              if d = dx then ()
               else (
-                assume(False);
                 // let mv' = to_merkle_value (stored_value st s') in
                 // assert(desc_hash_dir mv1' dx = desc_hash_dir mv' dx);
                 assert(addm_anc_slot_points_postcond a st1);
@@ -568,12 +566,10 @@ let sp_is_mp_snoc_addm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
             else (
               assert(s2 <> s);
               if s2 = s' then (
-                assume(False);
                 assert(slot_points_to_is_merkle_points_to_local st s' s' dx);
                 ()
               )
               else (
-                assume(False); (**)
                 assert(get_slot st s2 = get_slot st1 s2);
                 assert(addm_anc_slot_points_postcond a st1);
                 assert(dx = other_dir (addm_dir a));
@@ -590,7 +586,6 @@ let sp_is_mp_snoc_addm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
             assert(inuse_slot st s1);
             assert(inuse_slot st1 s1);
             assert(stored_value st1 s1 = stored_value st s1);
-            assume(points_to_info st1 s1 dx = points_to_info st s1 dx);
             ()
           )
         )
