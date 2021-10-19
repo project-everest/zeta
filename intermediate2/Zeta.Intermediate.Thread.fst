@@ -594,11 +594,219 @@ let sp_is_mp_snoc_addm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
 
 #pop-options
 
-let lemma_slot_is_merkle_points_to (#vcfg:_) (tl: verifiable_log vcfg)
+#push-options "--fuel 0 --ifuel 1 --query_stats"
+
+let sp_is_mp_snoc_addb (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
+  : Lemma (requires (let i = length tl - 1 in
+                     let tl' = prefix tl i in
+                     let e = index tl i in
+                     sp_is_mp tl' /\
+                     GV.AddB? e))
+          (ensures (sp_is_mp tl))
+  = let i = length tl - 1 in
+    let vs1 = state tl in
+    let st1 = vs1.st in
+
+    let tl' = prefix tl i in
+    let vs = state tl' in
+    let st = vs.st in
+
+    let e = index tl i in
+    let GV.AddB r s t j = e in
+
+    lemma_state_transition tl i;
+    assert(vs1 == GV.verify_step e vs);
+
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx) =
+      if not (points_to_dir st1 s1 dx s2) then ()
+      else (
+        (* s points to nothing after addb *)
+        assert(s1 <> s);
+        assert(get_slot st s1 = get_slot st1 s1);
+        assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+        assert(points_to_dir st s1 dx s2);
+        ()
+      )
+    in
+    forall_intro_3 aux;
+    ()
+
+let sp_is_mp_snoc_evictb (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
+  : Lemma (requires (let i = length tl - 1 in
+                     let tl' = prefix tl i in
+                     let e = index tl i in
+                     sp_is_mp tl' /\
+                     GV.EvictB? e))
+          (ensures (sp_is_mp tl))
+  = let i = length tl - 1 in
+    let vs1 = state tl in
+    let st1 = vs1.st in
+
+    let tl' = prefix tl i in
+    let vs = state tl' in
+    let st = vs.st in
+
+    let e = index tl i in
+    let GV.EvictB s t = e in
+
+    lemma_state_transition tl i;
+    assert(vs1 == GV.verify_step e vs);
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx) =
+
+      if not (points_to_dir st1 s1 dx s2) then ()
+      else (
+        assert(s <> s1);
+        assert(get_slot st s1 = get_slot st1 s1);
+        assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+        assert(points_to_dir st s1 dx s2);
+        ()
+      )
+    in
+    forall_intro_3 aux
+
+
+let sp_is_mp_snoc_evictm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
+  : Lemma (requires (let i = length tl - 1 in
+                     let tl' = prefix tl i in
+                     let e = index tl i in
+                     sp_is_mp tl' /\
+                     GV.EvictM? e))
+          (ensures (sp_is_mp tl))
+  = let i = length tl - 1 in
+    let vs1 = state tl in
+    let st1 = vs1.st in
+
+    let tl' = prefix tl i in
+    let vs = state tl' in
+    let st = vs.st in
+
+    let e = index tl i in
+    let GV.EvictM s s' = e in
+
+    lemma_state_transition tl i;
+    assert(vs1 == GV.verify_step e vs);
+    assert(empty_slot st1 s);
+    assert(identical_except2 st st1 s s');
+    let k = stored_base_key st s in
+    let k' = stored_base_key st s' in
+    assert(is_proper_desc k k');
+    let d = desc_dir k k' in
+
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx) =
+      if not (points_to_dir st1 s1 dx s2) then ()
+      else (
+        assert(s1 <> s);
+
+        if s1 = s' then (
+          assert(dx = other_dir d);
+          assert(points_to_info st s' dx = points_to_info st1 s' dx);
+          assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+          ()
+        )
+        else (
+          assert(get_slot st s1 = get_slot st1 s1);
+          assert(points_to_dir st s1 dx s2);
+          assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+          ()
+        )
+      )
+    in
+    forall_intro_3 aux;
+    ()
+
+let sp_is_mp_snoc_evictbm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
+  : Lemma (requires (let i = length tl - 1 in
+                     let tl' = prefix tl i in
+                     let e = index tl i in
+                     sp_is_mp tl' /\
+                     GV.EvictBM? e))
+          (ensures (sp_is_mp tl))
+  = let i = length tl - 1 in
+    let vs1 = state tl in
+    let st1 = vs1.st in
+
+    let tl' = prefix tl i in
+    let vs = state tl' in
+    let st = vs.st in
+
+    let e = index tl i in
+    let GV.EvictBM s s' _ = e in
+    lemma_state_transition tl i;
+    assert(vs1 == GV.verify_step e vs);
+    assert(identical_except2 st1 st s s');
+    let k = stored_base_key st s in
+    let k' = stored_base_key st s' in
+    assert(is_proper_desc k k');
+    let d = desc_dir k k' in
+
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx) =
+
+      if not (points_to_dir st1 s1 dx s2) then ()
+      else (
+        assert(s <> s1);
+        if s1 = s' then (
+          assert(dx = other_dir d);
+          assert(points_to_info st s' dx = points_to_info st1 s' dx);
+          assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+          ()
+        )
+        else (
+          assert(get_slot st s1 = get_slot st1 s1);
+          assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+          assert(points_to_dir st s1 dx s2);
+          ()
+        )
+      )
+    in
+    forall_intro_3 aux
+
+#pop-options
+
+let sp_is_mp_snoc_appfn (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
+  : Lemma (requires (let i = length tl - 1 in
+                     let tl' = prefix tl i in
+                     let e = index tl i in
+                     sp_is_mp tl' /\
+                     GV.RunApp? e))
+          (ensures (sp_is_mp tl))
+  = admit()
+
+let sp_is_mp_snoc (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
+  : Lemma (requires (let i = length tl - 1 in
+                     let tl' = prefix tl i in
+                     let e = index tl i in
+                     sp_is_mp tl'))
+          (ensures (sp_is_mp tl))
+  = let i = length tl - 1 in
+    let tl' = prefix tl i in
+    let e = index tl i in
+    let open Zeta.GenericVerifier in
+    match e with
+    | AddM _ _ _ -> sp_is_mp_snoc_addm tl
+    | AddB _ _ _ _ -> sp_is_mp_snoc_addb tl
+    | EvictM  _ _ -> sp_is_mp_snoc_evictm tl
+    | EvictB  _ _ -> sp_is_mp_snoc_evictb tl
+    | EvictBM _ _ _ -> sp_is_mp_snoc_evictbm tl
+    | RunApp _  _ _ -> sp_is_mp_snoc_appfn tl
+    | _ -> ()
+
+let rec lemma_slot_is_merkle_points_to (#vcfg:_) (tl: verifiable_log vcfg)
   : Lemma (ensures (let st = store tl in
                     slot_points_to_is_merkle_points_to st))
-  = admit()
+          (decreases (length tl))
+  = if length tl = 0 then
+      sp_is_mp_empty tl
+    else
+      let i = length tl - 1 in
+      let tl' = prefix tl i in
+      lemma_slot_is_merkle_points_to tl';
+      sp_is_mp_snoc tl
 
 let empty_log_is_map (#vcfg:_) (tl: verifiable_log vcfg)
   : Lemma (ensures (length tl = 0 ==> is_map (store tl)))
-  = admit()
+  = if length tl = 0 then
+      ()
