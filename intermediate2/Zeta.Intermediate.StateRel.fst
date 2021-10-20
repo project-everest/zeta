@@ -517,7 +517,7 @@ let lemma_vaddm_preserves_spec_new_key
     else
       lemma_vaddm_preserves_spec_case_fail vs vs' e
 
-#push-options "--fuel 2 --ifuel 2 --z3rlimit_factor 4 --query_stats"
+#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 3 --query_stats"
 
 let lemma_vaddb_preserves_spec_new_key
       (#vcfg:_)
@@ -562,6 +562,11 @@ let lemma_vaddb_preserves_spec_new_key
               assert (si <> s);
 
               assert(get_slot sts si = get_slot sts_ si)
+            )
+            else (
+              assert(not (HV.store_contains stk ki));
+
+              admit()
             )
           )
       in
