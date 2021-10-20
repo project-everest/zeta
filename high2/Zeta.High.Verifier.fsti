@@ -310,14 +310,35 @@ let contains_app_key (#app:_) (st: store_t app) (k: base_key)
 let contains_only_app_keys (#app:_) (st: store_t app) (ks: S.seq base_key)
   = forall i. contains_app_key st (S.index ks i)
 
-val contains_only_app_keys_comp (#app:_) (st: store_t app) (ks: S.seq base_key)
+let contains_only_app_keys_comp (#app:_) (st: store_t app) (ks: S.seq base_key)
   : b:bool { b <==> contains_only_app_keys st ks }
+  = let open Zeta.SeqIdx in
+    not (exists_elems_with_prop_comp (fun k -> not (contains_app_key st k)) ks)
 
-val puts (#app:_)
+let puts_store (#app:_)
+  (st: store_t app)
+  (ks: S.seq base_key)
+  (ws: S.seq (app_value_nullable app.adm))
+  : store_t app
+  = if contains_only_app_keys_comp st ks && S.length ws = S.length ks then
+      fun k -> if S.mem k ks then
+               let i = S.index_mem k ks in
+               let am = add_method_of st k in
+               let gk = stored_key st k in
+               let gv = AppV (S.index ws i) in
+               let r = gk,gv in
+               Some ({r; am})
+             else
+               st k
+    else st
+
+let puts (#app:_)
   (vs: vtls_t app{vs.valid})
   (ks: S.seq base_key)
   (ws: S.seq (app_value_nullable app.adm))
   : vs': vtls_t app{vs'.valid}
+  = let st = puts_store vs.st ks ws in
+    update_thread_store vs st
 
 (* the specification of the high level verifier *)
 let high_verifier_spec_base (app: app_params): Zeta.GenericVerifier.verifier_spec_base

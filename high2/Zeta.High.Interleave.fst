@@ -1049,7 +1049,7 @@ let em_is_sm_snoc_evict
           (ensures (em_is_sm_prop il ki))
   = eac_state_snoc ki il
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--z3rlimit_factor 4"
 
 let em_is_sm_snoc_appfn
   (#app #n:_)

@@ -2,6 +2,8 @@ module Zeta.Intermediate.StateRel
 
 open FStar.Classical
 open Zeta.BinTree
+open Zeta.SeqIdx
+open Zeta.App
 open Zeta.Key
 open Zeta.GenKey
 open Zeta.Record
@@ -54,6 +56,174 @@ let lemma_empty_vtls_rel
       in
       forall_intro aux
 
+(* all slots in a sequence in use *)
+let all_slots_inuse (#vcfg:_) (st: vstore vcfg) (ss: S.seq (slot_id vcfg))
+  = forall i. (inuse_slot st (S.index ss i))
+
+let all_slots_inuse_comp (#vcfg:_) (st: vstore vcfg) (ss: S.seq (slot_id vcfg))
+  : b:bool {b <==> all_slots_inuse st ss}
+  = not (exists_elems_with_prop_comp (fun s -> empty_slot st s) ss)
+
+noeq type appfn_rel_t (vcfg: verifier_config) =
+  | AFR: vss: vtls_t vcfg {vss.valid} ->
+         vsk: _ {vtls_rel vss vsk} ->
+         e: logS_entry vcfg {GV.is_appfn e /\ valid_logS_entry vss e} -> appfn_rel_t vcfg
+
+let int_state (#vcfg:_) (a: appfn_rel_t vcfg)
+  = a.vss
+
+let int_store (#vcfg:_) (a: appfn_rel_t vcfg)
+  = a.vss.st
+
+let hi_state (#vcfg:_)  (a: appfn_rel_t vcfg)
+  : HV.vtls_t vcfg.app
+  = a.vsk
+
+let hi_store (#vcfg:_) (a: appfn_rel_t vcfg)
+  : HV.store_t vcfg.app
+  = (hi_state a).st
+
+let int_slots (#vcfg:_) (a: appfn_rel_t vcfg)
+  : ss:S.seq (slot_id vcfg) {all_slots_inuse (int_store a) ss}
+  = GV.RunApp?.rs a.e
+
+let hi_entry (#vcfg:_) (a: appfn_rel_t vcfg)
+  : logK_entry vcfg.app
+  = to_logk_entry a.vss a.e
+
+let hi_slots (#vcfg:_) (a: appfn_rel_t vcfg)
+  : S.seq base_key
+  = GV.RunApp?.rs (hi_entry a)
+
+let slot_key_list_rel (#vcfg:_)
+  (sts: vstore vcfg)
+  (stk: _ {store_rel sts stk})
+  (ss: _ {all_slots_inuse sts ss})
+  (ks: S.seq base_key)
+  = S.length ss = S.length ks /\
+    (forall i. (stored_base_key sts (S.index ss i) = S.index ks i))
+
+let lemma_appfn_slot_key_rel (#vcfg:_) (a: appfn_rel_t vcfg)
+  : Lemma (ensures (slot_key_list_rel (int_store a) (hi_store a) (int_slots a) (hi_slots a)))
+  = ()
+
+let to_hv_store (#vcfg:_) (vsk: HV.vtls_t vcfg.app)
+  : HV.store_t vcfg.app
+  = vsk.st
+
+let contains_distinct_app_keys_rel_aux (#vcfg:_)
+  (vss: vtls_t vcfg {vss.valid})
+  (vsk: _ {vtls_rel vss vsk})
+  (ss: _ {all_slots_inuse vss.st ss})
+  (ks: _ {let sts = vss.st in
+          let stk = to_hv_store vsk in
+          slot_key_list_rel sts stk ss ks})
+  : Lemma (ensures (let intspec = int_verifier_spec vcfg in
+                    let hispec = HV.high_verifier_spec vcfg.app in
+                    GV.contains_distinct_app_keys #intspec vss ss <==>
+                    GV.contains_distinct_app_keys #hispec vsk ks))
+  = ()
+
+let contains_distinct_app_keys_rel (#vcfg:_) (a: appfn_rel_t vcfg)
+  : Lemma (ensures (let intspec = int_verifier_spec vcfg in
+                    let hispec = HV.high_verifier_spec vcfg.app in
+                    GV.contains_distinct_app_keys #intspec (int_state a) (int_slots a) <==>
+                    GV.contains_distinct_app_keys #hispec (hi_state a) (hi_slots a)))
+  = let vss = int_state a in
+    let vsk = hi_state a in
+    let ss = int_slots a in
+    let ks = hi_slots a in
+    contains_distinct_app_keys_rel_aux vss vsk ss ks
+
+let contains_distinct_app_keys (#vcfg:_) (a: appfn_rel_t vcfg)
+  : bool
+  = let intspec = int_verifier_spec vcfg in
+    let hispec = HV.high_verifier_spec vcfg.app in
+    GV.contains_distinct_app_keys_comp #intspec (int_state a) (int_slots a) &&
+    GV.contains_distinct_app_keys_comp #hispec (hi_state a) (hi_slots a)
+
+let int_reads (#vcfg:_) (a: appfn_rel_t vcfg {contains_distinct_app_keys a})
+  : S.seq (app_record vcfg.app.adm)
+  = let intspec = int_verifier_spec vcfg in
+    GV.reads #intspec (int_state a) (int_slots a)
+
+let hi_reads (#vcfg:_) (a: appfn_rel_t vcfg {contains_distinct_app_keys a})
+  : S.seq (app_record vcfg.app.adm)
+  = let hispec = HV.high_verifier_spec vcfg.app in
+    GV.reads #hispec (hi_state a) (hi_slots a)
+
+let reads_rel (#vcfg:_) (a: appfn_rel_t vcfg)
+  : Lemma (requires (contains_distinct_app_keys a))
+          (ensures (int_reads a == hi_reads a))
+  = let intspec = int_verifier_spec vcfg in
+    let hispec = HV.high_verifier_spec vcfg.app in
+    let vss = int_state a in
+    let ss = int_slots a in
+    let rss = GV.reads #intspec vss ss in
+
+    let vsk = hi_state a  in
+    let ks = hi_slots a in
+    let rsk = GV.reads #hispec vsk ks in
+
+    assert(S.length rss = S.length rsk);
+    let aux (i:_)
+      : Lemma (ensures (S.index rss i == S.index rsk i))
+      = ()
+    in
+    forall_intro aux;
+    assert(S.equal rss rsk)
+
+let int_appfn_succ (#vcfg:_) (a: appfn_rel_t vcfg)
+  = let GV.RunApp f p _ = a.e in
+    let ss = int_slots a in
+    contains_distinct_app_keys a /\
+    S.length ss = appfn_arity f /\
+    (let rs = int_reads a in
+     let fn = appfn f in
+     let rc,_,_ = fn p rs in
+     rc = Fn_success
+    )
+
+let hi_appfn_succ (#vcfg:_) (a: appfn_rel_t vcfg)
+  = let GV.RunApp f p _ = (hi_entry a) in
+    let ks = hi_slots a in
+    contains_distinct_app_keys a /\
+    S.length ks = appfn_arity f /\
+    (let rs = hi_reads a in
+     let fn = appfn f in
+     let rc,_,_ = fn p rs in
+     rc = Fn_success
+    )
+
+let lemma_appfn_succ_rel (#vcfg:_) (a: appfn_rel_t vcfg)
+  : Lemma (ensures (int_appfn_succ a <==> hi_appfn_succ a))
+  = if contains_distinct_app_keys a then
+      let ss = int_slots a in
+      let ks = hi_slots a in
+      let GV.RunApp f p _ = a.e in
+
+      if S.length ss = appfn_arity f then
+        reads_rel a
+
+let int_writes (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
+  : S.seq (app_value_nullable vcfg.app.adm)
+  = let GV.RunApp f p _ = a.e in
+    let ss = int_slots a in
+    let rs = int_reads a in
+    let fn = appfn f in
+    let _,_,ws = fn p rs in
+    ws
+
+
+let hi_writes (#vcfg:_) (a: appfn_rel_t vcfg {hi_appfn_succ a})
+  : S.seq (app_value_nullable vcfg.app.adm)
+  = let GV.RunApp f p _ = a.e in
+    let ss = hi_slots a in
+    let rs = hi_reads a in
+    let fn = appfn f in
+    let _,_,ws = fn p rs in
+    ws
+
 let lemma_runapp_simulates_spec
       (#vcfg:_)
       (vss:vtls_t vcfg{vss.valid})
@@ -62,7 +232,23 @@ let lemma_runapp_simulates_spec
   : Lemma (requires (valid_logS_entry vss e))
           (ensures (let ek = to_logk_entry vss e in
                     vtls_rel (GV.verify_step e vss) (GV.verify_step ek vsk)))
-  = admit()
+  = let sts = vss.st in
+
+    (* explicit cast needed to help resolve .st below *)
+    let vsk: HV.vtls_t vcfg.app = vsk in
+    let stk = vsk.st in
+    let GV.RunApp f p ss = e in
+
+    let vss_ = GV.verify_step e vss in
+    let sts_ = vss_.st in
+    let ek = to_logk_entry vss e in
+    let vsk_: HV.vtls_t vcfg.app = GV.verify_step ek vsk in
+    let stk_ = vsk_.st in
+
+    let ks = GV.RunApp?.rs ek in
+    assert(S.length ks = S.length ss);
+
+    admit()
 
 
 let amp (#vcfg:_) (vss:vtls_t vcfg {vss.valid}) (e: logS_entry vcfg {GV.AddM? e})
@@ -331,7 +517,7 @@ let lemma_vaddm_preserves_spec_new_key
     else
       lemma_vaddm_preserves_spec_case_fail vs vs' e
 
-#push-options "--fuel 1 --ifuel 1 --query_stats"
+#push-options "--fuel 2 --ifuel 2 --z3rlimit_factor 4 --query_stats"
 
 let lemma_vaddb_preserves_spec_new_key
       (#vcfg:_)
