@@ -303,13 +303,6 @@ let lemma_spec_rel_implies_prefix_spec_rel (#vcfg:_) (il:verifiable_log vcfg) (i
   = forall_vtls_rel_prefix il i;
     forall_store_ismap_prefix il i
 
-let lemma_spec_rel_implies_appfn_identical (#vcfg:_) (il: verifiable_log vcfg {spec_rel il})
-  : Lemma (ensures (let gl = to_glog il in
-                    let ilk = to_logk il in
-                    let glk = to_glog ilk in
-                    GG.app_fcrs gl = GG.app_fcrs glk))
-  = admit()
-
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
 let rec lemma_same_shape (#vcfg:_) (il: verifiable_log vcfg) (t:nat{t < vcfg.thread_count})
@@ -354,6 +347,72 @@ let rec lemma_to_logk_i2smap (#vcfg:_) (ils: verifiable_log vcfg) (i: seq_index 
     )
 
 #pop-options
+
+module IG = Zeta.Intermediate.Global
+
+let lemma_spec_rel_implies_thread_rel (#vcfg:_) (il: verifiable_log vcfg {spec_rel il}) (t:nat{t < vcfg.thread_count})
+  : Lemma (ensures (let gls = to_glog il in
+                    let ilk = to_logk il in
+                    let glk = to_glog ilk in
+                    let tls = GG.index gls t in
+                    let tlk = GG.index glk t in
+                    IT.thread_rel tls tlk))
+  = let gls = to_glog il in
+    let ilk = to_logk il in
+    let glk = to_glog ilk in
+    let tls = GG.index gls t in
+    let tlk = GG.index glk t in
+
+    lemma_same_shape il t;
+    assert(GT.length tls = GT.length tlk);
+
+    elim_forall_vtls_rel il t;
+    assert(vtls_rel (thread_state t il) (thread_state t ilk));
+    assert(GT.state tls == thread_state t il);
+    assert(GT.state tlk == thread_state t ilk);
+
+    let aux (j:_)
+      : Lemma (ensures (vtls_rel (GT.state_pre tls j) (GT.state_pre tlk j)))
+      = let i = s2i_map il (t,j) in
+        assert(i2s_map il i = (t,j));
+        lemma_to_logk_i2smap il i;
+        assert(i2s_map ilk i = (t,j));
+        lemma_thread_state_prefix il i;
+        assert(GT.state_pre tls j == thread_state_pre t il i);
+        lemma_thread_state_prefix ilk i;
+        assert(GT.state_pre tlk j == thread_state_pre t ilk i);
+        forall_vtls_rel_prefix il i;
+        let il' = prefix il i in
+        assert(forall_vtls_rel il');
+        elim_forall_vtls_rel il' t
+    in
+    forall_intro aux
+
+let lemma_spec_rel_implies_global_rel (#vcfg:_) (il: verifiable_log vcfg {spec_rel il})
+  : Lemma (ensures (let gls = to_glog il in
+                    let ilk = to_logk il in
+                    let glk = to_glog ilk in
+                    IG.global_rel gls glk))
+  = let gls = to_glog il in
+    let ilk = to_logk il in
+    let glk = to_glog ilk in
+    assert(S.length gls = S.length glk);
+    let aux (t:_)
+      : Lemma (ensures (IT.thread_rel (GG.index gls t) (GG.index glk t)))
+      = lemma_spec_rel_implies_thread_rel il t
+    in
+    forall_intro aux
+
+let lemma_spec_rel_implies_appfn_identical (#vcfg:_) (il: verifiable_log vcfg {spec_rel il})
+  : Lemma (ensures (let gl = to_glog il in
+                    let ilk = to_logk il in
+                    let glk = to_glog ilk in
+                    GG.app_fcrs gl = GG.app_fcrs glk))
+  = lemma_spec_rel_implies_global_rel il;
+    let gls = to_glog il in
+    let glk = to_glog (to_logk il) in
+    IG.global_rel_implies_appfn_identical gls glk
+
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 

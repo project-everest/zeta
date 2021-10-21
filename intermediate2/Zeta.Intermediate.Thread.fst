@@ -615,7 +615,7 @@ let verifiable_implies_valid_log_entry
   : Lemma (ensures (let st = store_pre tl i in
                     let e = index tl i in
                     let s2k = Store.to_slot_state_map st in
-                    valid_logS_entry s2k e))
+                    Logs.valid_logS_entry s2k e))
   = let _tl = prefix tl i in
     let t,_l = _tl in
     let t, l = tl in
@@ -630,12 +630,12 @@ let verifiable_implies_valid_log_entry
     let e = index tl i in
     lemma_all_entries_valid s2k0 l i;
     let s2kl = Logs.to_slot_state_map s2k0 (SA.prefix l i) in
-    assert(valid_logS_entry s2kl e);
+    assert(Logs.valid_logS_entry s2kl e);
 
     let s2ks = Store.to_slot_state_map _st in
     assert(ssm_feq s2kl s2ks);
 
-    assert(valid_logS_entry s2ks e);
+    assert(Logs.valid_logS_entry s2ks e);
 
     ()
 
@@ -986,3 +986,21 @@ let empty_log_is_map (#vcfg:_) (tl: verifiable_log vcfg)
   : Lemma (ensures (length tl = 0 ==> is_map (store tl)))
   = if length tl = 0 then
       ()
+
+type rel_pair (vcfg:verifier_config)
+  = | RP: tls: verifiable_log vcfg ->
+          tlk: HT.verifiable_log vcfg.app {thread_rel tls tlk} -> rel_pair vcfg
+
+let lemma_rel_pair_appfn (#vcfg:_) (rp: rel_pair vcfg) (i: seq_index rp.tls)
+  : Lemma (ensures (is_appfn rp.tls i = is_appfn rp.tlk i))
+          [SMTPat (is_appfn rp.tls i)]
+  = admit()
+
+let lemma_rel_pair_to_app_fcr (#vcfg:_) (rp: rel_pair vcfg) (i: seq_index rp.tls {is_appfn rp.tls i})
+  : Lemma (ensures (to_app_fcr rp.tls i = to_app_fcr rp.tls i))
+          [SMTPat (to_app_fcr rp.tls i)]
+  = admit()
+
+let thread_rel_implies_fcrs_identical (#vcfg:_) (tls: verifiable_log vcfg) (tlk:_ {thread_rel tls tlk})
+  : Lemma (ensures (app_fcrs tls == app_fcrs tlk))
+  = admit()

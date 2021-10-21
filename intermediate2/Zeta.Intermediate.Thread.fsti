@@ -3,7 +3,10 @@ module Zeta.Intermediate.Thread
 open Zeta.Intermediate.Store
 open Zeta.Intermediate.Verifier
 open Zeta.Intermediate.Logs
+open Zeta.Intermediate.StateRel
 open Zeta.Generic.Thread
+
+module HT = Zeta.High.Thread
 
 let verifiable_log (vcfg:_)
   = Zeta.Generic.Thread.verifiable_log (int_verifier_spec vcfg)
@@ -27,7 +30,7 @@ val verifiable_implies_valid_log_entry
   : Lemma (ensures (let st = store_pre tl i in
                     let e = index tl i in
                     let s2k = Store.to_slot_state_map st in
-                    valid_logS_entry s2k e))
+                    Logs.valid_logS_entry s2k e))
           [SMTPat (index tl i)]
 
 let to_logk_entry (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl)
@@ -44,3 +47,13 @@ val lemma_slot_is_merkle_points_to (#vcfg:_) (tl: verifiable_log vcfg)
 
 val empty_log_is_map (#vcfg:_) (tl: verifiable_log vcfg)
   : Lemma (ensures (length tl = 0 ==> is_map (store tl)))
+
+let thread_rel (#vcfg:_) (tls: verifiable_log vcfg) (tlk: HT.verifiable_log vcfg.app)
+  = let vts = state tls in
+    let vtk = state tlk in
+    vtls_rel vts vtk /\
+    length tls = length tlk /\
+    (forall i. vtls_rel (state_pre tls i) (state_pre tlk i))
+
+val thread_rel_implies_fcrs_identical (#vcfg:_) (tls: verifiable_log vcfg) (tlk:_ {thread_rel tls tlk})
+  : Lemma (ensures (app_fcrs tls == app_fcrs tlk))
