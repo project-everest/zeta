@@ -208,7 +208,7 @@ let lemma_appfn_succ_rel (#vcfg:_) (a: appfn_rel_t vcfg)
         reads_rel a
 
 let int_writes (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
-  : S.seq (app_value_nullable vcfg.app.adm)
+  : ws:S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length (int_slots a)}
   = let GV.RunApp f p _ = a.e in
     let ss = int_slots a in
     let rs = int_reads a in
@@ -216,9 +216,8 @@ let int_writes (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
     let _,_,ws = fn p rs in
     ws
 
-
 let hi_writes (#vcfg:_) (a: appfn_rel_t vcfg {hi_appfn_succ a})
-  : S.seq (app_value_nullable vcfg.app.adm)
+  : ws:S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length (hi_slots a)}
   = let GV.RunApp f p _ = a.e in
     let ss = hi_slots a in
     let rs = hi_reads a in
@@ -232,7 +231,11 @@ let writes_rel (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
     assert(hi_appfn_succ a);
     reads_rel a
 
-#push-options "--z3rlimit_factor 3"
+let lemma_contains_only_app_keys (#vcfg:_) (a: appfn_rel_t vcfg{contains_distinct_app_keys a})
+  : Lemma (ensures (contains_only_app_keys (int_store a) (int_slots a)))
+  = ()
+
+#push-options "--z3rlimit_factor 4"
 
 let lemma_runapp_simulates_spec
       (#vcfg:_)
@@ -247,6 +250,9 @@ let lemma_runapp_simulates_spec
     let vss_ = GV.verify_step e vss in
     let vsk_: HV.vtls_t vcfg.app = GV.verify_step ek vsk in
     let GV.RunApp f p ss = e in
+    let ks = hi_slots a in
+    let stk = hi_store a in
+    let sts = vss.st in
 
     contains_distinct_app_keys_rel a;
     if contains_distinct_app_keys a && S.length ss = appfn_arity f then (
@@ -258,7 +264,47 @@ let lemma_runapp_simulates_spec
         let wss = int_writes a in
         let wsk = hi_writes a in
         assert (wss == wsk);
-        admit()
+        assert(vss_ == puts vss ss wss);
+        assert(vsk_ == HV.puts vsk ks wsk);
+        assert (vss_.valid = vsk_.valid);
+        assert (vss_.clock = vsk_.clock);
+        assert (vss_.tid = vsk_.tid);
+        lemma_contains_only_app_keys a;
+        let sts_ = vss_.st in
+        let stk_ = vsk_.st in
+        assert (vss_.st == puts_store vss.st ss wss);
+        assert (vsk_.st == HV.puts_store stk ks wsk);
+        assert(HV.contains_only_app_keys stk ks);
+        assert (is_map vss_.st);
+        let aux (k:_)
+          : Lemma (ensures (store_rel_key sts_ stk_ k))
+          = if S.mem k ks then (
+              admit()
+            )
+            else (
+              assert (stk_ k = stk k);
+              if HV.store_contains stk_ k then (
+                assert (HV.store_contains stk k);
+                assert (store_contains_key sts k);
+                let si = slot_of_key sts k in
+                puts_preserves sts ss wss si;
+                if S.mem si ss then (
+                  let i = S.index_mem si ss in
+                  admit()
+                )
+                else puts_preserves_non_ref sts ss wss si
+              )
+              else (
+                assert(not (HV.store_contains stk k));
+                assert (not (store_contains_key sts k));
+                if store_contains_key sts_ k then (
+                  let si = slot_of_key sts_ k in
+                  puts_preserves sts ss wss si
+                )
+              )
+            )
+        in
+        forall_intro aux
       )
       else (
         assert (GV.contains_distinct_app_keys_comp vss ss);
