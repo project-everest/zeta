@@ -1455,7 +1455,9 @@ let rec puts_store_aux (#vcfg:_)
       let st = puts_store_aux st ss ws l' in
       let s = S.index ss l' in
       let v = S.index ws l' in
-      update_value st s (AppV v)
+      if S.index_mem s ss = l' then
+        update_value st s (AppV v)
+      else st
     )
 
 let puts_store (#vcfg:_)
@@ -1539,6 +1541,28 @@ let puts_preserve_ismap (#vcfg:_)
   : Lemma (ensures (is_map (puts_store st ss ws)))
   = puts_preserve_ismap_aux st ss ws (S.length ss)
 
+let rec puts_ref_value_aux (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
+  (s: slot_id vcfg {S.mem s ss})
+  (l: nat{ l <= S.length ss })
+  : Lemma (ensures (let i = S.index_mem s ss in
+                    let sts_ = puts_store_aux st ss ws l in
+                    inuse_slot sts_ s /\
+                    (i < l ==> stored_value sts_ s = AppV (S.index ws i))))
+          (decreases l)
+  = puts_preserves_aux st ss ws s l;
+    let i = S.index_mem s ss in
+    eliminate forall i. contains_app_key st (S.index ss i) with i;
+    assert(inuse_slot st s);
+    let sts_ = puts_store_aux st ss ws l in
+
+    if l > 0 && i < l then (
+      puts_ref_value_aux st ss ws s (l-1);
+      ()
+    )
+
 let puts_ref_value (#vcfg:_)
   (st: vstore vcfg)
   (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
@@ -1548,4 +1572,4 @@ let puts_ref_value (#vcfg:_)
                     let sts_ = puts_store st ss ws in
                     inuse_slot sts_ s /\
                     stored_value sts_ s = AppV (S.index ws i)))
-  = admit()
+  = puts_ref_value_aux st ss ws s (S.length ss)
