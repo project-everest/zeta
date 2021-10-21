@@ -1538,3 +1538,14 @@ let puts_preserve_ismap (#vcfg:_)
   (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
   : Lemma (ensures (is_map (puts_store st ss ws)))
   = puts_preserve_ismap_aux st ss ws (S.length ss)
+
+let puts_ref_value (#vcfg:_)
+  (st: vstore vcfg)
+  (ss: S.seq (slot_id vcfg){contains_only_app_keys st ss})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
+  (s: slot_id vcfg {S.mem s ss})
+  : Lemma (ensures (let i = S.index_mem s ss in
+                    let sts_ = puts_store st ss ws in
+                    inuse_slot sts_ s /\
+                    stored_value sts_ s = AppV (S.index ws i)))
+  = admit()

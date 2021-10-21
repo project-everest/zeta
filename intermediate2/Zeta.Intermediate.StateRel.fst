@@ -235,7 +235,63 @@ let lemma_contains_only_app_keys (#vcfg:_) (a: appfn_rel_t vcfg{contains_distinc
   : Lemma (ensures (contains_only_app_keys (int_store a) (int_slots a)))
   = ()
 
-#push-options "--z3rlimit_factor 4"
+#push-options "--fuel 1 --ifuel 1 --query_stats"
+
+let lemma_puts_store_rel
+  (#vcfg:_)
+  (sts: vstore vcfg)
+  (stk: _ {store_rel sts stk})
+  (ss: S.seq (slot_id vcfg) {contains_only_app_keys sts ss})
+  (ks: S.seq base_key {slot_key_list_rel sts stk ss ks})
+  (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
+  : Lemma (requires (HV.contains_only_app_keys stk ks))
+          (ensures (let sts_ = puts_store sts ss ws in
+                    let stk_ = HV.puts_store stk ks ws in
+                    store_rel sts_ stk_))
+  = let sts_ = puts_store sts ss ws in
+    let stk_ = HV.puts_store stk ks ws in
+    assert(is_map sts_);
+    let aux (k:_)
+      : Lemma (ensures (store_rel_key sts_ stk_ k))
+      = if S.mem k ks then (
+          let i = S.index_mem k ks in
+          eliminate forall i. (stored_base_key sts (S.index ss i) = S.index ks i) with i;
+          let si = S.index ss i in
+          assert(HV.stored_value stk_ k = AppV (S.index ws i));
+          puts_preserves sts ss ws si;
+          puts_ref_value sts ss ws si;
+          assume (i = S.index_mem si ss);
+          assert (stored_value sts_ si = AppV (S.index ws i));
+          ()
+        )
+        else (
+          assert (stk_ k = stk k);
+          if HV.store_contains stk_ k then (
+             assert (HV.store_contains stk k);
+             assert (store_contains_key sts k);
+             let si = slot_of_key sts k in
+             puts_preserves sts ss ws si;
+             if S.mem si ss then (
+               let i = S.index_mem si ss in
+               eliminate forall i. (stored_base_key sts (S.index ss i) = S.index ks i) with i
+             )
+             else puts_preserves_non_ref sts ss ws si
+          )
+          else (
+            assert(not (HV.store_contains stk k));
+            assert (not (store_contains_key sts k));
+            if store_contains_key sts_ k then (
+               let si = slot_of_key sts_ k in
+               puts_preserves sts ss ws si
+            )
+          )
+        )
+    in
+    forall_intro aux
+
+#pop-options
+
+#push-options "--z3rlimit_factor 8"
 
 let lemma_runapp_simulates_spec
       (#vcfg:_)
@@ -275,36 +331,7 @@ let lemma_runapp_simulates_spec
         assert (vss_.st == puts_store vss.st ss wss);
         assert (vsk_.st == HV.puts_store stk ks wsk);
         assert(HV.contains_only_app_keys stk ks);
-        assert (is_map vss_.st);
-        let aux (k:_)
-          : Lemma (ensures (store_rel_key sts_ stk_ k))
-          = if S.mem k ks then (
-              admit()
-            )
-            else (
-              assert (stk_ k = stk k);
-              if HV.store_contains stk_ k then (
-                assert (HV.store_contains stk k);
-                assert (store_contains_key sts k);
-                let si = slot_of_key sts k in
-                puts_preserves sts ss wss si;
-                if S.mem si ss then (
-                  let i = S.index_mem si ss in
-                  admit()
-                )
-                else puts_preserves_non_ref sts ss wss si
-              )
-              else (
-                assert(not (HV.store_contains stk k));
-                assert (not (store_contains_key sts k));
-                if store_contains_key sts_ k then (
-                  let si = slot_of_key sts_ k in
-                  puts_preserves sts ss wss si
-                )
-              )
-            )
-        in
-        forall_intro aux
+        lemma_puts_store_rel sts stk ss ks wss
       )
       else (
         assert (GV.contains_distinct_app_keys_comp vss ss);
@@ -586,7 +613,7 @@ let lemma_vaddm_preserves_spec_new_key
     else
       lemma_vaddm_preserves_spec_case_fail vs vs' e
 
-#push-options "--fuel 2 --ifuel 2 --z3rlimit_factor 3 --query_stats"
+#push-options "--z3rlimit_factor 6"
 
 let lemma_vaddb_preserves_spec_new_key
       (#vcfg:_)
