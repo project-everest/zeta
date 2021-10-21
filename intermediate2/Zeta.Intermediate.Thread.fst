@@ -2,6 +2,7 @@ module Zeta.Intermediate.Thread
 
 open FStar.Classical
 open Zeta.BinTree
+open Zeta.App
 open Zeta.Record
 open Zeta.Intermediate.VerifierConfig
 open Zeta.Intermediate.SlotKeyRel
@@ -46,6 +47,131 @@ let consistent_log_empty (#vcfg:_) (tl: verifiable_log vcfg)
        forall_intro aux
     )
 
+noeq type appfn_verify (vcfg: verifier_config) =
+  | AFV: vs: vtls_t vcfg {vs.valid} ->
+         e: logS_entry vcfg {GV.is_appfn e} -> appfn_verify vcfg
+
+let app_pre_state (#vcfg:_) (a: appfn_verify vcfg)
+  = a.vs
+
+let app_post_state (#vcfg:_) (a: appfn_verify vcfg)
+  = GV.verify_step a.e a.vs
+
+let app_pre_store (#vcfg:_) (a: appfn_verify vcfg)
+  = a.vs.st
+
+let app_post_store (#vcfg:_) (a: appfn_verify vcfg)
+  = let vs_ = app_post_state a in
+    vs_.st
+
+let appfn_verify_valid (#vcfg:_) (a: appfn_verify vcfg)
+  = let vs_ = app_post_state a in
+    vs_.valid
+
+let appfn_slots (#vcfg:_) (a: appfn_verify vcfg)
+  = let GV.RunApp _ _ ss = a.e in
+    ss
+
+let distinct_slots (#vcfg:_) (ss: S.seq (slot_id vcfg))
+  = forall i1 i2. i1 <> i2 ==> S.index ss i1 <> S.index ss i2
+
+let contains_distinct_app_keys (#vcfg:_) (a: appfn_verify vcfg)
+  : bool
+  = GV.contains_distinct_app_keys_comp (app_pre_state a) (appfn_slots a)
+
+let lemma_contains_only_app_keys (#vcfg:_) (a: appfn_verify vcfg)
+  : Lemma (ensures (contains_distinct_app_keys a ==> contains_only_app_keys (app_pre_store a) (appfn_slots a)))
+  = ()
+
+let lemma_valid_implies_contains_distinct (#vcfg:_) (a: appfn_verify vcfg)
+  : Lemma (ensures (appfn_verify_valid a ==> contains_distinct_app_keys a))
+  = ()
+
+let lemma_store_contains_ref_slots (#vcfg:_) (a: appfn_verify vcfg {appfn_verify_valid a}) (s: slot_id vcfg)
+  : Lemma (requires (let ss = appfn_slots a in
+                     S.mem s ss))
+          (ensures (let st = app_pre_store a in
+                    inuse_slot st s))
+  = let st = app_pre_store a in
+    let ss = appfn_slots a in
+
+    lemma_valid_implies_contains_distinct a;
+    lemma_contains_only_app_keys a;
+    assert(contains_only_app_keys st ss);
+    let i = S.index_mem s ss in
+    eliminate forall i. contains_app_key st (S.index ss i) with i
+
+let appfn_slots_distinct (#vcfg:_) (a: appfn_verify vcfg {contains_distinct_app_keys a})
+  : Lemma (ensures (distinct_slots (appfn_slots a)))
+  = let ss = appfn_slots a in
+    let aux (i1 i2:_)
+      : Lemma (i1 <> i2 ==> S.index ss i1 <> S.index ss i2)
+      = if i1 <> i2 then (
+          ()
+        )
+    in
+    forall_intro_2 aux
+
+let reads (#vcfg:_) (a: appfn_verify vcfg {contains_distinct_app_keys a})
+  : S.seq (app_record vcfg.app.adm)
+  = let intspec = int_verifier_spec vcfg in
+    GV.reads #intspec (app_pre_state a) (appfn_slots a)
+
+let appfn_succ (#vcfg:_) (a: appfn_verify vcfg)
+  : bool
+  = let GV.RunApp f p _ = a.e in
+    let ss = appfn_slots a in
+    contains_distinct_app_keys a &&
+    S.length ss = appfn_arity f &&
+    (let rs = reads a in
+     let fn = appfn f in
+     let rc,_,_ = fn p rs in
+     rc = Fn_success
+    )
+
+let writes (#vcfg:_) (a: appfn_verify vcfg {appfn_succ a})
+  : ws:S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length (appfn_slots a)}
+  = let GV.RunApp f p _ = a.e in
+    let ss = appfn_slots a in
+    let rs = reads a in
+    let fn = appfn f in
+    let _,_,ws = fn p rs in
+    ws
+
+let lemma_valid_implies_succ (#vcfg:_) (a: appfn_verify vcfg {appfn_verify_valid a})
+  : Lemma (ensures (appfn_succ a))
+  = let vs' = app_pre_state a in
+    let vs = app_post_state a in
+    let e = a.e in
+    let GV.RunApp f p ss = a.e in
+
+    assert(vs == GV.verify_step e vs');
+    assert(ss == appfn_slots a);
+    assert (contains_distinct_app_keys a);
+    assert (S.length ss = appfn_arity f);
+    let rs = reads a in
+    assert (rs == GV.reads vs' ss);
+    let fn = appfn f in
+    let rc,_,_ = fn p rs in
+    assert (rc <> Fn_failure);
+    ()
+
+let lemma_store_contains_unchanged (#vcfg:_) (a: _ {appfn_verify_valid a}) (s: slot_id vcfg)
+  : Lemma (ensures (let st' = app_pre_store a in
+                    let st = app_post_store a in
+                    inuse_slot st s = inuse_slot st' s /\
+                    (inuse_slot st' s ==>
+                     stored_base_key st' s = stored_base_key st s)))
+  = let st' = app_pre_store a in
+    let ss = appfn_slots a in
+    let rs = reads a in
+    lemma_valid_implies_succ a;
+    let ws = writes a in
+    let st = app_post_store a in
+    assert (st == puts_store st' ss ws);
+    puts_preserves st' ss ws s;
+    ()
+
 #push-options "--fuel 1 --ifuel 1 --query_stats"
 
 let consistent_log_snoc_appfn (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
@@ -77,6 +203,7 @@ let consistent_log_snoc_appfn (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0}
 
     lemma_state_transition tl i;
     assert(vs == GV.verify_step e vs');
+    let a = AFV vs' e in
 
     let aux (s:_)
       : Lemma (ensures (slot_state_trans_closure s l (s2k0 s) <> None))
@@ -89,11 +216,16 @@ let consistent_log_snoc_appfn (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0}
         assert(s2ks' s = s2kl' s);
 
         if S.mem s ss then
-          assume(inuse_slot st' s)
+          lemma_store_contains_ref_slots a s
     in
     forall_intro aux;
     assert(Logs.consistent_log s2k0 l);
-    admit()
+    let s2kl = Logs.to_slot_state_map s2k0 l in
+    let aux (si:_)
+      : Lemma (ensures (s2ks si = s2kl si))
+      = lemma_store_contains_unchanged a si
+    in
+    forall_intro aux
 
 #pop-options
 
