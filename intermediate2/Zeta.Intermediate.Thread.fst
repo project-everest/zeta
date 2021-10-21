@@ -3,6 +3,7 @@ module Zeta.Intermediate.Thread
 open FStar.Classical
 open Zeta.BinTree
 open Zeta.App
+open Zeta.Key
 open Zeta.Record
 open Zeta.Intermediate.VerifierConfig
 open Zeta.Intermediate.SlotKeyRel
@@ -161,7 +162,9 @@ let lemma_store_contains_unchanged (#vcfg:_) (a: _ {appfn_verify_valid a}) (s: s
                     let st = app_post_store a in
                     inuse_slot st s = inuse_slot st' s /\
                     (inuse_slot st' s ==>
-                     stored_base_key st' s = stored_base_key st s)))
+                     stored_base_key st' s = stored_base_key st s /\
+                     points_to_info st' s Left = points_to_info st s Left /\
+                     points_to_info st' s Right = points_to_info st s Right)))
   = let st' = app_pre_store a in
     let ss = appfn_slots a in
     let rs = reads a in
@@ -898,6 +901,9 @@ let sp_is_mp_snoc_evictbm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
 
 #pop-options
 
+
+#push-options "--fuel 1 --ifuel 1 --query_stats"
+
 let sp_is_mp_snoc_appfn (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
   : Lemma (requires (let i = length tl - 1 in
                      let tl' = prefix tl i in
@@ -905,7 +911,45 @@ let sp_is_mp_snoc_appfn (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
                      sp_is_mp tl' /\
                      GV.RunApp? e))
           (ensures (sp_is_mp tl))
-  = admit()
+  = let i = length tl - 1 in
+    let vs1 = state tl in
+    let st1 = vs1.st in
+
+    let tl' = prefix tl i in
+    let vs = state tl' in
+    let st = vs.st in
+
+    let e = index tl i in
+    let a = AFV vs e in
+    assert(appfn_verify_valid a);
+    lemma_valid_implies_contains_distinct a;
+    lemma_contains_only_app_keys a;
+    let ss = appfn_slots a in
+    lemma_valid_implies_succ a;
+    let ws = writes a in
+    assert (st1 == puts_store st ss ws);
+
+    let aux (s1 s2: slot_id _) (dx: bin_tree_dir):
+      Lemma (ensures (slot_points_to_is_merkle_points_to_local st1 s1 s2 dx))
+      = lemma_store_contains_unchanged a s1;
+        lemma_store_contains_unchanged a s2;
+        assert(slot_points_to_is_merkle_points_to_local st s1 s2 dx);
+        if points_to_dir st1 s1 dx s2 then (
+          assert(points_to_dir st s1 dx s2);
+          let k1 = stored_base_key st1 s1 in
+          assert(k1 = stored_base_key st s1);
+          assert(is_merkle_key k1);
+          if S.mem s1 ss then (
+            let i1 = S.index_mem s1 ss in
+            eliminate forall i. contains_app_key st (S.index ss i) with i1
+          )
+          else
+            puts_preserves_non_ref st ss ws s1
+        )
+    in
+    forall_intro_3 aux
+
+#pop-options
 
 let sp_is_mp_snoc (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
   : Lemma (requires (let i = length tl - 1 in
