@@ -174,10 +174,11 @@ let reads_rel (#vcfg:_) (a: appfn_rel_t vcfg)
     assert(S.equal rss rsk)
 
 let int_appfn_succ (#vcfg:_) (a: appfn_rel_t vcfg)
+  : bool
   = let GV.RunApp f p _ = a.e in
     let ss = int_slots a in
-    contains_distinct_app_keys a /\
-    S.length ss = appfn_arity f /\
+    contains_distinct_app_keys a &&
+    S.length ss = appfn_arity f &&
     (let rs = int_reads a in
      let fn = appfn f in
      let rc,_,_ = fn p rs in
@@ -185,10 +186,11 @@ let int_appfn_succ (#vcfg:_) (a: appfn_rel_t vcfg)
     )
 
 let hi_appfn_succ (#vcfg:_) (a: appfn_rel_t vcfg)
+  : bool
   = let GV.RunApp f p _ = (hi_entry a) in
     let ks = hi_slots a in
-    contains_distinct_app_keys a /\
-    S.length ks = appfn_arity f /\
+    contains_distinct_app_keys a &&
+    S.length ks = appfn_arity f &&
     (let rs = hi_reads a in
      let fn = appfn f in
      let rc,_,_ = fn p rs in
@@ -196,7 +198,7 @@ let hi_appfn_succ (#vcfg:_) (a: appfn_rel_t vcfg)
     )
 
 let lemma_appfn_succ_rel (#vcfg:_) (a: appfn_rel_t vcfg)
-  : Lemma (ensures (int_appfn_succ a <==> hi_appfn_succ a))
+  : Lemma (ensures (int_appfn_succ a = hi_appfn_succ a))
   = if contains_distinct_app_keys a then
       let ss = int_slots a in
       let ks = hi_slots a in
@@ -224,6 +226,14 @@ let hi_writes (#vcfg:_) (a: appfn_rel_t vcfg {hi_appfn_succ a})
     let _,_,ws = fn p rs in
     ws
 
+let writes_rel (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
+  : Lemma (ensures (hi_appfn_succ a /\ int_writes a == hi_writes a))
+  = lemma_appfn_succ_rel a;
+    assert(hi_appfn_succ a);
+    reads_rel a
+
+#push-options "--z3rlimit_factor 3"
+
 let lemma_runapp_simulates_spec
       (#vcfg:_)
       (vss:vtls_t vcfg{vss.valid})
@@ -232,24 +242,37 @@ let lemma_runapp_simulates_spec
   : Lemma (requires (valid_logS_entry vss e))
           (ensures (let ek = to_logk_entry vss e in
                     vtls_rel (GV.verify_step e vss) (GV.verify_step ek vsk)))
-  = let sts = vss.st in
-
-    (* explicit cast needed to help resolve .st below *)
-    let vsk: HV.vtls_t vcfg.app = vsk in
-    let stk = vsk.st in
+  = let a = AFR vss vsk e in
+    let ek = hi_entry a in
+    let vss_ = GV.verify_step e vss in
+    let vsk_: HV.vtls_t vcfg.app = GV.verify_step ek vsk in
     let GV.RunApp f p ss = e in
 
-    let vss_ = GV.verify_step e vss in
-    let sts_ = vss_.st in
-    let ek = to_logk_entry vss e in
-    let vsk_: HV.vtls_t vcfg.app = GV.verify_step ek vsk in
-    let stk_ = vsk_.st in
+    contains_distinct_app_keys_rel a;
+    if contains_distinct_app_keys a && S.length ss = appfn_arity f then (
+      reads_rel a;
+      lemma_appfn_succ_rel a;
+      if int_appfn_succ a then (
+        assert (hi_appfn_succ a);
+        writes_rel a;
+        let wss = int_writes a in
+        let wsk = hi_writes a in
+        assert (wss == wsk);
+        admit()
+      )
+      else (
+        assert (GV.contains_distinct_app_keys_comp vss ss);
+        assert (S.length ss = appfn_arity f);
+        let fn = appfn f in
+        let rs = GV.reads vss ss in
+        assert(rs == int_reads a);
+        assert (not (vss_.valid));
+        assert (not (vsk_.valid));
+        ()
+      )
+    )
 
-    let ks = GV.RunApp?.rs ek in
-    assert(S.length ks = S.length ss);
-
-    admit()
-
+#pop-options
 
 let amp (#vcfg:_) (vss:vtls_t vcfg {vss.valid}) (e: logS_entry vcfg {GV.AddM? e})
   : addm_param vcfg

@@ -64,16 +64,6 @@ let addm #vcfg (r:record vcfg.app) (s:slot_id vcfg)  (s':slot_id vcfg) (vs: vtls
 
 #pop-options
 
-let puts (#vcfg:_)
-  (vs: vtls_t vcfg{vs.valid})
-  (ss: S.seq (slot_id vcfg))
-  (ws: S.seq (app_value_nullable vcfg.app.adm))
-  : vs': vtls_t vcfg{vs'.valid}
-  = if contains_only_app_keys_comp vs.st ss && S.length ws = S.length ss then
-       let st = puts_store vs.st ss ws in
-       update_thread_store vs st
-    else vs
-
 let clock_is_monotonic
   (#vcfg:_)
   (e: GV.verifier_log_entry (int_verifier_spec_base vcfg))

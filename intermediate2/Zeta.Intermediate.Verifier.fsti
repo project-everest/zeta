@@ -399,11 +399,15 @@ let init_thread_state vcfg (tid: thread_id): vtls_t vcfg =
   let st = init_store vcfg tid in
   { valid = true; tid; clock = {e = 0; c = 0}; st  }
 
-val puts (#vcfg:_)
+let puts (#vcfg:_)
   (vs: vtls_t vcfg{vs.valid})
-  (ks: S.seq (slot_id vcfg))
+  (ss: S.seq (slot_id vcfg))
   (ws: S.seq (app_value_nullable vcfg.app.adm))
   : vs': vtls_t vcfg{vs'.valid}
+  = if contains_only_app_keys_comp vs.st ss && S.length ws = S.length ss then
+       let st = puts_store vs.st ss ws in
+       update_thread_store vs st
+    else vs
 
 let int_verifier_spec_base (vcfg: verifier_config) : GV.verifier_spec_base
   = let valid (vtls: vtls_t vcfg): bool
