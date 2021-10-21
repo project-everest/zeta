@@ -247,6 +247,40 @@ let writes_rel (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
     assert(hi_appfn_succ a);
     reads_rel a
 
+open Zeta.AppSimulate
+
+let int_res (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
+  : appfn_call_res vcfg.app
+  = let GV.RunApp f p _ = a.e in
+    let ss = int_slots a in
+    let rs = int_reads a in
+    let fn = appfn f in
+    let rc,o,_ = fn p rs in
+    {fid_cr = f; arg_cr = p; inp_cr = rs; res_cr = o}
+
+let int_res_is_gv_res (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
+  : Lemma (ensures (GV.appfn_result a.e a.vss = int_res a))
+  = ()
+
+let hi_res (#vcfg:_) (a: appfn_rel_t vcfg {hi_appfn_succ a})
+  : appfn_call_res vcfg.app
+  = let GV.RunApp f p _ = hi_entry a in
+    let ss = hi_slots a in
+    let rs = hi_reads a in
+    let fn = appfn f in
+    let fc,o,_ = fn p rs in
+    {fid_cr = f; arg_cr = p; inp_cr = rs; res_cr = o}
+
+let hi_res_is_gv_res (#vcfg:_) (a: appfn_rel_t vcfg {hi_appfn_succ a})
+  : Lemma (ensures (GV.appfn_result (hi_entry a) (hi_state a) = hi_res a))
+  = ()
+
+let lemma_res_rel (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
+  : Lemma (ensures (hi_appfn_succ a /\
+                    int_res a = hi_res a))
+  = lemma_appfn_succ_rel a;
+    reads_rel a
+
 let lemma_contains_only_app_keys (#vcfg:_) (a: appfn_rel_t vcfg{contains_distinct_app_keys a})
   : Lemma (ensures (contains_only_app_keys (int_store a) (int_slots a)))
   = ()
@@ -367,14 +401,19 @@ let lemma_runapp_simulates_spec
 
 let lemma_app_res_rel
   (#vcfg:_)
-  (vs: vtls_t vcfg{vs.valid})
-  (vs': _ {vtls_rel vs vs'})
+  (vss: vtls_t vcfg{vss.valid})
+  (vsk: _ {vtls_rel vss vsk})
   (e: logS_entry vcfg {GV.is_appfn e})
-  : Lemma (requires (valid_logS_entry vs e /\ (GV.verify_step e vs).valid))
-          (ensures (let ek = to_logk_entry vs e in
-                    vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs') /\
-                    GV.appfn_result e vs = GV.appfn_result ek vs'))
-  = admit()
+  : Lemma (requires (valid_logS_entry vss e /\ (GV.verify_step e vss).valid))
+          (ensures (let ek = to_logk_entry vss e in
+                    vtls_rel (GV.verify_step e vss) (GV.verify_step ek vsk) /\
+                    GV.appfn_result e vss = GV.appfn_result ek vsk))
+  = lemma_runapp_simulates_spec vss vsk e;
+    let a = AFR vss vsk e in
+    assert(int_appfn_succ a);
+    lemma_appfn_succ_rel a;
+    lemma_res_rel a;
+    ()
 
 let amp (#vcfg:_) (vss:vtls_t vcfg {vss.valid}) (e: logS_entry vcfg {GV.AddM? e})
   : addm_param vcfg
