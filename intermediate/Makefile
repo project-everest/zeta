@@ -1,7 +1,5 @@
-#INCLUDE_PATHS=..
-#include ../Makefile.common
-VERITAS_HOME = ..
-SRC_DIRS = . ../high
+ZETA_HOME = ..
+SRC_DIRS = . ../utils ../generic ../high
 FSTAR_FILES=$(wildcard *fst *fsti)
 
 all: verify
