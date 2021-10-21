@@ -53,7 +53,8 @@ let thread_rel (#vcfg:_) (tls: verifiable_log vcfg) (tlk: HT.verifiable_log vcfg
     let vtk = state tlk in
     vtls_rel vts vtk /\
     length tls = length tlk /\
-    (forall i. vtls_rel (state_pre tls i) (state_pre tlk i))
+    (forall i. vtls_rel (state_pre tls i) (state_pre tlk i)) /\
+    (forall i. (index tlk i) = to_logk_entry tls i)
 
 val thread_rel_implies_fcrs_identical (#vcfg:_) (tls: verifiable_log vcfg) (tlk:_ {thread_rel tls tlk})
   : Lemma (ensures (app_fcrs tls == app_fcrs tlk))

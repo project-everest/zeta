@@ -350,6 +350,8 @@ let rec lemma_to_logk_i2smap (#vcfg:_) (ils: verifiable_log vcfg) (i: seq_index 
 
 module IG = Zeta.Intermediate.Global
 
+#push-options "--fuel 1 --ifuel 1 --query_stats"
+
 let lemma_spec_rel_implies_thread_rel (#vcfg:_) (il: verifiable_log vcfg {spec_rel il}) (t:nat{t < vcfg.thread_count})
   : Lemma (ensures (let gls = to_glog il in
                     let ilk = to_logk il in
@@ -386,7 +388,18 @@ let lemma_spec_rel_implies_thread_rel (#vcfg:_) (il: verifiable_log vcfg {spec_r
         assert(forall_vtls_rel il');
         elim_forall_vtls_rel il' t
     in
+    forall_intro aux;
+
+    let aux (j:_)
+      : Lemma (ensures (GT.index tlk j = IT.to_logk_entry tls j))
+      = let i = s2i_map il (t,j) in
+        assert(i2s_map il i = (t,j));
+        lemma_to_logk_i2smap il i;
+        ()
+    in
     forall_intro aux
+
+#pop-options
 
 let lemma_spec_rel_implies_global_rel (#vcfg:_) (il: verifiable_log vcfg {spec_rel il})
   : Lemma (ensures (let gls = to_glog il in
