@@ -9,6 +9,8 @@ open Zeta.GenKey
 open Zeta.Record
 open Zeta.HashFunction
 
+module SA = Zeta.SeqAux
+
 let empty_store_rel
   (vcfg: verifier_config)
   : Lemma (ensures (empty_store vcfg `store_rel` HV.empty_store vcfg.app))
@@ -142,6 +144,20 @@ let contains_distinct_app_keys (#vcfg:_) (a: appfn_rel_t vcfg)
     GV.contains_distinct_app_keys_comp #intspec (int_state a) (int_slots a) &&
     GV.contains_distinct_app_keys_comp #hispec (hi_state a) (hi_slots a)
 
+let distinct_slots (#vcfg:_) (ss: S.seq (slot_id vcfg))
+  = forall i1 i2. i1 <> i2 ==> S.index ss i1 <> S.index ss i2
+
+let int_slots_distinct (#vcfg:_) (a: appfn_rel_t vcfg {contains_distinct_app_keys a})
+  : Lemma (ensures (distinct_slots (int_slots a)))
+  = let ss = int_slots a in
+    let aux (i1 i2:_)
+      : Lemma (i1 <> i2 ==> S.index ss i1 <> S.index ss i2)
+      = if i1 <> i2 then (
+          ()
+        )
+    in
+    forall_intro_2 aux
+
 let int_reads (#vcfg:_) (a: appfn_rel_t vcfg {contains_distinct_app_keys a})
   : S.seq (app_record vcfg.app.adm)
   = let intspec = int_verifier_spec vcfg in
@@ -241,7 +257,7 @@ let lemma_puts_store_rel
   (#vcfg:_)
   (sts: vstore vcfg)
   (stk: _ {store_rel sts stk})
-  (ss: S.seq (slot_id vcfg) {contains_only_app_keys sts ss})
+  (ss: S.seq (slot_id vcfg) {contains_only_app_keys sts ss /\ distinct_slots ss})
   (ks: S.seq base_key {slot_key_list_rel sts stk ss ks})
   (ws: S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length ss})
   : Lemma (requires (HV.contains_only_app_keys stk ks))
@@ -260,7 +276,8 @@ let lemma_puts_store_rel
           assert(HV.stored_value stk_ k = AppV (S.index ws i));
           puts_preserves sts ss ws si;
           puts_ref_value sts ss ws si;
-          assume (i = S.index_mem si ss);
+          SA.lemma_elem_idx_uniq ss i;
+          assert (i = S.index_mem si ss);
           assert (stored_value sts_ si = AppV (S.index ws i));
           ()
         )
@@ -331,6 +348,7 @@ let lemma_runapp_simulates_spec
         assert (vss_.st == puts_store vss.st ss wss);
         assert (vsk_.st == HV.puts_store stk ks wsk);
         assert(HV.contains_only_app_keys stk ks);
+        int_slots_distinct a;
         lemma_puts_store_rel sts stk ss ks wss
       )
       else (
