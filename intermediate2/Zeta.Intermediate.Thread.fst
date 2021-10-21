@@ -994,13 +994,81 @@ type rel_pair (vcfg:verifier_config)
 let lemma_rel_pair_appfn (#vcfg:_) (rp: rel_pair vcfg) (i: seq_index rp.tls)
   : Lemma (ensures (is_appfn rp.tls i = is_appfn rp.tlk i))
           [SMTPat (is_appfn rp.tls i)]
-  = admit()
+  = let tls = rp.tls in
+    let tlk = rp.tlk in
+    eliminate forall i. (index tlk i) = to_logk_entry tls i
+    with i
 
 let lemma_rel_pair_to_app_fcr (#vcfg:_) (rp: rel_pair vcfg) (i: seq_index rp.tls {is_appfn rp.tls i})
-  : Lemma (ensures (to_app_fcr rp.tls i = to_app_fcr rp.tls i))
+  : Lemma (ensures (to_app_fcr rp.tls i = to_app_fcr rp.tlk i))
           [SMTPat (to_app_fcr rp.tls i)]
-  = admit()
+  = let tls = rp.tls in
+    let tlk = rp.tlk in
+    let es = index tls i in
+    let ek = index tlk i in
+
+    lemma_state_transition tls i;
+    eliminate forall i. (index tlk i) = to_logk_entry tls i with i;
+    assert(ek = to_logk_entry tls i);
+
+    let _vss = state_pre tls i in
+    let _vsk = state_pre tlk i in
+    eliminate forall i. vtls_rel (state_pre tls i) (state_pre tlk i) with i;
+    assert(vtls_rel _vss _vsk);
+
+    lemma_app_res_rel _vss _vsk es
+
+open Zeta.SMap
+
+let s2k (#vcfg:_) (rp: rel_pair vcfg) (i: SA.seq_index (app_fcrs rp.tls))
+  : j:SA.seq_index (app_fcrs rp.tlk){S.index (app_fcrs rp.tls) i = S.index (app_fcrs rp.tlk) j}
+  = let i1 = app_fcrs_invmap rp.tls i in
+    app_fcrs_map rp.tlk i1
+
+let s2k_mono (#vcfg:_) (rp: rel_pair vcfg)
+  : Lemma (ensures (monotonic_prop (s2k rp)))
+  = let fcrss = app_fcrs rp.tls in
+    let f = s2k rp in
+    let aux (i j: SA.seq_index fcrss)
+      : Lemma (ensures (i < j ==> f i < f j))
+      = if i < j then (
+          let i1 = app_fcrs_invmap rp.tls i in
+          let j1 = app_fcrs_invmap rp.tls j in
+          app_fcrs_invmap_monotonic rp.tls i j;
+          assert(i1 < j1);
+          app_fcrs_map_monotonic rp.tlk i1 j1
+        )
+    in
+    forall_intro_2 aux
+
+let k2s (#vcfg:_) (rp: rel_pair vcfg) (j:SA.seq_index (app_fcrs rp.tlk))
+  : i: SA.seq_index (app_fcrs rp.tls) {S.index (app_fcrs rp.tls) i = S.index (app_fcrs rp.tlk) j}
+  = let j1 = app_fcrs_invmap rp.tlk j in
+    app_fcrs_map rp.tls j1
+
+let k2s_mono (#vcfg:_) (rp: rel_pair vcfg)
+  : Lemma (ensures (monotonic_prop (k2s rp)))
+  = let fcrsk = app_fcrs rp.tlk in
+    let f = k2s rp in
+    let aux (i j: SA.seq_index fcrsk)
+      : Lemma (ensures (i < j ==> f i < f j))
+      = if i < j then (
+          let i1 = app_fcrs_invmap rp.tlk i in
+          let j1 = app_fcrs_invmap rp.tlk j in
+          app_fcrs_invmap_monotonic rp.tlk i j;
+          assert (i1 < j1);
+          app_fcrs_map_monotonic rp.tls i1 j1
+        )
+    in
+    forall_intro_2 aux
 
 let thread_rel_implies_fcrs_identical (#vcfg:_) (tls: verifiable_log vcfg) (tlk:_ {thread_rel tls tlk})
   : Lemma (ensures (app_fcrs tls == app_fcrs tlk))
-  = admit()
+  = let rp = RP tls tlk in
+    s2k_mono rp;
+    k2s_mono rp;
+    monotonic_bijection_implies_equal
+    (app_fcrs rp.tls)
+    (app_fcrs rp.tlk)
+    (s2k rp)
+    (k2s rp)

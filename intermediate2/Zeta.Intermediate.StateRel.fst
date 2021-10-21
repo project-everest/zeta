@@ -365,6 +365,17 @@ let lemma_runapp_simulates_spec
 
 #pop-options
 
+let lemma_app_res_rel
+  (#vcfg:_)
+  (vs: vtls_t vcfg{vs.valid})
+  (vs': _ {vtls_rel vs vs'})
+  (e: logS_entry vcfg {GV.is_appfn e})
+  : Lemma (requires (valid_logS_entry vs e /\ (GV.verify_step e vs).valid))
+          (ensures (let ek = to_logk_entry vs e in
+                    vtls_rel (GV.verify_step e vs) (GV.verify_step ek vs') /\
+                    GV.appfn_result e vs = GV.appfn_result ek vs'))
+  = admit()
+
 let amp (#vcfg:_) (vss:vtls_t vcfg {vss.valid}) (e: logS_entry vcfg {GV.AddM? e})
   : addm_param vcfg
   = let GV.AddM r s s' = e in
