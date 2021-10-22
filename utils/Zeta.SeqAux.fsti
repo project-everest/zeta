@@ -489,7 +489,7 @@ let mapi (#a #b:_) (s:seq a) (f:(seq_index s -> b))
 (* the element at each index is a member of the seqeunce *)
 val each_index_mem (#a: eqtype) (l: seq a) (i: seq_index l)
   : Lemma (ensures (mem (index l i) l))
-          [SMTPat (index l i)]
+          [SMTPat (mem (index l i))]
 
 (* a sequence with distinct values *)
 let distinct_elems (#a: eqtype) (s: seq a)

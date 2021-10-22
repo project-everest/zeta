@@ -71,7 +71,7 @@ type verifier_spec_base = {
   verifyepoch: vtls: vtls_t { valid vtls } -> vtls_t;
 }
 
-type verifier_log_entry (vspec: verifier_spec_base) =
+type verifier_log_entry (vspec: verifier_spec_base): eqtype =
   | AddM: r: record vspec.app -> s: vspec.slot_t -> s': vspec.slot_t -> verifier_log_entry vspec
   | AddB: r: record vspec.app -> s: vspec.slot_t -> t: timestamp -> tid: thread_id -> verifier_log_entry vspec
   | EvictM: s: vspec.slot_t -> s': vspec.slot_t -> verifier_log_entry vspec

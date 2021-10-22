@@ -705,7 +705,7 @@ let sp_is_mp_snoc_addm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
                 ()
               )
               else (
-                assert(get_slot st s2 = get_slot st1 s2);
+                lemma_addm_identical_except2 vs e s2;
                 assert(addm_anc_slot_points_postcond a st1);
                 assert(dx = other_dir (addm_dir a));
                 assert(s1 = addm_anc_slot a);
