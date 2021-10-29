@@ -1,8 +1,8 @@
 .PHONY: verify clean
 
-VERITAS_HOME ?= .
-FSTAR_HOME ?= everest/FStar
-KREMLIN_HOME ?= everest/kremlin
+ZETA_HOME ?= .
+# FSTAR_HOME ?= everest/FStar
+# KREMLIN_HOME ?= everest/kremlin
 
 # List the files that should be verified by verify-extra and verify-all
 EXTRA=
@@ -36,10 +36,10 @@ OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
 ALREADY_CACHED=--already_cached 'Prims FStar LowStar Steel'
 
 # A place to put all the emitted .ml files
-OUTPUT_DIRECTORY ?= $(VERITAS_HOME)/_output
+OUTPUT_DIRECTORY ?= $(ZETA_HOME)/_output
 CACHE_DIRECTORY = $(OUTPUT_DIRECTORY)/cache
 
-INCLUDE_PATHS+=$(OUTPUT_DIRECTORY) $(KREMLIN_HOME)/kremlib $(SRC_DIRS)
+INCLUDE_PATHS+=$(OUTPUT_DIRECTORY) $(SRC_DIRS)
 
 FSTAR_OPTIONS=--odir $(OUTPUT_DIRECTORY) \
 		 $(OTHERFLAGS) \
