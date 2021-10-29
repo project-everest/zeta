@@ -1,4 +1,4 @@
-module Veritas.Formats.Aux
+module Zeta.Formats.Aux
 
 module U16 = FStar.UInt16
 

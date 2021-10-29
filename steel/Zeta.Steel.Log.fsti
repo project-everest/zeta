@@ -1,5 +1,5 @@
-module Veritas.Steel.Log
-module T = Veritas.Formats.Types
+module Zeta.Steel.Log
+module T = Zeta.Formats.Types
 module A = Steel.Array
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32

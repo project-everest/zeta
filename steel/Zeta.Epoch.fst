@@ -1,5 +1,5 @@
-module Veritas.Epoch
-include Veritas.Formats.Types
+module Zeta.Epoch
+include Zeta.Formats.Types
 
 assume val epoch_id : Type0
 

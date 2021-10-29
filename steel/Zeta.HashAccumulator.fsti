@@ -1,4 +1,4 @@
-module Veritas.HashAccumulator
+module Zeta.HashAccumulator
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32
 module A = Steel.Array

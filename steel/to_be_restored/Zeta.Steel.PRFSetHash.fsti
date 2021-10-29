@@ -1,4 +1,4 @@
-module Veritas.Steel.PRFSetHash
+module Zeta.Steel.PRFSetHash
 
 open Steel.Memory
 open Steel.Effect.Atomic
@@ -11,12 +11,12 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 
-module T = Veritas.Formats.Types
-module VM = Veritas.Steel.VerifierModel
+module T = Zeta.Formats.Types
+module VM = Zeta.Steel.VerifierModel
 module AT = Steel.Effect.Atomic
-module VFT = Veritas.Formats.Types
+module VFT = Zeta.Formats.Types
 module A = Steel.Array
-module HA = Veritas.Steel.HashAccumulator
+module HA = Zeta.Steel.HashAccumulator
 
 val prf_set_hash
   : Type0

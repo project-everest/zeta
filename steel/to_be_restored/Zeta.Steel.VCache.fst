@@ -1,4 +1,4 @@
-module Veritas.Steel.VCache
+module Zeta.Steel.VCache
 module C = FStar.Int.Cast
 
 let vcache_create n =

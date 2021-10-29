@@ -1,17 +1,17 @@
-module Veritas.Steel.VerifierModel
+module Zeta.Steel.VerifierModel
 
 open FStar.Ghost
 module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 
-module VSeq = Veritas.SeqAux
+module VSeq = Zeta.SeqAux
 
-module HA = Veritas.Steel.HashAccumulator
-module MSH = Veritas.MultiSetHashDomain
-module VF = Veritas.Formats
-module T = Veritas.Formats.Types
-open Veritas.ThreadStateModel
+module HA = Zeta.Steel.HashAccumulator
+module MSH = Zeta.MultiSetHashDomain
+module VF = Zeta.Formats
+module T = Zeta.Formats.Types
+open Zeta.ThreadStateModel
 
 let model_fail tsm = {tsm with model_failed=true}
 
@@ -42,7 +42,7 @@ let model_evict_record (tsm:thread_state_model) (s:slot tsm.model_store_len)
   : thread_state_model
   = {tsm with model_store=Seq.upd tsm.model_store (U16.v s) None }
 
-module TSM = Veritas.ThreadStateModel
+module TSM = Zeta.ThreadStateModel
 let mk_record_full (#n:_)
                    (k:T.key)
                    (v:T.value{is_value_of k v})
@@ -88,7 +88,7 @@ let model_update_hadd (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:T.thread_i
 let model_update_hevict (tsm:_) (r:T.record) (t:T.timestamp) (thread_id:T.thread_id) =
   ({tsm with model_hevict = model_update_hash tsm.model_hevict r t thread_id})
 
-module TSM = Veritas.ThreadStateModel
+module TSM = Zeta.ThreadStateModel
 module C = FStar.Int.Cast
 let shift_right_64 (x:U64.t) (w:U16.t{U16.v w <= 64})
   : U64.t

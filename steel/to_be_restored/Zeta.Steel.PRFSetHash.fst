@@ -1,4 +1,4 @@
-module Veritas.Steel.PRFSetHash
+module Zeta.Steel.PRFSetHash
 
 open Steel.Memory
 open Steel.Effect.Atomic
@@ -10,14 +10,14 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 
-module T = Veritas.Formats.Types
-open Veritas.Steel.VerifierModel
-open Veritas.ThreadStateModel
+module T = Zeta.Formats.Types
+open Zeta.Steel.VerifierModel
+open Zeta.ThreadStateModel
 module AT = Steel.Effect.Atomic
-module VFT = Veritas.Formats.Types
-module VF = Veritas.Formats
-module MSH = Veritas.MultiSetHash
-module HA = Veritas.Steel.HashAccumulator
+module VFT = Zeta.Formats.Types
+module VF = Zeta.Formats
+module MSH = Zeta.MultiSetHash
+module HA = Zeta.Steel.HashAccumulator
 #push-options "--query_stats"
 #push-options "--fuel 2 --ifuel 1" // some proofs need fuel 2; because of needing to unroll t_of
 noeq

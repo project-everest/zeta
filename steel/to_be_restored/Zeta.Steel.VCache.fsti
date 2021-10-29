@@ -1,4 +1,4 @@
-module Veritas.Steel.VCache
+module Zeta.Steel.VCache
 
 open Steel.Memory
 open Steel.Effect
@@ -9,9 +9,9 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 open Steel.Array
 
-module T = Veritas.Formats.Types
-open Veritas.Steel.VerifierModel
-module VM = Veritas.ThreadStateModel
+module T = Zeta.Formats.Types
+open Zeta.Steel.VerifierModel
+module VM = Zeta.ThreadStateModel
 
 let vstore (n:U16.t)
   : Type0
