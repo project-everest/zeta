@@ -1,9 +1,9 @@
-SRC_DIRS = utils generic high intermediate
+SRC_DIRS = utils generic high intermediate steel steel/crypto
 FSTAR_FILES=$(wildcard $(addsuffix /*fst, $(SRC_DIRS))) $(wildcard $(addsuffix /*fsti, $(SRC_DIRS)))
 
-all: verify low-level
+all: verify
 
-ci: verify low-level-ci
+ci: verify
 
 .PHONY: ci low-level low-level-ci low-level/formats
 

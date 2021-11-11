@@ -38,14 +38,14 @@ let spec_serializer (#t:Type) (p:spec_parser t) =
                    | None -> False
                    | Some (y, n) -> x == y /\ n == Seq.length b}
 
-let len_offset_ok (a:Parser.byte_array)
+let len_offset_ok (a:byte_array)
                   (len:U32.t)
                   (offset:U32.t) =
   A.length a == U32.v len /\
   U32.v offset < U32.v len
 
 
-let len_offset_slice_ok (a:Parser.byte_array)
+let len_offset_slice_ok (a:byte_array)
                         (len offset slice_len:U32.t) =
   len_offset_ok a len offset /\
   U32.v offset + U32.v slice_len <= A.length a

@@ -9,6 +9,8 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 
+let significant_digits_t = significant_digits: U16.t { U16.v significant_digits <= 256 }
+
 noeq 
 type uninterpreted = {
  //  offset:U32.t; We'll need to know the offset in the input buffer where these bytes occur
@@ -27,8 +29,6 @@ type u256 = {
   v1 : U64.t;
   v0 : U64.t;
 }
-
-let significant_digits_t = Zeta.Formats.Aux.significant_digits_t
 
 type internal_key = {
   k : u256;
