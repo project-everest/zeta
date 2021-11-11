@@ -104,8 +104,11 @@ let initial_inv (t:top_level_state)
       then MR.pts_to (Map.sel t.mlogrefs tid) AEH.half Seq.empty
       else emp)
 
+// This creates a Zeta instance
 val init (_:unit)
-  : SteelT top_level_state emp initial_inv
+  : SteelT top_level_state
+    emp
+    initial_inv
 
 val verify_entries (t:top_level_state)
                    (tid:thread_id)
@@ -151,20 +154,21 @@ let run_threads (logs:(Map.t tid log)) (tid:tid)
   : M.thread_state_model
   = M.verify_model (M.init_thread_state_model tid) (Map.sel logs tid)
 
-val verified_and_epoch_hash_ok (logs:Map.t tid log) (eid:M.epoch_id) : prop //TODO
+let tid_logs (a:M.all_logs) (tid:tid) =
+  Seq.index a (U16.v tid)
 
 val max_certified_epoch (t:top_level_state)
-                        (entries: erased (Map.t tid log))
+                        (all_logs: erased M.all_logs)
   : Steel M.epoch_id
     (core_inv t)
     (fun _ -> core_inv t)
     (requires fun _ ->
       forall (tid:tid). let lr_i = Map.sel t.mlogrefs tid in
-                   snapshot lr_i (Map.sel entries tid))
+                   snapshot lr_i (tid_logs all_logs tid))
     (ensures fun _ max _ ->
       forall (eid:M.epoch_id).
          U32.v eid <= U32.v max ==>
-         //From this, we should connect back to the semantic
-         //proof and show that the entries are sequentially consistent up to eid
-         //except for hash collisions
-         verified_and_epoch_hash_ok entries eid)
+         M.epoch_is_certified all_logs eid)
+//From this, we should connect back to the semantic
+//proof and show that the entries are sequentially consistent up to eid
+//except for hash collisions

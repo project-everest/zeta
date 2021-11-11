@@ -22,6 +22,8 @@ module U32 = FStar.UInt32
 let bytes = FStar.Seq.seq U8.t
 
 /// The type of application keys
+///   //maybe should not be an eqtype,
+///   //instead provide a function to decide equality
 val key_type : eqtype
 
 /// A parser and serializer of keys
@@ -32,6 +34,7 @@ val spec_serializer_key : P.spec_serializer spec_parser_key
 val serialize_key : P.serializer spec_serializer_key
 
 /// The type of application values
+///   // may not need to be an eqtype
 val value_type : eqtype
 
 /// A parser and serializer of values

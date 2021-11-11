@@ -47,7 +47,7 @@ let epoch_id = U32.t
 type epoch_hash = {
   hadd: model_hash;
   hevict: model_hash;
-  epoch_complete: bool
+  epoch_complete: bool //Maybe we don't need this bit and we can keep a counter in the thread state mode instead for max completed epoch
 }
 let init_epoch_hash =  {
   hadd = HA.initial_hash;
@@ -825,7 +825,10 @@ let verify_step_model (tsm:thread_state_model)
       in
       { tsm with processed_entries = Seq.snoc tsm.processed_entries e }
 
-let rec verify_model (tsm:thread_state_model) (s:Seq.seq log_entry_base)
+let log = Seq.seq log_entry_base
+let all_logs = Seq.lseq log (U32.v n_threads)
+
+let rec verify_model (tsm:thread_state_model) (s:log)
   : Tot thread_state_model (decreases Seq.length s)
   = let n = Seq.length s in
     if n = 0 
@@ -834,3 +837,62 @@ let rec verify_model (tsm:thread_state_model) (s:Seq.seq log_entry_base)
     else let s_prefix = Zeta.SeqAux.prefix s (n - 1) in
          let tsm = verify_model tsm s_prefix in
          verify_step_model tsm (Seq.index s (n - 1))
+
+
+// Run the verifier from the initial state until
+// the epoch of the clock exceeds e
+let rec verify_until_epoch' (tsm:thread_state_model) (s:log) (e:epoch_id)
+  : Tot thread_state_model (decreases Seq.length s)
+  = let n = Seq.length s in
+    if n = 0 
+    || tsm.failed
+    || U32.v (epoch_of_timestamp tsm.clock) > U32.v e
+    then tsm
+    else let s_prefix = Zeta.SeqAux.prefix s (n - 1) in
+         let tsm = verify_until_epoch' tsm s_prefix e in
+         verify_step_model tsm (Seq.index s (n - 1))
+
+let run_until_epoch (tid:tid) = verify_until_epoch' (init_thread_state_model tid)
+let rec run_all_until_epoch (n:nat{n <= U32.v n_threads})
+                            (logs:Seq.lseq log n)
+                            (eid:epoch_id)
+  : Seq.seq thread_state_model
+  = if n = 0 then Seq.empty
+    else let prefix, last = Seq.un_snoc logs in
+         let tid_last = U16.uint_to_t (Seq.length logs - 1) in
+         let tsms = run_all_until_epoch (n - 1) prefix eid in
+         let tsm = run_until_epoch tid_last last eid in
+         Seq.snoc tsms tsm
+         
+let rec aggregate_epoch_hashes (tsms:Seq.seq thread_state_model) 
+                               (eid:epoch_id)
+  : GTot epoch_hash
+    (decreases Seq.length tsms)
+  = if Seq.length tsms = 0
+    then { init_epoch_hash with epoch_complete = true }
+    else let hd = Seq.head tsms in
+         if hd.failed
+         then init_epoch_hash
+         else (
+           let tl_hash = aggregate_epoch_hashes (Seq.tail tsms) eid in
+           let hd_hash = Map.sel hd.epoch_hashes eid in
+           let hd_hash = 
+             if hd_hash.epoch_complete
+             then hd_hash
+             else init_epoch_hash
+           in
+           {
+             hadd   = HA.aggregate_hashes hd_hash.hadd tl_hash.hadd;
+             hevict = HA.aggregate_hashes hd_hash.hevict tl_hash.hevict;
+             epoch_complete = hd_hash.epoch_complete && tl_hash.epoch_complete
+           }
+         )
+
+let epoch_is_certified (logs:all_logs)
+                       (eid:epoch_id)
+  : GTot bool
+  = let tsms = run_all_until_epoch _ logs eid in
+    let aeh = aggregate_epoch_hashes tsms eid in
+    aeh.epoch_complete &&
+    aeh.hadd = aeh.hevict
+

@@ -123,6 +123,7 @@ type runApp_payload = {
   rest:uninterpreted
 }
 
+//remove the _base from the name
 noeq
 type log_entry_base =
   | AddM of addM_payload

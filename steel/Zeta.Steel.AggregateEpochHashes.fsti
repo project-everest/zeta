@@ -27,7 +27,7 @@ let log_ref = ghost_ref (Seq.seq log_entry_base)
 let log_refs_t = Map.t thread_id log_ref
 
 let hash_value = u256 & U64.t
-let zero_hash : HA.hash_value_t = admit()
+let zero_hash : HA.hash_value_t = HA.initial_hash
 let related_hashes (h:hash_value) (h':HA.hash_value_t) = True // TODO
 
 noeq
