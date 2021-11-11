@@ -17,6 +17,7 @@ module A = Zeta.App
 module P = Zeta.Steel.Parser
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
+module U32 = FStar.UInt32
 
 let bytes = FStar.Seq.seq U8.t
 
@@ -58,6 +59,11 @@ val aprm : app_params
 /// The number of entries in the verifier store,
 /// configurable per application
 val store_size : U16.t
+
+/// The number of verifier threads to use
+val n_threads : n:U32.t{ U32.v n < FStar.UInt.max_int 16 }
+
+let tid = n:U16.t { U16.v n < U32.v n_threads }
 
 let app_args (fid:A.appfn_id aprm) =
   let fsig = Map.sel aprm.A.tbl fid in

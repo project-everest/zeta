@@ -19,24 +19,9 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 module Array = Steel.Array
-
-/// A parser for a application record, a key/value pair
-val record_parser : Parser.parser (key_type & value_type)
-
-val vtls : Type0
-val vtls_inv (_:vtls) : vprop
-
-let app_records #adm (fsig:A.fn_sig adm) =
-  recs:Seq.seq (A.app_record adm) {
-    Seq.length recs == fsig.arity /\
-    A.distinct_keys recs
-  }
-
-let app_values_nullable #adm (fsig:A.fn_sig adm) =
-  recs:Seq.seq (A.app_value_nullable adm) {
-    Seq.length recs == fsig.arity
-  }
-
+module M = Zeta.Steel.ThreadStateModel
+module V = Zeta.Steel.VerifierTypes
+open Zeta.Steel.FormatsManual
 (**
     Running an application-specific state transition function,
     identified by `fid`.
@@ -64,39 +49,33 @@ val run_app_function
         Parser.len_offset_ok out out_len out_offset
        })
       (* The state of the verifier, with pointers to the store etc. *)
-      (vtls:vtls)
+      (vtls:V.thread_state_t)
   (* if success, returns the number of bytes written in the output log *)
    : Steel (option U32.t)
-      (Array.varray log_array `star`
-       Array.varray out `star`
-       vtls_inv vtls)
+      (V.thread_state_inv vtls `star` (
+       Array.varray log_array `star`
+       Array.varray out)
+       )
       (fun x ->
+        V.thread_state_inv vtls `star` (
         Array.varray log_array `star`
-        Array.varray out `star`
-        vtls_inv vtls)
+        Array.varray out))
       (requires fun _ -> True)
       (ensures fun h0 res h1 ->
         let out_bytes_initial = Array.asel out h0 in
         let out_bytes = Array.asel out h1 in
         let log_bytes = Array.asel log_array h0 in
         let arg_bytes = Parser.slice log_bytes log_offset args_len in
+        let tsm0 = V.value_of vtls (focus_rmem h0 _) in
+        let tsm1 = V.value_of vtls (focus_rmem h0 _) in
+        let app_payload : runApp_payload =
+            { fid = fid;
+              rest = { len = args_len;
+                       ebytes = arg_bytes } }
+        in
         Array.asel log_array h0 == Array.asel log_array h1 /\
         Seq.slice out_bytes_initial 0 (U32.v out_offset)
           == Seq.slice out_bytes 0 (U32.v out_offset) /\
-       (match res with
-        | None -> True //underspecify failure
-        | Some out_bytes_written ->
-          Parser.len_offset_slice_ok out out_len out_offset out_bytes_written /\ (
-          let written_bytes = Parser.slice out_bytes out_offset out_bytes_written in
-          let fsig = Map.sel aprm.A.tbl fid in
-          let arg_t = A.interp_code aprm.A.adm fsig.farg_t in
-          let res_t = A.interp_code aprm.A.adm fsig.fres_t in
-          exists (arg:arg_t)
-            (recs_in:app_records fsig)
-            (recs_out:app_values_nullable fsig)
-            (v:res_t).
-              Parser.parse_spec arg_bytes (arg, recs_in) /\
-              Parser.parse_spec written_bytes v /\
-              fsig.f arg recs_in == (A.Fn_success, v, recs_out) /\
-              True (* some way to say that the recs_out were written back to the vtls *)
-          )))
+        tsm1 == M.runapp tsm0 app_payload /\
+        True //TODO: specify outputs, res etc.
+        )

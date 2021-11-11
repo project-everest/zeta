@@ -51,7 +51,9 @@ let xor_bytes (s1: Seq.seq U8.t)
   = Seq.init (Seq.length s1)
              (fun i -> Seq.index s1 i `FStar.UInt8.logxor` Seq.index s2 i)
 
-let elbytes n = A.elseq U8.t n
+let lbytes n = Seq.lseq U8.t n
+let raw_hash_t = lbytes 32
+let elbytes n = Ghost.erased (lbytes n)
 
 let exor_bytes #l (s1 s2:elbytes l)
   : elbytes l
@@ -131,9 +133,10 @@ let extend_ehash_value (s1 s2:eraw_hash_t) (i:nat { i < 32 })
 #pop-options
 
 
-let hpts_to (x:hash_value_buf) (s:eraw_hash_t) =
+let hpts_to (x:hash_value_buf) (s:raw_hash_t) =
   A.varray_pts_to x s
 
+#push-options "--print_implicits"
 let read_hbuf (#s:eraw_hash_t) (x:hash_value_buf) (i:U32.t{U32.v i < 32})
   : Steel U8.t
     (hpts_to x s)
@@ -141,7 +144,11 @@ let read_hbuf (#s:eraw_hash_t) (x:hash_value_buf) (i:U32.t{U32.v i < 32})
     (requires fun _ -> True)
     (ensures fun _ v _ ->
       v == Seq.index s (U32.v i))
-  = A.elim_varray_pts_to x _;
+  = AT.rewrite_slprop
+         (hpts_to x s)
+         (A.varray_pts_to x (Ghost.reveal #(Seq.lseq U8.t (A.length x)) s))
+         (fun _ -> ());
+    A.elim_varray_pts_to x s;
     let v = A.index x i in
     let _ = A.intro_varray_pts_to x in
     AT.change_equal_slprop (A.varray_pts_to _ _)
@@ -152,20 +159,43 @@ let write_hbuf (#s:eraw_hash_t) (x:hash_value_buf) (i:U32.t{U32.v i < 32}) (v:U8
   : SteelT unit
     (hpts_to x s)
     (fun _ -> hpts_to x (upd_ehash_value s (U32.v i) v))
-  = A.elim_varray_pts_to x _;
+  = AT.rewrite_slprop
+         (hpts_to x s)
+         (A.varray_pts_to x (Ghost.reveal #(Seq.lseq U8.t (A.length x)) s))
+         (fun _ -> ());
+    A.elim_varray_pts_to x _;
     A.upd x i v;
     let _ = A.intro_varray_pts_to x in
     AT.change_equal_slprop (A.varray_pts_to _ _)
                            (hpts_to _ _)
 
+let return_ghost (#a:Type u#a)
+                 (#opened_invariants:inames)
+                 (#p:a -> vprop)
+                 (x:a)
+  : AT.SteelGhost a opened_invariants
+         (p x) p
+         (requires fun _ -> True)
+         (ensures fun _ v _ -> x == v)
+  = AT.noop(); x
+
+#push-options "--print_implicits --print_universes"
 let intro_hpts_to (#o:_) (x:hash_value_buf)
   : AT.SteelGhost eraw_hash_t o
     (A.varray x)
-    (fun v -> hpts_to x v)
+    (fun v -> hpts_to x (Ghost.reveal #raw_hash_t v))
     (requires fun _ -> True)
     (ensures fun h v _ ->
       A.asel x h == Ghost.reveal v)
-  = A.intro_varray_pts_to x
+  = let v : A.elseq _ (A.length x) = A.intro_varray_pts_to x in
+    AT.rewrite_slprop (A.varray_pts_to x v)
+                      (hpts_to x (Ghost.reveal #raw_hash_t v))
+                      (fun _ -> ());
+    return_ghost #(Ghost.erased raw_hash_t)
+                 #_
+                 #(fun (v:Ghost.erased raw_hash_t) ->
+                   hpts_to x (Ghost.reveal v))
+                 v
 
 let elim_hpts_to (#o:_) (#e:eraw_hash_t) (x:hash_value_buf)
   : AT.SteelGhost unit o
@@ -174,7 +204,11 @@ let elim_hpts_to (#o:_) (#e:eraw_hash_t) (x:hash_value_buf)
     (requires fun _ -> True)
     (ensures fun _ _ h ->
       Ghost.reveal e == A.asel x h)
-  = A.elim_varray_pts_to x e
+  = AT.rewrite_slprop
+         (hpts_to x e)
+         (A.varray_pts_to x (Ghost.reveal #(Seq.lseq U8.t (A.length x)) e))
+         (fun _ -> ());
+    A.elim_varray_pts_to x e
 
 #push-options "--query_stats --fuel 0 --ifuel 0"
 let aggregate_hash_value_pts

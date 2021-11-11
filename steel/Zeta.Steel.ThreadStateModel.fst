@@ -13,22 +13,12 @@ module U64 = FStar.UInt64
 open Zeta.Steel.FormatsManual
 module T = Zeta.Steel.FormatsManual
 module P = Zeta.Steel.Parser
-// module VSeq = Veritas.SeqAux
-// module I = Veritas.Intermediate.Verify
-// module VCfg = Veritas.Intermediate.VerifierConfig
-// module IStore = Veritas.Intermediate.Store
-// module IntT = Veritas.Intermediate.Thread
-// module MSH = Veritas.MultiSetHashDomain
-// module U64 = FStar.UInt64
-// module T = Veritas.Formats.Types
-// module U16 = FStar.UInt16
-// module BV = FStar.BV
 module L = FStar.List.Tot
-// module BinTree = Veritas.BinTree
 module HA = Zeta.Steel.HashAccumulator
 module C = FStar.Int.Cast
 module KU = Zeta.Steel.KeyUtils
 module A = Zeta.App
+module SA = Zeta.SeqAux
 #push-options "--using_facts_from '* -FStar.Seq.Properties.slice_slice'"
 
 let is_value_of (k:key) (v:value)
@@ -66,6 +56,12 @@ let init_epoch_hash =  {
 }
 let epoch_hashes = Steel.Hashtbl.repr epoch_id epoch_hash
 let initial_epoch_hashes : epoch_hashes = FStar.Map.const init_epoch_hash
+let app_results =
+  Seq.seq (fid:A.appfn_id aprm &
+           app_args fid &
+           app_records fid &
+           app_result fid)
+           
 [@@erasable]
 noeq
 type thread_state_model = {
@@ -74,10 +70,8 @@ type thread_state_model = {
   clock : U64.t;
   epoch_hashes: epoch_hashes;
   thread_id: T.thread_id;
-  app_results: Seq.seq (fid:A.appfn_id aprm &
-                        app_args fid &
-                        app_records fid &
-                        app_result fid)
+  processed_entries: Seq.seq log_entry_base;
+  app_results: app_results
 }
 
 let init_thread_state_model tid
@@ -88,6 +82,7 @@ let init_thread_state_model tid
       store = Seq.create (U16.v store_size) None;
       clock = 0uL;
       epoch_hashes = initial_epoch_hashes;
+      processed_entries = Seq.empty;
       app_results = Seq.empty
     }
 
@@ -780,7 +775,8 @@ let rec write_slots (tsm:thread_state_model)
       
 let runapp (tsm:thread_state_model)
            (pl:runApp_payload)
-  : GTot thread_state_model
+  : GTot thread_state_model // &
+          // bool &
   = if not (Map.contains aprm.A.tbl pl.fid)
     then fail tsm //unknown fid
     else (
@@ -814,17 +810,20 @@ let verify_step_model (tsm:thread_state_model)
   = let open T in
     if tsm.failed then tsm
     else
-      match e with
-      | AddM p -> vaddm tsm p.s p.s' (Inl (p.k, p.v))
-      | AddMApp p -> vaddm tsm p.s p.s' (Inr p.rest)
-      | AddB p -> vaddb tsm p.s p.t p.tid (Inl (p.k, p.v))
-      | AddBApp p -> vaddb tsm p.s p.t p.tid (Inr p.rest)
-      | EvictM p -> vevictm tsm p.s p.s'
-      | EvictB p -> vevictb tsm p.s p.t
-      | EvictBM p -> vevictbm tsm p.s p.s' p.t
-      | NextEpoch _ -> nextepoch tsm
-      | VerifyEpoch _ -> verifyepoch tsm
-      | RunApp p -> runapp tsm p
+      let tsm = 
+        match e with
+        | AddM p -> vaddm tsm p.s p.s' (Inl (p.k, p.v))
+        | AddMApp p -> vaddm tsm p.s p.s' (Inr p.rest)
+        | AddB p -> vaddb tsm p.s p.t p.tid (Inl (p.k, p.v))
+        | AddBApp p -> vaddb tsm p.s p.t p.tid (Inr p.rest)
+        | EvictM p -> vevictm tsm p.s p.s'
+        | EvictB p -> vevictb tsm p.s p.t
+        | EvictBM p -> vevictbm tsm p.s p.s' p.t
+        | NextEpoch _ -> nextepoch tsm
+        | VerifyEpoch _ -> verifyepoch tsm
+        | RunApp p -> runapp tsm p
+      in
+      { tsm with processed_entries = Seq.snoc tsm.processed_entries e }
 
 let rec verify_model (tsm:thread_state_model) (s:Seq.seq log_entry_base)
   : Tot thread_state_model (decreases Seq.length s)
