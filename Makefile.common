@@ -47,7 +47,7 @@ FSTAR_OPTIONS=--odir $(OUTPUT_DIRECTORY) \
 	         $(addprefix --include , $(INCLUDE_PATHS)) \
 		 --cache_checked_modules
 
-FSTAR=fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
+FSTAR=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 
 .depend: $(FSTAR_FILES)
 	mkdir -p $(CACHE_DIRECTORY)
