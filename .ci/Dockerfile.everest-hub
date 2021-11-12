@@ -1,0 +1,8 @@
+FROM projecteverest/everest-linux
+
+ADD --chown=test:test . veritas
+ARG CI_THREADS=16
+ENV FSTAR_HOME="$HOME/FStar"
+ENV KREMLIN_HOME="$HOME/kremlin"
+ENV QD_HOME="$HOME/quackyducky"
+RUN make -C veritas -j $CI_THREADS
