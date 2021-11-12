@@ -1,6 +1,7 @@
 .PHONY: verify clean
 
 ZETA_HOME ?= .
+FSTAR_HOME ?= $(realpath $(dir $(shell which fstar.exe))/..)
 # FSTAR_HOME ?= everest/FStar
 # KREMLIN_HOME ?= everest/kremlin
 
