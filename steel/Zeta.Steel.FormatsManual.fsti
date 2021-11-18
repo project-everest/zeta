@@ -9,7 +9,7 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 
-let significant_digits_t = significant_digits: U16.t { U16.v significant_digits <= 256 }
+let significant_digits_t = significant_digits: U16.t { U16.v significant_digits < 256 }
 
 noeq 
 type uninterpreted = {
