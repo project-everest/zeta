@@ -9,7 +9,7 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 
-let significant_digits_t = significant_digits: U16.t { U16.v significant_digits < 256 }
+let significant_digits_t = significant_digits: U16.t { U16.v significant_digits <= 256 }
 
 noeq 
 type uninterpreted = {
@@ -30,11 +30,13 @@ type u256 = {
   v0 : U64.t;
 }
 
-type internal_key = {
-  k : u256;
+type base_key = {
+  k: u256;
   significant_digits : significant_digits_t;
 }
-  
+
+let internal_key = k: base_key { U16.v k.significant_digits < 256 }
+
 let hash_value = u256
 
 type vbool =
@@ -42,7 +44,7 @@ type vbool =
   | Vtrue
 
 type descendent_hash_desc = {
-  dhd_key : internal_key;
+  dhd_key : base_key;
   dhd_h : hash_value;
   evicted_to_blum : vbool;
 }
@@ -141,11 +143,11 @@ type log_entry_base =
 
 let slot = x:slot_id{ U16.v x < U16.v store_size }
 
-let is_internal_key_for_data (k:internal_key)
+let is_internal_key_for_data (k:base_key)
   : bool
   = k.significant_digits = 256us
 
-let is_internal_key_root (k:internal_key) 
+let is_internal_key_root (k:base_key)
   : bool
   = k.significant_digits = 0us
 
