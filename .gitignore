@@ -6,3 +6,10 @@ _output
 *~
 low-level/dist/
 low-level/mytest
+*.aux
+*.fls
+*.log
+*.out
+*.pdf
+*.gz
+*.fdb_latexmk
