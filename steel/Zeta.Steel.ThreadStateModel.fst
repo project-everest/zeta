@@ -19,6 +19,7 @@ module C = FStar.Int.Cast
 module KU = Zeta.Steel.KeyUtils
 module A = Zeta.App
 module SA = Zeta.SeqAux
+open Zeta.Steel.Util
 #push-options "--using_facts_from '* -FStar.Seq.Properties.slice_slice'"
 
 let is_value_of (k:key) (v:value)
@@ -55,7 +56,7 @@ let init_epoch_hash =  {
   epoch_complete = false
 }
 let epoch_hashes = Steel.Hashtbl.repr epoch_id epoch_hash
-let initial_epoch_hashes : epoch_hashes = FStar.Map.const init_epoch_hash
+let initial_epoch_hashes : epoch_hashes = empty_map
 let app_results =
   Seq.seq (fid:A.appfn_id aprm &
            app_args fid &
@@ -895,4 +896,13 @@ let epoch_is_certified (logs:all_logs)
     let aeh = aggregate_epoch_hashes tsms eid in
     aeh.epoch_complete &&
     aeh.hadd = aeh.hevict
+
+let committed_entries (tsm:thread_state_model)
+  : GTot (Seq.seq log_entry_base)
+  = let open Zeta.SeqAux in
+    let is_verify_epoch = function VerifyEpoch _ -> true | _ -> false in
+    if exists_sat_elems is_verify_epoch tsm.processed_entries
+    then let i = last_index is_verify_epoch tsm.processed_entries in
+         prefix tsm.processed_entries i
+    else Seq.empty
 

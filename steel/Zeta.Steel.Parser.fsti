@@ -4,10 +4,8 @@ module Zeta.Steel.Parser
  *  given type, i.e., a Steel function that can read a value `v:t`
  *  from a array of bytes.
  **)
-open Steel.FractionalPermission
-open Steel.Effect
-open Steel.Effect.Atomic
-module A = Steel.Array
+open Steel.ST.Util
+module A = Steel.ST.Array
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
 module U32 = FStar.UInt32
@@ -62,17 +60,17 @@ let parser (#t:Type0) (p:spec_parser t) =
     len:U32.t ->
     offset:U32.t ->
     slice_len:U32.t ->
+    #b:erased bytes { Seq.length b == U32.v len }  ->
     a:byte_array { len_offset_slice_ok a len offset slice_len } ->
-    Steel (option t)
-          (A.varray a)
-          (fun _ -> A.varray a)
-          (requires fun h -> True)
-          (ensures fun h0 o h1 ->
-            A.asel a h0 == A.asel a h1 /\
-            (match p (slice (A.asel a h0) offset slice_len), o with
-             | None, None -> True
-             | Some (x, n), Some y -> x == y /\ n == U32.v slice_len
-             | _ -> False))
+    ST (option t)
+       (A.pts_to a b)
+       (fun _ -> A.pts_to a b)
+       (requires True)
+       (ensures fun o ->
+         match p (slice b offset slice_len), o with
+         | None, None -> True
+         | Some (x, n), Some y -> x == y /\ n == U32.v slice_len
+         | _ -> False)
 
 (** A parser for `t` takes a byte array `a` and a proof proof that `a`
     contains `e` at `offset` and tries to parse `Some t` out of the
@@ -82,17 +80,14 @@ let serializer (#t:Type0) (#p:spec_parser t) (s:spec_serializer p) =
     len:U32.t ->
     offset:U32.t ->
     a:byte_array { len_offset_ok a len offset } ->
-    v:t ->
-    Steel (option U32.t)
-          (A.varray a)
-          (fun _ -> A.varray a)
-          (requires fun h -> True)
-          (ensures fun h0 o h1 ->
-            let initial = A.asel a h0 in
-            let final = A.asel a h1 in
-            slice initial 0ul offset == slice final 0ul offset /\
-            (match o with
-             | None -> True // serialization failed
-             | Some slice_len ->
-               len_offset_slice_ok a len offset slice_len /\
-               s v == slice final offset slice_len))
+    v:t { Seq.length (s v) <= U32.v len - U32.v offset } ->
+    STT U32.t
+        (exists_ (A.pts_to a))
+        (fun slice_len ->
+            exists_ (fun (bs:_) ->
+              A.pts_to a bs `star`
+              pure (
+                U32.v slice_len == Seq.length (s v) /\
+                len_offset_slice_ok a len offset slice_len /\
+                Seq.length bs == U32.v len /\
+                s v == slice bs offset slice_len )))
