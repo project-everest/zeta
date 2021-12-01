@@ -487,28 +487,6 @@ let update_ht (#tsm:M.thread_state_model)
       return b
 #pop-options
 
-let vevictb_equiv (tsm:M.thread_state_model)
-                  (s:slot)
-                  (ts:timestamp { M.sat_evictb_checks tsm s ts })
-  : Lemma (let Some r = M.get_entry tsm s in
-           let k = r.key in
-           let v = r.value in
-           let e = M.epoch_of_timestamp ts in
-           { (update_epoch_hash tsm e (k, v) ts tsm.thread_id HEvict) with M.clock = ts } ==
-           M.vevictb_update_hash_clock tsm s ts)
-  = ()
-  // let Some r = M.get_entry tsm s in
-  //   let k = r.key in
-  //   let v = r.value in
-  //   let e = M.epoch_of_timestamp ts in
-  //   let c = Map.sel tsm.epoch_hashes e in
-  //   let lhs = update_epoch_hash tsm e (k, v) ts tsm.thread_id HEvict in
-  //   let rhs = M.update_hevict tsm e (k, v) ts tsm.thread_id in
-  //   assert (lhs.epoch_hashes == Map.upd tsm.epoch_hashes e (update_hash c (k,v) ts tsm.thread_id HEvict));
-  //   assert (rhs.epoch_hashes == Map.upd tsm.epoch_hashes e ({c with hadd = M.update
-  //   assume (Map.equal lhs.epoch_hashes rhs.epoch_hashes)
-
-
 let vevictb_update_hash_clock (#tsm:M.thread_state_model)
                               (t:thread_state_t)
                               (s:slot)
@@ -577,52 +555,87 @@ let vevictb (#tsm:M.thread_state_model)
       )
     )
 
-// let vevictbm (tsm:thread_state_model)
-//              (s s':slot_id)
-//              (t:timestamp)
-//   : thread_state_model
-//   = if not (check_slot_bounds s)
-//     || not (check_slot_bounds s') then fail tsm
-//     else if s = s' then fail tsm
-//     else if not (sat_evictb_checks tsm s t)
-//     then fail tsm
-//     else if None? (get_entry tsm s')
-//     then fail tsm
-//     else (
-//       let Some r = get_entry tsm s in
-//       let Some r' = get_entry tsm s' in
-//       if r.add_method <> MAdd
-//       then fail tsm
-//       else (
-//         let gk = r.key in
-//         let gk' = r'.key in
-//         let v' = r'.value in
-//         let k = to_internal_key gk in
-//         let k' = to_internal_key gk' in
-//         if not (KU.is_proper_descendent k k')
-//         then fail tsm
-//         else (
-//            let Some mv' = to_merkle_value v' in
-//            let d = KU.desc_dir k k' in
-//            let dh' = desc_hash_dir mv' d in
-//            match dh' with
-//            | T.Dh_vnone _ -> fail tsm
-//            | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-//              if (k2 <> k) || (b2 = T.Vtrue)
-//              then fail tsm
-//              else if None? r.parent_slot
-//                   || fst (Some?.v r.parent_slot) <> s'
-//                   || snd (Some?.v r.parent_slot) <> d
-//              then fail tsm
-//              else (
-//                let tsm = vevictb_update_hash_clock tsm s t in
-//                let mv'_upd = update_merkle_value mv' d k h2 true in
-//                let tsm = update_value tsm s' (MValue mv'_upd) in
-//                mevict_from_store tsm s s' d
-//            )
-//         )
-//       )
-//     )
+let fail_as (#tsm:M.thread_state_model)
+            (t:thread_state_t)
+            (tsm':M.thread_state_model)
+  : ST bool
+    (thread_state_inv' t tsm)
+    (fun b -> thread_state_inv' t (update_if b tsm tsm'))
+    (requires tsm' == M.fail tsm)
+    (ensures fun _ -> True)
+  = R.write t.failed true;
+    let b = true in
+    intro_thread_state_inv (update_if b tsm tsm') t;
+    return b
+
+let vevictbm (#tsm:M.thread_state_model)
+             (t:thread_state_t)
+             (s s':slot_id)
+             (ts:timestamp)
+  : ST bool
+    (thread_state_inv' t tsm)
+    (fun b -> thread_state_inv' t (update_if b tsm (M.vevictbm tsm s s' ts)))
+    (t.thread_id == tsm.thread_id)
+    (fun _ -> True)
+  = let bounds_failed =
+          not (M.check_slot_bounds s)
+        || not (M.check_slot_bounds s')
+    in
+    if bounds_failed then fail_as t _
+    else if s = s' then fail_as t _
+    else let se_checks = sat_evictb_checks t s ts in
+         if not se_checks then fail_as t _
+         else let ropt = A.read t.store (as_u32 s') in
+              match ropt with
+              | None -> fail_as t _
+              | Some r' ->
+                let Some r = A.read t.store (as_u32 s) in
+                if r.add_method <> M.MAdd
+                then (let b = fail_as t _ in return b)
+                else (
+                  let gk = r.key in
+                  let gk' = r'.key in
+                  let v' = r'.value in
+                  let k = M.to_base_key gk in
+                  let k' = M.to_base_key gk' in
+                  if not (KU.is_proper_descendent k k')
+                  then let b = fail_as t _ in return b
+                  else (
+                    let Some mv' = M.to_merkle_value v' in
+                    let d = KU.desc_dir k k' in
+                    let dh' = M.desc_hash_dir mv' d in
+                    match dh' returns
+                          (STT bool (thread_state_inv' t tsm)
+                                    (fun b -> thread_state_inv' t (update_if b tsm (M.vevictbm tsm s s' ts))))
+                    with
+                    | T.Dh_vnone _ ->
+                      let b = fail_as t _ in return b
+
+                    | T.Dh_vsome {T.dhd_key=k2;
+                                  T.dhd_h=h2;
+                                  T.evicted_to_blum = b2} ->
+                      if (k2 <> k) || (b2 = T.Vtrue)
+                      then let b = fail_as t _ in return b
+                      else if None? r.parent_slot
+                           || fst (Some?.v r.parent_slot) <> s'
+                           || snd (Some?.v r.parent_slot) <> d
+                      then let b = fail_as t _ in return b
+                      else (
+                        let b = vevictb_update_hash_clock t s ts in
+                        if b
+                        then (
+                          rewrite (thread_state_inv' t _)
+                                  (thread_state_inv' t (M.vevictb_update_hash_clock tsm s ts));
+                          let mv'_upd = M.update_merkle_value mv' d k h2 true in
+                          update_value t s' (MValue mv'_upd);
+                          evict_from_store t s s' d;
+                          return true
+                        )
+                        else (
+                          rewrite (thread_state_inv' t _)
+                                  (thread_state_inv' t tsm);
+                          return false
+                        ))))
 
 
 
