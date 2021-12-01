@@ -214,7 +214,7 @@ let desc_hash_dir (v:T.mval_value) (d:bool)
 
 let update_merkle_value (v:T.mval_value)
                         (d:bool)
-                        (k:T.internal_key)
+                        (k:T.base_key)
                         (h:T.hash_value)
                         (b:bool)
   : T.mval_value
@@ -409,26 +409,25 @@ let record_of_payload (p:payload)
       | Some ((k, v), _) -> 
         Some (| ApplicationKey k, DValue v |)
 
-
-let to_internal_key (k:key) 
-  : internal_key
+let to_base_key (k:key)
+  : base_key
   = match k with
     | InternalKey k -> k
-    | ApplicationKey k -> KU.internal_key_of_base_key (aprm.A.keyhashfn k)
+    | ApplicationKey k -> KU.lower_base_key (aprm.A.keyhashfn k)
 
-let internal_key_of_base_key_sig_digits (k:key_type)
+let lower_base_key_sig_digits (k:key_type)
   : Lemma 
-    (ensures (KU.internal_key_of_base_key (aprm.A.keyhashfn k)).significant_digits == 256us)
+    (ensures (KU.lower_base_key (aprm.A.keyhashfn k)).significant_digits == 256us)
   = admit()
 
-let key_with_descendent_is_merkle_key (k:key) (k':internal_key)
+let key_with_descendent_is_merkle_key (k:key) (k':base_key)
   : Lemma 
-    (requires k' `KU.is_proper_descendent` (to_internal_key k))
+    (requires k' `KU.is_proper_descendent` (to_base_key k))
     (ensures InternalKey? k)
-    [SMTPat (k' `KU.is_proper_descendent` (to_internal_key k))]
+    [SMTPat (k' `KU.is_proper_descendent` (to_base_key k))]
   = match k with
     | InternalKey _ -> ()
-    | ApplicationKey k -> internal_key_of_base_key_sig_digits k
+    | ApplicationKey k -> lower_base_key_sig_digits k
     
 #push-options "--query_stats --z3rlimit_factor 2 --fuel 0 --ifuel 2"
 let vaddm (tsm:thread_state_model)
@@ -447,9 +446,9 @@ let vaddm (tsm:thread_state_model)
       match get_entry tsm s' with
       | None -> fail tsm
       | Some r' ->
-        let k' = to_internal_key r'.key in
+        let k' = to_base_key r'.key in
         let v' = r'.value in
-        let k = to_internal_key gk in
+        let k = to_base_key gk in
         (* check k is a proper desc of k' *)
         if not (KU.is_proper_descendent k k') then fail tsm
         (* check store does not contain slot s *)
@@ -556,8 +555,8 @@ let vevictm (tsm:thread_state_model)
         let v = r.value in
         let gk' = r'.key in
         let v' = r'.value in
-        let k = to_internal_key gk in
-        let k' = to_internal_key gk' in
+        let k = to_base_key gk in
+        let k' = to_base_key gk' in
         (* check k is a proper descendent of k' *)
         if not (KU.is_proper_descendent k k') then fail tsm
         (* check k does not have a (merkle) child in the store *)
@@ -655,8 +654,8 @@ let vevictbm (tsm:thread_state_model)
         let gk = r.key in
         let gk' = r'.key in
         let v' = r'.value in
-        let k = to_internal_key gk in
-        let k' = to_internal_key gk' in
+        let k = to_base_key gk in
+        let k' = to_base_key gk' in
         if not (KU.is_proper_descendent k k')
         then fail tsm
         else (
