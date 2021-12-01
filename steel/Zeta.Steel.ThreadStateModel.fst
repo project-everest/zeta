@@ -174,7 +174,7 @@ let update_epoch_hevict (ehs:epoch_hashes)
                         (thread_id:T.thread_id)
   : GTot epoch_hashes
   = let eh = Map.sel ehs eid in
-    let eh = { eh with hadd = update_hash_value eh.hevict r t thread_id } in
+    let eh = { eh with hevict = update_hash_value eh.hevict r t thread_id } in
     Map.upd ehs eid eh
 
 let set_epoch_complete (ehs:epoch_hashes)
