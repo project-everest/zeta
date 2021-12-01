@@ -624,8 +624,8 @@ let vevictbm (#tsm:M.thread_state_model)
                         let b = vevictb_update_hash_clock t s ts in
                         if b
                         then (
-                          rewrite (thread_state_inv' t _)
-                                  (thread_state_inv' t (M.vevictb_update_hash_clock tsm s ts));
+                          // rewrite (thread_state_inv' t _)
+                          //         (thread_state_inv' t (M.vevictb_update_hash_clock tsm s ts));
                           let mv'_upd = M.update_merkle_value mv' d k h2 true in
                           update_value t s' (MValue mv'_upd);
                           evict_from_store t s s' d;
@@ -637,6 +637,84 @@ let vevictbm (#tsm:M.thread_state_model)
                           return false
                         ))))
 
+let check_overflow_add (x y:U64.t)
+  : res:option U64.t {
+        if FStar.UInt.fits (U64.v x + U64.v y) 64
+        then Some? res /\
+             Some?.v res == U64.add x y
+        else None? res
+    }
+ = let open U64 in
+   let res = U64.add_mod x y in
+   if res <^ x then None
+   else if res -^ x = y then Some res
+   else None
+
+
+let check_overflow_add32 (x y:U32.t)
+  : Pure (option U32.t)
+    (requires True)
+    (ensures fun res ->
+        if FStar.UInt.fits (U32.v x + U32.v y) 32
+        then Some? res /\
+             Some?.v res == U32.add x y
+        else None? res)
+ = let open U64 in
+   let res = U64.(Cast.uint32_to_uint64 x +^
+                  Cast.uint32_to_uint64 y)
+   in
+   if res >^ 0xffffffffuL
+   then None
+   else (assert (U64.v res  == U32.v x + U32.v y);
+         assert (U64.v res <= pow2 32);
+         let res = Cast.uint64_to_uint32 res in
+         assert (U32.v res  == U32.v x + U32.v y);
+         Some res)
+
+let st_check_overflow_add32 (x y:U32.t)
+  : ST (option U32.t)
+       emp
+       (fun _ -> emp)
+       (requires True)
+       (ensures fun res ->
+         if FStar.UInt.fits (U32.v x + U32.v y) 32
+         then Some? res /\
+              Some?.v res == U32.add x y
+         else None? res)
+  = let r = check_overflow_add32 x y in return r
+
+let new_epoch (e:M.epoch_id)
+  : STT AEH.epoch_hashes_t
+    emp
+    (fun v -> AEH.epoch_hash_perm e v M.init_epoch_hash)
+  = admit__()
+
+let nextepoch (#tsm:M.thread_state_model)
+              (t:thread_state_t)
+  : STT unit
+    (thread_state_inv' t tsm)
+    (fun _ -> thread_state_inv' t (M.nextepoch tsm))
+  = let c = R.read t.clock in
+    let e = M.epoch_of_timestamp c in
+    let res = st_check_overflow_add32 e 1ul in //Ugh. need this wrapper, else weirdness
+    match res with
+    | None ->
+      fail t; ()
+    | Some nxt ->
+      let c = U64.shift_left (Cast.uint32_to_uint64 nxt) 32ul in
+      R.write t.clock c;
+      let eht = new_epoch nxt in
+      IArray.put t.epoch_hashes nxt eht M.init_epoch_hash;
+      assert (IArray.set_remove Set.empty nxt `Set.equal` Set.empty);
+      rewrite (IArray.perm _ _ _)
+              (IArray.perm t.epoch_hashes (Map.upd tsm.epoch_hashes nxt M.init_epoch_hash) (Set.empty));
+      ()
+
+let next (t:T.timestamp)
+  : option T.timestamp
+  = if FStar.UInt.fits (U64.v t + 1) 64
+    then Some (U64.add t 1uL)
+    else None
 
 
 

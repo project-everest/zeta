@@ -687,8 +687,10 @@ let nextepoch (tsm:thread_state_model)
     if not (FStar.UInt.fits (U32.v e + 1) 32)
     then fail tsm //overflow
     else (
-      let clock = U64.shift_left (C.uint32_to_uint64 e) 32ul in
-      {tsm with clock=clock}
+      let e' = U32.(e +^ 1ul) in
+      let clock = U64.shift_left (C.uint32_to_uint64 e') 32ul in
+      {tsm with clock=clock;
+                epoch_hashes = Map.upd tsm.epoch_hashes e' init_epoch_hash }
     )
 
 let verifyepoch (tsm:thread_state_model)
