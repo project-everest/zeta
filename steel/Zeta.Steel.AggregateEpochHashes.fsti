@@ -23,24 +23,19 @@ open Zeta.Steel.Util
 val epoch_hash_size : U32.t
 
 let log_ref = G.ref (Seq.seq log_entry_base)
-let log_refs_t = Map.t thread_id log_ref
-
-let zero_hash : HA.hash_value_t = HA.initial_hash
-let related_hashes (h:hash_value) (h':HA.hash_value_t) = True // TODO
+let log_refs_t = erased (Map.t thread_id log_ref)
 
 noeq
 type epoch_hashes_t = {
   hadd: HA.ha;
   hevict: HA.ha;
-  complete: erased bool;
 }
 
 let epoch_hashes_repr = IArray.repr M.epoch_id M.epoch_hash
 let epoch_id_hash (x:M.epoch_id) : U32.t = x
 let epoch_hash_perm (k:M.epoch_id) (v:epoch_hashes_t) (c:M.epoch_hash) =
     HA.ha_val v.hadd c.hadd `star`
-    HA.ha_val v.hevict c.hevict `star`
-    pure (reveal v.complete == c.epoch_complete)
+    HA.ha_val v.hevict c.hevict
 
 let all_epoch_hashes =
   IArray.tbl
@@ -50,13 +45,10 @@ let all_epoch_hashes =
     epoch_id_hash
     epoch_hash_perm
 
-let related (h h':M.epoch_hash) =
-   (if h'.epoch_complete
-    then h == h'
-    else (
-      h.hadd == zero_hash /\
-      h.hevict == zero_hash
-   ))
+let is_epoch_verified (eid:M.epoch_id) (lve:option M.epoch_id) =
+  match lve with
+  | None -> false
+  | Some eid' -> U32.v eid' >= U32.v eid
 
 let epoch_hash_contributions_t = Map.t (thread_id & M.epoch_id) M.epoch_hash
 
@@ -70,13 +62,23 @@ let max_certified_epoch_is (_:epoch_hashes_repr)
   : prop
   = True //TODO
 
-let per_thread_contribiution_is_accurate (tid:thread_id)
-                                         (entries:Seq.seq log_entry_base)
-                                         (contribs:epoch_hash_contributions_t)
+
+let per_thread_contribution_is_accurate (max:M.epoch_id)
+                                        (tid:thread_id)
+                                        (entries:Seq.seq log_entry_base)
+                                        (contribs:epoch_hash_contributions_t)
   : prop
   = let tsm = M.verify_model (M.init_thread_state_model tid) entries in
-    forall (eid:M.epoch_id). related (Map.sel contribs (tid, eid))
-                                (Map.sel tsm.epoch_hashes eid)
+    (match tsm.last_verified_epoch with
+     | None -> max = 0ul //should max be an option too?
+     | Some e -> U32.v max <= U32.v e //max can't exceed the verified epoch ctr for tid
+     ) /\
+    (forall (eid:M.epoch_id).
+      let h_contrib = Map.sel contribs (tid, eid) in
+      let h_tsm = Map.sel tsm.epoch_hashes eid in
+      if is_epoch_verified eid tsm.last_verified_epoch
+      then h_contrib == h_tsm
+      else h_contrib == M.init_epoch_hash)
 
 
 let rec forall_threads_between (tid:thread_id)
@@ -100,7 +102,9 @@ let lock_inv (log_refs:log_refs_t)
              (max_certified_epoch : R.ref M.epoch_id)
              (contributions: G.ref epoch_hash_contributions_t)
  : vprop
- = exists_ (fun (hashes_v, max, contributions_v) ->
+ = exists_ (fun hashes_v ->
+   exists_ (fun max ->
+   exists_ (fun contributions_v ->
       IArray.perm hashes hashes_v Set.empty `star`
       R.pts_to max_certified_epoch full max `star`
       G.pts_to contributions full contributions_v `star`
@@ -110,8 +114,8 @@ let lock_inv (log_refs:log_refs_t)
         let logref = Map.sel log_refs tid in
         exists_ (fun (entries:_) ->
             G.pts_to logref half entries `star`
-            pure (per_thread_contribiution_is_accurate tid entries contributions_v))
-      ))
+            pure (per_thread_contribution_is_accurate max tid entries contributions_v))
+      ))))
 
 noeq
 type aggregate_epoch_hashes (log_refs:log_refs_t) = {

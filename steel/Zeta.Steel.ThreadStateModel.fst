@@ -48,12 +48,10 @@ let epoch_id = U32.t
 type epoch_hash = {
   hadd: model_hash;
   hevict: model_hash;
-  epoch_complete: bool //Maybe we don't need this bit and we can keep a counter in the thread state mode instead for max completed epoch
 }
 let init_epoch_hash =  {
   hadd = HA.initial_hash;
   hevict = HA.initial_hash;
-  epoch_complete = false
 }
 let epoch_hashes = Steel.Hashtbl.repr epoch_id epoch_hash
 let initial_epoch_hashes : epoch_hashes = empty_map
@@ -72,7 +70,8 @@ type thread_state_model = {
   epoch_hashes: epoch_hashes;
   thread_id: T.thread_id;
   processed_entries: Seq.seq log_entry_base;
-  app_results: app_results
+  app_results: app_results;
+  last_verified_epoch: option epoch_id
 }
 
 let init_thread_state_model tid
@@ -84,7 +83,8 @@ let init_thread_state_model tid
       clock = 0uL;
       epoch_hashes = initial_epoch_hashes;
       processed_entries = Seq.empty;
-      app_results = Seq.empty
+      app_results = Seq.empty;
+      last_verified_epoch = None
     }
 
 let fail tsm = {tsm with failed=true}
@@ -177,12 +177,6 @@ let update_epoch_hevict (ehs:epoch_hashes)
     let eh = { eh with hevict = update_hash_value eh.hevict r t thread_id } in
     Map.upd ehs eid eh
 
-let set_epoch_complete (ehs:epoch_hashes)
-                       (eid:epoch_id)
-  : GTot epoch_hashes
-  = let eh = Map.sel ehs eid in
-    Map.upd ehs eid ({ eh with epoch_complete = true })
-
 let update_hadd (tsm:thread_state_model)
                 (e:epoch_id)
                 (r:T.record)
@@ -196,11 +190,6 @@ let update_hevict (tsm:thread_state_model)
                   (t:T.timestamp)
                   (thread_id:T.thread_id)
   = {tsm with epoch_hashes = update_epoch_hevict tsm.epoch_hashes e r t thread_id }
-
-let complete_epoch (tsm:thread_state_model)
-                   (e:epoch_id)
-  = {tsm with epoch_hashes = set_epoch_complete tsm.epoch_hashes e }
-
 
 let to_merkle_value (v:T.value)
   : option T.mval_value
@@ -696,8 +685,8 @@ let nextepoch (tsm:thread_state_model)
 let verifyepoch (tsm:thread_state_model)
   : thread_state_model
   = let e = epoch_of_timestamp tsm.clock in
-    complete_epoch tsm e
-
+    { tsm with last_verified_epoch = Some e }
+    
 let rec read_slots (tsm:thread_state_model)
                    (slots:Seq.seq slot_id)
   : GTot (option 
@@ -871,31 +860,49 @@ let rec aggregate_epoch_hashes (tsms:Seq.seq thread_state_model)
   : GTot epoch_hash
     (decreases Seq.length tsms)
   = if Seq.length tsms = 0
-    then { init_epoch_hash with epoch_complete = true }
+    then init_epoch_hash
     else let hd = Seq.head tsms in
          if hd.failed
+         ||  None? hd.last_verified_epoch
          then init_epoch_hash
          else (
            let tl_hash = aggregate_epoch_hashes (Seq.tail tsms) eid in
            let hd_hash = Map.sel hd.epoch_hashes eid in
            let hd_hash = 
-             if hd_hash.epoch_complete
+             if U32.v (Some?.v hd.last_verified_epoch) >=
+                U32.v eid
              then hd_hash
              else init_epoch_hash
            in
            {
              hadd   = HA.aggregate_hashes hd_hash.hadd tl_hash.hadd;
-             hevict = HA.aggregate_hashes hd_hash.hevict tl_hash.hevict;
-             epoch_complete = hd_hash.epoch_complete && tl_hash.epoch_complete
+             hevict = HA.aggregate_hashes hd_hash.hevict tl_hash.hevict
            }
          )
+
+let rec seq_forall_ghost (f: 'a -> GTot bool) (s:Seq.seq 'a)
+  : GTot bool
+    (decreases Seq.length s)
+  = if Seq.length s = 0 then true
+    else f (Seq.head s) &&
+         seq_forall_ghost f (Seq.tail s)
+         
+let eid_is_verified_by_all (eid:epoch_id) (tsms: Seq.seq thread_state_model)
+  : GTot bool
+  = seq_forall_ghost
+        (fun tsm -> 
+          match tsm.last_verified_epoch with
+          | None -> false
+          | Some eid' -> U32.v eid' >= U32.v eid)
+        tsms
+
 
 let epoch_is_certified (logs:all_logs)
                        (eid:epoch_id)
   : GTot bool
   = let tsms = run_all_until_epoch _ logs eid in
     let aeh = aggregate_epoch_hashes tsms eid in
-    aeh.epoch_complete &&
+    eid_is_verified_by_all eid tsms &&
     aeh.hadd = aeh.hevict
 
 let committed_entries (tsm:thread_state_model)

@@ -31,12 +31,33 @@ let vstore
     }
 
 noeq
+type epoch_hashes_t = {
+  hadd: HA.ha;
+  hevict: HA.ha;
+}
+
+let epoch_hashes_repr = IArray.repr M.epoch_id M.epoch_hash
+let epoch_id_hash (x:M.epoch_id) : U32.t = x
+let epoch_hash_perm (k:M.epoch_id) (v:epoch_hashes_t) (c:M.epoch_hash) =
+    HA.ha_val v.hadd c.hadd `star`
+    HA.ha_val v.hevict c.hevict
+
+let all_epoch_hashes =
+  IArray.tbl
+    #M.epoch_id
+    #epoch_hashes_t
+    #M.epoch_hash
+    epoch_id_hash
+    epoch_hash_perm
+
+noeq
 type thread_state_t = {
   thread_id    : T.thread_id;
   failed       : R.ref bool;
   store        : vstore;
   clock        : R.ref U64.t;
-  epoch_hashes : AEH.all_epoch_hashes;
+  epoch_hashes : all_epoch_hashes;
+  last_verified_epoch: R.ref (option M.epoch_id);
   processed_entries: G.ref (Seq.seq log_entry_base);
   app_results  : G.ref M.app_results;
   serialization_buffer: A.larray U8.t 4096
@@ -52,6 +73,7 @@ let thread_state_inv (t:thread_state_t)
     A.pts_to t.store tsm.store `star`
     R.pts_to t.clock full tsm.clock `star`
     IArray.perm t.epoch_hashes tsm.epoch_hashes Set.empty `star`
+    R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
     G.pts_to t.processed_entries full tsm.processed_entries `star`
     G.pts_to t.app_results full tsm.app_results `star`
     exists_ (A.pts_to t.serialization_buffer) `star`

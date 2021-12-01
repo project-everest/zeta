@@ -10,3 +10,11 @@ let larray t (n:U32.t) = A.larray t (U32.v n)
 
 assume
 val empty_map (#k:eqtype) (#v:Type) : FStar.Map.t k v
+
+
+assume
+val admit__ (#a:Type)
+            (#p:pre_t)
+            (#q:post_t a)
+            (_:unit)
+  : STF a p q True (fun _ -> False)

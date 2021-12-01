@@ -24,15 +24,8 @@ let as_u32 (s:U16.t) : U32.t = Cast.uint16_to_uint32 s
 
 let spec_parser_log  = admit()
 
-assume
-val admit__ (#a:Type)
-            (#p:pre_t)
-            (#q:post_t a)
-            (_:unit)
-  : STF a p q True (fun _ -> False)
-
 let finalize_epoch_hash
-  : IArray.finalizer AEH.epoch_hash_perm
+  : IArray.finalizer epoch_hash_perm
   = fun k v -> drop _ //TODO: Actually free it
 
 let create (tid:T.thread_id)
@@ -42,7 +35,8 @@ let create (tid:T.thread_id)
   = let failed = R.alloc false in
     let store : vstore = A.alloc None (as_u32 store_size) in
     let clock = R.alloc 0uL in
-    let epoch_hashes = IArray.create AEH.epoch_id_hash 64ul finalize_epoch_hash in
+    let epoch_hashes = IArray.create epoch_id_hash 64ul finalize_epoch_hash in
+    let last_verified_epoch = R.alloc None in
     let processed_entries : G.ref (Seq.seq log_entry_base) = G.alloc Seq.empty in
     let app_results : G.ref M.app_results = G.alloc Seq.empty in
     let serialization_buffer = A.alloc 0uy 4096ul in
@@ -53,6 +47,7 @@ let create (tid:T.thread_id)
         store;
         clock;
         epoch_hashes;
+        last_verified_epoch;
         processed_entries;
         app_results;
         serialization_buffer
@@ -63,6 +58,7 @@ let create (tid:T.thread_id)
              A.pts_to store _ `star`
              R.pts_to clock _ _ `star`
              IArray.perm epoch_hashes _ _ `star`
+             R.pts_to last_verified_epoch _ _ `star`
              G.pts_to processed_entries _ _ `star`
              G.pts_to app_results _ _ `star`
              exists_ (A.pts_to serialization_buffer) `star`
@@ -87,6 +83,7 @@ let thread_state_inv' (t:thread_state_t)
     A.pts_to t.store tsm.store `star`
     R.pts_to t.clock full tsm.clock `star`
     IArray.perm t.epoch_hashes tsm.epoch_hashes Set.empty `star`
+    R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
     G.pts_to t.processed_entries full tsm.processed_entries `star`
     G.pts_to t.app_results full tsm.app_results `star`
     exists_ (A.pts_to t.serialization_buffer)
@@ -97,6 +94,7 @@ let intro_thread_state_inv #o
                            (#s:_)
                            (#c:_)
                            (#eh:_)
+                           (#lve:_)
                            (#pe:_)
                            (#ar:_)
                            (t:thread_state_t)
@@ -105,6 +103,7 @@ let intro_thread_state_inv #o
       A.pts_to t.store s `star`
       R.pts_to t.clock full c `star`
       IArray.perm t.epoch_hashes eh Set.empty `star`
+      R.pts_to t.last_verified_epoch full lve `star`
       G.pts_to t.processed_entries full pe `star`
       G.pts_to t.app_results full ar `star`
       exists_ (A.pts_to t.serialization_buffer))
@@ -114,6 +113,7 @@ let intro_thread_state_inv #o
        tsm.store == s /\
        tsm.clock == c /\
        tsm.epoch_hashes == eh /\
+       tsm.last_verified_epoch == lve /\
        tsm.processed_entries == pe /\
        tsm.app_results == ar)
      (ensures fun _ ->
@@ -122,6 +122,7 @@ let intro_thread_state_inv #o
               A.pts_to t.store _ `star`
               R.pts_to t.clock _ _ `star`
               IArray.perm t.epoch_hashes _ _ `star`
+              R.pts_to t.last_verified_epoch _ _ `star`
               G.pts_to t.processed_entries _ _ `star`
               G.pts_to t.app_results _ _ `star`
               exists_ (A.pts_to t.serialization_buffer))
@@ -310,40 +311,33 @@ val ha_add (#v:erased (HA.hash_value_t))
                          (HA.hash_one_value (Seq.slice bs 0 (U32.v l)))))
 
 
-let unfold_epoch_hash_perm #o (k:M.epoch_id) (v:AEH.epoch_hashes_t) (c:M.epoch_hash)
-  : STGhost unit o
-    (AEH.epoch_hash_perm k v c)
+let unfold_epoch_hash_perm #o (k:M.epoch_id) (v:epoch_hashes_t) (c:M.epoch_hash)
+  : STGhostT unit o
+    (epoch_hash_perm k v c)
     (fun _ ->
       HA.ha_val v.hadd c.hadd `star`
       HA.ha_val v.hevict c.hevict)
-    (requires True)
-    (ensures fun _ ->
-      reveal v.complete == c.epoch_complete)
-  = rewrite (AEH.epoch_hash_perm k v c)
+  = rewrite (epoch_hash_perm k v c)
             (HA.ha_val v.hadd c.hadd `star`
-             HA.ha_val v.hevict c.hevict `star`
-             pure (reveal v.complete == c.epoch_complete));
-    elim_pure _
+             HA.ha_val v.hevict c.hevict)
+
 
 let fold_epoch_hash_perm #o
                          (k:M.epoch_id)
-                         (v:AEH.epoch_hashes_t)
+                         (v:epoch_hashes_t)
                          (#had #hev:HA.hash_value_t)
                          (c:M.epoch_hash)
   : STGhost unit o
     (HA.ha_val v.hadd had `star`
      HA.ha_val v.hevict hev)
-    (fun _ -> AEH.epoch_hash_perm k v c)
+    (fun _ -> epoch_hash_perm k v c)
     (requires
       c.hadd == had /\
-      c.hevict == hev /\
-      reveal v.complete == c.epoch_complete)
+      c.hevict == hev)
     (ensures fun _ -> True)
-  = intro_pure (reveal v.complete == c.epoch_complete);
-    rewrite (HA.ha_val v.hadd had `star`
-             HA.ha_val v.hevict hev `star`
-             pure _)
-            (AEH.epoch_hash_perm k v c)
+  = rewrite (HA.ha_val v.hadd had `star`
+             HA.ha_val v.hevict hev)
+            (epoch_hash_perm k v c)
 
 type htype =
   | HAdd
@@ -434,7 +428,7 @@ let update_ht (#tsm:M.thread_state_model)
 
     | Some v ->
       rewrite (IArray.get_post _ _ _ _ vopt)
-              (AEH.epoch_hash_perm e v (Map.sel tsm.epoch_hashes e) `star`
+              (epoch_hash_perm e v (Map.sel tsm.epoch_hashes e) `star`
                IArray.perm t.epoch_hashes tsm.epoch_hashes (IArray.set_add Set.empty e));
       unfold_epoch_hash_perm _ _ _;
       let sr = {
@@ -456,7 +450,7 @@ let update_ht (#tsm:M.thread_state_model)
                             )
                            (fun b ->
                              A.pts_to t.serialization_buffer bs `star`
-                             AEH.epoch_hash_perm e v
+                             epoch_hash_perm e v
                               (update_if b (Map.sel tsm.epoch_hashes e)
                                            (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id ht))))
         with
@@ -684,9 +678,9 @@ let st_check_overflow_add32 (x y:U32.t)
   = let r = check_overflow_add32 x y in return r
 
 let new_epoch (e:M.epoch_id)
-  : STT AEH.epoch_hashes_t
+  : STT epoch_hashes_t
     emp
-    (fun v -> AEH.epoch_hash_perm e v M.init_epoch_hash)
+    (fun v -> epoch_hash_perm e v M.init_epoch_hash)
   = admit__()
 
 let nextepoch (#tsm:M.thread_state_model)
@@ -716,6 +710,32 @@ let next (t:T.timestamp)
     then Some (U64.add t 1uL)
     else None
 
+let lock (#logrefs: AEH.log_refs_t)
+         (aeh:AEH.aggregate_epoch_hashes logrefs) //lock & handle to the aggregate state
+  = aeh.lock
+
+let verify_epoch (#tsm:M.thread_state_model)
+                 (t:thread_state_t)
+                 (#logrefs: AEH.log_refs_t)
+                 (aeh:AEH.aggregate_epoch_hashes logrefs) //lock & handle to the aggregate state
+                 (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
+                   Map.sel logrefs tsm.thread_id == mylogref /\
+                   t.thread_id == tsm.thread_id
+                 })
+  : STT unit
+    (thread_state_inv' t tsm `star`
+     G.pts_to mylogref half (M.committed_entries tsm))
+    (fun _ ->
+      thread_state_inv' t (M.verifyepoch tsm) `star`
+      G.pts_to mylogref half (M.committed_entries (M.verifyepoch tsm)))
+  = let c = R.read t.clock in
+    let e = M.epoch_of_timestamp c in
+    R.write t.last_verified_epoch (Some e);
+    Steel.ST.SpinLock.acquire aeh.lock;
+    let _ = elim_exists () in
+    let _ = elim_exists () in
+    let _ = elim_exists () in
+    admit__()
 
 
 // let vaddb (#tsm:M.thread_state_model)
