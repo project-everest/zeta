@@ -143,7 +143,6 @@ let vget (#tsm:M.thread_state_model)
     match se_opt with
     | None ->
         R.write t.failed true; ()
-
     | Some r ->
         if r.key <> k
         then (R.write t.failed true; ())
@@ -163,7 +162,6 @@ let vput (#tsm:M.thread_state_model)
     match se_opt with
     | None ->
       R.write t.failed true; ()
-
     | Some r ->
       if r.key <> k
       then (R.write t.failed true; ())
@@ -232,8 +230,8 @@ let vevictm (#tsm:M.thread_state_model)
         let v = r.M.value in
         let gk' = r'.M.key in
         let v' = r'.M.value in
-        let k = M.to_internal_key gk in
-        let k' = M.to_internal_key gk' in
+        let k = M.to_base_key gk in
+        let k' = M.to_base_key gk' in
         (* check k is a proper descendent of k' *)
         if not (KU.is_proper_descendent k k')
         then (R.write t.failed true; ())
