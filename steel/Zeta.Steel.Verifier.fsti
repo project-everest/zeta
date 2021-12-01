@@ -34,13 +34,6 @@ val create (tid:T.thread_id)
     emp
     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
 
-let delta_app_results (tsm0 tsm1:M.thread_state_model)
-  : GTot (Seq.seq M.app_results)
-  = Prims.admit()
-
-let bytes_of_app_results (s:Seq.seq M.app_results)
-  : GTot bytes
-  = Prims.admit()
 
 /// Entry point to run a single verifier thread on a log
 val verify (#tsm:M.thread_state_model)
@@ -86,7 +79,7 @@ val verify (#tsm:M.thread_state_model)
                //tsm' what you get by running the spec verifier from tsm on log_entries
                tsm' == M.verify_model tsm log_entries /\
                //the out_bytes contain any new app results in tsm'
-               out_bytes == bytes_of_app_results (delta_app_results tsm tsm') /\
+               out_bytes == M.bytes_of_app_results (M.delta_app_results tsm tsm') /\
                //and n_out is the number of bytes that were written
                U32.v n_out == Seq.length out_bytes
            )

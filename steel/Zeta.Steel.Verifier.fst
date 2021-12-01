@@ -482,13 +482,6 @@ let update_hash (#tsm:M.thread_state_model)
       return b
 #pop-options
 
-// let update_hevict (tsm:thread_state_model)
-//                   (e:epoch_id)
-//                   (r:T.record)
-//                   (t:T.timestamp)
-//                   (thread_id:T.thread_id)
-//   = {tsm with epoch_hashes = update_epoch_hevict tsm.epoch_hashes e r t thread_id }
-
 // let vevictb_update_hash_clock (#tsm:M.thread_state_model)
 //                               (t:thread_state_t)
 //                               (s:slot)

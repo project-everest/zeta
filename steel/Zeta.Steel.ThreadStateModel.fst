@@ -905,3 +905,10 @@ let committed_entries (tsm:thread_state_model)
          prefix tsm.processed_entries i
     else Seq.empty
 
+let delta_app_results (tsm0 tsm1:thread_state_model)
+  : GTot (Seq.seq app_results)
+  = Prims.admit()
+
+let bytes_of_app_results (s:Seq.seq app_results)
+  : GTot bytes
+  = Prims.admit()
