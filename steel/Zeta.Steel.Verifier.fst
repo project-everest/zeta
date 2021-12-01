@@ -344,83 +344,89 @@ let fold_epoch_hash_perm #o
              pure _)
             (AEH.epoch_hash_perm k v c)
 
+type htype =
+  | HAdd
+  | HEvict
 
-
-let maybe_update_hadd (b:bool)
+let maybe_update_hash (b:bool)
                       (c:M.epoch_hash)
                       (r:T.record)
                       (t:T.timestamp)
                       (thread_id:T.thread_id)
+                      (ht:htype)
   : GTot M.epoch_hash
-  = if b then { c with hadd = M.update_hash_value c.hadd r t thread_id }
+  = if b
+    then match ht with
+         | HAdd -> { c with hadd = M.update_hash_value c.hadd r t thread_id }
+         | HEvict -> { c with hevict = M.update_hash_value c.hevict r t thread_id }
     else c
 
-let maybe_update_hadd_false (tsm:M.thread_state_model)
-                            (e:M.epoch_id)
-                            (r:T.record)
-                            (ts:T.timestamp)
-                            (thread_id:T.thread_id)
-  : Lemma (requires
-            Map.contains tsm.epoch_hashes e)
-          (ensures
-            Map.upd tsm.epoch_hashes e
-                    (maybe_update_hadd false (Map.sel tsm.epoch_hashes e) r ts thread_id) ==
-            tsm.epoch_hashes)
-  = assert (Map.equal tsm.epoch_hashes (Map.upd tsm.epoch_hashes e (Map.sel tsm.epoch_hashes e)))
-
-let tsm_maybe_update_hadd (b:bool)
+let tsm_maybe_update_hash (b:bool)
                           (tsm:M.thread_state_model)
                           (e:M.epoch_id)
                           (r:T.record)
                           (ts:T.timestamp)
                           (thread_id:T.thread_id)
+                          (ht:htype)
    : M.thread_state_model
   = if b
     then let c = Map.sel tsm.epoch_hashes e in
          {tsm with epoch_hashes =
                    Map.upd tsm.epoch_hashes
                       e
-                      (maybe_update_hadd b c r ts thread_id)}
+                      (maybe_update_hash b c r ts thread_id ht)}
     else tsm
 
-let tsm_maybe_update_hadd' (b:bool)
+let tsm_maybe_update_hash' (b:bool)
                           (tsm:M.thread_state_model)
                           (e:M.epoch_id)
                           (r:T.record)
                           (ts:T.timestamp)
                           (thread_id:T.thread_id)
+                          (ht:htype)
    : M.thread_state_model
   = let c = Map.sel tsm.epoch_hashes e in
     {tsm with epoch_hashes =
                    Map.upd tsm.epoch_hashes
                       e
-                      (maybe_update_hadd b c r ts thread_id)}
+                      (maybe_update_hash b c r ts thread_id ht)}
 
-let tsm_maybe_update_hadd_equiv
+let tsm_maybe_update_hash_equiv
                           (b:bool)
                           (tsm:M.thread_state_model)
                           (e:M.epoch_id)
                           (r:T.record)
                           (ts:T.timestamp)
                           (thread_id:T.thread_id)
+                          (ht:htype)
   : Lemma (requires
             Map.contains tsm.epoch_hashes e)
           (ensures
-            tsm_maybe_update_hadd' b tsm e r ts thread_id ==
-            tsm_maybe_update_hadd b tsm e r ts thread_id)
+            tsm_maybe_update_hash' b tsm e r ts thread_id ht ==
+            tsm_maybe_update_hash b tsm e r ts thread_id ht)
   = if b then ()
-    else maybe_update_hadd_false tsm e r ts thread_id
+    else assert (Map.equal tsm.epoch_hashes (Map.upd tsm.epoch_hashes e (Map.sel tsm.epoch_hashes e)))
 
-let update_hadd (#tsm:M.thread_state_model)
+let set_add_remove (#a:eqtype) (s:Set.set a) (x:a)
+  : Lemma (requires not (Set.mem x s))
+          (ensures IArray.set_remove (IArray.set_add s x) x == s)
+  = let lhs = IArray.set_remove (IArray.set_add s x) x in
+    Set.lemma_equal_intro lhs s;
+    assert (lhs `Set.equal` s)
+
+#push-options "--z3rlimit_factor 2"
+let update_hash (#tsm:M.thread_state_model)
                 (t:thread_state_t)
                 (e:M.epoch_id)
                 (r:T.record)
                 (ts:T.timestamp)
                 (thread_id:T.thread_id)
+                (ht:htype)
   : STT bool
     (thread_state_inv' t tsm)
-    (fun b -> thread_state_inv' t (tsm_maybe_update_hadd b tsm e r ts thread_id))
+    (fun b -> thread_state_inv' t (tsm_maybe_update_hash b tsm e r ts thread_id ht))
   = let vopt = IArray.get t.epoch_hashes e in
+    set_add_remove Set.empty e;
     match vopt with
     | None ->
       rewrite (IArray.get_post _ _ _ _ vopt)
@@ -441,21 +447,42 @@ let update_hadd (#tsm:M.thread_state_model)
       let n = T.serialize_stamped_record 4096ul 0ul t.serialization_buffer sr in
       let bs = elim_exists () in
       elim_pure ( _ /\ _ /\ _ /\ _);
-      let b = ha_add v.hadd n t.serialization_buffer in
-      fold_epoch_hash_perm e v
-        (maybe_update_hadd b (Map.sel tsm.epoch_hashes e) r ts thread_id);
+      let ha = if ht = HAdd then v.hadd else v.hevict in
+      let b =
+        match ht
+              returns (STT bool
+                           (HA.ha_val v.hadd (Map.sel tsm.epoch_hashes e).hadd `star`
+                            HA.ha_val v.hevict (Map.sel tsm.epoch_hashes e).hevict `star`
+                            A.pts_to t.serialization_buffer bs
+                            )
+                           (fun b ->
+                             A.pts_to t.serialization_buffer bs `star`
+                             AEH.epoch_hash_perm e v
+                              (maybe_update_hash b (Map.sel tsm.epoch_hashes e) r ts thread_id ht)))
+        with
+        | HAdd ->
+          let b = ha_add v.hadd n t.serialization_buffer in
+          fold_epoch_hash_perm e v
+                (maybe_update_hash b (Map.sel tsm.epoch_hashes e) r ts thread_id HAdd);
+          return b
+        | HEvict ->
+          let b = ha_add v.hevict n t.serialization_buffer in
+          fold_epoch_hash_perm e v
+                (maybe_update_hash b (Map.sel tsm.epoch_hashes e) r ts thread_id HEvict);
+          return b
+      in
       IArray.put t.epoch_hashes e v _;
-      assert (IArray.set_remove (IArray.set_add Set.empty e) e `Set.equal` Set.empty);
       rewrite (IArray.perm _ _ _)
               (IArray.perm t.epoch_hashes
                            (Map.upd tsm.epoch_hashes e
-                                   (maybe_update_hadd b (Map.sel tsm.epoch_hashes e) r ts thread_id))
+                                   (maybe_update_hash b (Map.sel tsm.epoch_hashes e) r ts thread_id ht))
                            Set.empty);
       intro_exists _ (A.pts_to t.serialization_buffer);
-      tsm_maybe_update_hadd_equiv b tsm e r ts thread_id;
-      rewrite (thread_state_inv' t (tsm_maybe_update_hadd' b tsm e r ts thread_id))
-              (thread_state_inv' t (tsm_maybe_update_hadd b tsm e r ts thread_id));
+      tsm_maybe_update_hash_equiv b tsm e r ts thread_id ht;
+      rewrite (thread_state_inv' t (tsm_maybe_update_hash' b tsm e r ts thread_id ht))
+              (thread_state_inv' t (tsm_maybe_update_hash b tsm e r ts thread_id ht));
       return b
+#pop-options
 
 // let update_hevict (tsm:thread_state_model)
 //                   (e:epoch_id)
