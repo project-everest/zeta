@@ -59,6 +59,7 @@ let spec_verify_epoch (tsm:M.thread_state_model)
 let verify_epoch_committed_entries (tsm:M.thread_state_model)
   : Lemma (M.committed_entries (spec_verify_epoch tsm) ==
            (spec_verify_epoch tsm).processed_entries)
+          [SMTPat (M.committed_entries (spec_verify_epoch tsm))]
   = admit()
 
 let aggregate_one_epoch_hash (source:epoch_hashes_repr)
@@ -418,6 +419,61 @@ let restore_all_threads_invariant #o
     (restore_other_threads_invariant tsm.thread_id e _);
     AEH.put_thread tsm.thread_id
 
+let restore_global_invariant #o #hv #cv #max (tsm:M.thread_state_model) (e:M.epoch_id)
+  : STGhostT unit o
+    (pure (AEH.all_contributions_are_accurate hv cv /\
+           AEH.max_certified_epoch_is hv max))
+    (fun _ ->
+      pure (AEH.all_contributions_are_accurate
+                        (aggregate_one_epoch_hash tsm.epoch_hashes hv e)
+                        (update_contributions_spec tsm cv e) /\
+            AEH.max_certified_epoch_is
+                        (aggregate_one_epoch_hash tsm.epoch_hashes hv e)
+                        max))
+  = admit_()
+
+let intro_thread_state_inv #o
+                           (tsm:M.thread_state_model)
+                           (#f:_)
+                           (#s:_)
+                           (#c:_)
+                           (#eh:_)
+                           (#lve:_)
+                           (#pe:_)
+                           (#ar:_)
+                           (t:thread_state_t)
+   : STGhost unit o
+     (R.pts_to t.failed full f `star`
+      A.pts_to t.store s `star`
+      R.pts_to t.clock full c `star`
+      IArray.perm t.epoch_hashes eh Set.empty `star`
+      R.pts_to t.last_verified_epoch full lve `star`
+      G.pts_to t.processed_entries full pe `star`
+      G.pts_to t.app_results full ar `star`
+      exists_ (A.pts_to t.serialization_buffer))
+     (fun _ -> thread_state_inv' t tsm)
+     (requires
+       tsm.failed == f /\
+       tsm.store == s /\
+       tsm.clock == c /\
+       tsm.epoch_hashes == eh /\
+       tsm.last_verified_epoch == lve /\
+       tsm.processed_entries == pe /\
+       tsm.app_results == ar /\
+         True
+   )
+     (ensures fun _ ->
+       True)
+   = admit_()// rewrite (R.pts_to t.failed _ _ `star`
+             //  A.pts_to t.store _ `star`
+             //  R.pts_to t.clock _ _ `star`
+             //  IArray.perm t.epoch_hashes _ _ `star`
+             //  R.pts_to t.last_verified_epoch _ _ `star`
+             //  G.pts_to t.processed_entries _ _ `star`
+             //  G.pts_to t.app_results _ _ `star`
+             //  exists_ (A.pts_to t.serialization_buffer))
+             // (thread_state_inv' t tsm)
+
 let verify_epoch (#tsm:M.thread_state_model)
                  (t:thread_state_t)
                  (#log_refs: AEH.log_refs_t)
@@ -483,9 +539,23 @@ let verify_epoch (#tsm:M.thread_state_model)
              commit_entries t mylogref;
              restore_per_thread_invariant #_ #log_refs tsm mylogref e;
              restore_all_threads_invariant #_ #log_refs #_bitmaps #_max #_contribs #t.thread_id tsm e;
-             admit__()
+             restore_global_invariant tsm e;
+             release_lock  #log_refs #hashes #tid_bitmaps #max_certified_epoch #contributions
+                           #(hide (aggregate_one_epoch_hash tsm.epoch_hashes _hv e))
+                           #(hide (update_bitmap_spec _bitmaps e tsm.thread_id))
+                           #_max
+                           #(hide (update_contributions_spec tsm _contribs e))
+                           lock;
+             G.write t.processed_entries (spec_verify_epoch tsm).processed_entries;
+             intro_thread_state_inv (spec_verify_epoch tsm) t;
+             rewrite (G.pts_to mylogref _ _)
+                     (G.pts_to mylogref half
+                                        (M.committed_entries (spec_verify_epoch tsm)));
+             return true
         )
       )
+
+#push-options "--print_implicits"
 
 let spec_parser_log  = admit()
 
@@ -543,45 +613,6 @@ let tsm_t (tsm:M.thread_state_model) =
     t:thread_state_t { t.thread_id == tsm.thread_id}
 
 
-let intro_thread_state_inv #o
-                           (tsm:M.thread_state_model)
-                           (#f:_)
-                           (#s:_)
-                           (#c:_)
-                           (#eh:_)
-                           (#lve:_)
-                           (#pe:_)
-                           (#ar:_)
-                           (t:thread_state_t)
-   : STGhost unit o
-     (R.pts_to t.failed full f `star`
-      A.pts_to t.store s `star`
-      R.pts_to t.clock full c `star`
-      IArray.perm t.epoch_hashes eh Set.empty `star`
-      R.pts_to t.last_verified_epoch full lve `star`
-      G.pts_to t.processed_entries full pe `star`
-      G.pts_to t.app_results full ar `star`
-      exists_ (A.pts_to t.serialization_buffer))
-     (fun _ -> thread_state_inv' t tsm)
-     (requires
-       tsm.failed == f /\
-       tsm.store == s /\
-       tsm.clock == c /\
-       tsm.epoch_hashes == eh /\
-       tsm.last_verified_epoch == lve /\
-       tsm.processed_entries == pe /\
-       tsm.app_results == ar)
-     (ensures fun _ ->
-       True)
-   = rewrite (R.pts_to t.failed _ _ `star`
-              A.pts_to t.store _ `star`
-              R.pts_to t.clock _ _ `star`
-              IArray.perm t.epoch_hashes _ _ `star`
-              R.pts_to t.last_verified_epoch _ _ `star`
-              G.pts_to t.processed_entries _ _ `star`
-              G.pts_to t.app_results _ _ `star`
-              exists_ (A.pts_to t.serialization_buffer))
-             (thread_state_inv' t tsm)
 
 let fail (#tsm:M.thread_state_model)
          (t:thread_state_t)
