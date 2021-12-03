@@ -73,7 +73,7 @@ type thread_state_model = {
   thread_id: tid;
   processed_entries: Seq.seq log_entry_base;
   app_results: app_results;
-  last_verified_epoch: option epoch_id
+  last_verified_epoch: epoch_id
 }
 
 let init_thread_state_model tid
@@ -86,7 +86,7 @@ let init_thread_state_model tid
       epoch_hashes = initial_epoch_hashes;
       processed_entries = Seq.empty;
       app_results = Seq.empty;
-      last_verified_epoch = None
+      last_verified_epoch = 0ul
     }
 
 let fail tsm = {tsm with failed=true}
@@ -686,8 +686,9 @@ let nextepoch (tsm:thread_state_model)
 
 let verifyepoch (tsm:thread_state_model)
   : thread_state_model
-  = let e = epoch_of_timestamp tsm.clock in
-    { tsm with last_verified_epoch = Some e }
+  = if not (UInt.fits (U32.v tsm.last_verified_epoch + 1) 32)
+    then fail tsm
+    else { tsm with last_verified_epoch = U32.(tsm.last_verified_epoch +^ 1ul)  }
     
 let rec read_slots (tsm:thread_state_model)
                    (slots:Seq.seq slot_id)
@@ -865,13 +866,12 @@ let rec aggregate_epoch_hashes (tsms:Seq.seq thread_state_model)
     then init_epoch_hash
     else let hd = Seq.head tsms in
          if hd.failed
-         ||  None? hd.last_verified_epoch
          then init_epoch_hash
          else (
            let tl_hash = aggregate_epoch_hashes (Seq.tail tsms) eid in
            let hd_hash = Map.sel hd.epoch_hashes eid in
            let hd_hash = 
-             if U32.v (Some?.v hd.last_verified_epoch) >=
+             if U32.v hd.last_verified_epoch >=
                 U32.v eid
              then hd_hash
              else init_epoch_hash
@@ -892,12 +892,8 @@ let rec seq_forall_ghost (f: 'a -> GTot bool) (s:Seq.seq 'a)
 let eid_is_verified_by_all (eid:epoch_id) (tsms: Seq.seq thread_state_model)
   : GTot bool
   = seq_forall_ghost
-        (fun tsm -> 
-          match tsm.last_verified_epoch with
-          | None -> false
-          | Some eid' -> U32.v eid' >= U32.v eid)
+        (fun tsm -> U32.v tsm.last_verified_epoch >= U32.v eid)
         tsms
-
 
 let epoch_is_certified (logs:all_logs)
                        (eid:epoch_id)

@@ -56,12 +56,10 @@ let epoch_tid_bitmaps =
     epoch_id_hash
     (fun i -> A.pts_to)
 
-let is_epoch_verified (eid:M.epoch_id) (lve:option M.epoch_id) =
-  match lve with
-  | None -> false
-  | Some eid' -> U32.v eid' >= U32.v eid
+let is_epoch_verified (eid:M.epoch_id) (lve:M.epoch_id) =
+  U32.v lve >= U32.v eid
 
-let epoch_hash_contributions_t = Map.t M.epoch_id (Seq.lseq M.epoch_hash (U32.v n_threads))
+let epoch_hash_contributions_t = Seq.lseq epoch_hashes_repr (U32.v n_threads)
 
 let aggregate_epoch_hash (e0 e1:M.epoch_hash)
   : M.epoch_hash
@@ -70,7 +68,9 @@ let aggregate_epoch_hash (e0 e1:M.epoch_hash)
 
 let aggregate_thread_epoch_hashes (e:M.epoch_id) (contribs:epoch_hash_contributions_t)
   : M.epoch_hash
-  = Zeta.SeqAux.reduce M.init_epoch_hash aggregate_epoch_hash (Map.sel contribs e)
+  = Zeta.SeqAux.reduce M.init_epoch_hash
+                       (fun s -> aggregate_epoch_hash (Map.sel s e))
+                       contribs
 
 let all_contributions_are_accurate (global:epoch_hashes_repr)
                                    (contribs:epoch_hash_contributions_t)
@@ -88,15 +88,12 @@ let per_thread_contribution_is_accurate (max:M.epoch_id)
                                         (bitmaps: IArray.repr M.epoch_id tid_bitmap)
                                         (tid:tid)
                                         (entries:Seq.seq log_entry_base)
-                                        (contribs:epoch_hash_contributions_t)
+                                        (contribs:epoch_hashes_repr)
   : prop
   = let tsm = M.verify_model (M.init_thread_state_model tid) entries in
-    (match tsm.last_verified_epoch with
-     | None -> max = 0ul //should max be an option too?
-     | Some e -> U32.v max <= U32.v e //max can't exceed the verified epoch ctr for tid
-     ) /\
+    U32.v max <= U32.v tsm.last_verified_epoch /\ //max can't exceed the verified epoch ctr for tid
     (forall (eid:M.epoch_id).
-      let h_contrib = Seq.index (Map.sel contribs eid) (U16.v tid) in
+      let h_contrib = Map.sel contribs eid in
       let h_tsm = Map.sel tsm.epoch_hashes eid in
       Seq.index (Map.sel bitmaps eid) (U16.v tid) == is_epoch_verified eid tsm.last_verified_epoch /\
       (if is_epoch_verified eid tsm.last_verified_epoch
@@ -111,24 +108,35 @@ let n_threads_16 : tid_index = U16.uint_to_t (U32.v n_threads)
 let rec forall_threads_between (from:tid_index)
                                (to:tid_index { U16.v from <= U16.v to })
                                (f:tid -> vprop)
+
   : Tot (vprop)
         (decreases (U16.v to - U16.v from))
   = if from = to then emp
     else f from `star`
          forall_threads_between U16.(from +^ 1us) to f
 
-let forall_threads (f:tid -> vprop) =
+let forall_threads (f: tid -> vprop) =
   forall_threads_between 0us n_threads_16 f
+
+
+let thread_contribs (contribs:epoch_hash_contributions_t) (tid:tid) =
+  Seq.index contribs (U16.v tid)
+
+let upd_thread_contribs (contribs:epoch_hash_contributions_t)
+                        (tid:tid)
+                        (v:_) =
+  Seq.upd contribs (U16.v tid) v
 
 let per_thread_invariant (log_refs:log_refs_t)
                          (max:_)
                          (bitmaps:_)
-                         (contribs:_)
-                         (tid:tid) =
+                         (contribs:epoch_hash_contributions_t)
+                         ([@@@smt_fallback] tid:tid) =
     let logref = Map.sel log_refs tid in
+    let t_contribs = thread_contribs contribs tid in
     exists_ (fun (entries:_) ->
       G.pts_to logref half entries `star`
-      pure (per_thread_contribution_is_accurate max bitmaps tid entries contribs))
+      pure (per_thread_contribution_is_accurate max bitmaps tid entries t_contribs))
 
 val take_thread (#o:_) (#p:tid -> vprop) (i:tid)
   : STGhostT unit o
@@ -144,6 +152,13 @@ val put_thread (#o:_) (#p:tid -> vprop) (i:tid)
      forall_threads_between U16.(i +^ 1us) n_threads_16 p)
     (fun _ -> forall_threads p)
 
+val update_forall_thread_between (#o:_)
+                                 (i:tid_index)
+                                 (j:tid_index{U16.v i <= U16.v j}) (p q:tid -> vprop)
+                                 (f: (k:tid{ U16.v i <= U16.v k /\ U16.v k < U16.v j} -> STGhostT unit o (p k) (fun _-> q k)))
+  : STGhostT unit o
+     (forall_threads_between i j p)
+     (fun _ -> forall_threads_between i j q)
 
 [@@__reduce__]
 let lock_inv_body (log_refs:log_refs_t)
