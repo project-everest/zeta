@@ -250,10 +250,6 @@ let commit_entries #o (#log_refs: AEH.log_refs_t)
      rewrite (pure _) (pure _)
 
 
-[@@__reduce__]
-let forall_threads_except (i:tid) (p:tid -> vprop) =
-     AEH.forall_threads_between 0us i p `star`
-     AEH.forall_threads_between U16.(i +^ 1us) AEH.n_threads_16 p
 
 let advance_per_thread_contribution_accurate  (bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
                                               (max:_)
@@ -311,21 +307,15 @@ let advance_per_thread_contribution_accurate  (bitmaps:IArray.repr M.epoch_id AE
 
 let restore_per_thread_invariant #o
                                  (#log_refs: AEH.log_refs_t)
-                                 (#hashes : AEH.all_epoch_hashes)
-                                 (#tid_bitmaps : AEH.epoch_tid_bitmaps)
-                                 (#max_certified_epoch : R.ref M.epoch_id)
-                                 (#contributions: G.ref AEH.epoch_hash_contributions_t)
-                                 (#hv:_)
                                  (#bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
                                  (#max:_)
                                  (#contribs:_)
-                                 (#tsm:M.thread_state_model)
-                                 (t:thread_state_t)
+                                 (tsm:M.thread_state_model)
                                  (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
-                                   Map.sel log_refs tsm.thread_id == mylogref /\
-                                   t.thread_id == tsm.thread_id
+                                   Map.sel log_refs tsm.thread_id == mylogref
                                  })
-                                 (e:M.epoch_id {   (spec_verify_epoch tsm).last_verified_epoch == e } )
+                                 (e:M.epoch_id {   tsm_entries_invariant tsm /\
+                                                   (spec_verify_epoch tsm).last_verified_epoch == e } )
   : STGhostT unit o
     (G.pts_to mylogref half (spec_verify_epoch tsm).processed_entries `star`
      pure (AEH.per_thread_contribution_is_accurate max bitmaps tsm.thread_id (M.committed_entries tsm) (AEH.thread_contribs contribs tsm.thread_id)))
@@ -352,26 +342,81 @@ let restore_per_thread_invariant #o
     ()
 
 
+let restore_other_threads_invariant #o
+                                 (#log_refs: AEH.log_refs_t)
+                                 (#bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
+                                 (#max:_)
+                                 (#contribs:_)
+                                 (t:tid)
+                                 (e:M.epoch_id)
+                                 (c_t:AEH.epoch_hashes_repr)
+                                 (t':AEH.refined_tid (fun t' -> t <> t'))
 
-let check_overflow_add32 (x y:U32.t)
-  : Pure (option U32.t)
-    (requires True)
-    (ensures fun res ->
-        if FStar.UInt.fits (U32.v x + U32.v y) 32
-        then Some? res /\
-             Some?.v res == U32.add x y
-        else None? res)
- = let open U64 in
-   let res = U64.(Cast.uint32_to_uint64 x +^
-                  Cast.uint32_to_uint64 y)
-   in
-   if res >^ 0xffffffffuL
-   then None
-   else (assert (U64.v res  == U32.v x + U32.v y);
-         assert (U64.v res <= pow2 32);
-         let res = Cast.uint64_to_uint32 res in
-         assert (U32.v res  == U32.v x + U32.v y);
-         Some res)
+  : STGhostT unit o
+    (AEH.per_thread_invariant log_refs max bitmaps contribs t')
+    (fun _ -> AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e t)
+                                                 (AEH.upd_thread_contribs contribs t c_t) t')
+  = let _entries = elim_exists () in
+    elim_pure _;
+    intro_pure (AEH.per_thread_contribution_is_accurate max
+                                                        (update_bitmap_spec bitmaps e t)
+                                                        t'
+                                                        _entries
+                                                        (AEH.thread_contribs
+                                                          (AEH.upd_thread_contribs contribs t c_t)
+                                                          t'));
+    intro_exists_erased _entries
+      (fun entries ->
+         G.pts_to (Map.sel log_refs t') half entries `star`
+         pure (AEH.per_thread_contribution_is_accurate max
+                                                       (update_bitmap_spec bitmaps e t)
+                                                       t'
+                                                       entries
+                                                       (AEH.thread_contribs
+                                                         (AEH.upd_thread_contribs contribs t c_t)
+                                                         t')))
+
+
+[@@__reduce__]
+let forall_threads_except (i:tid) (p:tid -> vprop) =
+     AEH.forall_threads_between 0us i p `star`
+     AEH.forall_threads_between U16.(i +^ 1us) AEH.n_threads_16 p
+
+let restore_all_threads_invariant #o
+                                 (#log_refs: AEH.log_refs_t)
+                                 (#bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
+                                 (#max:_)
+                                 (#contribs:_)
+                                 (#t:tid)
+                                 (tsm:M.thread_state_model)
+                                 (e:M.epoch_id)
+ : STGhost unit o
+   (AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id)
+                                          (update_contributions_spec tsm contribs e)
+                                          tsm.thread_id `star`
+    forall_threads_except t (AEH.per_thread_invariant log_refs max bitmaps contribs))
+   (fun _ ->
+    AEH.forall_threads (AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id)
+                                                              (update_contributions_spec tsm contribs e)))
+   (requires t == tsm.thread_id)
+   (ensures fun _ -> True)
+ = rewrite (forall_threads_except t (AEH.per_thread_invariant log_refs max bitmaps contribs))
+           (forall_threads_except tsm.thread_id (AEH.per_thread_invariant log_refs max bitmaps contribs));
+   AEH.update_forall_thread_between
+    #o
+    #(AEH.per_thread_invariant log_refs max bitmaps contribs)
+    #(AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id)
+                                            (update_contributions_spec tsm contribs e))
+    0us tsm.thread_id
+    (restore_other_threads_invariant tsm.thread_id e _);
+   AEH.update_forall_thread_between
+    #o
+    #(AEH.per_thread_invariant log_refs max bitmaps contribs)
+    #(AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id)
+                                            (update_contributions_spec tsm contribs e))
+    _ _
+    (restore_other_threads_invariant tsm.thread_id e _);
+    AEH.put_thread tsm.thread_id
 
 let verify_epoch (#tsm:M.thread_state_model)
                  (t:thread_state_t)
@@ -383,7 +428,8 @@ let verify_epoch (#tsm:M.thread_state_model)
                  (lock: cancellable_lock (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch contributions))
                  (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
                    Map.sel log_refs tsm.thread_id == mylogref /\
-                   t.thread_id == tsm.thread_id
+                   t.thread_id == tsm.thread_id /\
+                   tsm_entries_invariant tsm
                  })
   : STT bool
     (thread_state_inv' t tsm `star`
@@ -435,6 +481,8 @@ let verify_epoch (#tsm:M.thread_state_model)
         else (
              let _ = AEH.take_thread t.thread_id in
              commit_entries t mylogref;
+             restore_per_thread_invariant #_ #log_refs tsm mylogref e;
+             restore_all_threads_invariant #_ #log_refs #_bitmaps #_max #_contribs #t.thread_id tsm e;
              admit__()
         )
       )
@@ -1028,31 +1076,6 @@ let vevictbm (#tsm:M.thread_state_model)
                           return false
                         ))))
 
-let check_overflow_add (x y:U64.t)
-  : res:option U64.t {
-        if FStar.UInt.fits (U64.v x + U64.v y) 64
-        then Some? res /\
-             Some?.v res == U64.add x y
-        else None? res
-    }
- = let open U64 in
-   let res = U64.add_mod x y in
-   if res <^ x then None
-   else if res -^ x = y then Some res
-   else None
-
-
-let st_check_overflow_add32 (x y:U32.t)
-  : ST (option U32.t)
-       emp
-       (fun _ -> emp)
-       (requires True)
-       (ensures fun res ->
-         if FStar.UInt.fits (U32.v x + U32.v y) 32
-         then Some? res /\
-              Some?.v res == U32.add x y
-         else None? res)
-  = let r = check_overflow_add32 x y in return r
 
 let new_epoch (e:M.epoch_id)
   : STT epoch_hashes_t

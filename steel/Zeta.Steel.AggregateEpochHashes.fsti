@@ -152,13 +152,18 @@ val put_thread (#o:_) (#p:tid -> vprop) (i:tid)
      forall_threads_between U16.(i +^ 1us) n_threads_16 p)
     (fun _ -> forall_threads p)
 
+let refined_tid (p:tid -> Type0) = t:tid{p t}
+
 val update_forall_thread_between (#o:_)
+                                 (#p #q:tid -> vprop) (#refine:tid -> Type0)
                                  (i:tid_index)
-                                 (j:tid_index{U16.v i <= U16.v j}) (p q:tid -> vprop)
-                                 (f: (k:tid{ U16.v i <= U16.v k /\ U16.v k < U16.v j} -> STGhostT unit o (p k) (fun _-> q k)))
-  : STGhostT unit o
+                                 (j:tid_index{U16.v i <= U16.v j})
+                                 ($f: (k:refined_tid refine -> STGhostT unit o (p k) (fun _-> q k)))
+  : STGhost unit o
      (forall_threads_between i j p)
      (fun _ -> forall_threads_between i j q)
+     (requires (forall k. U16.v i <= U16.v k /\ U16.v k < U16.v j ==> refine k))
+     (ensures fun _ -> True)
 
 [@@__reduce__]
 let lock_inv_body (log_refs:log_refs_t)
