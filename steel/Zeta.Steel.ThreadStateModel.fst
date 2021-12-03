@@ -45,6 +45,8 @@ let model_hash = HA.hash_value_t
 
 let epoch_id = U32.t
 
+[@@erasable]
+noeq
 type epoch_hash = {
   hadd: model_hash;
   hevict: model_hash;
@@ -68,7 +70,7 @@ type thread_state_model = {
   store : contents;
   clock : U64.t;
   epoch_hashes: epoch_hashes;
-  thread_id: T.thread_id;
+  thread_id: tid;
   processed_entries: Seq.seq log_entry_base;
   app_results: app_results;
   last_verified_epoch: option epoch_id

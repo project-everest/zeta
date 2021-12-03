@@ -64,7 +64,7 @@ val aprm : app_params
 val store_size : U16.t
 
 /// The number of verifier threads to use
-val n_threads : n:U32.t{ U32.v n < FStar.UInt.max_int 16 }
+val n_threads : n:U32.t{ 0 < U32.v n /\ U32.v n < FStar.UInt.max_int 16 }
 
 let tid = n:U16.t { U16.v n < U32.v n_threads }
 

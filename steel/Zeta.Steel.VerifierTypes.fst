@@ -52,7 +52,7 @@ let all_epoch_hashes =
 
 noeq
 type thread_state_t = {
-  thread_id    : T.thread_id;
+  thread_id    : tid;
   failed       : R.ref bool;
   store        : vstore;
   clock        : R.ref U64.t;

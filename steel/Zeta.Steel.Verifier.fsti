@@ -29,7 +29,7 @@ let parse_log (l:bytes) =
     then Some v
     else None
 
-val create (tid:T.thread_id)
+val create (tid:tid)
   : STT thread_state_t
     emp
     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
@@ -43,7 +43,7 @@ val verify (#tsm:M.thread_state_model)
            (log:larray U8.t len) //concrete log
            (#outlen:U32.t)
            (out:larray U8.t outlen) //out array, to write outputs
-           (#logrefs: erased (AEH.log_refs_t))
+           (#logrefs: AEH.log_refs_t)
            (aeh:AEH.aggregate_epoch_hashes logrefs) //lock & handle to the aggregate state
            (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
              Map.sel logrefs tsm.thread_id == mylogref

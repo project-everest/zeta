@@ -17,10 +17,268 @@ module T = Zeta.Steel.FormatsManual
 module M = Zeta.Steel.ThreadStateModel
 module AEH = Zeta.Steel.AggregateEpochHashes
 module P = Zeta.Steel.Parser
-
 module Cast = FStar.Int.Cast
 let as_u32 (s:U16.t) : U32.t = Cast.uint16_to_uint32 s
 #push-options "--ide_id_info_off"
+
+#push-options "--query_stats --fuel 0 --ifuel 1"
+
+let set_add_remove (#a:eqtype) (s:Set.set a) (x:a)
+  : Lemma (requires not (Set.mem x s))
+          (ensures IArray.set_remove (IArray.set_add s x) x == s)
+          [SMTPat (IArray.set_remove (IArray.set_add s x) x)]
+  = let lhs = IArray.set_remove (IArray.set_add s x) x in
+    Set.lemma_equal_intro lhs s;
+    assert (lhs `Set.equal` s)
+
+let map_upd_sel_eq (#k:eqtype) (#v:Type) (m:Map.t k v)
+                   (x:k)
+  : Lemma (requires Map.contains m x)
+          (ensures Map.upd m x (Map.sel m x) == m)
+          [SMTPat (Map.upd m x (Map.sel m x))]
+  = assert (Map.upd m x (Map.sel m x) `Map.equal` m)
+
+[@@__reduce__]
+let thread_state_inv' (t:thread_state_t)
+                      ([@@@smt_fallback] tsm:M.thread_state_model)
+  : vprop
+  = R.pts_to t.failed full tsm.failed `star`
+    A.pts_to t.store tsm.store `star`
+    R.pts_to t.clock full tsm.clock `star`
+    IArray.perm t.epoch_hashes tsm.epoch_hashes Set.empty `star`
+    R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
+    G.pts_to t.processed_entries full tsm.processed_entries `star`
+    G.pts_to t.app_results full tsm.app_results `star`
+    exists_ (A.pts_to t.serialization_buffer)
+
+let spec_verify_epoch (tsm:M.thread_state_model)
+  = { M.verifyepoch tsm with processed_entries = Seq.snoc tsm.processed_entries (VerifyEpoch())}
+
+let verify_epoch_committed_entries (tsm:M.thread_state_model)
+  : Lemma (M.committed_entries (spec_verify_epoch tsm) ==
+           (spec_verify_epoch tsm).processed_entries)
+  = admit()
+
+let aggregate_one_epoch_hash (source:epoch_hashes_repr)
+                             (dest:AEH.epoch_hashes_repr)
+                             (e:M.epoch_id)
+  : AEH.epoch_hashes_repr
+  = Map.upd dest e (AEH.aggregate_epoch_hash
+                      (Map.sel dest e)
+                      (Map.sel source e))
+let update_if (b:bool) (default_ upd_: 'a)
+  : 'a
+  = if b then upd_ else default_
+
+assume
+val aggregate_epoch_hashes_t (#e:_)
+                             (#s #d:M.epoch_hash)
+                             (src:epoch_hashes_t)
+                             (dst:AEH.epoch_hashes_t)
+  : STT bool
+    (epoch_hash_perm e src s `star`
+     AEH.epoch_hash_perm e dst d)
+    (fun b ->
+      epoch_hash_perm e src s `star`
+      AEH.epoch_hash_perm e dst (update_if b d (AEH.aggregate_epoch_hash d s)))
+
+
+let with_value_of_key (#k:eqtype)
+                      (#v:Type0)
+                      (#contents:Type0)
+                      (#h:IArray.hash_fn k)
+                      (#vp: k -> v -> contents -> vprop)
+                      (#m:erased (IArray.repr k contents))
+                      (#cf:contents -> GTot contents)
+                      (t:IArray.tbl h vp)
+                      (i:k)
+                      ($f: (value:v -> STT v
+                                         (vp i value (Map.sel m i))
+                                         (fun value' -> vp i value' (cf (Map.sel m i)))))
+  : STT bool
+    (IArray.perm t m Set.empty)
+    (fun b -> IArray.perm t (update_if b (reveal m) (Map.upd m i (cf (Map.sel m i)))) Set.empty)
+  = let vopt = IArray.get t i in
+    match vopt with
+    | None ->
+      rewrite (IArray.get_post _ _ _ _ _)
+              (IArray.perm t m Set.empty);
+      return false
+    | Some value ->
+      rewrite (IArray.get_post _ _ _ _ _)
+              (vp i value (Map.sel m i) `star`
+               IArray.perm t m (IArray.set_add Set.empty i));
+      let value' = f value in
+      IArray.put t i value' _;
+      return true
+
+
+let propagate_epoch_hash (#tsm:M.thread_state_model)
+                         (t:thread_state_t)
+                         (#hv:erased (AEH.epoch_hashes_repr))
+                         (hashes : AEH.all_epoch_hashes)
+                         (e:M.epoch_id)
+  : STT bool
+    (thread_state_inv' t tsm `star`
+     IArray.perm hashes hv Set.empty)
+    (fun b ->
+      thread_state_inv' t tsm `star`
+      IArray.perm hashes (update_if b (reveal hv) (aggregate_one_epoch_hash tsm.epoch_hashes hv e)) Set.empty)
+  = let dst = IArray.get hashes e in
+    match dst with
+    | None -> //we should distinguish Absent from Missing
+      rewrite (IArray.get_post _ _ _ _ _)
+              (IArray.perm hashes hv Set.empty);
+      return false
+    | Some dst ->
+      rewrite (IArray.get_post _ _ _ _ _)
+              (AEH.epoch_hash_perm e dst (Map.sel hv e) `star`
+               IArray.perm hashes hv (IArray.set_add Set.empty e));
+      let src = IArray.get t.epoch_hashes e in
+      match src with
+      | None ->
+        rewrite (IArray.get_post _ _ t.epoch_hashes _ _)
+                (IArray.perm t.epoch_hashes tsm.epoch_hashes Set.empty);
+        IArray.put hashes e dst _; //this should be a ghost put
+        return false
+
+      | Some src ->
+        rewrite (IArray.get_post _ _ _ _ _)
+                (epoch_hash_perm e src (Map.sel tsm.epoch_hashes e) `star`
+                 IArray.perm t.epoch_hashes tsm.epoch_hashes (IArray.set_add Set.empty e));
+        let b = aggregate_epoch_hashes_t src dst in
+        IArray.put t.epoch_hashes e src _; //this should be a ghost put
+        IArray.put hashes e dst _;
+        return b
+
+let release_lock (#log_refs: AEH.log_refs_t)
+                 (#hashes : AEH.all_epoch_hashes)
+                 (#tid_bitmaps : AEH.epoch_tid_bitmaps)
+                 (#max_certified_epoch : R.ref M.epoch_id)
+                 (#contributions: G.ref AEH.epoch_hash_contributions_t)
+                 (#hv:erased _)
+                 (#bitmaps:erased _)
+                 (#max:erased _)
+                 (#contribs:erased _)
+                 (lock: cancellable_lock
+                        (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch contributions))
+  : STT unit
+    (AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
+                   hv bitmaps max contribs `star`
+     can_release lock)
+    (fun _ -> emp)
+  = intro_exists_erased contribs
+      (fun contribs -> AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
+                        hv bitmaps max contribs);
+    intro_exists_erased max
+      (fun max -> exists_ (AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
+                         hv bitmaps max));
+    intro_exists_erased bitmaps
+      (fun bitmaps ->
+        exists_ (fun max ->
+        exists_ (fun contribs ->
+                   AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
+                         hv bitmaps max contribs)));
+    intro_exists_erased hv
+      (fun hv ->
+        exists_ (fun bitmaps ->
+        exists_ (fun max ->
+        exists_ (fun contribs ->
+                   AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
+                         hv bitmaps max contribs))));
+    release lock
+
+let update_bitmap (#bm:erased _)
+                  (tid_bitmaps: AEH.epoch_tid_bitmaps)
+                  (e:M.epoch_id)
+                  (tid:tid)
+  : STT bool
+    (IArray.perm tid_bitmaps bm Set.empty)
+    (fun b ->
+      IArray.perm tid_bitmaps
+                  (update_if b
+                             (reveal bm)
+                             (Map.upd bm e (Seq.upd (Map.sel bm e) (U16.v tid) true)))
+                  Set.empty)
+  = let update_tid (v:larray bool n_threads)
+      : STT (larray bool n_threads)
+        (A.pts_to v (Map.sel bm e))
+        (fun v' -> A.pts_to v' (Seq.upd (Map.sel bm e) (U16.v tid) true))
+      = A.write v (as_u32 tid) true;
+        v
+    in
+    with_value_of_key tid_bitmaps e update_tid
+
+let update_contributions
+         (tsm:M.thread_state_model)
+         (contributions: G.ref AEH.epoch_hash_contributions_t)
+         (e:M.epoch_id) = ()
+
+
+let verify_epoch (#tsm:M.thread_state_model)
+                 (t:thread_state_t)
+                 (#log_refs: AEH.log_refs_t)
+                 (hashes : AEH.all_epoch_hashes)
+                 (tid_bitmaps : AEH.epoch_tid_bitmaps)
+                 (max_certified_epoch : R.ref M.epoch_id)
+                 (contributions: G.ref AEH.epoch_hash_contributions_t)
+                 (lock: cancellable_lock (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch contributions))
+                 (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
+                   Map.sel log_refs tsm.thread_id == mylogref /\
+                   t.thread_id == tsm.thread_id
+                 })
+  : STT bool
+    (thread_state_inv' t tsm `star`
+     G.pts_to mylogref half (M.committed_entries tsm))
+    (fun b ->
+      thread_state_inv' t (update_if b (M.verifyepoch tsm)
+                                       (spec_verify_epoch tsm)) `star`
+      G.pts_to mylogref half (update_if b
+                                    (M.committed_entries tsm)
+                                    (M.committed_entries (spec_verify_epoch tsm))))
+  = let c = R.read t.clock in
+    let e = M.epoch_of_timestamp c in
+    R.write t.last_verified_epoch (Some e);
+    assert_ (thread_state_inv' t (M.verifyepoch tsm));
+
+    let acquired = acquire lock in
+    if not acquired
+    then (
+      rewrite (maybe_acquired _ _)
+              emp;
+      return false
+    )
+    else (
+      rewrite (maybe_acquired _ _)
+              (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch contributions `star` can_release lock);
+      let _hv = elim_exists () in
+      let _bitmaps = elim_exists () in
+      let _max = elim_exists () in
+      let _contribs =
+        elim_exists #_ #_
+          #(AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
+                              _hv _bitmaps _max)
+          ()
+      in
+      let b0 = propagate_epoch_hash t hashes e in
+      let b1 = update_bitmap tid_bitmaps e t.thread_id in
+      if not b0 || not b1
+      then ( //propagation failed, e.g., due to overflow
+        cancel lock;
+        drop _;
+        return false
+      )
+      else (
+          let _ = AEH.take_thread t.thread_id in
+          let _entries = elim_exists () in
+          rewrite (G.pts_to (Map.sel log_refs t.thread_id) half _entries)
+                  (G.pts_to mylogref half _entries);
+          G.gather #_ #_ #_ #_ #(M.committed_entries tsm) #_ mylogref;
+          G.write mylogref (spec_verify_epoch tsm).processed_entries;
+          G.share mylogref;
+          admit__()
+      )
+    )
 
 let spec_parser_log  = admit()
 
@@ -28,7 +286,8 @@ let finalize_epoch_hash
   : IArray.finalizer epoch_hash_perm
   = fun k v -> drop _ //TODO: Actually free it
 
-let create (tid:T.thread_id)
+#push-options "--fuel 1"
+let create (tid:tid)
   : STT thread_state_t
     emp
     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
@@ -36,7 +295,7 @@ let create (tid:T.thread_id)
     let store : vstore = A.alloc None (as_u32 store_size) in
     let clock = R.alloc 0uL in
     let epoch_hashes = IArray.create epoch_id_hash 64ul finalize_epoch_hash in
-    let last_verified_epoch = R.alloc None in
+    let last_verified_epoch = R.alloc (None #M.epoch_id) in
     let processed_entries : G.ref (Seq.seq log_entry_base) = G.alloc Seq.empty in
     let app_results : G.ref M.app_results = G.alloc Seq.empty in
     let serialization_buffer = A.alloc 0uy 4096ul in
@@ -53,6 +312,7 @@ let create (tid:T.thread_id)
         serialization_buffer
     } in
     intro_exists _ (A.pts_to serialization_buffer);
+    assert (tsm == M.verify_model tsm Seq.empty);
     intro_pure (tsm == M.verify_model tsm Seq.empty);
     rewrite (R.pts_to failed _ _ `star`
              A.pts_to store _ `star`
@@ -66,27 +326,15 @@ let create (tid:T.thread_id)
             )
             (thread_state_inv t (M.init_thread_state_model tid));
     return t
+#pop-options
 
 ////////////////////////////////////////////////////////////////////////////////
 // Just a couple of warm ups, we don't actually need this
 ////////////////////////////////////////////////////////////////////////////////
-#push-options "--query_stats --fuel 0 --ifuel 1"
 
 let tsm_t (tsm:M.thread_state_model) =
     t:thread_state_t { t.thread_id == tsm.thread_id}
 
-[@@__reduce__]
-let thread_state_inv' (t:thread_state_t)
-                      ([@@@smt_fallback] tsm:M.thread_state_model)
-  : vprop
-  = R.pts_to t.failed full tsm.failed `star`
-    A.pts_to t.store tsm.store `star`
-    R.pts_to t.clock full tsm.clock `star`
-    IArray.perm t.epoch_hashes tsm.epoch_hashes Set.empty `star`
-    R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
-    G.pts_to t.processed_entries full tsm.processed_entries `star`
-    G.pts_to t.app_results full tsm.app_results `star`
-    exists_ (A.pts_to t.serialization_buffer)
 
 let intro_thread_state_inv #o
                            (tsm:M.thread_state_model)
@@ -343,9 +591,6 @@ type htype =
   | HAdd
   | HEvict
 
-let update_if (b:bool) (default_ upd_: 'a)
-  : 'a
-  = if b then upd_ else default_
 
 let update_hash (c:M.epoch_hash)
                 (r:T.record)
@@ -399,13 +644,6 @@ let maybe_update_epoch_hash_equiv
             update_if b tsm (update_epoch_hash tsm e r ts thread_id ht))
   = if b then ()
     else assert (Map.equal tsm.epoch_hashes (Map.upd tsm.epoch_hashes e (Map.sel tsm.epoch_hashes e)))
-
-let set_add_remove (#a:eqtype) (s:Set.set a) (x:a)
-  : Lemma (requires not (Set.mem x s))
-          (ensures IArray.set_remove (IArray.set_add s x) x == s)
-  = let lhs = IArray.set_remove (IArray.set_add s x) x in
-    Set.lemma_equal_intro lhs s;
-    assert (lhs `Set.equal` s)
 
 #push-options "--z3rlimit_factor 2"
 let update_ht (#tsm:M.thread_state_model)
@@ -710,33 +948,6 @@ let next (t:T.timestamp)
     then Some (U64.add t 1uL)
     else None
 
-let lock (#logrefs: AEH.log_refs_t)
-         (aeh:AEH.aggregate_epoch_hashes logrefs) //lock & handle to the aggregate state
-  = aeh.lock
-
-let verify_epoch (#tsm:M.thread_state_model)
-                 (t:thread_state_t)
-                 (#logrefs: AEH.log_refs_t)
-                 (aeh:AEH.aggregate_epoch_hashes logrefs) //lock & handle to the aggregate state
-                 (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
-                   Map.sel logrefs tsm.thread_id == mylogref /\
-                   t.thread_id == tsm.thread_id
-                 })
-  : STT unit
-    (thread_state_inv' t tsm `star`
-     G.pts_to mylogref half (M.committed_entries tsm))
-    (fun _ ->
-      thread_state_inv' t (M.verifyepoch tsm) `star`
-      G.pts_to mylogref half (M.committed_entries (M.verifyepoch tsm)))
-  = let c = R.read t.clock in
-    let e = M.epoch_of_timestamp c in
-    R.write t.last_verified_epoch (Some e);
-    Steel.ST.SpinLock.acquire aeh.lock;
-    let _ = elim_exists () in
-    let _ = elim_exists () in
-    let _ = elim_exists () in
-    admit__()
-
 
 // let vaddb (#tsm:M.thread_state_model)
 //           (t:thread_state_t)
@@ -791,7 +1002,7 @@ let verify (#tsm:M.thread_state_model)
            (log:larray U8.t len) //concrete log
            (#outlen:U32.t)
            (out:larray U8.t outlen) //out array, to write outputs
-           (#logrefs: erased (AEH.log_refs_t))
+           (#logrefs: AEH.log_refs_t)
            (aeh:AEH.aggregate_epoch_hashes logrefs) //lock & handle to the aggregate state
            (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
              Map.sel logrefs tsm.thread_id == mylogref
