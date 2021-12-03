@@ -72,16 +72,32 @@ let aggregate_thread_epoch_hashes (e:M.epoch_id) (contribs:epoch_hash_contributi
                        (fun s -> aggregate_epoch_hash (Map.sel s e))
                        contribs
 
+let frame_aggregate_thread_epoch_hashes (e e':M.epoch_id)
+                                        (contribs:epoch_hash_contributions_t)
+                                        (tid:tid)
+                                        (v:M.epoch_hash)
+  : Lemma (requires e <> e')
+          (ensures (
+            let tid = U16.v tid in
+            aggregate_thread_epoch_hashes e contribs ==
+            aggregate_thread_epoch_hashes e (Seq.upd contribs tid (Map.upd (Seq.index contribs tid) e' v))))
+  = admit()
+
+
 let all_contributions_are_accurate (global:epoch_hashes_repr)
                                    (contribs:epoch_hash_contributions_t)
   : prop
   = forall (e:M.epoch_id). Map.sel global e == aggregate_thread_epoch_hashes e contribs
 
 
-let max_certified_epoch_is (_:epoch_hashes_repr)
-                           (_:M.epoch_id)
+let max_certified_epoch_is (global:epoch_hashes_repr)
+                           (bitmaps: IArray.repr M.epoch_id tid_bitmap)
+                           (max:M.epoch_id)
   : prop
-  = True //TODO
+  = forall (e:M.epoch_id).
+       U32.v e <= U32.v max ==>
+       (Map.sel bitmaps e) == Seq.create (U32.v n_threads) true /\
+       (Map.sel global e).hadd == (Map.sel global e).hevict
 
 
 let per_thread_contribution_is_accurate (max:M.epoch_id)
@@ -180,7 +196,7 @@ let lock_inv_body (log_refs:log_refs_t)
     R.pts_to max_certified_epoch full max `star`
     G.pts_to contributions full contributions_v `star`
     pure (all_contributions_are_accurate hashes_v contributions_v /\
-          max_certified_epoch_is hashes_v max) `star`
+          max_certified_epoch_is hashes_v bitmaps max) `star`
     forall_threads (per_thread_invariant log_refs max bitmaps contributions_v)
 
 let lock_inv (log_refs:log_refs_t)
