@@ -903,15 +903,19 @@ let epoch_is_certified (logs:all_logs)
     eid_is_verified_by_all eid tsms &&
     aeh.hadd = aeh.hevict
 
-let committed_entries (tsm:thread_state_model)
+let committed_log_entries (entries:Seq.seq log_entry_base)
   : GTot (Seq.seq log_entry_base)
   = let open Zeta.SeqAux in
     let is_verify_epoch = function VerifyEpoch _ -> true | _ -> false in
-    if exists_sat_elems is_verify_epoch tsm.processed_entries
-    then let i = last_index is_verify_epoch tsm.processed_entries in
-         prefix tsm.processed_entries i
+    if exists_sat_elems is_verify_epoch entries
+    then let i = last_index is_verify_epoch entries in
+         prefix entries i
     else Seq.empty
 
+let committed_entries (tsm:thread_state_model)
+  : GTot (Seq.seq log_entry_base)
+  = committed_log_entries tsm.processed_entries
+  
 let delta_app_results (tsm0 tsm1:thread_state_model)
   : GTot (Seq.seq app_results)
   = Prims.admit()
