@@ -17,7 +17,8 @@ module T = Zeta.Steel.FormatsManual
 module M = Zeta.Steel.ThreadStateModel
 module HA = Zeta.Steel.HashAccumulator
 open Zeta.Steel.Util
-module MR = Steel.MonotonicReference
+module MR = Steel.ST.MonotonicReference
+module GMap = Zeta.Steel.GhostSharedMap
 #push-options "--ide_id_info_off"
 
 /// Initializer for an IArray
@@ -60,7 +61,9 @@ let epoch_tid_bitmaps =
 let is_epoch_verified (eid:M.epoch_id) (lve:M.epoch_id) =
   U32.v lve >= U32.v eid
 
-let epoch_hash_contributions_t = Seq.lseq epoch_hashes_repr (U32.v n_threads)
+[@@erasable]
+let epoch_hash_contributions_t =
+  erased (Seq.lseq epoch_hashes_repr (U32.v n_threads))
 
 let thread_contribs (contribs:epoch_hash_contributions_t) (tid:tid) =
   Seq.index contribs (U16.v tid)
@@ -75,10 +78,11 @@ let aggregate_epoch_hash (e0 e1:M.epoch_hash)
   = { hadd = HA.aggregate_hashes e0.hadd e1.hadd;
       hevict = HA.aggregate_hashes e0.hevict e1.hevict}
 
-let aggregate_thread_epoch_hashes (e:M.epoch_id) (contribs:epoch_hash_contributions_t)
+let aggregate_thread_epoch_hashes (e:M.epoch_id)
+                                  (contribs:epoch_hash_contributions_t)
   : M.epoch_hash
   = Zeta.SeqAux.reduce M.init_epoch_hash
-                       (fun s -> aggregate_epoch_hash (Map.sel s e))
+                       (fun (s:epoch_hashes_repr) -> aggregate_epoch_hash (Map.sel s e))
                        contribs
 
 let frame_aggregate_thread_epoch_hashes (e e':M.epoch_id)
@@ -113,14 +117,24 @@ let committed_tsm_of_logs (mlogs_v:all_processed_entries) (t:tid) =
    M.verify_model (M.init_thread_state_model t)
                   (M.committed_log_entries (log_of_tid mlogs_v t))
 
+let thread_contrib_of_log (t:tid) (l:log)
+  : epoch_hashes_repr
+  = let tsm = M.verify_model (M.init_thread_state_model t) l in
+    Zeta.Steel.Util.map_literal #_ _
+      (fun (e:M.epoch_id) ->
+         if is_epoch_verified e tsm.last_verified_epoch
+         then Map.sel tsm.epoch_hashes e
+         else M.init_epoch_hash)
+
+let contribs_of_logs (mlogs_v:all_processed_entries)
+  : epoch_hash_contributions_t
+  = Zeta.SeqAux.mapi mlogs_v
+                     (fun tid -> thread_contrib_of_log (U16.uint_to_t tid) (Seq.index mlogs_v tid))
+
 let all_contributions_are_accurate (global:epoch_hashes_repr)
-                                   (contribs:epoch_hash_contributions_t)
                                    (mlogs_v:all_processed_entries)
   : prop
-  = (forall (e:M.epoch_id). Map.sel global e == aggregate_thread_epoch_hashes e contribs) /\
-    (forall (t:tid).
-      Map.equal (committed_tsm_of_logs mlogs_v t).epoch_hashes
-                (thread_contribs contribs t))
+  = forall (e:M.epoch_id). Map.sel global e == aggregate_thread_epoch_hashes e (contribs_of_logs mlogs_v)
 
 let max_certified_epoch_is (global:epoch_hashes_repr)
                            (bitmaps: IArray.repr M.epoch_id tid_bitmap)
@@ -136,18 +150,12 @@ let per_thread_contribution_is_accurate (max:M.epoch_id)
                                         (tid:tid)
                                         (entries:Seq.seq log_entry_base)
                                         (all_logs:all_processed_entries)
-                                        (contribs:epoch_hashes_repr)
   : prop
   = let tsm = M.verify_model (M.init_thread_state_model tid) entries in
     entries `Zeta.SeqAux.prefix_of` (log_of_tid all_logs tid) /\
     U32.v max <= U32.v tsm.last_verified_epoch /\ //max can't exceed the verified epoch ctr for tid
     (forall (eid:M.epoch_id).
-      let h_contrib = Map.sel contribs eid in
-      let h_tsm = Map.sel tsm.epoch_hashes eid in
-      Seq.index (Map.sel bitmaps eid) (U16.v tid) == is_epoch_verified eid tsm.last_verified_epoch /\
-      (if is_epoch_verified eid tsm.last_verified_epoch
-       then h_contrib == h_tsm
-       else h_contrib == M.init_epoch_hash))
+      Seq.index (Map.sel bitmaps eid) (U16.v tid) == is_epoch_verified eid tsm.last_verified_epoch)
 
 let tid_index = i:U16.t { U16.v i <= U32.v n_threads }
 
@@ -170,14 +178,12 @@ let forall_threads (f: tid -> vprop) =
 let per_thread_invariant (log_refs:log_refs_t)
                          (max:_)
                          (bitmaps:_)
-                         (contribs:epoch_hash_contributions_t)
                          (all_logs: all_processed_entries)
                          ([@@@smt_fallback] tid:tid) =
     let logref = Map.sel log_refs tid in
-    let t_contribs = thread_contribs contribs tid in
     exists_ (fun (entries:_) ->
       G.pts_to logref half entries `star`
-      pure (per_thread_contribution_is_accurate max bitmaps tid entries all_logs t_contribs))
+      pure (per_thread_contribution_is_accurate max bitmaps tid entries all_logs))
 
 val take_thread (#o:_) (#p:tid -> vprop) (i:tid)
   : STGhostT unit o
@@ -208,27 +214,24 @@ val update_forall_thread_between (#o:_)
 
 
 /// This should be a MR.ghost_ref
-let monotonic_logs = MR.ref all_processed_entries all_logs_grow
+let monotonic_logs = MR.ref (erased all_processed_entries) (fun (x y:erased all_processed_entries) -> all_logs_grow x y)
 
 [@@__reduce__]
 let lock_inv_body (log_refs:log_refs_t)
                   (hashes : all_epoch_hashes)
                   (tid_bitmaps : epoch_tid_bitmaps)
                   (max_certified_epoch : R.ref M.epoch_id)
-                  (contributions: G.ref epoch_hash_contributions_t)
                   (mlogs:monotonic_logs)
                   (hashes_v:_)
                   (bitmaps:_)
                   (max:_)
-                  (contributions_v:_)
-                  (mlogs_v:_)
+                  (mlogs_v:all_processed_entries)
   = IArray.perm hashes hashes_v Set.empty `star`
     IArray.perm tid_bitmaps bitmaps Set.empty `star`
     R.pts_to max_certified_epoch full max `star`
-    G.pts_to contributions full contributions_v `star`
     MR.pts_to mlogs full mlogs_v `star`
-    forall_threads (per_thread_invariant log_refs max bitmaps contributions_v mlogs_v) `star`
-    pure (all_contributions_are_accurate hashes_v contributions_v mlogs_v /\
+    forall_threads (per_thread_invariant log_refs max bitmaps mlogs_v) `star`
+    pure (all_contributions_are_accurate hashes_v mlogs_v /\
           max_certified_epoch_is hashes_v bitmaps max)
 
 
@@ -236,25 +239,22 @@ let lock_inv (log_refs:log_refs_t)
              (hashes : all_epoch_hashes)
              (tid_bitmaps : epoch_tid_bitmaps)
              (max_certified_epoch : R.ref M.epoch_id)
-             (contributions: G.ref epoch_hash_contributions_t)
              (mlogs: monotonic_logs)
  : vprop
  = exists_ (fun hashes_v ->
    exists_ (fun bitmaps ->
    exists_ (fun max ->
-   exists_ (fun contributions_v ->
    exists_ (fun (mlogs_v:all_processed_entries) ->
-     lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions mlogs
-                   hashes_v bitmaps max contributions_v mlogs_v)))))
+     lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch mlogs
+                   hashes_v bitmaps max mlogs_v))))
 
 noeq
 type aggregate_epoch_hashes (log_refs:log_refs_t) = {
      hashes : all_epoch_hashes;
      tid_bitmaps : epoch_tid_bitmaps;
      max_certified_epoch : R.ref M.epoch_id;
-     contributions: G.ref epoch_hash_contributions_t;
      mlogs: monotonic_logs;
-     lock: cancellable_lock (lock_inv log_refs hashes tid_bitmaps max_certified_epoch contributions mlogs)
+     lock: cancellable_lock (lock_inv log_refs hashes tid_bitmaps max_certified_epoch mlogs)
 }
 
 let thread_has_processed (mlogs:monotonic_logs) (tid:tid) (entries:log) =

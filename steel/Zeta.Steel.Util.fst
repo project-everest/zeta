@@ -95,3 +95,7 @@ let st_check_overflow_add32 (x y:U32.t)
               Some?.v res == U32.add x y
          else None? res)
   = let r = check_overflow_add32 x y in return r
+
+assume
+val map_literal (#k:eqtype) (v:Type) (f: k -> v)
+  : Map.t k v

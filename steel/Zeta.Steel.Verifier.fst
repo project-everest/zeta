@@ -6,6 +6,7 @@ open Steel.ST.Util
 module G = Steel.ST.GhostReference
 module R = Steel.ST.Reference
 module A = Steel.ST.Array
+module MR = Steel.ST.MonotonicReference
 open Zeta.Steel.ApplicationTypes
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
@@ -18,6 +19,7 @@ module M = Zeta.Steel.ThreadStateModel
 module AEH = Zeta.Steel.AggregateEpochHashes
 module P = Zeta.Steel.Parser
 module Cast = FStar.Int.Cast
+
 let as_u32 (s:U16.t) : U32.t = Cast.uint16_to_uint32 s
 #push-options "--ide_id_info_off"
 
@@ -117,7 +119,7 @@ let with_value_of_key (#k:eqtype)
 
 let propagate_epoch_hash (#tsm:M.thread_state_model)
                          (t:thread_state_t)
-                         (#hv:erased (AEH.epoch_hashes_repr))
+                         (#hv:erased AEH.epoch_hashes_repr)
                          (hashes : AEH.all_epoch_hashes)
                          (e:M.epoch_id)
   : STT bool
@@ -157,37 +159,39 @@ let release_lock (#log_refs: AEH.log_refs_t)
                  (#hashes : AEH.all_epoch_hashes)
                  (#tid_bitmaps : AEH.epoch_tid_bitmaps)
                  (#max_certified_epoch : R.ref M.epoch_id)
-                 (#contributions: G.ref AEH.epoch_hash_contributions_t)
+                 (#mlogs: AEH.monotonic_logs)
                  (#hv:erased _)
                  (#bitmaps:erased _)
                  (#max:erased _)
-                 (#contribs:erased _)
+                 (#mlogs_v:erased _)
                  (lock: cancellable_lock
-                        (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch contributions))
+                        (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch mlogs))
   : STT unit
-    (AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
-                   hv bitmaps max contribs `star`
+    (AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch mlogs
+                       hv bitmaps max mlogs_v `star`
      can_release lock)
     (fun _ -> emp)
-  = intro_exists_erased contribs
-      (fun contribs -> AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
-                        hv bitmaps max contribs);
+  = intro_exists_erased mlogs_v
+      (fun mlogs_v ->  AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch mlogs
+                                      hv bitmaps max mlogs_v);
     intro_exists_erased max
-      (fun max -> exists_ (AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
-                         hv bitmaps max));
+      (fun max ->
+        exists_ (fun mlogs_v ->
+                    AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch mlogs
+                                      hv bitmaps max mlogs_v));
     intro_exists_erased bitmaps
       (fun bitmaps ->
         exists_ (fun max ->
-        exists_ (fun contribs ->
-                   AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
-                         hv bitmaps max contribs)));
+        exists_ (fun mlogs_v ->
+                    AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch mlogs
+                                      hv bitmaps max mlogs_v)));
     intro_exists_erased hv
       (fun hv ->
         exists_ (fun bitmaps ->
         exists_ (fun max ->
-        exists_ (fun contribs ->
-                   AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
-                         hv bitmaps max contribs))));
+        exists_ (fun mlogs_v ->
+                    AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch mlogs
+                                      hv bitmaps max mlogs_v))));
     release lock
 
 let update_bitmap_spec (bm:IArray.repr M.epoch_id AEH.tid_bitmap)
@@ -217,17 +221,17 @@ let update_bitmap (#bm:erased _)
     in
     with_value_of_key tid_bitmaps e update_tid
 
-let update_contributions_spec
-         (tsm:M.thread_state_model)
-         (c:AEH.epoch_hash_contributions_t)
-         (e:M.epoch_id)
-  = let c_t = AEH.thread_contribs c tsm.thread_id in
-    let contrib = Map.sel tsm.epoch_hashes e in
-    AEH.upd_thread_contribs c tsm.thread_id (Map.upd c_t e contrib)
+// let update_contributions_spec
+//          (tsm:M.thread_state_model)
+//          (c:AEH.epoch_hash_contributions_t)
+//          (e:M.epoch_id)
+//   = let c_t = AEH.thread_contribs c tsm.thread_id in
+//     let contrib = Map.sel tsm.epoch_hashes e in
+//     AEH.upd_thread_contribs c tsm.thread_id (Map.upd c_t e contrib)
 
 let commit_entries #o (#log_refs: AEH.log_refs_t)
                     #max #bms
-                   (#contribs:AEH.epoch_hash_contributions_t)
+                   (#mlogs_v:AEH.all_processed_entries)
                    (#tsm:M.thread_state_model)
                    (t:thread_state_t)
                    (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
@@ -236,11 +240,11 @@ let commit_entries #o (#log_refs: AEH.log_refs_t)
                    })
   : STGhostT unit o
      (G.pts_to mylogref half (M.committed_entries tsm) `star`
-      AEH.per_thread_invariant log_refs max bms contribs t.thread_id)
+      AEH.per_thread_invariant log_refs max bms mlogs_v t.thread_id)
      (fun _ ->
        G.pts_to mylogref half (spec_verify_epoch tsm).processed_entries `star`
        G.pts_to mylogref half (spec_verify_epoch tsm).processed_entries `star`
-       pure (AEH.per_thread_contribution_is_accurate max bms tsm.thread_id (M.committed_entries tsm) (AEH.thread_contribs contribs tsm.thread_id)))
+       pure (AEH.per_thread_contribution_is_accurate max bms tsm.thread_id (M.committed_entries tsm) mlogs_v))
   =  let _entries = elim_exists () in
      rewrite (G.pts_to (Map.sel log_refs t.thread_id) half _entries)
              (G.pts_to mylogref half _entries);
@@ -249,17 +253,21 @@ let commit_entries #o (#log_refs: AEH.log_refs_t)
      G.share mylogref;
      rewrite (pure _) (pure _)
 
-
+let update_logs_of_tid
+         (mlogs_v:AEH.all_processed_entries)
+         (tsm:M.thread_state_model)
+  : GTot AEH.all_processed_entries
+  = Seq.upd mlogs_v (U16.v tsm.thread_id) tsm.processed_entries
 
 let advance_per_thread_contribution_accurate  (bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
                                               (max:_)
-                                              (contribs:_)
+                                              (mlogs_v:_)
                                               (tsm:M.thread_state_model)
                                               (e:M.epoch_id)
   : Lemma
     (requires (
       let tsm' = spec_verify_epoch tsm in
-      AEH.per_thread_contribution_is_accurate max bitmaps tsm.thread_id (M.committed_entries tsm) (AEH.thread_contribs contribs tsm.thread_id) /\
+      AEH.per_thread_contribution_is_accurate max bitmaps tsm.thread_id (M.committed_entries tsm) mlogs_v /\
       tsm'.last_verified_epoch == e))
     (ensures (
       let tsm' = spec_verify_epoch tsm in
@@ -268,48 +276,48 @@ let advance_per_thread_contribution_accurate  (bitmaps:IArray.repr M.epoch_id AE
         (update_bitmap_spec bitmaps e tsm.thread_id)
         tsm.thread_id
         tsm'.processed_entries
-        (AEH.thread_contribs (update_contributions_spec tsm contribs e) tsm.thread_id)))
-  = let tsm0 = M.verify_model (M.init_thread_state_model tsm.thread_id) (M.committed_entries tsm) in
-    let tsm' = spec_verify_epoch tsm in
-    assume (tsm' == M.verify_model (M.init_thread_state_model tsm'.thread_id) tsm'.processed_entries); //from top-level inv
-    assume (U32.v e == U32.v tsm0.last_verified_epoch + 1); //from trace property
-    let tid = U16.v tsm.thread_id in
-    let contribs' = AEH.thread_contribs (update_contributions_spec tsm contribs e) tsm.thread_id in
-    let contribs = AEH.thread_contribs contribs tsm.thread_id in
-    let bitmaps' = update_bitmap_spec bitmaps e tsm.thread_id in
-    introduce
-      forall (eid:M.epoch_id).
-        let h_contrib = Map.sel contribs' eid in
-        let h_tsm = Map.sel tsm'.epoch_hashes eid in
-        Seq.index (Map.sel bitmaps' eid) (U16.v tsm'.thread_id) == AEH.is_epoch_verified eid tsm'.last_verified_epoch /\
-        (if AEH.is_epoch_verified eid tsm'.last_verified_epoch
-        then h_contrib == h_tsm
-        else h_contrib == M.init_epoch_hash)
-    with (let h_contrib = Map.sel contribs' eid in
-          let h_tsm = Map.sel tsm'.epoch_hashes eid in
-          if eid <> e
-          then (
-            assert (Seq.index (Map.sel bitmaps eid) tid == Seq.index (Map.sel bitmaps' eid) tid);
-            assert (U32.v eid < U32.v e ==> AEH.is_epoch_verified eid tsm'.last_verified_epoch);
-            assert (AEH.is_epoch_verified eid tsm0.last_verified_epoch == AEH.is_epoch_verified eid tsm'.last_verified_epoch);
-            assert (Seq.index (Map.sel bitmaps' eid) tid == AEH.is_epoch_verified eid tsm'.last_verified_epoch);
-            if AEH.is_epoch_verified eid tsm0.last_verified_epoch
-            then (
-              assert (Map.sel contribs eid == h_contrib);
-              assume (Map.sel tsm0.epoch_hashes eid == h_tsm); //hashes of verified epochs don't change
-              assert (h_contrib == h_tsm)
-            )
-            else (
-              assert (h_contrib == M.init_epoch_hash)
-            )
-          ))
-
+        (update_logs_of_tid mlogs_v tsm')))
+  = admit()
+    // let tsm0 = M.verify_model (M.init_thread_state_model tsm.thread_id) (M.committed_entries tsm) in
+    // let tsm' = spec_verify_epoch tsm in
+    // assume (tsm' == M.verify_model (M.init_thread_state_model tsm'.thread_id) tsm'.processed_entries); //from top-level inv
+    // assume (U32.v e == U32.v tsm0.last_verified_epoch + 1); //from trace property
+    // let tid = U16.v tsm.thread_id in
+    // let contribs' = AEH.thread_contribs (update_contributions_spec tsm contribs e) tsm.thread_id in
+    // let contribs = AEH.thread_contribs contribs tsm.thread_id in
+    // let bitmaps' = update_bitmap_spec bitmaps e tsm.thread_id in
+    // introduce
+    //   forall (eid:M.epoch_id).
+    //     let h_contrib = Map.sel contribs' eid in
+    //     let h_tsm = Map.sel tsm'.epoch_hashes eid in
+    //     Seq.index (Map.sel bitmaps' eid) (U16.v tsm'.thread_id) == AEH.is_epoch_verified eid tsm'.last_verified_epoch /\
+    //     (if AEH.is_epoch_verified eid tsm'.last_verified_epoch
+    //     then h_contrib == h_tsm
+    //     else h_contrib == M.init_epoch_hash)
+    // with (let h_contrib = Map.sel contribs' eid in
+    //       let h_tsm = Map.sel tsm'.epoch_hashes eid in
+    //       if eid <> e
+    //       then (
+    //         assert (Seq.index (Map.sel bitmaps eid) tid == Seq.index (Map.sel bitmaps' eid) tid);
+    //         assert (U32.v eid < U32.v e ==> AEH.is_epoch_verified eid tsm'.last_verified_epoch);
+    //         assert (AEH.is_epoch_verified eid tsm0.last_verified_epoch == AEH.is_epoch_verified eid tsm'.last_verified_epoch);
+    //         assert (Seq.index (Map.sel bitmaps' eid) tid == AEH.is_epoch_verified eid tsm'.last_verified_epoch);
+    //         if AEH.is_epoch_verified eid tsm0.last_verified_epoch
+    //         then (
+    //           assert (Map.sel contribs eid == h_contrib);
+    //           assume (Map.sel tsm0.epoch_hashes eid == h_tsm); //hashes of verified epochs don't change
+    //           assert (h_contrib == h_tsm)
+    //         )
+    //         else (
+    //           assert (h_contrib == M.init_epoch_hash)
+    //         )
+    //       ))
 
 let restore_per_thread_invariant #o
                                  (#log_refs: AEH.log_refs_t)
                                  (#bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
                                  (#max:_)
-                                 (#contribs:_)
+                                 (#mlogs_v:_)
                                  (tsm:M.thread_state_model)
                                  (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
                                    Map.sel log_refs tsm.thread_id == mylogref
@@ -318,27 +326,30 @@ let restore_per_thread_invariant #o
                                                    (spec_verify_epoch tsm).last_verified_epoch == e } )
   : STGhostT unit o
     (G.pts_to mylogref half (spec_verify_epoch tsm).processed_entries `star`
-     pure (AEH.per_thread_contribution_is_accurate max bitmaps tsm.thread_id (M.committed_entries tsm) (AEH.thread_contribs contribs tsm.thread_id)))
+     pure (AEH.per_thread_contribution_is_accurate max bitmaps tsm.thread_id (M.committed_entries tsm) mlogs_v))
     (fun _ ->
-      AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id) (update_contributions_spec tsm contribs e) tsm.thread_id)
+      let tsm' = spec_verify_epoch tsm in
+      AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm'.thread_id)
+                                            (update_logs_of_tid mlogs_v tsm')
+                                            tsm'.thread_id)
   = elim_pure _;
-    advance_per_thread_contribution_accurate bitmaps max contribs tsm e;
+    advance_per_thread_contribution_accurate bitmaps max mlogs_v tsm e;
     intro_pure (AEH.per_thread_contribution_is_accurate
                     max
-                    (update_bitmap_spec bitmaps e tsm.thread_id)
-                    tsm.thread_id
+                    (update_bitmap_spec bitmaps e (spec_verify_epoch tsm).thread_id)
+                    (spec_verify_epoch tsm).thread_id
                     (spec_verify_epoch tsm).processed_entries
-                    (AEH.thread_contribs (update_contributions_spec tsm contribs e) tsm.thread_id));
+                    (update_logs_of_tid mlogs_v (spec_verify_epoch tsm)));
     rewrite (G.pts_to mylogref _ _)
-            (G.pts_to (Map.sel log_refs tsm.thread_id) half (spec_verify_epoch tsm).processed_entries);
+            (G.pts_to (Map.sel log_refs (spec_verify_epoch tsm).thread_id) half (spec_verify_epoch tsm).processed_entries);
     intro_exists (spec_verify_epoch tsm).processed_entries
                  (fun entries ->
-                    G.pts_to (Map.sel log_refs tsm.thread_id) half entries `star`
+                    G.pts_to (Map.sel log_refs (spec_verify_epoch tsm).thread_id) half entries `star`
                     pure (AEH.per_thread_contribution_is_accurate max
-                                                                  (update_bitmap_spec bitmaps e tsm.thread_id)
-                                                                  tsm.thread_id
+                                                                  (update_bitmap_spec bitmaps e (spec_verify_epoch tsm).thread_id)
+                                                                  (spec_verify_epoch tsm).thread_id
                                                                   entries
-                                                                  (AEH.thread_contribs (update_contributions_spec tsm contribs e) tsm.thread_id)));
+                                                                  (update_logs_of_tid mlogs_v (spec_verify_epoch tsm))));
     ()
 
 
@@ -346,36 +357,31 @@ let restore_other_threads_invariant #o
                                  (#log_refs: AEH.log_refs_t)
                                  (#bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
                                  (#max:_)
-                                 (#contribs:_)
-                                 (t:tid)
+                                 (#mlogs_v:_)
+                                 (tsm:M.thread_state_model)
                                  (e:M.epoch_id)
-                                 (c_t:AEH.epoch_hashes_repr)
-                                 (t':AEH.refined_tid (fun t' -> t <> t'))
+                                 (t':AEH.refined_tid (fun t' -> tsm.thread_id <> t'))
 
   : STGhostT unit o
-    (AEH.per_thread_invariant log_refs max bitmaps contribs t')
-    (fun _ -> AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e t)
-                                                 (AEH.upd_thread_contribs contribs t c_t) t')
+    (AEH.per_thread_invariant log_refs max bitmaps mlogs_v t')
+    (fun _ -> AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id)
+                                                 (update_logs_of_tid mlogs_v tsm)
+                                                 t')
   = let _entries = elim_exists () in
     elim_pure _;
     intro_pure (AEH.per_thread_contribution_is_accurate max
-                                                        (update_bitmap_spec bitmaps e t)
+                                                        (update_bitmap_spec bitmaps e tsm.thread_id)
                                                         t'
                                                         _entries
-                                                        (AEH.thread_contribs
-                                                          (AEH.upd_thread_contribs contribs t c_t)
-                                                          t'));
+                                                        (update_logs_of_tid mlogs_v tsm));
     intro_exists_erased _entries
       (fun entries ->
          G.pts_to (Map.sel log_refs t') half entries `star`
          pure (AEH.per_thread_contribution_is_accurate max
-                                                       (update_bitmap_spec bitmaps e t)
+                                                       (update_bitmap_spec bitmaps e tsm.thread_id)
                                                        t'
                                                        entries
-                                                       (AEH.thread_contribs
-                                                         (AEH.upd_thread_contribs contribs t c_t)
-                                                         t')))
-
+                                                       (update_logs_of_tid mlogs_v tsm)))
 
 [@@__reduce__]
 let forall_threads_except (i:tid) (p:tid -> vprop) =
@@ -386,88 +392,87 @@ let restore_all_threads_invariant #o
                                  (#log_refs: AEH.log_refs_t)
                                  (#bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
                                  (#max:_)
-                                 (#contribs:_)
+                                 (#mlogs_v:_)
                                  (#t:tid)
                                  (tsm:M.thread_state_model)
                                  (e:M.epoch_id)
  : STGhost unit o
    (AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id)
-                                          (update_contributions_spec tsm contribs e)
+                                          (update_logs_of_tid mlogs_v tsm)
                                           tsm.thread_id `star`
-    forall_threads_except t (AEH.per_thread_invariant log_refs max bitmaps contribs))
+    forall_threads_except t (AEH.per_thread_invariant log_refs max bitmaps mlogs_v))
    (fun _ ->
     AEH.forall_threads (AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id)
-                                                              (update_contributions_spec tsm contribs e)))
+                                                              (update_logs_of_tid mlogs_v tsm)))
    (requires t == tsm.thread_id)
    (ensures fun _ -> True)
- = rewrite (forall_threads_except t (AEH.per_thread_invariant log_refs max bitmaps contribs))
-           (forall_threads_except tsm.thread_id (AEH.per_thread_invariant log_refs max bitmaps contribs));
+ = rewrite (forall_threads_except t (AEH.per_thread_invariant log_refs max bitmaps mlogs_v))
+           (forall_threads_except tsm.thread_id (AEH.per_thread_invariant log_refs max bitmaps mlogs_v));
    AEH.update_forall_thread_between
     #o
-    #(AEH.per_thread_invariant log_refs max bitmaps contribs)
+    #(AEH.per_thread_invariant log_refs max bitmaps mlogs_v)
     #(AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id)
-                                            (update_contributions_spec tsm contribs e))
+                                            (update_logs_of_tid mlogs_v tsm))
     0us tsm.thread_id
-    (restore_other_threads_invariant tsm.thread_id e _);
+    (restore_other_threads_invariant tsm e);
    AEH.update_forall_thread_between
     #o
-    #(AEH.per_thread_invariant log_refs max bitmaps contribs)
+    #(AEH.per_thread_invariant log_refs max bitmaps mlogs_v)
     #(AEH.per_thread_invariant log_refs max (update_bitmap_spec bitmaps e tsm.thread_id)
-                                            (update_contributions_spec tsm contribs e))
+                                            (update_logs_of_tid mlogs_v tsm))
     _ _
-    (restore_other_threads_invariant tsm.thread_id e _);
+    (restore_other_threads_invariant tsm e);
     AEH.put_thread tsm.thread_id
 
-let restore_global_invariant #o #hv #bm #cv #max (tsm:M.thread_state_model) (e:M.epoch_id)
+let restore_global_invariant #o #hv #bm #max #mlogs_v (tsm:M.thread_state_model) (e:M.epoch_id)
   : STGhostT unit o
-    (pure (AEH.all_contributions_are_accurate hv cv /\
+    (pure (AEH.all_contributions_are_accurate hv mlogs_v /\
            AEH.max_certified_epoch_is hv bm max))
     (fun _ ->
       pure (AEH.all_contributions_are_accurate
                         (aggregate_one_epoch_hash tsm.epoch_hashes hv e)
-                        (update_contributions_spec tsm cv e) /\
+                        (update_logs_of_tid mlogs_v tsm) /\
             AEH.max_certified_epoch_is
                         (aggregate_one_epoch_hash tsm.epoch_hashes hv e)
                         (update_bitmap_spec bm e tsm.thread_id)
                         max))
   = let hv' = aggregate_one_epoch_hash tsm.epoch_hashes hv e in
-    let cv' = update_contributions_spec tsm cv e in
+    let mlogs_v' = update_logs_of_tid mlogs_v tsm in
     let bm' = update_bitmap_spec bm e tsm.thread_id in
     assume (U32.v max < U32.v e );
     let aux1 ()
       : Lemma
         (requires
-          AEH.all_contributions_are_accurate hv cv)
+          AEH.all_contributions_are_accurate hv mlogs_v)
         (ensures
-          AEH.all_contributions_are_accurate
-                        (aggregate_one_epoch_hash tsm.epoch_hashes hv e)
-                        (update_contributions_spec tsm cv e))
-      = introduce
-          forall (e':M.epoch_id).
-            Map.sel hv' e' == AEH.aggregate_thread_epoch_hashes e' cv'
-        with (
-          if e' <> e
-          then (
-            calc (==) {
-               AEH.aggregate_thread_epoch_hashes e' cv';
-               == { AEH.frame_aggregate_thread_epoch_hashes e' e cv tsm.thread_id (Map.sel tsm.epoch_hashes e) }
-               AEH.aggregate_thread_epoch_hashes e' cv;
-            }
-          )
-          else (
-            calc (==) {
-              AEH.aggregate_thread_epoch_hashes e cv';
-              (==) { }
-              Zeta.SeqAux.reduce M.init_epoch_hash
-                       (fun s -> AEH.aggregate_epoch_hash (Map.sel s e))
-                       cv';
-              (==) {admit()} //probably easier to do this using the permutation monoid
-                             //and we need to know that the bit for tsm was false initially
-              AEH.aggregate_epoch_hash (AEH.aggregate_thread_epoch_hashes e cv)
-                                       (Map.sel tsm.epoch_hashes e);
-            }
-          )
-        )
+          AEH.all_contributions_are_accurate hv' mlogs_v')
+      = admit()
+        // introduce
+        //   forall (e':M.epoch_id).
+        //     Map.sel hv' e' == AEH.aggregate_thread_epoch_hashes e' cv'
+        // with (
+        //   if e' <> e
+        //   then (
+        //     calc (==) {
+        //        AEH.aggregate_thread_epoch_hashes e' cv';
+        //        == { AEH.frame_aggregate_thread_epoch_hashes e' e cv tsm.thread_id (Map.sel tsm.epoch_hashes e) }
+        //        AEH.aggregate_thread_epoch_hashes e' cv;
+        //     }
+        //   )
+        //   else (
+        //     calc (==) {
+        //       AEH.aggregate_thread_epoch_hashes e cv';
+        //       (==) { }
+        //       Zeta.SeqAux.reduce M.init_epoch_hash
+        //                (fun s -> AEH.aggregate_epoch_hash (Map.sel s e))
+        //                cv';
+        //       (==) {admit()} //probably easier to do this using the permutation monoid
+        //                      //and we need to know that the bit for tsm was false initially
+        //       AEH.aggregate_epoch_hash (AEH.aggregate_thread_epoch_hashes e cv)
+        //                                (Map.sel tsm.epoch_hashes e);
+        //     }
+        //   )
+        // )
     in
     elim_pure _;
     aux1 ();
@@ -514,14 +519,20 @@ let intro_thread_state_inv #o
               exists_ (A.pts_to t.serialization_buffer))
              (thread_state_inv' t tsm)
 
+let update_logs_of_tid'
+         (mlogs_v:erased AEH.all_processed_entries)
+         (tsm:M.thread_state_model)
+  : erased AEH.all_processed_entries
+  = Seq.upd mlogs_v (U16.v tsm.thread_id) tsm.processed_entries
+
 let verify_epoch (#tsm:M.thread_state_model)
                  (t:thread_state_t)
                  (#log_refs: AEH.log_refs_t)
                  (hashes : AEH.all_epoch_hashes)
                  (tid_bitmaps : AEH.epoch_tid_bitmaps)
                  (max_certified_epoch : R.ref M.epoch_id)
-                 (contributions: G.ref AEH.epoch_hash_contributions_t)
-                 (lock: cancellable_lock (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch contributions))
+                 (mlogs: AEH.monotonic_logs)
+                 (lock: cancellable_lock (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch mlogs))
                  (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
                    Map.sel log_refs tsm.thread_id == mylogref /\
                    t.thread_id == tsm.thread_id /\
@@ -555,18 +566,20 @@ let verify_epoch (#tsm:M.thread_state_model)
       )
       else (
         rewrite (maybe_acquired _ _)
-                (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch contributions `star` can_release lock);
+                (AEH.lock_inv log_refs hashes tid_bitmaps max_certified_epoch mlogs `star` can_release lock);
         let _hv = elim_exists () in
         let _bitmaps = elim_exists () in
         let _max = elim_exists () in
-        let _contribs =
+        let _mlogs_v =
           elim_exists #_ #_
-            #(AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch contributions
+            #(AEH.lock_inv_body log_refs hashes tid_bitmaps max_certified_epoch mlogs
                                 _hv _bitmaps _max)
             ()
         in
         let b0 = propagate_epoch_hash t hashes e in
         let b1 = update_bitmap tid_bitmaps e t.thread_id in
+        MR.write mlogs (hide (update_logs_of_tid _mlogs_v (spec_verify_epoch tsm)));
+        admit__())
         G.write contributions (update_contributions_spec tsm _contribs e);
         if not b0 || not b1
         then ( //propagation failed, e.g., due to overflow
