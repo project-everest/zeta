@@ -525,6 +525,7 @@ let update_logs_of_tid'
   : erased AEH.all_processed_entries
   = Seq.upd mlogs_v (U16.v tsm.thread_id) tsm.processed_entries
 
+
 let verify_epoch (#tsm:M.thread_state_model)
                  (t:thread_state_t)
                  (#log_refs: AEH.log_refs_t)
@@ -579,7 +580,6 @@ let verify_epoch (#tsm:M.thread_state_model)
         let b0 = propagate_epoch_hash t hashes e in
         let b1 = update_bitmap tid_bitmaps e t.thread_id in
         MR.write mlogs (hide (update_logs_of_tid _mlogs_v (spec_verify_epoch tsm)));
-        admit__())
         G.write contributions (update_contributions_spec tsm _contribs e);
         if not b0 || not b1
         then ( //propagation failed, e.g., due to overflow

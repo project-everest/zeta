@@ -97,5 +97,11 @@ let st_check_overflow_add32 (x y:U32.t)
   = let r = check_overflow_add32 x y in return r
 
 assume
-val map_literal (#k:eqtype) (v:Type) (f: k -> v)
+val map_literal (#k:eqtype) (#v:Type) (f: k -> v)
   : Map.t k v
+
+let map_literal_interp (#k:eqtype) (#v:Type) (f: k -> v)
+  : Lemma ((forall k. Map.sel (map_literal f) k == f k) /\
+           Map.domain (map_literal f) == Set.complement Set.empty)
+          [SMTPat (map_literal f)]
+  = admit()

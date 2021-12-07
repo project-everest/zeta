@@ -12,6 +12,7 @@ open Zeta.Steel.Util
 module A = Steel.ST.Array
 module G = Steel.ST.GhostReference
 module Lock = Steel.ST.SpinLock
+module GMap = Zeta.Steel.GhostSharedMap
 
 module T = Zeta.Steel.FormatsManual
 module M = Zeta.Steel.ThreadStateModel
@@ -22,45 +23,38 @@ module MR = Steel.MonotonicReference
 #push-options "--ide_id_info_off"
 
 let thread_inv (t: V.thread_state_t)
-               (logref: AEH.log_ref)
+               (mlogs: AEH.monotonic_logs)
   : vprop
   = exists_ (fun tsm ->
        V.thread_state_inv t tsm `star`
-       G.pts_to logref half (M.committed_entries tsm))
+       GMap.owns_key mlogs tsm.M.thread_id half tsm.M.processed_entries)
 
 noeq
-type thread_state (logrefs:AEH.log_refs_t) =
+type thread_state (mlogs:AEH.monotonic_logs) =
 {
   tid: tid;
   tsm: V.thread_state_t;
-  logref: AEH.log_ref;
-  lock : Lock.lock (thread_inv tsm logref);
-  properties : squash (
-    logref == Map.sel logrefs tid
-  );
+  lock : Lock.lock (thread_inv tsm mlogs)
 }
 
-let all_threads_t logrefs =
-  a:A.array (thread_state logrefs) {
-      A.length a == U32.v n_threads
-  }
+let all_threads_t (mlogs:AEH.monotonic_logs) =
+    larray (thread_state mlogs) n_threads
 
 noeq
 type top_level_state = {
-  logrefs : erased AEH.log_refs_t;
-  all_threads : all_threads_t (reveal logrefs);
-  epoch_hashes: AEH.aggregate_epoch_hashes (reveal logrefs);
+  aeh: AEH.aggregate_epoch_hashes;
+  all_threads : all_threads_t aeh.mlogs
 }
 
 
-let thread_has_processed (t:top_level_state)
-                         (tid:tid)
-                         (entries:AEH.log) =
-    AEH.thread_has_processed t.epoch_hashes.mlogs tid entries
+// let thread_has_processed (t:top_level_state)
+//                          (tid:tid)
+//                          (entries:AEH.log) =
+//     AEH.thread_has_processed t.epoch_hashes.mlogs tid entries
 
-let all_threads_have_processed (t:top_level_state)
-                               (entries:AEH.all_processed_entries) =
-    AEH.all_threads_have_processed t.epoch_hashes.mlogs entries
+// let all_threads_have_processed (t:top_level_state)
+//                                (entries:AEH.all_processed_entries) =
+//     AEH.all_threads_have_processed t.epoch_hashes.mlogs entries
 
 
 /// TODO: a fractional permission variant of Steel.ST.Array
@@ -83,12 +77,17 @@ let core_inv (t:top_level_state)
       array_pts_to t.all_threads perm v `star`
       pure (tid_positions_ok v)))
 
+
 // This creates a Zeta instance
 val init (_:unit)
-  : STT top_level_state emp core_inv
+  : STT top_level_state
+        emp
+        (fun t -> core_inv t `star`
+               GMap.k_of t.aeh.mlogs (GMap.Owns (GMap.initial_map (Some half) Seq.empty)))
 
 val verify_entries (t:top_level_state)
                    (tid:tid)
+                   (#entries:erased AEH.log)
                    (#log_bytes:erased bytes)
                    (len: U32.t)
                    (input:larray U8.t len)
@@ -97,7 +96,8 @@ val verify_entries (t:top_level_state)
   : STT (option U32.t) //bool & U32.t & erased (Seq.seq log_entry_base))
     (core_inv t `star`
      A.pts_to input log_bytes `star`
-     exists_ (A.pts_to output))
+     exists_ (A.pts_to output) `star`
+     GMap.owns_key t.aeh.mlogs tid half entries)
     (fun res ->
       core_inv t `star`
       A.pts_to input log_bytes `star`
@@ -109,24 +109,21 @@ val verify_entries (t:top_level_state)
          pure False
 
        | Some n_out, Some entries' ->
-         exists_ (fun entries -> //this is a little weak: It doesn't prevent the thread from silently adding some more entries to the log
-                              //we could give a 1/4 permission to the logref to the client to allow them to correlate the initial
-                              //state, rather than just existentially quantifying it here
          exists_ (fun out_bytes ->
            A.pts_to output out_bytes `star`
+           GMap.owns_key t.aeh.mlogs tid half (entries `Seq.append` entries') `star`
            pure (
              let tsm0 = M.verify_model (M.init_thread_state_model tid) entries in
              let tsm1 = M.verify_model tsm0 entries' in
              out_bytes == M.bytes_of_app_results (M.delta_app_results tsm0 tsm1) /\
-             U32.v n_out == Seq.length out_bytes /\
-             thread_has_processed t tid (entries `Seq.append` entries'))))))
+             U32.v n_out == Seq.length out_bytes))))
 
-val max_certified_epoch (logs:erased AEH.all_processed_entries)
+val max_certified_epoch (#logs:erased AEH.all_processed_entries)
                         (t:top_level_state)
   : ST M.epoch_id
-    (core_inv t)
-    (fun _ -> core_inv t)
-    (requires all_threads_have_processed t logs)
+    (core_inv t `star` AEH.all_threads_have_processed t.aeh.mlogs logs)
+    (fun _ -> core_inv t `star` AEH.all_threads_have_processed t.aeh.mlogs logs)
+    (requires True)
     (ensures fun max ->
       forall (eid:M.epoch_id).
          U32.v eid <= U32.v max ==>

@@ -33,7 +33,7 @@ val create (tid:tid)
   : STT thread_state_t
     emp
     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
-
+module GMap = Zeta.Steel.GhostSharedMap
 
 /// Entry point to run a single verifier thread on a log
 val verify (#tsm:M.thread_state_model)
@@ -43,17 +43,13 @@ val verify (#tsm:M.thread_state_model)
            (log:larray U8.t len) //concrete log
            (#outlen:U32.t)
            (out:larray U8.t outlen) //out array, to write outputs
-           (#logrefs: AEH.log_refs_t)
-           (aeh:AEH.aggregate_epoch_hashes logrefs) //lock & handle to the aggregate state
-           (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
-             Map.sel logrefs tsm.thread_id == mylogref
-            })
+           (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
   : STT (option U32.t)
     (//precondition
       thread_state_inv t tsm `star` //thread state is initially tsm
       A.pts_to log log_bytes `star` //the log contains log_bytes
       exists_ (A.pts_to out) `star` //we have permission to out, don't care what it contains
-      G.pts_to mylogref half (M.committed_entries tsm) //and mylogref contains this thread's committed entries
+      GMap.owns_key aeh.mlogs tsm.thread_id full tsm.processed_entries //and the global state contains this thread's entries
     )
     (fun res -> //postcondition
       A.pts_to log log_bytes `star` //log contents didn't change
@@ -63,15 +59,14 @@ val verify (#tsm:M.thread_state_model)
          //resources, e.g., to free them
          //but not much else
          exists_ (thread_state_inv t) `star`
-         exists_ (A.pts_to out) `star`
-         exists_ (G.pts_to mylogref half)
+         exists_ (A.pts_to out)
       | Some n_out ->
          //it succeeded
          exists_ (fun (tsm':M.thread_state_model) ->
          exists_ (fun (out_bytes:Seq.seq U8.t) ->
            thread_state_inv t tsm' `star` //tsm' is the new state of the thread
            A.pts_to out out_bytes `star`  //the out array contains out_bytes
-           G.pts_to mylogref half (M.committed_entries tsm') `star` //my contributions are updated
+           GMap.owns_key aeh.mlogs tsm.thread_id full tsm'.processed_entries `star` //my contributions are updated
            pure (
              match parse_log log_bytes with
              | None -> False //log parsing did not fail
