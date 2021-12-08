@@ -396,13 +396,13 @@ let snapshot (#k:eqtype) (#v:Type0) (#c:preorder v)
   : Map.t k v
   = map_literal (fun k -> curval (snd (Map.sel m k)))
 
-let global_snapshot (#k:eqtype) (#v:Type0) (#c:preorder v)
+val global_snapshot (#k:eqtype) (#v:Type0) (#c:preorder v)
                     (t:t k v c)
-                    (m: Map.t k v)
+                    ([@@@smt_fallback] m: Map.t k v)
   : vprop
-  = exists_ (fun (km:kmap k v c) ->
-        pure (snapshot km == m) `star`
-        k_of t (Owns (ksnapshot km)))
+  // = exists_ (fun (km:kmap k v c) ->
+  //       pure (snapshot km == m) `star`
+  //       k_of t (Owns (ksnapshot km)))
 
 val take_snapshot (#o:_)
                   (#k:eqtype) (#v:Type0) (#c:preorder v)
@@ -412,30 +412,32 @@ val take_snapshot (#o:_)
     (k_of t (Owns m))
     (fun _ -> k_of t (Owns m) `star` global_snapshot t (snapshot m))
 
-let owns_key (#k:eqtype) (#v:Type0) (#c:preorder v)
+val owns_key (#k:eqtype) (#v:Type0) (#c:preorder v)
              (t:t k v c)
              (key:k)
-             (perm:perm)
-             (value:v)
-  = exists_ (fun (m:kmap k v c) ->
-       pure ((forall key'. (key<>key' ==> fst (Map.sel m key') == None)) /\
-             (match Map.sel m key with
-              | None, _ -> False
-              | Some p, h ->
-                perm == p /\
-                curval h == value)) `star`
-       k_of t (Owns m))
+             ([@@@smt_fallback]perm:perm)
+             ([@@@smt_fallback]value:v)
+ : vprop
+  // = exists_ (fun (m:kmap k v c) ->
+  //      pure ((forall key'. (key<>key' ==> fst (Map.sel m key') == None)) /\
+  //            (match Map.sel m key with
+  //             | None, _ -> False
+  //             | Some p, h ->
+  //               perm == p /\
+  //               curval h == value)) `star`
+  //      k_of t (Owns m))
 
-let snapshot_of_key (#k:eqtype) (#v:Type0) (#c:preorder v)
+val snapshot_of_key (#k:eqtype) (#v:Type0) (#c:preorder v)
                     (t:t k v c)
                     (key:k)
-                    (value:v)
-  = exists_ (fun (m:kmap k v c) ->
-       pure ((forall key'. fst (Map.sel m key') == None) /\
-             (match Map.sel m key with
-              | Some _, _ -> False
-              | None, h -> curval h == value)) `star`
-       k_of t (Owns m))
+                    ([@@@smt_fallback]value:v)
+ : vprop
+  // = exists_ (fun (m:kmap k v c) ->
+  //      pure ((forall key'. fst (Map.sel m key') == None) /\
+  //            (match Map.sel m key with
+  //             | Some _, _ -> False
+  //             | None, h -> curval h == value)) `star`
+  //      k_of t (Owns m))
 
 val local_snapshot (#o:_)
                    (#k:eqtype) (#v:Type0) (#c:preorder v)

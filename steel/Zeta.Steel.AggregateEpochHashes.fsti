@@ -99,7 +99,7 @@ let log = Seq.seq log_entry_base
 let all_processed_entries = Seq.lseq log (U32.v n_threads)
 let map_of_seq (a:all_processed_entries)
   : Map.t tid log
-  = map_literal #tid log (fun tid -> Seq.index a (U16.v tid))
+  = map_literal (fun (tid:tid) -> Seq.index a (U16.v tid))
 
 let log_of_tid (a:all_processed_entries) (t:tid) = Seq.index a (U16.v t)
 let log_grows :Preorder.preorder log
@@ -121,7 +121,7 @@ let committed_tsm_of_logs (mlogs_v:all_processed_entries) (t:tid) =
 let thread_contrib_of_log (t:tid) (l:log)
   : epoch_hashes_repr
   = let tsm = M.verify_model (M.init_thread_state_model t) l in
-    Zeta.Steel.Util.map_literal #_ _
+    Zeta.Steel.Util.map_literal
       (fun (e:M.epoch_id) ->
          if is_epoch_verified e tsm.last_verified_epoch
          then Map.sel tsm.epoch_hashes e
@@ -146,17 +146,13 @@ let max_certified_epoch_is (global:epoch_hashes_repr)
        (Map.sel bitmaps e) == Seq.create (U32.v n_threads) true /\
        (Map.sel global e).hadd == (Map.sel global e).hevict
 
-let per_thread_contribution_is_accurate (max:M.epoch_id)
-                                        (bitmaps: IArray.repr M.epoch_id tid_bitmap)
-                                        (tid:tid)
-                                        (entries:Seq.seq log_entry_base)
-                                        (all_logs:all_processed_entries)
-  : prop
-  = let tsm = M.verify_model (M.init_thread_state_model tid) entries in
-    entries `Zeta.SeqAux.prefix_of` (log_of_tid all_logs tid) /\
-    U32.v max <= U32.v tsm.last_verified_epoch /\ //max can't exceed the verified epoch ctr for tid
-    (forall (eid:M.epoch_id).
-      Seq.index (Map.sel bitmaps eid) (U16.v tid) == is_epoch_verified eid tsm.last_verified_epoch)
+let contribs_and_max_ok (global:epoch_hashes_repr)
+                        (bitmaps: IArray.repr M.epoch_id tid_bitmap)
+                        (max:M.epoch_id)
+                        (mlogs_v:all_processed_entries)
+ : prop
+ = all_contributions_are_accurate global mlogs_v /\
+   max_certified_epoch_is global bitmaps max
 
 let tid_index = i:U16.t { U16.v i <= U32.v n_threads }
 
@@ -176,12 +172,21 @@ let rec forall_threads_between (from:tid_index)
 let forall_threads (f: tid -> vprop) =
   forall_threads_between 0us n_threads_16 f
 
+let per_thread_max_and_bitmap (max:M.epoch_id)
+                              (bitmaps: IArray.repr M.epoch_id tid_bitmap)
+                              (tid:tid)
+                              (all_logs:all_processed_entries)
+  : prop
+  = let tsm = M.verify_model (M.init_thread_state_model tid) (log_of_tid all_logs tid) in
+    U32.v max <= U32.v tsm.last_verified_epoch /\ //max can't exceed the verified epoch ctr for tid
+    (forall (eid:M.epoch_id).
+      Seq.index (Map.sel bitmaps eid) (U16.v tid) == is_epoch_verified eid tsm.last_verified_epoch)
+
 let per_thread_invariant (max:_)
                          (bitmaps:_)
                          (all_logs: all_processed_entries)
                          ([@@@smt_fallback] tid:tid) =
-    exists_ (fun (entries:_) ->
-      pure (per_thread_contribution_is_accurate max bitmaps tid entries all_logs))
+    pure (per_thread_max_and_bitmap max bitmaps tid all_logs)
 
 val take_thread (#o:_) (#p:tid -> vprop) (i:tid)
   : STGhostT unit o
@@ -228,9 +233,7 @@ let lock_inv_body (hashes : all_epoch_hashes)
     R.pts_to max_certified_epoch full max `star`
     GMap.global_snapshot mlogs (map_of_seq mlogs_v) `star`
     forall_threads (per_thread_invariant max bitmaps mlogs_v) `star`
-    pure (all_contributions_are_accurate hashes_v mlogs_v /\
-          max_certified_epoch_is hashes_v bitmaps max)
-
+    pure (contribs_and_max_ok hashes_v bitmaps max mlogs_v)
 
 let lock_inv (hashes : all_epoch_hashes)
              (tid_bitmaps : epoch_tid_bitmaps)

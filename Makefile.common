@@ -50,13 +50,14 @@ FSTAR_OPTIONS=--odir $(OUTPUT_DIRECTORY) \
 
 FSTAR=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 
-.depend: $(FSTAR_FILES)
+.depend:
 	mkdir -p $(CACHE_DIRECTORY)
 	$(FSTAR) --dep full $(notdir $^) > .depend
 
 depend: .depend
 
 include .depend
+
 
 # a.fst(i).checked is the binary, checked version of a.fst(i)
 $(CACHE_DIRECTORY)/%.checked:

@@ -19,7 +19,6 @@ module M = Zeta.Steel.ThreadStateModel
 module AEH = Zeta.Steel.AggregateEpochHashes
 module V = Zeta.Steel.Verifier
 module SA = Zeta.SeqAux
-module MR = Steel.MonotonicReference
 #push-options "--ide_id_info_off"
 
 let thread_inv (t: V.thread_state_t)
@@ -45,16 +44,6 @@ type top_level_state = {
   aeh: AEH.aggregate_epoch_hashes;
   all_threads : all_threads_t aeh.mlogs
 }
-
-
-// let thread_has_processed (t:top_level_state)
-//                          (tid:tid)
-//                          (entries:AEH.log) =
-//     AEH.thread_has_processed t.epoch_hashes.mlogs tid entries
-
-// let all_threads_have_processed (t:top_level_state)
-//                                (entries:AEH.all_processed_entries) =
-//     AEH.all_threads_have_processed t.epoch_hashes.mlogs entries
 
 
 /// TODO: a fractional permission variant of Steel.ST.Array
@@ -83,7 +72,7 @@ val init (_:unit)
   : STT top_level_state
         emp
         (fun t -> core_inv t `star`
-               GMap.k_of t.aeh.mlogs (GMap.Owns (GMap.initial_map (Some half) Seq.empty)))
+               AEH.forall_threads (fun tid -> GMap.owns_key t.aeh.mlogs tid half Seq.empty))
 
 val verify_entries (t:top_level_state)
                    (tid:tid)
