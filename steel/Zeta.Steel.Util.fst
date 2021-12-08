@@ -114,7 +114,7 @@ let update_if (b:bool) (default_ upd_: 'a)
 module R = Steel.ST.Reference
 module Loops = Steel.ST.Loops
 let repeat_until (p: bool -> vprop)
-                 (body: (unit -> STT bool (p true) (fun b -> p b)))
+                 ($body: (unit -> STT bool (p true) (fun b -> p b)))
   : STT unit (p true) (fun _ -> p false)
   = let r = R.alloc true in
     let inv : bool -> vprop = fun b -> R.pts_to r full b `star` p b in

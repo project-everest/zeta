@@ -310,10 +310,6 @@ let try_increment_max (#hashes_v:erased _)
         )
       )
 
-val repeat_until (p: bool -> vprop)
-                 ($body: (unit -> STT bool (p true) (fun b -> p b)))
-  : STT unit (p true) (fun _ -> p false)
-
 let try_advance_max (#hashes_v:erased _)
                     (#bitmaps_v:erased _)
                     (#max_v:erased _)
