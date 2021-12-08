@@ -105,3 +105,46 @@ let map_literal_interp (#k:eqtype) (#v:Type) (f: k -> v)
            Map.domain (map_literal f) == Set.complement Set.empty)
           [SMTPat (map_literal f)]
   = admit()
+
+let update_if (b:bool) (default_ upd_: 'a)
+  : 'a
+  = if b then upd_ else default_
+
+
+module R = Steel.ST.Reference
+module Loops = Steel.ST.Loops
+let repeat_until (p: bool -> vprop)
+                 (body: (unit -> STT bool (p true) (fun b -> p b)))
+  : STT unit (p true) (fun _ -> p false)
+  = let r = R.alloc true in
+    let inv : bool -> vprop = fun b -> R.pts_to r full b `star` p b in
+    let cond (_:unit)
+      : STT bool (exists_ inv)
+                 inv
+      = let _b = elim_exists () in
+        rewrite (inv _b)
+                (R.pts_to r full _b `star` p _b);
+        let b = R.read r in
+        rewrite (R.pts_to r full _b `star` p _b)
+                (inv b);
+        return b
+    in
+    let body (_:unit)
+      : STT unit
+        (inv true)
+        (fun _ -> exists_ inv)
+      = rewrite (inv true)
+                (R.pts_to r full true `star` p true);
+        let b = body () in
+        R.write r b;
+        rewrite (R.pts_to r full b `star` p b)
+                (inv b);
+        intro_exists b inv
+    in
+    rewrite (R.pts_to r full true `star` p true)
+            (inv true);
+    intro_exists true inv;
+    Steel.ST.Loops.while_loop inv cond body;
+    rewrite (inv false)
+            (R.pts_to r full false `star` p false);
+    R.free r

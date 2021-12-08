@@ -66,13 +66,31 @@ let core_inv (t:top_level_state)
       array_pts_to t.all_threads perm v `star`
       pure (tid_positions_ok v)))
 
+let tid_index = i:U16.t { U16.v i <= U32.v n_threads }
+
+let rec forall_threads_between (from:tid_index)
+                               (to:tid_index { U16.v from <= U16.v to })
+                               (f:tid -> vprop)
+
+  : Tot (vprop)
+        (decreases (U16.v to - U16.v from))
+  = if from = to then emp
+    else f from `star`
+         forall_threads_between U16.(from +^ 1us) to f
+
+noextract
+let n_threads_16 : tid_index = U16.uint_to_t (U32.v n_threads)
+
+let forall_threads (f: tid -> vprop) =
+  forall_threads_between 0us n_threads_16 f
+
 
 // This creates a Zeta instance
 val init (_:unit)
   : STT top_level_state
         emp
         (fun t -> core_inv t `star`
-               AEH.forall_threads (fun tid -> GMap.owns_key t.aeh.mlogs tid half Seq.empty))
+               forall_threads (fun tid -> GMap.owns_key t.aeh.mlogs tid half Seq.empty))
 
 val verify_entries (t:top_level_state)
                    (tid:tid)
@@ -107,16 +125,17 @@ val verify_entries (t:top_level_state)
              out_bytes == M.bytes_of_app_results (M.delta_app_results tsm0 tsm1) /\
              U32.v n_out == Seq.length out_bytes))))
 
-val max_certified_epoch (#logs:erased AEH.all_processed_entries)
-                        (t:top_level_state)
-  : ST M.epoch_id
-    (core_inv t `star` AEH.all_threads_have_processed t.aeh.mlogs logs)
-    (fun _ -> core_inv t `star` AEH.all_threads_have_processed t.aeh.mlogs logs)
-    (requires True)
-    (ensures fun max ->
-      forall (eid:M.epoch_id).
-         U32.v eid <= U32.v max ==>
-         M.epoch_is_certified logs eid)
+let max_certified_epoch (t:top_level_state)
+  : STT (option M.epoch_id)
+      emp
+      (fun max_opt ->
+        match max_opt with
+        | None -> emp
+        | Some max ->
+          exists_ (fun logs ->
+           GMap.global_snapshot t.aeh.mlogs (AEH.map_of_seq logs) `star`
+           pure (AEH.max_is_correct logs max)))
+  = AEH.advance_and_read_max_certified_epoch t.aeh
 
 //From this, we should connect back to the semantic
 //proof and show that the entries are sequentially consistent up to eid

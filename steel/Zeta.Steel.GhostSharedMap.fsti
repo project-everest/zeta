@@ -472,3 +472,10 @@ val update_global_snapshot (#o:_)
   : STGhostT unit o
     (owns_key t key frac value `star` global_snapshot t m)
     (fun _ -> owns_key t key frac value `star` global_snapshot t (Map.upd m key value))
+
+
+val dup_global_snapshot (#o:_) (#k:eqtype) (#v:Type0) (#c:preorder v) (#m: Map.t k v)
+                        (t:t k v c)
+  : STGhostT unit o
+    (global_snapshot t m)
+    (fun _ -> global_snapshot t m `star` global_snapshot t m)

@@ -157,43 +157,6 @@ let propagate_epoch_hash (#tsm:M.thread_state_model)
         IArray.put hashes e dst _;
         return b
 
-let release_lock (#hashes : AEH.all_epoch_hashes)
-                 (#tid_bitmaps : AEH.epoch_tid_bitmaps)
-                 (#max_certified_epoch : R.ref M.epoch_id)
-                 (#mlogs: AEH.monotonic_logs)
-                 (#hv:erased _)
-                 (#bitmaps:erased _)
-                 (#max:erased _)
-                 (#mlogs_v:erased _)
-                 (lock: cancellable_lock
-                        (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
-  : STT unit
-    (AEH.lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
-                       hv bitmaps max mlogs_v `star`
-     can_release lock)
-    (fun _ -> emp)
-  = intro_exists_erased mlogs_v
-      (fun mlogs_v ->  AEH.lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
-                                      hv bitmaps max mlogs_v);
-    intro_exists_erased max
-      (fun max ->
-        exists_ (fun mlogs_v ->
-                    AEH.lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
-                                      hv bitmaps max mlogs_v));
-    intro_exists_erased bitmaps
-      (fun bitmaps ->
-        exists_ (fun max ->
-        exists_ (fun mlogs_v ->
-                    AEH.lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
-                                      hv bitmaps max mlogs_v)));
-    intro_exists_erased hv
-      (fun hv ->
-        exists_ (fun bitmaps ->
-        exists_ (fun max ->
-        exists_ (fun mlogs_v ->
-                    AEH.lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
-                                      hv bitmaps max mlogs_v))));
-    release lock
 
 let update_bitmap_spec (bm:IArray.repr M.epoch_id AEH.tid_bitmap)
                        (e:M.epoch_id)
