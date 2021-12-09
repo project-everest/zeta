@@ -1,0 +1,12 @@
+all: makefileobj
+
+.PHONY: all makefileobj
+
+include Makefile.include
+
+makefileobj: $(QD_TARGET_DIR)/Makefile
+
+$(QD_TARGET_DIR)/Makefile: Makefile.obj Zeta.Formats.Aux.rfc
+	mkdir -p $(QD_TARGET_DIR)
+	$(QD) -odir $(QD_TARGET_DIR) Zeta.Formats.Aux.rfc -types_to $(QD_TARGET_DIR)/Zeta.Formats.Aux.Types.fst -prefix Zeta.Formats.Aux.
+	cp $< $@
