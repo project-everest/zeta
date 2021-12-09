@@ -29,12 +29,12 @@ let slice_ok (s:bytes) (from slice_len:U32.t) =
   *      so that it can be composed with LowParse
   *)
 let spec_parser (t:Type0) =
-    b:bytes -> option (t & n:nat{n <= Seq.length b})
+    b:bytes -> GTot (option (t & n:nat{n <= Seq.length b}))
 
 let spec_serializer (#t:Type) (p:spec_parser t) =
-    x:t -> b:bytes{ match p b with
+    x:t -> GTot (b:bytes{ match p b with
                    | None -> False
-                   | Some (y, n) -> x == y /\ n == Seq.length b}
+                   | Some (y, n) -> x == y /\ n == Seq.length b})
 
 let len_offset_ok (a:byte_array)
                   (len:U32.t)
