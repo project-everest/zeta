@@ -8,7 +8,7 @@ FORMATS_HOME ?= ../..
 
 FSTAR_INCLUDES=$(KREMLIN_HOME)/kremlib $(KREMLIN_HOME)/kremlib/obj $(QD_HOME)/src/lowparse $(FORMATS_HOME) $(FORMATS_HOME)/everparse
 
-FSTAR_OPTIONS=$(addprefix --include ,$(FSTAR_INCLUDES)) --already_cached '*,-Veritas.Formats'
+FSTAR_OPTIONS=$(addprefix --include ,$(FSTAR_INCLUDES)) --already_cached '*,-Zeta.Formats'
 
 FSTAR_EXE=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS)
 

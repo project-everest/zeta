@@ -1,6 +1,6 @@
-module Veritas.Formats
-include Veritas.Formats.Pure
-include Veritas.Formats.Types
+module Zeta.Formats
+include Zeta.Formats.Pure
+include Zeta.Formats.Types
 
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32

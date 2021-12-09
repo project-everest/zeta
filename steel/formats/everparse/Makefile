@@ -1,15 +1,15 @@
 # From https://fstarlang.github.io/lowstar/html/Setup.html#build
 
-all: veritasformats
+all: zetaformats
 
 include Makefile.include
 
-veritasformats: $(FORMATS_HOME)/dist/veritasformats.a
+zetaformats: $(FORMATS_HOME)/dist/zetaformats.a
 
 %.fst-in %.fsti-in:
 	@echo $(FSTAR_OPTIONS)
 
-.PHONY: all veritasformats %.fsti-in %.fst-in
+.PHONY: all zetaformats %.fsti-in %.fst-in
 
 FSTAR_NO_FLAGS = $(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) \
   --odir obj --cache_checked_modules --cmi --warn_error '+241@247+285' \
@@ -71,12 +71,12 @@ $(FORMATS_HOME)/dist/Makefile.basic: $(filter-out %prims.krml,$(ALL_KRML_FILES))
 	  -warn-error @4@5@18 \
 	  -fparentheses \
 	  -header header.txt \
-	  -bundle 'Veritas.Formats+Veritas.Formats.Pure+Veritas.Formats.Types=Veritas.Formats.*,Veritas.Formats.EverParse.*,LowParse.*,LowStar.*,FStar.*,Prims[rename=Veritas_Formats]' \
-	  -o veritasformats.a \
+	  -bundle 'Zeta.Formats+Zeta.Formats.Pure+Zeta.Formats.Types=Zeta.Formats.*,Zeta.Formats.EverParse.*,LowParse.*,LowStar.*,FStar.*,Prims[rename=Zeta_Formats]' \
+	  -o zetaformats.a \
 	  -ccopt -Wno-type-limits
 
 # Compiling the generated C code
 # ------------------------------
 
-$(FORMATS_HOME)/dist/veritasformats.a: $(FORMATS_HOME)/dist/Makefile.basic
+$(FORMATS_HOME)/dist/zetaformats.a: $(FORMATS_HOME)/dist/Makefile.basic
 	$(MAKE) -C $(dir $@) -f $(notdir $<)

@@ -8,7 +8,7 @@ struct {
 } u256;
 
 abstract /*@has_lserializer*/
-significant_digits_t = "Veritas.Formats.Aux.significant_digits_t" < 2..2 >
+significant_digits_t = "Zeta.Formats.Aux.significant_digits_t" < 2..2 >
 
 struct {
   u256 k;

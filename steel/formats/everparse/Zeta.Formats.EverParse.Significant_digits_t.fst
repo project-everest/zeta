@@ -1,4 +1,4 @@
-module Veritas.Formats.EverParse.Significant_digits_t
+module Zeta.Formats.EverParse.Significant_digits_t
 
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
