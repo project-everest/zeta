@@ -33,6 +33,37 @@ val parse_key : P.parser spec_parser_key
 val spec_serializer_key : P.spec_serializer spec_parser_key
 val serialize_key : P.serializer spec_serializer_key
 
+// BEGIN properties needed to link with EverParse-generated record parsers and serializers
+
+val spec_parser_key_injective (b1 b2: bytes) : Lemma
+  (requires (match spec_parser_key b1, spec_parser_key b2 with
+  | Some (v1, n1), Some (v2, n2) -> v1 == v2
+  | _ -> False
+  ))
+  (ensures (match spec_parser_key b1, spec_parser_key b2 with
+  | Some (v1, n1), Some (v2, n2) -> n1 == n2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n2
+  | _ -> True
+  ))
+
+val spec_parser_key_strong_prefix (b1 b2: bytes) : Lemma
+  (requires (
+    match spec_parser_key b1 with
+    | Some (_, n1) -> n1 <= Seq.length b2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n1
+    | _ -> False
+  ))
+  (ensures (
+    match spec_parser_key b1, spec_parser_key b2 with
+    | Some (v1, _), Some (v2, _) -> v1 == v2
+    | _ -> False
+  ))
+
+/// This is an ad hoc bound due to a bound on Blake hashable inputs
+/// FIXME: this bound is necessary because QuackyDucky expects a constant bound on abstract types
+val serialized_key_length (v:key_type)
+  : Lemma (Seq.length (spec_serializer_key v) <= 2040)
+
+// END properties needed to link with EverParse-generated record parsers and serializers
+
 /// The type of application values
 ///   // may not need to be an eqtype
 val value_type : eqtype
@@ -43,11 +74,35 @@ val parse_value : P.parser spec_parser_value
 
 val spec_serializer_value : P.spec_serializer spec_parser_value
 val serialize_value : P.serializer spec_serializer_value
+// BEGIN properties needed to link with EverParse-generated record parsers and serializers
+
+val spec_parser_value_injective (b1 b2: bytes) : Lemma
+  (requires (match spec_parser_value b1, spec_parser_value b2 with
+  | Some (v1, n1), Some (v2, n2) -> v1 == v2
+  | _ -> False
+  ))
+  (ensures (match spec_parser_value b1, spec_parser_value b2 with
+  | Some (v1, n1), Some (v2, n2) -> n1 == n2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n2
+  | _ -> True
+  ))
+
+val spec_parser_value_strong_prefix (b1 b2: bytes) : Lemma
+  (requires (
+    match spec_parser_value b1 with
+    | Some (_, n1) -> n1 <= Seq.length b2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n1
+    | _ -> False
+  ))
+  (ensures (
+    match spec_parser_value b1, spec_parser_value b2 with
+    | Some (v1, _), Some (v2, _) -> v1 == v2
+    | _ -> False
+  ))
 
 /// This is an ad hoc bound due to a bound on Blake hashable inputs
 val serialized_value_length (v:value_type)
-  : Lemma (Seq.length (spec_serializer_value v) <= 4096)
+  : Lemma (Seq.length (spec_serializer_value v) <= 2040)
 
+// END properties needed to link with EverParse-generated record parsers and serializers
 
 /// The type of high-level app_params, with key and value type
 /// instantiated to the above types
