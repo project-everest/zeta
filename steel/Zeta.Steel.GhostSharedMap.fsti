@@ -8,21 +8,42 @@ open Zeta.Steel.Util
 open FStar.TSet
 open Steel.FractionalPermission
 #push-options "--z3cliopt 'smt.qi.eager_threshold=100' --fuel 0 --ifuel 2 --z3rlimit_factor 4"
-let kmap (k:eqtype) (v:Type) (p:preorder v) =
-  Map.t k (option perm & vhist p)
+let permission (v:Type) =
+  (option perm  //a fractional permission; indicates some ownership, with Some full allowing writes compatible with the last commit
+   & option v)  //an optional anchor
+
+let has_advanceable #v (p:permission v) = Some? (fst p)
+let has_anchor #v (p:permission v) = Some? (snd p)
+let has_some_ownership #v (p:permission v) = has_advanceable p || has_anchor p
+let anchor_of #v (p:permission v { has_anchor p }) : v = Some?.v (snd p)
+
+// a reflexive relation controls how far an element can be updated
+let anchor_rel (#v:Type) (p:preorder v) =
+  anchors:(v -> v -> prop) {
+    (forall v0 v1. anchors v0 v1 ==> p v0 v1) /\
+    (forall v. v `anchors` v) /\
+    (forall x z. x `anchors` z  ==> (forall y. p x y /\ p y z ==> x `anchors` y)) //if x `anchors` z then it also anchors any `y` between x and z
+  }
+
+
+let kmap_value (#v:Type) (p:preorder v) (anchors:anchor_rel p)
+  = pv:(permission v & vhist p) { has_anchor (fst pv) ==> anchor_of (fst pv) `anchors` curval (snd pv) }
+
+let kmap (k:eqtype) (v:Type) (p:preorder v) (anchors:anchor_rel p) =
+  Map.t k (kmap_value p anchors)
 
 #push-options "--fuel 1"
-let initial_map (#k:eqtype) (#v:Type) (#p:preorder v)
+let initial_map (#k:eqtype) (#v:Type) (#p:preorder v) (#anchors:anchor_rel p)
                 (f:option perm) (value:v)
-  : kmap k v p
-  = map_literal (fun _ -> f, ([value] <: vhist p))
+  : kmap k v p anchors
+  = map_literal (fun _ -> (((Some full, Some value) <: permission v), ([value] <: vhist p)) <:kmap_value p anchors)
 #pop-options
 
 [@@erasable]
 noeq
-type knowledge (k:eqtype) (v:Type) (p:preorder v) =
-  | Owns     : kmap k v p -> knowledge k v p
-  | Nothing  : knowledge k v p
+type knowledge (k:eqtype) (v:Type) (p:preorder v) (anchors:anchor_rel p) =
+  | Owns     : kmap k v p anchors -> knowledge k v p anchors
+  | Nothing  : knowledge k v p anchors
 
 let b2p (b:bool)
   : prop
@@ -36,29 +57,77 @@ let perm_opt_composable (p0 p1:option perm)
     | None, Some p -> b2p (p `lesser_equal_perm` full)
     | Some p0, Some p1 -> b2p (sum_perm p0 p1 `lesser_equal_perm` full)
 
-let kmap_composable_k (#k:eqtype) (#v:Type) (#p:preorder v) (m0 m1: kmap k v p)
+let compose_perm_opt (p0 p1:option perm) =
+  match p0, p1 with
+  | None, p
+  | p, None -> p
+  | Some p0, Some p1 -> Some (sum_perm p0 p1)
+
+let permission_composable #v (p0 p1 : permission v)
+  : prop
+  = let q0, s0 = p0 in
+    let q1, s1 = p1 in
+    perm_opt_composable q0 q1 /\  // some of fracs can't exceed 1
+    not (Some? s0 && Some? s1)   // at most one can have an anchor
+
+let compose_permissions (#v:_) (p0:permission v) (p1:permission v{permission_composable p0 p1})
+  : permission v
+  = compose_perm_opt (fst p0) (fst p1),
+    (match snd p0, snd p1 with
+     | None, a
+     | a, None -> a)
+
+let kmap_composable_k (#k:eqtype) (#v:Type) (#p:preorder v) (#anchors:anchor_rel p)
+                      (m0 m1: kmap k v p anchors)
                       (key:k)
    : prop
-   = match Map.sel m0 key, Map.sel m1 key with
-     | (None, v0), (None, v1) ->
-       p_composable _ v0 v1
+   = let (p0, v0) = Map.sel m0 key in
+     let (p1, v1) = Map.sel m1 key in
+     permission_composable p0 p1 /\
+    (if not (has_some_ownership p0)
+     && not (has_some_ownership p1)
+     then p_composable _ v0 v1 //neither has ownership, one history is older than the other
+     else if not (has_some_ownership p0)
+          && has_some_ownership p1
+     then (
+          if has_advanceable p1
+          then v1 `extends` v0 //the one with ownership is more recent
+          else (p_composable _ v0 v1 /\
+               (v0 `extends` v1 ==> anchor_of p1 `anchors` curval v0))
+     )
+     else if has_some_ownership p0
+          && not (has_some_ownership p1)
+     then (
+          if has_advanceable p0
+          then v0 `extends` v1
+          else (p_composable _ v0 v1 /\
+                (v1 `extends` v0 ==> anchor_of p0 `anchors` curval v1))
+     )
+     else (
+       assert (has_some_ownership p0 && has_some_ownership p1);
+       if has_anchor p0 && has_anchor p1 //at most one can sync
+       then False
+       else if has_advanceable p0 && has_advanceable p1
+       then v0 == v1 //if both are advanceable, then they must both only have read permission and must agree on the value
+       else if has_advanceable p0 && has_anchor p1
+       then ( assert (not (has_advanceable p1));
+              v0 `extends` v1 /\           //v0 has advanceable ownership, so extends
+              anchor_of p1 `anchors` curval v0  //but not beyond what is allowed by s
+            )
+       else if has_anchor p0 && has_advanceable p1 //symmetric
+       then ( assert (not (has_advanceable p0));
+              v1 `extends` v0 /\
+              anchor_of p0 `anchors` curval v1  //v1 extends, but not beyond what is allowed by s
+            )
+       else (assert false; False))) //exhaustive
 
-     | (Some p, v), (None, v')
-     | (None, v'), (Some p, v) ->
-       v `extends` v' /\
-       perm_opt_composable (Some p) None
-
-     | (Some p0, v0), (Some p1, v1) ->
-        perm_opt_composable (Some p0) (Some p1) /\
-        v0 == v1
-
-let kmap_composable (#k:eqtype) (#v:Type) (#p:preorder v) (m0 m1: kmap k v p)
+let kmap_composable (#k:eqtype) (#v:Type) (#p:preorder v) (#anchors:anchor_rel p) (m0 m1: kmap k v p anchors)
    : prop
    = forall k. kmap_composable_k m0 m1 k
 
-let composable #k #v #p
-  : symrel (knowledge k v p)
-  = fun (k0 k1:knowledge k v p) ->
+let composable #k #v #p #a
+  : symrel (knowledge k v p a)
+  = fun (k0 k1:knowledge k v p a) ->
     match k0, k1 with
     | Nothing, _
     | _, Nothing -> True
@@ -69,36 +138,47 @@ let composable #k #v #p
 let p_op (#a: Type u#a) (q:preorder a) (x:vhist q) (y:vhist q{p_composable q x y}) : vhist q =
   p_op _ x y
 
-let compose_kmaps (#k:eqtype) (#v:Type) (#p:preorder v)
-                 (m0: kmap k v p)
-                 (m1: kmap k v p { kmap_composable m0 m1 })
-  : kmap k v p
-  =  map_literal
-          (fun k ->
-            match Map.sel m0 k, Map.sel m1 k with
-            | (None, v0), (None, v1) ->
-               None, p_op _ v0 v1
-
-            | (Some p, v), (None, _)
-            | (None, _), (Some p, v) ->
-              Some p, v
-
-            | (Some p0, v0), (Some p1, _) ->
-              Some (sum_perm p0 p1), v0)
+let compose_at_k (#k:eqtype) (#v:Type) (#p:preorder v) (#anchors:anchor_rel p)
+                 (m0: kmap k v p anchors)
+                 (m1: kmap k v p anchors)
+                 (key:k { kmap_composable_k m0 m1 key})
+  : kmap_value p anchors
+  =  let p0, v0 = Map.sel m0 key in
+     let p1, v1 = Map.sel m1 key in
+     let p12 = compose_permissions p0 p1 in
+     let v12 = p_op _ v0 v1 in
+     p12, v12
 
 
-let compose_kmaps_comm (#k:eqtype) (#v:Type) (#p:preorder v)
-                       (m0: kmap k v p)
-                       (m1: kmap k v p { kmap_composable m0 m1 })
+let compose_kmaps (#k:eqtype) (#v:Type) (#p:preorder v) (#anc:anchor_rel p)
+                  (m0: kmap k v p anc)
+                  (m1: kmap k v p anc{ kmap_composable m0 m1 })
+  : kmap k v p anc
+  =  map_literal (compose_at_k m0 m1)
+
+let compose_kmaps_comm (#k:eqtype) (#v:Type) (#p:preorder v) (#anc:anchor_rel p)
+                       (m0: kmap k v p anc)
+                       (m1: kmap k v p anc{ kmap_composable m0 m1 })
  : Lemma (compose_kmaps m0 m1 `Map.equal` compose_kmaps m1 m0)
          [SMTPat (compose_kmaps m0 m1);
           SMTPat (compose_kmaps m1 m0)]
  = ()
 
-let compose_maps_assoc (#k:eqtype) (#v:Type) (#p:preorder v)
-                       (m0: kmap k v p)
-                       (m1: kmap k v p)
-                       (m2: kmap k v p {
+let kmap_composable_assoc (#k:eqtype) (#v:Type) (#p:preorder v) (#anchors:anchor_rel p)
+                          (m0: kmap k v p anchors)
+                          (m1: kmap k v p anchors)
+                          (m2: kmap k v p anchors {
+                            kmap_composable m1 m2 /\
+                            kmap_composable m0 (compose_kmaps m1 m2)
+                          })
+ : Lemma (kmap_composable m0 m1 /\
+          kmap_composable (compose_kmaps m0 m1) m2)
+ = ()
+
+let compose_maps_assoc (#k:eqtype) (#v:Type) (#p:preorder v) (#s:anchor_rel p)
+                       (m0: kmap k v p s)
+                       (m1: kmap k v p s)
+                       (m2: kmap k v p s {
                          kmap_composable m1 m2 /\
                          kmap_composable m0 (compose_kmaps m1 m2)
                        })
@@ -108,13 +188,13 @@ let compose_maps_assoc (#k:eqtype) (#v:Type) (#p:preorder v)
           compose_kmaps (compose_kmaps m0 m1) m2)
          [SMTPat (compose_kmaps (compose_kmaps m0 m1) m2);
           SMTPat (compose_kmaps m0 (compose_kmaps m2 m2))]
- = ()
+ = kmap_composable_assoc m0 m1 m2
 
 
-let compose_maps_assoc_r (#k:eqtype) (#v:Type) (#p:preorder v)
-                       (m0: kmap k v p)
-                       (m1: kmap k v p)
-                       (m2: kmap k v p {
+let compose_maps_assoc_r (#k:eqtype) (#v:Type) (#p:preorder v) (#s:anchor_rel p)
+                       (m0: kmap k v p s)
+                       (m1: kmap k v p s)
+                       (m2: kmap k v p s{
                          kmap_composable m0 m1 /\
                          kmap_composable (compose_kmaps m0 m1) m2
                        })
@@ -126,9 +206,9 @@ let compose_maps_assoc_r (#k:eqtype) (#v:Type) (#p:preorder v)
           SMTPat (compose_kmaps m0 (compose_kmaps m2 m2))]
  = ()
 
-let compose #k #v #p (k0:knowledge k v p)
-                     (k1:knowledge k v p { composable k0 k1 })
-  : knowledge k v p
+let compose #k #v #p #s (k0:knowledge k v p s)
+                        (k1:knowledge k v p s{ composable k0 k1 })
+  : knowledge k v p s
   = match k0, k1 with
     | Nothing, k
     | k, Nothing -> k
@@ -136,28 +216,28 @@ let compose #k #v #p (k0:knowledge k v p)
     | Owns m, Owns m' ->
       Owns (compose_kmaps m m')
 
-let kmap_composable_assoc_l #k #v #p (k0 k1 k2: kmap k v p)
-  : Lemma
-    (requires
-           kmap_composable k1 k2 /\
-           kmap_composable k0 (compose_kmaps k1 k2))
-    (ensures
-           kmap_composable k0 k1 /\
-           kmap_composable (compose_kmaps k0 k1) k2)
-  = ()
+// let kmap_composable_assoc_l #k #v #p (k0 k1 k2: kmap k v p)
+//   : Lemma
+//     (requires
+//            kmap_composable k1 k2 /\
+//            kmap_composable k0 (compose_kmaps k1 k2))
+//     (ensures
+//            kmap_composable k0 k1 /\
+//            kmap_composable (compose_kmaps k0 k1) k2)
+//   = ()
 
-let kmap_composable_assoc_r #k #v #p (k0 k1 k2: kmap k v p)
-  : Lemma
-    (requires
-           kmap_composable k0 k1 /\
-           kmap_composable (compose_kmaps k0 k1) k2)
-    (ensures
-           kmap_composable k1 k2 /\
-           kmap_composable k0 (compose_kmaps k1 k2))
-  = ()
+// let kmap_composable_assoc_r #k #v #p (k0 k1 k2: kmap k v p)
+//   : Lemma
+//     (requires
+//            kmap_composable k0 k1 /\
+//            kmap_composable (compose_kmaps k0 k1) k2)
+//     (ensures
+//            kmap_composable k1 k2 /\
+//            kmap_composable k0 (compose_kmaps k1 k2))
+//   = ()
 
 
-let composable_assoc_r #k #v #p (k0 k1 k2: knowledge k v p)
+let composable_assoc_r #k #v #p #s (k0 k1 k2: knowledge k v p s)
   : Lemma
     (requires  composable k0 k1 /\
                composable (compose k0 k1) k2)
@@ -169,9 +249,9 @@ let composable_assoc_r #k #v #p (k0 k1 k2: knowledge k v p)
     | _, Nothing, _
     | _, _, Nothing -> ()
     | Owns m0, Owns m1, Owns m2 ->
-      kmap_composable_assoc_r m0 m1 m2
+      compose_maps_assoc_r m0 m1 m2
 
-let composable_assoc_l #k #v #p (k0 k1 k2: knowledge k v p)
+let composable_assoc_l #k #v #p #s (k0 k1 k2: knowledge k v p s)
   : Lemma
     (requires
                composable k1 k2 /\
@@ -183,10 +263,10 @@ let composable_assoc_l #k #v #p (k0 k1 k2: knowledge k v p)
     | _, Nothing, _
     | _, _, Nothing -> ()
     | Owns m0, Owns m1, Owns m2 ->
-      kmap_composable_assoc_l m0 m1 m2
+      compose_maps_assoc m0 m1 m2
 
 
-let p0 #k #v #p : pcm' (knowledge k v p) = {
+let p0 #k #v #p #s : pcm' (knowledge k v p s) = {
   composable;
   op=compose;
   one=Nothing
@@ -195,24 +275,27 @@ let p0 #k #v #p : pcm' (knowledge k v p) = {
 let kmap_perm_of (#k:eqtype)
                  (#v:Type)
                  (#p:preorder v)
-                 (m:kmap k v p)
+                 (#s:anchor_rel p)
+                 (m:kmap k v p s)
                  (key:k)
     = fst (Map.sel m key)
 
 let kmap_owns_key (#k:eqtype)
                   (#v:Type)
                   (#p:preorder v)
-                  (m:kmap k v p)
+                  (#s:anchor_rel p)
+                  (m:kmap k v p s)
                   (key:k)
-    = kmap_perm_of m key == Some full
+    = fst (kmap_perm_of m key) == Some full /\
+      Some? (snd (kmap_perm_of m key))
 
-let full #k #v #p (kn:knowledge k v p)
+let full #k #v #p #s (kn:knowledge k v p s)
   : prop
   = match kn with
     | Nothing -> False
     | Owns km -> forall k. kmap_owns_key km k
 
-let pcm #k #v #p : pcm (knowledge k v p) = {
+let pcm #k #v #p #s : pcm (knowledge k v p s) = {
   p = p0;
   comm = (fun k0 k1 ->
              match k0, k1 with
