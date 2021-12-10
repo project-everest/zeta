@@ -25,9 +25,12 @@ let anchor_rel (#v:Type) (p:preorder v) =
     (forall x z. x `anchors` z  ==> (forall y. p x y /\ p y z ==> x `anchors` y)) //if x `anchors` z then it also anchors any `y` between x and z
   }
 
+let anchored (#v:Type) (#p:preorder v) (anchors:anchor_rel p)
+             (pv:(permission v & vhist p))
+  = has_anchor (fst pv) ==> anchor_of (fst pv) `anchors` curval (snd pv)
 
 let kmap_value (#v:Type) (p:preorder v) (anchors:anchor_rel p)
-  = pv:(permission v & vhist p) { has_anchor (fst pv) ==> anchor_of (fst pv) `anchors` curval (snd pv) }
+  = pv:(permission v & vhist p) { anchored anchors pv }
 
 let kmap (k:eqtype) (v:Type) (p:preorder v) (anchors:anchor_rel p) =
   Map.t k (kmap_value p anchors)
@@ -149,7 +152,6 @@ let compose_at_k (#k:eqtype) (#v:Type) (#p:preorder v) (#anchors:anchor_rel p)
      let v12 = p_op _ v0 v1 in
      p12, v12
 
-
 let compose_kmaps (#k:eqtype) (#v:Type) (#p:preorder v) (#anc:anchor_rel p)
                   (m0: kmap k v p anc)
                   (m1: kmap k v p anc{ kmap_composable m0 m1 })
@@ -191,6 +193,18 @@ let compose_maps_assoc (#k:eqtype) (#v:Type) (#p:preorder v) (#s:anchor_rel p)
  = kmap_composable_assoc m0 m1 m2
 
 
+let kmap_composable_assoc_r (#k:eqtype) (#v:Type) (#p:preorder v) (#anchors:anchor_rel p)
+                            (m0: kmap k v p anchors)
+                            (m1: kmap k v p anchors)
+                            (m2: kmap k v p anchors {
+                              kmap_composable m0 m1 /\
+                              kmap_composable (compose_kmaps m0 m1) m2
+                            })
+ : Lemma (kmap_composable m1 m2 /\
+          kmap_composable m0 (compose_kmaps m1 m2))
+ = ()
+
+
 let compose_maps_assoc_r (#k:eqtype) (#v:Type) (#p:preorder v) (#s:anchor_rel p)
                        (m0: kmap k v p s)
                        (m1: kmap k v p s)
@@ -204,7 +218,7 @@ let compose_maps_assoc_r (#k:eqtype) (#v:Type) (#p:preorder v) (#s:anchor_rel p)
           compose_kmaps (compose_kmaps m0 m1) m2)
          [SMTPat (compose_kmaps (compose_kmaps m0 m1) m2);
           SMTPat (compose_kmaps m0 (compose_kmaps m2 m2))]
- = ()
+ = kmap_composable_assoc_r m0 m1 m2
 
 let compose #k #v #p #s (k0:knowledge k v p s)
                         (k1:knowledge k v p s{ composable k0 k1 })
@@ -216,34 +230,16 @@ let compose #k #v #p #s (k0:knowledge k v p s)
     | Owns m, Owns m' ->
       Owns (compose_kmaps m m')
 
-// let kmap_composable_assoc_l #k #v #p (k0 k1 k2: kmap k v p)
-//   : Lemma
-//     (requires
-//            kmap_composable k1 k2 /\
-//            kmap_composable k0 (compose_kmaps k1 k2))
-//     (ensures
-//            kmap_composable k0 k1 /\
-//            kmap_composable (compose_kmaps k0 k1) k2)
-//   = ()
-
-// let kmap_composable_assoc_r #k #v #p (k0 k1 k2: kmap k v p)
-//   : Lemma
-//     (requires
-//            kmap_composable k0 k1 /\
-//            kmap_composable (compose_kmaps k0 k1) k2)
-//     (ensures
-//            kmap_composable k1 k2 /\
-//            kmap_composable k0 (compose_kmaps k1 k2))
-//   = ()
-
-
 let composable_assoc_r #k #v #p #s (k0 k1 k2: knowledge k v p s)
   : Lemma
     (requires  composable k0 k1 /\
                composable (compose k0 k1) k2)
     (ensures
                composable k1 k2 /\
-               composable k0 (compose k1 k2))
+               composable k0 (compose k1 k2) /\
+               compose k0 (compose k1 k2) ==
+               compose (compose k0 k1) k2
+               )
   = match k0, k1, k2 with
     | Nothing, _, _
     | _, Nothing, _
@@ -257,7 +253,9 @@ let composable_assoc_l #k #v #p #s (k0 k1 k2: knowledge k v p s)
                composable k1 k2 /\
                composable k0 (compose k1 k2))
     (ensures   composable k0 k1 /\
-               composable (compose k0 k1) k2)
+               composable (compose k0 k1) k2 /\
+               compose k0 (compose k1 k2) ==
+               compose (compose k0 k1) k2)
   = match k0, k1, k2 with
     | Nothing, _, _
     | _, Nothing, _
@@ -289,7 +287,7 @@ let kmap_owns_key (#k:eqtype)
     = fst (kmap_perm_of m key) == Some full /\
       Some? (snd (kmap_perm_of m key))
 
-let full #k #v #p #s (kn:knowledge k v p s)
+let full_knowledge #k #v #p #s (kn:knowledge k v p s)
   : prop
   = match kn with
     | Nothing -> False
@@ -303,69 +301,112 @@ let pcm #k #v #p #s : pcm (knowledge k v p s) = {
              | _, Nothing -> ()
              | Owns m0, Owns m1 ->
                compose_kmaps_comm m0 m1);
-  assoc = (fun k0 k1 k2 ->
-             composable_assoc_l k0 k1 k2;
-             match k0, k1, k2 with
-             | Nothing, _, _
-             | _, Nothing, _
-             | _, _, Nothing -> ()
-             | Owns m0, Owns m1, Owns m2 ->
-               compose_maps_assoc m0 m1 m2);
-  assoc_r = (fun k0 k1 k2 ->
-               composable_assoc_r k0 k1 k2;
-               match k0, k1, k2 with
-               | Nothing, _, _
-               | _, Nothing, _
-               | _, _, Nothing -> ()
-               | Owns m0, Owns m1, Owns m2 ->
-                 compose_maps_assoc_r m0 m1 m2);
+  assoc = (fun k0 k1 k2 -> composable_assoc_l k0 k1 k2);
+  assoc_r = (fun k0 k1 k2 -> composable_assoc_r k0 k1 k2);
   is_unit = (fun _ -> ());
-  refine = full;
+  refine = full_knowledge;
 }
 
 let kmap_value_of (#k:eqtype)
                   (#v:Type)
                   (#p:preorder v)
-                  (m:kmap k v p)
+                  (#s:_)
+                  (m:kmap k v p s)
                   (key:k)
     = snd (Map.sel m key)
 
 let kmap_update_key (#k:eqtype)
                     (#v:Type)
                     (#p:preorder v)
-                    (m:kmap k v p)
+                    (#s:_)
+                    (m:kmap k v p s)
                     (key:k)
                     (value:vhist p)
-    = Map.upd m key (kmap_perm_of m key, value)
+    = let p, _ = kmap_perm_of m key in
+      let p' = p, Some (curval value) in
+      Map.upd m key (p', value)
 
-let update_key_hist (#k:eqtype)
+#push-options "--query_stats"
+
+let frame_preserving_upd_lemma_refine
+                   (#k:eqtype)
                     (#v:Type)
                     (#p:preorder v)
-                    (m:kmap k v p)
+                    (#s:anchor_rel p)
+                    (m:kmap k v p s)
                     (key:k)
                     (v1:vhist p {
                       kmap_owns_key m key /\
                       v1 `extends` kmap_value_of m key
                     })
-  : frame_preserving_upd pcm (Owns m) (Owns (kmap_update_key m key v1))
-  = fun full_v ->
-      assert (full full_v);
-      assert (compatible pcm (Owns m) full_v);
-      let Owns full_m = full_v in
+                    (full_v:_{ pcm.refine full_v /\
+                               compatible pcm (Owns m) full_v })
+  : Lemma
+    ( let Owns full_m = full_v in
       let m_res = kmap_update_key full_m key v1 in
       let res = Owns m_res in
-      let m' = kmap_update_key m key v1 in
-      eliminate exists frame. composable (Owns m) frame /\ compose frame (Owns m) == full_v
-      returns (compatible pcm (Owns (kmap_update_key m key v1)) res)
-      with _. (
+      pcm.refine res)
+  = ()
+
+let frame_preserving_upd_lemma_compat
+                   (#k:eqtype)
+                    (#v:Type)
+                    (#p:preorder v)
+                    (#s:anchor_rel p)
+                    (m:kmap k v p s)
+                    (key:k)
+                    (v1:vhist p {
+                      kmap_owns_key m key /\
+                      v1 `extends` kmap_value_of m key
+                    })
+                    (full_v:_{ pcm.refine full_v /\
+                               compatible pcm (Owns m) full_v })
+  : Lemma
+    ( let Owns full_m = full_v in
+      let m_res = kmap_update_key full_m key v1 in
+      let res = Owns m_res in
+      compatible pcm (Owns (kmap_update_key m key v1)) res)
+  = let Owns full_m = full_v in
+    let m_res = kmap_update_key full_m key v1 in
+    let res = Owns m_res in
+    let m' = kmap_update_key m key v1 in
+    eliminate exists frame. composable (Owns m) frame /\ compose frame (Owns m) == full_v
+    returns (compatible pcm (Owns (kmap_update_key m key v1)) res)
+    with _. (
            assert (composable (Owns (kmap_update_key m key v1)) frame);
            match frame with
            | Nothing -> ()
            | Owns m_frame ->
-             assert (kmap_perm_of m_frame key == None);
+             assert (not (has_some_ownership (kmap_perm_of m_frame key)));
              assert (Map.equal (compose_kmaps m_frame m') m_res)
-      );
-      introduce forall (frame:_{composable (Owns m) frame}).
+    )
+
+let frame_preserving_upd_lemma_upd
+                    (#k:eqtype)
+                    (#v:Type)
+                    (#p:preorder v)
+                    (#s:anchor_rel p)
+                    (m:kmap k v p s)
+                    (key:k)
+                    (v1:vhist p {
+                      kmap_owns_key m key /\
+                      v1 `extends` kmap_value_of m key
+                    })
+                    (full_v:_{ pcm.refine full_v /\
+                               compatible pcm (Owns m) full_v })
+  : Lemma
+    ( let Owns full_m = full_v in
+      let m_res = kmap_update_key full_m key v1 in
+      let res = Owns m_res in
+      let m' = kmap_update_key m key v1 in
+      forall (frame:_{composable (Owns m) frame}). {:pattern composable (Owns m) frame}
+        composable (Owns m') frame /\
+        (compose (Owns m) frame == full_v ==> compose (Owns m') frame == res))
+  = let Owns full_m = full_v in
+    let m_res = kmap_update_key full_m key v1 in
+    let res = Owns m_res in
+    let m' = kmap_update_key m key v1 in
+    introduce forall (frame:_{composable (Owns m) frame}).
                 composable (Owns m') frame /\
                 (compose (Owns m) frame == full_v ==> compose (Owns m') frame == res)
       with (
@@ -377,18 +418,53 @@ let update_key_hist (#k:eqtype)
           match frame with
           | Nothing -> ()
           | Owns m_frame ->
+            assert (not (has_some_ownership (kmap_perm_of m_frame key)));
+            let m_res' = compose_kmaps m_frame m' in
+            introduce forall key'.
+              Map.sel m_res' key' == Map.sel m_res key'
+            with (
+              if key <> key'
+              then (
+                ()
+              )
+              else (
+                ()
+              )
+            );
             assert (Map.equal (compose_kmaps m_frame m') m_res)
         )
-      );
+      )
+
+let update_key_hist (#k:eqtype)
+                    (#v:Type)
+                    (#p:preorder v)
+                    (#s:anchor_rel p)
+                    (m:kmap k v p s)
+                    (key:k)
+                    (v1:vhist p {
+                      kmap_owns_key m key /\
+                      v1 `extends` kmap_value_of m key
+                    })
+  : frame_preserving_upd pcm (Owns m) (Owns (kmap_update_key m key v1))
+  = fun full_v ->
+      assert (full_knowledge full_v);
+      assert (compatible pcm (Owns m) full_v);
+      let Owns full_m = full_v in
+      let m_res = kmap_update_key full_m key v1 in
+      let res = Owns m_res in
+      frame_preserving_upd_lemma_refine m key v1 full_v;
+      frame_preserving_upd_lemma_compat m key v1 full_v;
+      frame_preserving_upd_lemma_upd m key v1 full_v;
       res
 
 let kmap_update_key_value (#k:eqtype)
                           (#v:Type)
                           (#p:preorder v)
-                          (m:kmap k v p)
+                          (#s:anchor_rel p)
+                          (m:kmap k v p s)
                           (key:k)
                           (value:v { curval (kmap_value_of m key) `p` value })
-  : m':kmap k v p {
+  : m':kmap k v p s {
                     curval (kmap_value_of m' key) == value /\
                     kmap_value_of m' key `extends` kmap_value_of m key
                   }
@@ -398,167 +474,310 @@ let kmap_update_key_value (#k:eqtype)
 let update_key (#k:eqtype)
                (#v:Type)
                (#p:preorder v)
-               (m:kmap k v p)
+               (#s:anchor_rel p)
+               (m:kmap k v p s)
                (key:k)
                (v1:v {
-                 kmap_owns_key m key /\
-                 curval (kmap_value_of m key) `p` v1
+                 kmap_owns_key m key /\ //if you have full ownership of key
+                 curval (kmap_value_of m key) `p` v1 //you can update it wrt the preorder only
                })
   : frame_preserving_upd pcm (Owns m) (Owns (kmap_update_key_value m key v1))
-  = update_key_hist m key (extend_history (kmap_value_of m key) v1)
-
-let ksnapshot (#k:eqtype) (#v:Type0) (#c:preorder v)
-             (m: kmap k v c)
-  : kmap k v c
-  = map_literal (fun k -> None, snd (Map.sel m k))
-
-let all_perms_ok (#k:eqtype)
-                 (#v:Type)
-                 (#p:preorder v)
-                 (m:kmap k v p)
-  = forall k. perm_opt_composable (kmap_perm_of m k) None
+  = let v1':vhist p = extend_history (kmap_value_of m key) v1 in
+    coerce_eq () (update_key_hist m key v1')
 
 
-let snapshot_lemma (#k:eqtype)
-                   (#v:Type)
-                   (#p:preorder v)
-                   (m:kmap k v p)
-  : Lemma (requires all_perms_ok m)
-          (ensures Owns m `composable` Owns (ksnapshot m))
-  = ()
+// let frame_preserving_upd_lemma_refine
+//                    (#k:eqtype)
+//                     (#v:Type)
+//                     (#p:preorder v)
+//                     (#s:anchor_rel p)
+//                     (m:kmap k v p s)
+//                     (key:k)
+//                     (v1:vhist p {
+//                       kmap_owns_key m key /\
+//                       v1 `extends` kmap_value_of m key
+//                     })
+//                     (full_v:_{ pcm.refine full_v /\
+//                                compatible pcm (Owns m) full_v })
+//   : Lemma
+//     ( let Owns full_m = full_v in
+//       let m_res = kmap_update_key full_m key v1 in
+//       let res = Owns m_res in
+//       pcm.refine res)
+//   = ()
+
+// let frame_preserving_upd_lemma_compat
+//                    (#k:eqtype)
+//                     (#v:Type)
+//                     (#p:preorder v)
+//                     (#s:anchor_rel p)
+//                     (m:kmap k v p s)
+//                     (key:k)
+//                     (v1:vhist p {
+//                       kmap_owns_key m key /\
+//                       v1 `extends` kmap_value_of m key
+//                     })
+//                     (full_v:_{ pcm.refine full_v /\
+//                                compatible pcm (Owns m) full_v })
+//   : Lemma
+//     ( let Owns full_m = full_v in
+//       let m_res = kmap_update_key full_m key v1 in
+//       let res = Owns m_res in
+//       compatible pcm (Owns (kmap_update_key m key v1)) res)
+//   = let Owns full_m = full_v in
+//     let m_res = kmap_update_key full_m key v1 in
+//     let res = Owns m_res in
+//     let m' = kmap_update_key m key v1 in
+//     eliminate exists frame. composable (Owns m) frame /\ compose frame (Owns m) == full_v
+//     returns (compatible pcm (Owns (kmap_update_key m key v1)) res)
+//     with _. (
+//            assert (composable (Owns (kmap_update_key m key v1)) frame);
+//            match frame with
+//            | Nothing -> ()
+//            | Owns m_frame ->
+//              assert (not (has_some_ownership (kmap_perm_of m_frame key)));
+//              assert (Map.equal (compose_kmaps m_frame m') m_res)
+//     )
+
+// let frame_preserving_upd_lemma_upd
+//                     (#k:eqtype)
+//                     (#v:Type)
+//                     (#p:preorder v)
+//                     (#s:anchor_rel p)
+//                     (m:kmap k v p s)
+//                     (key:k)
+//                     (v1:vhist p {
+//                       kmap_owns_key m key /\
+//                       v1 `extends` kmap_value_of m key
+//                     })
+//                     (full_v:_{ pcm.refine full_v /\
+//                                compatible pcm (Owns m) full_v })
+//   : Lemma
+//     ( let Owns full_m = full_v in
+//       let m_res = kmap_update_key full_m key v1 in
+//       let res = Owns m_res in
+//       let m' = kmap_update_key m key v1 in
+//       forall (frame:_{composable (Owns m) frame}). {:pattern composable (Owns m) frame}
+//         composable (Owns m') frame /\
+//         (compose (Owns m) frame == full_v ==> compose (Owns m') frame == res))
+//   = let Owns full_m = full_v in
+//     let m_res = kmap_update_key full_m key v1 in
+//     let res = Owns m_res in
+//     let m' = kmap_update_key m key v1 in
+//     introduce forall (frame:_{composable (Owns m) frame}).
+//                 composable (Owns m') frame /\
+//                 (compose (Owns m) frame == full_v ==> compose (Owns m') frame == res)
+//       with (
+//         introduce _ /\ _
+//         with ()
+//         and introduce _ ==> _
+//         with _. (
+//           assert (compose (Owns m) frame == full_v);
+//           match frame with
+//           | Nothing -> ()
+//           | Owns m_frame ->
+//             assert (not (has_some_ownership (kmap_perm_of m_frame key)));
+//             let m_res' = compose_kmaps m_frame m' in
+//             introduce forall key'.
+//               Map.sel m_res' key' == Map.sel m_res key'
+//             with (
+//               if key <> key'
+//               then (
+//                 ()
+//               )
+//               else (
+//                 ()
+//               )
+//             );
+//             assert (Map.equal (compose_kmaps m_frame m') m_res)
+//         )
+//       )
+
+let kmap_owns_anchored_key (#k:eqtype)
+                           (#v:Type)
+                           (#p:preorder v)
+                           (#s:anchor_rel p)
+                           (m:kmap k v p s)
+                           (key:k)
+    = fst (kmap_perm_of m key) == Some full /\
+      None? (snd (kmap_perm_of m key))
 
 
-let snapshot_dup_lemma (#k:eqtype)
-                       (#v:Type)
-                       (#p:preorder v)
-                       (m:kmap k v p)
-  : Lemma (requires all_perms_ok m)
-          (ensures Owns (ksnapshot m) `composable` Owns (ksnapshot m))
-  = ()
-
-let update_snapshot_lemma (#k:eqtype)
-                          (#v:Type)
-                          (#p:preorder v)
-                          (m0 m1:kmap k v p)
-                          (key:k)
-  : Lemma (requires composable (Owns m0) (Owns m1) /\
-                    kmap_owns_key m0 key)
-          (ensures composable (Owns m0) (Owns (kmap_update_key m1 key (kmap_value_of m0 key))))
-  = ()
-
-////////////////////////////////////////////////////////////////////////////////
-
-let tmap (k:eqtype) (v:Type0) (c:preorder v) = Map.t k (hist c)
-
-val t (k:eqtype) (v:Type0) (c:preorder v) : Type0
-
-val k_of (#k:eqtype) (#v:Type0) (#c:preorder v)
-         (t:t k v c)
-         (knowledge: knowledge k v c)
-  : vprop
-
-val share  (#o:_)
-           (#k:eqtype) (#v:Type0) (#c:preorder v)
-           (#m0 :kmap k v c)
-           (#m1: kmap k v c { kmap_composable m0 m1 })
-           (t:t k v c)
-  : STGhostT unit o
-    (k_of t (Owns (compose_kmaps m0 m1)))
-    (fun _ -> k_of t (Owns m0) `star` k_of t (Owns m1))
-
-val gather (#o:_)
-           (#k:eqtype) (#v:Type0) (#c:preorder v)
-           (#m0 #m1: kmap k v c)
-           (t:t k v c)
-  : STGhostT (_:unit { kmap_composable m0 m1 }) o
-    (k_of t (Owns m0) `star` k_of t (Owns m1))
-    (fun _ -> k_of t (Owns (compose_kmaps m0 m1)))
-
-let snapshot (#k:eqtype) (#v:Type0) (#c:preorder v)
-             (m: kmap k v c)
-  : Map.t k v
-  = map_literal (fun k -> curval (snd (Map.sel m k)))
-
-val global_snapshot (#k:eqtype) (#v:Type0) (#c:preorder v)
-                    (t:t k v c)
-                    ([@@@smt_fallback] m: Map.t k v)
-  : vprop
-  // = exists_ (fun (km:kmap k v c) ->
-  //       pure (snapshot km == m) `star`
-  //       k_of t (Owns (ksnapshot km)))
-
-val take_snapshot (#o:_)
-                  (#k:eqtype) (#v:Type0) (#c:preorder v)
-                  (#m: kmap k v c)
-                  (t:t k v c)
-  : STGhostT unit o
-    (k_of t (Owns m))
-    (fun _ -> k_of t (Owns m) `star` global_snapshot t (snapshot m))
-
-val owns_key (#k:eqtype) (#v:Type0) (#c:preorder v)
-             (t:t k v c)
-             (key:k)
-             ([@@@smt_fallback]perm:perm)
-             ([@@@smt_fallback]value:v)
- : vprop
-  // = exists_ (fun (m:kmap k v c) ->
-  //      pure ((forall key'. (key<>key' ==> fst (Map.sel m key') == None)) /\
-  //            (match Map.sel m key with
-  //             | None, _ -> False
-  //             | Some p, h ->
-  //               perm == p /\
-  //               curval h == value)) `star`
-  //      k_of t (Owns m))
-
-val snapshot_of_key (#k:eqtype) (#v:Type0) (#c:preorder v)
-                    (t:t k v c)
-                    (key:k)
-                    ([@@@smt_fallback]value:v)
- : vprop
-  // = exists_ (fun (m:kmap k v c) ->
-  //      pure ((forall key'. fst (Map.sel m key') == None) /\
-  //            (match Map.sel m key with
-  //             | Some _, _ -> False
-  //             | None, h -> curval h == value)) `star`
-  //      k_of t (Owns m))
-
-val local_snapshot (#o:_)
-                   (#k:eqtype) (#v:Type0) (#c:preorder v)
-                   (#key:k) (#frac:_) (#value:v)
-                   (t:t k v c)
-  : STGhostT unit o
-    (owns_key t key frac value)
-    (fun _ -> owns_key t key frac value `star` snapshot_of_key t key value)
-
-val dup_snapshot (#o:_)
-                 (#k:eqtype) (#v:Type0) (#c:preorder v)
-                 (#key:k) (#value:v)
-                 (t:t k v c)
-  : STGhostT unit o
-    (snapshot_of_key t key value)
-    (fun _ -> snapshot_of_key t key value `star` snapshot_of_key t key value)
-
-val update (#o:_)
-           (#k:eqtype) (#v:Type0) (#c:preorder v)
-           (#key:k) (#value:v)
-           (t:t k v c)
-           (value':v {c value value'})
-  : STGhostT unit o
-    (owns_key t key full_perm value)
-    (fun _ -> owns_key t key full_perm value')
-
-val update_global_snapshot (#o:_)
-                           (#k:eqtype) (#v:Type0) (#c:preorder v)
-                           (#key:k) (#frac:_) (#value:v)
-                           (t:t k v c)
-                           (m:Map.t k v)
-  : STGhostT unit o
-    (owns_key t key frac value `star` global_snapshot t m)
-    (fun _ -> owns_key t key frac value `star` global_snapshot t (Map.upd m key value))
+// let update_anchored_key_hist (#k:eqtype)
+//                              (#v:Type)
+//                              (#p:preorder v)
+//                              (#s:anchor_rel p)
+//                              (m:kmap k v p s)
+//                              (key:k)
+//                              (v1:vhist p {
+//                                kmap_owns_anchored_key m key /\
+//                                v1 `extends` kmap_value_of m key
+//                              })
+//   : frame_preserving_upd pcm (Owns m) (Owns (kmap_update_key m key v1))
+//   = fun full_v ->
+//       assert (full full_v);
+//       assert (compatible pcm (Owns m) full_v);
+//       let Owns full_m = full_v in
+//       let m_res = kmap_update_key full_m key v1 in
+//       let res = Owns m_res in
+//       frame_preserving_upd_lemma_refine m key v1 full_v;
+//       frame_preserving_upd_lemma_compat m key v1 full_v;
+//       frame_preserving_upd_lemma_upd m key v1 full_v;
+//       res
 
 
-val dup_global_snapshot (#o:_) (#k:eqtype) (#v:Type0) (#c:preorder v) (#m: Map.t k v)
-                        (t:t k v c)
-  : STGhostT unit o
-    (global_snapshot t m)
-    (fun _ -> global_snapshot t m `star` global_snapshot t m)
+// let ksnapshot (#k:eqtype) (#v:Type0) (#c:preorder v)
+//              (m: kmap k v c)
+//   : kmap k v c
+//   = map_literal (fun k -> None, snd (Map.sel m k))
+
+// let all_perms_ok (#k:eqtype)
+//                  (#v:Type)
+//                  (#p:preorder v)
+//                  (m:kmap k v p)
+//   = forall k. perm_opt_composable (kmap_perm_of m k) None
+
+
+// let snapshot_lemma (#k:eqtype)
+//                    (#v:Type)
+//                    (#p:preorder v)
+//                    (m:kmap k v p)
+//   : Lemma (requires all_perms_ok m)
+//           (ensures Owns m `composable` Owns (ksnapshot m))
+//   = ()
+
+
+// let snapshot_dup_lemma (#k:eqtype)
+//                        (#v:Type)
+//                        (#p:preorder v)
+//                        (m:kmap k v p)
+//   : Lemma (requires all_perms_ok m)
+//           (ensures Owns (ksnapshot m) `composable` Owns (ksnapshot m))
+//   = ()
+
+// let update_snapshot_lemma (#k:eqtype)
+//                           (#v:Type)
+//                           (#p:preorder v)
+//                           (m0 m1:kmap k v p)
+//                           (key:k)
+//   : Lemma (requires composable (Owns m0) (Owns m1) /\
+//                     kmap_owns_key m0 key)
+//           (ensures composable (Owns m0) (Owns (kmap_update_key m1 key (kmap_value_of m0 key))))
+//   = ()
+
+// ////////////////////////////////////////////////////////////////////////////////
+
+// let tmap (k:eqtype) (v:Type0) (c:preorder v) = Map.t k (hist c)
+
+// val t (k:eqtype) (v:Type0) (c:preorder v) : Type0
+
+// val k_of (#k:eqtype) (#v:Type0) (#c:preorder v)
+//          (t:t k v c)
+//          (knowledge: knowledge k v c)
+//   : vprop
+
+// val share  (#o:_)
+//            (#k:eqtype) (#v:Type0) (#c:preorder v)
+//            (#m0 :kmap k v c)
+//            (#m1: kmap k v c { kmap_composable m0 m1 })
+//            (t:t k v c)
+//   : STGhostT unit o
+//     (k_of t (Owns (compose_kmaps m0 m1)))
+//     (fun _ -> k_of t (Owns m0) `star` k_of t (Owns m1))
+
+// val gather (#o:_)
+//            (#k:eqtype) (#v:Type0) (#c:preorder v)
+//            (#m0 #m1: kmap k v c)
+//            (t:t k v c)
+//   : STGhostT (_:unit { kmap_composable m0 m1 }) o
+//     (k_of t (Owns m0) `star` k_of t (Owns m1))
+//     (fun _ -> k_of t (Owns (compose_kmaps m0 m1)))
+
+// let snapshot (#k:eqtype) (#v:Type0) (#c:preorder v)
+//              (m: kmap k v c)
+//   : Map.t k v
+//   = map_literal (fun k -> curval (snd (Map.sel m k)))
+
+// val global_snapshot (#k:eqtype) (#v:Type0) (#c:preorder v)
+//                     (t:t k v c)
+//                     ([@@@smt_fallback] m: Map.t k v)
+//   : vprop
+//   // = exists_ (fun (km:kmap k v c) ->
+//   //       pure (snapshot km == m) `star`
+//   //       k_of t (Owns (ksnapshot km)))
+
+// val take_snapshot (#o:_)
+//                   (#k:eqtype) (#v:Type0) (#c:preorder v)
+//                   (#m: kmap k v c)
+//                   (t:t k v c)
+//   : STGhostT unit o
+//     (k_of t (Owns m))
+//     (fun _ -> k_of t (Owns m) `star` global_snapshot t (snapshot m))
+
+// val owns_key (#k:eqtype) (#v:Type0) (#c:preorder v)
+//              (t:t k v c)
+//              (key:k)
+//              ([@@@smt_fallback]perm:perm)
+//              ([@@@smt_fallback]value:v)
+//  : vprop
+//   // = exists_ (fun (m:kmap k v c) ->
+//   //      pure ((forall key'. (key<>key' ==> fst (Map.sel m key') == None)) /\
+//   //            (match Map.sel m key with
+//   //             | None, _ -> False
+//   //             | Some p, h ->
+//   //               perm == p /\
+//   //               curval h == value)) `star`
+//   //      k_of t (Owns m))
+
+// val snapshot_of_key (#k:eqtype) (#v:Type0) (#c:preorder v)
+//                     (t:t k v c)
+//                     (key:k)
+//                     ([@@@smt_fallback]value:v)
+//  : vprop
+//   // = exists_ (fun (m:kmap k v c) ->
+//   //      pure ((forall key'. fst (Map.sel m key') == None) /\
+//   //            (match Map.sel m key with
+//   //             | Some _, _ -> False
+//   //             | None, h -> curval h == value)) `star`
+//   //      k_of t (Owns m))
+
+// val local_snapshot (#o:_)
+//                    (#k:eqtype) (#v:Type0) (#c:preorder v)
+//                    (#key:k) (#frac:_) (#value:v)
+//                    (t:t k v c)
+//   : STGhostT unit o
+//     (owns_key t key frac value)
+//     (fun _ -> owns_key t key frac value `star` snapshot_of_key t key value)
+
+// val dup_snapshot (#o:_)
+//                  (#k:eqtype) (#v:Type0) (#c:preorder v)
+//                  (#key:k) (#value:v)
+//                  (t:t k v c)
+//   : STGhostT unit o
+//     (snapshot_of_key t key value)
+//     (fun _ -> snapshot_of_key t key value `star` snapshot_of_key t key value)
+
+// val update (#o:_)
+//            (#k:eqtype) (#v:Type0) (#c:preorder v)
+//            (#key:k) (#value:v)
+//            (t:t k v c)
+//            (value':v {c value value'})
+//   : STGhostT unit o
+//     (owns_key t key full_perm value)
+//     (fun _ -> owns_key t key full_perm value')
+
+// val update_global_snapshot (#o:_)
+//                            (#k:eqtype) (#v:Type0) (#c:preorder v)
+//                            (#key:k) (#frac:_) (#value:v)
+//                            (t:t k v c)
+//                            (m:Map.t k v)
+//   : STGhostT unit o
+//     (owns_key t key frac value `star` global_snapshot t m)
+//     (fun _ -> owns_key t key frac value `star` global_snapshot t (Map.upd m key value))
+
+
+// val dup_global_snapshot (#o:_) (#k:eqtype) (#v:Type0) (#c:preorder v) (#m: Map.t k v)
+//                         (t:t k v c)
+//   : STGhostT unit o
+//     (global_snapshot t m)
+//     (fun _ -> global_snapshot t m `star` global_snapshot t m)
