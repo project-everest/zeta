@@ -81,7 +81,6 @@ let composable_maps_assoc_r #k #a
       compose_maps p m0 (compose_maps p m1 m2))
   = introduce forall key.
       composable p (Map.sel m1 key) (Map.sel m2 key)
-
     with ( p.assoc_r (Map.sel m0 key) (Map.sel m1 key) (Map.sel m2 key) );
     let m12 = compose_maps p m1 m2 in
     introduce forall key.
@@ -95,58 +94,51 @@ let composable_maps_assoc_r #k #a
     assert (Map.equal m012 m012')
 
 let pcm'_map_of_pcm (#a:_) (k:eqtype) (p:pcm a)
-  : pcm' (option (map k a))
+  : pcm' (map k a)
   = {
        composable =
-         (fun m0 m1 ->
-           match m0, m1 with
-           | None, _
-           | _, None -> True
-           | Some m0, Some m1 ->
-             composable_maps p m0 m1);
-       op = (fun m0 m1 ->
-              match m0, m1 with
-              | None, m
-              | m, None -> m
-              | Some m0, Some m1 ->
-                Some (compose_maps p m0 m1));
-       one = None;
+         (fun m0 m1 -> composable_maps p m0 m1);
+       op = (fun m0 m1 -> compose_maps p m0 m1);
+       one = (Map.const p.p.one)
     }
 
-let pcm_map_of_pcm (#a:_) (k:eqtype) (p:pcm a)
-  : pcm (option (map k a))
+let is_unit #k #a (p:pcm a) (m:map k a)
+  : Lemma (composable_maps p (Map.const p.p.one) m /\
+           compose_maps p (Map.const p.p.one) m `Map.equal` m /\
+           compose_maps p m (Map.const p.p.one) `Map.equal` m)
+   = introduce forall k. composable p p.p.one (Map.sel m k)
+     with (
+       p.is_unit (Map.sel m k)
+     );
+     introduce forall k. Map.sel (compose_maps p (Map.const p.p.one) m) k == Map.sel m k /\
+                    Map.sel (compose_maps p m (Map.const p.p.one)) k == Map.sel m k
+     with (
+       p.is_unit (Map.sel m k);
+       p.comm p.p.one (Map.sel m k)
+     )
+
+let pointwise (#a:_) (k:eqtype) (p:pcm a)
+  : pcm (map k a)
   = {
        p = pcm'_map_of_pcm k p;
-       comm = (fun m0 m1 ->
-                 match m0, m1 with
-                 | None, _
-                 | _, None -> ()
-                 | Some m0, Some m1 -> compose_maps_comm p m0 m1);
-       assoc = (fun m0 m1 m2 ->
-                  match m0, m1, m2 with
-                  | Some m0, Some m1, Some m2 ->
-                    composable_maps_assoc_l p m0 m1 m2
-                  | _ -> ());
-       assoc_r = (fun m0 m1 m2 ->
-                  match m0, m1, m2 with
-                  | Some m0, Some m1, Some m2 ->
-                    composable_maps_assoc_r p m0 m1 m2
-                  | _ -> ());
-       is_unit = (fun _ -> ());
-       refine = (fun a -> Some? a /\ (forall k. p.refine (Map.sel (Some?.v a) k)))
+       comm = (fun m0 m1 -> compose_maps_comm p m0 m1);
+       assoc = (fun m0 m1 m2 -> composable_maps_assoc_l p m0 m1 m2);
+       assoc_r = (fun m0 m1 m2 -> composable_maps_assoc_r p m0 m1 m2);
+       is_unit = (fun m -> is_unit p m);
+       refine = (fun m -> forall k. p.refine (Map.sel m k))
     }
 
 let compatible_pointwise #a #k
                          (p:pcm a)
                          (m0 m1:map k a)
   : Lemma
-    (requires compatible (pcm_map_of_pcm k p) (Some m0) (Some m1))
+    (requires compatible (pointwise k p) m0 m1)
     (ensures forall k. compatible p (Map.sel m0 k) (Map.sel m1 k))
-  = let pcm' = pcm_map_of_pcm k p in
+  = let pcm' = pointwise k p in
     introduce forall k. compatible p (Map.sel m0 k) (Map.sel m1 k)
     with (
       eliminate exists frame.
-        composable pcm' (Some m0) frame /\ op pcm' frame (Some m0) == (Some m1)
+        composable pcm' m0 frame /\ op pcm' frame m0 == m1
       returns _
       with _. (
         introduce exists (frame:a).
@@ -154,10 +146,8 @@ let compatible_pointwise #a #k
                                     (Map.sel m0 k)
                                     frame /\
                          op p frame (Map.sel m0 k) == Map.sel m1 k
-        with (match frame with None -> p.p.one | Some m -> Map.sel m k)
-        and ( p.is_unit (Map.sel m0 k);
-              p.comm p.p.one (Map.sel m0 k) ) ))
-
+        with (Map.sel frame k)
+        and ()))
 
 let compatible_pointwise_upd #a (#k:eqtype)
                              (p:pcm a)
@@ -167,54 +157,25 @@ let compatible_pointwise_upd #a (#k:eqtype)
   : Lemma
     (requires
       compatible p v1 full_v1 /\
-      compatible (pcm_map_of_pcm k p) (Some m0) (Some full_m0))
+      compatible (pointwise k p) m0 full_m0)
     (ensures
-      compatible (pcm_map_of_pcm k p) (Some (Map.upd m0 key v1))
-                                      (Some (Map.upd full_m0 key full_v1)))
+      compatible (pointwise k p) (Map.upd m0 key v1)
+                                      (Map.upd full_m0 key full_v1))
   = compatible_pointwise p m0 full_m0;
     assert (compatible p (Map.sel m0 key) (Map.sel full_m0 key));
     let m1 = (Map.upd m0 key v1) in
     let full_m1 = (Map.upd full_m0 key full_v1) in
-    let p' = pcm_map_of_pcm k p in
-    eliminate exists (frame_m0:_). composable p' (Some m0) frame_m0 /\ op p' frame_m0 (Some m0) == Some full_m0
+    let p' = pointwise k p in
+    eliminate exists (frame_m0:_). composable p' m0 frame_m0 /\ op p' frame_m0 m0 == full_m0
     returns _
     with _. (
     eliminate exists (frame0:_). composable p v1 frame0 /\ op p frame0 v1 == full_v1
     returns _
     with _. (
       introduce exists (frame:_).
-      composable p' (Some m1) frame /\ op p' frame (Some m1) == (Some full_m1)
-    with (
-      match frame_m0 with
-      | None -> Some (Map.upd (Map.const p.p.one) key frame0)
-      | Some frame_m0 -> Some (Map.upd frame_m0 key frame0)
-    )
+      composable p' m1 frame /\ op p' frame m1 == full_m1
+    with (Map.upd frame_m0 key frame0)
     and (
-      match frame_m0 with
-      | None ->
-        let w = Map.upd (Map.const p.p.one) key frame0 in
-        introduce forall v.
-          composable p p.p.one v /\
-          composable p v p.p.one /\
-          op p p.p.one v == v /\
-          op p v p.p.one == v
-        with ( p.is_unit v; p.comm v p.p.one );
-        introduce forall k.
-          Map.sel m1 k `composable p` Map.sel w k
-        with (
-          if k <> key
-          then (
-            p.is_unit (Map.sel m1 k)
-          )
-        );
-        assert (composable_maps p m1 w);
-        introduce forall k.
-          Map.sel (compose_maps p w m1) k == Map.sel full_m1 k
-        with (
-            p.is_unit (Map.sel m1 k)
-        );
-        assert (Map.equal (compose_maps p w m1) full_m1)
-      | Some frame_m0 ->
         let w = Map.upd frame_m0 key frame0 in
         assert (Map.equal (compose_maps p w m1) full_m1)
     )))
@@ -239,39 +200,26 @@ let lift_fp #a (#k:eqtype) (p:pcm a)
       let full_v0 = Map.sel full_m0 key in
       let m1 = Map.upd m0 key v1 in
       let full_m1 = Map.upd full_m0 key full_v1 in
-      let p' = pcm_map_of_pcm k p in
-      (forall (frame:_{composable p' (Some m0) frame}).
-         composable p' (Some m1) frame /\
-         (op p' (Some m0) frame == (Some full_m0) ==>
-          op p' (Some m1) frame == (Some full_m1)))))
+      let p' = pointwise k p in
+      (forall (frame:_{composable p' m0 frame}).
+         composable p' m1 frame /\
+         (op p' m0 frame == full_m0 ==>
+          op p' m1 frame == full_m1))))
     = let v0 = Map.sel m0 key in
       let full_v0 = Map.sel full_m0 key in
       let m1 = Map.upd m0 key v1 in
       let full_m1 = Map.upd full_m0 key full_v1 in
-      let p' = pcm_map_of_pcm k p in
-      introduce forall (frame:_{composable p' (Some m0) frame}).
-         composable p' (Some m1) frame /\
-         (op p' (Some m0) frame == (Some full_m0) ==>
-          op p' (Some m1) frame == (Some full_m1))
+      let p' = pointwise k p in
+      introduce forall (frame:_{composable p' m0 frame}).
+         composable p' m1 frame /\
+         (op p' m0 frame == full_m0 ==>
+          op p' m1 frame == full_m1)
       with (
         introduce _ /\ _
         with ()
         and ( introduce _ ==> _
               with _. (
-                match frame with
-                | None ->
-                  assert (m0 == full_m0);
-                  p.is_unit v0;
-                  p.is_unit v1;
-                  assert (composable p v0 p.p.one);
-                  assert (v1 == full_v1);
-                  assert (m1 `Map.equal` full_m1)
-                | Some frame' ->
-                  // assert (composable p' (Some m0) (Some frame'));
-                  // assert (composable p (Map.sel m0 key) (Map.sel frame' key));
-                  // assert (Map.sel m0 key == v0);
-                  // assert (composable p v0 (Map.sel frame' key));
-                  assert (compose_maps p m1 frame' `Map.equal` full_m1)
+                  assert (compose_maps p m1 frame `Map.equal` full_m1)
               )
         )
       )
@@ -281,31 +229,28 @@ let lift_fp_upd #a #k (#p:pcm a)
                 (f:frame_preserving_upd p v0 v1)
                 (m0:map k a)
                 (key:k { Map.sel m0 key == v0 })
-  : frame_preserving_upd (pcm_map_of_pcm k p)
-                         (Some m0)
-                         (Some (Map.upd m0 key v1))
-  = fun (Some full_m0) ->
-          let p' = pcm_map_of_pcm k p in
+  : frame_preserving_upd (pointwise k p) m0 (Map.upd m0 key v1)
+  = fun full_m0 ->
+          let p' = pointwise k p in
           let full_v0 = Map.sel full_m0 key in
-          assert (compatible (pcm_map_of_pcm _ p) (Some m0) (Some full_m0));
+          assert (compatible (pointwise _ p) m0 full_m0);
           assert (p.refine full_v0);
           compatible_pointwise #a #k p m0 full_m0;
           assert (compatible p v0 full_v0);
           let full_v1 = f full_v0 in
           let full_m1 = Map.upd full_m0 key full_v1 in
-          assert (p'.refine (Some full_m1));
+          assert (p'.refine full_m1);
           compatible_pointwise_upd p v1 full_v1 m0 full_m0 key;
           let m1 = Map.upd m0 key v1 in
-          assert (compatible p' (Some m1) (Some full_m1));
+          assert (compatible p' m1 full_m1);
           lift_fp p m0 full_m0 v1 full_v1 key;
-          Some full_m1
+          full_m1
 
 let lift_composable #k #a (p:pcm a)
                           (v0 v1:a)
                           (m0 m1:map k a)
                           (key:k)
  : Lemma (requires composable p v0 v1 /\
-                   composable (pcm_map_of_pcm k p) (Some m0) (Some m1))
-         (ensures
-                  composable (pcm_map_of_pcm k p) (Some (Map.upd m0 key v0)) (Some (Map.upd m1 key v1)))
+                   composable (pointwise k p) m0 m1)
+         (ensures  composable (pointwise k p) (Map.upd m0 key v0) (Map.upd m1 key v1))
  = ()
