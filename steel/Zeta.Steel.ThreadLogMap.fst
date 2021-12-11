@@ -114,6 +114,10 @@ let perm_of (m:PM.map tid aval) (tid:tid { has_key m tid }) =
   let p, _ = FAP.Owns?._0 (Map.sel m tid) in
   fst p
 
+let perm_ok (m:PM.map tid aval) (tid:tid { has_key m tid }) =
+  let av = FAP.Owns?._0 (Map.sel m tid) in
+  FAP.perm_ok av
+
 let anchor_of (m:PM.map tid aval) (t:tid{ has_anchor m t }) =
   let p, _ = FAP.Owns?._0 (Map.sel m t) in
   Some?.v (snd p)
@@ -133,12 +137,11 @@ let global_anchor_pred (x:t) (m:PM.map tid (option log)) (m':PM.map tid aval)
         get m' tid == l /\
         anchor_of m' tid == l
 
-assume
-val global_anchor (x:t) ([@@@smt_fallback] m:PM.map tid (option log))
+let global_anchor (x:t) ([@@@smt_fallback] m:PM.map tid (option log))
   : vprop
-  // = exists_ (fun m' ->
-  //     G.pts_to x m' `star`
-  //     pure (global_anchor_pred x m m'))
+  = exists_ (fun m' ->
+      G.pts_to x m' `star`
+      pure (global_anchor_pred x m m'))
 
 let intro_global_anchor (#o:_) (x:t) (m:PM.map tid (option log)) (m':PM.map tid aval)
   : STGhost unit o
@@ -146,11 +149,10 @@ let intro_global_anchor (#o:_) (x:t) (m:PM.map tid (option log)) (m':PM.map tid 
        (fun _ -> global_anchor x m)
        (requires global_anchor_pred x m m')
        (ensures fun _ -> True)
-  = admit_()
-    // intro_pure (global_anchor_pred x m m');
-    // intro_exists m' (fun m' ->
-    //   G.pts_to x m' `star`
-    //   pure (global_anchor_pred x m m'))
+  = intro_pure (global_anchor_pred x m m');
+    intro_exists m' (fun m' ->
+      G.pts_to x m' `star`
+      pure (global_anchor_pred x m m'))
 
 let global_snapshot (x:t) ([@@@smt_fallback] m: PM.map tid log)
   : vprop
@@ -169,6 +171,7 @@ let tid_pts_to (x:t)
     pure (forall t. if t=tid
                then (
                  has_key m t /\
+                 perm_ok m tid /\
                  perm_of m tid == Some frac /\
                  ~ (has_anchor m tid) /\
                  get m t == l
@@ -179,21 +182,18 @@ let tid_pts_to (x:t)
 
 let tids_pts_to_pred (x:t) (frac:perm) (m:PM.map tid (option log)) (m': PM.map tid aval)
   : prop
-  = forall tid.
-      match Map.sel m tid with
-      | None -> not (has_key m' tid)
-      | Some l ->
-        has_key m' tid /\
-        perm_of m' tid == Some frac /\
-        get m' tid == l /\
-        ~ (has_anchor m' tid)
+  = forall tid. (has_key m' tid <==> Some? (Map.sel m tid)) /\
+           (has_key m' tid ==>
+             perm_ok m' tid /\
+             perm_of m' tid == Some frac /\
+             ~ (has_anchor m' tid) /\
+             get m' tid == Some?.v (Map.sel m tid))
 
-assume
-val tids_pts_to (x:t) ([@@@smt_fallback] frac:perm) ([@@@smt_fallback] m:PM.map tid (option log))
+let tids_pts_to (x:t) ([@@@smt_fallback] frac:perm) ([@@@smt_fallback] m:PM.map tid (option log))
   : vprop
-  // exists_ (fun m' ->
-  //   G.pts_to x m' `star`
-  //   pure (tids_pts_to_pred x frac m m'))
+  = exists_ (fun m' ->
+    G.pts_to x m' `star`
+    pure (tids_pts_to_pred x frac m m'))
 
 let intro_tids_pts_to (#o:_) (x:t) (frac:perm) (m:PM.map tid (option log)) (m':PM.map tid aval)
   : STGhost unit o
@@ -204,8 +204,7 @@ let intro_tids_pts_to (#o:_) (x:t) (frac:perm) (m:PM.map tid (option log)) (m':P
   = intro_pure (tids_pts_to_pred x frac m m');
     intro_exists m' (fun m' ->
       G.pts_to x m' `star`
-      pure (tids_pts_to_pred x frac m m'));
-    admit_()
+      pure (tids_pts_to_pred x frac m m'))
 
 let alloc0 (#o:_) (_:unit)
   : STGhostT t o
@@ -254,14 +253,80 @@ let alloc (#o:_) (_:unit)
     let mm0 : PM.map tid (option log) = Map.const (Some Seq.empty) in
     intro_tids_pts_to x full_perm mm0 m0;
     intro_global_anchor x mm0 m1;
+    //TODO: leave out these rewrites and the tactic crashes with a scoping error
+    rewrite (tids_pts_to _ _ _)
+            (tids_pts_to x full_perm (Map.const (Some Seq.empty)));
+    rewrite (global_anchor _ _)
+            (global_anchor x (Map.const (Some Seq.empty)));
     x
+
+
+let split_perm (x:FAP.avalue anchors {
+                      FAP.has_nonzero (FAP.avalue_perm x) /\
+                      not (FAP.has_anchor (FAP.avalue_perm x)) /\
+                      FAP.perm_ok x
+               })
+  : y:FAP.avalue anchors { FAP.avalue_composable y y }
+  = let (Some p, None), v = x in
+    (Some (half_perm p), None), v
+
+let split_ownership (frac:perm) (m:PM.map tid aval)
+  : Lemma
+    (requires
+      forall (k:_{has_key m k}).{:pattern (Map.sel m k)}
+        ~ (has_anchor m k) /\
+        perm_of m k == Some frac /\
+        perm_ok m k)
+    (ensures
+      PM.composable_maps fap
+        (map_map m (fun _ -> split_perm))
+        (map_map m (fun _ -> split_perm)) /\
+      m `Map.equal` PM.compose_maps fap
+           (map_map m (fun _ -> split_perm))
+           (map_map m (fun _ -> split_perm))
+      )
+  = ()
+
+let half_tids_pts_to_pred (x:t) (f:perm) (m:PM.map tid (option log)) (m':PM.map tid aval)
+  : Lemma
+    (requires tids_pts_to_pred x f m m')
+    (ensures
+      (forall (k:_{has_key m' k}).{:pattern (Map.sel m' k)}
+        ~ (has_anchor m' k) /\
+        perm_of m' k == Some f /\
+        perm_ok m' k) /\
+      tids_pts_to_pred x (half_perm f) m (map_map m' (fun _ -> split_perm)))
+  = assert (forall (k:_{has_key m' k}).{:pattern (Map.sel m' k)}
+              ~ (has_anchor m' k) /\
+                perm_of m' k == Some f /\
+                perm_ok m' k);
+    let half_m' = (map_map m' (fun _ -> split_perm)) in
+    introduce forall tid. (has_key half_m' tid <==> Some? (Map.sel m tid)) /\
+                     (has_key half_m' tid ==>
+                       ~(has_anchor half_m' tid) /\
+                       perm_of half_m' tid == Some (half_perm f) /\
+                       perm_ok half_m' tid /\
+                       get half_m' tid == Some?.v (Map.sel m tid))
+    with introduce _ /\ _
+    with ()
+    and  introduce _ ==> _
+    with _. ( () )
+
 
 
 let share_tid_pts_to (#o:_) (#f:perm) (x:t) (m:PM.map tid (option log))
   : STGhostT unit o
     (tids_pts_to x f m)
     (fun _ -> tids_pts_to x (half_perm f) m `star` tids_pts_to x (half_perm f) m)
-  = admit_()
+  = let m' : erased (PM.map tid aval) = elim_exists () in
+    elim_pure _;
+    split_ownership f m';
+    let half_m' = map_map m' (fun _ -> split_perm) in
+    G.share x m' half_m' half_m';
+    assert_ (G.pts_to x half_m' `star` G.pts_to x half_m');
+    half_tids_pts_to_pred x f m m';
+    intro_tids_pts_to x (half_perm f) m half_m';
+    intro_tids_pts_to x (half_perm f) m half_m'
 
 let take_tid (#o:_) (#f:perm) (x:t) (m:PM.map tid (option log)) (tid:tid { Some? (Map.sel m tid) })
   : STGhostT unit o
