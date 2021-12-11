@@ -55,7 +55,7 @@ let init_epoch_hash =  {
   hadd = HA.initial_hash;
   hevict = HA.initial_hash;
 }
-let epoch_hashes = Steel.Hashtbl.repr epoch_id epoch_hash
+let epoch_hashes = Zeta.Steel.IArray.repr epoch_id epoch_hash
 let initial_epoch_hashes : epoch_hashes = empty_map
 let app_results =
   Seq.seq (fid:A.appfn_id aprm &
