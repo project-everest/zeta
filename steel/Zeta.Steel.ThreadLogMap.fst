@@ -128,14 +128,12 @@ let owns_anchor_only (m:PM.map tid aval) (tid:tid) =
 
 let global_anchor_pred (x:t) (m:PM.map tid (option log)) (m':PM.map tid aval)
   : prop
-  = forall tid.
-      match Map.sel m tid with
-      | None ->
-        not (has_key m' tid)
-      | Some l ->
-        owns_anchor_only m' tid /\
-        get m' tid == l /\
-        anchor_of m' tid == l
+  = forall (tid:tid). {:pattern (Map.sel m tid) \/ has_key m' tid}
+       (has_key m' tid <==> Some? (Map.sel m tid)) /\
+       (has_key m' tid ==>
+         owns_anchor_only m' tid /\
+         get m' tid == Some?.v (Map.sel m tid) /\
+         anchor_of m' tid == get m' tid)
 
 let global_anchor (x:t) ([@@@smt_fallback] m:PM.map tid (option log))
   : vprop
@@ -162,49 +160,33 @@ let global_snapshot (x:t) ([@@@smt_fallback] m: PM.map tid log)
                    get m' tid == Map.sel m tid /\
                    no_ownership m' tid))
 
-let tid_pts_to (x:t)
-               (tid:tid)
-               ([@@@smt_fallback] frac:perm)
-               ([@@@smt_fallback]  l:log) =
-  exists_ (fun m ->
-    G.pts_to x m `star`
-    pure (forall t. if t=tid
-               then (
-                 has_key m t /\
-                 perm_ok m tid /\
-                 perm_of m tid == Some frac /\
-                 ~ (has_anchor m tid) /\
-                 get m t == l
-               )
-               else (
-                 not (has_key m t)
-               )))
-
-let tids_pts_to_pred (x:t) (frac:perm) (m:PM.map tid (option log)) (m': PM.map tid aval)
+let tids_pts_to_pred (x:t) (frac:perm) (m:PM.map tid (option log)) (with_anchor:bool) (m': PM.map tid aval)
   : prop
-  = forall tid. (has_key m' tid <==> Some? (Map.sel m tid)) /\
+  = forall (tid:tid).{:pattern (Map.sel m tid) \/ (has_key m' tid)}
+           (has_key m' tid ==> Some? (Map.sel m tid)) /\
+           (Some? (Map.sel m tid) ==> has_key m' tid) /\
            (has_key m' tid ==>
              perm_ok m' tid /\
              perm_of m' tid == Some frac /\
-             ~ (has_anchor m' tid) /\
+             (with_anchor <==> has_anchor m' tid) /\
              get m' tid == Some?.v (Map.sel m tid))
 
 let tids_pts_to (x:t) ([@@@smt_fallback] frac:perm) ([@@@smt_fallback] m:PM.map tid (option log))
   : vprop
   = exists_ (fun m' ->
     G.pts_to x m' `star`
-    pure (tids_pts_to_pred x frac m m'))
+    pure (tids_pts_to_pred x frac m false m'))
 
 let intro_tids_pts_to (#o:_) (x:t) (frac:perm) (m:PM.map tid (option log)) (m':PM.map tid aval)
   : STGhost unit o
        (G.pts_to x m')
        (fun _ -> tids_pts_to x frac m)
-       (requires tids_pts_to_pred x frac m m')
+       (requires tids_pts_to_pred x frac m false m')
        (ensures fun _ -> True)
-  = intro_pure (tids_pts_to_pred x frac m m');
+  = intro_pure (tids_pts_to_pred x frac m false m');
     intro_exists m' (fun m' ->
       G.pts_to x m' `star`
-      pure (tids_pts_to_pred x frac m m'))
+      pure (tids_pts_to_pred x frac m false m'))
 
 let alloc0 (#o:_) (_:unit)
   : STGhostT t o
@@ -287,34 +269,18 @@ let split_ownership (frac:perm) (m:PM.map tid aval)
       )
   = ()
 
-let half_tids_pts_to_pred (x:t) (f:perm) (m:PM.map tid (option log)) (m':PM.map tid aval)
+let share_tids_pts_to_lemma (x:t) (f:perm) (m:PM.map tid (option log)) (m':PM.map tid aval)
   : Lemma
-    (requires tids_pts_to_pred x f m m')
+    (requires tids_pts_to_pred x f m false m')
     (ensures
       (forall (k:_{has_key m' k}).{:pattern (Map.sel m' k)}
         ~ (has_anchor m' k) /\
         perm_of m' k == Some f /\
         perm_ok m' k) /\
-      tids_pts_to_pred x (half_perm f) m (map_map m' (fun _ -> split_perm)))
-  = assert (forall (k:_{has_key m' k}).{:pattern (Map.sel m' k)}
-              ~ (has_anchor m' k) /\
-                perm_of m' k == Some f /\
-                perm_ok m' k);
-    let half_m' = (map_map m' (fun _ -> split_perm)) in
-    introduce forall tid. (has_key half_m' tid <==> Some? (Map.sel m tid)) /\
-                     (has_key half_m' tid ==>
-                       ~(has_anchor half_m' tid) /\
-                       perm_of half_m' tid == Some (half_perm f) /\
-                       perm_ok half_m' tid /\
-                       get half_m' tid == Some?.v (Map.sel m tid))
-    with introduce _ /\ _
-    with ()
-    and  introduce _ ==> _
-    with _. ( () )
+      tids_pts_to_pred x (half_perm f) m false (map_map m' (fun _ -> split_perm)))
+  = ()
 
-
-
-let share_tid_pts_to (#o:_) (#f:perm) (x:t) (m:PM.map tid (option log))
+let share_tids_pts_to (#o:_) (#f:perm) (x:t) (m:PM.map tid (option log))
   : STGhostT unit o
     (tids_pts_to x f m)
     (fun _ -> tids_pts_to x (half_perm f) m `star` tids_pts_to x (half_perm f) m)
@@ -323,23 +289,185 @@ let share_tid_pts_to (#o:_) (#f:perm) (x:t) (m:PM.map tid (option log))
     split_ownership f m';
     let half_m' = map_map m' (fun _ -> split_perm) in
     G.share x m' half_m' half_m';
-    assert_ (G.pts_to x half_m' `star` G.pts_to x half_m');
-    half_tids_pts_to_pred x f m m';
+    share_tids_pts_to_lemma x f m m';
     intro_tids_pts_to x (half_perm f) m half_m';
     intro_tids_pts_to x (half_perm f) m half_m'
 
-let take_tid (#o:_) (#f:perm) (x:t) (m:PM.map tid (option log)) (tid:tid { Some? (Map.sel m tid) })
+let repr_map = PM.map tid (option log)
+
+let singleton (t:tid) (l:log)
+  : repr_map
+  = Map.upd (Map.const None) t (Some l)
+
+let take_tid_lemma (x:t) (f:perm) (m:PM.map tid (option log)) (m':PM.map tid aval) (t:tid)
+  : Lemma
+    (requires
+      Some? (Map.sel m t) /\
+      tids_pts_to_pred x f m false m')
+    (ensures (
+      let v = Map.sel m' t in
+      let m0' : PM.map _ _ = Map.upd m' t FAP.Nothing in
+      let m1' : PM.map _ _ = Map.upd (Map.const FAP.Nothing) t v in
+      PM.composable_maps fap m0' m1' /\
+      PM.compose_maps fap m0' m1' `Map.equal` m' /\
+      tids_pts_to_pred x f (Map.upd m t None) false m0' /\
+      tids_pts_to_pred x f (singleton t (Some?.v (Map.sel m t))) false m1'))
+  =  let v = Map.sel m' t in
+     let m0' = Map.upd m' t FAP.Nothing in
+     let m1' = Map.upd (Map.const FAP.Nothing) t v in
+     assert (PM.composable_maps fap m0' m1');
+     assert (PM.compose_maps fap m0' m1' `Map.equal` m');
+     let m' : repr_map = Map.upd m t None in
+     introduce forall (tid:tid).
+           (has_key m0' tid <==> Some? (Map.sel m' tid)) /\
+           (has_key m0' tid ==>
+             perm_ok m0' tid /\
+             perm_of m0' tid == Some f /\
+             ~(has_anchor m0' tid) /\
+             get m0' tid == Some?.v (Map.sel m' tid))
+     with introduce _ /\ _
+     with (())
+     and (());
+     assert (tids_pts_to_pred x f (Map.upd m t None) false m0')
+
+let tid_pts_to (x:t) (t:tid) ([@@@smt_fallback] frac:perm) ([@@@smt_fallback] l:log)
+  : vprop
+  = tids_pts_to x frac (singleton t l)
+
+let take_tid (#o:_) (#f:perm) (x:t) (m:PM.map tid (option log)) (t:tid { Some? (Map.sel m t) })
   : STGhostT unit o
     (tids_pts_to x f m)
-    (fun _ -> tid_pts_to x tid f (Some?.v (Map.sel m tid)) `star`
-           tids_pts_to x (half_perm f) (Map.upd m tid None))
-  = admit_()
+    (fun _ -> tid_pts_to x t f (Some?.v (Map.sel m t)) `star`
+           tids_pts_to x f (Map.upd m t None))
+  = let m' : erased (PM.map tid aval) = elim_exists() in
+    elim_pure _;
+    take_tid_lemma x f m m' t;
+    let m0' = Map.upd m' t FAP.Nothing in
+    let m1' = Map.upd (Map.const FAP.Nothing) t (Map.sel m' t) in
+    G.share x m' m0' m1';
+    intro_tids_pts_to x f (Map.upd m t None) m0';
+    let m1 : PM.map tid (option log) = singleton t (Some?.v (Map.sel m t)) in
+    intro_tids_pts_to x f m1 m1';
+    rewrite (tids_pts_to x f m1)
+            (tid_pts_to x t f (Some?.v (Map.sel m t)))
 
 
+let tid_pts_to_with_anchor (x:t) (t:tid) ([@@@smt_fallback] frac:perm) ([@@@smt_fallback] l:log)
+  : vprop
+  = exists_ (fun m' ->
+    G.pts_to x m' `star`
+    pure (tids_pts_to_pred x frac (singleton t l) true m'))
 
+let take_anchor_tid_lemma (x:t)
+                          (m0 m1:PM.map tid aval)
+                          (m:PM.map tid (option log))
+                          (t:tid)
+                          (f:perm)
+                          (l:log)
+  : Lemma
+    (requires
+      tids_pts_to_pred x f (singleton t l) false m0 /\
+      global_anchor_pred x m m1 /\
+      PM.composable_maps fap m0 m1 /\
+      Some? (Map.sel m t))
+    (ensures (
+      has_key m0 t /\
+      has_key m1 t /\ (
+      let FAP.Owns ((_, Some anchor), _) = Map.sel m1 t in
+      let FAP.Owns (_, v) = Map.sel m0 t in
+      let av' = (Some f, Some anchor), v in
+      let m0' = Map.upd m0 t (FAP.Owns av') in
+      let m1' = Map.upd m1 t FAP.Nothing in
+      tids_pts_to_pred x f (singleton t l) true m0' /\
+      global_anchor_pred x (Map.upd m t None) m1' /\
+      PM.composable_maps fap m0' m1' /\
+      M.committed_log_entries l == Some?.v (Map.sel m t))))
+  = assert (has_key m0 t /\ has_key m1 t);
+    let FAP.Owns ((_, Some anchor), _) = Map.sel m1 t in
+    let FAP.Owns (_, v) = Map.sel m0 t in
+    let av' = (Some f, Some anchor), v in
+    let m0' = Map.upd m0 t (FAP.Owns av') in
+    let m1' = Map.upd m1 t FAP.Nothing in
+    assert (PM.composable_maps fap m0' m1');
+    introduce forall (tid:tid).
+           (has_key m0' tid <==> Some? (Map.sel (singleton t l) tid)) /\ True
+           // (has_key m0' tid ==>
+           //   perm_ok m0' tid /\
+           //   perm_of m0' tid == Some f /\
+           //   (has_anchor m0' tid) /\
+           //   get m0' tid == Some?.v (Map.sel (singleton t l) tid))
+    with introduce _ /\ _
+    with (())
+    and (());
+    assert (tids_pts_to_pred x f (singleton t l) true m0');
+    introduce forall (tid:tid).
+       (has_key m1' tid <==> Some? (Map.sel (Map.upd m t None) tid)) /\ True
+       // (has_key m1' tid ==>
+       //   owns_anchor_only m1' tid /\
+       //   get m1' tid == Some?.v (Map.sel (Map.upd m t None) tid) /\
+       //   anchor_of m1' tid == get m1' tid)
+    with introduce _ /\ _
+    with (())
+    and (());
+    assert (global_anchor_pred x (Map.upd m t None) m1')
 
+let elim_tids_pts_to (#o:_) (x:t) (frac:perm) (m:PM.map tid (option log))
+  : STGhost (erased (PM.map tid aval)) o
+       (tids_pts_to x frac m)
+       (fun m' -> G.pts_to x m')
+       (requires True)
+       (ensures fun m' -> tids_pts_to_pred x frac m false m')
+  = let m' = elim_exists () in
+    elim_pure _;
+    m'
 
-//                perm_ok (Map.sel m t)))
+let elim_global_anchor (#o:_) (x:t) (m:PM.map tid (option log))
+  : STGhost (erased (PM.map tid aval)) o
+       (global_anchor x m)
+       (fun m' -> G.pts_to x m')
+       (requires True)
+       (ensures fun m' -> global_anchor_pred x m m')
+  = let m' = elim_exists () in
+    elim_pure _;
+    m'
+
+let gpts_to_composable (#o:_) (x:t) (m0 m1:PM.map tid aval)
+  : STGhost unit o
+    (G.pts_to x m0 `star` G.pts_to x m1)
+    (fun _ -> G.pts_to x m0 `star` G.pts_to x m1)
+    (requires True)
+    (ensures fun _ -> PM.composable_maps fap m0 m1)
+ = let _ = G.gather x m0 m1 in
+   G.share x _ m0 m1
+
+let take_anchor_tid (#o:_) (x:t) (m:PM.map tid (option log))
+                           (t:tid) (f:perm) (l:log)
+  : STGhost unit o
+    (tid_pts_to x t f l `star` global_anchor x m)
+    (fun _ -> tid_pts_to_with_anchor x t f l `star`
+           global_anchor x (Map.upd m t None))
+    (requires
+      Some? (Map.sel m t))
+    (ensures fun _ ->
+      Some? (Map.sel m t) /\
+      M.committed_log_entries l == Some?.v (Map.sel m t))
+  = let m0 = elim_tids_pts_to x f _ in
+    let m1 = elim_global_anchor x m in
+    gpts_to_composable x m0 m1;
+    take_anchor_tid_lemma x m0 m1 m t f l;
+    let FAP.Owns ((_, Some anchor), _) = Map.sel m1 t in
+    let FAP.Owns (_, v) = Map.sel m0 t in
+    let av' = (Some f, Some anchor), v in
+    let m0' = Map.upd m0 t (FAP.Owns av') in
+    let m1' = Map.upd m1 t FAP.Nothing in
+    admit_()
+    // intro_tids_pts_to x f
+    //   tids_pts_to_pred x f (singleton t l) true m0' /\
+    //   global_anchor_pred x (Map.upd m t None) m1' /\
+    //   PM.composable_maps fap m0' m1' /\
+    //   M.committed_log_entries l == Some?.v (Map.sel m t)
+    // admit_()
+
 
 // val global_snapshot (x:t) (m:map tid log)
 //   : vprop
