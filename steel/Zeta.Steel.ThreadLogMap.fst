@@ -156,15 +156,6 @@ let intro_global_anchor (#o:_) (x:t) (m:PM.map tid (option log)) (m':PM.map tid 
       G.pts_to x m' `star`
       pure (global_anchor_pred x m m'))
 
-let global_snapshot (x:t) ([@@@smt_fallback] m: PM.map tid log)
-  : vprop
-  = exists_ (fun m' ->
-      G.pts_to x m' `star`
-      pure (forall tid. has_key m' tid /\
-                   get m' tid == Map.sel m tid /\
-                   no_ownership m' tid))
-
-
 let tids_pts_to_pred (x:t) (frac:perm) (m:PM.map tid (option log)) (with_anchor:bool) (m': PM.map tid aval)
   : prop
   = related_domains m m' /\
@@ -194,6 +185,16 @@ let intro_tids_pts_to (#o:_) (x:t) (frac:perm) (m:PM.map tid (option log)) (with
     intro_exists m' (fun m' ->
       G.pts_to x m' `star`
       pure (tids_pts_to_pred x frac m with_anchor m'))
+
+let elim_tids_pts_to (#o:_) (x:t) (frac:perm) (m:PM.map tid (option log)) (with_anchor:bool)
+  : STGhost (erased (PM.map tid aval)) o
+       (tids_pts_to x frac m with_anchor)
+       (fun m' -> G.pts_to x m')
+       (requires True)
+       (ensures fun m' -> tids_pts_to_pred x frac m with_anchor m')
+  = let m' = elim_exists () in
+    elim_pure _;
+    m'
 
 let alloc0 (#o:_) (_:unit)
   : STGhostT t o
@@ -283,10 +284,6 @@ let share_tids_pts_to_lemma (x:t) (f:perm) (m:PM.map tid (option log)) (m':PM.ma
   : Lemma
     (requires tids_pts_to_pred x f m false m')
     (ensures
-      (forall (k:_{has_key m' k}).{:pattern (Map.sel m' k)}
-        ~ (has_anchor m' k) /\
-        perm_of m' k == Some f /\
-        perm_ok m' k) /\
       tids_pts_to_pred x (half_perm f) m false (map_map m' (fun _ -> split_perm)))
   = ()
 
@@ -302,6 +299,37 @@ let share_tids_pts_to (#o:_) (#f:perm) (x:t) (m:PM.map tid (option log))
     share_tids_pts_to_lemma x f m m';
     intro_tids_pts_to x (half_perm f) m _ half_m';
     intro_tids_pts_to x (half_perm f) m _ half_m'
+
+
+let gather_tids_pts_to_lemma (x:t) (f0 f1:perm) (m:PM.map tid (option log)) (m0 m1:PM.map tid aval)
+  : Lemma
+    (requires
+      tids_pts_to_pred x f0 m false m0 /\
+      tids_pts_to_pred x f1 m false m1 /\
+      PM.composable_maps fap m0 m1)
+    (ensures tids_pts_to_pred x (sum_perm f0 f1) m false (PM.compose_maps fap m0 m1))
+  = ()
+
+
+let gpts_to_composable (#o:_) (x:t) (m0 m1:PM.map tid aval)
+  : STGhost unit o
+    (G.pts_to x m0 `star` G.pts_to x m1)
+    (fun _ -> G.pts_to x m0 `star` G.pts_to x m1)
+    (requires True)
+    (ensures fun _ -> PM.composable_maps fap m0 m1)
+ = let _ = G.gather x m0 m1 in
+   G.share x _ m0 m1
+
+let gather_tids_pts_to (#o:_) (#f0 #f1:perm) (x:t) (m:PM.map tid (option log))
+  : STGhostT unit o
+    (tids_pts_to x f0 m false `star` tids_pts_to x f1 m false)
+    (fun _ -> tids_pts_to x (sum_perm f0 f1) m false)
+  = let m0 = elim_tids_pts_to x f0 m false in
+    let m1 = elim_tids_pts_to x f1 m false in
+    gpts_to_composable x m0 m1;
+    gather_tids_pts_to_lemma x f0 f1 m m0 m1;
+    G.gather x m0 m1;
+    intro_tids_pts_to x (sum_perm f0 f1) m false _
 
 let repr_map = PM.map tid (option log)
 
@@ -373,15 +401,6 @@ let take_anchor_tid_lemma (x:t)
       M.committed_log_entries l == Some?.v (Map.sel m t))))
   = ()
 
-let elim_tids_pts_to (#o:_) (x:t) (frac:perm) (m:PM.map tid (option log)) (with_anchor:bool)
-  : STGhost (erased (PM.map tid aval)) o
-       (tids_pts_to x frac m with_anchor)
-       (fun m' -> G.pts_to x m')
-       (requires True)
-       (ensures fun m' -> tids_pts_to_pred x frac m with_anchor m')
-  = let m' = elim_exists () in
-    elim_pure _;
-    m'
 
 let elim_global_anchor (#o:_) (x:t) (m:PM.map tid (option log))
   : STGhost (erased (PM.map tid aval)) o
@@ -392,15 +411,6 @@ let elim_global_anchor (#o:_) (x:t) (m:PM.map tid (option log))
   = let m' = elim_exists () in
     elim_pure _;
     m'
-
-let gpts_to_composable (#o:_) (x:t) (m0 m1:PM.map tid aval)
-  : STGhost unit o
-    (G.pts_to x m0 `star` G.pts_to x m1)
-    (fun _ -> G.pts_to x m0 `star` G.pts_to x m1)
-    (requires True)
-    (ensures fun _ -> PM.composable_maps fap m0 m1)
- = let _ = G.gather x m0 m1 in
-   G.share x _ m0 m1
 
 let re_share (#o:_) (x:t) (m0 m1:PM.map tid aval)
                           (m0' m1':PM.map tid aval)
@@ -487,7 +497,7 @@ let put_anchor_tid (#o:_) (x:t) (m:PM.map tid (option log))
     intro_global_anchor x (Map.upd m t (Some l)) m1'
 
 let compat_with_any_anchor_of (l1 l0:log)
-  = forall (anchor:log). anchor `anchors` l0 ==> anchor `anchors` l1
+  = forall (anchor:log). anchor == M.committed_log_entries l0 ==> anchor == M.committed_log_entries l1
 
 
 let update_tid_log (#o:_) (x:t) (t:tid) (l0 l1:log)
@@ -509,116 +519,91 @@ let update_anchored_tid_log (#o:_) (x:t) (t:tid) (l0 l1:log)
     (fun _ -> tid_pts_to x t full_perm l1 true)
     (requires
       l0 `log_grows` l1 /\
-      l1 `anchors` l1)
+      M.committed_log_entries l1 == l1)
     (ensures fun _ -> True)
   = let m = elim_tids_pts_to x _ _ _ in
     G.upd_gen x m _ (update_value l1 m t);
     intro_tids_pts_to x full_perm (singleton t l1) true (put m t l1)
 
+let share_tid_pts_to (#o:_) (#tid:tid) (#f:perm) (#l:log) (x:t)
+  : STGhostT unit o
+    (tid_pts_to x tid f l false)
+    (fun _ -> tid_pts_to x tid (half_perm f) l false `star`
+           tid_pts_to x tid (half_perm f) l false)
+  = share_tids_pts_to x (singleton tid l)
+
+let gather_tid_pts_to (#o:_) (#tid:tid) (#f0 #f1:perm) (#l:log) (x:t)
+  : STGhostT unit o
+    (tid_pts_to x tid f0 l false `star` tid_pts_to x tid f1 l false)
+    (fun _ -> tid_pts_to x tid (sum_perm f0 f1) l false)
+  = gather_tids_pts_to x (singleton tid l)
 
 
-// val global_snapshot (x:t) (m:map tid log)
-//   : vprop
-//   = G.pts_to x m `star`
-//   exists_ (fun (km:kmap k v c) ->
-//         pure (snapshot km == m) `star`
-//         k_of t (Owns (ksnapshot km)))
+let snapshot_pred (x:t) (m: PM.map tid (option log)) (m': PM.map tid aval)
+  : prop
+  = related_domains m m' /\
+    (forall tid. has_key m' tid ==>
+            get m' tid == Some?.v (Map.sel m tid) /\
+            no_ownership m' tid)
 
-// // // val k_of (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //          (t:t k v c)
-// // //          (knowledge: knowledge k v c)
-// // //   : vprop
+let global_snapshot (x:t) ([@@@smt_fallback] m: PM.map tid (option log))
+  : vprop
+  = exists_ (fun m' ->
+      G.pts_to x m' `star`
+      pure (snapshot_pred x m m'))
 
-// // // val share  (#o:_)
-// // //            (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //            (#m0 :kmap k v c)
-// // //            (#m1: kmap k v c { kmap_composable m0 m1 })
-// // //            (t:t k v c)
-// // //   : STGhostT unit o
-// // //     (k_of t (Owns (compose_kmaps m0 m1)))
-// // //     (fun _ -> k_of t (Owns m0) `star` k_of t (Owns m1))
-
-// // // val gather (#o:_)
-// // //            (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //            (#m0 #m1: kmap k v c)
-// // //            (t:t k v c)
-// // //   : STGhostT (_:unit { kmap_composable m0 m1 }) o
-// // //     (k_of t (Owns m0) `star` k_of t (Owns m1))
-// // //     (fun _ -> k_of t (Owns (compose_kmaps m0 m1)))
+let intro_global_snapshot (#o:_) (x:t) (m:PM.map tid (option log)) (m':PM.map tid aval)
+  : STGhost unit o
+    (G.pts_to x m')
+    (fun _ -> global_snapshot x m)
+    (requires snapshot_pred x m m')
+    (ensures fun _ -> True)
+  = intro_pure (snapshot_pred x m m');
+    intro_exists m' (fun m' -> G.pts_to x m' `star` pure (snapshot_pred x m m'))
 
 
-// // // val take_snapshot (#o:_)
-// // //                   (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //                   (#m: kmap k v c)
-// // //                   (t:t k v c)
-// // //   : STGhostT unit o
-// // //     (k_of t (Owns m))
-// // //     (fun _ -> k_of t (Owns m) `star` global_snapshot t (snapshot m))
+let elim_global_snapshot (#o:_) (x:t) (m:PM.map tid (option log))
+  : STGhost (PM.map tid aval) o
+    (global_snapshot x m)
+    (fun m' -> G.pts_to x m')
+    (requires True)
+    (ensures fun m' -> snapshot_pred x m m')
+  = let m' = elim_exists () in
+    elim_pure _;
+    m'
 
-// // // val owns_key (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //              (t:t k v c)
-// // //              (key:k)
-// // //              ([@@@smt_fallback]perm:perm)
-// // //              ([@@@smt_fallback]value:v)
-// // //  : vprop
-// // //   // = exists_ (fun (m:kmap k v c) ->
-// // //   //      pure ((forall key'. (key<>key' ==> fst (Map.sel m key') == None)) /\
-// // //   //            (match Map.sel m key with
-// // //   //             | None, _ -> False
-// // //   //             | Some p, h ->
-// // //   //               perm == p /\
-// // //   //               curval h == value)) `star`
-// // //   //      k_of t (Owns m))
+let take_snapshot (#o:_) (x:t) (m:PM.map tid (option log))
+  : STGhostT unit o
+    (global_anchor x m)
+    (fun _ -> global_anchor x m `star` global_snapshot x m)
+  = let m' = elim_global_anchor x m in
+    let m'' = map_map m' (fun _ a -> (None, None), snd a) in
+    assert (Map.equal m' (PM.compose_maps fap m' m''));
+    G.share x m' m' m'';
+    intro_global_snapshot x m m'';
+    intro_global_anchor x m m'
 
-// // // val snapshot_of_key (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //                     (t:t k v c)
-// // //                     (key:k)
-// // //                     ([@@@smt_fallback]value:v)
-// // //  : vprop
-// // //   // = exists_ (fun (m:kmap k v c) ->
-// // //   //      pure ((forall key'. fst (Map.sel m key') == None) /\
-// // //   //            (match Map.sel m key with
-// // //   //             | Some _, _ -> False
-// // //   //             | None, h -> curval h == value)) `star`
-// // //   //      k_of t (Owns m))
-
-// // // val local_snapshot (#o:_)
-// // //                    (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //                    (#key:k) (#frac:_) (#value:v)
-// // //                    (t:t k v c)
-// // //   : STGhostT unit o
-// // //     (owns_key t key frac value)
-// // //     (fun _ -> owns_key t key frac value `star` snapshot_of_key t key value)
-
-// // // val dup_snapshot (#o:_)
-// // //                  (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //                  (#key:k) (#value:v)
-// // //                  (t:t k v c)
-// // //   : STGhostT unit o
-// // //     (snapshot_of_key t key value)
-// // //     (fun _ -> snapshot_of_key t key value `star` snapshot_of_key t key value)
-
-// // // val update (#o:_)
-// // //            (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //            (#key:k) (#value:v)
-// // //            (t:t k v c)
-// // //            (value':v {c value value'})
-// // //   : STGhostT unit o
-// // //     (owns_key t key full_perm value)
-// // //     (fun _ -> owns_key t key full_perm value')
-
-// // // val update_global_snapshot (#o:_)
-// // //                            (#k:eqtype) (#v:Type0) (#c:preorder v)
-// // //                            (#key:k) (#frac:_) (#value:v)
-// // //                            (t:t k v c)
-// // //                            (m:Map.t k v)
-// // //   : STGhostT unit o
-// // //     (owns_key t key frac value `star` global_snapshot t m)
-// // //     (fun _ -> owns_key t key frac value `star` global_snapshot t (Map.upd m key value))
+let dup_snapshot (#o:_) (x:t) (m:PM.map tid (option log))
+  : STGhostT unit o
+    (global_snapshot x m)
+    (fun _ -> global_snapshot x m `star` global_snapshot x m)
+  = let m' = elim_global_snapshot x m in
+    assert (Map.equal m' (PM.compose_maps fap m' m'));
+    G.share x m' m' m';
+    intro_global_snapshot x m m';
+    intro_global_snapshot x m m'
 
 
-// // // val dup_global_snapshot (#o:_) (#k:eqtype) (#v:Type0) (#c:preorder v) (#m: Map.t k v)
-// // //                         (t:t k v c)
-// // //   : STGhostT unit o
-// // //     (global_snapshot t m)
-// // //     (fun _ -> global_snapshot t m `star` global_snapshot t m)
+let recall_snapshot (#o:_) (x:t) (m:PM.map tid (option log)) (f:perm) (t:tid) (l:log) (with_anchor:bool)
+  : STGhost unit o
+    (global_snapshot x m `star` tid_pts_to x t f l with_anchor)
+    (fun _ -> global_snapshot x m `star` tid_pts_to x t f l with_anchor)
+    (requires True)
+    (ensures fun _ ->
+      Some? (Map.sel m t) ==>
+      Some?.v (Map.sel m t) `log_grows` l)
+  = let m' = elim_global_snapshot x m in
+    let m'' = elim_tids_pts_to x f _ _ in
+    gpts_to_composable x m' m'';
+    intro_global_snapshot x m m';
+    intro_tids_pts_to x f (singleton t l) with_anchor m''
