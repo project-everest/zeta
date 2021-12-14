@@ -253,7 +253,7 @@ let madd_to_store (tsm:thread_state_model)
   = if has_slot tsm s
     || not (is_value_of k v)
     || not (has_slot tsm s')
-    then tsm
+    then fail tsm
     else
       let Some r' = get_entry tsm s' in
       let new_entry = {
@@ -303,19 +303,19 @@ let madd_to_store_split (tsm:thread_state_model)
     if has_slot tsm s
     || not (is_value_of k v)
     || not (has_slot tsm s')
-    then tsm
+    then fail tsm
     else
       match get_entry tsm s' with
       | Some r' ->
         let p = (s', d) in
         let s2_opt = child_slot r' d in
         match s2_opt with
-        | None -> tsm //fail
+        | None -> fail tsm
         | Some s2 ->
           if U16.v s2 >= Seq.length st
-          then tsm //fail
+          then fail tsm
           else match Seq.index st (U16.v s2) with
-               | None -> tsm
+               | None -> fail tsm
                | Some r2 ->
                  let e = mk_entry_full k v MAdd None None (Some p) in
                  let e = update_child e d2 s2 in

@@ -1197,7 +1197,36 @@ let madd_to_store_split (#tsm:M.thread_state_model)
   : STT unit
     (thread_state_inv' t tsm)
     (fun _ -> thread_state_inv' t (M.madd_to_store_split tsm s k v s' d d2))
-  = admit__()
+  = let b = (M.is_value_of k v) in
+    if not b
+    then (fail t; return ())
+    else (
+      let ropt = A.read t.store (as_u32 s) in
+      let ropt' = A.read t.store (as_u32 s') in
+      match ropt with
+      | Some _ -> fail t; return ()
+      | _ ->
+        match ropt' with
+        | None -> fail t; return ()
+        | Some r' ->
+          let p = (s', d) in
+          let s2_opt = M.child_slot r' d in
+          match s2_opt with
+          | None -> fail t; return ()
+          | Some s2 ->
+            let r2opt = A.read t.store (as_u32 s2) in
+            match r2opt with
+            | None -> fail t; return ()
+            | Some r2 ->
+              let e = M.mk_entry_full k v M.MAdd None None (Some p) in
+              let e = M.update_child e d2 s2 in
+              let e' = M.update_child r' d s in
+              let p2new = s2, d2 in
+              let e2 = M.update_parent_slot r2 p2new in
+              A.write t.store (as_u32 s) (Some e);
+              A.write t.store (as_u32 s') (Some e');
+              A.write t.store (as_u32 s2) (Some e2);
+              return ())
 
 let madd_to_store (#tsm:M.thread_state_model)
                   (t:thread_state_t)
@@ -1209,37 +1238,35 @@ let madd_to_store (#tsm:M.thread_state_model)
   : STT unit
     (thread_state_inv' t tsm)
     (fun _ -> thread_state_inv' t (M.madd_to_store tsm s k v s' d))
-  = admit__()
-  // : tsm':thread_state_model{
-  //       Seq.length tsm.store = Seq.length tsm'.store /\
-  //       (forall (ss:T.slot). {:pattern has_slot tsm' ss}
-  //         has_slot tsm ss ==>
-  //         (has_slot tsm' ss /\
-  //          ApplicationKey? (key_of_slot tsm ss) ==
-  //          ApplicationKey? (key_of_slot tsm' ss)))
-  //   }
-  // = if has_slot tsm s
-  //   || not (is_value_of k v)
-  //   || not (has_slot tsm s')
-  //   then tsm
-  //   else
-  //     let Some r' = get_entry tsm s' in
-  //     let new_entry = {
-  //       key = k;
-  //       value = v;
-  //       add_method = MAdd;
-  //       l_child_in_store = None;
-  //       r_child_in_store = None;
-  //       parent_slot = Some (s', d)
-  //     } in
-  //     let store' = Seq.upd tsm.store (U16.v s) (Some new_entry) in
-  //     let r' =
-  //       if d
-  //       then { r' with l_child_in_store = Some s }
-  //       else { r' with r_child_in_store = Some s }
-  //     in
-  //     let store'' = Seq.upd store' (U16.v s') (Some r') in
-  //     {tsm with store = store''}
+  = let b = (M.is_value_of k v) in
+    if not b
+    then (fail t; return ())
+    else (
+      let ropt = A.read t.store (as_u32 s) in
+      let ropt' = A.read t.store (as_u32 s') in
+      match ropt with
+      | Some _ -> fail t; return ()
+      | _ ->
+        match ropt' with
+        | None -> fail t; return ()
+        | Some r' ->
+          let new_entry : M.store_entry = {
+            key = k;
+            value = v;
+            add_method = M.MAdd;
+            l_child_in_store = None;
+            r_child_in_store = None;
+            parent_slot = Some (s', d)
+          } in
+          A.write t.store (as_u32 s) (Some new_entry);
+          let r' : M.store_entry =
+            if d
+            then { r' with l_child_in_store = Some s }
+            else { r' with r_child_in_store = Some s }
+          in
+          A.write t.store (as_u32 s') (Some r');
+          return ()
+    )
 
 let vaddm (#tsm:M.thread_state_model)
           (t:thread_state_t)
