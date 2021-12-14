@@ -1404,13 +1404,13 @@ type log_entry =
 //                (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
 //   = admit__()
 
-// // /// Entry point to run a single verifier thread on a log
-// let verify (#tsm:M.thread_state_model)
-//            (t:thread_state_t) //handle to the thread state
-//            (#log_bytes:erased bytes)
-//            (#len:U32.t)
-//            (log:larray U8.t len) //concrete log
-//            (#outlen:U32.t)
-//            (out:larray U8.t outlen) //out array, to write outputs
-//            (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-//   = admit__()
+// /// Entry point to run a single verifier thread on a log
+let verify (#tsm:M.thread_state_model)
+           (t:thread_state_t) //handle to the thread state
+           (#log_bytes:erased bytes)
+           (#len:U32.t)
+           (log:larray U8.t len) //concrete log
+           (#outlen:U32.t)
+           (out:larray U8.t outlen) //out array, to write outputs
+           (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+  = admit__()
