@@ -1186,6 +1186,61 @@ let vaddb (#tsm:M.thread_state_model)
 //vaddm
 ////////////////////////////////////////////////////////////////////////////////
 
+let madd_to_store_split (#tsm:M.thread_state_model)
+                        (t:thread_state_t)
+                        (s:T.slot)
+                        (k:key)
+                        (v:T.value)
+                        (s':T.slot)
+                        (d:bool)
+                        (d2:bool)
+  : STT unit
+    (thread_state_inv' t tsm)
+    (fun _ -> thread_state_inv' t (M.madd_to_store_split tsm s k v s' d d2))
+  = admit__()
+
+let madd_to_store (#tsm:M.thread_state_model)
+                  (t:thread_state_t)
+                  (s:T.slot)
+                  (k:key)
+                  (v:T.value)
+                  (s':T.slot)
+                  (d:bool)
+  : STT unit
+    (thread_state_inv' t tsm)
+    (fun _ -> thread_state_inv' t (M.madd_to_store tsm s k v s' d))
+  = admit__()
+  // : tsm':thread_state_model{
+  //       Seq.length tsm.store = Seq.length tsm'.store /\
+  //       (forall (ss:T.slot). {:pattern has_slot tsm' ss}
+  //         has_slot tsm ss ==>
+  //         (has_slot tsm' ss /\
+  //          ApplicationKey? (key_of_slot tsm ss) ==
+  //          ApplicationKey? (key_of_slot tsm' ss)))
+  //   }
+  // = if has_slot tsm s
+  //   || not (is_value_of k v)
+  //   || not (has_slot tsm s')
+  //   then tsm
+  //   else
+  //     let Some r' = get_entry tsm s' in
+  //     let new_entry = {
+  //       key = k;
+  //       value = v;
+  //       add_method = MAdd;
+  //       l_child_in_store = None;
+  //       r_child_in_store = None;
+  //       parent_slot = Some (s', d)
+  //     } in
+  //     let store' = Seq.upd tsm.store (U16.v s) (Some new_entry) in
+  //     let r' =
+  //       if d
+  //       then { r' with l_child_in_store = Some s }
+  //       else { r' with r_child_in_store = Some s }
+  //     in
+  //     let store'' = Seq.upd store' (U16.v s') (Some r') in
+  //     {tsm with store = store''}
+
 let vaddm (#tsm:M.thread_state_model)
           (t:thread_state_t)
           (s s':slot_id)
@@ -1196,7 +1251,92 @@ let vaddm (#tsm:M.thread_state_model)
     (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' p)))
     (requires Some r == M.record_of_payload p)
     (ensures fun _ -> True)
-  = admit__()
+  = let b = not (M.check_slot_bounds s)
+          || not (M.check_slot_bounds s') in
+    if b then (fail t; return true)
+    else (
+      let gk, gv = r in
+      let ropt = A.read t.store (as_u32 s') in
+      match ropt with
+      | None -> (fail t; return true)
+      | Some r' ->
+        let k' = M.to_base_key r'.key in
+        let v' = r'.value in
+        let k = M.to_base_key gk in
+        (* check k is a proper desc of k' *)
+        if not (KU.is_proper_descendent k k')
+        then (fail t; return true)
+        (* check store does not contain slot s *)
+        else (
+          let sopt = A.read t.store (as_u32 s) in
+          match sopt with
+          | Some _ -> fail t; return true
+          | _ ->
+             match M.to_merkle_value v' with
+             | None -> fail t; return true
+             | Some v' ->
+               let d = KU.desc_dir k k' in
+               let dh' = M.desc_hash_dir v' d in
+               let h = M.hashfn gv in //TODO: low-level hash
+               match dh' returns
+                     (STT bool
+                          (thread_state_inv' t tsm)
+                          (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' p))))
+               with
+               | T.Dh_vnone _ -> (* k' has no child in direction d *)
+                 (* first add must be init value *)
+                 if gv <> M.init_value gk
+                 then (let b = fail_as t _ in return b)
+                 else if entry_points_to_some_slot r' d
+                 then (let b = fail_as t _ in return b)
+                 else (
+                   madd_to_store t s gk gv s' d;
+                   let v'_upd = M.update_merkle_value v' d k h false in
+                   update_value t s' (T.MValue v'_upd);
+                   return true
+                 )
+               | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
+                 if k2 = k
+                 then (
+                   if not (h2 = h && b2 = T.Vfalse)
+                   then (let b = fail_as t _ in return b)
+                   else if entry_points_to_some_slot r' d
+                   then (let b = fail_as t _ in return b)
+                   else (madd_to_store t s gk gv s' d;
+                         assert_ (thread_state_inv' t (M.vaddm tsm s s' p));
+                         let b = true in
+//                         intro_thread_state_inv' (update_if b tsm (M.vaddm tsm s s' p)) t;
+                         return b)
+                 )
+                 else if gv <> M.init_value gk
+                 then (let b = fail_as t _ in return b)
+                 (* check k2 is a proper desc of k *)
+                 else if not (KU.is_proper_descendent k2 k)
+                 then (let b = fail_as t _ in return b)
+                 else (
+                   let d2 = KU.desc_dir k2 k in
+                   let Some mv = M.to_merkle_value gv in
+                   let mv_upd = M.update_merkle_value mv d2 k2 h2 (b2=T.Vtrue) in
+                   let v'_upd = M.update_merkle_value v' d k h false in
+                   let b = entry_points_to_some_slot r' d in
+                   if b returns
+                     (STT bool
+                          (thread_state_inv' t tsm)
+                          (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' p))))
+                   then (
+                     madd_to_store_split t s gk (MValue mv_upd) s' d d2;
+                     update_value t s' (MValue v'_upd);
+                     let b = true in
+                     return b
+                   )
+                   else (
+                     madd_to_store t s gk (MValue mv_upd) s' d;
+                     update_value t s' (MValue v'_upd);
+                     let b = true in
+                     return b
+                   )
+                 )))
+
 
 //TODO: parse one entry from the log and dispatch to
 //      the appropriate function
