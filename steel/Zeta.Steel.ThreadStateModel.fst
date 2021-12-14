@@ -144,9 +144,7 @@ let mk_entry (k:key) (v:T.value{is_value_of k v}) (a:add_method)
 
 let update_clock (tsm:thread_state_model) (ts:T.timestamp)
   : thread_state_model
-  = if FStar.UInt.fits (U64.v tsm.clock + U64.v ts) 64
-    then { tsm with clock = tsm.clock `U64.add` ts }
-    else fail tsm
+  = { tsm with clock = ts }
 
 let update_hash_value (ha:HA.hash_value_t)
                       (r:T.record)
@@ -387,18 +385,18 @@ let vput (tsm:thread_state_model)
 let payload = either (key & mval_value) uninterpreted
 
 let record_of_payload (p:payload)
-  : GTot (option (k:key & v:T.value{ is_value_of k v }))
+  : GTot (option T.record)
   = match p with
     | Inl (k, v) ->
       if ApplicationKey? k
       then None
-      else Some (| k, MValue v |)
+      else Some ( k, MValue v )
 
     | Inr p -> 
       match T.spec_parser_app_record p.ebytes with
       | None -> None
       | Some ((k, v), _) -> 
-        Some (| ApplicationKey k, DValue v |)
+        Some (ApplicationKey k, DValue v)
 
 let to_base_key (k:key)
   : base_key
@@ -431,7 +429,7 @@ let vaddm (tsm:thread_state_model)
    else (
     match record_of_payload p with
     | None -> fail tsm
-    | Some (| gk, gv |) ->
+    | Some ( gk, gv ) ->
       begin
       (* check store contains slot s' *)
       match get_entry tsm s' with
@@ -515,7 +513,7 @@ let vaddb (tsm:thread_state_model)
   = if not (check_slot_bounds s) then fail tsm
     else match record_of_payload p with
     | None -> fail tsm //parsing failure
-    | Some (| k, v |) ->
+    | Some ( k, v ) ->
       if is_root_key k then fail tsm //root key
       else if Some? (get_entry tsm s) then fail tsm //slot is already full
       else (

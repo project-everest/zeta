@@ -25,6 +25,9 @@ let as_u32 (s:U16.t) : U32.t = Cast.uint16_to_uint32 s
 
 #push-options "--query_stats --fuel 0 --ifuel 1"
 
+////////////////////////////////////////////////////////////////////////////////
+// Some utilities
+////////////////////////////////////////////////////////////////////////////////
 let set_add_remove (#a:eqtype) (s:Set.set a) (x:a)
   : Lemma (requires not (Set.mem x s))
           (ensures IArray.set_remove (IArray.set_add s x) x == s)
@@ -40,6 +43,18 @@ let map_upd_sel_eq (#k:eqtype) (#v:Type) (m:Map.t k v)
           [SMTPat (Map.upd m x (Map.sel m x))]
   = assert (Map.upd m x (Map.sel m x) `Map.equal` m)
 
+/// Many functions have specs using update_if
+///  -- they conditionally update the state leaving it unchanged in case of failure
+let update_if (b:bool) (default_ upd_: 'a)
+  : 'a
+  = if b then upd_ else default_
+
+////////////////////////////////////////////////////////////////////////////////
+//We'll mostly work with thread_state_inv'
+//which is similar to thread_state_inv without its pure parts
+//The full thread_state_inv, with the pure parts is handled mainly
+//at the top level verify call at the end of this fail
+////////////////////////////////////////////////////////////////////////////////
 [@@__reduce__]
 let thread_state_inv' (t:thread_state_t)
                       ([@@@smt_fallback] tsm:M.thread_state_model)
@@ -53,6 +68,51 @@ let thread_state_inv' (t:thread_state_t)
     G.pts_to t.app_results full tsm.app_results `star`
     exists_ (A.pts_to t.serialization_buffer)
 
+let intro_thread_state_inv' #o
+                           (tsm:M.thread_state_model)
+                           (#f:_)
+                           (#s:_)
+                           (#c:_)
+                           (#eh:_)
+                           (#lve:_)
+                           (#pe:_)
+                           (#ar:_)
+                           (t:thread_state_t)
+   : STGhost unit o
+     (R.pts_to t.failed full f `star`
+      A.pts_to t.store s `star`
+      R.pts_to t.clock full c `star`
+      IArray.perm t.epoch_hashes eh Set.empty `star`
+      R.pts_to t.last_verified_epoch full lve `star`
+      G.pts_to t.processed_entries full pe `star`
+      G.pts_to t.app_results full ar `star`
+      exists_ (A.pts_to t.serialization_buffer))
+     (fun _ -> thread_state_inv' t tsm)
+     (requires
+       tsm.failed == f /\
+       tsm.store == s /\
+       tsm.clock == c /\
+       tsm.epoch_hashes == eh /\
+       tsm.last_verified_epoch == lve /\
+       tsm.processed_entries == pe /\
+       tsm.app_results == ar)
+     (ensures fun _ ->
+       True)
+   = rewrite (R.pts_to t.failed _ _ `star`
+              A.pts_to t.store _ `star`
+              R.pts_to t.clock _ _ `star`
+              IArray.perm t.epoch_hashes _ _ `star`
+              R.pts_to t.last_verified_epoch _ _ `star`
+              G.pts_to t.processed_entries _ _ `star`
+              G.pts_to t.app_results _ _ `star`
+              exists_ (A.pts_to t.serialization_buffer))
+             (thread_state_inv' t tsm)
+
+////////////////////////////////////////////////////////////////////////////////
+//verify_epoch: One of the most delicate functions in the API is
+//verify_epoch, since it involves working with the aggregate epoch state
+//We implement that first, with several auxiliary lemmas and helper functions
+////////////////////////////////////////////////////////////////////////////////
 let spec_verify_epoch (tsm:M.thread_state_model)
   = let tsm = M.verifyepoch tsm in
     if tsm.failed then tsm
@@ -62,7 +122,7 @@ let verify_epoch_committed_entries (tsm:M.thread_state_model)
   : Lemma (M.committed_entries (spec_verify_epoch tsm) ==
            (spec_verify_epoch tsm).processed_entries)
           [SMTPat (M.committed_entries (spec_verify_epoch tsm))]
-  = admit()
+  = admit() //should be an easy lemma about sequence prefixes
 
 let aggregate_one_epoch_hash (source:epoch_hashes_repr)
                              (dest:AEH.epoch_hashes_repr)
@@ -71,9 +131,6 @@ let aggregate_one_epoch_hash (source:epoch_hashes_repr)
   = Map.upd dest e (AEH.aggregate_epoch_hash
                       (Map.sel dest e)
                       (Map.sel source e))
-let update_if (b:bool) (default_ upd_: 'a)
-  : 'a
-  = if b then upd_ else default_
 
 let aggregate_epoch_hashes_t (#e:_)
                              (#s #d:M.epoch_hash)
@@ -87,6 +144,7 @@ let aggregate_epoch_hashes_t (#e:_)
       AEH.epoch_hash_perm e dst (update_if b d (AEH.aggregate_epoch_hash d s)))
   = admit__() // need a utility from HA
 
+/// A utility, should be replaced by a similar function in EphemeralHashtbl
 let with_value_of_key (#k:eqtype)
                       (#v:Type0)
                       (#contents:Type0)
@@ -117,6 +175,8 @@ let with_value_of_key (#k:eqtype)
       return true
 
 
+/// Updates the aggregate epoch hash for a thread with the
+/// t thread-local epoch hashes for epoch e
 let propagate_epoch_hash (#tsm:M.thread_state_model)
                          (t:thread_state_t)
                          (#hv:erased AEH.epoch_hashes_repr)
@@ -164,6 +224,8 @@ let update_bitmap_spec (bm:IArray.repr M.epoch_id AEH.tid_bitmap)
   : IArray.repr M.epoch_id AEH.tid_bitmap
   = Map.upd bm e (Seq.upd (Map.sel bm e) (U16.v tid) true)
 
+/// Update the bitmap for tid indicating that it's epoch contribution
+/// is ready
 let update_bitmap (#bm:erased _)
                   (tid_bitmaps: AEH.epoch_tid_bitmaps)
                   (e:M.epoch_id)
@@ -185,11 +247,6 @@ let update_bitmap (#bm:erased _)
     in
     with_value_of_key tid_bitmaps e update_tid
 
-let update_contributions_spec  (mlogs_v:AEH.all_processed_entries)
-                               (tsm:M.thread_state_model)
-  : GTot AEH.all_processed_entries
-  = Seq.upd mlogs_v (U16.v tsm.thread_id) tsm.processed_entries
-
 let update_logs_of_tid
          (mlogs_v:AEH.all_processed_entries)
          (tsm:M.thread_state_model)
@@ -202,9 +259,12 @@ let map_of_seq_update_lemma  (mlogs_v:AEH.all_processed_entries)
                               tsm.thread_id
                               (Some (spec_verify_epoch tsm).processed_entries))
                      (AEH.map_of_seq (update_logs_of_tid mlogs_v (spec_verify_epoch tsm))))
-  = admit()
+  = ()
 
-
+/// A key ghost step:
+///
+///   Update the thread local log and then propagate the updated to
+///   the anchored global state
 let commit_entries #o
                    (#tsm:M.thread_state_model)
                    (#mlogs_v:AEH.all_processed_entries)
@@ -238,10 +298,12 @@ let spec_verify_epoch_entries_invariants (tsm:M.thread_state_model)
 
 let last_verified_epoch_constant (tsm:M.thread_state_model)
   : Lemma
+    (requires
+      tsm_entries_invariant tsm)
     (ensures (
       let tsm0 = M.verify_model (M.init_thread_state_model tsm.thread_id) (M.committed_entries tsm) in
       tsm.last_verified_epoch == tsm0.last_verified_epoch))
-  = admit()
+  = admit() //the last_verified_epoch only changed when processing a verify_epoch entry
 
 #push-options "--query_stats"
 let advance_per_thread_bitmap_and_max  (bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
@@ -380,48 +442,11 @@ let restore_hashes_bitmaps_max_ok (#o:_)
     lemma_restore_hashes_bitmaps_max_ok hashes bitmaps max mlogs_v tsm e;
     intro_pure _
 
-let intro_thread_state_inv #o
-                           (tsm:M.thread_state_model)
-                           (#f:_)
-                           (#s:_)
-                           (#c:_)
-                           (#eh:_)
-                           (#lve:_)
-                           (#pe:_)
-                           (#ar:_)
-                           (t:thread_state_t)
-   : STGhost unit o
-     (R.pts_to t.failed full f `star`
-      A.pts_to t.store s `star`
-      R.pts_to t.clock full c `star`
-      IArray.perm t.epoch_hashes eh Set.empty `star`
-      R.pts_to t.last_verified_epoch full lve `star`
-      G.pts_to t.processed_entries full pe `star`
-      G.pts_to t.app_results full ar `star`
-      exists_ (A.pts_to t.serialization_buffer))
-     (fun _ -> thread_state_inv' t tsm)
-     (requires
-       tsm.failed == f /\
-       tsm.store == s /\
-       tsm.clock == c /\
-       tsm.epoch_hashes == eh /\
-       tsm.last_verified_epoch == lve /\
-       tsm.processed_entries == pe /\
-       tsm.app_results == ar)
-     (ensures fun _ ->
-       True)
-   = rewrite (R.pts_to t.failed _ _ `star`
-              A.pts_to t.store _ `star`
-              R.pts_to t.clock _ _ `star`
-              IArray.perm t.epoch_hashes _ _ `star`
-              R.pts_to t.last_verified_epoch _ _ `star`
-              G.pts_to t.processed_entries _ _ `star`
-              G.pts_to t.app_results _ _ `star`
-              exists_ (A.pts_to t.serialization_buffer))
-             (thread_state_inv' t tsm)
-
 #push-options "--query_stats"
 
+////////////////////////////////////////////////////////////////////////////////
+// Finally verify_epoch itself
+////////////////////////////////////////////////////////////////////////////////
 let verify_epoch (#tsm:M.thread_state_model)
                  (t:thread_state_t)
                  (hashes : AEH.all_epoch_hashes)
@@ -495,7 +520,7 @@ let verify_epoch (#tsm:M.thread_state_model)
         )
       )
 
-#push-options "--print_implicits"
+////////////////////////////////////////////////////////////////////////////////
 
 let spec_parser_log  = admit()
 
@@ -503,6 +528,9 @@ let finalize_epoch_hash
   : IArray.finalizer epoch_hash_perm
   = fun k v -> drop _ //TODO: Actually free it
 
+////////////////////////////////////////////////////////////////////////////////
+// create a thread
+////////////////////////////////////////////////////////////////////////////////
 #push-options "--fuel 1"
 let create (tid:tid)
   : STT thread_state_t
@@ -561,6 +589,10 @@ let fail (#tsm:M.thread_state_model)
     (fun _ -> thread_state_inv' t (M.fail tsm))
   = R.write t.failed true
 
+////////////////////////////////////////////////////////////////////////////////
+//vget: We don't use this anymore, but it's a short function to check
+//      that things verify as expected
+////////////////////////////////////////////////////////////////////////////////
 let vget (#tsm:M.thread_state_model)
          (t:thread_state_t)
          (s:slot)
@@ -580,6 +612,10 @@ let vget (#tsm:M.thread_state_model)
         then (R.write t.failed true; ())
         else (noop(); ())
 
+////////////////////////////////////////////////////////////////////////////////
+//vput: We don't use this anymore, but it's a short function to check
+//      that things verify as expected
+////////////////////////////////////////////////////////////////////////////////
 let vput (#tsm:M.thread_state_model)
          (t:thread_state_t)
          (s:slot)
@@ -601,6 +637,9 @@ let vput (#tsm:M.thread_state_model)
             ())
 module KU = Zeta.Steel.KeyUtils
 
+////////////////////////////////////////////////////////////////////////////////
+//vevictm
+////////////////////////////////////////////////////////////////////////////////
 let entry_points_to_some_slot (r:M.store_entry)
                               (d:bool)
   : bool
@@ -636,7 +675,6 @@ let evict_from_store (#tsm:M.thread_state_model)
     A.write t.store (as_u32 s') (Some e');
     A.write t.store (as_u32 s) None;
     ()
-
 
 let vevictm (#tsm:M.thread_state_model)
             (t:thread_state_t)
@@ -694,7 +732,9 @@ let vevictm (#tsm:M.thread_state_model)
         )
       )
 
-
+////////////////////////////////////////////////////////////////////////////////
+// Some utilities for vevictb and vevictbm
+////////////////////////////////////////////////////////////////////////////////
 let sat_evictb_checks (#tsm:M.thread_state_model)
                       (t:thread_state_t)
                       (s:slot)
@@ -724,8 +764,7 @@ let sat_evictb_checks (#tsm:M.thread_state_model)
 
 module HA = Zeta.Steel.HashAccumulator
 
-assume
-val ha_add (#v:erased (HA.hash_value_t))
+let ha_add (#v:erased (HA.hash_value_t))
            (ha:HA.ha)
            (l:U32.t)
            (#bs:erased bytes { U32.v l <= Seq.length bs /\ U32.v l <= HA.blake2_max_input_length })
@@ -736,7 +775,7 @@ val ha_add (#v:erased (HA.hash_value_t))
          A.pts_to input bs `star`
          HA.ha_val ha (HA.maybe_aggregate_hashes b v
                          (HA.hash_one_value (Seq.slice bs 0 (U32.v l)))))
-
+  = admit__()
 
 let unfold_epoch_hash_perm #o (k:M.epoch_id) (v:epoch_hashes_t) (c:M.epoch_hash)
   : STGhostT unit o
@@ -747,7 +786,6 @@ let unfold_epoch_hash_perm #o (k:M.epoch_id) (v:epoch_hashes_t) (c:M.epoch_hash)
   = rewrite (epoch_hash_perm k v c)
             (HA.ha_val v.hadd c.hadd `star`
              HA.ha_val v.hevict c.hevict)
-
 
 let fold_epoch_hash_perm #o
                          (k:M.epoch_id)
@@ -769,7 +807,6 @@ let fold_epoch_hash_perm #o
 type htype =
   | HAdd
   | HEvict
-
 
 let update_hash (c:M.epoch_hash)
                 (r:T.record)
@@ -916,7 +953,6 @@ let vevictb_update_hash_clock (#tsm:M.thread_state_model)
      if b
      then (
        R.write t.clock ts;
-//       intro_thread_state_inv (M.vevictb_update_hash_clock tsm s ts) t;
        return b
      )
      else (
@@ -924,6 +960,9 @@ let vevictb_update_hash_clock (#tsm:M.thread_state_model)
        return b
      )
 
+////////////////////////////////////////////////////////////////////////////////
+//vevictb
+////////////////////////////////////////////////////////////////////////////////
 let vevictb (#tsm:M.thread_state_model)
             (t:thread_state_t)
             (s:slot_id)
@@ -976,9 +1015,12 @@ let fail_as (#tsm:M.thread_state_model)
     (ensures fun _ -> True)
   = R.write t.failed true;
     let b = true in
-    intro_thread_state_inv (update_if b tsm tsm') t;
+    intro_thread_state_inv' (update_if b tsm tsm') t;
     return b
 
+////////////////////////////////////////////////////////////////////////////////
+//vevictbm: A bit delicate. TODO should debug the SMT queries.
+////////////////////////////////////////////////////////////////////////////////
 let vevictbm (#tsm:M.thread_state_model)
              (t:thread_state_t)
              (s s':slot_id)
@@ -1049,6 +1091,9 @@ let vevictbm (#tsm:M.thread_state_model)
                         ))))
 
 
+////////////////////////////////////////////////////////////////////////////////
+// nextepoch
+////////////////////////////////////////////////////////////////////////////////
 let new_epoch (e:M.epoch_id)
   : STT epoch_hashes_t
     emp
@@ -1076,57 +1121,71 @@ let nextepoch (#tsm:M.thread_state_model)
               (IArray.perm t.epoch_hashes (Map.upd tsm.epoch_hashes nxt M.init_epoch_hash) (Set.empty));
       ()
 
+
+////////////////////////////////////////////////////////////////////////////////
+//vaddb
+////////////////////////////////////////////////////////////////////////////////
+let record = (k:key & v:T.value{ M.is_value_of k v })
+
 let next (t:T.timestamp)
   : option T.timestamp
   = if FStar.UInt.fits (U64.v t + 1) 64
     then Some (U64.add t 1uL)
     else None
 
+let max (t0 t1:T.timestamp)
+  = let open U64 in
+    if t0 >=^ t1 then t0 else t1
 
-// let vaddb (#tsm:M.thread_state_model)
-//           (t:thread_state_t)
-//           (s:slot_id)
-//           (ts:T.timestamp)
-//           (tid:T.thread_id)
-//           (p:M.payload)
-//   : STT unit
-//     (thread_state_inv' t tsm)
-//     (fun _ -> thread_state_inv' t (M.vaddb tsm s ts tid p))
-//   = if not (M.check_slot_bounds s)
-//     then (R.write t.failed true; ())
-//     else (
-//       match record_of_payload p with
-//       | None ->
-//         R.write t.failed true; ()
-//         fail tsm //parsing failure
-//       | Some (| k, v |) ->
-//         if is_root_key k
-//         then (fail t; intro_ //root key
-//         else if Some? (get_entry tsm s) then fail tsm //slot is already full
-//         else (
-//         //add hash (k, v, t, thread_id) to hadd.[epoch_of_timestamp t]
-//         let tsm = update_hadd tsm (epoch_of_timestamp t) (k, v) t thread_id in
-//         match next t with //increment the time
-//         | None ->
-//           fail tsm //overflow
-//         | Some t' ->
-//           let tsm = update_clock tsm (max tsm.clock t') in
-//           put_entry tsm s (mk_entry k v BAdd)
-//       )
+let vaddb (#tsm:M.thread_state_model)
+          (t:thread_state_t)
+          (s:slot_id)
+          (ts:timestamp)
+          (thread_id:T.thread_id)
+          (p:erased M.payload)
+          (r:T.record)
+  : ST bool
+       (thread_state_inv' t tsm)
+       (fun b -> thread_state_inv' t (update_if b tsm (M.vaddb tsm s ts thread_id p)))
+       (requires Some r == M.record_of_payload p)
+       (ensures fun _ -> True)
+  = let b = M.check_slot_bounds s in
+    if not b then (fail t; return true)
+    else (
+      let (k, v) = r in
+      if M.is_root_key k then (fail t; return true)
+      else (
+        let ropt = A.read t.store (as_u32 s) in
+        if Some? ropt then (fail t; return true) //slot is already full
+        else (
+          //add hash (k, v, t, thread_id) to hadd.[epoch_of_timestamp t]
+          let ok = update_ht t (M.epoch_of_timestamp ts) r ts thread_id HAdd in
+          if ok
+          then (
+             rewrite (thread_state_inv' t _)
+                     (thread_state_inv' t (update_epoch_hash tsm (M.epoch_of_timestamp ts) r ts thread_id HAdd));
+            let ts_opt = next ts in
+            match ts_opt with
+            | None -> fail t; return true
+            | Some t' ->
+              let clock = R.read t.clock in
+              let next_clock = max clock t' in
+              R.write t.clock next_clock;
+              A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
+              return true
+          )
+          else (
+            rewrite (thread_state_inv' t _) (thread_state_inv' t tsm);
+            return ok
+          )
+        )
+      )
+    )
 
-
-// val serialized_new_app_results (init final:M.app_results)
-//                                (n_out:U32.t)
-//                                (out: P.bytes)
-//   : prop
-
-// let delta_app_results (tsm0 tsm1:M.thread_state_model)
-//   : GTot (Seq.seq M.app_results)
-//   = Prims.admit()
-
-// let bytes_of_app_results (s:Seq.seq M.app_results)
-//   : GTot bytes
-//   = Prims.admit()
+////////////////////////////////////////////////////////////////////////////////
+//TODO: vaddm and runapp
+//      All of these involve processing application-specific entries
+////////////////////////////////////////////////////////////////////////////////
 
 // /// Entry point to run a single verifier thread on a log
 let verify (#tsm:M.thread_state_model)
