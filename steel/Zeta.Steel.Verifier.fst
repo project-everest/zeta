@@ -1183,17 +1183,43 @@ let vaddb (#tsm:M.thread_state_model)
     )
 
 ////////////////////////////////////////////////////////////////////////////////
-//TODO: vaddm and runapp
-//      All of these involve processing application-specific entries
+//vaddm
 ////////////////////////////////////////////////////////////////////////////////
 
-// /// Entry point to run a single verifier thread on a log
-let verify (#tsm:M.thread_state_model)
-           (t:thread_state_t) //handle to the thread state
-           (#log_bytes:erased bytes)
-           (#len:U32.t)
-           (log:larray U8.t len) //concrete log
-           (#outlen:U32.t)
-           (out:larray U8.t outlen) //out array, to write outputs
-           (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+let vaddm (#tsm:M.thread_state_model)
+          (t:thread_state_t)
+          (s s':slot_id)
+          (p:erased M.payload)
+          (r:T.record)
+  : ST bool
+    (thread_state_inv' t tsm)
+    (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' p)))
+    (requires Some r == M.record_of_payload p)
+    (ensures fun _ -> True)
   = admit__()
+
+//TODO: parse one entry from the log and dispatch to
+//      the appropriate function
+
+// let verify_one (#tsm:M.thread_state_model)
+//                (t:thread_state_t) //handle to the thread state
+//                (#log_bytes:erased bytes)
+//                (#loglen:U32.t)
+//                (logpos:U32.t { U32.v logpos <= U32.v loglen })
+//                (log:larray U8.t loglen) //concrete log
+//                (#outlen:U32.t)
+//                (outpos:U32.t { U32.v outpos <= U32.v outlen })
+//                (out:larray U8.t outlen) //out array, to write outputs
+//                (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+//   = admit__()
+
+// // /// Entry point to run a single verifier thread on a log
+// let verify (#tsm:M.thread_state_model)
+//            (t:thread_state_t) //handle to the thread state
+//            (#log_bytes:erased bytes)
+//            (#len:U32.t)
+//            (log:larray U8.t len) //concrete log
+//            (#outlen:U32.t)
+//            (out:larray U8.t outlen) //out array, to write outputs
+//            (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+//   = admit__()
