@@ -1364,9 +1364,33 @@ let vaddm (#tsm:M.thread_state_model)
                    )
                  )))
 
+noeq
+type log_entry =
+  | AddM : s:slot_id ->
+           s':slot_id ->
+           p:erased M.payload ->
+           r:T.record { Some r == M.record_of_payload p } ->
+           log_entry
+
+  | AddB : s:slot_id ->
+           ts:T.timestamp ->
+           tid:T.thread_id ->
+           p:erased M.payload ->
+           r:T.record { Some r == M.record_of_payload p } ->
+           log_entry
+
+  | RunApp of runApp_payload
+  | EvictM of evictM_payload
+  | EvictB of evictB_payload
+  | EvictBM of evictBM_payload
+  | NextEpoch
+  | VerifyEpoch
+
+
 
 //TODO: parse one entry from the log and dispatch to
 //      the appropriate function
+
 
 // let verify_one (#tsm:M.thread_state_model)
 //                (t:thread_state_t) //handle to the thread state

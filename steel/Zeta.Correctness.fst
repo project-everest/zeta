@@ -21,9 +21,9 @@ val merkle_hash_collision : Type0
 assume
 val multiset_hash_collision : Type0
 
-(* the definition of epoch_is_certified may need to be adjusted ... *)
-let main_lemma (logs:all_logs)
-               (eid:epoch_id { epoch_is_certified logs eid })
-               (_ : squash (~ (seq_consistent logs eid) ))
-  : Tot (either merkle_hash_collision multiset_hash_collision)
-  = admit()
+// (* the definition of epoch_is_certified may need to be adjusted ... *)
+// let main_lemma (logs:all_logs)
+//                (eid:epoch_id { epoch_is_certified logs eid })
+//                (_ : squash (~ (seq_consistent logs eid) ))
+//   : Tot (either merkle_hash_collision multiset_hash_collision)
+//   = admit()

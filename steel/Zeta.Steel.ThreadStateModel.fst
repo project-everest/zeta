@@ -313,7 +313,7 @@ let madd_to_store_split (tsm:thread_state_model)
         | None -> fail tsm
         | Some s2 ->
           if U16.v s2 >= Seq.length st
-          then fail tsm
+          then (assert false; fail tsm)
           else match Seq.index st (U16.v s2) with
                | None -> fail tsm
                | Some r2 ->
