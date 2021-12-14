@@ -6,7 +6,7 @@ open Steel.ST.Util
 module G = Steel.ST.GhostReference
 module R = Steel.ST.Reference
 module A = Steel.ST.Array
-module GMap = Zeta.Steel.GhostSharedMap
+module TLM = Zeta.Steel.ThreadLogMap
 open Zeta.Steel.ApplicationTypes
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
@@ -198,8 +198,9 @@ let update_logs_of_tid
 
 let map_of_seq_update_lemma  (mlogs_v:AEH.all_processed_entries)
                              (tsm:M.thread_state_model)
-  : Lemma (Map.equal (Map.upd (AEH.map_of_seq mlogs_v) tsm.thread_id
-                              (spec_verify_epoch tsm).processed_entries)
+  : Lemma (Map.equal (Map.upd (Map.upd (AEH.map_of_seq mlogs_v) tsm.thread_id None)
+                              tsm.thread_id
+                              (Some (spec_verify_epoch tsm).processed_entries))
                      (AEH.map_of_seq (update_logs_of_tid mlogs_v (spec_verify_epoch tsm))))
   = admit()
 
@@ -208,25 +209,26 @@ let commit_entries #o
                    (#tsm:M.thread_state_model)
                    (#mlogs_v:AEH.all_processed_entries)
                    (t:thread_state_t)
-                   (mylogref:AEH.monotonic_logs)
+                   (mylogref:TLM.t)
   : STGhost unit o
-     (GMap.owns_key mylogref t.thread_id full tsm.processed_entries `star`
-      GMap.global_snapshot mylogref (AEH.map_of_seq mlogs_v) `star`
+     (TLM.tid_pts_to mylogref t.thread_id full tsm.processed_entries false `star`
+      TLM.global_anchor mylogref (AEH.map_of_seq mlogs_v) `star`
       G.pts_to t.processed_entries full (M.verifyepoch tsm).processed_entries)
      (fun _ ->
-      GMap.owns_key mylogref t.thread_id full (spec_verify_epoch tsm).processed_entries `star`
-      GMap.global_snapshot mylogref (AEH.map_of_seq (update_logs_of_tid mlogs_v (spec_verify_epoch tsm))) `star`
+      TLM.tid_pts_to mylogref t.thread_id full (spec_verify_epoch tsm).processed_entries false `star`
+      TLM.global_anchor mylogref (AEH.map_of_seq (update_logs_of_tid mlogs_v (spec_verify_epoch tsm))) `star`
       G.pts_to t.processed_entries full (spec_verify_epoch tsm).processed_entries)
      (requires t.thread_id == tsm.thread_id)
      (ensures fun _ -> True)
-  = GMap.update mylogref (spec_verify_epoch tsm).processed_entries;
-    GMap.update_global_snapshot mylogref (AEH.map_of_seq mlogs_v);
+  = TLM.take_anchor_tid mylogref _ _ _ _;
+    verify_epoch_committed_entries tsm;
+    TLM.update_anchored_tid_log mylogref _ _ (spec_verify_epoch tsm).processed_entries;
+    TLM.put_anchor_tid mylogref _ _ _ _;
     G.write t.processed_entries (spec_verify_epoch tsm).processed_entries;
     map_of_seq_update_lemma mlogs_v tsm;
     rewrite
-          (GMap.global_snapshot mylogref (Map.upd (AEH.map_of_seq mlogs_v) t.thread_id
-                                                  (spec_verify_epoch tsm).processed_entries))
-          (GMap.global_snapshot mylogref (AEH.map_of_seq (update_logs_of_tid mlogs_v (spec_verify_epoch tsm))))
+          (TLM.global_anchor mylogref _)
+          (TLM.global_anchor mylogref (AEH.map_of_seq (update_logs_of_tid mlogs_v (spec_verify_epoch tsm))))
 
 let spec_verify_epoch_entries_invariants (tsm:M.thread_state_model)
   : Lemma
@@ -253,14 +255,15 @@ let advance_per_thread_bitmap_and_max  (bitmaps:IArray.repr M.epoch_id AEH.tid_b
       AEH.per_thread_bitmap_and_max bitmaps max mlogs_v tsm.thread_id /\
       tsm'.last_verified_epoch == e /\
       not tsm'.failed /\
-      tsm_entries_invariant tsm))
+      tsm_entries_invariant tsm /\
+      M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id
+      ))
     (ensures (
       let tsm' = spec_verify_epoch tsm in
       let bitmaps' = update_bitmap_spec bitmaps e tsm.thread_id in
       let logs' = update_logs_of_tid mlogs_v tsm' in
       AEH.per_thread_bitmap_and_max bitmaps' max logs' tsm.thread_id))
   = let log0 = AEH.log_of_tid mlogs_v tsm.thread_id in
-    assume (log0 == M.committed_entries tsm);
     let tsm0 = M.verify_model (M.init_thread_state_model tsm.thread_id) log0 in
     last_verified_epoch_constant tsm;
     assert (tsm0.last_verified_epoch == tsm.last_verified_epoch);
@@ -283,7 +286,8 @@ let restore_all_threads_bitmap_and_max  (bitmaps:IArray.repr M.epoch_id AEH.tid_
        (forall tid. AEH.per_thread_bitmap_and_max bitmaps max mlogs_v tid) /\
        tsm'.last_verified_epoch = e /\
        tsm_entries_invariant tsm /\
-       not tsm'.failed))
+       not tsm'.failed /\
+       M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id))
     (ensures
       (let tsm' = spec_verify_epoch tsm in
         (forall tid. AEH.per_thread_bitmap_and_max
@@ -292,7 +296,7 @@ let restore_all_threads_bitmap_and_max  (bitmaps:IArray.repr M.epoch_id AEH.tid_
                       (update_logs_of_tid mlogs_v tsm')
                       tid)))
   = advance_per_thread_bitmap_and_max bitmaps max mlogs_v tsm e
-module T = FStar.Tactics
+
 let lemma_restore_hashes_bitmaps_max_ok
                                   (hashes:epoch_hashes_repr)
                                   (bitmaps: IArray.repr M.epoch_id AEH.tid_bitmap)
@@ -305,7 +309,8 @@ let lemma_restore_hashes_bitmaps_max_ok
       (spec_verify_epoch tsm).last_verified_epoch = e /\
       AEH.hashes_bitmaps_max_ok hashes bitmaps max mlogs_v /\
       tsm_entries_invariant tsm /\
-      not (spec_verify_epoch tsm).failed)
+      not (spec_verify_epoch tsm).failed /\
+      M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id)
     (ensures (
       let tsm' = spec_verify_epoch tsm in
       let hashes' = aggregate_one_epoch_hash tsm'.epoch_hashes hashes e in
@@ -313,7 +318,6 @@ let lemma_restore_hashes_bitmaps_max_ok
       let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
       AEH.hashes_bitmaps_max_ok hashes' bitmaps' max mlogs_v'))
   = let log0 = AEH.log_of_tid mlogs_v tsm.thread_id in
-    assume (log0 == M.committed_entries tsm);
     let tsm0 = M.verify_model (M.init_thread_state_model tsm.thread_id) log0 in
     let tsm' = spec_verify_epoch tsm in
     let hashes' = aggregate_one_epoch_hash tsm'.epoch_hashes hashes e in
@@ -327,7 +331,7 @@ let lemma_restore_hashes_bitmaps_max_ok
       then (
         calc (==) {
          AEH.aggregate_all_threads_epoch_hashes e mlogs_v';
-         (==) { _ by (T.trefl()) }
+         (==) { _ by (FStar.Tactics.trefl()) }
          Zeta.SeqAux.reduce M.init_epoch_hash
                        (fun s -> AEH.aggregate_epoch_hash (Map.sel s e))
                        (AEH.all_threads_epoch_hashes_of_logs mlogs_v');
@@ -367,6 +371,7 @@ let restore_hashes_bitmaps_max_ok (#o:_)
       let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
       pure (AEH.hashes_bitmaps_max_ok hashes' bitmaps' max mlogs_v'))
     (requires
+          M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id /\
           (spec_verify_epoch tsm).last_verified_epoch = e /\
           tsm_entries_invariant tsm /\
           not (spec_verify_epoch tsm).failed)
@@ -422,16 +427,17 @@ let verify_epoch (#tsm:M.thread_state_model)
                  (hashes : AEH.all_epoch_hashes)
                  (tid_bitmaps : AEH.epoch_tid_bitmaps)
                  (max_certified_epoch : R.ref M.epoch_id)
-                 (mlogs: AEH.monotonic_logs)
+                 (mlogs: TLM.t)
                  (lock: cancellable_lock (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
   : ST bool
     (thread_state_inv' t tsm `star`
-     GMap.owns_key mlogs t.thread_id full tsm.processed_entries)
+     TLM.tid_pts_to mlogs t.thread_id full tsm.processed_entries false)
     (fun b ->
       thread_state_inv' t (update_if b (M.verifyepoch tsm)
                                        (spec_verify_epoch tsm)) `star`
-      GMap.owns_key mlogs t.thread_id full (update_if b tsm.processed_entries
-                                                           (spec_verify_epoch tsm).processed_entries))
+      TLM.tid_pts_to mlogs t.thread_id full (update_if b tsm.processed_entries
+                                                         (spec_verify_epoch tsm).processed_entries)
+                                            false)
     (requires
       t.thread_id == tsm.thread_id /\
       tsm_entries_invariant tsm /\
@@ -470,6 +476,7 @@ let verify_epoch (#tsm:M.thread_state_model)
             ()
         in
 
+        TLM.extract_anchor_invariant mlogs _ _ _ _;
         let b0 = propagate_epoch_hash t hashes e in
         let b1 = update_bitmap tid_bitmaps e t.thread_id in
         if not b0 || not b1
@@ -523,7 +530,8 @@ let create (tid:tid)
     } in
     intro_exists _ (A.pts_to serialization_buffer);
     assert (tsm == M.verify_model tsm Seq.empty);
-    intro_pure (tsm == M.verify_model tsm Seq.empty);
+    intro_pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
+                t.thread_id == tsm.thread_id);
     rewrite (R.pts_to failed _ _ `star`
              A.pts_to store _ `star`
              R.pts_to clock _ _ `star`
@@ -532,7 +540,8 @@ let create (tid:tid)
              G.pts_to processed_entries _ _ `star`
              G.pts_to app_results _ _ `star`
              exists_ (A.pts_to serialization_buffer) `star`
-             pure (tsm == M.verify_model tsm Seq.empty)
+             pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
+                   t.thread_id == tsm.thread_id)
             )
             (thread_state_inv t (M.init_thread_state_model tid));
     return t
@@ -544,8 +553,6 @@ let create (tid:tid)
 
 let tsm_t (tsm:M.thread_state_model) =
     t:thread_state_t { t.thread_id == tsm.thread_id}
-
-
 
 let fail (#tsm:M.thread_state_model)
          (t:thread_state_t)
@@ -716,6 +723,7 @@ let sat_evictb_checks (#tsm:M.thread_state_model)
       return b
 
 module HA = Zeta.Steel.HashAccumulator
+
 assume
 val ha_add (#v:erased (HA.hash_value_t))
            (ha:HA.ha)
@@ -1128,9 +1136,5 @@ let verify (#tsm:M.thread_state_model)
            (log:larray U8.t len) //concrete log
            (#outlen:U32.t)
            (out:larray U8.t outlen) //out array, to write outputs
-           (#logrefs: AEH.log_refs_t)
-           (aeh:AEH.aggregate_epoch_hashes logrefs) //lock & handle to the aggregate state
-           (mylogref:AEH.log_ref { //this thread's contribution to the aggregate state
-             Map.sel logrefs tsm.thread_id == mylogref
-            })
+           (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
   = admit__()

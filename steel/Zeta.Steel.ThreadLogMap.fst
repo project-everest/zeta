@@ -510,6 +510,30 @@ let update_tid_log (#o:_) (x:t) (t:tid) (l0 l1:log)
     intro_tids_pts_to x full_perm (singleton t l1) false (put_anchored m t l1)
 
 ////////////////////////////////////////////////////////////////////////////////
+//Extract anchor invariant
+////////////////////////////////////////////////////////////////////////////////
+
+let extract_anchor_invariant (#o:_)
+                             (x:t)
+                             (m:repr)
+                             (t:tid)
+                             (f:perm)
+                             (l:log)
+  : STGhost unit o
+    (tid_pts_to x t f l false `star` global_anchor x m)
+    (fun _ ->  tid_pts_to x t f l false `star` global_anchor x m)
+    (requires
+      Some? (Map.sel m t))
+    (ensures fun _ ->
+      Some? (Map.sel m t) /\
+      M.committed_log_entries l == Some?.v (Map.sel m t))
+  = let m0 = elim_tids_pts_to x _ _ _ in
+    let m1 = elim_global_anchor x _ in
+    gpts_to_composable x m0 m1;
+    intro_tids_pts_to x f _ false m0;
+    intro_global_anchor x m m1
+
+////////////////////////////////////////////////////////////////////////////////
 //take_anchor_tid
 ////////////////////////////////////////////////////////////////////////////////
 let take_anchor_tid_lemma (x:t)

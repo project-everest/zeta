@@ -182,6 +182,27 @@ val update_tid_log (#o:_)
 ///     aggregate epoch hashes
 
 
+/// [extract_anchor_invariant]
+///   Owning a thread's log and the anchor for that thread tells you
+///   that the thread's log is not too far ahead of the anchor. In fact,
+///   the anchor is the log's committed prefix
+///
+///   Note, the postcondition is the "main property"
+val extract_anchor_invariant (#o:_)
+                             (x:t)
+                             (m:repr)
+                             (t:tid)
+                             (f:perm)
+                             (l:log)
+  : STGhost unit o
+    (tid_pts_to x t f l false `star` global_anchor x m)
+    (fun _ ->  tid_pts_to x t f l false `star` global_anchor x m)
+    (requires
+      Some? (Map.sel m t))
+    (ensures fun _ ->
+      Some? (Map.sel m t) /\
+      M.committed_log_entries l == Some?.v (Map.sel m t))
+
 /// [take_anchor_tid]
 ///   Taking ownership of the anchor for [t]
 ///
