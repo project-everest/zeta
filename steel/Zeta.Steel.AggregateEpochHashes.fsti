@@ -66,7 +66,7 @@ let aggregate_epoch_hash (e0 e1:M.epoch_hash)
   = { hadd = HA.aggregate_hashes e0.hadd e1.hadd;
       hevict = HA.aggregate_hashes e0.hevict e1.hevict}
 
-let log = Seq.seq log_entry_base
+let log = Seq.seq log_entry
 let all_processed_entries = Seq.lseq log (U32.v n_threads)
 
 let tsm_of_log (mlogs_v:all_processed_entries) (t:tid) =

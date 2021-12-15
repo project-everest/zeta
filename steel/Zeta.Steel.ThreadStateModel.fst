@@ -11,6 +11,7 @@ module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 open Zeta.Steel.FormatsManual
+open Zeta.Steel.LogEntry
 module T = Zeta.Steel.FormatsManual
 module P = Zeta.Steel.Parser
 module L = FStar.List.Tot
@@ -71,7 +72,7 @@ type thread_state_model = {
   clock : U64.t;
   epoch_hashes: epoch_hashes;
   thread_id: tid;
-  processed_entries: Seq.seq log_entry_base;
+  processed_entries: Seq.seq log_entry;
   app_results: app_results;
   last_verified_epoch: epoch_id
 }
@@ -381,8 +382,6 @@ let vput (tsm:thread_state_model)
       if r.key <> k then fail tsm
       else if not (ApplicationKey? k) then fail tsm
       else put_entry tsm s ({r with value = DValue v})
-
-let payload = either (key & mval_value) uninterpreted
 
 let record_of_payload (p:payload)
   : GTot (option T.record)
@@ -797,27 +796,25 @@ let runapp (tsm:thread_state_model)
         )
   
 let verify_step_model (tsm:thread_state_model)
-                      (e:log_entry_base)
+                      (e:log_entry)
   : thread_state_model
   = let open T in
     if tsm.failed then tsm
     else
       let tsm = 
         match e with
-        | AddM p -> vaddm tsm p.s p.s' (Inl (p.k, p.v))
-        | AddMApp p -> vaddm tsm p.s p.s' (Inr p.rest)
-        | AddB p -> vaddb tsm p.s p.t p.tid (Inl (p.k, p.v))
-        | AddBApp p -> vaddb tsm p.s p.t p.tid (Inr p.rest)
+        | AddM s s' p _ -> vaddm tsm s s' p
+        | AddB s ts tid p _ -> vaddb tsm s ts tid p
         | EvictM p -> vevictm tsm p.s p.s'
         | EvictB p -> vevictb tsm p.s p.t
         | EvictBM p -> vevictbm tsm p.s p.s' p.t
-        | NextEpoch _ -> nextepoch tsm
-        | VerifyEpoch _ -> verifyepoch tsm
+        | NextEpoch -> nextepoch tsm
+        | VerifyEpoch -> verifyepoch tsm
         | RunApp p -> runapp tsm p
       in
       { tsm with processed_entries = Seq.snoc tsm.processed_entries e }
 
-let log = Seq.seq log_entry_base
+let log = Seq.seq log_entry
 let all_logs = Seq.lseq log (U32.v n_threads)
 
 let rec verify_model (tsm:thread_state_model) (s:log)
@@ -830,17 +827,17 @@ let rec verify_model (tsm:thread_state_model) (s:log)
          let tsm = verify_model tsm s_prefix in
          verify_step_model tsm (Seq.index s (n - 1))
 
-let committed_log_entries (entries:Seq.seq log_entry_base)
-  : GTot (Seq.seq log_entry_base)
+let committed_log_entries (entries:Seq.seq log_entry)
+  : GTot (Seq.seq log_entry)
   = let open Zeta.SeqAux in
-    let is_verify_epoch = function VerifyEpoch _ -> true | _ -> false in
+    let is_verify_epoch = function VerifyEpoch -> true | _ -> false in
     if exists_sat_elems is_verify_epoch entries
     then let i = last_index is_verify_epoch entries in
          prefix entries i
     else Seq.empty
 
 let committed_entries (tsm:thread_state_model)
-  : GTot (Seq.seq log_entry_base)
+  : GTot (Seq.seq log_entry)
   = committed_log_entries tsm.processed_entries
   
 let delta_app_results (tsm0 tsm1:thread_state_model)

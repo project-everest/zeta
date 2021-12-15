@@ -58,7 +58,7 @@ type thread_state_t = {
   clock        : R.ref U64.t;
   epoch_hashes : all_epoch_hashes;
   last_verified_epoch: R.ref M.epoch_id;
-  processed_entries: G.ref (Seq.seq log_entry_base);
+  processed_entries: G.ref (Seq.seq log_entry);
   app_results  : G.ref M.app_results;
   serialization_buffer: A.larray U8.t 4096
 }
