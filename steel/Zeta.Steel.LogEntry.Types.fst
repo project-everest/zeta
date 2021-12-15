@@ -66,38 +66,6 @@ type key =
   | ApplicationKey of key_type
 
 noeq
-type addM_payload = {
-      k:key;
-      v:mval_value;
-      s:slot_id;
-      s':slot_id;
-}
-
-noeq
-type addMApp_payload = {
-      s:slot_id;
-      s':slot_id;
-      rest:uninterpreted
-}
-
-noeq
-type addBApp_payload = {
-      s:slot_id;
-      t:timestamp;
-      tid:thread_id;
-      rest:uninterpreted
-}
-
-noeq
-type addB_payload = {
-      k:key;
-      v:mval_value;
-      s:slot_id;
-      t:timestamp;
-      tid:thread_id;
-}
-
-noeq
 type evictM_payload = {
       s:slot_id;
       s':slot_id;
@@ -135,29 +103,32 @@ assume
 val spec_parse_pair (p0:spec_parser 'a) (p1:spec_parser 'b)
   : spec_parser ('a & 'b)
 
+let dummy_record : record = (InternalKey ({k = {v3 = 0uL; v2 = 0uL; v1 = 0uL; v0 = 0uL}; significant_digits = 0us }), DValue None)
 
-let related (p:payload) (r:record) =
+let related (p:payload) (r:record) (relate: bool) =
   match p with
   | Inl (k, v) -> r == (k, MValue v)
   | Inr u ->
+    if relate then
     match (spec_parse_pair spec_parser_key spec_parser_value) u.ebytes with
     | None -> False
     | Some ((k,v), n) -> n == U32.v u.len /\ (ApplicationKey k, DValue (Some v)) == r
+    else r == dummy_record
 
 noeq
-type log_entry =
+type log_entry0 (relate: Ghost.erased bool) =
   | AddM : s:slot_id ->
            s':slot_id ->
            p:Ghost.erased payload ->
-           r:record { related p r } ->
-           log_entry
+           r:record { related p r relate } ->
+           log_entry0 relate
 
   | AddB : s:slot_id ->
            ts:timestamp ->
            tid:thread_id ->
            p:Ghost.erased payload ->
-           r:record { related p r } ->
-           log_entry
+           r:record { related p r relate } ->
+           log_entry0 relate
 
   | RunApp of runApp_payload
   | EvictM of evictM_payload
@@ -165,3 +136,5 @@ type log_entry =
   | EvictBM of evictBM_payload
   | NextEpoch
   | VerifyEpoch
+
+let log_entry = log_entry0 true
