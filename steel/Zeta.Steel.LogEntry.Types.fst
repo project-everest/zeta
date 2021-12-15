@@ -99,9 +99,6 @@ type value =
 let record = key & value
 
 open Zeta.Steel.Parser
-assume
-val spec_parse_pair (p0:spec_parser 'a) (p1:spec_parser 'b)
-  : spec_parser ('a & 'b)
 
 let dummy_record : record = (InternalKey ({k = {v3 = 0uL; v2 = 0uL; v1 = 0uL; v0 = 0uL}; significant_digits = 0us }), DValue None)
 

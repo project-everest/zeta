@@ -91,3 +91,7 @@ let serializer (#t:Type0) (#p:spec_parser t) (s:spec_serializer p) =
                 len_offset_slice_ok a len offset slice_len /\
                 Seq.length bs == U32.v len /\
                 s v == slice bs offset slice_len )))
+
+// Necessary for uninterpreted parts of log_entry
+val spec_parse_pair (p0:spec_parser 'a) (p1:spec_parser 'b)
+  : spec_parser ('a & 'b)
