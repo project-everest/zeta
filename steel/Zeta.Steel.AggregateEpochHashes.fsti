@@ -18,7 +18,7 @@ module M = Zeta.Steel.ThreadStateModel
 module HA = Zeta.Steel.HashAccumulator
 open Zeta.Steel.Util
 module MR = Steel.ST.MonotonicReference
-module GMap = Zeta.Steel.GhostSharedMap
+module TLM = Zeta.Steel.ThreadLogMap
 #push-options "--ide_id_info_off"
 
 /// Initializer for an IArray
@@ -98,26 +98,14 @@ let aggregate_all_threads_epoch_hashes (e:M.epoch_id)
 
 
 let map_of_seq (a:all_processed_entries)
-  : Map.t tid log
-  = map_literal (fun (tid:tid) -> Seq.index a (U16.v tid))
+  : TLM.repr
+  = FStar.Map.map_literal (fun (tid:tid) -> Some (Seq.index a (U16.v tid)))
 
 let log_of_tid (a:all_processed_entries) (t:tid) = Seq.index a (U16.v t)
-let log_grows :Preorder.preorder log
-  = let open FStar.Seq in
-    fun (s1 s2:log) ->
-      length s1 <= length s2 /\
-      (forall (i:nat).{:pattern (Seq.index s1 i) \/ (Seq.index s2 i)}
-         i < length s1 ==> index s1 i == index s2 i)
-
-let all_logs_grow
-  : Preorder.preorder all_processed_entries
-  = fun (m0 m1:all_processed_entries) ->
-       forall tid. log_grows (log_of_tid m0 tid) (log_of_tid m1 tid)
 
 let committed_tsm_of_logs (mlogs_v:all_processed_entries) (t:tid) =
    M.verify_model (M.init_thread_state_model t)
                   (M.committed_log_entries (log_of_tid mlogs_v t))
-
 
 let all_contributions_are_accurate (global:epoch_hashes_repr)
                                    (mlogs_v:all_processed_entries)
@@ -158,14 +146,13 @@ let hashes_bitmaps_max_ok (hashes:epoch_hashes_repr)
    max_certified_epoch_is hashes bitmaps max /\
    (forall tid. per_thread_bitmap_and_max bitmaps max mlogs_v tid)
 
-let monotonic_logs = GMap.t tid log log_grows
 
 
 [@@__reduce__]
 let lock_inv_body (hashes : all_epoch_hashes)
                   (tid_bitmaps : epoch_tid_bitmaps)
                   (max_certified_epoch : R.ref M.epoch_id)
-                  (mlogs:monotonic_logs)
+                  (mlogs:TLM.t)
                   (hashes_v:_)
                   (bitmaps:_)
                   (max:_)
@@ -173,13 +160,13 @@ let lock_inv_body (hashes : all_epoch_hashes)
   = IArray.perm hashes hashes_v Set.empty `star`
     IArray.perm tid_bitmaps bitmaps Set.empty `star`
     R.pts_to max_certified_epoch full max `star`
-    GMap.global_snapshot mlogs (map_of_seq mlogs_v) `star`
+    TLM.global_anchor mlogs (map_of_seq mlogs_v) `star`
     pure (hashes_bitmaps_max_ok hashes_v bitmaps max mlogs_v)
 
 let lock_inv (hashes : all_epoch_hashes)
              (tid_bitmaps : epoch_tid_bitmaps)
              (max_certified_epoch : R.ref M.epoch_id)
-             (mlogs: monotonic_logs)
+             (mlogs: TLM.t)
  : vprop
  = exists_ (fun hashes_v ->
    exists_ (fun bitmaps ->
@@ -193,7 +180,7 @@ type aggregate_epoch_hashes = {
      hashes : all_epoch_hashes;
      tid_bitmaps : epoch_tid_bitmaps;
      max_certified_epoch : R.ref M.epoch_id;
-     mlogs: monotonic_logs;
+     mlogs: TLM.t;
      lock: cancellable_lock (lock_inv hashes tid_bitmaps max_certified_epoch mlogs)
 }
 
@@ -344,7 +331,7 @@ let release_lock (#hv:erased _)
                  (#hashes : all_epoch_hashes)
                  (#tid_bitmaps : epoch_tid_bitmaps)
                  (#max_certified_epoch : R.ref M.epoch_id)
-                 (#mlogs: monotonic_logs)
+                 (#mlogs: TLM.t)
                  (lock: cancellable_lock
                         (lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
   : STT unit
@@ -383,7 +370,7 @@ let advance_and_read_max_certified_epoch (aeh:aggregate_epoch_hashes)
         | None -> emp //underspec: overflow or element went missing in IArray
         | Some max ->
           exists_ (fun logs ->
-           GMap.global_snapshot aeh.mlogs (map_of_seq logs) `star`
+           TLM.global_snapshot aeh.mlogs (map_of_seq logs) `star`
            pure (max_is_correct logs max)))
   = let b = acquire aeh.lock in
     if not b
@@ -402,7 +389,7 @@ let advance_and_read_max_certified_epoch (aeh:aggregate_epoch_hashes)
       let _hv = elim_exists () in
       let _bitmaps = elim_exists () in
       let _max = elim_exists () in
-      let _mlogs_v =
+      let _mlogs_v : erased all_processed_entries =
           elim_exists #_ #_
             #(lock_inv_body
                  aeh.hashes
@@ -414,15 +401,15 @@ let advance_and_read_max_certified_epoch (aeh:aggregate_epoch_hashes)
                  _max)
             ()
       in
+
       let max = try_advance_max aeh.hashes aeh.tid_bitmaps aeh.max_certified_epoch in
       extract_pure _;
 
       intro_pure (max_is_correct _mlogs_v max);
-
-      GMap.dup_global_snapshot aeh.mlogs;
+      TLM.take_snapshot aeh.mlogs (map_of_seq _mlogs_v);
       intro_exists_erased _mlogs_v
         (fun logs ->
-           GMap.global_snapshot aeh.mlogs (map_of_seq logs) `star`
+           TLM.global_snapshot aeh.mlogs (map_of_seq logs) `star`
            pure (max_is_correct logs max));
       release_lock #_ #_ #(hide max) aeh.lock;
       return (Some max)

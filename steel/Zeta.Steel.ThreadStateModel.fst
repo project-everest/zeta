@@ -55,7 +55,7 @@ let init_epoch_hash =  {
   hadd = HA.initial_hash;
   hevict = HA.initial_hash;
 }
-let epoch_hashes = Steel.Hashtbl.repr epoch_id epoch_hash
+let epoch_hashes = Zeta.Steel.IArray.repr epoch_id epoch_hash
 let initial_epoch_hashes : epoch_hashes = empty_map
 let app_results =
   Seq.seq (fid:A.appfn_id aprm &
@@ -144,9 +144,7 @@ let mk_entry (k:key) (v:T.value{is_value_of k v}) (a:add_method)
 
 let update_clock (tsm:thread_state_model) (ts:T.timestamp)
   : thread_state_model
-  = if FStar.UInt.fits (U64.v tsm.clock + U64.v ts) 64
-    then { tsm with clock = tsm.clock `U64.add` ts }
-    else fail tsm
+  = { tsm with clock = ts }
 
 let update_hash_value (ha:HA.hash_value_t)
                       (r:T.record)
@@ -255,7 +253,7 @@ let madd_to_store (tsm:thread_state_model)
   = if has_slot tsm s
     || not (is_value_of k v)
     || not (has_slot tsm s')
-    then tsm
+    then fail tsm
     else
       let Some r' = get_entry tsm s' in
       let new_entry = {
@@ -305,19 +303,19 @@ let madd_to_store_split (tsm:thread_state_model)
     if has_slot tsm s
     || not (is_value_of k v)
     || not (has_slot tsm s')
-    then tsm
+    then fail tsm
     else
       match get_entry tsm s' with
       | Some r' ->
         let p = (s', d) in
         let s2_opt = child_slot r' d in
         match s2_opt with
-        | None -> tsm //fail
+        | None -> fail tsm
         | Some s2 ->
           if U16.v s2 >= Seq.length st
-          then tsm //fail
+          then (assert false; fail tsm)
           else match Seq.index st (U16.v s2) with
-               | None -> tsm
+               | None -> fail tsm
                | Some r2 ->
                  let e = mk_entry_full k v MAdd None None (Some p) in
                  let e = update_child e d2 s2 in
@@ -387,18 +385,18 @@ let vput (tsm:thread_state_model)
 let payload = either (key & mval_value) uninterpreted
 
 let record_of_payload (p:payload)
-  : GTot (option (k:key & v:T.value{ is_value_of k v }))
+  : GTot (option T.record)
   = match p with
     | Inl (k, v) ->
       if ApplicationKey? k
       then None
-      else Some (| k, MValue v |)
+      else Some ( k, MValue v )
 
     | Inr p -> 
       match T.spec_parser_app_record p.ebytes with
       | None -> None
       | Some ((k, v), _) -> 
-        Some (| ApplicationKey k, DValue v |)
+        Some (ApplicationKey k, DValue v)
 
 let to_base_key (k:key)
   : base_key
@@ -431,7 +429,7 @@ let vaddm (tsm:thread_state_model)
    else (
     match record_of_payload p with
     | None -> fail tsm
-    | Some (| gk, gv |) ->
+    | Some ( gk, gv ) ->
       begin
       (* check store contains slot s' *)
       match get_entry tsm s' with
@@ -515,7 +513,7 @@ let vaddb (tsm:thread_state_model)
   = if not (check_slot_bounds s) then fail tsm
     else match record_of_payload p with
     | None -> fail tsm //parsing failure
-    | Some (| k, v |) ->
+    | Some ( k, v ) ->
       if is_root_key k then fail tsm //root key
       else if Some? (get_entry tsm s) then fail tsm //slot is already full
       else (

@@ -11,7 +11,7 @@ val thread_state_t
   : Type0
 
 val thread_id (t:thread_state_t)
-  : thread_id
+  : tid
 
 val thread_state_inv (t:thread_state_t) ([@@@smt_fallback] m:M.thread_state_model)
   : vprop

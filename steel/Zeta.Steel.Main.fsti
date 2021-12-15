@@ -12,7 +12,7 @@ open Zeta.Steel.Util
 module A = Steel.ST.Array
 module G = Steel.ST.GhostReference
 module Lock = Steel.ST.SpinLock
-module GMap = Zeta.Steel.GhostSharedMap
+module TLM = Zeta.Steel.ThreadLogMap
 
 module T = Zeta.Steel.FormatsManual
 module M = Zeta.Steel.ThreadStateModel
@@ -22,21 +22,21 @@ module SA = Zeta.SeqAux
 #push-options "--ide_id_info_off"
 
 let thread_inv (t: V.thread_state_t)
-               (mlogs: AEH.monotonic_logs)
+               (mlogs: TLM.t)
   : vprop
   = exists_ (fun tsm ->
        V.thread_state_inv t tsm `star`
-       GMap.owns_key mlogs tsm.M.thread_id half tsm.M.processed_entries)
+       TLM.tid_pts_to mlogs tsm.M.thread_id half tsm.M.processed_entries false)
 
 noeq
-type thread_state (mlogs:AEH.monotonic_logs) =
+type thread_state (mlogs:TLM.t) =
 {
   tid: tid;
   tsm: V.thread_state_t;
   lock : Lock.lock (thread_inv tsm mlogs)
 }
 
-let all_threads_t (mlogs:AEH.monotonic_logs) =
+let all_threads_t (mlogs:TLM.t) =
     larray (thread_state mlogs) n_threads
 
 noeq
@@ -90,7 +90,7 @@ val init (_:unit)
   : STT top_level_state
         emp
         (fun t -> core_inv t `star`
-               forall_threads (fun tid -> GMap.owns_key t.aeh.mlogs tid half Seq.empty))
+               TLM.tids_pts_to t.aeh.mlogs half (Map.const (Some Seq.empty)) false)
 
 val verify_entries (t:top_level_state)
                    (tid:tid)
@@ -104,7 +104,7 @@ val verify_entries (t:top_level_state)
     (core_inv t `star`
      A.pts_to input log_bytes `star`
      exists_ (A.pts_to output) `star`
-     GMap.owns_key t.aeh.mlogs tid half entries)
+     TLM.tid_pts_to t.aeh.mlogs tid half entries false)
     (fun res ->
       core_inv t `star`
       A.pts_to input log_bytes `star`
@@ -118,7 +118,7 @@ val verify_entries (t:top_level_state)
        | Some n_out, Some entries' ->
          exists_ (fun out_bytes ->
            A.pts_to output out_bytes `star`
-           GMap.owns_key t.aeh.mlogs tid half (entries `Seq.append` entries') `star`
+           TLM.tid_pts_to t.aeh.mlogs tid half (entries `Seq.append` entries') false `star`
            pure (
              let tsm0 = M.verify_model (M.init_thread_state_model tid) entries in
              let tsm1 = M.verify_model tsm0 entries' in
@@ -133,7 +133,7 @@ let max_certified_epoch (t:top_level_state)
         | None -> emp
         | Some max ->
           exists_ (fun logs ->
-           GMap.global_snapshot t.aeh.mlogs (AEH.map_of_seq logs) `star`
+           TLM.global_snapshot t.aeh.mlogs (AEH.map_of_seq logs) `star`
            pure (AEH.max_is_correct logs max)))
   = AEH.advance_and_read_max_certified_epoch t.aeh
 

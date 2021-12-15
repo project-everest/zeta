@@ -16,6 +16,7 @@ module T = Zeta.Steel.FormatsManual
 module M = Zeta.Steel.ThreadStateModel
 module AEH = Zeta.Steel.AggregateEpochHashes
 module P = Zeta.Steel.Parser
+module TLM = Zeta.Steel.ThreadLogMap
 
 #push-options "--ide_id_info_off"
 
@@ -33,7 +34,7 @@ val create (tid:tid)
   : STT thread_state_t
     emp
     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
-module GMap = Zeta.Steel.GhostSharedMap
+
 
 /// Entry point to run a single verifier thread on a log
 val verify (#tsm:M.thread_state_model)
@@ -49,7 +50,7 @@ val verify (#tsm:M.thread_state_model)
       thread_state_inv t tsm `star` //thread state is initially tsm
       A.pts_to log log_bytes `star` //the log contains log_bytes
       exists_ (A.pts_to out) `star` //we have permission to out, don't care what it contains
-      GMap.owns_key aeh.mlogs tsm.thread_id full tsm.processed_entries //and the global state contains this thread's entries
+      TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm.processed_entries false //and the global state contains this thread's entries
     )
     (fun res -> //postcondition
       A.pts_to log log_bytes `star` //log contents didn't change
@@ -66,7 +67,7 @@ val verify (#tsm:M.thread_state_model)
          exists_ (fun (out_bytes:Seq.seq U8.t) ->
            thread_state_inv t tsm' `star` //tsm' is the new state of the thread
            A.pts_to out out_bytes `star`  //the out array contains out_bytes
-           GMap.owns_key aeh.mlogs tsm.thread_id full tsm'.processed_entries `star` //my contributions are updated
+           TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm'.processed_entries false `star` //my contributions are updated
            pure (
              match parse_log log_bytes with
              | None -> False //log parsing did not fail
