@@ -24,6 +24,7 @@ let bytes = FStar.Seq.seq U8.t
 /// The type of application keys
 ///   //maybe should not be an eqtype,
 ///   //instead provide a function to decide equality
+///   //nope: QuackyDucky requires eqtype
 val key_type : eqtype
 
 /// A parser and serializer of keys
@@ -41,7 +42,7 @@ val spec_parser_key_injective (b1 b2: bytes) : Lemma
   | _ -> False
   ))
   (ensures (match spec_parser_key b1, spec_parser_key b2 with
-  | Some (v1, n1), Some (v2, n2) -> n1 == n2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n2
+  | Some (v1, n1), Some (v2, n2) -> (n1 <: nat) == n2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n2
   | _ -> True
   ))
 
@@ -82,7 +83,7 @@ val spec_parser_value_injective (b1 b2: bytes) : Lemma
   | _ -> False
   ))
   (ensures (match spec_parser_value b1, spec_parser_value b2 with
-  | Some (v1, n1), Some (v2, n2) -> n1 == n2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n2
+  | Some (v1, n1), Some (v2, n2) -> (n1 <: nat) == n2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n2
   | _ -> True
   ))
 

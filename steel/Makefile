@@ -1,7 +1,7 @@
 #INCLUDE_PATHS=..
 #include ../Makefile.common
 ZETA_HOME = ..
-SRC_DIRS=$(addprefix $(ZETA_HOME)/, utils generic high intermediate steel/crypto)
+include Makefile.shared
 FSTAR_FILES=$(wildcard *fst *fsti)
 
 all: verify

@@ -34,7 +34,8 @@ SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
             --smtencoding.l_arith_repr native \
             --smtencoding.nl_arith_repr wrapped
 OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
-ALREADY_CACHED=--already_cached 'Prims FStar LowStar Steel'
+ALREADY_CACHED_LIST ?= Prims,FStar,LowStar,Steel
+ALREADY_CACHED = --already_cached $(ALREADY_CACHED_LIST)
 
 # A place to put all the emitted .ml files
 OUTPUT_DIRECTORY ?= $(ZETA_HOME)/_output

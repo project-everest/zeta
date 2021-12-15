@@ -14,12 +14,7 @@ struct {
 } base_key;
 
 abstract
-significant_digits_st_t = "Zeta.Formats.Aux.External.significant_digits_st_t" < 2..2 >
-
-struct {
-  u256 internal_key_k;
-  significant_digits_st_t internal_key_significant_digits;
-} internal_key;
+internal_key = "Zeta.Formats.Aux.External.internal_key" < 34..34 >
 
 enum {
   vfalse,

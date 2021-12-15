@@ -5,7 +5,10 @@ all: verify
 
 ci: verify
 
-.PHONY: ci low-level low-level-ci low-level/formats
+steel/formats: verify
+	+$(MAKE) -C $@
+
+.PHONY: ci low-level low-level-ci low-level/formats steel/formats
 
 low-level:
 	+$(MAKE) -C $@

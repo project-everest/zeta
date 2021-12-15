@@ -7,7 +7,7 @@ include Makefile.include
 %.fst-in %.fsti-in:
 	@echo $(FSTAR_OPTIONS)
 
-.PHONY: all verify %.fsti-in %.fst-in
+.PHONY: all verify %.fsti-in %.fst-in clean
 
 FSTAR_NO_FLAGS = $(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) \
   --odir obj --cache_checked_modules --cmi --warn_error '+241@247+285' \
@@ -52,3 +52,6 @@ obj:
 	$(FSTAR) $< && touch -c $@
 
 verify: $(ALL_CHECKED_FILES)
+
+clean:
+	rm -rf obj
