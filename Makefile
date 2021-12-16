@@ -3,7 +3,7 @@ FSTAR_FILES=$(wildcard $(addsuffix /*fst, $(SRC_DIRS))) $(wildcard $(addsuffix /
 
 all: verify
 
-ci: verify
+ci: steel/formats
 
 steel/formats: verify
 	+$(MAKE) -C $@
