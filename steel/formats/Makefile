@@ -1,8 +1,10 @@
-all: spec
+all: steel
 
-DIRS=aux spec
+DIRS=aux spec steel
 
 spec: aux
+
+steel: spec
 
 $(DIRS): %:
 	+$(MAKE) -C $@

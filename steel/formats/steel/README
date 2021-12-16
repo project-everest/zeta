@@ -1,0 +1,4 @@
+This is a provisional, inefficient Steel implementation of parsers and
+serializers based on LowStar.Bytes. It will be replaced with a more
+efficient implementation based on the ongoing EverParse+Steel
+integration.

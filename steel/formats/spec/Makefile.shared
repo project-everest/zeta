@@ -1,0 +1,5 @@
+ZETA_STEEL_HOME=$(ZETA_HOME)/steel
+ZETA_STEEL_FORMATS_HOME=$(ZETA_STEEL_HOME)/formats
+include $(ZETA_STEEL_FORMATS_HOME)/Makefile.shared
+SRC_DIRS += $(ZETA_STEEL_FORMATS_HOME)/aux $(ZETA_STEEL_FORMATS_HOME)/aux/obj
+FSTAR_FILES=$(wildcard *.fst *.fsti)

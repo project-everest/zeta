@@ -48,7 +48,7 @@ let len_offset_ok (a:byte_array)
 
 let len_offset_slice_ok (a:byte_array)
                         (len offset slice_len:U32.t) =
-  len_offset_ok a len offset /\
+  A.length a == U32.v len /\
   U32.v offset + U32.v slice_len <= A.length a
 
 let slice (s:bytes) (from:U32.t) (slice_len:U32.t { slice_ok s from slice_len })
@@ -73,6 +73,7 @@ let parser (#t:Type0) (p:spec_parser t) =
          match p (slice b offset slice_len), o with
          | None, None -> True
          | Some (x, n), Some y -> x == y /\ n == U32.v slice_len
+         | Some (x, n), None -> ~ (n == U32.v slice_len)
          | _ -> False)
 
 (** A parser for `t` takes a byte array `a` and a proof proof that `a`
