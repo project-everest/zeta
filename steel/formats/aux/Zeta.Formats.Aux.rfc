@@ -56,7 +56,7 @@ enum {
 } key_kind;
 
 abstract
-application_key = "Zeta.Formats.Aux.External.application_key" < 0..2040 > /* these constant bounds must match Zeta.Steel.ApplicationTypes */
+application_key = "Zeta.Formats.Aux.External.App.application_key" < 0..2040 > /* these constant bounds must match Zeta.Steel.ApplicationTypes */
 
 struct {
   key_kind key_tag;
@@ -148,7 +148,7 @@ struct {
 } log_entry_hdr;
 
 abstract
-application_value = "Zeta.Formats.Aux.External.application_value" < 0..2040 > /* these constant bounds must match Zeta.Steel.ApplicationTypes */
+application_value = "Zeta.Formats.Aux.External.App.application_value" < 0..2040 > /* these constant bounds must match Zeta.Steel.ApplicationTypes */
 
 enum {
      MValue,

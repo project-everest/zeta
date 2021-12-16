@@ -16,6 +16,7 @@ module HST = FStar.HyperStack.ST
 
 friend Zeta.Formats.Aux.External
 open Zeta.Formats.Aux.External
+open Zeta.Formats.Aux.Base_key
 
 inline_for_extraction
 noextract

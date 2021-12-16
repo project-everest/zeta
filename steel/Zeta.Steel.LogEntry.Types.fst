@@ -1,5 +1,5 @@
 module Zeta.Steel.LogEntry.Types
-open Zeta.Steel.ApplicationTypes
+open Zeta.Steel.ApplicationRecord
 
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
@@ -107,9 +107,9 @@ let related (p:payload) (r:record) (relate: bool) =
   | Inl (k, v) -> r == (k, MValue v)
   | Inr u ->
     if relate then
-    match (spec_parse_pair spec_parser_key spec_parser_value) u.ebytes with
+    match spec_parser_app_record u.ebytes with
     | None -> False
-    | Some ((k,v), n) -> n == U32.v u.len /\ (ApplicationKey k, DValue (Some v)) == r
+    | Some ((k,v), n) -> n == U32.v u.len /\ (ApplicationKey k, DValue v) == r
     else r == dummy_record
 
 noeq

@@ -53,7 +53,8 @@ FSTAR=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 
 .depend:
 	mkdir -p $(CACHE_DIRECTORY)
-	$(FSTAR) --dep full $(notdir $(FSTAR_FILES)) > .depend
+	$(FSTAR) --dep full $(notdir $(FSTAR_FILES)) > .depend.aux
+	mv .depend.aux .depend
 
 depend: .depend
 
@@ -63,6 +64,7 @@ include .depend
 # a.fst(i).checked is the binary, checked version of a.fst(i)
 $(CACHE_DIRECTORY)/%.checked:
 	$(FSTAR) $<
+	touch -c $@
 
 verify: $(addprefix $(CACHE_DIRECTORY)/,$(addsuffix .checked, $(notdir $(FSTAR_FILES))))
 

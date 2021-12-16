@@ -1,6 +1,6 @@
 module Zeta.Formats.Aux.Application_value
 
-friend Zeta.Formats.Aux.External
+friend Zeta.Formats.Aux.External.App
 open Zeta.Steel.ApplicationTypes
 open Zeta.Formats.Lib
 
