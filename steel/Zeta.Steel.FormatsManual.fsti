@@ -38,12 +38,6 @@ let is_internal_key_root (k:base_key)
   : bool
   = k.significant_digits = 0us
 
-type stamped_record = {
-  record : record;
-  timestamp : timestamp;
-  thread_id : thread_id;
-}
-
 module P = Zeta.Steel.Parser
 val spec_parser_app_record: P.spec_parser (key_type & option value_type)
 val parse_app_record: P.parser spec_parser_app_record

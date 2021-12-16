@@ -135,3 +135,9 @@ type log_entry0 (relate: Ghost.erased bool) =
   | VerifyEpoch
 
 let log_entry = log_entry0 true
+
+type stamped_record = {
+  record : record;
+  timestamp : timestamp;
+  thread_id : thread_id;
+}
