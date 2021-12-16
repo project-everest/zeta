@@ -17,6 +17,10 @@ let synth_key_recip
   | Zeta.Steel.LogEntry.Types.InternalKey k -> Zeta.Formats.Aux.Key.Key_v_key_internal k
   | Zeta.Steel.LogEntry.Types.ApplicationKey k -> Zeta.Formats.Aux.Key.Key_v_key_application k
 
+let synth_key_injective = ()
+
+let synth_key_inverse = ()
+
 let synth_u256
   (x: Zeta.Formats.Aux.U256.u256)
 : Tot Zeta.Steel.LogEntry.Types.u256
@@ -130,6 +134,10 @@ let synth_mval_value_recip
     Zeta.Formats.Aux.Mval_value.Mkmval_value
       (synth_descendent_hash_recip l)
       (synth_descendent_hash_recip r)
+
+let synth_mval_value_injective = ()
+
+let synth_mval_value_inverse = ()
 
 let synth_value
   (x: Zeta.Formats.Aux.Value.value)
