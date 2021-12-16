@@ -12,8 +12,8 @@ noeq
 type uninterpreted = {
  //  offset:U32.t; We'll need to know the offset in the input buffer where these bytes occur
  //  but this is probably not the place to stash it
-  len:U32.t;
-  ebytes: Ghost.erased (Seq.seq U8.t)
+  len: (len: U32.t { U32.v len < 2147483648 }); // FIXME: arbitrary bound due to the use of FStar.Bytes
+  ebytes: (ebytes: Ghost.erased (Seq.seq U8.t) { Seq.length ebytes == U32.v len });
 }
 
 type timestamp = U64.t

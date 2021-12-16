@@ -39,7 +39,7 @@ val run_app_function
       (#log_bytes:Ghost.erased bytes)
       (log_len:U32.t)
       (log_offset:U32.t)
-      (args_len:U32.t)
+      (args_len:U32.t { U32.v args_len < 2147483648 })
       (log_array:Parser.byte_array {
         Seq.length log_bytes == U32.v log_len /\
         Parser.len_offset_slice_ok log_array log_len log_offset args_len
