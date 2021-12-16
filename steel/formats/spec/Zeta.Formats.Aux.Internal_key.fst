@@ -91,4 +91,21 @@ let internal_key_size32 =
     ()
 
 let internal_key_validator =
-  admit () // TODO: need to read the significant_digits field
+  LL.validate_synth
+    #_ #_ #_
+    #(LP.parse_filter base_key_parser internal_key_filter)
+    (fun sl pos ->
+      let h = HST.get () in
+      LL.valid_filter h base_key_parser internal_key_filter sl (LL.uint64_to_uint32 pos);
+      let res = base_key_validator sl pos in
+      if LL.is_error res
+      then res
+      else
+        let psd = accessor_base_key_base_key_significant_digits sl (LL.uint64_to_uint32 pos) in
+        let sd = Zeta.Formats.Aux.Significant_digits_t.significant_digits_t_reader sl psd in
+        if sd `U16.lt` 256us
+        then res
+        else LL.validator_error_generic
+    )
+    internal_key_synth
+    ()

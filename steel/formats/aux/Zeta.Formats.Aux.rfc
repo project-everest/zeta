@@ -5,7 +5,7 @@ struct {
   uint64 v0;
 } u256;
 
-abstract
+abstract /*@has_lserializer*/
 significant_digits_t = "Zeta.Formats.Aux.External.significant_digits_t" < 2..2 >
 
 struct {
