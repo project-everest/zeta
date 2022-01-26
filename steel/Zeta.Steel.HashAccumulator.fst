@@ -19,7 +19,7 @@ type ha = {
   ctr:R.ref U32.t
 }
 
-//[@@__steel_reduce__;__reduce__]
+// [@@__steel_reduce__;__reduce__]
 let ha_val (h:ha) (s:ehash_value_t) =
   A.pts_to h.acc full_perm (fst s) `star`
   exists_ (fun (n:U32.t) ->
@@ -266,7 +266,8 @@ let add #h (ha:ha)
                       (fst (hash_one_value (Seq.slice s 0 (U32.v l)))));
     rewrite (R.pts_to ctr _ _)
             (R.pts_to ha'.ctr full_perm 1ul);
-    intro_ha_val ha' _ _ (hash_one_value (Seq.slice s 0 (U32.v l)));
+    //TODO: marking ha_val steel_reduce leads to a failure here
+    intro_ha_val ha' (fst (hash_one_value (Seq.slice s 0 (U32.v l)))) 1ul (hash_one_value (Seq.slice s 0 (U32.v l)));
     let v = aggregate ha ha' in
     free ha';  //TODO:Then we wouldn't need this
     return v
