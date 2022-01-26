@@ -46,13 +46,6 @@ type top_level_state = {
 }
 
 
-/// TODO: a fractional permission variant of Steel.ST.Array
-val array_pts_to (#t:Type0)
-                 (a:A.array t)
-                 (p:Steel.FractionalPermission.perm)
-                 (v:Seq.seq t)
-  : vprop
-
 let tid_positions_ok #l (all_threads: Seq.seq (thread_state l))
   : prop
   = forall (i:SA.seq_index all_threads).
@@ -63,7 +56,7 @@ let core_inv (t:top_level_state)
   : vprop
   = exists_ (fun perm ->
     exists_ (fun v ->
-      array_pts_to t.all_threads perm v `star`
+      A.pts_to t.all_threads perm v `star`
       pure (tid_positions_ok v)))
 
 let tid_index = i:U16.t { U16.v i <= U32.v n_threads }
@@ -95,6 +88,7 @@ val init (_:unit)
 val verify_entries (t:top_level_state)
                    (tid:tid)
                    (#entries:erased AEH.log)
+                   (#log_perm:perm)
                    (#log_bytes:erased bytes)
                    (len: U32.t)
                    (input:larray U8.t len)
@@ -102,22 +96,22 @@ val verify_entries (t:top_level_state)
                    (output:larray U8.t out_len)
   : STT (option U32.t) //bool & U32.t & erased (Seq.seq log_entry_base))
     (core_inv t `star`
-     A.pts_to input log_bytes `star`
-     exists_ (A.pts_to output) `star`
+     A.pts_to input log_perm log_bytes `star`
+     exists_ (A.pts_to output full_perm) `star`
      TLM.tid_pts_to t.aeh.mlogs tid half entries false)
     (fun res ->
       core_inv t `star`
-      A.pts_to input log_bytes `star`
+      A.pts_to input log_perm log_bytes `star`
       (match res, V.parse_log log_bytes with
        | None, _ ->
-         exists_ (A.pts_to output)
+         exists_ (A.pts_to output full_perm)
 
        | Some _, None ->
          pure False
 
        | Some n_out, Some entries' ->
          exists_ (fun out_bytes ->
-           A.pts_to output out_bytes `star`
+           A.pts_to output full_perm out_bytes `star`
            TLM.tid_pts_to t.aeh.mlogs tid half (entries `Seq.append` entries') false `star`
            pure (
              let tsm0 = M.verify_model (M.init_thread_state_model tid) entries in

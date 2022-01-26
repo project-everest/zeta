@@ -39,6 +39,7 @@ val create (tid:tid)
 /// Entry point to run a single verifier thread on a log
 val verify (#tsm:M.thread_state_model)
            (t:thread_state_t) //handle to the thread state
+           (#log_perm:perm)
            (#log_bytes:erased bytes)
            (#len:U32.t)
            (log:larray U8.t len) //concrete log
@@ -48,25 +49,25 @@ val verify (#tsm:M.thread_state_model)
   : STT (option U32.t)
     (//precondition
       thread_state_inv t tsm `star` //thread state is initially tsm
-      A.pts_to log log_bytes `star` //the log contains log_bytes
-      exists_ (A.pts_to out) `star` //we have permission to out, don't care what it contains
+      A.pts_to log log_perm log_bytes `star` //the log contains log_bytes
+      exists_ (array_pts_to out) `star` //we have permission to out, don't care what it contains
       TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm.processed_entries false //and the global state contains this thread's entries
     )
     (fun res -> //postcondition
-      A.pts_to log log_bytes `star` //log contents didn't change
+      A.pts_to log log_perm log_bytes `star` //log contents didn't change
       (match res with
        | None ->
          //if it fails, you still get back ownership on the various
          //resources, e.g., to free them
          //but not much else
          exists_ (thread_state_inv t) `star`
-         exists_ (A.pts_to out)
+         exists_ (array_pts_to out)
       | Some n_out ->
          //it succeeded
          exists_ (fun (tsm':M.thread_state_model) ->
          exists_ (fun (out_bytes:Seq.seq U8.t) ->
            thread_state_inv t tsm' `star` //tsm' is the new state of the thread
-           A.pts_to out out_bytes `star`  //the out array contains out_bytes
+           array_pts_to out out_bytes `star`  //the out array contains out_bytes
            TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm'.processed_entries false `star` //my contributions are updated
            pure (
              match parse_log log_bytes with

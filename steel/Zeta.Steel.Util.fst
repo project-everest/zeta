@@ -9,17 +9,19 @@ let coerce_eq (#a:Type) (#b:Type) (_:squash (a == b)) (x:a) : b = x
 let full = Steel.FractionalPermission.full_perm
 let half = Steel.FractionalPermission.half_perm full
 let larray t (n:U32.t) = A.larray t (U32.v n)
+[@@__steel_reduce__;__reduce__]
+let array_pts_to #t (a:A.array t) (v:Seq.seq t) = A.pts_to a full_perm v
 
 let sum_halves : squash (sum_perm half half == full) = admit()
 
 assume
 val empty_map (#k:eqtype) (#v:Type) : FStar.Map.t k v
 
-
+[@@warn_on_use "uses an axiom"]
 assume
 val admit__ (#a:Type)
             (#p:pre_t)
-            (#q:post_t a)
+            (#q:a -> vprop)
             (_:unit)
   : STF a p q True (fun _ -> False)
 

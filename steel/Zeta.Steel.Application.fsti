@@ -36,6 +36,7 @@ val run_app_function
       (* fid: The id of the function to run *)
       (fid: App.appfn_id aprm)
       (* The position in the log where the arguments of the function live *)
+      (#log_perm:perm)
       (#log_bytes:Ghost.erased bytes)
       (log_len:U32.t)
       (log_offset:U32.t)
@@ -57,19 +58,19 @@ val run_app_function
   (* if success, returns the number of bytes written in the output log *)
    : STT (option U32.t)
       (V.thread_state_inv t tsm `star`
-       A.pts_to log_array log_bytes `star`
-       A.pts_to out out_bytes)
+       A.pts_to log_array log_perm log_bytes `star`
+       A.pts_to out full_perm out_bytes)
       (fun res ->
-        A.pts_to log_array log_bytes `star`
+        A.pts_to log_array log_perm log_bytes `star`
         (match res with
          | None ->
            exists_ (V.thread_state_inv t) `star`
-           exists_ (A.pts_to out)
+           exists_ (A.pts_to out full_perm)
          | Some n_out ->
            exists_ (fun tsm' ->
            exists_ (fun out_bytes' ->
             V.thread_state_inv t tsm' `star`
-            A.pts_to out (out_bytes `Seq.append` out_bytes') `star`
+            A.pts_to out full_perm (out_bytes `Seq.append` out_bytes') `star`
             pure (
               let arg_bytes = Parser.slice log_bytes log_offset args_len in
               let app_payload : runApp_payload =
