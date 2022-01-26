@@ -53,7 +53,7 @@ let epoch_tid_bitmaps =
     #(larray bool n_threads)
     #tid_bitmap
     epoch_id_hash
-    (fun i -> A.pts_to)
+    (fun i -> array_pts_to)
 
 let is_epoch_verified (tsm:M.thread_state_model) (eid:M.epoch_id) =
   U32.v tsm.M.last_verified_epoch >= U32.v eid

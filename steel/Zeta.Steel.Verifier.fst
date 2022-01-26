@@ -60,13 +60,13 @@ let thread_state_inv' (t:thread_state_t)
                       ([@@@smt_fallback] tsm:M.thread_state_model)
   : vprop
   = R.pts_to t.failed full tsm.failed `star`
-    A.pts_to t.store tsm.store `star`
+    array_pts_to t.store tsm.store `star`
     R.pts_to t.clock full tsm.clock `star`
     IArray.perm t.epoch_hashes tsm.epoch_hashes Set.empty `star`
     R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
     G.pts_to t.processed_entries full tsm.processed_entries `star`
     G.pts_to t.app_results full tsm.app_results `star`
-    exists_ (A.pts_to t.serialization_buffer)
+    exists_ (array_pts_to t.serialization_buffer)
 
 let intro_thread_state_inv' #o
                            (tsm:M.thread_state_model)
@@ -80,13 +80,13 @@ let intro_thread_state_inv' #o
                            (t:thread_state_t)
    : STGhost unit o
      (R.pts_to t.failed full f `star`
-      A.pts_to t.store s `star`
+      array_pts_to t.store s `star`
       R.pts_to t.clock full c `star`
       IArray.perm t.epoch_hashes eh Set.empty `star`
       R.pts_to t.last_verified_epoch full lve `star`
       G.pts_to t.processed_entries full pe `star`
       G.pts_to t.app_results full ar `star`
-      exists_ (A.pts_to t.serialization_buffer))
+      exists_ (array_pts_to t.serialization_buffer))
      (fun _ -> thread_state_inv' t tsm)
      (requires
        tsm.failed == f /\
@@ -99,13 +99,13 @@ let intro_thread_state_inv' #o
      (ensures fun _ ->
        True)
    = rewrite (R.pts_to t.failed _ _ `star`
-              A.pts_to t.store _ `star`
+              array_pts_to t.store _ `star`
               R.pts_to t.clock _ _ `star`
               IArray.perm t.epoch_hashes _ _ `star`
               R.pts_to t.last_verified_epoch _ _ `star`
               G.pts_to t.processed_entries _ _ `star`
               G.pts_to t.app_results _ _ `star`
-              exists_ (A.pts_to t.serialization_buffer))
+              exists_ (array_pts_to t.serialization_buffer))
              (thread_state_inv' t tsm)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -240,8 +240,8 @@ let update_bitmap (#bm:erased _)
                   Set.empty)
   = let update_tid (v:larray bool n_threads)
       : STT (larray bool n_threads)
-        (A.pts_to v (Map.sel bm e))
-        (fun v' -> A.pts_to v' (Seq.upd (Map.sel bm e) (U16.v tid) true))
+        (array_pts_to v (Map.sel bm e))
+        (fun v' -> array_pts_to v' (Seq.upd (Map.sel bm e) (U16.v tid) true))
       = A.write v (as_u32 tid) true;
         v
     in
@@ -556,18 +556,18 @@ let create (tid:tid)
         app_results;
         serialization_buffer
     } in
-    intro_exists _ (A.pts_to serialization_buffer);
+    intro_exists _ (array_pts_to serialization_buffer);
     assert (tsm == M.verify_model tsm Seq.empty);
     intro_pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
                 t.thread_id == tsm.thread_id);
     rewrite (R.pts_to failed _ _ `star`
-             A.pts_to store _ `star`
+             array_pts_to store _ `star`
              R.pts_to clock _ _ `star`
              IArray.perm epoch_hashes _ _ `star`
              R.pts_to last_verified_epoch _ _ `star`
              G.pts_to processed_entries _ _ `star`
              G.pts_to app_results _ _ `star`
-             exists_ (A.pts_to serialization_buffer) `star`
+             exists_ (array_pts_to serialization_buffer) `star`
              pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
                    t.thread_id == tsm.thread_id)
             )
@@ -767,15 +767,17 @@ module HA = Zeta.Steel.HashAccumulator
 let ha_add (#v:erased (HA.hash_value_t))
            (ha:HA.ha)
            (l:U32.t)
-           (#bs:erased bytes { U32.v l <= Seq.length bs /\ U32.v l <= HA.blake2_max_input_length })
+           (#bs:erased bytes { U32.v l <= Seq.length bs /\ Seq.length bs <= HA.blake2_max_input_length })
            (input:A.array U8.t)
   : STT bool
-       (HA.ha_val ha v `star` A.pts_to input bs)
+       (HA.ha_val ha v `star` array_pts_to input bs)
        (fun b ->
-         A.pts_to input bs `star`
+         array_pts_to input bs `star`
          HA.ha_val ha (HA.maybe_aggregate_hashes b v
                          (HA.hash_one_value (Seq.slice bs 0 (U32.v l)))))
-  = admit__()
+  = A.pts_to_length input _;
+    let x = HA.add ha input l in
+    return x
 
 let unfold_epoch_hash_perm #o (k:M.epoch_id) (v:epoch_hashes_t) (c:M.epoch_hash)
   : STGhostT unit o
@@ -900,10 +902,10 @@ let update_ht (#tsm:M.thread_state_model)
               returns (STT bool
                            (HA.ha_val v.hadd (Map.sel tsm.epoch_hashes e).hadd `star`
                             HA.ha_val v.hevict (Map.sel tsm.epoch_hashes e).hevict `star`
-                            A.pts_to t.serialization_buffer bs
+                            array_pts_to t.serialization_buffer bs
                             )
                            (fun b ->
-                             A.pts_to t.serialization_buffer bs `star`
+                             array_pts_to t.serialization_buffer bs `star`
                              epoch_hash_perm e v
                               (update_if b (Map.sel tsm.epoch_hashes e)
                                            (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id ht))))
@@ -928,7 +930,7 @@ let update_ht (#tsm:M.thread_state_model)
                                    (update_if b (Map.sel tsm.epoch_hashes e)
                                                 (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id ht)))
                            Set.empty);
-      intro_exists _ (A.pts_to t.serialization_buffer);
+      intro_exists _ (array_pts_to t.serialization_buffer);
       maybe_update_epoch_hash_equiv b tsm e r ts thread_id ht;
       rewrite (thread_state_inv' t (maybe_update_epoch_hash b tsm e r ts thread_id ht))
               (thread_state_inv' t (update_if b tsm (update_epoch_hash tsm e r ts thread_id ht)));
@@ -1384,6 +1386,7 @@ let vaddm (#tsm:M.thread_state_model)
 // /// Entry point to run a single verifier thread on a log
 let verify (#tsm:M.thread_state_model)
            (t:thread_state_t) //handle to the thread state
+           (#log_perm:perm)
            (#log_bytes:erased bytes)
            (#len:U32.t)
            (log:larray U8.t len) //concrete log

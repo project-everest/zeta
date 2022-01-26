@@ -5,6 +5,7 @@ module Zeta.Steel.Parser
  *  from a array of bytes.
  **)
 open Steel.ST.Util
+open Zeta.Steel.Util
 module A = Steel.ST.Array
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
@@ -57,14 +58,15 @@ let slice (s:bytes) (from:U32.t) (slice_len:U32.t { slice_ok s from slice_len })
     contents of `a`
   *)
 let parser (#t:Type0) (p:spec_parser t) =
+    #perm:perm ->
     len:U32.t ->
     offset:U32.t ->
     slice_len:U32.t ->
     #b:erased bytes { Seq.length b == U32.v len }  ->
     a:byte_array { len_offset_slice_ok a len offset slice_len } ->
     ST (option t)
-       (A.pts_to a b)
-       (fun _ -> A.pts_to a b)
+       (A.pts_to a perm b)
+       (fun _ -> A.pts_to a perm b)
        (requires True)
        (ensures fun o ->
          match p (slice b offset slice_len), o with
@@ -82,10 +84,10 @@ let serializer (#t:Type0) (#p:spec_parser t) (s:spec_serializer p) =
     a:byte_array { len_offset_ok a len offset } ->
     v:t { Seq.length (s v) <= U32.v len - U32.v offset } ->
     STT U32.t
-        (exists_ (A.pts_to a))
+        (exists_ (array_pts_to a))
         (fun slice_len ->
             exists_ (fun (bs:_) ->
-              A.pts_to a bs `star`
+              array_pts_to a bs `star`
               pure (
                 U32.v slice_len == Seq.length (s v) /\
                 len_offset_slice_ok a len offset slice_len /\
