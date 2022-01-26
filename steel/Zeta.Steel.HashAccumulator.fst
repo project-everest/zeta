@@ -171,24 +171,49 @@ let extend_ehash_value (s1 s2:eraw_hash_t) (i:nat { i < 32 })
 // let hpts_to (x:hash_value_buf) (s:raw_hash_t) =
 //   A.varray_pts_to x s
 
-// #push-options "--print_implicits"
-let read_hbuf (#s:eraw_hash_t) (x:hash_value_buf) (i:U32.t{U32.v i < 32})
-  : STT U8.t
-    (A.pts_to x full_perm s)
-    (fun _ -> A.pts_to x full_perm s)
-    (requires fun _ -> True)
-    (ensures fun _ v _ ->
-      v == Seq.index s (U32.v i))
-  = AT.rewrite_slprop
-         (hpts_to x s)
-         (A.varray_pts_to x (Ghost.reveal #(Seq.lseq U8.t (A.length x)) s))
-         (fun _ -> ());
-    A.elim_varray_pts_to x s;
-    let v = A.index x i in
-    let _ = A.intro_varray_pts_to x in
-    AT.change_equal_slprop (A.varray_pts_to _ _)
-                           (hpts_to x s);
-    AT.return v
+assume
+val read_ (#t:Type) (#p:perm)
+         (a:A.array t)
+         (#s:Ghost.erased (Seq.seq t))
+         (i:U32.t)
+  : ST t
+       (A.pts_to a p s)
+       (fun _ -> A.pts_to a p s)
+       (requires
+         U32.v i < Seq.length s)
+       (ensures fun v ->
+         U32.v i < Seq.length s /\
+         v == Seq.index s (U32.v i))
+
+// // #push-options "--print_implicits"
+// let read_hbuf (#s:eraw_hash_t) (x:hash_value_buf) (i:U32.t{U32.v i < 32})
+//   : ST U8.t
+//     (A.pts_to x full_perm s)
+//     (fun _ -> A.pts_to x full_perm s)
+//     (requires True)
+//     (ensures fun v ->
+//       U32.v i < A.length x /\
+//       Seq.length s == A.length x /\
+//       v == Seq.index s (U32.v i))
+//   = A.pts_to_length x s;
+//     assert (Seq.length s == A.length x);
+//     assert (A.length x == 32);
+//     assert (U32.v i < Seq.length s);
+// //    let j : (j:U32.t { U32.v j < Seq.length s }) = i in
+//     let v = read_ #U8.t#x i in
+//     admit__()
+//     return v
+
+//   AT.rewrite_slprop
+//          (hpts_to x s)
+//          (A.varray_pts_to x (Ghost.reveal #(Seq.lseq U8.t (A.length x)) s))
+//          (fun _ -> ());
+//     A.elim_varray_pts_to x s;
+//     let v = A.index x i in
+//     let _ = A.intro_varray_pts_to x in
+//     AT.change_equal_slprop (A.varray_pts_to _ _)
+//                            (hpts_to x s);
+//     AT.return v
 
 // let write_hbuf (#s:eraw_hash_t) (x:hash_value_buf) (i:U32.t{U32.v i < 32}) (v:U8.t)
 //   : SteelT unit
@@ -267,13 +292,13 @@ let aggregate_raw_hashes
       : STT unit
         (inv (U32.v i))
         (fun _ -> inv (U32.v i + 1))
-      = rewrite
-            (inv (U32.v i))
-            (A.pts_to b1 full_perm (exor_bytes_pfx s1 s2 (U32.v i)) `star`
-             A.pts_to b2 full_perm s2);
-        A.pts_to_length b1 _;
-        A.pts_to_length b2 s2;
-        let x1 = A.read b1 i in
+      = // rewrite
+        //     (inv (U32.v i))
+        //     (A.pts_to b1 full_perm (exor_bytes_pfx s1 s2 (U32.v i)) `star`
+        //      A.pts_to b2 full_perm s2);
+        // A.pts_to_length b1 _;
+        // A.pts_to_length b2 s2;
+        // let x1 = A.read b1 i in
         admit_()
         // let x2 = A.read b2 i in
         // A.write b1 i (U8.logxor x1 x2);
@@ -289,7 +314,6 @@ let aggregate_raw_hashes
         //         (inv (U32.v i + 1));
         // return ()
     in
-    admit_()
     assert (exor_bytes_pfx s1 s2 0 `Seq.equal` s1);
     rewrite (A.pts_to b1 _ _ `star` A.pts_to b2 _ _)
             (inv 0);
@@ -298,20 +322,6 @@ let aggregate_raw_hashes
     rewrite (inv 32)
             (A.pts_to b1 _ _ `star` A.pts_to b2 _ _);
     return ()
-
-// let aggregate_raw_hashes (b1: hash_value_buf) (b2: hash_value_buf)
-//   : Steel unit
-//     (A.varray b1 `star` A.varray b2)
-//     (fun _ -> A.varray b1 `star` A.varray b2)
-//     (requires fun _ -> True)
-//     (ensures fun h0 _ h1 ->
-//       A.asel b2 h0 == A.asel b2 h1 /\
-//       A.asel b1 h1 == xor_bytes (A.asel b1 h0) (A.asel b2 h0))
-//   = let _ = intro_hpts_to b1 in
-//     let _ = intro_hpts_to b2 in
-//     aggregate_hash_value_pts _ _ b1 b2;
-//     elim_hpts_to b1;
-//     elim_hpts_to b2
 
 
 inline_for_extraction
