@@ -15,10 +15,9 @@ module Hacl.Blake2b_32
 
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32
-module A = Steel.Array
+module A = Steel.ST.Array
 
-open Steel.Effect.Common
-open Steel.Effect
+open Steel.ST.Util
 
 inline_for_extraction noextract
 let size_nat = n:nat { n <= pow2 32 - 1 }
@@ -39,20 +38,23 @@ val spec :
 
 val blake2b:
     nn:size_t{1 <= UInt32.v nn /\ UInt32.v nn <= max_output}
+  -> #sout:Ghost.erased (Seq.seq U8.t)
   -> output: A.array U8.t
   -> ll: size_t
-  -> d: A.array U8.t
-  -> Steel unit
-  (A.varray output `star` A.varray d)
-  (fun _ -> A.varray output `star` A.varray d)
-  (requires fun _ ->
+  -> #p:perm
+  -> #sd:Ghost.erased (Seq.seq U8.t)
+  -> d: A.array U8.t { U32.v ll <= Seq.length sd }
+  -> ST unit
+  (A.pts_to output full_perm sout `star` A.pts_to d p sd)
+  (fun _ -> A.pts_to output full_perm
+                  (spec (Seq.slice sd 0 (U32.v ll))
+                        0
+                        Seq.empty
+                        (UInt32.v nn))
+         `star`
+         A.pts_to d p sd)
+  (requires
     A.length d >= U32.v ll /\
     A.length output = U32.v nn)
-  (ensures fun h0 _ h1 ->
-    A.length d >= U32.v ll /\
-    A.length output = U32.v nn /\
-    A.asel d h0 == A.asel d h1 /\
-    A.asel output h1 ==
-      spec
-        (Seq.slice (A.asel d h0) 0 (U32.v ll))
-        0 Seq.empty (UInt32.v nn))
+  (ensures fun _ ->
+    True)
