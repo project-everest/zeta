@@ -15,11 +15,11 @@ let sum_halves : squash (sum_perm half half == full) = admit()
 assume
 val empty_map (#k:eqtype) (#v:Type) : FStar.Map.t k v
 
-
+[@@warn_on_use "uses an axiom"]
 assume
 val admit__ (#a:Type)
             (#p:pre_t)
-            (#q:post_t a)
+            (#q:a -> vprop)
             (_:unit)
   : STF a p q True (fun _ -> False)
 
