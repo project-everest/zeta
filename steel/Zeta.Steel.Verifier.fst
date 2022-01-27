@@ -395,11 +395,22 @@ let commit_entries #o
           (TLM.global_anchor mylogref _)
           (TLM.global_anchor mylogref (AEH.map_of_seq (update_logs_of_tid mlogs_v (spec_verify_epoch tsm))))
 
+#push-options "--fuel 2"
 let spec_verify_epoch_entries_invariants (tsm:M.thread_state_model)
   : Lemma
-    (requires (tsm_entries_invariant tsm))
+    (requires not tsm.failed /\
+              not (spec_verify_epoch tsm).failed /\
+              tsm_entries_invariant tsm)
     (ensures (tsm_entries_invariant (spec_verify_epoch tsm)))
-  = admit()
+  = assert (tsm == M.verify_model (M.init_thread_state_model tsm.thread_id) tsm.processed_entries);
+    let tsm' = spec_verify_epoch tsm in
+    assert (tsm'.processed_entries == Seq.snoc tsm.processed_entries (VerifyEpoch()));
+    assert (Zeta.SeqAux.prefix tsm'.processed_entries
+                               (Seq.length tsm.processed_entries)
+            `Seq.equal`
+           tsm.processed_entries);
+    assert (tsm' == M.verify_model (M.init_thread_state_model tsm.thread_id) tsm'.processed_entries)
+#pop-options
 
 let last_verified_epoch_constant (tsm:M.thread_state_model)
   : Lemma
