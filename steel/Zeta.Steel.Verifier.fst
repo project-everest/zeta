@@ -1181,7 +1181,13 @@ let new_epoch (e:M.epoch_id)
   : STT AEH.epoch_hashes_t
     emp
     (fun v -> AEH.epoch_hash_perm e v M.init_epoch_hash)
-  = admit__()
+  = let hadd = HA.create () in
+    let hev = HA.create () in
+    let eh : AEH.epoch_hashes_t = { hadd = hadd; hevict = hev } in
+    rewrite (HA.ha_val hadd _ `star` HA.ha_val hev _)
+            (AEH.epoch_hash_perm e eh M.init_epoch_hash);
+    return eh
+
 
 let nextepoch (#tsm:M.thread_state_model)
               (t:thread_state_t)
