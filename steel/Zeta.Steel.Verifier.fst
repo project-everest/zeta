@@ -119,10 +119,20 @@ let spec_verify_epoch (tsm:M.thread_state_model)
     else { tsm with M.processed_entries = Seq.snoc tsm.processed_entries (VerifyEpoch())}
 
 let verify_epoch_committed_entries (tsm:M.thread_state_model)
-  : Lemma (M.committed_entries (spec_verify_epoch tsm) ==
-           (spec_verify_epoch tsm).processed_entries)
-          [SMTPat (M.committed_entries (spec_verify_epoch tsm))]
-  = admit() //should be an easy lemma about sequence prefixes
+  : Lemma (requires
+             not tsm.failed /\
+             not (M.verifyepoch tsm).failed)
+          (ensures
+            (M.committed_entries (spec_verify_epoch tsm) ==
+            (spec_verify_epoch tsm).processed_entries))
+  = let tsm' = spec_verify_epoch tsm in
+    let _, last = Seq.un_snoc tsm'.processed_entries in
+    let is_verify = (function VerifyEpoch _ -> true | _ -> false) in
+    Zeta.SeqAux.lemma_last_index_correct2
+        is_verify
+        tsm'.processed_entries
+        (Seq.length tsm.processed_entries);
+    Zeta.SeqAux.lemma_fullprefix_equal tsm'.processed_entries
 
 let aggregate_one_epoch_hash (source:epoch_hashes_repr)
                              (dest:AEH.epoch_hashes_repr)
@@ -132,17 +142,89 @@ let aggregate_one_epoch_hash (source:epoch_hashes_repr)
                       (Map.sel dest e)
                       (Map.sel source e))
 
+module HA = Zeta.Steel.HashAccumulator
+let unfold_epoch_hash_perm #o (k:M.epoch_id) (v:AEH.epoch_hashes_t) (c:M.epoch_hash)
+  : STGhostT unit o
+    (AEH.epoch_hash_perm k v c)
+    (fun _ ->
+      HA.ha_val v.hadd c.hadd `star`
+      HA.ha_val v.hevict c.hevict)
+  = rewrite (AEH.epoch_hash_perm k v c)
+            (HA.ha_val v.hadd c.hadd `star`
+             HA.ha_val v.hevict c.hevict)
+
+let fold_epoch_hash_perm #o
+                         (k:M.epoch_id)
+                         (v:AEH.epoch_hashes_t)
+                         (#had #hev:HA.hash_value_t)
+                         (c:M.epoch_hash)
+  : STGhost unit o
+    (HA.ha_val v.hadd had `star`
+     HA.ha_val v.hevict hev)
+    (fun _ -> AEH.epoch_hash_perm k v c)
+    (requires
+      c.hadd == had /\
+      c.hevict == hev)
+    (ensures fun _ -> True)
+  = rewrite (HA.ha_val v.hadd had `star`
+             HA.ha_val v.hevict hev)
+            (AEH.epoch_hash_perm k v c)
+
+let aggregate_epoch_hash (b0 b1:bool) (e0 e1:M.epoch_hash)
+  : M.epoch_hash
+  = { hadd = update_if b0 e0.hadd (HA.aggregate_hashes e0.hadd e1.hadd);
+      hevict = update_if b1 e0.hevict (HA.aggregate_hashes e0.hevict e1.hevict) }
+
 let aggregate_epoch_hashes_t (#e:_)
                              (#s #d:M.epoch_hash)
-                             (src:epoch_hashes_t)
+                             (src:AEH.epoch_hashes_t)
                              (dst:AEH.epoch_hashes_t)
   : STT bool
-    (epoch_hash_perm e src s `star`
+    (AEH.epoch_hash_perm e src s `star`
      AEH.epoch_hash_perm e dst d)
     (fun b ->
-      epoch_hash_perm e src s `star`
-      AEH.epoch_hash_perm e dst (update_if b d (AEH.aggregate_epoch_hash d s)))
-  = admit__() // need a utility from HA
+      AEH.epoch_hash_perm e src s `star`
+      (if b
+       then AEH.epoch_hash_perm e dst (AEH.aggregate_epoch_hash d s)
+       else exists_ (AEH.epoch_hash_perm e dst)))
+  = unfold_epoch_hash_perm e src s;
+    unfold_epoch_hash_perm e dst d;
+    let b = HA.aggregate dst.hadd src.hadd in
+    if b
+    then (
+      rewrite (HA.ha_val dst.hadd _)
+              (HA.ha_val dst.hadd (AEH.aggregate_epoch_hash d s).M.hadd);
+      let b = HA.aggregate dst.hevict src.hevict in
+      fold_epoch_hash_perm e src s;
+      if b
+      then (
+        rewrite (HA.ha_val dst.hevict _)
+                (HA.ha_val dst.hevict (AEH.aggregate_epoch_hash d s).M.hevict);
+        fold_epoch_hash_perm e dst (update_if true d (AEH.aggregate_epoch_hash d s));
+        return true
+      )
+      else (
+        let w : M.epoch_hash =
+          { hadd = (AEH.aggregate_epoch_hash d s).M.hadd;
+            hevict = d.hevict }
+        in
+        rewrite (HA.ha_val dst.hadd _)
+                (HA.ha_val dst.hadd w.hadd);
+        rewrite (HA.ha_val dst.hevict _)
+                (HA.ha_val dst.hevict w.hevict);
+        fold_epoch_hash_perm e dst w;
+        intro_exists w (AEH.epoch_hash_perm e dst);
+        return false
+      )
+    )
+    else (
+      fold_epoch_hash_perm e src s;
+      rewrite (HA.ha_val dst.hadd _)
+              (HA.ha_val dst.hadd d.hadd);
+      fold_epoch_hash_perm e dst d;
+      intro_exists d (AEH.epoch_hash_perm e dst);
+      return false
+    )
 
 /// A utility, should be replaced by a similar function in EphemeralHashtbl
 let with_value_of_key (#k:eqtype)
@@ -187,14 +269,15 @@ let propagate_epoch_hash (#tsm:M.thread_state_model)
      IArray.perm hashes hv Set.empty)
     (fun b ->
       thread_state_inv' t (M.verifyepoch tsm) `star`
-      IArray.perm hashes (update_if b (reveal hv)
-                                      (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes hv e))
-                         Set.empty)
+      (if b
+       then IArray.perm hashes (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes hv e) Set.empty
+       else exists_ (fun eh -> IArray.perm hashes eh Set.empty)))
   = let dst = IArray.get hashes e in
     match dst with
     | None -> //we should distinguish Absent from Missing
       rewrite (IArray.get_post _ _ _ _ _)
               (IArray.perm hashes hv Set.empty);
+      intro_exists_erased hv (fun hv -> IArray.perm hashes hv Set.empty);
       return false
     | Some dst ->
       rewrite (IArray.get_post _ _ _ _ _)
@@ -206,16 +289,35 @@ let propagate_epoch_hash (#tsm:M.thread_state_model)
         rewrite (IArray.get_post _ _ t.epoch_hashes _ _)
                 (IArray.perm t.epoch_hashes (M.verifyepoch tsm).epoch_hashes Set.empty);
         IArray.put hashes e dst _; //this should be a ghost put
+        intro_exists_erased hv (fun hv -> IArray.perm hashes hv Set.empty);
         return false
 
       | Some src ->
         rewrite (IArray.get_post _ _ _ _ _)
-                (epoch_hash_perm e src (Map.sel (M.verifyepoch tsm).epoch_hashes e) `star`
+                (AEH.epoch_hash_perm e src (Map.sel (M.verifyepoch tsm).epoch_hashes e) `star`
                  IArray.perm t.epoch_hashes (M.verifyepoch tsm).epoch_hashes (IArray.set_add Set.empty e));
         let b = aggregate_epoch_hashes_t src dst in
-        IArray.put t.epoch_hashes e src _; //this should be a ghost put
-        IArray.put hashes e dst _;
-        return b
+        if b
+        then (
+          rewrite (if b then _ else _)
+                  (AEH.epoch_hash_perm e dst (AEH.aggregate_epoch_hash
+                                               (Map.sel hv e)
+                                               (Map.sel (M.verifyepoch tsm).epoch_hashes e)));
+          IArray.put t.epoch_hashes e src _; //this should be a ghost put
+          IArray.put hashes e dst _;
+          return true
+        )
+        else (
+          rewrite (if b then _ else _)
+                  (exists_ (AEH.epoch_hash_perm e dst));
+          let vv = elim_exists #_ #_ #(AEH.epoch_hash_perm e dst) () in
+          assert_ (AEH.epoch_hash_perm e dst vv);
+          IArray.put t.epoch_hashes e src _; //this should be a ghost put
+          IArray.put hashes e dst _;
+          assert_ (IArray.perm hashes (Map.upd hv e vv) Set.empty);
+          intro_exists (Map.upd hv e vv) (fun eh -> IArray.perm hashes eh Set.empty);
+          return false
+        )
 
 
 let update_bitmap_spec (bm:IArray.repr M.epoch_id AEH.tid_bitmap)
@@ -278,7 +380,10 @@ let commit_entries #o
       TLM.tid_pts_to mylogref t.thread_id full (spec_verify_epoch tsm).processed_entries false `star`
       TLM.global_anchor mylogref (AEH.map_of_seq (update_logs_of_tid mlogs_v (spec_verify_epoch tsm))) `star`
       G.pts_to t.processed_entries full (spec_verify_epoch tsm).processed_entries)
-     (requires t.thread_id == tsm.thread_id)
+     (requires
+       t.thread_id == tsm.thread_id /\
+       not tsm.failed /\
+       not (M.verifyepoch tsm).failed)
      (ensures fun _ -> True)
   = TLM.take_anchor_tid mylogref _ _ _ _;
     verify_epoch_committed_entries tsm;
@@ -513,6 +618,8 @@ let verify_epoch (#tsm:M.thread_state_model)
         else (
              commit_entries t mlogs;
              restore_hashes_bitmaps_max_ok tsm e;
+             rewrite (if b0 then _ else _)
+                     (IArray.perm hashes (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes _hv e) Set.empty);
              AEH.release_lock #(hide (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes _hv e))
                               #(hide (update_bitmap_spec _bitmaps e (spec_verify_epoch tsm).thread_id))
                               lock;
@@ -525,7 +632,7 @@ let verify_epoch (#tsm:M.thread_state_model)
 let spec_parser_log  = admit()
 
 let finalize_epoch_hash
-  : IArray.finalizer epoch_hash_perm
+  : IArray.finalizer AEH.epoch_hash_perm
   = fun k v -> drop _ //TODO: Actually free it
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -762,7 +869,7 @@ let sat_evictb_checks (#tsm:M.thread_state_model)
       in
       return b
 
-module HA = Zeta.Steel.HashAccumulator
+
 
 let ha_add (#v:erased (HA.hash_value_t))
            (ha:HA.ha)
@@ -779,32 +886,6 @@ let ha_add (#v:erased (HA.hash_value_t))
     let x = HA.add ha input l in
     return x
 
-let unfold_epoch_hash_perm #o (k:M.epoch_id) (v:epoch_hashes_t) (c:M.epoch_hash)
-  : STGhostT unit o
-    (epoch_hash_perm k v c)
-    (fun _ ->
-      HA.ha_val v.hadd c.hadd `star`
-      HA.ha_val v.hevict c.hevict)
-  = rewrite (epoch_hash_perm k v c)
-            (HA.ha_val v.hadd c.hadd `star`
-             HA.ha_val v.hevict c.hevict)
-
-let fold_epoch_hash_perm #o
-                         (k:M.epoch_id)
-                         (v:epoch_hashes_t)
-                         (#had #hev:HA.hash_value_t)
-                         (c:M.epoch_hash)
-  : STGhost unit o
-    (HA.ha_val v.hadd had `star`
-     HA.ha_val v.hevict hev)
-    (fun _ -> epoch_hash_perm k v c)
-    (requires
-      c.hadd == had /\
-      c.hevict == hev)
-    (ensures fun _ -> True)
-  = rewrite (HA.ha_val v.hadd had `star`
-             HA.ha_val v.hevict hev)
-            (epoch_hash_perm k v c)
 
 type htype =
   | HAdd
@@ -884,7 +965,7 @@ let update_ht (#tsm:M.thread_state_model)
 
     | Some v ->
       rewrite (IArray.get_post _ _ _ _ vopt)
-              (epoch_hash_perm e v (Map.sel tsm.epoch_hashes e) `star`
+              (AEH.epoch_hash_perm e v (Map.sel tsm.epoch_hashes e) `star`
                IArray.perm t.epoch_hashes tsm.epoch_hashes (IArray.set_add Set.empty e));
       unfold_epoch_hash_perm _ _ _;
       let sr = {
@@ -906,7 +987,7 @@ let update_ht (#tsm:M.thread_state_model)
                             )
                            (fun b ->
                              array_pts_to t.serialization_buffer bs `star`
-                             epoch_hash_perm e v
+                             AEH.epoch_hash_perm e v
                               (update_if b (Map.sel tsm.epoch_hashes e)
                                            (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id ht))))
         with
@@ -1097,9 +1178,9 @@ let vevictbm (#tsm:M.thread_state_model)
 // nextepoch
 ////////////////////////////////////////////////////////////////////////////////
 let new_epoch (e:M.epoch_id)
-  : STT epoch_hashes_t
+  : STT AEH.epoch_hashes_t
     emp
-    (fun v -> epoch_hash_perm e v M.init_epoch_hash)
+    (fun v -> AEH.epoch_hash_perm e v M.init_epoch_hash)
   = admit__()
 
 let nextepoch (#tsm:M.thread_state_model)

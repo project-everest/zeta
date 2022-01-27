@@ -836,7 +836,7 @@ let committed_log_entries (entries:Seq.seq log_entry_base)
     let is_verify_epoch = function VerifyEpoch _ -> true | _ -> false in
     if exists_sat_elems is_verify_epoch entries
     then let i = last_index is_verify_epoch entries in
-         prefix entries i
+         prefix entries (i + 1)
     else Seq.empty
 
 let committed_entries (tsm:thread_state_model)
