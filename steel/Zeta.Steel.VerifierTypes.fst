@@ -76,7 +76,7 @@ let thread_state_inv (t:thread_state_t)
   = R.pts_to t.failed full tsm.failed `star`
     array_pts_to t.store tsm.store `star`
     R.pts_to t.clock full tsm.clock `star`
-    IArray.perm t.epoch_hashes tsm.epoch_hashes Set.empty `star`
+    IArray.perm t.epoch_hashes tsm.epoch_hashes `star`
     R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
     G.pts_to t.processed_entries full tsm.processed_entries `star`
     G.pts_to t.app_results full tsm.app_results `star`

@@ -194,19 +194,19 @@ let check_bitmap_for_epoch (#bm:erased _)
     (fun b -> IArray.perm tid_bitmaps bm)
     (requires True)
     (ensures fun b -> b ==> Map.sel bm e == all_ones)
-  = let f (a:larray bool n_threads) (bm_e:erased tid_bitmap)
+  = let fpost (bm_e bm_e':tid_bitmap) (b:bool) =
+      pure (bm_e == bm_e' /\ (b ==> bm_e == all_ones))
+    in
+    let f (a:larray bool n_threads)
       : STT bool
-            (emp `star` array_pts_to a bm_e)
-            (fun b -> exists_ (fun (bm_e':tid_bitmap) -> pure (reveal bm_e == bm_e' /\
-                                                         (b ==> reveal bm_e == all_ones))
+            (emp `star` array_pts_to a (Map.sel bm e))
+            (fun b -> exists_ (fun (bm_e':tid_bitmap) ->
+                                      fpost (Map.sel bm e) bm_e' b
                                       `star`
                                       array_pts_to a bm_e'))
       = admit__()
     in
-    let fpost (bm_e bm_e':tid_bitmap) (b:bool) =
-      pure (bm_e == bm_e' /\ (b ==> bm_e == all_ones))
-    in
-    let res = IArray.with_key #_ #_ #_ #_ #_ #bm tid_bitmaps e #bool #emp #fpost f in
+    let res = IArray.with_key tid_bitmaps e #bool #emp #fpost f in
     match res with
     | EHT.Present b ->
       rewrite (IArray.with_key_post bm tid_bitmaps e emp fpost res)
@@ -226,7 +226,7 @@ let check_bitmap_for_epoch (#bm:erased _)
               (IArray.perm tid_bitmaps bm `star` emp);
       return false
 
-val check_hash_equality_for_epoch (#hashes_v:erased _)
+let check_hash_equality_for_epoch (#hashes_v:erased (IArray.repr M.epoch_id M.epoch_hash))
                                   (hashes:all_epoch_hashes)
                                   (e:M.epoch_id)
   : ST bool
@@ -236,6 +236,39 @@ val check_hash_equality_for_epoch (#hashes_v:erased _)
     (ensures fun b ->
       let ha = Map.sel hashes_v e in
       b ==> ha.hadd == ha.hevict)
+  = let fpost (repr repr':M.epoch_hash) (b:bool) =
+        pure (repr == repr' /\
+             (b ==> repr'.hadd == repr'.hevict))
+    in
+    let f (ehs:epoch_hashes_t)
+      : STT bool
+        (emp `star` epoch_hash_perm e ehs (Map.sel hashes_v e))
+        (fun b -> exists_ (fun (repr':M.epoch_hash) ->
+                fpost (Map.sel hashes_v e) repr' b
+                      `star`
+                epoch_hash_perm e ehs repr'))
+      = admit__()
+    in
+    let res = IArray.with_key hashes e #bool #emp #fpost f in
+    match res with
+    | EHT.Present b ->
+      rewrite (IArray.with_key_post hashes_v hashes e emp fpost res)
+              (IArray.with_key_post hashes_v hashes e emp fpost (EHT.Present b));
+      let repr' = IArray.elim_with_key_post_present b in
+      assert_ (fpost (Map.sel hashes_v e) (reveal repr') b);
+      rewrite (fpost (Map.sel hashes_v e) (reveal repr') b)
+              (pure (Map.sel hashes_v e == reveal repr' /\
+                     (b ==> repr'.M.hadd == repr'.M.hevict)));
+      elim_pure _;
+      assert (Map.upd hashes_v e (Map.sel hashes_v e) `Map.equal` hashes_v);
+      rewrite (IArray.perm hashes _)
+              (IArray.perm hashes hashes_v);
+      return b
+    | _ ->
+      rewrite (IArray.with_key_post hashes_v hashes e emp fpost res)
+              (IArray.perm hashes hashes_v `star` emp);
+      return false
+
 
 let epoch_ready_if_bitmap_set (hashes:IArray.repr _ _)
                               (bitmaps:_)

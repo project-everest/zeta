@@ -15,7 +15,7 @@ val tbl (#k:eqtype)
         (vp:EHT.vp_t k v contents)
   : Type0
 
-let repr (k:eqtype) (contents:Type0) = m:Map.t k contents //{ Map.domain m `Set.equal` Set.complement Set.empty }
+let repr (k:eqtype) (contents:Type0) = m:Map.t k contents { Map.domain m `Set.equal` Set.complement Set.empty }
 
 
 (* perm t m b: asserts ownership of the underlying array
@@ -45,7 +45,7 @@ val create (#k:eqtype)
            (n:U32.t{U32.v n > 0})
            (finalize:EHT.finalizer_t vp)
            (init:Ghost.erased contents)
-  : STT (tbl h vp) emp (fun a -> perm a (Map.restrict Set.empty (Map.const #k #contents init)))
+  : STT (tbl h vp) emp (fun a -> perm a (Map.const #k #contents init))
 
 
 (* Call the finalizer on every value stored in memory
@@ -139,9 +139,9 @@ val with_key
   (#res:Type)
   (#f_pre:vprop)
   (#f_post:contents -> contents -> res -> vprop)
-  ($f:(x:v -> c:G.erased contents -> STT res
-                                       (f_pre `star` vp i x c)
-                                       (fun res -> exists_ (fun c' -> f_post c c' res `star` vp i x c'))))
+  ($f:(x:v -> STT res
+             (f_pre `star` vp i x (Map.sel m i))
+             (fun res -> exists_ (fun c' -> f_post (Map.sel m i) c' res `star` vp i x c'))))
   : STT (EHT.get_result k res)
         (perm a m `star` f_pre)
         (with_key_post m a i f_pre f_post)
