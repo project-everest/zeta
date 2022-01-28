@@ -8,16 +8,14 @@ module Map = FStar.Map
 module U32 = FStar.UInt32
 module EHT = Steel.ST.EphemeralHashtbl
 
-type hash_fn (k:eqtype) = k -> U32.t
-
 val tbl (#k:eqtype)
         (#v:Type0)
         (#contents:Type0)
-        (h:hash_fn k)
-        (vp:k -> v -> contents -> vprop)
+        (h:EHT.hash_fn k)
+        (vp:EHT.vp_t k v contents)
   : Type0
 
-let repr (k:eqtype) (contents:Type0) = m:Map.t k contents{ Map.domain m `Set.equal` Set.complement Set.empty }
+let repr (k:eqtype) (contents:Type0) = m:Map.t k contents //{ Map.domain m `Set.equal` Set.complement Set.empty }
 
 
 (* perm t m b: asserts ownership of the underlying array
@@ -33,36 +31,30 @@ let repr (k:eqtype) (contents:Type0) = m:Map.t k contents{ Map.domain m `Set.equ
 val perm (#k:eqtype)
          (#v:Type0)
          (#contents:Type0)
-         (#h:hash_fn k)
-         (#vp: k -> v -> contents -> vprop)
+         (#h:EHT.hash_fn k)
+         (#vp:EHT.vp_t k v contents)
          (t:tbl h vp)
          ([@@@smt_fallback] m:repr k contents)
   : vprop
 
-let finalizer (#k:eqtype)
-              (#v:Type)
-              (#contents:Type)
-              (vp:k -> v -> contents -> vprop) =
-  x:k -> y:v -> STT unit (exists_ (vp x y)) (fun _ -> emp)
-
 val create (#k:eqtype)
            (#v:Type0)
            (#contents:Type0)
-           (#vp: k -> v -> contents -> vprop)
-           (h:hash_fn k)
+           (#vp:EHT.vp_t k v contents)
+           (h:EHT.hash_fn k)
            (n:U32.t{U32.v n > 0})
-           (finalize: finalizer vp)
+           (finalize:EHT.finalizer_t vp)
            (init:Ghost.erased contents)
-  : STT (tbl h vp) emp (fun a -> perm a (Map.const #k #contents init))
+  : STT (tbl h vp) emp (fun a -> perm a (Map.restrict Set.empty (Map.const #k #contents init)))
 
 
 (* Call the finalizer on every value stored in memory
    and then frees the array itself *)
 val free (#k:eqtype)
          (#v:Type0)
-         (#h:hash_fn k)
+         (#h:EHT.hash_fn k)
          (#contents: Type0)
-         (#vp:k -> v -> contents -> vprop)
+         (#vp:EHT.vp_t k v contents)
          (#m:G.erased (repr k contents))
          (a:tbl h vp)
   : STT unit
@@ -74,8 +66,8 @@ val free (#k:eqtype)
 val put (#k:eqtype)
         (#v:Type0)
         (#contents:Type0)
-        (#h:hash_fn k)
-        (#vp: k -> v -> contents -> vprop)
+        (#h:EHT.hash_fn k)
+        (#vp:EHT.vp_t k v contents)
         (#m:G.erased (repr k contents))
         (a:tbl h vp)
         (i:k)
@@ -88,8 +80,8 @@ val put (#k:eqtype)
 val remove
   (#k:eqtype)
   (#v #contents:Type0)
-  (#h:hash_fn k)
-  (#vp:k -> v -> contents -> vprop)
+  (#h:EHT.hash_fn k)
+  (#vp:EHT.vp_t k v contents)
   (#m:G.erased (repr k contents))
   (a:tbl h vp)
   (i:k)
@@ -98,11 +90,28 @@ val remove
         (fun _ -> perm a m)
 
 
+let with_key_post_present_predicate
+  (#k:eqtype)
+  (#v #contents:Type0)
+  (#vp:EHT.vp_t k v contents)
+  (#h:EHT.hash_fn k)
+  (m:G.erased (repr k contents))
+  (a:tbl h vp)
+  (i:k)
+  (#res:Type)
+  (f_post:contents -> contents -> res -> vprop)
+  (r:res)
+  : contents -> vprop
+  = fun c' ->
+    perm a (Map.upd m i c')
+      `star`
+    f_post (Map.sel m i) c' r
+  
 let with_key_post
   (#k:eqtype)
   (#v #contents:Type0)
   (#vp:EHT.vp_t k v contents)
-  (#h:hash_fn k)
+  (#h:EHT.hash_fn k)
   (m:G.erased (repr k contents))
   (a:tbl h vp)
   (i:k)
@@ -113,10 +122,7 @@ let with_key_post
   = fun r ->
     match r with
     | EHT.Present res ->
-      exists_ (fun c' ->
-        perm a (Map.upd m i c')
-          `star`
-        f_post (Map.sel m i) c' res)
+      exists_ (with_key_post_present_predicate m a i f_post res)
     | _ ->
       perm a m
         `star`
@@ -125,8 +131,8 @@ let with_key_post
 val with_key
   (#k:eqtype)
   (#v #contents:Type0)
-  (#vp:k -> v -> contents -> vprop)
-  (#h:hash_fn k)
+  (#vp:EHT.vp_t k v contents)
+  (#h:EHT.hash_fn k)
   (#m:G.erased (repr k contents))
   (a:tbl h vp)
   (i:k)
@@ -140,13 +146,12 @@ val with_key
         (perm a m `star` f_pre)
         (with_key_post m a i f_pre f_post)
 
-module T = FStar.Tactics
 let elim_with_key_post_present
         #o
         (#k:eqtype)
         (#v #contents:Type0)
         (#vp:EHT.vp_t k v contents)
-        (#h:hash_fn k)
+        (#h:EHT.hash_fn k)
         (#m:G.erased (repr k contents))
         (#a:tbl h vp)
         (#i:k)
@@ -160,18 +165,9 @@ let elim_with_key_post_present
        perm a (Map.upd m i c')
          `star`
        f_post (Map.sel m i) c' r)
-  = weaken
-        (with_key_post m a i f_pre f_post (EHT.Present r))
-        (exists_ (fun c' ->
-          perm a (Map.upd m i c')
-            `star`
-          f_post (Map.sel m i) c' r))
-        (fun _ ->
-          assert (with_key_post m a i f_pre f_post (EHT.Present r) ==
-                 (exists_ (fun c' ->
-                   perm a (Map.upd m i c')
-                 `star`
-                   f_post (Map.sel m i) c' r)))
-               by (T.trefl()));
+  = rewrite
+      (with_key_post m a i f_pre f_post (EHT.Present r))
+      (exists_ (with_key_post_present_predicate m a i f_post r));
     let c' = elim_exists () in
+    rewrite (with_key_post_present_predicate m a i f_post r c') _;
     c'
