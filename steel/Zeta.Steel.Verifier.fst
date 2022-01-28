@@ -280,14 +280,45 @@ let with_value_of_key (#k:eqtype)
               (IArray.full_perm t m `star` emp);
       return false
 
+let new_epoch (e:M.epoch_id)
+  : STT AEH.epoch_hashes_t
+    emp
+    (fun v -> AEH.epoch_hash_perm e v M.init_epoch_hash)
+  = let hadd = HA.create () in
+    let hev = HA.create () in
+    let eh : AEH.epoch_hashes_t = { hadd = hadd; hevict = hev } in
+    rewrite (HA.ha_val hadd _ `star` HA.ha_val hev _)
+            (AEH.epoch_hash_perm e eh M.init_epoch_hash);
+    return eh
+
+let iarray_add (#k:eqtype)
+               (#v:Type0)
+               (#contents:Type0)
+               (#h:EHT.hash_fn k)
+               (#vp:EHT.vp_t k v contents)
+               (#m:Ghost.erased (IArray.repr k contents))
+               (a:IArray.tbl h vp)
+               (i:k)
+               (x:v)
+               (c:Ghost.erased contents)
+  : STT unit
+    (IArray.full_perm a m `star`
+     vp i x c)
+    (fun _ ->
+      IArray.full_perm a (Map.upd m i c))
+  = IArray.put a i x _;
+    assert (PartialMap.remove i (IArray.empty_borrows #k #v) `PartialMap.equal`
+            IArray.empty_borrows #k #v);
+    rewrite (IArray.perm a _ (PartialMap.remove i IArray.empty_borrows))
+            (IArray.full_perm a (Map.upd m i c))
 
 /// Updates the aggregate epoch hash for a thread with the
 /// t thread-local epoch hashes for epoch e
-let propagate_epoch_hash (#tsm:M.thread_state_model)
-                         (t:thread_state_t)
-                         (#hv:erased AEH.epoch_hashes_repr)
-                         (hashes : AEH.all_epoch_hashes)
-                         (e:M.epoch_id)
+let rec propagate_epoch_hash (#tsm:M.thread_state_model)
+                             (t:thread_state_t)
+                             (#hv:erased AEH.epoch_hashes_repr)
+                             (hashes : AEH.all_epoch_hashes)
+                             (e:M.epoch_id)
   : STT bool
     (thread_state_inv' t (M.verifyepoch tsm) `star`
      IArray.full_perm hashes hv)
@@ -298,12 +329,38 @@ let propagate_epoch_hash (#tsm:M.thread_state_model)
        else exists_ (IArray.full_perm hashes)))
   = let dst = IArray.get hashes e in
     match dst with
-    | EHT.Absent
-    | EHT.Missing _ -> //we should distinguish Absent from Missing
+    | EHT.Missing _ ->
       rewrite (IArray.get_post _ _ _ _ _)
               (IArray.full_perm hashes hv);
       intro_exists_erased hv (IArray.full_perm hashes);
       return false
+
+    | EHT.Absent ->
+      rewrite (IArray.get_post _ _ _ _ _)
+              (IArray.full_perm hashes hv);
+      let eh = new_epoch e in
+      iarray_add hashes e eh _;
+      let b = propagate_epoch_hash t hashes e in
+      if b then (
+        rewrite (if b then _ else _)
+                (IArray.full_perm hashes (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes
+                                                                   (Map.upd hv e M.init_epoch_hash)
+                                                                   e));
+        assume (Map.sel hv e == M.init_epoch_hash);
+        assert (Map.upd hv e M.init_epoch_hash `Map.equal` reveal hv);
+        rewrite (IArray.full_perm hashes (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes
+                                                                   (Map.upd hv e M.init_epoch_hash)
+                                                                   e))
+                (IArray.full_perm hashes (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes
+                                                                   hv
+                                                                   e));
+        return true
+      ) else (
+        rewrite (if b then _ else _)
+                (exists_ (IArray.full_perm hashes));
+        return false
+      )
+
     | EHT.Present dst ->
       rewrite (IArray.get_post _ _ _ _ _)
               (IArray.perm hashes hv (PartialMap.upd e dst IArray.empty_borrows) `star`
@@ -1212,37 +1269,6 @@ let vevictbm (#tsm:M.thread_state_model)
 ////////////////////////////////////////////////////////////////////////////////
 // nextepoch
 ////////////////////////////////////////////////////////////////////////////////
-let new_epoch (e:M.epoch_id)
-  : STT AEH.epoch_hashes_t
-    emp
-    (fun v -> AEH.epoch_hash_perm e v M.init_epoch_hash)
-  = let hadd = HA.create () in
-    let hev = HA.create () in
-    let eh : AEH.epoch_hashes_t = { hadd = hadd; hevict = hev } in
-    rewrite (HA.ha_val hadd _ `star` HA.ha_val hev _)
-            (AEH.epoch_hash_perm e eh M.init_epoch_hash);
-    return eh
-
-let remove_from_empty (#k:eqtype) #v (x:k)
-  : Lemma (PartialMap.remove x (IArray.empty_borrows #k #v) `PartialMap.equal`
-           IArray.empty_borrows #k #v)
-  = ()
-
-let return_empty (#o:_)
-                 (#k:eqtype)
-                 (#v:Type0)
-                 (#contents:Type0)
-                 (#h:EHT.hash_fn k)
-                 (#vp:EHT.vp_t k v contents)
-                 (#m:IArray.repr k contents)
-                 (a:IArray.tbl h vp)
-                 (i:k)
-  : STGhostT unit o
-    (IArray.perm a m (PartialMap.remove i IArray.empty_borrows))
-    (fun _ -> IArray.full_perm a m)
-  = remove_from_empty #k #v i;
-    rewrite (IArray.perm a m (PartialMap.remove i IArray.empty_borrows))
-            (IArray.full_perm a m)
 
 let nextepoch (#tsm:M.thread_state_model)
               (t:thread_state_t)
@@ -1259,9 +1285,9 @@ let nextepoch (#tsm:M.thread_state_model)
       let c = U64.shift_left (Cast.uint32_to_uint64 nxt) 32ul in
       R.write t.clock c;
       let eht = new_epoch nxt in
-      IArray.put t.epoch_hashes nxt eht M.init_epoch_hash;
-      return_empty t.epoch_hashes nxt;
+      iarray_add t.epoch_hashes nxt eht M.init_epoch_hash;
       ()
+
 
 
 
