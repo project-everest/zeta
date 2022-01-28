@@ -157,8 +157,8 @@ let lock_inv_body (hashes : all_epoch_hashes)
                   (bitmaps:_)
                   (max:_)
                   (mlogs_v:all_processed_entries)
-  = IArray.perm hashes hashes_v Set.empty `star`
-    IArray.perm tid_bitmaps bitmaps Set.empty `star`
+  = IArray.perm hashes hashes_v `star`
+    IArray.perm tid_bitmaps bitmaps `star`
     R.pts_to max_certified_epoch full max `star`
     TLM.global_anchor mlogs (map_of_seq mlogs_v) `star`
     pure (hashes_bitmaps_max_ok hashes_v bitmaps max mlogs_v)
@@ -183,28 +183,61 @@ type aggregate_epoch_hashes = {
      mlogs: TLM.t;
      lock: cancellable_lock (lock_inv hashes tid_bitmaps max_certified_epoch mlogs)
 }
+#push-options "--print_effect_args"
+module EHT = Steel.ST.EphemeralHashtbl
 
-val check_bitmap_for_epoch (#bm:erased _)
+let check_bitmap_for_epoch (#bm:erased _)
                            (tid_bitmaps: epoch_tid_bitmaps)
                            (e:M.epoch_id)
   : ST bool
-    (IArray.perm tid_bitmaps bm Set.empty)
-    (fun b -> IArray.perm tid_bitmaps bm Set.empty)
+    (IArray.perm tid_bitmaps bm)
+    (fun b -> IArray.perm tid_bitmaps bm)
     (requires True)
     (ensures fun b -> b ==> Map.sel bm e == all_ones)
+  = let f (a:larray bool n_threads) (bm_e:erased tid_bitmap)
+      : STT bool
+            (emp `star` array_pts_to a bm_e)
+            (fun b -> exists_ (fun (bm_e':tid_bitmap) -> pure (reveal bm_e == bm_e' /\
+                                                         (b ==> reveal bm_e == all_ones))
+                                      `star`
+                                      array_pts_to a bm_e'))
+      = admit__()
+    in
+    let fpost (bm_e bm_e':tid_bitmap) (b:bool) =
+      pure (bm_e == bm_e' /\ (b ==> bm_e == all_ones))
+    in
+    let res = IArray.with_key #_ #_ #_ #_ #_ #bm tid_bitmaps e #bool #emp #fpost f in
+    match res with
+    | EHT.Present b ->
+      rewrite (IArray.with_key_post bm tid_bitmaps e emp fpost res)
+              (IArray.with_key_post bm tid_bitmaps e emp fpost (EHT.Present b));
+      let bm_e' = IArray.elim_with_key_post_present b in
+      assert_ (fpost (Map.sel bm e) (reveal bm_e') b);
+      rewrite (fpost (Map.sel bm e) (reveal bm_e') b)
+              (pure (Map.sel bm e == reveal bm_e' /\
+                     (b ==> Map.sel bm e == all_ones)));
+      elim_pure _;
+      assert (Map.upd bm e (Map.sel bm e) `Map.equal` bm);
+      rewrite (IArray.perm tid_bitmaps (Map.upd bm e (Map.sel bm e)))
+              (IArray.perm tid_bitmaps bm);
+      return b
+    | _ ->
+      rewrite (IArray.with_key_post bm tid_bitmaps e emp fpost res)
+              (IArray.perm tid_bitmaps bm `star` emp);
+      return false
 
 val check_hash_equality_for_epoch (#hashes_v:erased _)
                                   (hashes:all_epoch_hashes)
                                   (e:M.epoch_id)
   : ST bool
-    (IArray.perm hashes hashes_v Set.empty)
-    (fun _ -> IArray.perm hashes hashes_v Set.empty)
+    (IArray.perm hashes hashes_v)
+    (fun _ -> IArray.perm hashes hashes_v)
     (requires True)
     (ensures fun b ->
       let ha = Map.sel hashes_v e in
       b ==> ha.hadd == ha.hevict)
 
-let epoch_ready_if_bitmap_set (hashes:_)
+let epoch_ready_if_bitmap_set (hashes:IArray.repr _ _)
                               (bitmaps:_)
                               (max:_)
                               (mlogs_v:_)
@@ -247,14 +280,14 @@ let try_increment_max (#hashes_v:erased _)
                       (bitmaps: epoch_tid_bitmaps)
                       (max:R.ref M.epoch_id)
   : STT bool
-    (IArray.perm hashes hashes_v Set.empty `star`
-     IArray.perm bitmaps bitmaps_v Set.empty `star`
+    (IArray.perm hashes hashes_v `star`
+     IArray.perm bitmaps bitmaps_v `star`
      exists_ (fun max_v ->
        R.pts_to max full max_v `star`
        pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v mlogs_v)))
     (fun b ->
-      IArray.perm hashes hashes_v Set.empty `star`
-      IArray.perm bitmaps bitmaps_v Set.empty `star`
+      IArray.perm hashes hashes_v `star`
+      IArray.perm bitmaps bitmaps_v `star`
       exists_ (fun (max_v':M.epoch_id) ->
         R.pts_to max full max_v' `star`
         pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v' mlogs_v)))
@@ -305,13 +338,13 @@ let try_advance_max (#hashes_v:erased _)
                     (bitmaps: epoch_tid_bitmaps)
                     (max:R.ref M.epoch_id)
   : STT M.epoch_id
-    (IArray.perm hashes hashes_v Set.empty `star`
-     IArray.perm bitmaps bitmaps_v Set.empty `star`
+    (IArray.perm hashes hashes_v `star`
+     IArray.perm bitmaps bitmaps_v `star`
      R.pts_to max full max_v `star`
      pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v mlogs_v))
     (fun max_v' ->
-      IArray.perm hashes hashes_v Set.empty `star`
-      IArray.perm bitmaps bitmaps_v Set.empty `star`
+      IArray.perm hashes hashes_v `star`
+      IArray.perm bitmaps bitmaps_v `star`
       R.pts_to max full max_v' `star`
       pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v' mlogs_v))
   = intro_exists_erased max_v (fun max_v ->

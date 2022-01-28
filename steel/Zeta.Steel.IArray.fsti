@@ -6,6 +6,7 @@ module G = FStar.Ghost
 module Set = FStar.Set
 module Map = FStar.Map
 module U32 = FStar.UInt32
+module EHT = Steel.ST.EphemeralHashtbl
 
 type hash_fn (k:eqtype) = k -> U32.t
 
@@ -16,10 +17,7 @@ val tbl (#k:eqtype)
         (vp:k -> v -> contents -> vprop)
   : Type0
 
-let repr (k:eqtype) (contents:Type0) = Map.t k contents
-
-let set_add (s:Set.set 'a) (x:'a) = Set.union s (Set.singleton x)
-let set_remove (s:Set.set 'a) (x:'a) = Set.intersect s (Set.complement (Set.singleton x))
+let repr (k:eqtype) (contents:Type0) = m:Map.t k contents{ Map.domain m `Set.equal` Set.complement Set.empty }
 
 
 (* perm t m b: asserts ownership of the underlying array
@@ -39,7 +37,6 @@ val perm (#k:eqtype)
          (#vp: k -> v -> contents -> vprop)
          (t:tbl h vp)
          ([@@@smt_fallback] m:repr k contents)
-         ([@@@smt_fallback] borrows:Set.set k)
   : vprop
 
 let finalizer (#k:eqtype)
@@ -55,61 +52,9 @@ val create (#k:eqtype)
            (h:hash_fn k)
            (n:U32.t{U32.v n > 0})
            (finalize: finalizer vp)
-  : STT (tbl h vp) emp (fun a -> perm a empty_map Set.empty)
+           (init:Ghost.erased contents)
+  : STT (tbl h vp) emp (fun a -> perm a (Map.const #k #contents init))
 
-
-let get_post (#k:eqtype)
-             (#v:Type0)
-             (#contents:Type0)
-             (#h:hash_fn k)
-             (#vp: k -> v -> contents -> vprop)
-             (m:G.erased (repr k contents))
-             (b:G.erased (Set.set k))
-             (a:tbl h vp)
-             (i:k)
-             (res:option v)
-  : vprop
-  = let c = Map.sel m i in
-    match res with
-    | Some x ->
-      vp i x c `star` perm a m (set_add b i)
-    | _ -> perm a m b
-
-(* Returns the value associated with i and permission to it.
-
-   In this formulation, the rest of the map becomes unusable
-   until permission to the returned value is restored to the map *)
-val get (#k:eqtype)
-        (#v:Type0)
-        (#contents:Type0)
-        (#h:hash_fn k)
-        (#vp: k -> v -> contents -> vprop)
-        (#m:G.erased (repr k contents))
-        (#b:G.erased (Set.set k))
-        (a:tbl h vp)
-        (i:k)
-  : ST (option v)
-       (perm a m b)
-       (get_post m b a i)
-       (requires not (Set.mem i b))
-       (ensures fun o -> Some? o ==> Map.contains m i)
-
-(* If i happens to collide with an existing key i' in memory
-   then then i' is vacated and the finalizer is called on its contents *)
-val put (#k:eqtype)
-        (#v:Type0)
-        (#contents:Type0)
-        (#h:hash_fn k)
-        (#vp: k -> v -> contents -> vprop)
-        (#m:G.erased (repr k contents))
-        (#b:G.erased (Set.set k))
-        (a:tbl h vp)
-        (i:k)
-        (x:v)
-        (c:Ghost.erased contents)
-  : STT unit
-      (perm a m b `star` vp i x c)
-      (fun _ -> perm a (Map.upd m i c) (set_remove b i))
 
 (* Call the finalizer on every value stored in memory
    and then frees the array itself *)
@@ -121,5 +66,112 @@ val free (#k:eqtype)
          (#m:G.erased (repr k contents))
          (a:tbl h vp)
   : STT unit
-      (perm a m Set.empty)
+      (perm a m)
       (fun _ -> emp)
+
+(* If i happens to collide with an existing key i' in memory
+   then then i' is vacated and the finalizer is called on its contents *)
+val put (#k:eqtype)
+        (#v:Type0)
+        (#contents:Type0)
+        (#h:hash_fn k)
+        (#vp: k -> v -> contents -> vprop)
+        (#m:G.erased (repr k contents))
+        (a:tbl h vp)
+        (i:k)
+        (x:v)
+        (c:Ghost.erased contents)
+  : STT unit
+      (perm a m `star` vp i x c)
+      (fun _ -> perm a (Map.upd m i c))
+
+val remove
+  (#k:eqtype)
+  (#v #contents:Type0)
+  (#h:hash_fn k)
+  (#vp:k -> v -> contents -> vprop)
+  (#m:G.erased (repr k contents))
+  (a:tbl h vp)
+  (i:k)
+  : STT bool
+        (perm a m)
+        (fun _ -> perm a m)
+
+
+let with_key_post
+  (#k:eqtype)
+  (#v #contents:Type0)
+  (#vp:EHT.vp_t k v contents)
+  (#h:hash_fn k)
+  (m:G.erased (repr k contents))
+  (a:tbl h vp)
+  (i:k)
+  (#res:Type)
+  (f_pre:vprop)
+  (f_post:contents -> contents -> res -> vprop)
+  : EHT.get_result k res -> vprop
+  = fun r ->
+    match r with
+    | EHT.Present res ->
+      exists_ (fun c' ->
+        perm a (Map.upd m i c')
+          `star`
+        f_post (Map.sel m i) c' res)
+    | _ ->
+      perm a m
+        `star`
+      f_pre
+
+val with_key
+  (#k:eqtype)
+  (#v #contents:Type0)
+  (#vp:k -> v -> contents -> vprop)
+  (#h:hash_fn k)
+  (#m:G.erased (repr k contents))
+  (a:tbl h vp)
+  (i:k)
+  (#res:Type)
+  (#f_pre:vprop)
+  (#f_post:contents -> contents -> res -> vprop)
+  ($f:(x:v -> c:G.erased contents -> STT res
+                                       (f_pre `star` vp i x c)
+                                       (fun res -> exists_ (fun c' -> f_post c c' res `star` vp i x c'))))
+  : STT (EHT.get_result k res)
+        (perm a m `star` f_pre)
+        (with_key_post m a i f_pre f_post)
+
+module T = FStar.Tactics
+let elim_with_key_post_present
+        #o
+        (#k:eqtype)
+        (#v #contents:Type0)
+        (#vp:EHT.vp_t k v contents)
+        (#h:hash_fn k)
+        (#m:G.erased (repr k contents))
+        (#a:tbl h vp)
+        (#i:k)
+        (#res:Type)
+        (#f_pre:vprop)
+        (#f_post:contents -> contents -> res -> vprop)
+        (r:res)
+  : STGhostT (G.erased contents) o
+    (with_key_post m a i f_pre f_post (EHT.Present r))
+    (fun c' ->
+       perm a (Map.upd m i c')
+         `star`
+       f_post (Map.sel m i) c' r)
+  = weaken
+        (with_key_post m a i f_pre f_post (EHT.Present r))
+        (exists_ (fun c' ->
+          perm a (Map.upd m i c')
+            `star`
+          f_post (Map.sel m i) c' r))
+        (fun _ ->
+          assert (with_key_post m a i f_pre f_post (EHT.Present r) ==
+                 (exists_ (fun c' ->
+                   perm a (Map.upd m i c')
+                 `star`
+                   f_post (Map.sel m i) c' r)))
+               by (T.trefl()));
+    let c' = elim_exists () in
+    c'

@@ -421,7 +421,6 @@ let last_verified_epoch_constant (tsm:M.thread_state_model)
       tsm.last_verified_epoch == tsm0.last_verified_epoch))
   = admit() //the last_verified_epoch only changed when processing a verify_epoch entry
 
-#push-options "--query_stats"
 let advance_per_thread_bitmap_and_max  (bitmaps:IArray.repr M.epoch_id AEH.tid_bitmap)
                                        (max:_)
                                        (mlogs_v:_)
