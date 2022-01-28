@@ -157,8 +157,8 @@ let lock_inv_body (hashes : all_epoch_hashes)
                   (bitmaps:_)
                   (max:_)
                   (mlogs_v:all_processed_entries)
-  = IArray.perm hashes hashes_v `star`
-    IArray.perm tid_bitmaps bitmaps `star`
+  = IArray.full_perm hashes hashes_v `star`
+    IArray.full_perm tid_bitmaps bitmaps `star`
     R.pts_to max_certified_epoch full max `star`
     TLM.global_anchor mlogs (map_of_seq mlogs_v) `star`
     pure (hashes_bitmaps_max_ok hashes_v bitmaps max mlogs_v)
@@ -186,89 +186,80 @@ type aggregate_epoch_hashes = {
 #push-options "--print_effect_args"
 module EHT = Steel.ST.EphemeralHashtbl
 
+let check_all_ones (#e:Ghost.erased _)
+                   (a:larray bool n_threads)
+  : ST bool
+    (array_pts_to a e)
+    (fun _ -> array_pts_to a e)
+    (requires True)
+    (ensures fun b -> b <==> (reveal e == all_ones))
+  = admit__()
+
+let return_borrows (#k:eqtype) (#v:Type0) (b:IArray.borrows k v) (i:k) (x:v)
+  : Lemma (requires ~(PartialMap.contains i b))
+          (ensures (PartialMap.remove i (PartialMap.upd i x b) `PartialMap.equal` b))
+          [SMTPat (PartialMap.remove i (PartialMap.upd i x b))]
+  = ()
+
+let return_map (#k:eqtype) (#v:Type0) (m:IArray.repr k v) (i:k)
+  : Lemma (ensures (Map.upd m i (Map.sel m i) `Map.equal` m))
+          [SMTPat (Map.upd m i (Map.sel m i))]
+  = ()
+
 let check_bitmap_for_epoch (#bm:erased _)
                            (tid_bitmaps: epoch_tid_bitmaps)
                            (e:M.epoch_id)
   : ST bool
-    (IArray.perm tid_bitmaps bm)
-    (fun b -> IArray.perm tid_bitmaps bm)
+    (IArray.full_perm tid_bitmaps bm)
+    (fun b -> IArray.full_perm tid_bitmaps bm)
     (requires True)
     (ensures fun b -> b ==> Map.sel bm e == all_ones)
-  = let fpost (bm_e bm_e':tid_bitmap) (b:bool) =
-      pure (bm_e == bm_e' /\ (b ==> bm_e == all_ones))
-    in
-    let f (a:larray bool n_threads)
-      : STT bool
-            (emp `star` array_pts_to a (Map.sel bm e))
-            (fun b -> exists_ (fun (bm_e':tid_bitmap) ->
-                                      fpost (Map.sel bm e) bm_e' b
-                                      `star`
-                                      array_pts_to a bm_e'))
-      = admit__()
-    in
-    let res = IArray.with_key tid_bitmaps e #bool #emp #fpost f in
+  = let res = IArray.get tid_bitmaps e in
     match res with
-    | EHT.Present b ->
-      rewrite (IArray.with_key_post bm tid_bitmaps e emp fpost res)
-              (IArray.with_key_post bm tid_bitmaps e emp fpost (EHT.Present b));
-      let bm_e' = IArray.elim_with_key_post_present b in
-      assert_ (fpost (Map.sel bm e) (reveal bm_e') b);
-      rewrite (fpost (Map.sel bm e) (reveal bm_e') b)
-              (pure (Map.sel bm e == reveal bm_e' /\
-                     (b ==> Map.sel bm e == all_ones)));
-      elim_pure _;
-      assert (Map.upd bm e (Map.sel bm e) `Map.equal` bm);
-      rewrite (IArray.perm tid_bitmaps (Map.upd bm e (Map.sel bm e)))
-              (IArray.perm tid_bitmaps bm);
+    | EHT.Present a ->
+      rewrite (IArray.get_post bm IArray.empty_borrows tid_bitmaps e res)
+              (IArray.perm tid_bitmaps bm (PartialMap.upd e a IArray.empty_borrows) `star`
+               array_pts_to a (Map.sel bm e));
+      let b = check_all_ones a in
+      IArray.ghost_put tid_bitmaps e a _;
       return b
+
     | _ ->
-      rewrite (IArray.with_key_post bm tid_bitmaps e emp fpost res)
-              (IArray.perm tid_bitmaps bm `star` emp);
+      rewrite (IArray.get_post bm IArray.empty_borrows tid_bitmaps e res)
+              (IArray.full_perm tid_bitmaps bm);
       return false
+
 
 let check_hash_equality_for_epoch (#hashes_v:erased (IArray.repr M.epoch_id M.epoch_hash))
                                   (hashes:all_epoch_hashes)
                                   (e:M.epoch_id)
   : ST bool
-    (IArray.perm hashes hashes_v)
-    (fun _ -> IArray.perm hashes hashes_v)
+    (IArray.full_perm hashes hashes_v)
+    (fun _ -> IArray.full_perm hashes hashes_v)
     (requires True)
     (ensures fun b ->
       let ha = Map.sel hashes_v e in
       b ==> ha.hadd == ha.hevict)
-  = let fpost (repr repr':M.epoch_hash) (b:bool) =
-        pure (repr == repr' /\
-             (b ==> repr'.hadd == repr'.hevict))
-    in
-    let f (ehs:epoch_hashes_t)
-      : STT bool
-        (emp `star` epoch_hash_perm e ehs (Map.sel hashes_v e))
-        (fun b -> exists_ (fun (repr':M.epoch_hash) ->
-                fpost (Map.sel hashes_v e) repr' b
-                      `star`
-                epoch_hash_perm e ehs repr'))
-      = admit__()
-    in
-    let res = IArray.with_key hashes e #bool #emp #fpost f in
+  = let res = IArray.get hashes e in
     match res with
-    | EHT.Present b ->
-      rewrite (IArray.with_key_post hashes_v hashes e emp fpost res)
-              (IArray.with_key_post hashes_v hashes e emp fpost (EHT.Present b));
-      let repr' = IArray.elim_with_key_post_present b in
-      assert_ (fpost (Map.sel hashes_v e) (reveal repr') b);
-      rewrite (fpost (Map.sel hashes_v e) (reveal repr') b)
-              (pure (Map.sel hashes_v e == reveal repr' /\
-                     (b ==> repr'.M.hadd == repr'.M.hevict)));
-      elim_pure _;
-      assert (Map.upd hashes_v e (Map.sel hashes_v e) `Map.equal` hashes_v);
-      rewrite (IArray.perm hashes _)
-              (IArray.perm hashes hashes_v);
-      return b
-    | _ ->
-      rewrite (IArray.with_key_post hashes_v hashes e emp fpost res)
-              (IArray.perm hashes hashes_v `star` emp);
-      return false
+    | EHT.Present ehs ->
+      rewrite (IArray.get_post hashes_v IArray.empty_borrows hashes e res)
+              (IArray.perm hashes hashes_v (PartialMap.upd e ehs IArray.empty_borrows) `star`
+               epoch_hash_perm e ehs (Map.sel hashes_v e));
+      rewrite (epoch_hash_perm e ehs (Map.sel hashes_v e)) //TODO: mark epoch_hash_perm reduce
+              (HA.ha_val ehs.hadd (Map.sel hashes_v e).hadd `star`
+               HA.ha_val ehs.hevict (Map.sel hashes_v e).hevict);
+      let b = HA.compare ehs.hadd ehs.hevict in
+      rewrite (HA.ha_val ehs.hadd (Map.sel hashes_v e).hadd `star`
+               HA.ha_val ehs.hevict (Map.sel hashes_v e).hevict)
+              (epoch_hash_perm e ehs (Map.sel hashes_v e));
+      IArray.ghost_put hashes e ehs _;
+      return  b
 
+    | _ ->
+      rewrite (IArray.get_post hashes_v IArray.empty_borrows hashes e res)
+              (IArray.full_perm hashes hashes_v);
+      return false
 
 let epoch_ready_if_bitmap_set (hashes:IArray.repr _ _)
                               (bitmaps:_)
@@ -313,14 +304,14 @@ let try_increment_max (#hashes_v:erased _)
                       (bitmaps: epoch_tid_bitmaps)
                       (max:R.ref M.epoch_id)
   : STT bool
-    (IArray.perm hashes hashes_v `star`
-     IArray.perm bitmaps bitmaps_v `star`
+    (IArray.full_perm hashes hashes_v `star`
+     IArray.full_perm bitmaps bitmaps_v `star`
      exists_ (fun max_v ->
        R.pts_to max full max_v `star`
        pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v mlogs_v)))
     (fun b ->
-      IArray.perm hashes hashes_v `star`
-      IArray.perm bitmaps bitmaps_v `star`
+      IArray.full_perm hashes hashes_v `star`
+      IArray.full_perm bitmaps bitmaps_v `star`
       exists_ (fun (max_v':M.epoch_id) ->
         R.pts_to max full max_v' `star`
         pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v' mlogs_v)))
@@ -371,13 +362,13 @@ let try_advance_max (#hashes_v:erased _)
                     (bitmaps: epoch_tid_bitmaps)
                     (max:R.ref M.epoch_id)
   : STT M.epoch_id
-    (IArray.perm hashes hashes_v `star`
-     IArray.perm bitmaps bitmaps_v `star`
+    (IArray.full_perm hashes hashes_v `star`
+     IArray.full_perm bitmaps bitmaps_v `star`
      R.pts_to max full max_v `star`
      pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v mlogs_v))
     (fun max_v' ->
-      IArray.perm hashes hashes_v `star`
-      IArray.perm bitmaps bitmaps_v `star`
+      IArray.full_perm hashes hashes_v `star`
+      IArray.full_perm bitmaps bitmaps_v `star`
       R.pts_to max full max_v' `star`
       pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v' mlogs_v))
   = intro_exists_erased max_v (fun max_v ->

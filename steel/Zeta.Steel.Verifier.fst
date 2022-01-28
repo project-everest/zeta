@@ -228,6 +228,7 @@ let aggregate_epoch_hashes_t (#e:_)
 
 module EHT = Steel.ST.EphemeralHashtbl
 /// A utility, should be replaced by a similar function in EphemeralHashtbl
+inline_for_extraction
 let with_value_of_key (#k:eqtype)
                       (#v:Type0)
                       (#contents:Type0)
@@ -237,26 +238,81 @@ let with_value_of_key (#k:eqtype)
                       (#cf:contents -> GTot contents)
                       (t:IArray.tbl h vp)
                       (i:k)
-                      ($f: (value:v -> STT v
+                      ($f: (value:v -> STT unit
                                          (vp i value (Map.sel m i))
-                                         (fun value' -> vp i value' (cf (Map.sel m i)))))
+                                         (fun _ -> vp i value (cf (Map.sel m i)))))
   : STT bool
     (IArray.perm t m)
     (fun b -> IArray.perm t (update_if b (reveal m) (Map.upd m i (cf (Map.sel m i)))))
+  = let fpost (c0 c1:contents) (_:unit) =
+        pure (c1 == cf c0)
+    in
+    [@@inline_let]
+    let f (value:v)
+      : STT unit
+        (emp `star` vp i value (Map.sel m i))
+        (fun _ -> exists_ (fun c1 ->
+                      fpost (Map.sel m i) c1 () `star`
+                      vp i value c1))
+      = f value;
+        assert_ (vp i value (cf (Map.sel m i)));
+        intro_pure (cf (Map.sel m i) == cf (Map.sel m i));
+        rewrite (pure _)
+                (fpost (Map.sel m i) (cf (Map.sel m i)) ());
+        intro_exists (cf (Map.sel m i))
+                     (fun c1 ->
+                        fpost (Map.sel m i) c1 () `star`
+                        vp i value c1);
+        ()
+    in
+    let res = IArray.with_key t i #_ #_ #fpost f in
+    match res with
+    | EHT.Present _ ->
+      rewrite (IArray.with_key_post m t i emp fpost res)
+              (IArray.with_key_post m t i emp fpost (EHT.Present ()));
+      let c1 = IArray.elim_with_key_post_present () in
+      rewrite (fpost _ _ _)
+              (pure (reveal c1 == cf (Map.sel m i)));
+      elim_pure _;
+      return true
+    | _ ->
+      rewrite (IArray.with_key_post m t i emp fpost res)
+              (IArray.perm t m `star` emp);
+      return false
+
+let propagate_epoch_hash_outer_fpost (#tsm:M.thread_state_model)
+                                     (t:thread_state_t)
+                                     (#hv:erased AEH.epoch_hashes_repr)
+                                     (hashes : AEH.all_epoch_hashes)
+                                     (e:M.epoch_id)
+                                     (dst: AEH.epoch_hashes_t)
+                                     (eh0 eh1: M.epoch_hash)
+                                     (b:bool)
+  : vprop
+  = thread_state_inv' t (M.verifyepoch tsm) `star`
+    pure (b ==> eh' ==
+                (AEH.aggregate_epoch_hash
+                      (Map.sel hv e)
+                      (Map.sel tsm.epoch_hashes e)))
+
+let propagate_epoch_hash_outer (#tsm:M.thread_state_model)
+                               (t:thread_state_t)
+                               (#hv:erased AEH.epoch_hashes_repr)
+                               (hashes : AEH.all_epoch_hashes)
+                               (e:M.epoch_id)
+                               (dst: AEH.epoch_hashes_t)
+  : STT bool
+    (thread_state_inv' t (M.verifyepoch tsm) `star`
+     AEH.epoch_hash_perm e dst (Map.sel hv e))
+    (fun b ->
+      exists_ (fun eh' ->
+        (thread_state_inv' t (M.verifyepoch tsm) `star`
+         pure (b ==> eh' ==
+                (AEH.aggregate_epoch_hash
+                      (Map.sel hv e)
+                      (Map.sel tsm.epoch_hashes e)))) `star`
+         AEH.epoch_hash_perm e dst eh'))
   = admit__()
-  // let vopt = IArray.get t i in
-  //   match vopt with
-  //   | None ->
-  //     rewrite (IArray.get_post _ _ _ _ _)
-  //             (IArray.perm t m Set.empty);
-  //     return false
-  //   | Some value ->
-  //     rewrite (IArray.get_post _ _ _ _ _)
-  //             (vp i value (Map.sel m i) `star`
-  //              IArray.perm t m (IArray.set_add Set.empty i));
-  //     let value' = f value in
-  //     IArray.put t i value' _;
-  //     return true
 
 
 /// Updates the aggregate epoch hash for a thread with the
@@ -274,7 +330,18 @@ let propagate_epoch_hash (#tsm:M.thread_state_model)
       (if b
        then IArray.perm hashes (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes hv e)
        else exists_ (IArray.perm hashes)))
-  = admit__()
+  = let res =
+       IArray.with_key
+         hashes
+         e
+         #bool
+         #(thread_state_inv' t (M.verify_epoch tsm))
+         #(
+         (propagate_epoch_hash_outer t e)
+
+
+
+    admit__()
    // let dst = IArray.get hashes e in
    //  match dst with
    //  | None -> //we should distinguish Absent from Missing
@@ -342,12 +409,13 @@ let update_bitmap (#bm:erased _)
                   (update_if b
                              (reveal bm)
                              (update_bitmap_spec bm e tid)))
-  = let update_tid (v:larray bool n_threads)
-      : STT (larray bool n_threads)
-        (array_pts_to v (Map.sel bm e))
-        (fun v' -> array_pts_to v' (Seq.upd (Map.sel bm e) (U16.v tid) true))
+  = [@@inline_let]
+    let update_tid (v:larray bool n_threads)
+      : STT unit
+            (array_pts_to v (Map.sel bm e))
+            (fun _ -> array_pts_to v (Seq.upd (Map.sel bm e) (U16.v tid) true))
       = A.write v (as_u32 tid) true;
-        v
+        ()
     in
     with_value_of_key tid_bitmaps e update_tid
 
