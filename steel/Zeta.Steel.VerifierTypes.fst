@@ -20,8 +20,9 @@ open Zeta.Steel.Util
 module T = Zeta.Steel.FormatsManual
 module M = Zeta.Steel.ThreadStateModel
 module AEH = Zeta.Steel.AggregateEpochHashes
-module IArray = Zeta.Steel.IArray
+module EpochMap = Zeta.Steel.EpochMap
 module HA = Zeta.Steel.HashAccumulator
+open Zeta.Steel.EpochHashes
 #push-options "--ide_id_info_off"
 
 let vstore
@@ -30,24 +31,13 @@ let vstore
        A.length a == U16.v store_size
     }
 
-let epoch_hashes_repr = IArray.repr M.epoch_id M.epoch_hash
-let epoch_id_hash (x:M.epoch_id) : U32.t = x
-
-let all_epoch_hashes =
-  IArray.tbl
-    #M.epoch_id
-    #AEH.epoch_hashes_t
-    #M.epoch_hash
-    epoch_id_hash
-    AEH.epoch_hash_perm
-
 noeq
 type thread_state_t = {
   thread_id    : tid;
   failed       : R.ref bool;
   store        : vstore;
   clock        : R.ref U64.t;
-  epoch_hashes : all_epoch_hashes;
+  epoch_hashes : AEH.all_epoch_hashes;
   last_verified_epoch: R.ref M.epoch_id;
   processed_entries: G.ref (Seq.seq log_entry_base);
   app_results  : G.ref M.app_results;
@@ -67,7 +57,7 @@ let thread_state_inv (t:thread_state_t)
   = R.pts_to t.failed full tsm.failed `star`
     array_pts_to t.store tsm.store `star`
     R.pts_to t.clock full tsm.clock `star`
-    IArray.full_perm t.epoch_hashes tsm.epoch_hashes `star`
+    EpochMap.full_perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes `star`
     R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
     G.pts_to t.processed_entries full tsm.processed_entries `star`
     G.pts_to t.app_results full tsm.app_results `star`

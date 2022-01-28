@@ -1,0 +1,109 @@
+# Epoch lifecyle management
+
+Epoch hashes appear in Zeta at two levels:
+
+* Thread epoch hashes (local)
+
+  For each verifier thread, associated with each epoch, is a pair of
+  hashes, the add and evict hash
+
+* Aggregate epoch hashes (shared)
+
+  The aggregation of all the threads' epoch hashes are maintained in a
+  shared map associated to each epoch id a pair of add and evict
+  hashes.
+
+The number of epochs is (effectively) unbounded. So, we need in both
+cases to implement some epoch lifecycle management, which involves
+three stages:
+
+ - Initialization: An epoch is initialized, whereby the hashes are
+     both set to some initial value (0)
+
+ - In use: An epoch is in use, and the hashes evolve by accumulating
+     hashes
+
+ - Completion: At some point, an epoch's hashes will no longer be read
+     or written. At this point, although logically that epoch's hashes
+     value is persistent (the spec may still refer to it), concretely
+     we need to reclaim the memory associated with the epoch
+
+The epoch lifetime management is quite different for local and shared
+epochs. Let's consider the cases.
+
+## Local epochs
+
+ * Initialization
+
+   An epoch is initialized explicitly in the specification of a
+   thread's behavior. Particularly, in `nextepoch`, the epoch hashes
+   for the next epoch (whose id is derived from the current clock) are
+   explicity initialized to zero.
+
+   Being specified this way, the concrete implementation is very clear
+   and it has to simply follow this spec and initialize the local
+   epoch hash map at when executing `nextepoch`.
+
+ * In use
+
+   A local epoch hash is written in `vaddb`, `vevictb` (and
+   `vevictbm`), referencing an epoch mentioned in a timestamp
+   associated with the corresponding log entry.
+
+   The specification permits a log entry to mention a timestamp for an
+   epoch that has not yet been initialized, however such a log will
+   never be verifiable.
+
+   However, at level of the implementation, if we attempt to use a
+   local hash that has not been initialized, we fail immediately.
+
+ * Completion
+
+   The specification maintains a notion of last_verified_epoch, an
+   epoch id.
+
+   When a `verifyepoch` log entry is processed, the epoch hashes
+   associated with the next epoch to be verified (the successor of
+   last_verified_epoch) are to be propagated to the shared epoch
+   hashes.
+
+   Once these values are propagated, the memory associated with those
+   hashes can be reclaimed.
+
+## Shared epochs
+
+The lifecycle of shared epochs are even more implicit than local
+epochs.
+
+ * Initialization
+
+   When a thread processes a `verifyepoch` entry, it has to propagate
+   its in-use local hashes to the shared hash for a given epoch i.
+
+   If it is the first thread to complete epoch i, then it needs to
+   initialize shared epoch i and then propagate its hashes to the
+   newly initialized shared epoch.
+
+   Otherwise, shared epoch i is already in-use and a given thread
+   processing a `verifyepoch` entry find the in-use epoch and
+   propagates its hashes to the shared epoch.
+
+ * In-use
+
+   Shared epochs are written to by individual threads processing
+   `verifyepoch` entried.
+
+   Shared epoch are read when a global non-verifier thread is
+   executing a `max_certified_epoch` call.
+
+ * Completion
+
+   Once `max_certified_epoch` successfully completes processing and
+   epoch i (deeming it certified or not), the shared epoch `i` is
+   complete and its memory can be reclaimed.
+
+As such, the initialization of shared epochs requires that a thread be
+able to discover dynamically whether or not a shared epoch `i` has
+been initialized or not. In contrast, local epochs require no such
+dynamic check---they are unconditionally initialized when processing
+`nextepoch`.
