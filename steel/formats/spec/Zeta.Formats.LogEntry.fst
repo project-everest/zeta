@@ -87,54 +87,70 @@ let payload_serializer (needs_payload: bool) : Tot (LP.serializer (dsnd (payload
 
 let payload_serializer' (needs_payload: bool) : Tot (LP.serializer (dsnd (parse_ifthenelse_param.LowParse.Spec.IfThenElse.parse_ifthenelse_payload_parser needs_payload))) = payload_serializer needs_payload
 
-let synth_log_entry_recip
+let synth_log_entry_recip_hdr
   (y: Zeta.Steel.LogEntry.Types.log_entry)
-: GTot (t: Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr & payload (needs_payload t))
+: Tot Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr
 = match y with
   | Zeta.Steel.LogEntry.Types.AddM s s2 r ->
     let r0 = synth_record_recip r in
-      (| Zeta.Formats.Aux.Log_entry_hdr.Le_payload_AddM ({
+      Zeta.Formats.Aux.Log_entry_hdr.Le_payload_AddM ({
         addm_r = r0;
         addm_s = s;
         addm_s2 = s2;
-      }), () |)
+      })
   | Zeta.Steel.LogEntry.Types.AddB s t tid r ->
     let r0 = synth_record_recip r in
-      (| Zeta.Formats.Aux.Log_entry_hdr.Le_payload_AddB ({
+      Zeta.Formats.Aux.Log_entry_hdr.Le_payload_AddB ({
         addb_r = r0;
         addb_s = s;
         addb_t = t;
         addb_tid = tid;
-      }), () |)
+      })
   | Zeta.Steel.LogEntry.Types.RunApp 
       (Zeta.Steel.LogEntry.Types.MkrunApp_payload
         rpl
         (Zeta.Steel.LogEntry.Types.Mkuninterpreted _ pl))
     ->
-    (| Zeta.Formats.Aux.Log_entry_hdr.Le_payload_RunApp rpl, FStar.Bytes.hide pl |)
+    Zeta.Formats.Aux.Log_entry_hdr.Le_payload_RunApp rpl
   | Zeta.Steel.LogEntry.Types.NextEpoch ->
-    (| Zeta.Formats.Aux.Log_entry_hdr.Le_payload_NextEpoch (), () |)
+    Zeta.Formats.Aux.Log_entry_hdr.Le_payload_NextEpoch ()
   | Zeta.Steel.LogEntry.Types.VerifyEpoch ->
-    (| Zeta.Formats.Aux.Log_entry_hdr.Le_payload_VerifyEpoch (), () |)
+    Zeta.Formats.Aux.Log_entry_hdr.Le_payload_VerifyEpoch ()
   | 
     Zeta.Steel.LogEntry.Types.EvictM
       (Zeta.Steel.LogEntry.Types.MkevictM_payload s s2)
     ->
-    (| Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictM ({
+    Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictM ({
         evictm_s = s; evictm_s2 = s2
-    }), () |)
+    })
   | Zeta.Steel.LogEntry.Types.EvictB
       (Zeta.Steel.LogEntry.Types.MkevictB_payload s t)
     ->
-    (| Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictB ({
+    Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictB ({
         evictb_s = s; evictb_t = t;
-    }), () |)
+    })
   | Zeta.Steel.LogEntry.Types.EvictBM
       (Zeta.Steel.LogEntry.Types.MkevictBM_payload s s2 t)
     ->
-    (| Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictBM ({
+    Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictBM ({
       evictbm_s = s; evictbm_s2 = s2; evictbm_t = t;
-    }), () |)
+    })
+
+let synth_log_entry_recip_pl
+  (y: Zeta.Steel.LogEntry.Types.log_entry)
+: GTot (payload (needs_payload (synth_log_entry_recip_hdr y)))
+= match y with
+  | Zeta.Steel.LogEntry.Types.RunApp 
+      (Zeta.Steel.LogEntry.Types.MkrunApp_payload
+        rpl
+        (Zeta.Steel.LogEntry.Types.Mkuninterpreted _ pl))
+    -> FStar.Bytes.hide pl
+  | _ -> ()
+
+let synth_log_entry_recip
+  (y: Zeta.Steel.LogEntry.Types.log_entry)
+: GTot (t: Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr & payload (needs_payload t))
+= (| synth_log_entry_recip_hdr y, synth_log_entry_recip_pl y |)
 
 #push-options "--ifuel 8"
 let serialize_ifthenelse_param : LowParse.Spec.IfThenElse.serialize_ifthenelse_param parse_ifthenelse_param =

@@ -30,3 +30,29 @@ let parse32_log_entry
 
 let parser_log_entry =
   Zeta.Steel.FormatsLib.mk_steel_parser parse32_log_entry
+
+let runapp_payload_offset e =
+  let RunApp r = e in
+  let b = Ghost.hide (FStar.Bytes.hide (Ghost.reveal r.rest.ebytes)) in
+  let h = synth_log_entry_recip_hdr e in
+  assert (spec_serializer_log_entry e == Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr_serializer h `Seq.append` LowParse.Spec.Bytes.serialize_bounded_vlbytes 0 2147483647 (Ghost.reveal b));
+  assert (LowParse.Spec.VLData.log256' 2147483647 == 4);
+  LowParse.Spec.Combinators.serialize_synth_eq
+    _
+    (LowParse.Spec.Bytes.synth_bounded_vlbytes 0 2147483647)
+    (LowParse.Spec.Bytes.serialize_bounded_vlbytes_aux 0 2147483647 4)
+    (LowParse.Spec.Bytes.synth_bounded_vlbytes_recip 0 2147483647)
+    ()
+    (Ghost.reveal b)
+  ;
+  assert (LowParse.Spec.Bytes.serialize_bounded_vlbytes 0 2147483647 (Ghost.reveal b) == LowParse.Spec.VLData.serialize_bounded_integer 4 r.rest.len `Seq.append` r.rest.ebytes);
+  let res =
+    Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr_size32 h `U32.add` 4ul
+  in
+  assert (
+    let s = spec_serializer_log_entry e in
+    let off = U32.v res in
+    off <= Seq.length s /\
+    Ghost.reveal r.rest.ebytes `Seq.equal` Seq.slice s off (Seq.length s)
+  );
+  res
