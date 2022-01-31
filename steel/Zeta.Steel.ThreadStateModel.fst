@@ -23,10 +23,6 @@ module SA = Zeta.SeqAux
 open Zeta.Steel.Util
 #push-options "--using_facts_from '* -FStar.Seq.Properties.slice_slice'"
 
-let is_value_of (k:key) (v:value)
-  : bool
-  = if ApplicationKey? k then DValue? v else MValue? v
-
 type add_method =
   | MAdd
   | BAdd
@@ -383,6 +379,7 @@ let vput (tsm:thread_state_model)
       else if not (ApplicationKey? k) then fail tsm
       else put_entry tsm s ({r with value = DValue v})
 
+(*
 let record_of_payload (p:payload)
   : GTot (option T.record)
   = match p with
@@ -396,6 +393,7 @@ let record_of_payload (p:payload)
       | None -> None
       | Some ((k, v), _) -> 
         Some (ApplicationKey k, DValue v)
+*)
 
 let to_base_key (k:key)
   : base_key
@@ -420,15 +418,14 @@ let key_with_descendent_is_merkle_key (k:key) (k':base_key)
 #push-options "--query_stats --z3rlimit_factor 2 --fuel 0 --ifuel 2"
 let vaddm (tsm:thread_state_model)
           (s s': T.slot_id)
-          (p:payload)
+          (r: T.record)
   : GTot thread_state_model
   = if not (check_slot_bounds s)
      || not (check_slot_bounds s') 
    then fail tsm
    else (
-    match record_of_payload p with
-    | None -> fail tsm
-    | Some ( gk, gv ) ->
+    match r with
+    | ( gk, gv ) ->
       begin
       (* check store contains slot s' *)
       match get_entry tsm s' with
@@ -507,12 +504,11 @@ let vaddb (tsm:thread_state_model)
           (s:slot_id)
           (t:T.timestamp)
           (thread_id:T.thread_id)          
-          (p:payload)
+          (r:T.record)
   : thread_state_model
   = if not (check_slot_bounds s) then fail tsm
-    else match record_of_payload p with
-    | None -> fail tsm //parsing failure
-    | Some ( k, v ) ->
+    else match r with
+    | ( k, v ) ->
       if is_root_key k then fail tsm //root key
       else if Some? (get_entry tsm s) then fail tsm //slot is already full
       else (
@@ -803,8 +799,8 @@ let verify_step_model (tsm:thread_state_model)
     else
       let tsm = 
         match e with
-        | AddM s s' p _ -> vaddm tsm s s' p
-        | AddB s ts tid p _ -> vaddb tsm s ts tid p
+        | AddM s s' r -> vaddm tsm s s' r
+        | AddB s ts tid r -> vaddb tsm s ts tid r
         | EvictM p -> vevictm tsm p.s p.s'
         | EvictB p -> vevictb tsm p.s p.t
         | EvictBM p -> vevictbm tsm p.s p.s' p.t
