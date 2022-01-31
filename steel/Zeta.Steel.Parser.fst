@@ -67,15 +67,14 @@ let parser (#t:Type0) (p:spec_parser t) =
     slice_len:U32.t ->
     #b:erased bytes { Seq.length b == U32.v len }  ->
     a:byte_array { len_offset_slice_ok a len offset slice_len } ->
-    ST (option t)
+    ST (option (t & U32.t))
        (A.pts_to a perm b)
        (fun _ -> A.pts_to a perm b)
        (requires True)
        (ensures fun o ->
          match p (slice b offset slice_len), o with
          | None, None -> True
-         | Some (x, n), Some y -> x == y /\ n == U32.v slice_len
-         | Some (x, n), None -> ~ (n == U32.v slice_len)
+         | Some (x, n), Some (y, n') -> x == y /\ n == U32.v n'
          | _ -> False)
 
 (** A parser for `t` takes a byte array `a` and a proof proof that `a`

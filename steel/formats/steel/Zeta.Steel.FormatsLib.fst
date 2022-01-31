@@ -39,9 +39,4 @@ let mk_steel_parser
 : Tot (P.parser p)
 = fun len offset slice_len a ->
   let b = read_bytes len offset slice_len a _ () in
-  match p32 b with
-  | None -> None
-  | Some (x, n) ->
-    if n = slice_len
-    then Some x
-    else None
+  p32 b
