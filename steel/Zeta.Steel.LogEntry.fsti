@@ -7,12 +7,19 @@ val parser_log_entry : parser spec_parser_log_entry
 
 val runapp_payload_offset
   (e: log_entry)
+  (b: Ghost.erased bytes)
 : Pure U32.t
-  (requires (RunApp? e))
+  (requires (
+    RunApp? e /\
+    begin match spec_parser_log_entry b with
+    | Some (e', _) -> e' == e
+    | _ -> False
+    end
+  ))
   (ensures (fun res ->
-    let s = spec_serializer_log_entry e in
+    let Some (_, len) = spec_parser_log_entry b in
     let off = U32.v res in
     let RunApp pl = e in
-    off <= Seq.length s /\
-    Ghost.reveal pl.rest.ebytes == Seq.slice s off (Seq.length s)
+    off <= len /\
+    Ghost.reveal pl.rest.ebytes == Seq.slice b off len
   ))
