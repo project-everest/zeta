@@ -128,7 +128,7 @@ let verify_epoch_committed_entries (tsm:M.thread_state_model)
             (spec_verify_epoch tsm).processed_entries))
   = let tsm' = spec_verify_epoch tsm in
     let _, last = Seq.un_snoc tsm'.processed_entries in
-    let is_verify = (function VerifyEpoch _ -> true | _ -> false) in
+    let is_verify = (function VerifyEpoch -> true | _ -> false) in
     Zeta.SeqAux.lemma_last_index_correct2
         is_verify
         tsm'.processed_entries

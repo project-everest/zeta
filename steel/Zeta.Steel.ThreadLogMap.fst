@@ -17,7 +17,7 @@ let committed_log_entries_split (l0 l1 l2: log)
       log_grows l1 l2)
     (ensures
       l0 == M.committed_log_entries l1)
-  = let is_verify_epoch = function VerifyEpoch _ -> true | _ -> false in
+  = let is_verify_epoch = function VerifyEpoch -> true | _ -> false in
     if SA.exists_sat_elems is_verify_epoch l2
     then (
       let i = SA.last_index is_verify_epoch l2 in
