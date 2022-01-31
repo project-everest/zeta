@@ -7,6 +7,7 @@ open Steel.ST.Util
 module FAP = Steel.FractionalAnchoredPreorder
 module PM = Steel.PCMMap
 module M = Zeta.Steel.ThreadStateModel
+module SA = Zeta.SeqAux
 
 let committed_log_entries_split (l0 l1 l2: log)
   : Lemma
@@ -16,8 +17,25 @@ let committed_log_entries_split (l0 l1 l2: log)
       log_grows l1 l2)
     (ensures
       l0 == M.committed_log_entries l1)
-  = admit()
-
+  = let is_verify_epoch = function VerifyEpoch _ -> true | _ -> false in
+    if SA.exists_sat_elems is_verify_epoch l2
+    then (
+      let i = SA.last_index is_verify_epoch l2 in
+      assert (i < Seq.length l1);
+      introduce forall j. i < j /\ j < Seq.length l1 ==>
+                     not (is_verify_epoch (Seq.index l1 j))
+      with introduce _ ==> _
+      with _ . SA.lemma_last_index_correct1 is_verify_epoch l2 j;
+      SA.last_index_opt_elim is_verify_epoch l1;
+      assert (SA.prefix l1 (i + 1) `Seq.equal` SA.prefix l2 (i + 1));
+      assert (SA.prefix l2 (i + 1) == l0)
+    )
+    else (
+      assert (l0 == Seq.empty);
+      assert (l1 `Seq.equal` SA.prefix l2 (Seq.length l1));
+      assert (SA.is_prefix l2 l1);
+      SA.lemma_not_exists_prefix is_verify_epoch l2 (Seq.length l1)
+    )
 
 let anchor : log -> log -> prop
   = fun l0 l1 ->
