@@ -117,7 +117,7 @@ let intro_thread_state_inv' #o
 let spec_verify_epoch (tsm:M.thread_state_model)
   = let tsm = M.verifyepoch tsm in
     if tsm.failed then tsm
-    else { tsm with M.processed_entries = Seq.snoc tsm.processed_entries (VerifyEpoch())}
+    else { tsm with M.processed_entries = Seq.snoc tsm.processed_entries (VerifyEpoch)}
 
 let verify_epoch_committed_entries (tsm:M.thread_state_model)
   : Lemma (requires
@@ -722,7 +722,7 @@ let create (tid:tid)
     let clock = R.alloc 0uL in
     let epoch_hashes = EpochMap.create 64ul M.init_epoch_hash in
     let last_verified_epoch = R.alloc 0ul in
-    let processed_entries : G.ref (Seq.seq log_entry_base) = G.alloc Seq.empty in
+    let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
     let app_results : G.ref M.app_results = G.alloc Seq.empty in
     let serialization_buffer = A.alloc 0uy 4096ul in
     let tsm = M.init_thread_state_model tid in
@@ -1292,7 +1292,7 @@ let vaddb (#tsm:M.thread_state_model)
           (s:slot_id)
           (ts:timestamp)
           (thread_id:T.thread_id)
-          (p:erased M.payload)
+          (p:erased payload)
           (r:T.record)
   : ST bool
        (thread_state_inv' t tsm)
@@ -1421,7 +1421,7 @@ let madd_to_store (#tsm:M.thread_state_model)
 let vaddm (#tsm:M.thread_state_model)
           (t:thread_state_t)
           (s s':slot_id)
-          (p:erased M.payload)
+          (p:erased payload)
           (r:T.record)
   : ST bool
     (thread_state_inv' t tsm)

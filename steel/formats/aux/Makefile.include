@@ -1,0 +1,38 @@
+# Here we intend to build Zeta.Formats.Aux.*
+# as specified in this directory
+# and as implemented with EverParse
+# in the current and children directories
+FORMATS_HOME ?= .
+
+QD_TARGET_DIR=$(FORMATS_HOME)/obj
+
+ifeq (,$(FSTAR_HOME))
+  $(error FSTAR_HOME is not defined)
+endif
+
+ifeq (,$(KREMLIN_HOME))
+  $(error KREMLIN_HOME is not defined)
+endif
+
+ifeq (,$(QD_HOME))
+  $(error Please define QD_HOME)
+endif
+
+QD := $(QD_HOME)/bin/qd.exe
+
+SOURCE_DIRS = \
+  $(FORMATS_HOME) \
+  $(QD_TARGET_DIR)
+
+INCLUDE_DIRS = \
+  $(SOURCE_DIRS) \
+  $(KREMLIN_HOME)/kremlib \
+  $(KREMLIN_HOME)/kremlib/obj \
+  $(QD_HOME)/src/lowparse
+
+FSTAR_INCLUDES = $(addprefix --include ,$(INCLUDE_DIRS))
+
+FSTAR_OPTIONS = \
+  $(FSTAR_INCLUDES) \
+  --already_cached '*,-Zeta.Formats.Aux' \
+  $(OTHERFLAGS)

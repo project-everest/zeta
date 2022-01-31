@@ -20,7 +20,7 @@ module TLM = Zeta.Steel.ThreadLogMap
 
 #push-options "--ide_id_info_off"
 
-val spec_parser_log : P.spec_parser (Seq.seq log_entry_base)
+val spec_parser_log : P.spec_parser (Seq.seq log_entry)
 
 let parse_log (l:bytes) =
   match spec_parser_log l with

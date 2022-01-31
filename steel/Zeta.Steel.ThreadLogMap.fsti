@@ -8,7 +8,7 @@ open Steel.ST.Util
 module M = Zeta.Steel.ThreadStateModel
 
 /// A sequence of entries processed by a thread
-let log = Seq.seq log_entry_base
+let log = Seq.seq log_entry
 
 /// A preorder on describing append-only logs
 let log_grows :Preorder.preorder log

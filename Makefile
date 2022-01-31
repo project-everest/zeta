@@ -3,9 +3,12 @@ FSTAR_FILES=$(wildcard $(addsuffix /*fst, $(SRC_DIRS))) $(wildcard $(addsuffix /
 
 all: verify
 
-ci: verify
+ci: steel/formats
 
-.PHONY: ci low-level low-level-ci low-level/formats
+steel/formats: verify
+	+$(MAKE) -C $@
+
+.PHONY: ci low-level low-level-ci low-level/formats steel/formats
 
 low-level:
 	+$(MAKE) -C $@

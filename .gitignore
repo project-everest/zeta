@@ -1,5 +1,6 @@
 *.checked
 .depend
+.depend.aux
 _tags
 everest
 _output

@@ -34,7 +34,8 @@ SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
             --smtencoding.l_arith_repr native \
             --smtencoding.nl_arith_repr wrapped
 OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
-ALREADY_CACHED=--already_cached 'Prims FStar LowStar Steel'
+ALREADY_CACHED_LIST ?= Prims,FStar,LowStar,Steel
+ALREADY_CACHED = --already_cached $(ALREADY_CACHED_LIST)
 
 # A place to put all the emitted .ml files
 OUTPUT_DIRECTORY ?= $(ZETA_HOME)/_output
@@ -52,7 +53,8 @@ FSTAR=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 
 .depend:
 	mkdir -p $(CACHE_DIRECTORY)
-	$(FSTAR) --dep full $(wildcard *fst *fsti) > .depend
+	$(FSTAR) --dep full $(notdir $(FSTAR_FILES)) > .depend.aux
+	mv .depend.aux .depend
 
 depend: .depend
 
@@ -62,6 +64,7 @@ include .depend
 # a.fst(i).checked is the binary, checked version of a.fst(i)
 $(CACHE_DIRECTORY)/%.checked:
 	$(FSTAR) $<
+	touch -c $@
 
 verify: $(addprefix $(CACHE_DIRECTORY)/,$(addsuffix .checked, $(notdir $(FSTAR_FILES))))
 

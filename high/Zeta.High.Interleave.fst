@@ -66,6 +66,7 @@ let not_refs_implies_store_containment_unchanged  (#app #n:_) (ki:base_key) (ti:
       | _ ->
         ()
 
+#restart-solver
 let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
   : Lemma (ensures (let e = index il i in
