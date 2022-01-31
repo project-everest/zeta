@@ -50,64 +50,64 @@ let update_if (b:bool) (default_ upd_: 'a)
   : 'a
   = if b then upd_ else default_
 
-////////////////////////////////////////////////////////////////////////////////
-//We'll mostly work with thread_state_inv'
-//which is similar to thread_state_inv without its pure parts
-//The full thread_state_inv, with the pure parts is handled mainly
-//at the top level verify call at the end of this fail
-////////////////////////////////////////////////////////////////////////////////
-[@@__reduce__]
-let thread_state_inv' (t:thread_state_t)
-                      ([@@@smt_fallback] tsm:M.thread_state_model)
-  : vprop
-  = R.pts_to t.failed full tsm.failed `star`
-    array_pts_to t.store tsm.store `star`
-    R.pts_to t.clock full tsm.clock `star`
-    EpochMap.full_perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes `star`
-    R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
-    G.pts_to t.processed_entries full tsm.processed_entries `star`
-    G.pts_to t.app_results full tsm.app_results `star`
-    exists_ (array_pts_to t.serialization_buffer)
+// ////////////////////////////////////////////////////////////////////////////////
+// //We'll mostly work with thread_state_inv'
+// //which is similar to thread_state_inv without its pure parts
+// //The full thread_state_inv, with the pure parts is handled mainly
+// //at the top level verify call at the end of this fail
+// ////////////////////////////////////////////////////////////////////////////////
+// [@@__reduce__]
+// let thread_state_inv' (t:thread_state_t)
+//                       ([@@@smt_fallback] tsm:M.thread_state_model)
+//   : vprop
+//   = R.pts_to t.failed full tsm.failed `star`
+//     array_pts_to t.store tsm.store `star`
+//     R.pts_to t.clock full tsm.clock `star`
+//     EpochMap.full_perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes `star`
+//     R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
+//     G.pts_to t.processed_entries full tsm.processed_entries `star`
+//     G.pts_to t.app_results full tsm.app_results `star`
+//     exists_ (array_pts_to t.serialization_buffer)
 
-let intro_thread_state_inv' #o
-                           (tsm:M.thread_state_model)
-                           (#f:_)
-                           (#s:_)
-                           (#c:_)
-                           (#eh:_)
-                           (#lve:_)
-                           (#pe:_)
-                           (#ar:_)
-                           (t:thread_state_t)
-   : STGhost unit o
-     (R.pts_to t.failed full f `star`
-      array_pts_to t.store s `star`
-      R.pts_to t.clock full c `star`
-      EpochMap.full_perm t.epoch_hashes M.init_epoch_hash eh `star`
-      R.pts_to t.last_verified_epoch full lve `star`
-      G.pts_to t.processed_entries full pe `star`
-      G.pts_to t.app_results full ar `star`
-      exists_ (array_pts_to t.serialization_buffer))
-     (fun _ -> thread_state_inv' t tsm)
-     (requires
-       tsm.failed == f /\
-       tsm.store == s /\
-       tsm.clock == c /\
-       tsm.epoch_hashes == eh /\
-       tsm.last_verified_epoch == lve /\
-       tsm.processed_entries == pe /\
-       tsm.app_results == ar)
-     (ensures fun _ ->
-       True)
-   = rewrite (R.pts_to t.failed _ _ `star`
-              array_pts_to t.store _ `star`
-              R.pts_to t.clock _ _ `star`
-              EpochMap.full_perm t.epoch_hashes _ _ `star`
-              R.pts_to t.last_verified_epoch _ _ `star`
-              G.pts_to t.processed_entries _ _ `star`
-              G.pts_to t.app_results _ _ `star`
-              exists_ (array_pts_to t.serialization_buffer))
-             (thread_state_inv' t tsm)
+// let intro_thread_state_inv' #o
+//                            (tsm:M.thread_state_model)
+//                            (#f:_)
+//                            (#s:_)
+//                            (#c:_)
+//                            (#eh:_)
+//                            (#lve:_)
+//                            (#pe:_)
+//                            (#ar:_)
+//                            (t:thread_state_t)
+//    : STGhost unit o
+//      (R.pts_to t.failed full f `star`
+//       array_pts_to t.store s `star`
+//       R.pts_to t.clock full c `star`
+//       EpochMap.full_perm t.epoch_hashes M.init_epoch_hash eh `star`
+//       R.pts_to t.last_verified_epoch full lve `star`
+//       G.pts_to t.processed_entries full pe `star`
+//       G.pts_to t.app_results full ar `star`
+//       exists_ (array_pts_to t.serialization_buffer))
+//      (fun _ -> thread_state_inv' t tsm)
+//      (requires
+//        tsm.failed == f /\
+//        tsm.store == s /\
+//        tsm.clock == c /\
+//        tsm.epoch_hashes == eh /\
+//        tsm.last_verified_epoch == lve /\
+//        tsm.processed_entries == pe /\
+//        tsm.app_results == ar)
+//      (ensures fun _ ->
+//        True)
+//    = rewrite (R.pts_to t.failed _ _ `star`
+//               array_pts_to t.store _ `star`
+//               R.pts_to t.clock _ _ `star`
+//               EpochMap.full_perm t.epoch_hashes _ _ `star`
+//               R.pts_to t.last_verified_epoch _ _ `star`
+//               G.pts_to t.processed_entries _ _ `star`
+//               G.pts_to t.app_results _ _ `star`
+//               exists_ (array_pts_to t.serialization_buffer))
+//              (thread_state_inv' t tsm)
 
 ////////////////////////////////////////////////////////////////////////////////
 //verify_epoch: One of the most delicate functions in the API is
@@ -1522,56 +1522,58 @@ let vaddm (#tsm:M.thread_state_model)
 
 let spec_parser_log  = admit()
 
+
 // let finalize_epoch_hash
 //   : EHT.finalizer_t EH.epoch_hash_perm
 //   = fun k v -> drop _ //TODO: Actually free it
 
 
-// /// Entry point to run a single verifier thread on a log
-// val verify (#tsm:M.thread_state_model)
-//            (t:thread_state_t) //handle to the thread state
-//            (#log_perm:perm)
-//            (#log_bytes:erased bytes)
-//            (#len:U32.t)
-//            (log:larray U8.t len) //concrete log
-//            (#outlen:U32.t)
-//            (out:larray U8.t outlen) //out array, to write outputs
-//            (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-//   : STT (option U32.t)
-//     (//precondition
-//       thread_state_inv t tsm `star` //thread state is initially tsm
-//       A.pts_to log log_perm log_bytes `star` //the log contains log_bytes
-//       exists_ (array_pts_to out) `star` //we have permission to out, don't care what it contains
-//       TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm.processed_entries false //and the global state contains this thread's entries
-//     )
-//     (fun res -> //postcondition
-//       A.pts_to log log_perm log_bytes `star` //log contents didn't change
-//       (match res with
-//        | None ->
-//          //if it fails, you still get back ownership on the various
-//          //resources, e.g., to free them
-//          //but not much else
-//          exists_ (thread_state_inv t) `star`
-//          exists_ (array_pts_to out)
-//       | Some n_out ->
-//          //it succeeded
-//          exists_ (fun (tsm':M.thread_state_model) ->
-//          exists_ (fun (out_bytes:Seq.seq U8.t) ->
-//            thread_state_inv t tsm' `star` //tsm' is the new state of the thread
-//            array_pts_to out out_bytes `star`  //the out array contains out_bytes
-//            TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm'.processed_entries false `star` //my contributions are updated
-//            pure (
-//              match parse_log log_bytes with
-//              | None -> False //log parsing did not fail
-//              | Some log_entries -> //parsing produces log_entries
-//                //tsm' what you get by running the spec verifier from tsm on log_entries
-//                tsm' == M.verify_model tsm log_entries /\
-//                //the out_bytes contain any new app results in tsm'
-//                out_bytes == M.bytes_of_app_results (M.delta_app_results tsm tsm') /\
-//                //and n_out is the number of bytes that were written
-//                U32.v n_out == Seq.length out_bytes
-//            )
-//            ))))
+/// Entry point to run a single verifier thread on a log
+let verify (#tsm:M.thread_state_model)
+           (t:thread_state_t) //handle to the thread state
+           (#log_perm:perm)
+           (#log_bytes:erased bytes)
+           (#len:U32.t)
+           (log:larray U8.t len) //concrete log
+           (#outlen:U32.t)
+           (out:larray U8.t outlen) //out array, to write outputs
+           (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+  : STT (option U32.t)
+    (//precondition
+      thread_state_inv t tsm `star` //thread state is initially tsm
+      A.pts_to log log_perm log_bytes `star` //the log contains log_bytes
+      exists_ (array_pts_to out) `star` //we have permission to out, don't care what it contains
+      TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm.processed_entries false //and the global state contains this thread's entries
+    )
+    (fun res -> //postcondition
+      A.pts_to log log_perm log_bytes `star` //log contents didn't change
+      (match res with
+       | None ->
+         //if it fails, you still get back ownership on the various
+         //resources, e.g., to free them
+         //but not much else
+         exists_ (thread_state_inv t) `star`
+         exists_ (array_pts_to out)
+      | Some n_out ->
+         //it succeeded
+         exists_ (fun (tsm':M.thread_state_model) ->
+         exists_ (fun (out_bytes:Seq.seq U8.t) ->
+           thread_state_inv t tsm' `star` //tsm' is the new state of the thread
+           array_pts_to out out_bytes `star`  //the out array contains out_bytes
+           TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm'.processed_entries false `star` //my contributions are updated
+           pure (
+             match parse_log log_bytes with
+             | None -> False //log parsing did not fail
+             | Some log_entries -> //parsing produces log_entries
+               //tsm' what you get by running the spec verifier from tsm on log_entries
+               tsm' == M.verify_model tsm log_entries /\
+               //the out_bytes contain any new app results in tsm'
+               out_bytes == M.bytes_of_app_results (M.delta_app_results tsm tsm') /\
+               //and n_out is the number of bytes that were written
+               U32.v n_out == Seq.length out_bytes
+           )
+           ))))
+  = admit__()
 
 // // /// Entry point to run a single verifier thread on a log
 // let verify (#tsm:M.thread_state_model)

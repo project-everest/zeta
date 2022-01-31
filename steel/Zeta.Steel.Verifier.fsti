@@ -26,7 +26,9 @@ val create (tid:tid)
     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
 
 
+
 val spec_parser_log : P.spec_parser (Seq.seq log_entry)
+
 
 let parse_log (l:bytes) =
   match spec_parser_log l with
@@ -35,7 +37,6 @@ let parse_log (l:bytes) =
     if n = Seq.length l
     then Some v
     else None
-
 
 // /// Entry point to run a single verifier thread on a log
 // val verify (#tsm:M.thread_state_model)

@@ -51,8 +51,8 @@ let tsm_entries_invariant (tsm:M.thread_state_model) =
     tsm == M.verify_model (M.init_thread_state_model tsm.thread_id) tsm.processed_entries
 
 [@@__reduce__]
-let thread_state_inv (t:thread_state_t)
-                     ([@@@smt_fallback] tsm:M.thread_state_model)
+let thread_state_inv' (t:thread_state_t)
+                      ([@@@smt_fallback] tsm:M.thread_state_model)
   : vprop
   = R.pts_to t.failed full tsm.failed `star`
     array_pts_to t.store tsm.store `star`
@@ -61,7 +61,54 @@ let thread_state_inv (t:thread_state_t)
     R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
     G.pts_to t.processed_entries full tsm.processed_entries `star`
     G.pts_to t.app_results full tsm.app_results `star`
-    exists_ (array_pts_to t.serialization_buffer) `star`
+    exists_ (array_pts_to t.serialization_buffer)
+
+let intro_thread_state_inv' #o
+                           (tsm:M.thread_state_model)
+                           (#f:_)
+                           (#s:_)
+                           (#c:_)
+                           (#eh:_)
+                           (#lve:_)
+                           (#pe:_)
+                           (#ar:_)
+                           (t:thread_state_t)
+   : STGhost unit o
+     (R.pts_to t.failed full f `star`
+      array_pts_to t.store s `star`
+      R.pts_to t.clock full c `star`
+      EpochMap.full_perm t.epoch_hashes M.init_epoch_hash eh `star`
+      R.pts_to t.last_verified_epoch full lve `star`
+      G.pts_to t.processed_entries full pe `star`
+      G.pts_to t.app_results full ar `star`
+      exists_ (array_pts_to t.serialization_buffer))
+     (fun _ -> thread_state_inv' t tsm)
+     (requires
+       tsm.failed == f /\
+       tsm.store == s /\
+       tsm.clock == c /\
+       tsm.epoch_hashes == eh /\
+       tsm.last_verified_epoch == lve /\
+       tsm.processed_entries == pe /\
+       tsm.app_results == ar)
+     (ensures fun _ ->
+       True)
+   = rewrite (R.pts_to t.failed _ _ `star`
+              array_pts_to t.store _ `star`
+              R.pts_to t.clock _ _ `star`
+              EpochMap.full_perm t.epoch_hashes _ _ `star`
+              R.pts_to t.last_verified_epoch _ _ `star`
+              G.pts_to t.processed_entries _ _ `star`
+              G.pts_to t.app_results _ _ `star`
+              exists_ (array_pts_to t.serialization_buffer))
+             (thread_state_inv' t tsm)
+
+
+[@@__reduce__]
+let thread_state_inv (t:thread_state_t)
+                     ([@@@smt_fallback] tsm:M.thread_state_model)
+  : vprop
+  = thread_state_inv' t tsm `star`
     pure (tsm_entries_invariant tsm /\
           t.thread_id == tsm.thread_id)
 
