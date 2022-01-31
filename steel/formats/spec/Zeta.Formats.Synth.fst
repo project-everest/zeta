@@ -3,24 +3,6 @@ module Zeta.Formats.Synth
 friend Zeta.Formats.Aux.External.App
 friend Zeta.Formats.Aux.External
 
-let synth_key
-  (x: Zeta.Formats.Aux.Key.key)
-: Tot Zeta.Steel.LogEntry.Types.key
-= match x with
-  | Zeta.Formats.Aux.Key.Key_v_key_internal k -> Zeta.Steel.LogEntry.Types.InternalKey k
-  | Zeta.Formats.Aux.Key.Key_v_key_application k -> Zeta.Steel.LogEntry.Types.ApplicationKey k
-
-let synth_key_recip
-  (x: Zeta.Steel.LogEntry.Types.key)
-: Tot Zeta.Formats.Aux.Key.key
-= match x with
-  | Zeta.Steel.LogEntry.Types.InternalKey k -> Zeta.Formats.Aux.Key.Key_v_key_internal k
-  | Zeta.Steel.LogEntry.Types.ApplicationKey k -> Zeta.Formats.Aux.Key.Key_v_key_application k
-
-let synth_key_injective = ()
-
-let synth_key_inverse = ()
-
 let synth_u256
   (x: Zeta.Formats.Aux.U256.u256)
 : Tot Zeta.Steel.LogEntry.Types.u256
@@ -135,46 +117,47 @@ let synth_mval_value_recip
       (synth_descendent_hash_recip l)
       (synth_descendent_hash_recip r)
 
-let synth_mval_value_injective = ()
-
-let synth_mval_value_inverse = ()
-
-let synth_value
-  (x: Zeta.Formats.Aux.Value.value)
-: Tot Zeta.Steel.LogEntry.Types.value
-= match x with
-  | Zeta.Formats.Aux.Value.V_payload_DValueNone _ ->
-    Zeta.Steel.LogEntry.Types.DValue None
-  | Zeta.Formats.Aux.Value.V_payload_DValueSome v ->
-    Zeta.Steel.LogEntry.Types.DValue (Some v)
-  | Zeta.Formats.Aux.Value.V_payload_MValue v ->
-    Zeta.Steel.LogEntry.Types.MValue (synth_mval_value v)
-
-let synth_value_recip
-  (x: Zeta.Steel.LogEntry.Types.value)
-: Tot Zeta.Formats.Aux.Value.value
-= match x with
-  | Zeta.Steel.LogEntry.Types.DValue None ->
-    Zeta.Formats.Aux.Value.V_payload_DValueNone ()
-  | Zeta.Steel.LogEntry.Types.DValue (Some v) ->
-    Zeta.Formats.Aux.Value.V_payload_DValueSome v
-  | Zeta.Steel.LogEntry.Types.MValue v ->
-    Zeta.Formats.Aux.Value.V_payload_MValue (synth_mval_value_recip v)
-
 let synth_record
   (x: Zeta.Formats.Aux.Record.record)
 : Tot Zeta.Steel.LogEntry.Types.record
-= (synth_key x.Zeta.Formats.Aux.Record.record_key,
-    synth_value x.Zeta.Formats.Aux.Record.record_value)
+= match x with
+  | Zeta.Formats.Aux.Record.Record_kv_key_internal r ->
+    (Zeta.Steel.LogEntry.Types.InternalKey r.ir_key,
+     Zeta.Steel.LogEntry.Types.MValue (synth_mval_value r.ir_value)
+    )
+  | Zeta.Formats.Aux.Record.Record_kv_key_application r ->
+    (Zeta.Steel.LogEntry.Types.ApplicationKey r.Zeta.Formats.Aux.Application_record.ar_key,
+     Zeta.Steel.LogEntry.Types.DValue
+      begin match r.Zeta.Formats.Aux.Application_record.v_payload with
+      | Zeta.Formats.Aux.Application_record_v_payload.V_payload_DValueNone _ ->
+        None
+      | Zeta.Formats.Aux.Application_record_v_payload.V_payload_DValueSome v ->
+        Some v
+      end
+    )
 
 let synth_record_recip
   (x: Zeta.Steel.LogEntry.Types.record)
 : Tot Zeta.Formats.Aux.Record.record
 = match x with
   | (k, v) ->
-    Zeta.Formats.Aux.Record.Mkrecord
-      (synth_key_recip k)
-      (synth_value_recip v)
+    begin match k with
+    | Zeta.Steel.LogEntry.Types.InternalKey ik ->
+      let Zeta.Steel.LogEntry.Types.MValue iv = v in
+      Zeta.Formats.Aux.Record.Record_kv_key_internal ({ Zeta.Formats.Aux.Internal_record.ir_key = ik;
+        ir_value = synth_mval_value_recip iv
+      })
+    | Zeta.Steel.LogEntry.Types.ApplicationKey ak ->
+      let Zeta.Steel.LogEntry.Types.DValue dv = v in
+      let vp = match dv with
+      | None -> Zeta.Formats.Aux.Application_record_v_payload.V_payload_DValueNone ()
+      | Some v -> Zeta.Formats.Aux.Application_record_v_payload.V_payload_DValueSome v
+      in
+      Zeta.Formats.Aux.Record.Record_kv_key_application ({
+        Zeta.Formats.Aux.Application_record.ar_key = ak;
+        Zeta.Formats.Aux.Application_record.v_payload = vp;
+      })
+    end
 
 let synth_record_injective = ()
 
