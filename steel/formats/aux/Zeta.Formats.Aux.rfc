@@ -59,39 +59,49 @@ abstract
 application_key = "Zeta.Formats.Aux.External.App.application_key" < 0..2040 > /* these constant bounds must match Zeta.Steel.ApplicationTypes */
 
 struct {
+  internal_key ir_key;
+  mval_value ir_value;
+} internal_record;
+
+abstract
+application_value = "Zeta.Formats.Aux.External.App.application_value" < 0..2040 > /* these constant bounds must match Zeta.Steel.ApplicationTypes */
+
+enum {
+     DValueNone,
+     DValueSome,
+     (255)
+} value_kind;
+
+struct {
+  application_key ar_key;
+  value_kind v_tag;
+  select(v_tag) {
+    case DValueNone: Empty;
+    case DValueSome: application_value;
+  } v_payload;
+} application_record;
+
+struct {
   key_kind key_tag;
   select(key_tag) {
-    case key_internal: internal_key;
-    case key_application: application_key;
-  } key_v;
-} key;
+    case key_internal: internal_record;
+    case key_application: application_record;
+  } record_kv;
+} record;
 
 uint16 slot_id;
 
 struct {
-  key addm_k;
-  mval_value addm_v;
+  record addm_r;
   slot_id addm_s;
   slot_id addm_s2;
 } addm_payload;
-
-struct {
-  slot_id addmapp_s;
-  slot_id addmapp_s2;
-} addmapp_payload_hdr;
 
 uint64 timestamp;
 uint16 thread_id;
 
 struct {
-  slot_id addbapp_s;
-  timestamp addbapp_t;
-  thread_id addbapp_tid;
-} addbapp_payload_hdr;
-
-struct {
-  key addb_k;
-  mval_value addb_v;
+  record addb_r;
   slot_id addb_s;
   timestamp addb_t;
   thread_id addb_tid;
@@ -125,8 +135,6 @@ enum {
   EvictBM,
   NextEpoch,
   VerifyEpoch,
-  AddMApp,
-  AddBApp,
   RunApp,
   (255)
 } log_entry_kind;
@@ -141,35 +149,9 @@ struct {
     case EvictBM: evictbm_payload;
     case NextEpoch: Empty;
     case VerifyEpoch: Empty;
-    case AddMApp: addmapp_payload_hdr;
-    case AddBApp: addbapp_payload_hdr;
     case RunApp: runapp_payload_hdr;
   } le_payload;
 } log_entry_hdr;
-
-abstract
-application_value = "Zeta.Formats.Aux.External.App.application_value" < 0..2040 > /* these constant bounds must match Zeta.Steel.ApplicationTypes */
-
-enum {
-     MValue,
-     DValueNone,
-     DValueSome,
-     (255)
-} value_kind;
-
-struct {
-  value_kind v_tag;
-  select(v_tag) {
-    case MValue: mval_value;
-    case DValueNone: Empty;
-    case DValueSome: application_value;
-  } v_payload;
-} value;
-
-struct {
-  key record_key;
-  value record_value;
-} record;
 
 struct {
   record sr_record;

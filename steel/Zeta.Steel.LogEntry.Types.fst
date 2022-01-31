@@ -90,42 +90,30 @@ type runApp_payload = {
   rest:uninterpreted
 }
 
-let payload = either (key & mval_value) uninterpreted
-
 type value = 
   | MValue of mval_value
   | DValue of option value_type
 
-let record = key & value
+let is_value_of (k:key) (v:value)
+  : bool
+  = if ApplicationKey? k then DValue? v else MValue? v
+
+let record = (r: (key & value) { is_value_of (fst r) (snd r) })
 
 open Zeta.Steel.Parser
 
-let dummy_record : record = (InternalKey ({k = {v3 = 0uL; v2 = 0uL; v1 = 0uL; v0 = 0uL}; significant_digits = 0us }), DValue None)
-
-let related (p:payload) (r:record) (relate: bool) =
-  match p with
-  | Inl (k, v) -> r == (k, MValue v)
-  | Inr u ->
-    if relate then
-    match spec_parser_app_record u.ebytes with
-    | None -> False
-    | Some ((k,v), n) -> n == U32.v u.len /\ (ApplicationKey k, DValue v) == r
-    else r == dummy_record
-
 noeq
-type log_entry0 (relate: Ghost.erased bool) =
+type log_entry =
   | AddM : s:slot_id ->
            s':slot_id ->
-           p:Ghost.erased payload ->
-           r:record { related p r relate } ->
-           log_entry0 relate
+           r:record ->
+           log_entry
 
   | AddB : s:slot_id ->
            ts:timestamp ->
            tid:thread_id ->
-           p:Ghost.erased payload ->
-           r:record { related p r relate } ->
-           log_entry0 relate
+           r:record ->
+           log_entry
 
   | RunApp of runApp_payload
   | EvictM of evictM_payload
@@ -133,8 +121,6 @@ type log_entry0 (relate: Ghost.erased bool) =
   | EvictBM of evictBM_payload
   | NextEpoch
   | VerifyEpoch
-
-let log_entry = log_entry0 true
 
 type stamped_record = {
   record : record;

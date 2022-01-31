@@ -831,7 +831,7 @@ let entry_points_to_some_slot (r:M.store_entry)
 let update_value (#tsm:M.thread_state_model)
                  (t:thread_state_t)
                  (s:slot { M.has_slot tsm s })
-                 (r:value { M.is_value_of (M.key_of_slot tsm s) r})
+                 (r:value { T.is_value_of (M.key_of_slot tsm s) r})
   : STT unit
     (thread_state_inv' t tsm)
     (fun _ -> thread_state_inv' t (M.update_value tsm s r))
@@ -1275,7 +1275,7 @@ let nextepoch (#tsm:M.thread_state_model)
 ////////////////////////////////////////////////////////////////////////////////
 //vaddb
 ////////////////////////////////////////////////////////////////////////////////
-let record = (k:key & v:T.value{ M.is_value_of k v })
+let record = (k:key & v:T.value{ T.is_value_of k v })
 
 let next (t:T.timestamp)
   : option T.timestamp
@@ -1292,13 +1292,10 @@ let vaddb (#tsm:M.thread_state_model)
           (s:slot_id)
           (ts:timestamp)
           (thread_id:T.thread_id)
-          (p:erased payload)
           (r:T.record)
-  : ST bool
+  : STT bool
        (thread_state_inv' t tsm)
-       (fun b -> thread_state_inv' t (update_if b tsm (M.vaddb tsm s ts thread_id p)))
-       (requires Some r == M.record_of_payload p)
-       (ensures fun _ -> True)
+       (fun b -> thread_state_inv' t (update_if b tsm (M.vaddb tsm s ts thread_id r)))
   = let b = M.check_slot_bounds s in
     if not b then (fail t; return true)
     else (
@@ -1347,7 +1344,7 @@ let madd_to_store_split (#tsm:M.thread_state_model)
   : STT unit
     (thread_state_inv' t tsm)
     (fun _ -> thread_state_inv' t (M.madd_to_store_split tsm s k v s' d d2))
-  = let b = (M.is_value_of k v) in
+  = let b = (T.is_value_of k v) in
     if not b
     then (fail t; return ())
     else (
@@ -1388,7 +1385,7 @@ let madd_to_store (#tsm:M.thread_state_model)
   : STT unit
     (thread_state_inv' t tsm)
     (fun _ -> thread_state_inv' t (M.madd_to_store tsm s k v s' d))
-  = let b = (M.is_value_of k v) in
+  = let b = (T.is_value_of k v) in
     if not b
     then (fail t; return ())
     else (
@@ -1421,13 +1418,10 @@ let madd_to_store (#tsm:M.thread_state_model)
 let vaddm (#tsm:M.thread_state_model)
           (t:thread_state_t)
           (s s':slot_id)
-          (p:erased payload)
           (r:T.record)
-  : ST bool
+  : STT bool
     (thread_state_inv' t tsm)
-    (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' p)))
-    (requires Some r == M.record_of_payload p)
-    (ensures fun _ -> True)
+    (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' r)))
   = let b = not (M.check_slot_bounds s)
           || not (M.check_slot_bounds s') in
     if b then (fail t; return true)
@@ -1458,7 +1452,7 @@ let vaddm (#tsm:M.thread_state_model)
                match dh' returns
                      (STT bool
                           (thread_state_inv' t tsm)
-                          (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' p))))
+                          (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' r))))
                with
                | T.Dh_vnone _ -> (* k' has no child in direction d *)
                  (* first add must be init value *)
@@ -1480,7 +1474,7 @@ let vaddm (#tsm:M.thread_state_model)
                    else if entry_points_to_some_slot r' d
                    then (let b = fail_as t _ in return b)
                    else (madd_to_store t s gk gv s' d;
-                         assert_ (thread_state_inv' t (M.vaddm tsm s s' p));
+                         assert_ (thread_state_inv' t (M.vaddm tsm s s' r));
                          let b = true in
 //                         intro_thread_state_inv' (update_if b tsm (M.vaddm tsm s s' p)) t;
                          return b)
@@ -1499,7 +1493,7 @@ let vaddm (#tsm:M.thread_state_model)
                    if b returns
                      (STT bool
                           (thread_state_inv' t tsm)
-                          (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' p))))
+                          (fun b -> thread_state_inv' t (update_if b tsm (M.vaddm tsm s s' r))))
                    then (
                      madd_to_store_split t s gk (MValue mv_upd) s' d d2;
                      update_value t s' (MValue v'_upd);

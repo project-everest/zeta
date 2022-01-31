@@ -15,10 +15,11 @@ let rec read_bytes
     (slice_len:U32.t)
     (#b: Ghost.erased (Seq.seq U8.t) { Seq.length b == U32.v len })
     (a:A.array U8.t)
+    (p: _)
     (sq: squash (P.len_offset_slice_ok a len offset slice_len))
 :   S.ST FStar.Bytes.bytes
-       (A.pts_to a b)
-       (fun _ -> A.pts_to a b)
+       (A.pts_to a p b)
+       (fun _ -> A.pts_to a p b)
        (requires True)
        (ensures fun o ->
          FStar.Bytes.reveal o `Seq.equal` P.slice b offset slice_len
@@ -27,7 +28,7 @@ let rec read_bytes
   then S.return FStar.Bytes.empty_bytes
   else
     let x = A.read a offset in
-    let tail = read_bytes len (offset `U32.add` 1ul) (slice_len `U32.sub` 1ul) #b a () in
+    let tail = read_bytes len (offset `U32.add` 1ul) (slice_len `U32.sub` 1ul) #b a _ () in
     FStar.Bytes.append (FStar.Bytes.create 1ul x) tail
 
 let mk_steel_parser
@@ -37,7 +38,7 @@ let mk_steel_parser
   (p32: LP.parser32 p)
 : Tot (P.parser p)
 = fun len offset slice_len a ->
-  let b = read_bytes len offset slice_len a () in
+  let b = read_bytes len offset slice_len a _ () in
   match p32 b with
   | None -> None
   | Some (x, n) ->
