@@ -7,8 +7,8 @@ module Set = FStar.Set
 module Map = FStar.Map
 module U32 = FStar.UInt32
 
-val tbl (#v:Type)
-        (#c:Type) 
+val tbl (#v:Type0)
+        (#c:Type0) 
         (vp:M.epoch_id -> v -> c -> vprop)
     : Type0
 
