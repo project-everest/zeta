@@ -46,12 +46,8 @@ type thread_state_t = {
 
 let thread_id t = t.thread_id
 
-
-let tsm_entries_invariant (tsm:M.thread_state_model) =
-    tsm == M.verify_model (M.init_thread_state_model tsm.thread_id) tsm.processed_entries
-
 [@@__reduce__]
-let thread_state_inv' (t:thread_state_t)
+let thread_state_inv_core (t:thread_state_t)
                       ([@@@smt_fallback] tsm:M.thread_state_model)
   : vprop
   = R.pts_to t.failed full tsm.failed `star`
@@ -63,7 +59,7 @@ let thread_state_inv' (t:thread_state_t)
     G.pts_to t.app_results full tsm.app_results `star`
     exists_ (array_pts_to t.serialization_buffer)
 
-let intro_thread_state_inv' #o
+let intro_thread_state_inv_core #o
                            (tsm:M.thread_state_model)
                            (#f:_)
                            (#s:_)
@@ -82,7 +78,7 @@ let intro_thread_state_inv' #o
       G.pts_to t.processed_entries full pe `star`
       G.pts_to t.app_results full ar `star`
       exists_ (array_pts_to t.serialization_buffer))
-     (fun _ -> thread_state_inv' t tsm)
+     (fun _ -> thread_state_inv_core t tsm)
      (requires
        tsm.failed == f /\
        tsm.store == s /\
@@ -101,23 +97,26 @@ let intro_thread_state_inv' #o
               G.pts_to t.processed_entries _ _ `star`
               G.pts_to t.app_results _ _ `star`
               exists_ (array_pts_to t.serialization_buffer))
-             (thread_state_inv' t tsm)
-
+             (thread_state_inv_core t tsm)
 
 [@@__reduce__]
 let thread_state_inv (t:thread_state_t)
                      ([@@@smt_fallback] tsm:M.thread_state_model)
   : vprop
-  = thread_state_inv' t tsm `star`
+  = thread_state_inv_core t tsm `star`
     pure (tsm_entries_invariant tsm /\
           t.thread_id == tsm.thread_id)
+
+let intro_thread_state_inv (#o:_) (#tsm:M.thread_state_model) (t:thread_state_t)
+  = intro_pure (tsm_entries_invariant tsm /\
+                t.thread_id == tsm.thread_id)
 
 let elim_thread_state_inv (#o:_) (#tsm:M.thread_state_model) (t:thread_state_t)
   : STGhost unit o
     (thread_state_inv t tsm)
-    (fun _ -> thread_state_inv t tsm)
+    (fun _ -> thread_state_inv_core t tsm)
     (requires True)
     (ensures fun _ ->
-      tsm == M.verify_model (M.init_thread_state_model (thread_id t))
-                            tsm.processed_entries)
-  = extract_pure _
+      thread_id t == tsm.thread_id /\
+      tsm_entries_invariant tsm)
+  = elim_pure _
