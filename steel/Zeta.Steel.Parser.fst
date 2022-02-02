@@ -96,3 +96,20 @@ let serializer (#t:Type0) (#p:spec_parser t) (s:spec_serializer p) =
                 len_offset_slice_ok a len offset slice_len /\
                 Seq.length bs == U32.v len /\
                 s v == slice bs offset slice_len )))
+
+
+let bytes_from (b:bytes)
+               (l:U32.t { U32.v l <= Seq.length b })
+  : bytes
+  = Seq.slice b (U32.v l) (Seq.length b)
+
+let parse_result (log_bytes:bytes)
+                 (log_pos:U32.t{
+                   U32.v log_pos < Seq.length log_bytes
+                 })
+                 (p:spec_parser 'a {
+                   Some? (p (bytes_from log_bytes log_pos))
+                 })
+  : GTot ('a & nat)
+  = let Some (le, n) = p (bytes_from log_bytes log_pos) in
+    le, n

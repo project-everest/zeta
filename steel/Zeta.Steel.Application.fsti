@@ -22,6 +22,59 @@ module A = Steel.ST.Array
 module M = Zeta.Steel.ThreadStateModel
 module V = Zeta.Steel.VerifierTypes
 open Zeta.Steel.FormatsManual
+
+let delta_out_bytes (tsm tsm':M.thread_state_model)
+  = M.bytes_of_app_results (M.delta_app_results tsm tsm')
+
+let delta_out_bytes_lem (tsm:M.thread_state_model)
+                        (le:log_entry { not (RunApp? le) })
+  : Lemma (delta_out_bytes tsm (M.verify_step_model tsm le) == Seq.empty)
+          [SMTPat (delta_out_bytes tsm (M.verify_step_model tsm le))]
+  = admit()
+
+let n_out_bytes (tsm tsm': M.thread_state_model)
+                (n_out:U32.t)
+                (out_bytes_init:Seq.seq U8.t)
+                (out_bytes_final:Seq.seq U8.t)
+  : prop
+  = U32.v n_out <= Seq.length out_bytes_init /\
+    Seq.length out_bytes_init == Seq.length out_bytes_final /\
+    out_bytes_final `Seq.equal`
+    Seq.append (delta_out_bytes tsm tsm')
+               (Parser.bytes_from out_bytes_init n_out)
+
+type verify_runapp_result =
+  | Run_app_parsing_failure: verify_runapp_result
+  | Run_app_verify_failure: verify_runapp_result
+  | Run_app_success: read:U32.t -> wrote:U32.t -> verify_runapp_result
+
+let verify_runapp_entry_post (tsm:M.thread_state_model)
+                             (t:V.thread_state_t)
+                             (#log_len:U32.t)
+                             (log_pos:U32.t)
+                             (log_bytes:bytes { U32.v log_pos < Seq.length log_bytes })
+                             (#out_len:U32.t)
+                             (out_bytes:bytes)
+                             (out:larray U8.t out_len) //out array, to write outputs
+                             ([@@@smt_fallback] res:verify_runapp_result)
+  : vprop
+  = match res with
+    | Run_app_parsing_failure
+    | Run_app_verify_failure ->
+      //failure, but leaves state unchanged
+      V.thread_state_inv t tsm `star`
+      array_pts_to out out_bytes
+
+    | Run_app_success read wrote ->
+      exists_ (fun (pl:runApp_payload) ->
+      exists_ (fun (out_bytes':Seq.seq U8.t) ->
+        (let tsm' = M.verify_step_model tsm (RunApp pl) in
+         V.thread_state_inv t tsm' `star` //tsm' is the new state of the thread
+         array_pts_to out out_bytes' `star`
+         pure (n_out_bytes tsm tsm' wrote out_bytes out_bytes' /\
+               LogEntry.can_parse_log_entry log_bytes log_pos /\
+               LogEntry.spec_parse_log_entry log_bytes log_pos == (RunApp pl, U32.v read)))))
+
 (**
     Running an application-specific state transition function,
     identified by `fid`.
@@ -33,52 +86,29 @@ open Zeta.Steel.FormatsManual
     framework.
 *)
 val run_app_function
-      (* fid: The id of the function to run *)
-      (fid: App.appfn_id aprm)
       (* The position in the log where the arguments of the function live *)
       (#log_perm:perm)
       (#log_bytes:Ghost.erased bytes)
       (log_len:U32.t)
-      (log_offset:U32.t)
-      (args_len:U32.t { U32.v args_len < 2147483648 })
-      (log_array:Parser.byte_array {
-        Seq.length log_bytes == U32.v log_len /\
-        Parser.len_offset_slice_ok log_array log_len log_offset args_len
+      (log_pos:U32.t)
+      (log_array:larray U8.t log_len {
+        U32.v log_pos < Seq.length log_bytes
        })
       (* The position in the output log in which to write the results, if any *)
       (#out_bytes: Ghost.erased bytes)
       (out_len:U32.t)
       (out_offset:U32.t)
-      (out:Parser.byte_array {
-        Parser.len_offset_ok out out_len out_offset
+      (out:larray U8.t out_len {
+        U32.v out_offset < Seq.length out_bytes
        })
       (* The state of the verifier, with pointers to the store etc. *)
       (#tsm:M.thread_state_model)
       (t:V.thread_state_t)
   (* if success, returns the number of bytes written in the output log *)
-   : STT (option U32.t)
+   : STT verify_runapp_result
       (V.thread_state_inv t tsm `star`
        A.pts_to log_array log_perm log_bytes `star`
        A.pts_to out full_perm out_bytes)
       (fun res ->
         A.pts_to log_array log_perm log_bytes `star`
-        (match res with
-         | None ->
-           exists_ (V.thread_state_inv t) `star`
-           exists_ (A.pts_to out full_perm)
-         | Some n_out ->
-           exists_ (fun tsm' ->
-           exists_ (fun out_bytes' ->
-            V.thread_state_inv t tsm' `star`
-            A.pts_to out full_perm (out_bytes `Seq.append` out_bytes') `star`
-            pure (
-              let arg_bytes = Parser.slice log_bytes log_offset args_len in
-              let app_payload : runApp_payload =
-              { fid = fid;
-                rest = { len = args_len;
-                         ebytes = arg_bytes } }
-              in
-              tsm' == M.runapp tsm app_payload /\
-              out_bytes' == M.bytes_of_app_results (M.delta_app_results tsm tsm') /\
-              U32.v n_out == Seq.length out_bytes')
-            ))))
+        verify_runapp_entry_post tsm t #log_len log_pos log_bytes out_bytes out res)
