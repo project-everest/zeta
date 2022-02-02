@@ -476,24 +476,26 @@ let intro_verify_step_post_runapp_success
                      (#len:U32.t)
                      (log_pos:U32.t{U32.v log_pos < Seq.length log_bytes})
                      (log:larray U8.t len) //concrete log
+                     (pl: runApp_payload)
                      (#outlen:U32.t)
                      (out_bytes:bytes)
                      (out:larray U8.t outlen) //out array, to write outputs
                      (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-                     (le: log_entry)
                      (n_read:U32.t)
                      (n_written:U32.t)
                      (res:Application.verify_runapp_result)
   : STGhost unit o
-    (Application.verify_runapp_entry_post tsm t #len log_pos log_bytes out_bytes out res `star`
+    (Application.verify_runapp_entry_post tsm t pl out_bytes out res `star`
      TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm.processed_entries false)
     (fun _ ->
       verify_step_post tsm t log_perm log_bytes log_pos log out_bytes out aeh (Verify_log_entry_success n_read n_written))
-    (requires res == Application.Run_app_success n_read n_written /\ not tsm.failed)
+    (requires
+      res == Application.Run_app_success n_written /\ not tsm.failed /\
+      LogEntry.can_parse_log_entry log_bytes log_pos /\
+      LogEntry.spec_parse_log_entry log_bytes log_pos == (RunApp pl, U32.v n_read))
     (ensures fun _ -> True)
-  = rewrite (Application.verify_runapp_entry_post tsm t #len log_pos log_bytes out_bytes out res)
-            (Application.verify_runapp_entry_post tsm t #len log_pos log_bytes out_bytes out (Application.Run_app_success n_read n_written));
-    let pl = elim_exists () in
+  = rewrite (Application.verify_runapp_entry_post tsm t pl out_bytes out res)
+            (Application.verify_runapp_entry_post tsm t pl out_bytes out (Application.Run_app_success n_written));
     let out_bytes' = elim_exists () in
     elim_pure _;
     assert_ (thread_state_inv t (M.verify_step_model tsm (RunApp pl)));
@@ -503,6 +505,7 @@ let intro_verify_step_post_runapp_success
     TLM.update_tid_log aeh.mlogs tsm.thread_id tsm.processed_entries (M.verify_step_model tsm (RunApp pl)).processed_entries;
     intro_pure (Application.n_out_bytes tsm (M.verify_step_model tsm (RunApp pl)) n_written  out_bytes out_bytes');
     success t aeh out (RunApp pl) n_written;
+    assert_ (verify_log_entry_post tsm t out_bytes out aeh (RunApp pl) (Some n_written));
     intro_verify_step_post_verify_success #_ #tsm t #log_perm #log_bytes #len log_pos log #outlen out_bytes out aeh (RunApp pl) n_read n_written
 
 val verify_step (#tsm:M.thread_state_model)
@@ -530,6 +533,8 @@ val verify_step (#tsm:M.thread_state_model)
     (requires not tsm.failed)
     (ensures fun _ -> True)
 
+#push-options "--ifuel 2" // for spec_parser
+
 let verify_step (#tsm:M.thread_state_model)
                 (t:thread_state_t) //handle to the thread state
                 (#log_perm:perm)
@@ -551,10 +556,13 @@ let verify_step (#tsm:M.thread_state_model)
 
       | Some (le, read) ->
         match le with
-        | RunApp _ ->
+        | RunApp pl ->
           let app_res =
+            let s = Ghost.hide (Zeta.Steel.Parser.slice log_bytes log_pos U32.(len -^ log_pos)) in
+            let pl_pos0 = Zeta.Steel.LogEntry.runapp_payload_offset le s in
+            let pl_pos = log_pos `U32.add` pl_pos0 in
             Application.run_app_function
-              len log_pos log
+              len pl pl_pos log
               out_len 0ul out
               t
           in
@@ -562,15 +570,15 @@ let verify_step (#tsm:M.thread_state_model)
           match app_res with
           | Application.Run_app_parsing_failure
           | Application.Run_app_verify_failure ->
-            rewrite (Application.verify_runapp_entry_post _ _ _ _ _ _ _)
+            rewrite (Application.verify_runapp_entry_post _ _ _ _ _ _)
                     (thread_state_inv t tsm `star`
                      array_pts_to out out_bytes);
             intro_verify_step_post_app_failure t log_pos log out_bytes out aeh;
             return App_failure
 
-          | Application.Run_app_success read written ->
+          | Application.Run_app_success written ->
 //            assert_ (Application.verify_runapp_entry_post tsm t log_pos log_bytes out_bytes out app_res);
-            let _ = intro_verify_step_post_runapp_success #_ #tsm t #log_perm #log_bytes log_pos log out_bytes out aeh le read written app_res in
+            let _ = intro_verify_step_post_runapp_success #_ #tsm t #log_perm #log_bytes log_pos log pl out_bytes out aeh read written app_res in
             return (Verify_log_entry_success read written)
           end
 
