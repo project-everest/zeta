@@ -23,6 +23,15 @@ val admit__ (#a:Type)
             (_:unit)
   : STF a p q True (fun _ -> False)
 
+[@@warn_on_use "uses an axiom"]
+assume
+val admit___ (#opened:_)
+             (#a:Type)
+             (#p:pre_t)
+             (#q:a -> vprop)
+             (_:unit)
+  : STAtomicF a opened p q True (fun _ -> False)
+
 let cancellable_lock (v:vprop) = cancellable_lock v
 
 let can_release (#v:vprop) (c:cancellable_lock v) = can_release c

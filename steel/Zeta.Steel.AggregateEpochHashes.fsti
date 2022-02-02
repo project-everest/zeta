@@ -23,10 +23,6 @@ open Zeta.Steel.EpochHashes
 
 #push-options "--ide_id_info_off"
 
-
-//AR: TODO: This val is not used anywhere?
-//val epoch_hash_size : U32.t
-
 let tid_bitmap = Seq.lseq bool (U32.v n_threads)
 let epoch_hashes_repr = EpochMap.repr M.epoch_hash
 let epoch_bitmaps_repr = EpochMap.repr tid_bitmap
@@ -146,6 +142,7 @@ let lock_inv_body (hashes : all_epoch_hashes)
     TLM.global_anchor mlogs (map_of_seq mlogs_v) `star`
     pure (hashes_bitmaps_max_ok hashes_v bitmaps max mlogs_v)
 
+[@@ __reduce__]
 let lock_inv (hashes : all_epoch_hashes)
              (tid_bitmaps : epoch_tid_bitmaps)
              (max_certified_epoch : R.ref M.epoch_id)
@@ -160,12 +157,17 @@ let lock_inv (hashes : all_epoch_hashes)
 
 noeq
 type aggregate_epoch_hashes = {
-     hashes : all_epoch_hashes;
-     tid_bitmaps : epoch_tid_bitmaps;
-     max_certified_epoch : R.ref M.epoch_id;
-     mlogs: TLM.t;
-     lock: cancellable_lock (lock_inv hashes tid_bitmaps max_certified_epoch mlogs)
+  hashes : all_epoch_hashes;
+  tid_bitmaps : epoch_tid_bitmaps;
+  max_certified_epoch : R.ref M.epoch_id;
+  mlogs: TLM.t;
+  lock: cancellable_lock (lock_inv hashes tid_bitmaps max_certified_epoch mlogs)
 }
+
+val create (_:unit)
+  : STT aggregate_epoch_hashes
+        emp
+        (fun aeh -> TLM.tids_pts_to aeh.mlogs full_perm (Map.const (Some Seq.empty)) false)
 
 let epoch_is_certified (mlogs_v:all_processed_entries)
                        (e:M.epoch_id)

@@ -21,6 +21,89 @@ module MR = Steel.ST.MonotonicReference
 module TLM = Zeta.Steel.ThreadLogMap
 open Zeta.Steel.EpochHashes
 
+assume val all_hashes_size  : n:U32.t{U32.v n > 0}
+assume val tid_bitmaps_size : n:U32.t{U32.v n > 0}
+
+let empty_all_processed_entries : Ghost.erased all_processed_entries =
+  Seq.create (U32.v n_threads) Seq.empty
+
+let aggregate_all_threads_epoch_hashes_emp ()
+  : Lemma (forall (e:M.epoch_id).
+             aggregate_all_threads_epoch_hashes e empty_all_processed_entries ==
+             M.init_epoch_hash)
+  = admit ()
+
+let create () =
+  let hashes = EpochMap.create #_ #_ #epoch_hash_perm
+    all_hashes_size
+    (Ghost.hide M.init_epoch_hash) in
+  let tid_bitmaps = EpochMap.create #(larray bool n_threads) #tid_bitmap #(fun i -> array_pts_to)
+    tid_bitmaps_size
+    (Ghost.hide all_zeroes) in
+  let max_certified_epoch = R.alloc 0ul in
+  let mlogs = TLM.alloc () in
+
+  assert (Map.equal (map_of_seq empty_all_processed_entries)
+                    (Map.const (Some (Seq.empty #log_entry))));
+
+  rewrite (TLM.global_anchor mlogs (Map.const (Some Seq.empty)))
+          (TLM.global_anchor mlogs (map_of_seq empty_all_processed_entries));
+
+  aggregate_all_threads_epoch_hashes_emp ();
+  assert (all_contributions_are_accurate (Map.const M.init_epoch_hash)
+                                         empty_all_processed_entries);
+
+  //What should we initialize the max certified epoch id ref with?
+  assume (max_certified_epoch_is (Map.const M.init_epoch_hash)
+                                 (Map.const all_zeroes)
+                                 0ul);
+
+  intro_pure (hashes_bitmaps_max_ok (Map.const M.init_epoch_hash)
+                                    (Map.const all_zeroes)
+                                    0ul
+                                    empty_all_processed_entries);
+
+  intro_exists (Ghost.reveal empty_all_processed_entries)
+               (fun mlogs_v ->
+                lock_inv_body _ _ _ _
+                  (Map.const M.init_epoch_hash)
+                  (Map.const all_zeroes)
+                  0ul
+                  mlogs_v);
+
+  intro_exists 0ul
+               (fun max -> exists_ (fun mlogs_v ->
+                lock_inv_body _ _ _ _
+                  (Map.const M.init_epoch_hash)
+                  (Map.const all_zeroes)
+                  max
+                  mlogs_v));
+
+  intro_exists (Map.const all_zeroes)
+               (fun bitmaps_v -> exists_ (fun max -> exists_ (fun mlogs_v ->
+                lock_inv_body _ _ _ _
+                  (Map.const M.init_epoch_hash)
+                  bitmaps_v
+                  max
+                  mlogs_v)));
+
+  intro_exists (Map.const M.init_epoch_hash)
+               (fun hashes_v -> (exists_ (fun bitmaps_v -> exists_ (fun max -> exists_ (fun mlogs_v ->
+                lock_inv_body _ _ _ _
+                  hashes_v
+                  bitmaps_v
+                  max
+                  mlogs_v)))));
+
+  let lock = new_cancellable_lock (lock_inv _ _ _ _) in
+
+  let aeh = {hashes; tid_bitmaps; max_certified_epoch; mlogs; lock} in
+
+  rewrite (TLM.tids_pts_to _ _ _ _)
+          (TLM.tids_pts_to aeh.mlogs full_perm (Map.const (Some Seq.empty)) false);
+
+  return aeh
+
 let check_all_ones (#e:Ghost.erased _)
                    (a:larray bool n_threads)
   : ST bool
@@ -249,12 +332,12 @@ let advance_and_read_max_certified_epoch aeh
       return None
     )
     else (
-      rewrite (maybe_acquired _ _)
+      rewrite (maybe_acquired _ aeh.lock)
               (lock_inv aeh.hashes
                         aeh.tid_bitmaps
                         aeh.max_certified_epoch
                         aeh.mlogs `star`
-              can_release aeh.lock);
+               can_release aeh.lock);
       let _hv = elim_exists () in
       let _bitmaps = elim_exists () in
       let _max = elim_exists () in
