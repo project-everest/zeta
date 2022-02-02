@@ -16,3 +16,12 @@ let spec_parse_log_entry (log_bytes:bytes)
                           })
   : GTot (log_entry & nat)
   = parse_result log_bytes log_pos spec_parser_log_entry
+
+val spec_parser_log_entry_consumes_at_least_one_byte
+  (log_bytes: bytes)
+: Lemma
+  (requires (Some? (spec_parser_log_entry log_bytes)))
+  (ensures (
+    let Some (_, consumed) = spec_parser_log_entry log_bytes in
+    consumed >= 1
+  ))
