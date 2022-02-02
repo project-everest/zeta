@@ -944,28 +944,6 @@ let nextepoch (#tsm:M.thread_state_model)
 let spec_verify_epoch (tsm:M.thread_state_model)
   = M.verify_step_model tsm VerifyEpoch
 
-    // let tsm = M.verifyepoch tsm in
-    // if tsm.failed then tsm
-    // else { tsm with M.processed_entries =
-    //                 Seq.snoc tsm.processed_entries VerifyEpoch }
-
-
-let verify_epoch_committed_entries (tsm:M.thread_state_model)
-  : Lemma (requires
-             not tsm.failed /\
-             not (M.verifyepoch tsm).failed)
-          (ensures
-            (M.committed_entries (spec_verify_epoch tsm) ==
-            (spec_verify_epoch tsm).processed_entries))
-  = let tsm' = spec_verify_epoch tsm in
-    let _, last = Seq.un_snoc tsm'.processed_entries in
-    let is_verify = (function VerifyEpoch -> true | _ -> false) in
-    Zeta.SeqAux.lemma_last_index_correct2
-        is_verify
-        tsm'.processed_entries
-        (Seq.length tsm.processed_entries);
-    Zeta.SeqAux.lemma_fullprefix_equal tsm'.processed_entries
-
 let aggregate_one_epoch_hash (source:AEH.epoch_hashes_repr)
                              (dest:AEH.epoch_hashes_repr)
                              (e:M.epoch_id)
@@ -1221,7 +1199,7 @@ let commit_entries #o
        not (M.verifyepoch tsm).failed)
      (ensures fun _ -> True)
   = TLM.take_anchor_tid mylogref _ _ _ _;
-    verify_epoch_committed_entries tsm;
+    M.committed_entries_idem (spec_verify_epoch tsm).processed_entries;
     TLM.update_anchored_tid_log mylogref _ _ (spec_verify_epoch tsm).processed_entries;
     TLM.put_anchor_tid mylogref _ _ _ _;
     G.write t.processed_entries (spec_verify_epoch tsm).processed_entries;
@@ -1247,15 +1225,6 @@ let spec_verify_epoch_entries_invariants (tsm:M.thread_state_model)
     assert (tsm' == M.verify_model (M.init_thread_state_model tsm.thread_id) tsm'.processed_entries)
 #pop-options
 
-let last_verified_epoch_constant (tsm:M.thread_state_model)
-  : Lemma
-    (requires
-      tsm_entries_invariant tsm)
-    (ensures (
-      let tsm0 = M.verify_model (M.init_thread_state_model tsm.thread_id) (M.committed_entries tsm) in
-      tsm.last_verified_epoch == tsm0.last_verified_epoch))
-  = admit() //the last_verified_epoch only changed when processing a verify_epoch entry
-
 let advance_per_thread_bitmap_and_max  (bitmaps:EpochMap.repr AEH.tid_bitmap)
                                        (max:_)
                                        (mlogs_v:_)
@@ -1277,7 +1246,7 @@ let advance_per_thread_bitmap_and_max  (bitmaps:EpochMap.repr AEH.tid_bitmap)
       AEH.per_thread_bitmap_and_max bitmaps' max logs' tsm.thread_id))
   = let log0 = AEH.log_of_tid mlogs_v tsm.thread_id in
     let tsm0 = M.verify_model (M.init_thread_state_model tsm.thread_id) log0 in
-    last_verified_epoch_constant tsm;
+    M.last_verified_epoch_constant tsm;
     assert (tsm0.last_verified_epoch == tsm.last_verified_epoch);
     let tsm' = spec_verify_epoch tsm in
     let bitmaps' = update_bitmap_spec bitmaps e tsm.thread_id in
@@ -1365,7 +1334,7 @@ let lemma_restore_hashes_bitmaps_max_ok
       )
     );
     assert (U32.v max <= U32.v tsm0.last_verified_epoch);
-    last_verified_epoch_constant tsm
+    M.last_verified_epoch_constant tsm
 
 let restore_hashes_bitmaps_max_ok (#o:_)
                                   (#hashes:AEH.epoch_hashes_repr)

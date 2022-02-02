@@ -742,7 +742,10 @@ let rec write_slots (tsm:thread_state_model)
                                          })
                     (values:Seq.seq (A.app_value_nullable aprm.A.adm)
                       { Seq.length slots == Seq.length values })
-  : GTot (tsm':thread_state_model{tsm.thread_id == tsm'.thread_id})
+  : GTot (tsm':thread_state_model{
+            tsm.thread_id == tsm'.thread_id /\
+            tsm.last_verified_epoch == tsm'.last_verified_epoch
+         })
          (decreases Seq.length slots)
   = if Seq.length slots = 0
     then tsm
@@ -762,7 +765,10 @@ let rec write_slots (tsm:thread_state_model)
       
 let runapp (tsm:thread_state_model)
            (pl:runApp_payload)
-  : GTot (tsm':thread_state_model { tsm'.thread_id == tsm.thread_id }) // Need the refinement for tsm_entries_invariant_verify_step
+  : GTot (tsm':thread_state_model { 
+            tsm'.thread_id == tsm.thread_id /\
+            tsm'.last_verified_epoch == tsm.last_verified_epoch
+         }) // Need the refinement for tsm_entries_invariant_verify_step
   = if not (Map.contains aprm.A.tbl pl.fid)
     then fail tsm //unknown fid
     else (
@@ -789,7 +795,6 @@ let runapp (tsm:thread_state_model)
                 write_slots tsm slots out_vals
             )
         )
-
 
 let verify_log_entry (tsm:thread_state_model)
                      (e:log_entry)
@@ -874,3 +879,86 @@ let tsm_entries_invariant_verify_step (tsm:thread_state_model)
     )
 #pop-options
   
+let verify_step_last_verified_epoch_constant_ (tsm:thread_state_model) (le:log_entry)
+  : Lemma
+    (requires
+      not (VerifyEpoch? le))
+    (ensures (
+      let tsm' = verify_step_model tsm le in
+      tsm.last_verified_epoch == tsm'.last_verified_epoch))
+  = ()
+
+let uncommitted_entries (l:log)
+  : GTot log
+  = let n = Seq.length (committed_log_entries l) in
+    Seq.slice l n (Seq.length l)
+
+
+let committed_entries_idem (l:log)
+  : Lemma 
+    (requires
+      Seq.length l == 0 \/
+      VerifyEpoch? (Seq.index l (Seq.length l - 1)))
+    (ensures
+      committed_log_entries l `Seq.equal` l)
+  = if Seq.length l = 0
+    then ()
+    else (
+      let last = Seq.index l (Seq.length l - 1) in
+      let is_verify = (function VerifyEpoch -> true | _ -> false) in
+      Zeta.SeqAux.lemma_last_index_correct2
+            is_verify
+            l
+            (Seq.length l - 1);
+      Zeta.SeqAux.lemma_fullprefix_equal l
+    )
+
+let committed_entries_prefix (l:log)
+  : Lemma 
+    (requires
+      Seq.length l > 0 /\
+      not (VerifyEpoch? (Seq.index l (Seq.length l - 1))))
+    (ensures
+      committed_log_entries l `Seq.equal`
+      committed_log_entries (Zeta.SeqAux.prefix l (Seq.length l - 1)))
+  = let last = Seq.index l (Seq.length l - 1) in
+    let is_verify = (function VerifyEpoch -> true | _ -> false) in
+    Zeta.SeqAux.lemma_last_index_opt_last_elem_nsat
+            is_verify
+            l
+  
+#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 8"
+let rec last_verified_epoch_constant_log (log:log) (tid:tid)
+  : Lemma
+    (ensures (
+      let tsm1 = verify_model (init_thread_state_model tid) log in
+      let tsm0 = verify_model (init_thread_state_model tid) (committed_log_entries log) in
+      tsm1.last_verified_epoch == tsm0.last_verified_epoch))
+    (decreases (Seq.length log))
+  = if Seq.length log = 0
+    then ()
+    else (
+      let prefix = Zeta.SeqAux.prefix log (Seq.length log - 1) in
+      let last = Seq.index log (Seq.length log - 1) in
+      match last with
+      | VerifyEpoch ->
+        committed_entries_idem log
+
+      | _ -> 
+        let tsm1 = verify_model (init_thread_state_model tid) log in
+        let tsm1_prefix = verify_model (init_thread_state_model tid) prefix in
+        assert (tsm1 == verify_step_model tsm1_prefix last);      
+        last_verified_epoch_constant_log prefix tid;
+        committed_entries_prefix log
+    )
+#pop-options
+
+let last_verified_epoch_constant (tsm:thread_state_model)
+  : Lemma
+    (requires
+      tsm_entries_invariant tsm /\
+      not tsm.failed)
+    (ensures (
+      let tsm0 = verify_model (init_thread_state_model tsm.thread_id) (committed_entries tsm) in
+      tsm.last_verified_epoch == tsm0.last_verified_epoch))
+  = last_verified_epoch_constant_log tsm.processed_entries tsm.thread_id
