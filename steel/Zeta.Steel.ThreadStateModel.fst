@@ -742,7 +742,7 @@ let rec write_slots (tsm:thread_state_model)
                                          })
                     (values:Seq.seq (A.app_value_nullable aprm.A.adm)
                       { Seq.length slots == Seq.length values })
-  : GTot thread_state_model
+  : GTot (tsm':thread_state_model{tsm.thread_id == tsm'.thread_id})
          (decreases Seq.length slots)
   = if Seq.length slots = 0
     then tsm
@@ -762,8 +762,7 @@ let rec write_slots (tsm:thread_state_model)
       
 let runapp (tsm:thread_state_model)
            (pl:runApp_payload)
-  : GTot thread_state_model // &
-          // bool &
+  : GTot (tsm':thread_state_model { tsm'.thread_id == tsm.thread_id }) // Need the refinement for tsm_entries_invariant_verify_step
   = if not (Map.contains aprm.A.tbl pl.fid)
     then fail tsm //unknown fid
     else (
@@ -790,25 +789,31 @@ let runapp (tsm:thread_state_model)
                 write_slots tsm slots out_vals
             )
         )
-  
+
+
+let verify_log_entry (tsm:thread_state_model)
+                     (e:log_entry)
+  : thread_state_model
+  = let open T in
+    match e with
+    | AddM s s' r -> vaddm tsm s s' r
+    | AddB s ts tid r -> vaddb tsm s ts tid r
+    | EvictM p -> vevictm tsm p.s p.s'
+    | EvictB p -> vevictb tsm p.s p.t
+    | EvictBM p -> vevictbm tsm p.s p.s' p.t
+    | NextEpoch -> nextepoch tsm
+    | VerifyEpoch -> verifyepoch tsm
+    | RunApp p -> runapp tsm p
+
 let verify_step_model (tsm:thread_state_model)
                       (e:log_entry)
   : thread_state_model
   = let open T in
     if tsm.failed then tsm
-    else
-      let tsm = 
-        match e with
-        | AddM s s' r -> vaddm tsm s s' r
-        | AddB s ts tid r -> vaddb tsm s ts tid r
-        | EvictM p -> vevictm tsm p.s p.s'
-        | EvictB p -> vevictb tsm p.s p.t
-        | EvictBM p -> vevictbm tsm p.s p.s' p.t
-        | NextEpoch -> nextepoch tsm
-        | VerifyEpoch -> verifyepoch tsm
-        | RunApp p -> runapp tsm p
-      in
-      { tsm with processed_entries = Seq.snoc tsm.processed_entries e }
+    else let tsm' = verify_log_entry tsm e in
+         if VerifyEpoch? e && tsm'.failed
+         then tsm' //verifyepoch failed, don't push a VerifyEpoch on the entries list
+         else {tsm' with processed_entries = Seq.snoc tsm.processed_entries e }
 
 let log = Seq.seq log_entry
 let all_logs = Seq.lseq log (U32.v n_threads)
@@ -843,3 +848,29 @@ let delta_app_results (tsm0 tsm1:thread_state_model)
 let bytes_of_app_results (s:Seq.seq app_results)
   : GTot bytes
   = Prims.admit()
+
+let tsm_entries_invariant (tsm:thread_state_model) =
+    not tsm.failed ==>
+    tsm == verify_model (init_thread_state_model tsm.thread_id)
+                        tsm.processed_entries
+
+#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 8"
+let tsm_entries_invariant_verify_step (tsm:thread_state_model)
+                                      (le:log_entry)
+  : Lemma 
+    (requires tsm_entries_invariant tsm)
+    (ensures tsm_entries_invariant (verify_step_model tsm le)  /\
+             tsm.thread_id == (verify_step_model tsm le).thread_id
+  )
+  = if tsm.failed
+    then ()
+    else (
+      let tsm_init = init_thread_state_model tsm.thread_id in
+      let log0 = tsm.processed_entries in
+      let tsm1 = verify_step_model tsm le in
+      let log1 = (verify_step_model tsm le).processed_entries in
+      if Seq.length log1 > Seq.length log0
+      then assert (Zeta.SeqAux.prefix log1 (Seq.length log1 - 1) `Seq.equal` log0)
+    )
+#pop-options
+  

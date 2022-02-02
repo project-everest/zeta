@@ -181,6 +181,22 @@ let max_is_correct (mlogs_v:_) (max:_)
           U32.v e <= U32.v max ==>
           epoch_is_certified mlogs_v e
 
+val release_lock (#hv:erased epoch_hashes_repr)
+                 (#bitmaps:erased epoch_bitmaps_repr)
+                 (#max:erased _)
+                 (#mlogs_v:erased _)
+                 (#hashes : all_epoch_hashes)
+                 (#tid_bitmaps : epoch_tid_bitmaps)
+                 (#max_certified_epoch : R.ref M.epoch_id)
+                 (#mlogs: TLM.t)
+                 (lock: cancellable_lock
+                        (lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
+  : STT unit
+    (lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
+                       hv bitmaps max mlogs_v `star`
+     can_release lock)
+    (fun _ -> emp)
+
 val advance_and_read_max_certified_epoch (aeh:aggregate_epoch_hashes)
   : STT (option M.epoch_id)
       emp

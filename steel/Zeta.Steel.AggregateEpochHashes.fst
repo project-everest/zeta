@@ -113,17 +113,6 @@ let check_all_ones (#e:Ghost.erased _)
     (ensures fun b -> b <==> (reveal e == all_ones))
   = admit__ ()
 
-let return_borrows (#v:Type0) (b:EpochMap.borrows v) (i:M.epoch_id) (x:v)
-  : Lemma (requires ~(PartialMap.contains b i))
-          (ensures (PartialMap.remove (PartialMap.upd b i x) i `PartialMap.equal` b))
-          [SMTPat (PartialMap.remove (PartialMap.upd b i x) i)]
-  = ()
-
-let return_map (#v:Type0) (m:EpochMap.repr v) (i:M.epoch_id)
-  : Lemma (ensures (Map.upd m i (Map.sel m i) `Map.equal` m))
-          [SMTPat (Map.upd m i (Map.sel m i))]
-  = ()
-
 let check_bitmap_for_epoch (#bm:erased _)
                            (tid_bitmaps: epoch_tid_bitmaps)
                            (e:M.epoch_id)

@@ -20,11 +20,13 @@ val vaddm (#tsm:M.thread_state_model)
           (t:thread_state_t)
           (s s':slot_id)
           (r:T.record)
-  : STT bool
+  : ST bool
     (thread_state_inv t tsm)
     (fun b ->
       thread_state_inv t
            (update_if b tsm (M.verify_step_model tsm (AddM s s' r))))
+    (requires not tsm.failed)
+    (ensures fun _ -> True)
 
 val vaddb (#tsm:M.thread_state_model)
           (t:thread_state_t)
@@ -32,40 +34,50 @@ val vaddb (#tsm:M.thread_state_model)
           (ts:timestamp)
           (thread_id:T.thread_id)
           (r:T.record)
-  : STT bool
-       (thread_state_inv t tsm)
-       (fun b ->
+  : ST bool
+    (thread_state_inv t tsm)
+    (fun b ->
          thread_state_inv t
                (update_if b tsm (M.verify_step_model tsm (AddB s ts thread_id r))))
+    (requires not tsm.failed)
+    (ensures fun _ -> True)
 
 val vevictm (#tsm:M.thread_state_model)
             (t:thread_state_t)
             (s s':slot_id)
-  : STT unit
+  : ST unit
     (thread_state_inv t tsm)
     (fun _ -> thread_state_inv t (M.verify_step_model tsm (EvictM ({s; s'}))))
+    (requires not tsm.failed)
+    (ensures fun _ -> True)
 
 val vevictb (#tsm:M.thread_state_model)
             (t:thread_state_t)
             (s:slot_id)
             (ts:timestamp)
-  : STT bool
+  : ST bool
     (thread_state_inv t tsm)
     (fun b -> thread_state_inv t (update_if b tsm (M.verify_step_model tsm (EvictB ({s; t=ts})))))
+    (requires not tsm.failed)
+    (ensures fun _ -> True)
 
 val vevictbm (#tsm:M.thread_state_model)
              (t:thread_state_t)
              (s s':slot_id)
              (ts:timestamp)
-  : STT bool
+  : ST bool
     (thread_state_inv t tsm)
     (fun b -> thread_state_inv t (update_if b tsm (M.verify_step_model tsm (EvictBM ({s; s'; t=ts})))))
+    (requires not tsm.failed)
+    (ensures fun _ -> True)
 
 val nextepoch (#tsm:M.thread_state_model)
               (t:thread_state_t)
-  : STT unit
+  : ST unit
     (thread_state_inv t tsm)
     (fun _ -> thread_state_inv t (M.verify_step_model tsm NextEpoch))
+    (requires not tsm.failed)
+    (ensures fun _ -> True)
 
 val verify_epoch (#tsm:M.thread_state_model)
                  (t:thread_state_t)

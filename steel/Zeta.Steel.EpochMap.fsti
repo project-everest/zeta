@@ -176,3 +176,14 @@ val reclaim (#v:Type)
   : STT unit
       (perm a init m b)
       (fun _ -> perm a init m (PartialMap.remove b i))
+
+let return_borrows (#v:Type0) (b:borrows v) (i:M.epoch_id) (x:v)
+  : Lemma (requires ~(PartialMap.contains b i))
+          (ensures (PartialMap.remove (PartialMap.upd b i x) i `PartialMap.equal` b))
+          [SMTPat (PartialMap.remove (PartialMap.upd b i x) i)]
+  = ()
+
+let return_map (#v:Type0) (m:repr v) (i:M.epoch_id)
+  : Lemma (ensures (Map.upd m i (Map.sel m i) `Map.equal` m))
+          [SMTPat (Map.upd m i (Map.sel m i))]
+  = ()

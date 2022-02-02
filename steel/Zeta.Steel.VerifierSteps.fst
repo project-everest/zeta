@@ -48,6 +48,58 @@ let fail_as (#tsm:M.thread_state_model)
     intro_thread_state_inv_core (update_if b tsm tsm') t;
     return b
 
+
+let extend_processed_entries #o
+                             (#tsm:M.thread_state_model)
+                             (t:thread_state_t)
+                             (le:log_entry)
+  : STGhost unit o
+    (thread_state_inv_core t (M.verify_log_entry tsm le))
+    (fun _ -> thread_state_inv t (M.verify_step_model tsm le))
+    (requires
+      not tsm.failed /\
+      tsm_entries_invariant tsm /\
+      t.thread_id == tsm.thread_id /\
+      not (VerifyEpoch? le))
+    (ensures fun _ -> True)
+  = M.tsm_entries_invariant_verify_step tsm le;
+    rewrite
+        (thread_state_inv_core t _)
+        (thread_state_inv_core t (M.verify_log_entry tsm le));
+    G.write t.processed_entries (Seq.snoc tsm.processed_entries le);
+    intro_thread_state_inv_core (M.verify_step_model tsm le) t;
+    intro_thread_state_inv t
+
+let maybe_extend_processed_entries #o
+                                   (#tsm:M.thread_state_model)
+                                   (t:thread_state_t)
+                                   (b:bool)
+                                   (le:log_entry)
+  : STGhost unit o
+    (thread_state_inv_core t (update_if b tsm (M.verify_log_entry tsm le)))
+    (fun _ -> thread_state_inv t (update_if b tsm (M.verify_step_model tsm le)))
+    (requires
+      not tsm.failed /\
+      tsm_entries_invariant tsm /\
+      t.thread_id == tsm.thread_id /\
+      not (VerifyEpoch? le))
+    (ensures fun _ -> True)
+  = if b
+    then (
+      rewrite
+        (thread_state_inv_core t _)
+        (thread_state_inv_core t (M.verify_log_entry tsm le));
+      extend_processed_entries t le;
+      rewrite
+        (thread_state_inv t _)
+        (thread_state_inv t (update_if b tsm (M.verify_step_model tsm le)))
+    )
+    else (
+      rewrite (thread_state_inv_core t _)
+              (thread_state_inv_core t (update_if b tsm (M.verify_step_model tsm le)));
+      intro_thread_state_inv t
+    )
+
 ////////////////////////////////////////////////////////////////////////////////
 //create
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,13 +252,13 @@ let update_value (#tsm:M.thread_state_model)
     A.write t.store (as_u32 s) (Some ({v with M.value = r}));
     ()
 
-let vaddm (#tsm:M.thread_state_model)
-          (t:thread_state_t)
-          (s s':slot_id)
-          (r:T.record)
+let vaddm_core (#tsm:M.thread_state_model)
+               (t:thread_state_t)
+               (s s':slot_id)
+               (r:T.record)
   : STT bool
     (thread_state_inv_core t tsm)
-    (fun b -> thread_state_inv_core t (update_if b tsm (M.vaddm tsm s s' r)))
+    (fun b -> thread_state_inv_core t (update_if b tsm (M.verify_log_entry tsm (AddM s s' r))))
   = let b = not (M.check_slot_bounds s)
           || not (M.check_slot_bounds s') in
     if b then (fail t; return true)
@@ -292,6 +344,22 @@ let vaddm (#tsm:M.thread_state_model)
                      return b
                    )
                  )))
+
+let vaddm (#tsm:M.thread_state_model)
+          (t:thread_state_t)
+          (s s':slot_id)
+          (r:T.record)
+  : ST bool
+    (thread_state_inv t tsm)
+    (fun b ->
+      thread_state_inv t
+           (update_if b tsm (M.verify_step_model tsm (AddM s s' r))))
+    (requires not tsm.failed)
+    (ensures fun _ -> True)
+  = elim_thread_state_inv _;
+    let b = vaddm_core t s s' r in
+    maybe_extend_processed_entries t _ _;
+    return b
 
 ////////////////////////////////////////////////////////////////////////////////
 //vaddb
@@ -428,7 +496,7 @@ let update_ht (#tsm:M.thread_state_model)
 
     | EpochMap.Found v ->
       rewrite (EpochMap.get_post _ _ _ _ _ vopt)
-              (EpochMap.perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes (PartialMap.upd e v EpochMap.empty_borrows) `star`
+              (EpochMap.perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes (PartialMap.upd EpochMap.empty_borrows e v) `star`
                EH.epoch_hash_perm e v (Map.sel tsm.epoch_hashes e));
       unfold_epoch_hash_perm _ _ _;
       let sr = {
@@ -473,6 +541,8 @@ let update_ht (#tsm:M.thread_state_model)
                            (Map.upd tsm.epoch_hashes e
                                    (update_if b (Map.sel tsm.epoch_hashes e)
                                                 (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id ht))));
+
+
       intro_exists _ (array_pts_to t.serialization_buffer);
       maybe_update_epoch_hash_equiv b tsm e r ts thread_id ht;
       rewrite (thread_state_inv_core t (maybe_update_epoch_hash b tsm e r ts thread_id ht))
@@ -480,7 +550,7 @@ let update_ht (#tsm:M.thread_state_model)
       return b
 #pop-options
 
-let vaddb (#tsm:M.thread_state_model)
+let vaddb_core (#tsm:M.thread_state_model)
           (t:thread_state_t)
           (s:slot_id)
           (ts:timestamp)
@@ -488,7 +558,7 @@ let vaddb (#tsm:M.thread_state_model)
           (r:T.record)
   : STT bool
        (thread_state_inv_core t tsm)
-       (fun b -> thread_state_inv_core t (update_if b tsm (M.vaddb tsm s ts thread_id r)))
+       (fun b -> thread_state_inv_core t (update_if b tsm (M.verify_log_entry tsm (AddB s ts thread_id r))))
   = let b = M.check_slot_bounds s in
     if not b then (fail t; return true)
     else (
@@ -522,6 +592,17 @@ let vaddb (#tsm:M.thread_state_model)
       )
     )
 
+let vaddb (#tsm:M.thread_state_model)
+          (t:thread_state_t)
+          (s:slot_id)
+          (ts:timestamp)
+          (thread_id:T.thread_id)
+          (r:T.record)
+  = elim_thread_state_inv _;
+    let b = vaddb_core t s ts thread_id r in
+    maybe_extend_processed_entries t _ _;
+    return b
+
 ////////////////////////////////////////////////////////////////////////////////
 //vevictm
 ////////////////////////////////////////////////////////////////////////////////
@@ -544,12 +625,12 @@ let evict_from_store (#tsm:M.thread_state_model)
     A.write t.store (as_u32 s) None;
     ()
 
-let vevictm (#tsm:M.thread_state_model)
-            (t:thread_state_t)
-            (s s':slot_id)
+let vevictm_core (#tsm:M.thread_state_model)
+                 (t:thread_state_t)
+                 (s s':slot_id)
   : STT unit
     (thread_state_inv_core t tsm)
-    (fun _ -> thread_state_inv_core t (M.vevictm tsm s s'))
+    (fun _ -> thread_state_inv_core t (M.verify_log_entry tsm (EvictM ({s; s'}))))
   = if not (M.check_slot_bounds s)
     || not (M.check_slot_bounds s')
     then (R.write t.failed true; ())
@@ -599,6 +680,14 @@ let vevictm (#tsm:M.thread_state_model)
             )
         )
       )
+
+let vevictm (#tsm:M.thread_state_model)
+            (t:thread_state_t)
+            (s s':slot_id)
+  = elim_thread_state_inv _;
+    vevictm_core t s s';
+    extend_processed_entries t _
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //vevictb
@@ -655,13 +744,13 @@ let vevictb_update_hash_clock (#tsm:M.thread_state_model)
        return b
      )
 
-let vevictb (#tsm:M.thread_state_model)
-            (t:thread_state_t)
-            (s:slot_id)
-            (ts:timestamp)
+let vevictb_core (#tsm:M.thread_state_model)
+                 (t:thread_state_t)
+                 (s:slot_id)
+                 (ts:timestamp)
   : ST bool
     (thread_state_inv_core t tsm)
-    (fun b -> thread_state_inv_core t (update_if b tsm (M.vevictb tsm s ts)))
+    (fun b -> thread_state_inv_core t (update_if b tsm (M.verify_log_entry tsm (EvictB ({s; t=ts})))))
     (requires t.thread_id == tsm.thread_id)
     (ensures fun _ -> True)
   = let bounds_failed = not (M.check_slot_bounds s) in
@@ -697,17 +786,26 @@ let vevictb (#tsm:M.thread_state_model)
       )
     )
 
+let vevictb (#tsm:M.thread_state_model)
+            (t:thread_state_t)
+            (s:slot_id)
+            (ts:timestamp)
+  = elim_thread_state_inv _;
+    let b = vevictb_core t s ts in
+    maybe_extend_processed_entries t _ _;
+    return b
+
 ////////////////////////////////////////////////////////////////////////////////
 //vevictbm: A bit delicate. TODO should debug the SMT queries.
 ////////////////////////////////////////////////////////////////////////////////
 
-let vevictbm (#tsm:M.thread_state_model)
-             (t:thread_state_t)
-             (s s':slot_id)
-             (ts:timestamp)
+let vevictbm_core (#tsm:M.thread_state_model)
+                  (t:thread_state_t)
+                  (s s':slot_id)
+                  (ts:timestamp)
   : ST bool
     (thread_state_inv_core t tsm)
-    (fun b -> thread_state_inv_core t (update_if b tsm (M.vevictbm tsm s s' ts)))
+    (fun b -> thread_state_inv_core t (update_if b tsm (M.verify_log_entry tsm (EvictBM ({s; s'; t=ts})))))
     (t.thread_id == tsm.thread_id)
     (fun _ -> True)
   = let bounds_failed =
@@ -770,6 +868,15 @@ let vevictbm (#tsm:M.thread_state_model)
                           return false
                         ))))
 
+let vevictbm (#tsm:M.thread_state_model)
+             (t:thread_state_t)
+             (s s':slot_id)
+             (ts:timestamp)
+  = elim_thread_state_inv _;
+    let b = vevictbm_core t s s' ts in
+    maybe_extend_processed_entries t b _;
+    return b
+
 ////////////////////////////////////////////////////////////////////////////////
 // nextepoch
 ////////////////////////////////////////////////////////////////////////////////
@@ -801,16 +908,16 @@ let epoch_map_add (#v:Type0)
     (fun _ ->
       EpochMap.full_perm a init (Map.upd m i c))
   = EpochMap.put a i x _;
-    assert (PartialMap.remove i (EpochMap.empty_borrows #v) `PartialMap.equal`
+    assert (PartialMap.remove (EpochMap.empty_borrows #v) i `PartialMap.equal`
             EpochMap.empty_borrows #v);
-    rewrite (EpochMap.perm a _ _ (PartialMap.remove i EpochMap.empty_borrows))
+    rewrite (EpochMap.perm a _ _ (PartialMap.remove EpochMap.empty_borrows i))
             (EpochMap.full_perm a init (Map.upd m i c))
 
-let nextepoch (#tsm:M.thread_state_model)
-              (t:thread_state_t)
+let nextepoch_core (#tsm:M.thread_state_model)
+                   (t:thread_state_t)
   : STT unit
     (thread_state_inv_core t tsm)
-    (fun _ -> thread_state_inv_core t (M.nextepoch tsm))
+    (fun _ -> thread_state_inv_core t (M.verify_log_entry tsm NextEpoch))
   = let c = R.read t.clock in
     let e = M.epoch_of_timestamp c in
     let res = st_check_overflow_add32 e 1ul in //Ugh. need this wrapper, else weirdness
@@ -824,10 +931,24 @@ let nextepoch (#tsm:M.thread_state_model)
       epoch_map_add t.epoch_hashes nxt eht M.init_epoch_hash;
       ()
 
+let nextepoch (#tsm:M.thread_state_model)
+              (t:thread_state_t)
+  = elim_thread_state_inv _;
+    nextepoch_core t;
+    extend_processed_entries t _
+
 ////////////////////////////////////////////////////////////////////////////////
 //verify_epoch: One of the most delicate functions in the API is
 //verify_epoch, since it involves working with the aggregate epoch state
 ////////////////////////////////////////////////////////////////////////////////
+let spec_verify_epoch (tsm:M.thread_state_model)
+  = M.verify_step_model tsm VerifyEpoch
+
+    // let tsm = M.verifyepoch tsm in
+    // if tsm.failed then tsm
+    // else { tsm with M.processed_entries =
+    //                 Seq.snoc tsm.processed_entries VerifyEpoch }
+
 
 let verify_epoch_committed_entries (tsm:M.thread_state_model)
   : Lemma (requires
@@ -929,7 +1050,7 @@ let with_value_of_key (#v:Type0)
     match res with
     | EpochMap.Found value ->
       rewrite (EpochMap.get_post _ _ _ _ _ _)
-              (EpochMap.perm t init m (PartialMap.upd i value EpochMap.empty_borrows) `star`
+              (EpochMap.perm t init m (PartialMap.upd EpochMap.empty_borrows i value) `star`
                vp i value (Map.sel m i));
       f value;
       EpochMap.ghost_put t i value _;
@@ -994,7 +1115,7 @@ let rec propagate_epoch_hash (#tsm:M.thread_state_model)
     | EpochMap.Found dst ->
 
       rewrite (EpochMap.get_post _ _ _ _ _ _)
-              (EpochMap.perm hashes M.init_epoch_hash hv (PartialMap.upd e dst EpochMap.empty_borrows) `star`
+              (EpochMap.perm hashes M.init_epoch_hash hv (PartialMap.upd EpochMap.empty_borrows e dst) `star`
                EH.epoch_hash_perm e dst (Map.sel hv e));
       let src = EpochMap.get t.epoch_hashes e in
       match src with
@@ -1009,7 +1130,7 @@ let rec propagate_epoch_hash (#tsm:M.thread_state_model)
       | EpochMap.Found src ->
 
         rewrite (EpochMap.get_post _ _ _ _ _ _)
-                (EpochMap.perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes (PartialMap.upd e src EpochMap.empty_borrows) `star`
+                (EpochMap.perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes (PartialMap.upd EpochMap.empty_borrows e src) `star`
                  EH.epoch_hash_perm e src (Map.sel tsm.epoch_hashes e));
         let b = aggregate_epoch_hashes_t src dst in
         if b
@@ -1302,7 +1423,6 @@ let verify_epoch_core
       R.write t.failed true; return true
 
     | Some e ->
-
       let acquired = acquire lock in
       if not acquired
       then (
@@ -1311,9 +1431,8 @@ let verify_epoch_core
         return false
       )
       else (
-        rewrite (maybe_acquired _ _)
+        rewrite (maybe_acquired acquired lock)
                 (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs `star` can_release lock);
-
         let _hv = elim_exists () in
         let _bitmaps = elim_exists () in
         let _max = elim_exists () in
@@ -1323,7 +1442,6 @@ let verify_epoch_core
                                 _hv _bitmaps _max)
             ()
         in
-
         TLM.extract_anchor_invariant mlogs _ _ _ _;
         let b0 = propagate_epoch_hash t hashes e in
         let b1 = update_bitmap tid_bitmaps e t.thread_id in
@@ -1350,40 +1468,16 @@ let verify_epoch_core
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#push-options "--fuel 2 --z3rlimit_factor 4"
-let verify_epoch_inv (b:bool)
-                     (tsm:M.thread_state_model)
-  : Lemma
-    (requires tsm_entries_invariant tsm /\
-              not tsm.failed)
-    (ensures tsm_entries_invariant (update_if b tsm (spec_verify_epoch tsm)))
-  = let tsm' = update_if b tsm (spec_verify_epoch tsm) in
-    assert (tsm == M.verify_model (M.init_thread_state_model tsm.thread_id) tsm.M.processed_entries);
-    assert (Zeta.SeqAux.prefix tsm'.M.processed_entries (Seq.length tsm.M.processed_entries) `Seq.equal` tsm.M.processed_entries)
-#pop-options
-
 let verify_epoch (#tsm:M.thread_state_model)
                  (t:thread_state_t)
                  (aeh:AEH.aggregate_epoch_hashes)
-  : ST bool
-    (thread_state_inv t tsm `star`
-     TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm.processed_entries false)
-    (fun b ->
-      thread_state_inv t (update_if b tsm (spec_verify_epoch tsm)) `star`
-      TLM.tid_pts_to aeh.mlogs tsm.thread_id full
-                         (update_if b tsm.processed_entries
-                                      (spec_verify_epoch tsm).processed_entries)
-                         false)
-    (requires not tsm.failed)
-    (ensures fun _ -> True)
   = elim_thread_state_inv #_ #tsm t;
     rewrite (TLM.tid_pts_to _ _ _ _ _)
             (TLM.tid_pts_to aeh.mlogs t.thread_id full tsm.processed_entries false);
     let b = verify_epoch_core t aeh.hashes aeh.tid_bitmaps aeh.max_certified_epoch aeh.mlogs aeh.lock in
     rewrite (TLM.tid_pts_to _ _ _ _ _)
             (TLM.tid_pts_to aeh.mlogs tsm.thread_id full (update_if b tsm.processed_entries
-                                                                    (spec_verify_epoch tsm).processed_entries) false);
-    let tsm' = update_if b tsm (spec_verify_epoch tsm) in
-    verify_epoch_inv b tsm;
+                                                                    (M.verify_step_model tsm VerifyEpoch).processed_entries) false);
+    M.tsm_entries_invariant_verify_step tsm VerifyEpoch;
     intro_thread_state_inv t;
     return b
