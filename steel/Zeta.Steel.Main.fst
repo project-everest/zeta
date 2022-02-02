@@ -23,11 +23,6 @@ module SA = Zeta.SeqAux
 
 module Loops = Steel.ST.Loops
 
-assume val create_verifier (tid:tid)
-  : STT V.thread_state_t
-    emp
-    (fun t -> V.thread_state_inv t (M.init_thread_state_model tid))
-
 let init_thread_state
   (#m:TLM.repr)
   (mlogs:TLM.t)
@@ -38,7 +33,7 @@ let init_thread_state
        (fun st -> TLM.tids_pts_to mlogs half (Map.upd m i None) false)
        (requires True)
        (ensures fun st -> st.tid == i)
-  = let st = create_verifier i in
+  = let st = VerifierSteps.create i in
     TLM.take_tid mlogs m i;
     rewrite
       (TLM.tid_pts_to _ _ _ _ _)
@@ -175,3 +170,14 @@ let init () =
   let r = ({ aeh = aeh; all_threads = all_threads }) in
   init_aux aeh all_threads r s;
   return r
+
+let verify_entries (t:top_level_state)
+                   (tid:tid)
+                   (#entries:erased AEH.log)
+                   (#log_perm:perm)
+                   (#log_bytes:erased bytes)
+                   (len: U32.t)
+                   (input:larray U8.t len)
+                   (out_len: U32.t)
+                   (output:larray U8.t out_len)
+  = admit__()

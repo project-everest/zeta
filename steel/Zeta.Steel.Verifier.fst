@@ -149,8 +149,7 @@ let verify_entry_cases (#tsm:M.thread_state_model)
                        (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
                        (le:LogEntry.log_entry)
                        (b:bool)
-  = snoc_entries tsm le;
-    compat_with_any_anchor_of_le tsm.processed_entries le;
+  = compat_with_any_anchor_of_le tsm.processed_entries le;
     TLM.update_tid_log aeh.mlogs tsm.thread_id tsm.processed_entries (M.verify_step_model tsm le).processed_entries;
     intro_nout_bytes tsm (M.verify_step_model tsm le) out_bytes0;
     if b
@@ -195,8 +194,7 @@ let verify_log_entry (#tsm:M.thread_state_model)
                      (out:larray U8.t outlen) //out array, to write outputs
                      (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
                      (le:LogEntry.log_entry)
-   = snoc_entries tsm le;
-     match le with
+   = match le with
      | VerifyEpoch ->
        let b = VerifierSteps.verify_epoch t aeh in
        intro_nout_bytes tsm (M.verify_step_model tsm le) out_bytes;
@@ -426,7 +424,6 @@ let intro_verify_step_post_runapp_success
     elim_pure _;
     assert_ (thread_state_inv t (M.verify_step_model tsm (RunApp pl)));
     assert_ (array_pts_to out out_bytes');
-    snoc_entries tsm (RunApp pl);
     compat_with_any_anchor_of_le tsm.processed_entries (RunApp pl);
     TLM.update_tid_log aeh.mlogs tsm.thread_id tsm.processed_entries (M.verify_step_model tsm (RunApp pl)).processed_entries;
     intro_pure (Application.n_out_bytes tsm (M.verify_step_model tsm (RunApp pl)) n_written  out_bytes out_bytes');
