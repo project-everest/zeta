@@ -1,5 +1,6 @@
 module Zeta.Steel.Util
 open Steel.ST.Util
+open Steel.ST.CancellableSpinLock
 module A = Steel.ST.Array
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
@@ -14,9 +15,6 @@ let array_pts_to #t (a:A.array t) (v:Seq.seq t) = A.pts_to a full_perm v
 
 let sum_halves : squash (sum_perm half half == full) = admit()
 
-assume
-val empty_map (#k:eqtype) (#v:Type) : FStar.Map.t k v
-
 [@@warn_on_use "uses an axiom"]
 assume
 val admit__ (#a:Type)
@@ -25,31 +23,28 @@ val admit__ (#a:Type)
             (_:unit)
   : STF a p q True (fun _ -> False)
 
-assume
-val cancellable_lock (v:vprop) : Type0
+let cancellable_lock (v:vprop) = cancellable_lock v
 
-assume
-val can_release (#v:vprop) (c:cancellable_lock v) : vprop
+let can_release (#v:vprop) (c:cancellable_lock v) = can_release c
 
-assume
-val new_cancellable_lock (v:vprop)
+let new_cancellable_lock (v:vprop)
   : STT (cancellable_lock v) v (fun _ -> emp)
+  = new_cancellable_lock v
 
 let maybe_acquired (b:bool) (#v:vprop) (c:cancellable_lock v)
-  = if b then (v `star` can_release c) else emp
+  = maybe_acquired b c
 
-assume
-val acquire (#v:vprop) (c:cancellable_lock v)
+let acquire (#v:vprop) (c:cancellable_lock v)
   : STT bool emp (fun b -> maybe_acquired b c)
+  = acquire c
 
-assume
-val release (#v:vprop) (c:cancellable_lock v)
+let release (#v:vprop) (c:cancellable_lock v)
   : STT unit (v `star` can_release c) (fun _ -> emp)
+  = release c
 
-assume
-val cancel (#v:vprop) (c:cancellable_lock v)
+let cancel (#v:vprop) (c:cancellable_lock v)
   : STT unit (can_release c) (fun _ -> emp)
-
+  = cancel c
 
 let check_overflow_add32 (x y:U32.t)
   : Pure (option U32.t)
