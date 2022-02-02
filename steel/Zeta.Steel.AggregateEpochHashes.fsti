@@ -176,9 +176,9 @@ let check_all_ones (#e:Ghost.erased _)
   = admit__()
 
 let return_borrows (#v:Type0) (b:EpochMap.borrows v) (i:M.epoch_id) (x:v)
-  : Lemma (requires ~(PartialMap.contains i b))
-          (ensures (PartialMap.remove i (PartialMap.upd i x b) `PartialMap.equal` b))
-          [SMTPat (PartialMap.remove i (PartialMap.upd i x b))]
+  : Lemma (requires ~(PartialMap.contains b i))
+          (ensures (PartialMap.remove (PartialMap.upd b i x) i `PartialMap.equal` b))
+          [SMTPat (PartialMap.remove (PartialMap.upd b i x) i)]
   = ()
 
 let return_map (#v:Type0) (m:EpochMap.repr v) (i:M.epoch_id)
@@ -198,7 +198,7 @@ let check_bitmap_for_epoch (#bm:erased _)
     match res with
     | EpochMap.Found a ->
       rewrite (EpochMap.get_post all_zeroes bm EpochMap.empty_borrows tid_bitmaps e res)
-              (EpochMap.perm tid_bitmaps all_zeroes bm (PartialMap.upd e a EpochMap.empty_borrows) `star`
+              (EpochMap.perm tid_bitmaps all_zeroes bm (PartialMap.upd EpochMap.empty_borrows e a) `star`
                array_pts_to a (Map.sel bm e));
       let b = check_all_ones a in
       EpochMap.ghost_put tid_bitmaps e a _;
@@ -224,7 +224,7 @@ let check_hash_equality_for_epoch (#hashes_v:erased epoch_hashes_repr)
     match res with
     | EpochMap.Found ehs ->
       rewrite (EpochMap.get_post M.init_epoch_hash hashes_v EpochMap.empty_borrows hashes e res)
-              (EpochMap.perm hashes M.init_epoch_hash hashes_v (PartialMap.upd e ehs EpochMap.empty_borrows) `star`
+              (EpochMap.perm hashes M.init_epoch_hash hashes_v (PartialMap.upd EpochMap.empty_borrows e ehs) `star`
                epoch_hash_perm e ehs (Map.sel hashes_v e));
       rewrite (epoch_hash_perm e ehs (Map.sel hashes_v e)) //TODO: mark epoch_hash_perm reduce
               (HA.ha_val ehs.hadd (Map.sel hashes_v e).hadd `star`
