@@ -100,7 +100,7 @@ let get_post
   = fun o ->
     match o with
     | Found x ->
-      perm a init m (PartialMap.upd i x b)  //when `get` succeeds, the key is added to `borrows`
+      perm a init m (PartialMap.upd b i x)  //when `get` succeeds, the key is added to `borrows`
         `star`
       vp i x (Map.sel m i)      //in addition, we return the vp permission for the key
 
@@ -124,7 +124,7 @@ val get (#v:Type)
   : ST (get_result v)
        (perm a init m b)
        (get_post init m b a i)
-       (requires ~ (PartialMap.contains i b))
+       (requires ~ (PartialMap.contains b i))
        (ensures fun res -> Fresh? res ==> Map.sel m i == G.reveal init) //<-- This is the main new property
 
 (* Calls EHT.put and moves the high-water-mark to i *)
@@ -140,7 +140,7 @@ val put (#v:Type)
         (content:Ghost.erased c)
   : STT unit
       (perm a init m b `star` vp i x content)
-      (fun _ -> perm a init (Map.upd m i content) (PartialMap.remove i b))
+      (fun _ -> perm a init (Map.upd m i content) (PartialMap.remove b i))
 
 (* Calls EHT.ghost_put
    High water mark does not need to be updated, since `i` is in the borrows map *)
@@ -157,9 +157,9 @@ val ghost_put (#o:_)
               (content:Ghost.erased c)
   : STGhost unit o
       (perm a init m b `star` vp i x content)
-      (fun _ -> perm a init (Map.upd m i content) (PartialMap.remove i b))
+      (fun _ -> perm a init (Map.upd m i content) (PartialMap.remove b i))
       (requires
-        PartialMap.sel i b == Some x)
+        PartialMap.sel b i == Some x)
       (ensures fun _ ->
         True)
 
@@ -175,4 +175,4 @@ val reclaim (#v:Type)
             (i:M.epoch_id)
   : STT unit
       (perm a init m b)
-      (fun _ -> perm a init m (PartialMap.remove i b))
+      (fun _ -> perm a init m (PartialMap.remove b i))
