@@ -154,3 +154,76 @@ let repeat_until (p: bool -> vprop)
     rewrite (inv false)
             (R.pts_to r full false `star` p false);
     R.free r
+
+(***** Utility for creating an array literal *****)
+
+private
+let array_literal_invariant_pure
+  (#a:Type0)
+  (n:U32.t)
+  (f:(i:U32.t{U32.v i < U32.v n} -> a))
+  (i:Loops.nat_at_most n)
+  (s:Seq.seq a)
+  : prop
+  = forall (j:nat). (j < i /\ j < Seq.length s) ==> Seq.index s j == f (U32.uint_to_t j)
+
+[@@ __reduce__]
+private
+let array_literal_invariant
+  (#a:Type0)
+  (n:U32.t)
+  (arr:A.array a)
+  (f:(i:U32.t{U32.v i < U32.v n} -> a))
+  (i:Loops.nat_at_most n)
+  : Seq.seq a -> vprop
+  = fun s ->
+    A.pts_to arr full_perm s
+      `star`
+    pure (array_literal_invariant_pure n f i s)
+
+inline_for_extraction
+let array_literal_loop_body
+  (#a:Type0)
+  (n:U32.t)
+  (arr:A.array a{A.length arr == U32.v n})
+  (f:(i:U32.t{U32.v i < U32.v n} -> a))
+  : i:Loops.u32_between 0ul n ->
+    STT unit (exists_ (array_literal_invariant n arr f (U32.v i)))
+             (fun _ -> exists_ (array_literal_invariant n arr f (U32.v i + 1)))
+  = fun i ->
+    let s = elim_exists () in
+    A.pts_to_length arr s;
+    elim_pure (array_literal_invariant_pure n f (U32.v i) s);
+    A.write arr i (f i);
+    intro_pure
+      (array_literal_invariant_pure n f (U32.v i + 1) (Seq.upd s (U32.v i) (f i)));
+    intro_exists
+      (Seq.upd s (U32.v i) (f i))
+      (array_literal_invariant n arr f (U32.v i + 1))
+
+let array_literal
+  (#a:Type0)
+  (n:U32.t)
+  (f:(i:U32.t{U32.v i < U32.v n} -> a))
+  : ST
+    (A.array a)
+    emp
+    (fun arr -> A.pts_to arr full_perm (Seq.init (U32.v n) (fun i -> f (U32.uint_to_t i))))
+    (requires U32.v n > 0)
+    (ensures fun arr -> A.length arr == U32.v n)
+  = let arr = A.alloc (f 0ul) n in
+    intro_pure (array_literal_invariant_pure n f 1 (Seq.create (U32.v n) (f 0ul)));
+    intro_exists (Seq.create (U32.v n) (f 0ul)) (array_literal_invariant n arr f 1);
+    Loops.for_loop
+      1ul
+      n
+      (fun i -> exists_ (array_literal_invariant n arr f i))
+      (array_literal_loop_body n arr f);
+    let s = elim_exists () in
+    A.pts_to_length arr s;
+    elim_pure (array_literal_invariant_pure n f (U32.v n) s);
+    assert (Seq.equal s (Seq.init (U32.v n) (fun i -> f (U32.uint_to_t i))));
+    rewrite (A.pts_to arr full_perm s) _;
+    return arr
+
+(***** End ******)
