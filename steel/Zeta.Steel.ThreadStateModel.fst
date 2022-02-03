@@ -962,3 +962,15 @@ let last_verified_epoch_constant (tsm:thread_state_model)
       let tsm0 = verify_model (init_thread_state_model tsm.thread_id) (committed_entries tsm) in
       tsm.last_verified_epoch == tsm0.last_verified_epoch))
   = last_verified_epoch_constant_log tsm.processed_entries tsm.thread_id
+
+#push-options "--fuel 2"
+let verify_model_snoc (tsm:thread_state_model)
+                      (les:log)
+                      (le:log_entry)
+  : Lemma (verify_step_model (verify_model tsm les) le ==
+           verify_model tsm (Seq.snoc les le))
+          [SMTPat (verify_model tsm (Seq.snoc les le))]
+  = assert (Zeta.SeqAux.prefix (Seq.snoc les le) (Seq.length les) `Seq.equal` les)
+#pop-options  
+  
+          

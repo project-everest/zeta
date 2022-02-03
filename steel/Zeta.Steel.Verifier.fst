@@ -674,7 +674,7 @@ let stitch_verify_post_step
     let tsm1 = M.verify_model tsm les in
     let tsm2 = M.verify_step_model tsm1 le in
     let les' = Seq.snoc les le in
-    assume (tsm2 == M.verify_model tsm les');
+    assert (tsm2 == M.verify_model tsm les');
     rewrite (thread_state_inv t _)
             (thread_state_inv t (M.verify_model tsm les'));
     assume (tsm1.thread_id == tsm2.thread_id);
@@ -840,7 +840,7 @@ let rec verify_log_ind
 let intro_verify_post_success
                #o (#tsm:M.thread_state_model)
                (t:thread_state_t) //handle to the thread state
-               (log_bytes:bytes)
+               (log_bytes:bytes { Seq.length log_bytes > 0 })
                (out_bytes:bytes)
                (out:A.array U8.t)
                (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate statew
@@ -851,8 +851,6 @@ let intro_verify_post_success
      (fun _ ->
        verify_post tsm t log_bytes out_bytes out aeh (Verify_success 0ul 0ul))
    = let les = Seq.empty in
-     assume (Seq.length log_bytes > 0);
-     assume (Application.delta_out_bytes tsm tsm == Seq.empty);
      intro_pure (parse_log_up_to log_bytes (U32.v 0ul) == Some les);
      intro_pure (Application.n_out_bytes tsm (M.verify_model tsm les) 0ul 0ul out_bytes out_bytes);
      intro_exists out_bytes (fun out_bytes1 ->
@@ -886,7 +884,7 @@ let verify_log (#tsm:M.thread_state_model)
                (t:thread_state_t) //handle to the thread state
                (#log_perm:perm)
                (#log_bytes:erased bytes)
-               (#len:U32.t)
+               (#len:U32.t { len <> 0ul })
                (log:larray U8.t len) //concrete log
                (#outlen:U32.t)
                (#out_bytes:erased bytes)
@@ -901,5 +899,6 @@ let verify_log (#tsm:M.thread_state_model)
     (fun res -> //postcondition
       A.pts_to log log_perm log_bytes `star` //log contents didn't change
       verify_post tsm t log_bytes out_bytes out aeh res)
-   = intro_verify_post_success t log_bytes out_bytes out aeh;
+   = A.pts_to_length log _;
+     intro_verify_post_success t log_bytes out_bytes out aeh;
      verify_log_ind t log 0ul 0ul out aeh

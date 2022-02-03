@@ -84,7 +84,7 @@ val verify_log (#tsm:M.thread_state_model)
                (t:thread_state_t) //handle to the thread state
                (#log_perm:perm)
                (#log_bytes:erased bytes)
-               (#len:U32.t)
+               (#len:U32.t { len <> 0ul })
                (log:larray U8.t len) //concrete log
                (#outlen:U32.t)
                (#out_bytes:erased bytes)
