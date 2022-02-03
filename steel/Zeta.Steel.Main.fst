@@ -51,7 +51,7 @@ let init_thread_state
                           `star`
                         TLM.tid_pts_to mlogs tsm.M.thread_id half tsm.M.processed_entries false))    
       (thread_inv st mlogs);
-    let lock = Lock.new_lock (thread_inv st mlogs) in
+    let lock = new_cancellable_lock (thread_inv st mlogs) in
     return ({tid = i; tsm = st; lock = lock})
 
 let tid_positions_ok_until #l (all_threads:Seq.seq (thread_state l)) (i:nat)
@@ -181,28 +181,153 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
   let s = elim_exists () in
   A.pts_to_length t.all_threads s;
   let st_tid = A.read t.all_threads (FStar.Int.Cast.uint16_to_uint32 tid) in
-  Lock.acquire st_tid.lock;
-  rewrite (thread_inv st_tid.tsm t.aeh.mlogs)
-          (exists_ (thread_inv_predicate st_tid.tsm t.aeh.mlogs));
-  let tsm = elim_exists () in
-  rewrite (thread_inv_predicate st_tid.tsm t.aeh.mlogs tsm)
-          (V.thread_state_inv st_tid.tsm tsm
-             `star`
-           TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
 
-  assume (Ghost.reveal entries == tsm.M.processed_entries);
-  assume (tsm.M.thread_id == tid);
+  let b = acquire st_tid.lock in
 
-  rewrite
-    (TLM.tid_pts_to t.aeh.mlogs tid half entries false)
-    (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
+  match b returns STT _
+                      (A.pts_to input log_perm log_bytes
+                         `star`
+                       A.pts_to output full_perm out_bytes
+                         `star`
+                       TLM.tid_pts_to _ _ _ _ _
+                         `star`
+                       A.pts_to t.all_threads perm s
+                         `star`
+                       pure (tid_positions_ok s)
+                         `star`
+                       maybe_acquired b st_tid.lock)
+                      (verify_post
+                         t
+                         tid
+                         entries
+                         log_perm
+                         log_bytes
+                         len
+                         input
+                         out_len
+                         out_bytes
+                         output) with
+  | false ->
+    let r = None in
+    rewrite (maybe_acquired false st_tid.lock)
+            emp;
+    intro_exists (Ghost.reveal s)
+                 (fun s -> A.pts_to t.all_threads perm s
+                          `star`
+                        pure (tid_positions_ok s));
+    intro_exists (Ghost.reveal perm)
+                 (fun perm -> exists_ (fun s -> A.pts_to t.all_threads perm s
+                                            `star`
+                                          pure (tid_positions_ok s)));
+    rewrite
+      (exists_ (fun perm -> exists_ (fun s -> A.pts_to t.all_threads perm s
+                                          `star`
+                                        pure (tid_positions_ok s))))
+      (core_inv t);
+    intro_exists (Ghost.reveal out_bytes) (A.pts_to output full_perm);
+    intro_exists (Ghost.reveal entries) (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false);
+    rewrite_with_tactic
+      (exists_ (A.pts_to output full_perm)
+         `star`
+       (A.pts_to input log_perm log_bytes
+          `star`
+        (core_inv t
+           `star`
+         exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false))))
+      (core_inv t
+         `star`
+       A.pts_to input log_perm log_bytes
+         `star`
+       (exists_ (A.pts_to output full_perm)
+          `star`
+        exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)));
+    rewrite
+      (core_inv t
+         `star`
+       A.pts_to input log_perm log_bytes
+         `star`
+       (exists_ (A.pts_to output full_perm)
+          `star`
+        exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)))
+      (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output r);
+    return r
+  | _ ->
+    rewrite (maybe_acquired _ _)
+            (thread_inv st_tid.tsm t.aeh.mlogs
+               `star`
+             can_release st_tid.lock);
+    rewrite (thread_inv st_tid.tsm t.aeh.mlogs)
+            (exists_ (thread_inv_predicate st_tid.tsm t.aeh.mlogs));
+    let tsm = elim_exists () in
+    rewrite (thread_inv_predicate st_tid.tsm t.aeh.mlogs tsm)
+            (V.thread_state_inv st_tid.tsm tsm
+               `star`
+             TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
 
-  TLM.gather_tid_pts_to t.aeh.mlogs;
+    assume (Ghost.reveal entries == tsm.M.processed_entries);
+    assume (tsm.M.thread_id == tid);
+
+    rewrite
+      (TLM.tid_pts_to t.aeh.mlogs tid half entries false)
+      (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
+
+    TLM.gather_tid_pts_to t.aeh.mlogs;
   
-  rewrite
-    (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id (sum_perm half half) tsm.M.processed_entries false)
-    (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id full tsm.M.processed_entries false);
+    rewrite
+      (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id (sum_perm half half) tsm.M.processed_entries false)
+      (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id full tsm.M.processed_entries false);
 
-  let vr = V.verify_log st_tid.tsm input output t.aeh in
+    let vr = V.verify_log st_tid.tsm input output t.aeh in
+    match vr returns STT _
+                         (can_release _
+                            `star`
+                          (pure (tid_positions_ok _)
+                             `star`
+                           (A.pts_to t.all_threads _ _
+                              `star`
+                            (V.verify_post _ _ _ _ _ _ _
+                               `star`
+                             A.pts_to input _ _))))
+                         (verify_post
+                            t
+                            tid
+                            entries
+                            log_perm
+                            log_bytes
+                            len
+                            input
+                            out_len
+                            out_bytes
+                            output) with
+    | V.Verify_success read wrote -> admit___ ()
 
-  admit___ ()
+    | _ ->
+      admit___ ()
+
+#set-options "--print_implicits"
+
+  // Lock.acquire st_tid.lock;
+  // rewrite (thread_inv st_tid.tsm t.aeh.mlogs)
+  //         (exists_ (thread_inv_predicate st_tid.tsm t.aeh.mlogs));
+  // let tsm = elim_exists () in
+  // rewrite (thread_inv_predicate st_tid.tsm t.aeh.mlogs tsm)
+  //         (V.thread_state_inv st_tid.tsm tsm
+  //            `star`
+  //          TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
+
+  // assume (Ghost.reveal entries == tsm.M.processed_entries);
+  // assume (tsm.M.thread_id == tid);
+
+  // rewrite
+  //   (TLM.tid_pts_to t.aeh.mlogs tid half entries false)
+  //   (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
+
+  // TLM.gather_tid_pts_to t.aeh.mlogs;
+  
+  // rewrite
+  //   (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id (sum_perm half half) tsm.M.processed_entries false)
+  //   (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id full tsm.M.processed_entries false);
+
+  // let vr = V.verify_log st_tid.tsm input output t.aeh in
+
+  // admit___ ()
