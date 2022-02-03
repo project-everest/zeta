@@ -746,23 +746,28 @@ let rec verify_log_ind
      | Parsing_failure loc ->
        elim_verify_step_post_parsing_failure loc;
        intro_some_failure t out aeh;
-       intro_pure (~ (LogEntry.can_parse_log_entry log_bytes loc));
+       intro_pure (Parsing_failure? res ==>
+                   ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res)));
        let res' = Parsing_failure loc in
-       rewrite (pure _ `star` some_failure t out aeh)
+       rewrite (some_failure t out aeh `star` pure _)
                (verify_post tsm t log_bytes out_bytes out aeh res');
        return res'
 
      | App_failure loc ->
        elim_verify_step_post_app_failure loc;
        let res' = App_failure loc in
-       rewrite (some_failure t out aeh)
+       intro_pure (Parsing_failure? res ==>
+                   ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res)));
+       rewrite (some_failure t out aeh `star` pure _)
                (verify_post tsm t log_bytes out_bytes out aeh res');
        return res'
 
      | Verify_entry_failure loc ->
        elim_verify_step_post_log_entry_failure loc;
        let res' = res in
-       rewrite (some_failure t out aeh)
+       intro_pure (Parsing_failure? res ==>
+                   ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res)));
+       rewrite (some_failure t out aeh `star` pure _)
                (verify_post tsm t log_bytes out_bytes out aeh res');
        return res'
 
