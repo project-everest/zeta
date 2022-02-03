@@ -50,9 +50,8 @@ type verify_runapp_result =
 let verify_runapp_entry_post (tsm:M.thread_state_model)
                              (t:V.thread_state_t)
                              (pl: runApp_payload)
-                             (#out_len:U32.t)
                              (out_bytes:bytes)
-                             (out:larray U8.t out_len) //out array, to write outputs
+                             (out:A.array U8.t)
                              ([@@@smt_fallback] res:verify_runapp_result)
   : vprop
   = match res with
@@ -96,7 +95,7 @@ val run_app_function
       (out_len:U32.t)
       (out_offset:U32.t)
       (out:larray U8.t out_len {
-        U32.v out_offset < Seq.length out_bytes
+        U32.v out_offset <= Seq.length out_bytes
        })
       (* The state of the verifier, with pointers to the store etc. *)
       (#tsm:M.thread_state_model)

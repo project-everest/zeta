@@ -105,7 +105,7 @@ let bytes_from (b:bytes)
 
 let parse_result (log_bytes:bytes)
                  (log_pos:U32.t{
-                   U32.v log_pos < Seq.length log_bytes
+                   U32.v log_pos <= Seq.length log_bytes
                  })
                  (p:spec_parser 'a {
                    Some? (p (bytes_from log_bytes log_pos))

@@ -171,13 +171,14 @@ let init () =
   init_aux aeh all_threads r s;
   return r
 
-let verify_entries (t:top_level_state)
-                   (tid:tid)
-                   (#entries:erased AEH.log)
-                   (#log_perm:perm)
-                   (#log_bytes:erased bytes)
-                   (len: U32.t)
-                   (input:larray U8.t len)
-                   (out_len: U32.t)
-                   (output:larray U8.t out_len)
+let verify_log (t:top_level_state)
+               (tid:tid)
+               (#entries:erased AEH.log)
+               (#log_perm:perm)
+               (#log_bytes:erased bytes)
+               (len: U32.t)
+               (input:larray U8.t len)
+               (out_len: U32.t)
+               (#out_bytes: erased bytes)
+               (output:larray U8.t out_len)
   = admit__()

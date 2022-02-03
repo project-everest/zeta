@@ -19,65 +19,73 @@ module P = Zeta.Steel.Parser
 module TLM = Zeta.Steel.ThreadLogMap
 
 #push-options "--ide_id_info_off"
+val parse_log_up_to (l:bytes) (pos:nat) : GTot (option M.log)
 
-// val create (tid:tid)
-//   : STT thread_state_t
-//     emp
-//     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
+type verify_result =
+  | Parsing_failure: log_pos:U32.t -> verify_result
+  | App_failure: log_pos:U32.t -> verify_result
+  | Verify_entry_failure: log_pos:U32.t -> verify_result
+  | Verify_success: read:U32.t -> wrote:U32.t -> verify_result
 
-val spec_parser_log : P.spec_parser (Seq.seq log_entry)
+let verify_result_complete (len:U32.t) res =
+    match res with
+    | Verify_success read _ ->
+      read == len
+    | _ -> True
 
+let some_failure (t:thread_state_t) //handle to the thread state
+                 (out:A.array U8.t)
+                 (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+  : vprop
+  = exists_ (thread_state_inv t) `star`
+    exists_ (fun entries -> TLM.tid_pts_to aeh.mlogs (VerifierTypes.thread_id t) full entries false) `star`
+    exists_ (array_pts_to out)
 
-let parse_log (l:bytes) =
-  match spec_parser_log l with
-  | None -> None
-  | Some (v, n) ->
-    if n = Seq.length l
-    then Some v
-    else None
+let verify_post (tsm:M.thread_state_model)
+                (t:thread_state_t) //handle to the thread state
+                (log_bytes:bytes)
+                (out_bytes:bytes)
+                (out:A.array U8.t)
+                (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+                ([@@@smt_fallback] res:verify_result)
+ : vprop
+ = match res with
+   | Parsing_failure log_pos ->
+      pure (~ (LogEntry.can_parse_log_entry log_bytes log_pos) ) `star`
+      some_failure t out aeh
 
-// /// Entry point to run a single verifier thread on a log
-// val verify (#tsm:M.thread_state_model)
-//            (t:thread_state_t) //handle to the thread state
-//            (#log_perm:perm)
-//            (#log_bytes:erased bytes)
-//            (#len:U32.t)
-//            (log:larray U8.t len) //concrete log
-//            (#outlen:U32.t)
-//            (out:larray U8.t outlen) //out array, to write outputs
-//            (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-//   : STT (option U32.t)
-//     (//precondition
-//       thread_state_inv t tsm `star` //thread state is initially tsm
-//       A.pts_to log log_perm log_bytes `star` //the log contains log_bytes
-//       exists_ (array_pts_to out) `star` //we have permission to out, don't care what it contains
-//       TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm.processed_entries false //and the global state contains this thread's entries
-//     )
-//     (fun res -> //postcondition
-//       A.pts_to log log_perm log_bytes `star` //log contents didn't change
-//       (match res with
-//        | None ->
-//          //if it fails, you still get back ownership on the various
-//          //resources, e.g., to free them
-//          //but not much else
-//          exists_ (thread_state_inv t) `star`
-//          exists_ (array_pts_to out)
-//       | Some n_out ->
-//          //it succeeded
-//          exists_ (fun (tsm':M.thread_state_model) ->
-//          exists_ (fun (out_bytes:Seq.seq U8.t) ->
-//            thread_state_inv t tsm' `star` //tsm' is the new state of the thread
-//            array_pts_to out out_bytes `star`  //the out array contains out_bytes
-//            TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm'.processed_entries false `star` //my contributions are updated
-//            pure (
-//              match parse_log log_bytes with
-//              | None -> False //log parsing did not fail
-//              | Some log_entries -> //parsing produces log_entries
-//                //tsm' what you get by running the spec verifier from tsm on log_entries
-//                tsm' == M.verify_model tsm log_entries /\
-//                //the out_bytes contain any new app results in tsm'
-//                out_bytes == M.bytes_of_app_results (M.delta_app_results tsm tsm') /\
-//                //and n_out is the number of bytes that were written
-//                U32.v n_out == Seq.length out_bytes
-//            )
-//            ))))
+   | App_failure _ ->
+      some_failure t out aeh
+
+   | Verify_entry_failure _ ->
+      some_failure t out aeh
+
+   | Verify_success read wrote ->
+     exists_ (fun log ->
+       let tsm' = M.verify_model tsm log in
+       pure (parse_log_up_to log_bytes (U32.v read) == Some log) `star`
+       thread_state_inv t tsm' `star` //tsm' is the new state of the thread
+       TLM.tid_pts_to aeh.mlogs tsm'.thread_id full tsm'.processed_entries false `star` //my contributions are updated
+       exists_ (fun (out_bytes1:Seq.seq U8.t) ->
+           array_pts_to out out_bytes1 `star`  //the out array contains out_bytes
+           pure (Application.n_out_bytes tsm tsm' wrote out_bytes out_bytes1)))
+
+val verify_log (#tsm:M.thread_state_model)
+               (t:thread_state_t) //handle to the thread state
+               (#log_perm:perm)
+               (#log_bytes:erased bytes)
+               (#len:U32.t)
+               (log:larray U8.t len) //concrete log
+               (#outlen:U32.t)
+               (#out_bytes:erased bytes)
+               (out:larray U8.t outlen) //out array, to write outputs
+               (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate statew
+  : STT (v:verify_result { verify_result_complete len v })
+    (//precondition
+      A.pts_to log log_perm log_bytes `star` //the log contains log_bytes
+      thread_state_inv t tsm `star`
+      array_pts_to out out_bytes `star`
+      TLM.tid_pts_to aeh.mlogs tsm.thread_id full tsm.processed_entries false)
+    (fun res -> //postcondition
+      A.pts_to log log_perm log_bytes `star` //log contents didn't change
+      verify_post tsm t log_bytes out_bytes out aeh res)

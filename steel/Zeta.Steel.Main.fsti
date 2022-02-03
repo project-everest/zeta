@@ -85,39 +85,41 @@ val init (_:unit)
         (fun t -> core_inv t `star`
                TLM.tids_pts_to t.aeh.mlogs half (Map.const (Some Seq.empty)) false)
 
-val verify_entries (t:top_level_state)
-                   (tid:tid)
-                   (#entries:erased AEH.log)
-                   (#log_perm:perm)
-                   (#log_bytes:erased bytes)
-                   (len: U32.t)
-                   (input:larray U8.t len)
-                   (out_len: U32.t)
-                   (output:larray U8.t out_len)
-  : STT (option U32.t) //bool & U32.t & erased (Seq.seq log_entry_base))
+val verify_log (t:top_level_state)
+               (tid:tid)
+               (#entries:erased AEH.log)
+               (#log_perm:perm)
+               (#log_bytes:erased bytes)
+               (len: U32.t)
+               (input:larray U8.t len)
+               (out_len: U32.t)
+               (#out_bytes:erased bytes)
+               (output:larray U8.t out_len)
+  : STT (v:V.verify_result { V.verify_result_complete len v })
     (core_inv t `star`
      A.pts_to input log_perm log_bytes `star`
-     exists_ (A.pts_to output full_perm) `star`
+     A.pts_to output full_perm out_bytes `star`
      TLM.tid_pts_to t.aeh.mlogs tid half entries false)
     (fun res ->
       core_inv t `star`
       A.pts_to input log_perm log_bytes `star`
-      (match res, V.parse_log log_bytes with
-       | None, _ ->
-         exists_ (A.pts_to output full_perm)
+      (match res with
+       | V.Verify_success read wrote ->
+         exists_ (fun entries' ->
+         exists_ (fun out_bytes' ->
+           TLM.tid_pts_to t.aeh.mlogs tid half
+                          (entries `Seq.append` entries')
+                          false `star`
+           A.pts_to output full_perm out_bytes' `star`
+           pure (V.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
+                (let tsm = M.verify_model (M.init_thread_state_model tid) entries in
+                 let tsm' = M.verify_model tsm entries' in
+                 Application.n_out_bytes tsm tsm' wrote out_bytes out_bytes'))))
 
-       | Some _, None ->
-         pure False
-
-       | Some n_out, Some entries' ->
-         exists_ (fun out_bytes ->
-           A.pts_to output full_perm out_bytes `star`
-           TLM.tid_pts_to t.aeh.mlogs tid half (entries `Seq.append` entries') false `star`
-           pure (
-             let tsm0 = M.verify_model (M.init_thread_state_model tid) entries in
-             let tsm1 = M.verify_model tsm0 entries' in
-             out_bytes == M.bytes_of_app_results (M.delta_app_results tsm0 tsm1) /\
-             U32.v n_out == Seq.length out_bytes))))
+       | _ ->
+         exists_ (A.pts_to output full_perm) `star`
+         exists_ (fun entries' ->
+                    TLM.tid_pts_to t.aeh.mlogs tid half entries' false)))
 
 let max_certified_epoch (t:top_level_state)
   : STT (option M.epoch_id)

@@ -5,14 +5,20 @@ module U32 = FStar.UInt32
 val spec_parser_log_entry : spec_parser log_entry
 
 let can_parse_log_entry (log_bytes:bytes)
-                        (log_pos:U32.t{  U32.v log_pos < Seq.length log_bytes })
-  : prop
-  = Some? (spec_parser_log_entry (Zeta.Steel.Parser.bytes_from log_bytes log_pos)) == true
+                        (log_pos:U32.t)
+  = U32.v log_pos <= Seq.length log_bytes &&
+    Some? (spec_parser_log_entry (Zeta.Steel.Parser.bytes_from log_bytes log_pos))
 
 let spec_parse_log_entry (log_bytes:bytes)
                          (log_pos:U32.t{
-                            U32.v log_pos < Seq.length log_bytes /\
                             can_parse_log_entry log_bytes log_pos
                           })
   : GTot (log_entry & nat)
   = parse_result log_bytes log_pos spec_parser_log_entry
+
+let maybe_parse_log_entry (log_bytes:bytes)
+                          (log_pos:U32.t)
+  : GTot (option (log_entry & nat))
+  = if can_parse_log_entry log_bytes log_pos
+    then Some (spec_parse_log_entry log_bytes log_pos)
+    else None
