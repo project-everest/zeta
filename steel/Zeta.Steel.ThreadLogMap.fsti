@@ -129,11 +129,13 @@ val gather_tids_pts_to (#o:_)
 val gather_tid_pts_to (#o:_)
                       (#tid:tid)
                       (#f0 #f1:perm)
-                      (#l:log)
+                      (#l0 #l1:log)
                       (x:t)
-  : STGhostT unit o
-    (tid_pts_to x tid f0 l false `star` tid_pts_to x tid f1 l false)
-    (fun _ -> tid_pts_to x tid (sum_perm f0 f1) l false)
+  : STGhost unit o
+    (tid_pts_to x tid f0 l0 false `star` tid_pts_to x tid f1 l1 false)
+    (fun _ -> tid_pts_to x tid (sum_perm f0 f1) l0 false)
+    (requires True)
+    (ensures fun _ -> l0 == l1)
 
 /// [share_tid_pts_to]
 ///   This is called when returning from Zeta.Main.verify_entries to

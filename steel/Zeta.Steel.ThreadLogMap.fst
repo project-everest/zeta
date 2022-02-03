@@ -496,11 +496,17 @@ let gather_tids_pts_to (#o:_) (#f0 #f1:perm) (x:t) (m:repr)
 ////////////////////////////////////////////////////////////////////////////////
 //gather_tid
 ////////////////////////////////////////////////////////////////////////////////
-let gather_tid_pts_to (#o:_) (#tid:tid) (#f0 #f1:perm) (#l:log) (x:t)
-  : STGhostT unit o
-    (tid_pts_to x tid f0 l false `star` tid_pts_to x tid f1 l false)
-    (fun _ -> tid_pts_to x tid (sum_perm f0 f1) l false)
-  = gather_tids_pts_to x (singleton tid l)
+let gather_tid_pts_to (#o:_) (#tid:tid) (#f0 #f1:perm) (#l0 #l1:log) (x:t)
+  : STGhost unit o
+    (tid_pts_to x tid f0 l0 false `star` tid_pts_to x tid f1 l1 false)
+    (fun _ -> tid_pts_to x tid (sum_perm f0 f1) l0 false)
+    (requires True)
+    (ensures fun _ -> l0 == l1)
+  = let m0 = elim_tids_pts_to x f0 (singleton tid l0) false in
+    let m1 = elim_tids_pts_to x f1 (singleton tid l1) false in
+    gpts_to_composable x m0 m1;
+    G.gather x m0 m1;
+    intro_tids_pts_to x (sum_perm f0 f1) (singleton tid l0) false _
 
 ////////////////////////////////////////////////////////////////////////////////
 //share_tid
