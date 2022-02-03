@@ -1251,10 +1251,10 @@ let advance_per_thread_bitmap_and_max  (bitmaps:EpochMap.repr AEH.tid_bitmap)
     let tsm' = spec_verify_epoch tsm in
     let bitmaps' = update_bitmap_spec bitmaps e tsm.thread_id in
     let logs' = update_logs_of_tid mlogs_v tsm' in
-    spec_verify_epoch_entries_invariants tsm;
-    assert (U32.v max <= U32.v tsm0.last_verified_epoch);
-    assert (U32.v e == U32.v tsm.last_verified_epoch + 1);
-    assert (U32.v max <= U32.v tsm'.last_verified_epoch)
+    spec_verify_epoch_entries_invariants tsm
+    // assert (U32.v max <= U32.v tsm0.last_verified_epoch);
+    // assert (U32.v e == U32.v tsm.last_verified_epoch + 1);
+    // assert (U32.v max <= U32.v tsm'.last_verified_epoch)
 
 let restore_all_threads_bitmap_and_max  (bitmaps:AEH.epoch_bitmaps_repr)
                                         (max:_)
@@ -1281,7 +1281,7 @@ let restore_all_threads_bitmap_and_max  (bitmaps:AEH.epoch_bitmaps_repr)
 let lemma_restore_hashes_bitmaps_max_ok
                                   (hashes:AEH.epoch_hashes_repr)
                                   (bitmaps:AEH.epoch_bitmaps_repr)
-                                  (max:M.epoch_id)
+                                  (max:option M.epoch_id)
                                   (mlogs_v:AEH.all_processed_entries)
                                   (tsm:M.thread_state_model)
                                   (e:M.epoch_id)
@@ -1333,13 +1333,13 @@ let lemma_restore_hashes_bitmaps_max_ok
                 AEH.aggregate_all_threads_epoch_hashes e' mlogs_v')
       )
     );
-    assert (U32.v max <= U32.v tsm0.last_verified_epoch);
+    //assert (U32.v max <= U32.v tsm0.last_verified_epoch);
     M.last_verified_epoch_constant tsm
 
 let restore_hashes_bitmaps_max_ok (#o:_)
                                   (#hashes:AEH.epoch_hashes_repr)
                                   (#bitmaps:AEH.epoch_bitmaps_repr)
-                                  (#max:M.epoch_id)
+                                  (#max:option M.epoch_id)
                                   (#mlogs_v:AEH.all_processed_entries)
                                   (tsm:M.thread_state_model)
                                   (e:M.epoch_id)
@@ -1369,7 +1369,7 @@ let verify_epoch_core
                  (t:thread_state_t)
                  (hashes : AEH.all_epoch_hashes)
                  (tid_bitmaps : AEH.epoch_tid_bitmaps)
-                 (max_certified_epoch : R.ref M.epoch_id)
+                 (max_certified_epoch : R.ref (option M.epoch_id))
                  (mlogs: TLM.t)
                  (lock: cancellable_lock (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
   : ST bool

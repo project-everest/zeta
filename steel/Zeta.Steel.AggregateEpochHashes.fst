@@ -40,7 +40,7 @@ let create () =
   let tid_bitmaps = EpochMap.create #(larray bool n_threads) #tid_bitmap #(fun i -> array_pts_to)
     tid_bitmaps_size
     (Ghost.hide all_zeroes) in
-  let max_certified_epoch = R.alloc 0ul in
+  let max_certified_epoch = R.alloc #(option M.epoch_id) None in
   let mlogs = TLM.alloc () in
 
   assert (Map.equal (map_of_seq empty_all_processed_entries)
@@ -53,25 +53,23 @@ let create () =
   assert (all_contributions_are_accurate (Map.const M.init_epoch_hash)
                                          empty_all_processed_entries);
 
-  //What should we initialize the max certified epoch id ref with?
-  assume (max_certified_epoch_is (Map.const M.init_epoch_hash)
-                                 (Map.const all_zeroes)
-                                 0ul);
-
+  assume (forall tid. per_thread_bitmap_and_max (Map.const all_zeroes)
+                                           None
+                                           empty_all_processed_entries
+                                           tid);
   intro_pure (hashes_bitmaps_max_ok (Map.const M.init_epoch_hash)
                                     (Map.const all_zeroes)
-                                    0ul
+                                    None
                                     empty_all_processed_entries);
-
   intro_exists (Ghost.reveal empty_all_processed_entries)
                (fun mlogs_v ->
                 lock_inv_body _ _ _ _
                   (Map.const M.init_epoch_hash)
                   (Map.const all_zeroes)
-                  0ul
+                  None
                   mlogs_v);
 
-  intro_exists 0ul
+  intro_exists None
                (fun max -> exists_ (fun mlogs_v ->
                 lock_inv_body _ _ _ _
                   (Map.const M.init_epoch_hash)
@@ -174,6 +172,7 @@ let epoch_ready_if_bitmap_set (hashes:epoch_hashes_repr)
                               (e:M.epoch_id)
   : Lemma
     (requires
+      Some? max /\
       hashes_bitmaps_max_ok hashes bitmaps max mlogs_v /\
       Map.sel bitmaps e == all_ones)
     (ensures
@@ -186,8 +185,8 @@ let _max_is_correct (hashes:_)
                     (max:_)
                     (mlogs_v:_)
   : Lemma
-    (requires hashes_bitmaps_max_ok hashes bitmaps max mlogs_v)
-    (ensures  max_is_correct mlogs_v max)
+    (requires Some? max /\ hashes_bitmaps_max_ok hashes bitmaps max mlogs_v)
+    (ensures  max_is_correct mlogs_v (Some?.v max))
   = ()
 
 let try_increment_max (#hashes_v:erased _)
@@ -195,7 +194,7 @@ let try_increment_max (#hashes_v:erased _)
                       (#mlogs_v:erased _)
                       (hashes: all_epoch_hashes)
                       (bitmaps: epoch_tid_bitmaps)
-                      (max:R.ref M.epoch_id)
+                      (max:R.ref (option M.epoch_id))
   : STT bool
     (EpochMap.full_perm hashes M.init_epoch_hash hashes_v `star`
      EpochMap.full_perm bitmaps all_zeroes bitmaps_v `star`
@@ -205,12 +204,15 @@ let try_increment_max (#hashes_v:erased _)
     (fun b ->
       EpochMap.full_perm hashes M.init_epoch_hash hashes_v `star`
       EpochMap.full_perm bitmaps all_zeroes bitmaps_v `star`
-      exists_ (fun (max_v':M.epoch_id) ->
+      exists_ (fun (max_v':option M.epoch_id) ->
         R.pts_to max full max_v' `star`
         pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v' mlogs_v)))
   = let max_v = elim_exists () in
     let e = R.read max in
-    let v = check_overflow_add32 e 1ul in
+    let v =  //v is the epoch we will try to certify
+      match e with
+      | None -> Some 0ul  //if previous value of max epoch id is None, try for 0th
+      | Some e -> check_overflow_add32 e 1ul in
     match v with
     | None ->
       intro_exists_erased max_v (fun max_v' ->
@@ -237,10 +239,10 @@ let try_increment_max (#hashes_v:erased _)
           return false
         )
         else (
-          R.write max e';
+          R.write max (Some e');
           elim_pure _;
-          intro_pure (hashes_bitmaps_max_ok hashes_v bitmaps_v e' mlogs_v);
-          intro_exists e' (fun max_v' ->
+          intro_pure (hashes_bitmaps_max_ok hashes_v bitmaps_v (Some e') mlogs_v);
+          intro_exists (Some e') (fun max_v' ->
             R.pts_to max full max_v' `star`
             pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v' mlogs_v));
            return true
@@ -253,8 +255,8 @@ let try_advance_max (#hashes_v:erased epoch_hashes_repr)
                     (#mlogs_v:erased _)
                     (hashes: all_epoch_hashes)
                     (bitmaps: epoch_tid_bitmaps)
-                    (max:R.ref M.epoch_id)
-  : STT M.epoch_id
+                    (max:R.ref (option M.epoch_id))
+  : STT (option M.epoch_id)
     (EpochMap.full_perm hashes M.init_epoch_hash hashes_v `star`
      EpochMap.full_perm bitmaps all_zeroes bitmaps_v `star`
      R.pts_to max full max_v `star`
@@ -280,7 +282,7 @@ let release_lock (#hv:erased epoch_hashes_repr)
                  (#mlogs_v:erased _)
                  (#hashes : all_epoch_hashes)
                  (#tid_bitmaps : epoch_tid_bitmaps)
-                 (#max_certified_epoch : R.ref M.epoch_id)
+                 (#max_certified_epoch : R.ref (option M.epoch_id))
                  (#mlogs: TLM.t)
                  (lock: cancellable_lock
                         (lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
@@ -314,11 +316,14 @@ let release_lock (#hv:erased epoch_hashes_repr)
 
 let advance_and_read_max_certified_epoch aeh
   = let b = acquire aeh.lock in
-    if not b
+    let b = not b in
+    if b returns STT _ _ (read_max_post aeh)
     then (
+      let r = Read_max_error in
       rewrite (maybe_acquired _ _)
               emp;
-      return None
+      rewrite emp (read_max_post aeh r);
+      return r
     )
     else (
       rewrite (maybe_acquired _ aeh.lock)
@@ -344,14 +349,59 @@ let advance_and_read_max_certified_epoch aeh
       in
 
       let max = try_advance_max aeh.hashes aeh.tid_bitmaps aeh.max_certified_epoch in
-      extract_pure _;
+      match max returns STT _
+                            (EpochMap.full_perm aeh.hashes M.init_epoch_hash _hv
+                               `star`
+                             EpochMap.full_perm aeh.tid_bitmaps all_zeroes _bitmaps
+                               `star`
+                             R.pts_to aeh.max_certified_epoch full max
+                               `star`
+                             pure (hashes_bitmaps_max_ok _hv _bitmaps max _mlogs_v)
+                                `star`
+                             TLM.global_anchor aeh.mlogs (map_of_seq _mlogs_v)
+                                `star`
+                             can_release _)
+                            (read_max_post aeh) with
 
-      intro_pure (max_is_correct _mlogs_v max);
-      TLM.take_snapshot aeh.mlogs (map_of_seq _mlogs_v);
-      intro_exists_erased _mlogs_v
-        (fun logs ->
-           TLM.global_snapshot aeh.mlogs (map_of_seq logs) `star`
-           pure (max_is_correct logs max));
-      release_lock #_ #_ #(hide max) aeh.lock;
-      return (Some max)
+      | None ->
+        let r = Read_max_none in
+        rewrite (R.pts_to _ _ _) (R.pts_to aeh.max_certified_epoch full max);
+        rewrite (pure _)
+                (pure (hashes_bitmaps_max_ok _hv _bitmaps max _mlogs_v));
+        release_lock
+          #_hv
+          #_bitmaps
+          #max
+          #_mlogs_v
+          #aeh.hashes
+          #aeh.tid_bitmaps
+          #aeh.max_certified_epoch
+          #aeh.mlogs
+          aeh.lock;
+        rewrite emp (read_max_post aeh r);
+        return r
+      | Some max_v ->
+        rewrite (R.pts_to _ _ _) (R.pts_to aeh.max_certified_epoch full max);
+        rewrite (pure _)
+                (pure (hashes_bitmaps_max_ok _hv _bitmaps max _mlogs_v));
+        extract_pure _;
+
+        intro_pure (max_is_correct _mlogs_v max_v);
+        TLM.take_snapshot aeh.mlogs (map_of_seq _mlogs_v);
+        release_lock
+          #_hv
+          #_bitmaps
+          #max
+          #_mlogs_v
+          #aeh.hashes
+          #aeh.tid_bitmaps
+          #aeh.max_certified_epoch
+          #aeh.mlogs
+          aeh.lock;
+        intro_exists (Ghost.reveal _mlogs_v) (read_max_post_pred aeh max_v);
+        let r = Read_max_some max_v in
+        rewrite 
+          (exists_ (read_max_post_pred aeh max_v))
+          (read_max_post aeh r);
+        return r
     )

@@ -96,45 +96,44 @@ let all_zeroes = Seq.create (U32.v n_threads) false
 
 let max_certified_epoch_is (global:epoch_hashes_repr)
                            (bitmaps:epoch_bitmaps_repr)
-                           (max:M.epoch_id)
+                           (max:option M.epoch_id)
   : prop
-  = forall (e:M.epoch_id).
-       U32.v e <= U32.v max ==>
-       (Map.sel bitmaps e) == all_ones /\
-       (Map.sel global e).hadd == (Map.sel global e).hevict
-
+  = Some? max ==>
+    (forall (e:M.epoch_id).
+        U32.v e <= U32.v (Some?.v max) ==>
+        (Map.sel bitmaps e) == all_ones /\
+        (Map.sel global e).hadd == (Map.sel global e).hevict)
 
 let epoch_is_complete (mlogs_v:all_processed_entries) (e:M.epoch_id)
   = forall tid. is_epoch_verified (tsm_of_log mlogs_v tid) e
 
 let per_thread_bitmap_and_max (bitmaps:epoch_bitmaps_repr)
-                              (max:M.epoch_id)
+                              (max:option M.epoch_id)
                               (all_logs:all_processed_entries)
                               (tid:tid)
   : prop
   = let tsm = M.verify_model (M.init_thread_state_model tid) (log_of_tid all_logs tid) in
-    U32.v max <= U32.v tsm.last_verified_epoch /\ //max can't exceed the verified epoch ctr for tid
+    (Some? max ==> U32.v (Some?.v max) <= U32.v tsm.last_verified_epoch) /\
     (forall (eid:M.epoch_id).
-      Seq.index (Map.sel bitmaps eid) (U16.v tid) == is_epoch_verified tsm eid)
+       Seq.index (Map.sel bitmaps eid) (U16.v tid) == is_epoch_verified tsm eid)
 
 let hashes_bitmaps_max_ok (hashes:epoch_hashes_repr)
                           (bitmaps:epoch_bitmaps_repr)
-                          (max:M.epoch_id)
+                          (max:option (M.epoch_id))
                           (mlogs_v:all_processed_entries)
  : prop
  = all_contributions_are_accurate hashes mlogs_v /\
    max_certified_epoch_is hashes bitmaps max /\
    (forall tid. per_thread_bitmap_and_max bitmaps max mlogs_v tid)
 
-
 [@@__reduce__]
 let lock_inv_body (hashes : all_epoch_hashes)
                   (tid_bitmaps : epoch_tid_bitmaps)
-                  (max_certified_epoch : R.ref M.epoch_id)
+                  (max_certified_epoch : R.ref (option M.epoch_id))
                   (mlogs:TLM.t)
-                  (hashes_v:_)
-                  (bitmaps:_)
-                  (max:_)
+                  (hashes_v:epoch_hashes_repr)
+                  (bitmaps:epoch_bitmaps_repr)
+                  (max:option M.epoch_id)
                   (mlogs_v:all_processed_entries)
   = EpochMap.full_perm hashes M.init_epoch_hash hashes_v `star`
     EpochMap.full_perm tid_bitmaps all_zeroes bitmaps `star`
@@ -145,7 +144,7 @@ let lock_inv_body (hashes : all_epoch_hashes)
 [@@ __reduce__]
 let lock_inv (hashes : all_epoch_hashes)
              (tid_bitmaps : epoch_tid_bitmaps)
-             (max_certified_epoch : R.ref M.epoch_id)
+             (max_certified_epoch : R.ref (option M.epoch_id))
              (mlogs: TLM.t)
  : vprop
  = exists_ (fun hashes_v ->
@@ -159,7 +158,7 @@ noeq
 type aggregate_epoch_hashes = {
   hashes : all_epoch_hashes;
   tid_bitmaps : epoch_tid_bitmaps;
-  max_certified_epoch : R.ref M.epoch_id;
+  max_certified_epoch : R.ref (option M.epoch_id);
   mlogs: TLM.t;
   lock: cancellable_lock (lock_inv hashes tid_bitmaps max_certified_epoch mlogs)
 }
@@ -187,7 +186,7 @@ val release_lock (#hv:erased epoch_hashes_repr)
                  (#mlogs_v:erased _)
                  (#hashes : all_epoch_hashes)
                  (#tid_bitmaps : epoch_tid_bitmaps)
-                 (#max_certified_epoch : R.ref M.epoch_id)
+                 (#max_certified_epoch : R.ref (option M.epoch_id))
                  (#mlogs: TLM.t)
                  (lock: cancellable_lock
                         (lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
@@ -197,13 +196,26 @@ val release_lock (#hv:erased epoch_hashes_repr)
      can_release lock)
     (fun _ -> emp)
 
+type max_certified_epoch_result =
+  | Read_max_error : max_certified_epoch_result
+  | Read_max_none  : max_certified_epoch_result
+  | Read_max_some  : M.epoch_id -> max_certified_epoch_result
+
+[@@ __reduce__]
+let read_max_post_pred (aeh:aggregate_epoch_hashes) (max:M.epoch_id)
+  : all_processed_entries -> vprop
+  = fun logs ->
+    TLM.global_snapshot aeh.mlogs (map_of_seq logs)
+      `star`
+    pure (max_is_correct logs max)
+
+let read_max_post (aeh:aggregate_epoch_hashes)
+  : post_t max_certified_epoch_result
+  = fun r ->
+    match r with
+    | Read_max_error  //underspec: overflow or element went missing in IArray
+    | Read_max_none -> emp  //no epoch has been certified yet
+    | Read_max_some max -> exists_ (read_max_post_pred aeh max)
+
 val advance_and_read_max_certified_epoch (aeh:aggregate_epoch_hashes)
-  : STT (option M.epoch_id)
-      emp
-      (fun max_opt ->
-        match max_opt with
-        | None -> emp //underspec: overflow or element went missing in IArray
-        | Some max ->
-          exists_ (fun logs ->
-           TLM.global_snapshot aeh.mlogs (map_of_seq logs) `star`
-           pure (max_is_correct logs max)))
+  : STT max_certified_epoch_result emp (read_max_post aeh)

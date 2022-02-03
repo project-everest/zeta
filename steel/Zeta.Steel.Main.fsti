@@ -141,15 +141,7 @@ val verify_log (t:top_level_state)
     (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output)
 
 let max_certified_epoch (t:top_level_state)
-  : STT (option M.epoch_id)
-      emp
-      (fun max_opt ->
-        match max_opt with
-        | None -> emp
-        | Some max ->
-          exists_ (fun logs ->
-           TLM.global_snapshot t.aeh.mlogs (AEH.map_of_seq logs) `star`
-           pure (AEH.max_is_correct logs max)))
+  : STT AEH.max_certified_epoch_result emp (AEH.read_max_post t.aeh)
   = AEH.advance_and_read_max_certified_epoch t.aeh
 
 //From this, we should connect back to the semantic
