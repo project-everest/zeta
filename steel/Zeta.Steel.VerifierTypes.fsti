@@ -45,3 +45,14 @@ val elim_thread_state_inv (#o:_) (#tsm:M.thread_state_model) (t:thread_state_t)
     (ensures fun _ ->
       thread_id t == tsm.thread_id /\
       tsm_entries_invariant tsm)
+
+let extract_tsm_entries_invariant (#o:_) (#tsm:M.thread_state_model) (t:thread_state_t)
+  : STGhost unit o
+    (thread_state_inv t tsm)
+    (fun _ -> thread_state_inv t tsm)
+    (requires True)
+    (ensures fun _ ->
+      thread_id t == tsm.thread_id /\
+      tsm_entries_invariant tsm)
+  = elim_thread_state_inv t;
+    intro_thread_state_inv t

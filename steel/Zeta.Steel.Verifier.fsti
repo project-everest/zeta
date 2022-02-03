@@ -33,6 +33,7 @@ let verify_result_complete (len:U32.t) res =
       read == len
     | _ -> True
 
+[@@__steel_reduce__;__reduce__]
 let some_failure (t:thread_state_t) //handle to the thread state
                  (out:A.array U8.t)
                  (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
