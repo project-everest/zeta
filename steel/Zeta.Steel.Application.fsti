@@ -25,22 +25,38 @@ open Zeta.Steel.FormatsManual
 let delta_out_bytes (tsm tsm':M.thread_state_model)
   = M.bytes_of_app_results (M.delta_app_results tsm tsm')
 
-let delta_out_bytes_lem (tsm:M.thread_state_model)
-                        (le:log_entry { not (RunApp? le) })
+let delta_out_bytes_idem (tsm:M.thread_state_model)
+  : Lemma (delta_out_bytes tsm tsm == Seq.empty)
+          [SMTPat (delta_out_bytes tsm tsm)]
+  = admit()
+
+let delta_out_bytes_not_runapp (tsm:M.thread_state_model)
+                               (le:log_entry { not (RunApp? le) })
   : Lemma (delta_out_bytes tsm (M.verify_step_model tsm le) == Seq.empty)
           [SMTPat (delta_out_bytes tsm (M.verify_step_model tsm le))]
   = admit()
 
+let split3 (s:Seq.seq U8.t)
+           (from:U32.t { U32.v from <= Seq.length s})
+           (to:U32.t { U32.v to <= Seq.length s - U32.v from })
+  = Seq.slice s 0 (U32.v from),
+    Seq.slice s (U32.v from) (U32.v from + U32.v to),
+    Seq.slice s (U32.v from + U32.v to) (Seq.length s)
+
 let n_out_bytes (tsm tsm': M.thread_state_model)
+                (out_offset:U32.t)
                 (n_out:U32.t)
                 (out_bytes_init:Seq.seq U8.t)
                 (out_bytes_final:Seq.seq U8.t)
   : prop
-  = U32.v n_out <= Seq.length out_bytes_init /\
-    Seq.length out_bytes_init == Seq.length out_bytes_final /\
-    out_bytes_final `Seq.equal`
-    Seq.append (delta_out_bytes tsm tsm')
-               (Parser.bytes_from out_bytes_init n_out)
+  = Seq.length out_bytes_init == Seq.length out_bytes_final /\
+    U32.v out_offset <= Seq.length out_bytes_init /\
+    U32.v n_out <= Seq.length out_bytes_init - U32.v out_offset /\
+    (let pfx, _, sfx = split3 out_bytes_init out_offset n_out in
+     let pfx', s, sfx' = split3 out_bytes_init out_offset n_out in
+     pfx `Seq.equal` pfx' /\
+     sfx `Seq.equal` sfx' /\
+     s `Seq.equal` delta_out_bytes tsm tsm')
 
 type verify_runapp_result =
   | Run_app_parsing_failure: verify_runapp_result
@@ -51,6 +67,7 @@ let verify_runapp_entry_post (tsm:M.thread_state_model)
                              (t:V.thread_state_t)
                              (pl: runApp_payload)
                              (out_bytes:bytes)
+                             (out_offset:U32.t)
                              (out:A.array U8.t)
                              ([@@@smt_fallback] res:verify_runapp_result)
   : vprop
@@ -66,7 +83,7 @@ let verify_runapp_entry_post (tsm:M.thread_state_model)
         (let tsm' = M.verify_step_model tsm (RunApp pl) in
          V.thread_state_inv t tsm' `star` //tsm' is the new state of the thread
          array_pts_to out out_bytes' `star`
-         pure (n_out_bytes tsm tsm' wrote out_bytes out_bytes')))
+         pure (n_out_bytes tsm tsm' out_offset wrote out_bytes out_bytes')))
 
 (**
     Running an application-specific state transition function,
@@ -93,10 +110,10 @@ val run_app_function
       (* The position in the output log in which to write the results, if any *)
       (#out_bytes: Ghost.erased bytes)
       (out_len:U32.t)
-      (out_offset:U32.t)
-      (out:larray U8.t out_len {
+      (out_offset:U32.t{
         U32.v out_offset <= Seq.length out_bytes
        })
+      (out:larray U8.t out_len)
       (* The state of the verifier, with pointers to the store etc. *)
       (#tsm:M.thread_state_model)
       (t:V.thread_state_t)
@@ -107,4 +124,4 @@ val run_app_function
        A.pts_to out full_perm out_bytes)
       (fun res ->
         A.pts_to log_array log_perm log_bytes `star`
-        verify_runapp_entry_post tsm t pl out_bytes out res)
+        verify_runapp_entry_post tsm t pl out_bytes out_offset out res)

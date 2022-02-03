@@ -41,6 +41,17 @@ let some_failure (t:thread_state_t) //handle to the thread state
     exists_ (fun entries -> TLM.tid_pts_to aeh.mlogs (VerifierTypes.thread_id t) full entries false) `star`
     exists_ (array_pts_to out)
 
+let verify_post_out_bytes (tsm:M.thread_state_model)
+                          (out_bytes:bytes)
+                          (wrote:U32.t)
+                          (out:A.array U8.t)
+                          (les:M.log)
+  : vprop
+  = exists_ (fun (out_bytes1:Seq.seq U8.t) ->
+     array_pts_to out out_bytes1 `star`  //the out array contains out_bytes
+     pure (Application.n_out_bytes tsm (M.verify_model tsm les) 0ul wrote out_bytes out_bytes1))
+
+
 let verify_post (tsm:M.thread_state_model)
                 (t:thread_state_t) //handle to the thread state
                 (log_bytes:bytes)
@@ -66,9 +77,7 @@ let verify_post (tsm:M.thread_state_model)
        pure (parse_log_up_to log_bytes (U32.v read) == Some log) `star`
        thread_state_inv t tsm' `star` //tsm' is the new state of the thread
        TLM.tid_pts_to aeh.mlogs tsm'.thread_id full tsm'.processed_entries false `star` //my contributions are updated
-       exists_ (fun (out_bytes1:Seq.seq U8.t) ->
-           array_pts_to out out_bytes1 `star`  //the out array contains out_bytes
-           pure (Application.n_out_bytes tsm tsm' wrote out_bytes out_bytes1)))
+       verify_post_out_bytes tsm out_bytes wrote out log)
 
 val verify_log (#tsm:M.thread_state_model)
                (t:thread_state_t) //handle to the thread state
