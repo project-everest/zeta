@@ -29,3 +29,9 @@ let application_value_validator = application_value_validator'
 
 assume val application_value_jumper': LL.jumper application_value_parser
 let application_value_jumper = application_value_jumper'
+
+assume val application_value_reader': LL.leaf_reader application_value_parser
+let application_value_reader = application_value_reader'
+
+assume val application_value_lserializer': LL.serializer32 application_value_serializer
+let application_value_lserializer = application_value_lserializer'

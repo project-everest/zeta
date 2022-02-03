@@ -109,3 +109,19 @@ let internal_key_validator =
     )
     internal_key_synth
     ()
+
+let internal_key_reader =
+  LL.read_synth'
+    #_ #_ #_
+    (LP.parse_filter base_key_parser internal_key_filter)
+    internal_key_synth
+    (LL.read_filter base_key_reader internal_key_filter)
+    ()
+
+let internal_key_lserializer =
+  LL.serialize32_synth
+    (LL.serialize32_filter base_key_lserializer internal_key_filter)
+    internal_key_synth
+    internal_key_synth_recip
+    (fun x -> internal_key_synth_recip x)
+    ()

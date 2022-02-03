@@ -29,3 +29,9 @@ let application_key_validator = application_key_validator'
 
 assume val application_key_jumper': LL.jumper application_key_parser
 let application_key_jumper = application_key_jumper'
+
+assume val application_key_reader': LL.leaf_reader application_key_parser
+let application_key_reader = application_key_reader'
+
+assume val application_key_lserializer': LL.serializer32 application_key_serializer
+let application_key_lserializer = application_key_lserializer'

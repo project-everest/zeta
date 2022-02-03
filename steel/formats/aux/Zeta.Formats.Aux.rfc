@@ -13,7 +13,7 @@ struct {
   significant_digits_t base_key_significant_digits;
 } base_key;
 
-abstract
+abstract /*@has_lserializer*/
 internal_key = "Zeta.Formats.Aux.External.internal_key" < 34..34 >
 
 enum {
@@ -55,7 +55,7 @@ enum {
   (255)
 } key_kind;
 
-abstract
+abstract /*@has_lserializer*/
 application_key = "Zeta.Formats.Aux.External.App.application_key" < 0..2040 > /* these constant bounds must match Zeta.Steel.ApplicationTypes */
 
 struct {
@@ -63,7 +63,7 @@ struct {
   mval_value ir_value;
 } internal_record;
 
-abstract
+abstract /*@has_lserializer*/
 application_value = "Zeta.Formats.Aux.External.App.application_value" < 0..2040 > /* these constant bounds must match Zeta.Steel.ApplicationTypes */
 
 enum {
