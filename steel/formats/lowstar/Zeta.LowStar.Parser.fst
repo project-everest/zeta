@@ -12,6 +12,7 @@ let len_offset_slice_ok (a:byte_array)
   B.length a == U32.v len /\
   U32.v offset + U32.v slice_len <= B.length a
 
+inline_for_extraction
 let parser (#t:Type0) (p:spec_parser t) =
     len:U32.t ->
     offset:U32.t ->
