@@ -14,10 +14,9 @@ let payload (needs_payload: bool) : Tot Type0 =
   then LowParse.Spec.Bytes.parse_bounded_vlbytes_t 0 2147483647
   else unit
 
-let payload_len (#needs_payload: bool) (pl: Ghost.erased (payload needs_payload)) : Tot Type0 =
-  if needs_payload
-  then (x: FStar.UInt32.t { x == FStar.Bytes.len pl })
-  else unit
+inline_for_extraction
+let payload_len (pl: Ghost.erased (payload true)) : Tot Type0 =
+  (x: FStar.UInt32.t { x == FStar.Bytes.len pl })
 
 let payload_parser (needs_payload: bool) : Tot (k: LP.parser_kind & LP.parser k (payload needs_payload)) =
   if needs_payload
