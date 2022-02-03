@@ -31,3 +31,22 @@ val spec_parser_log_entry_consumes_at_least_one_byte
     let Some (_, consumed) = spec_parser_log_entry log_bytes in
     consumed >= 1
   ))
+
+val runapp_payload_offset
+  (e: log_entry)
+  (b: Ghost.erased bytes)
+: Pure U32.t
+  (requires (
+    RunApp? e /\
+    begin match spec_parser_log_entry b with
+    | Some (e', _) -> e' == e
+    | _ -> False
+    end
+  ))
+  (ensures (fun res ->
+    let Some (_, len) = spec_parser_log_entry b in
+    let off = U32.v res in
+    let RunApp pl = e in
+    off <= len /\
+    Ghost.reveal pl.rest.ebytes == Seq.slice b off len
+  ))
