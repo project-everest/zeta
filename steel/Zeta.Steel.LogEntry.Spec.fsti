@@ -22,3 +22,12 @@ let maybe_parse_log_entry (log_bytes:bytes)
   = if can_parse_log_entry log_bytes log_pos
     then Some (spec_parse_log_entry log_bytes log_pos)
     else None
+
+val spec_parser_log_entry_consumes_at_least_one_byte
+  (log_bytes: bytes)
+: Lemma
+  (requires (Some? (spec_parser_log_entry log_bytes)))
+  (ensures (
+    let Some (_, consumed) = spec_parser_log_entry log_bytes in
+    consumed >= 1
+  ))
