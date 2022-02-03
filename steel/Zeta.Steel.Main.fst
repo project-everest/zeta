@@ -171,14 +171,38 @@ let init () =
   init_aux aeh all_threads r s;
   return r
 
-let verify_log (t:top_level_state)
-               (tid:tid)
-               (#entries:erased AEH.log)
-               (#log_perm:perm)
-               (#log_bytes:erased bytes)
-               (len: U32.t)
-               (input:larray U8.t len)
-               (out_len: U32.t)
-               (#out_bytes: erased bytes)
-               (output:larray U8.t out_len)
-  = admit__()
+let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes output =
+  rewrite (core_inv t)
+          (exists_ (fun perm -> exists_ (fun s ->
+           A.pts_to t.all_threads perm s
+             `star`
+           pure (tid_positions_ok s))));
+  let perm = elim_exists () in
+  let s = elim_exists () in
+  A.pts_to_length t.all_threads s;
+  let st_tid = A.read t.all_threads (FStar.Int.Cast.uint16_to_uint32 tid) in
+  Lock.acquire st_tid.lock;
+  rewrite (thread_inv st_tid.tsm t.aeh.mlogs)
+          (exists_ (thread_inv_predicate st_tid.tsm t.aeh.mlogs));
+  let tsm = elim_exists () in
+  rewrite (thread_inv_predicate st_tid.tsm t.aeh.mlogs tsm)
+          (V.thread_state_inv st_tid.tsm tsm
+             `star`
+           TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
+
+  assume (Ghost.reveal entries == tsm.M.processed_entries);
+  assume (tsm.M.thread_id == tid);
+
+  rewrite
+    (TLM.tid_pts_to t.aeh.mlogs tid half entries false)
+    (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
+
+  TLM.gather_tid_pts_to t.aeh.mlogs;
+  
+  rewrite
+    (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id (sum_perm half half) tsm.M.processed_entries false)
+    (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id full tsm.M.processed_entries false);
+
+  let vr = V.verify_log st_tid.tsm input output t.aeh in
+
+  admit___ ()
