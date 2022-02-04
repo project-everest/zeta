@@ -38,7 +38,7 @@ noeq
 type thread_state (mlogs:TLM.t) =
 {
   tid: tid;
-  tsm: V.thread_state_t;
+  tsm: tsm:V.thread_state_t{V.thread_id tsm == tid};
   lock : cancellable_lock (thread_inv tsm mlogs)
 }
 

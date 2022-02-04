@@ -12,9 +12,11 @@ module TLM = Zeta.Steel.ThreadLogMap
 #push-options "--ide_id_info_off"
 
 val create (tid:tid)
-  : STT thread_state_t
+  : ST thread_state_t
     emp
     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
+    (requires True)
+    (ensures fun t -> VerifierTypes.thread_id t == tid)
 
 val check_failed (#tsm:M.thread_state_model)
                  (t:thread_state_t)

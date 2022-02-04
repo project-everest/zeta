@@ -266,7 +266,7 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
                `star`
              TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
 
-    assume (tsm.M.thread_id == tid);
+    VerifierTypes.extract_tsm_entries_invariant st_tid.tsm;
 
     rewrite
       (TLM.tid_pts_to t.aeh.mlogs tid half entries false)
@@ -347,8 +347,12 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
       let out_bytes' = elim_exists () in
       elim_pure _;
       elim_pure _;
-      assume ((M.verify_model tsm log).thread_id == tid);
-      assume ((M.verify_model tsm log).processed_entries == Seq.append entries log);
+      M.verify_model_thread_id_inv tsm log;  //to get the following assertion about thread id
+      assert ((M.verify_model tsm log).thread_id == tid);
+      assert (tsm.M.processed_entries == Ghost.reveal entries);
+      assume (not tsm.M.failed /\ not (M.verify_model tsm log).M.failed);
+      M.verify_model_append tsm log;
+      assert ((M.verify_model tsm log).processed_entries == Seq.append entries log);
       rewrite
         (TLM.tid_pts_to
            t.aeh.mlogs
@@ -362,8 +366,15 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
            half
            (entries `Seq.append` log)
            false);
-      assume (verify_post_success_pure_inv tid entries log_bytes out_bytes read wrote (Ghost.reveal log) out_bytes');
-      intro_pure (verify_post_success_pure_inv tid entries log_bytes out_bytes read wrote (Ghost.reveal log) out_bytes');
+      intro_pure (verify_post_success_pure_inv
+                    tid
+                    entries
+                    log_bytes
+                    out_bytes
+                    read
+                    wrote
+                    (Ghost.reveal log)
+                    out_bytes');
       intro_exists
         (Ghost.reveal out_bytes')
         (verify_post_success_out_bytes_pred t tid entries log_bytes out_len out_bytes output read wrote log);
@@ -406,7 +417,6 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
       let entries' = elim_exists #_ #_
         #(fun entries' -> TLM.tid_pts_to t.aeh.mlogs (V.thread_id st_tid.tsm) full entries' false)
         () in
-      assume (V.thread_id st_tid.tsm == tid);
       rewrite
         (TLM.tid_pts_to t.aeh.mlogs (V.thread_id st_tid.tsm) full entries' false)
         (TLM.tid_pts_to t.aeh.mlogs tid full entries' false);

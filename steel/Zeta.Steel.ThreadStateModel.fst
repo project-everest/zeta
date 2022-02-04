@@ -986,6 +986,17 @@ let verify_model_snoc (tsm:thread_state_model)
             (verify_model tsm (Seq.snoc les le)).thread_id);
     verify_model_thread_id_inv tsm les;
     verify_model_thread_id_inv tsm (Seq.snoc les le)
-#pop-options  
-  
-          
+
+
+let verify_model_append
+  (tsm:thread_state_model)
+  (log:log)
+  : Lemma
+      (requires
+        not tsm.failed /\
+        not (verify_model tsm log).failed)
+      (ensures
+        (verify_model tsm log).processed_entries ==
+        Seq.append tsm.processed_entries log)
+  = admit ()
+#pop-options

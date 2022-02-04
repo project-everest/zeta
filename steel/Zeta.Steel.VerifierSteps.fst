@@ -106,9 +106,11 @@ let maybe_extend_processed_entries #o
 
 #push-options "--fuel 1"
 let create (tid:tid)
-  : STT thread_state_t
+  : ST thread_state_t
     emp
     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
+    (requires True)
+    (ensures fun t -> VerifierTypes.thread_id t == tid)
   = let failed = R.alloc false in
     let store : vstore = A.alloc None (as_u32 store_size) in
     let clock = R.alloc 0uL in
