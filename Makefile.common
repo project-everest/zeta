@@ -69,6 +69,7 @@ $(CACHE_DIRECTORY)/%.checked:
 %.krml:
 	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen Kremlin \
 	  --extract_module $(basename $(notdir $(subst .checked,,$<)))
+	touch -c $@
 
 verify: $(addprefix $(CACHE_DIRECTORY)/,$(addsuffix .checked, $(notdir $(FSTAR_FILES))))
 
