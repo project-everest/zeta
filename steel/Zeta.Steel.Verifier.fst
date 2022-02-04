@@ -21,63 +21,18 @@ module Cast = FStar.Int.Cast
 open Zeta.Steel.EpochHashes
 module Application = Zeta.Steel.Application
 #push-options "--ide_id_info_off"
+
 let rewrite_with #o (p q:vprop) (_ : squash (p == q))
   : STGhostT unit o p (fun _ -> q)
   = rewrite p q
-
-let spec_parser_consumes (l:bytes)
-  : Lemma (match LogEntry.spec_parser_log_entry l with
-           | None -> True
-           | Some (_, n) -> n > 0)
-  = match LogEntry.spec_parser_log_entry l with
-    | None -> ()
-    | _ -> LogEntry.Spec.spec_parser_log_entry_consumes_at_least_one_byte l
-
-let parse_one_entry (l:bytes) (from:nat)
-  : GTot (option (log_entry & nat))
-  = if from <= Seq.length l
-    then match LogEntry.spec_parser_log_entry (Seq.slice l from (Seq.length l)) with
-         | None -> None
-         | Some (le, n) -> Some (le, n)
-    else None
-
-let rec parse_full_log' (l:bytes)
-                        (offset:nat { offset <= Seq.length l })
-  : GTot (option M.log)
-         (decreases (Seq.length l - offset))
-  = if offset = Seq.length l then Some Seq.empty
-    else match parse_one_entry l offset with
-         | None -> None
-         | Some (le, n) ->
-           spec_parser_consumes (Seq.slice l offset (Seq.length l));
-           match parse_full_log' l (offset + n) with
-           | None -> None
-           | Some out -> Some (Seq.cons le out)
-
-let parse_log_up_to (l:bytes) (pos:nat) =
-  if pos >= Seq.length l then None
-  else parse_full_log' (Seq.slice l 0 pos) 0
-
-#push-options "--ifuel 2 --fuel 2 --query_stats --z3rlimit_factor 4"
-let rec parse_log_up_to_trans (l:bytes) (pos pos':nat) (les:M.log) (le:log_entry)
-  : Lemma
-    (requires
-      parse_log_up_to l pos == Some les /\
-      parse_one_entry l pos == Some (le, pos'))
-    (ensures
-      (match parse_log_up_to l (pos + pos') with
-       | None -> False
-       | Some les' -> les' `Seq.equal` Seq.snoc les le))
-    (decreases (Seq.length les))
-  = admit()
-#pop-options
 
 let compat_with_any_anchor_of_le (l:TLM.log)
                                  (le:log_entry { not (VerifyEpoch? le) })
   : Lemma (l `TLM.log_grows` (Seq.snoc l le) /\
            (Seq.snoc l le) `TLM.compat_with_any_anchor_of` l)
           [SMTPat (Seq.snoc l le)]
-  = admit()
+  = M.committed_entries_prefix (Seq.snoc l le);
+    assert (Zeta.SeqAux.prefix (Seq.snoc l le) (Seq.length l) `Seq.equal` l)
 
 let fail (#p:prop)
          (#tsm:M.thread_state_model)
@@ -547,8 +502,6 @@ let verify_step (#tsm:M.thread_state_model)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-
 let elim_verify_step_post_parsing_failure
                      #o
                      (#tsm:M.thread_state_model)
@@ -685,8 +638,9 @@ let stitch_verify_post_step
       verify_post tsm t log_bytes out_bytes out aeh
         (Verify_success U32.(log_pos +^ log_pos') U32.(out_pos +^ out_pos')))
     (requires
-      parse_log_up_to log_bytes (U32.v log_pos) == Some les /\
-      Application.n_out_bytes tsm (M.verify_model tsm les) 0ul out_pos out_bytes out_bytes_1)
+      LogEntry.parse_log_up_to log_bytes (U32.v log_pos) == Some les /\
+      Application.n_out_bytes tsm (M.verify_model tsm les) 0ul out_pos out_bytes out_bytes_1 /\
+      not (M.verify_model tsm les).failed)
     (ensures fun _ ->
       True)
   = let le = elim_exists () in
@@ -737,10 +691,10 @@ let stitch_verify_post_step
         trefl())
       );
     assert (LogEntry.maybe_parse_log_entry log_bytes log_pos == Some (reveal le, U32.v log_pos'));
-    parse_log_up_to_trans log_bytes (U32.v log_pos) (U32.v log_pos') les le;
-    intro_pure (parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les');
+    LogEntry.parse_log_up_to_trans log_bytes (U32.v log_pos) les;
+    intro_pure (LogEntry.parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les');
     intro_exists les' (fun les' ->
-      pure (parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les') `star`
+      pure (LogEntry.parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les') `star`
       thread_state_inv t (M.verify_model tsm les') `star`
       TLM.tid_pts_to aeh.mlogs
                       (M.verify_model tsm les').thread_id
@@ -882,7 +836,7 @@ let intro_verify_post_success
      (fun _ ->
        verify_post tsm t log_bytes out_bytes out aeh (Verify_success 0ul 0ul))
    = let les = Seq.empty in
-     intro_pure (parse_log_up_to log_bytes (U32.v 0ul) == Some les);
+     intro_pure (LogEntry.parse_log_up_to log_bytes (U32.v 0ul) == Some les);
      intro_pure (Application.n_out_bytes tsm (M.verify_model tsm les) 0ul 0ul out_bytes out_bytes);
      intro_exists out_bytes (fun out_bytes1 ->
         array_pts_to out out_bytes1 `star`
@@ -894,7 +848,7 @@ let intro_verify_post_success
                                        (M.verify_model tsm les).processed_entries false);
      intro_exists les (fun log ->
        let tsm' = M.verify_model tsm log in
-       pure (parse_log_up_to log_bytes (U32.v 0ul) == Some log) `star`
+       pure (LogEntry.parse_log_up_to log_bytes (U32.v 0ul) == Some log) `star`
        thread_state_inv t tsm' `star` //tsm' is the new state of the thread
        TLM.tid_pts_to aeh.mlogs tsm'.thread_id full tsm'.processed_entries false `star`
        exists_ (fun out_bytes1 ->
@@ -902,7 +856,7 @@ let intro_verify_post_success
          pure (Application.n_out_bytes tsm tsm' 0ul 0ul out_bytes out_bytes1)));
      rewrite_with (exists_ (fun log ->
        let tsm' = M.verify_model tsm log in
-       pure (parse_log_up_to log_bytes (U32.v 0ul) == Some log) `star`
+       pure (LogEntry.parse_log_up_to log_bytes (U32.v 0ul) == Some log) `star`
        thread_state_inv t tsm' `star` //tsm' is the new state of the thread
        TLM.tid_pts_to aeh.mlogs tsm'.thread_id full tsm'.processed_entries false `star`
        exists_ (fun out_bytes1 ->

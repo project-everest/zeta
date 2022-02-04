@@ -19,8 +19,6 @@ module P = Zeta.Steel.Parser
 module TLM = Zeta.Steel.ThreadLogMap
 
 #push-options "--ide_id_info_off"
-val parse_log_up_to (l:bytes) (pos:nat) : GTot (option M.log)
-
 type verify_result =
   | Parsing_failure: log_pos:U32.t -> verify_result
   | App_failure: log_pos:U32.t -> verify_result
@@ -64,7 +62,7 @@ let verify_post_success_pred
   : Seq.seq log_entry -> vprop
   = fun log -> 
     let tsm' = M.verify_model tsm log in
-    pure (parse_log_up_to log_bytes (U32.v read) == Some log) `star`
+    pure (LogEntry.parse_log_up_to log_bytes (U32.v read) == Some log) `star`
     thread_state_inv t tsm' `star` //tsm' is the new state of the thread
     TLM.tid_pts_to aeh.mlogs tsm'.thread_id full tsm'.processed_entries false `star` //my contributions are updated
     verify_post_out_bytes tsm out_bytes wrote out log

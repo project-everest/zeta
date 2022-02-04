@@ -963,7 +963,7 @@ let last_verified_epoch_constant (tsm:thread_state_model)
       tsm.last_verified_epoch == tsm0.last_verified_epoch))
   = last_verified_epoch_constant_log tsm.processed_entries tsm.thread_id
 
-#push-options "--fuel 2"
+#push-options "--fuel 2 --z3rlimit_factor 3"
 let rec verify_model_thread_id_inv 
               (tsm:thread_state_model)
               (les:log)
