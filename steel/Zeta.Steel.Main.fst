@@ -264,14 +264,13 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
                `star`
              TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
 
-    assume (Ghost.reveal entries == tsm.M.processed_entries);
     assume (tsm.M.thread_id == tid);
 
     rewrite
       (TLM.tid_pts_to t.aeh.mlogs tid half entries false)
-      (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
+      (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half entries false);
 
-    TLM.gather_tid_pts_to t.aeh.mlogs;
+    TLM.gather_tid_pts_to #_ #_ #_ #_ #entries #tsm.M.processed_entries t.aeh.mlogs;
   
     rewrite
       (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id (sum_perm half half) tsm.M.processed_entries false)
