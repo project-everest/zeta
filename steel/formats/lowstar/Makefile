@@ -21,7 +21,7 @@ dist/Makefile.basic: $(ALL_KRML_FILES)
 	  $(filter %.krml,$^) \
 	  -warn-error @4@5@18 \
 	  -fparentheses \
-	  -bundle 'Zeta.Steel.LogEntry.Spec+Zeta.LowStar.LogEntry=*[rename=ZetaFormats]' \
+	  -bundle 'Zeta.Steel.LogEntry.Spec+Zeta.LowStar.LogEntry+Zeta.Formats.Aux.Application_key.Size+Zeta.Formats.Aux.Application_key.Low+Zeta.Formats.Aux.Application_value.Size+Zeta.Formats.Aux.Application_value.Low=*[rename=ZetaFormats]' \
 	  -o zetaformats.a \
 	  -ccopt -Wno-type-limits
 
