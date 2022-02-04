@@ -45,6 +45,20 @@ let aggregate_epoch_hash (e0 e1:M.epoch_hash)
   = { hadd = HA.aggregate_hashes e0.hadd e1.hadd;
       hevict = HA.aggregate_hashes e0.hevict e1.hevict}
 
+let aggregate_epoch_hash_unit (i:M.epoch_hash)
+  : Lemma (aggregate_epoch_hash M.init_epoch_hash i == i)
+          [SMTPat (aggregate_epoch_hash M.init_epoch_hash i)]
+  = admit()
+
+let aggregate_epoch_hash_comm (i j:M.epoch_hash)
+  : Lemma (aggregate_epoch_hash i j == aggregate_epoch_hash j i)
+  = admit()
+
+let aggregate_epoch_hash_assoc (i j k:M.epoch_hash)
+  : Lemma (aggregate_epoch_hash (aggregate_epoch_hash i j) k ==
+           aggregate_epoch_hash i (aggregate_epoch_hash j k))
+  = admit()
+
 let log = Seq.seq log_entry
 let all_processed_entries = Seq.lseq log (U32.v n_threads)
 
@@ -61,17 +75,35 @@ let thread_contrib_of_log (t:tid) (l:log)
          then Map.sel tsm.epoch_hashes e
          else M.init_epoch_hash)
 
-let all_threads_epoch_hashes_of_logs (mlogs_v:all_processed_entries)
-  : all_threads_epoch_hashes
+let all_threads_epoch_hashes_of_logs (mlogs_v:Seq.seq log { Seq.length mlogs_v <= U32.v n_threads })
+  : mlogs_v':Seq.seq epoch_hashes_repr { Seq.length mlogs_v' == Seq.length mlogs_v }
   = Zeta.SeqAux.mapi mlogs_v
                      (fun tid -> thread_contrib_of_log (U16.uint_to_t tid) (Seq.index mlogs_v tid))
 
 let aggregate_all_threads_epoch_hashes (e:M.epoch_id)
-                                       (mlogs_v:all_processed_entries)
+                                       (mlogs_v:Seq.seq log { Seq.length mlogs_v <= U32.v n_threads })
   : M.epoch_hash
   = Zeta.SeqAux.reduce M.init_epoch_hash
                        (fun (s:epoch_hashes_repr) -> aggregate_epoch_hash (Map.sel s e))
                        (all_threads_epoch_hashes_of_logs mlogs_v)
+
+let split_tid (mlogs_v:Seq.lseq 'a (U32.v n_threads))
+              (t:tid)
+  = let prefix= Seq.slice mlogs_v 0 (U16.v t) in
+    let suffix = Seq.slice mlogs_v (U16.v t + 1) (U32.v n_threads) in
+    prefix, Seq.index mlogs_v (U16.v t), suffix
+
+let aggregate_all_threads_epoch_hashes_permute (e:M.epoch_id)
+                                               (mlogs_v:all_processed_entries)
+                                               (t:tid)
+  : Lemma (
+      let prefix, et, suffix = split_tid mlogs_v t in
+      aggregate_all_threads_epoch_hashes e mlogs_v ==
+      aggregate_epoch_hash
+        (Map.sel (thread_contrib_of_log t et) e)
+        (aggregate_all_threads_epoch_hashes e (Seq.append prefix suffix)))
+  = admit()
+
 
 (* Global monotonic log of entries *)
 

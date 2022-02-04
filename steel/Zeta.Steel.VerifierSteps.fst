@@ -1180,6 +1180,132 @@ let update_logs_of_tid
   : GTot AEH.all_processed_entries
   = Seq.upd mlogs_v (U16.v tsm.thread_id) tsm.processed_entries
 
+let update_logs_of_tid_framing (tsm:M.thread_state_model)
+                               (mlogs_v:AEH.all_processed_entries)
+  : Lemma
+    (let mlogs_v' = update_logs_of_tid mlogs_v tsm in
+     let aeh = AEH.all_threads_epoch_hashes_of_logs mlogs_v in
+     let aeh' = AEH.all_threads_epoch_hashes_of_logs mlogs_v' in
+     (forall (tid:tid). U16.v tid <> U16.v tsm.thread_id ==>
+        Seq.index aeh (U16.v tid) == Seq.index aeh' (U16.v tid)) /\
+     Seq.index aeh' (U16.v tsm.thread_id) ==
+      AEH.thread_contrib_of_log tsm.thread_id tsm.processed_entries)
+    = ()
+
+let permute_aggregate_all_threads_epoch_hash_update_logs_of_tid
+                         (mlogs_v:AEH.all_processed_entries)
+                         (tsm:M.thread_state_model)
+                         (e:M.epoch_id)
+  : Lemma (
+      let tid = tsm.thread_id in
+      let mlogs_v' = update_logs_of_tid mlogs_v tsm in
+      let prefix, et, suffix = AEH.split_tid mlogs_v tid in
+      let _, et', _ = AEH.split_tid mlogs_v' tid in
+      AEH.aggregate_all_threads_epoch_hashes e mlogs_v' ==
+      AEH.aggregate_epoch_hash
+                (Map.sel (AEH.thread_contrib_of_log tid et') e)
+                (AEH.aggregate_all_threads_epoch_hashes e (Seq.append prefix suffix)))
+  =  let tid = tsm.thread_id in
+     let mlogs_v' = update_logs_of_tid mlogs_v tsm in
+     let prefix, et, suffix = AEH.split_tid mlogs_v tid in
+     let prefix', et', suffix' = AEH.split_tid mlogs_v' tid in
+     assert (Seq.equal (Seq.append prefix suffix) (Seq.append prefix' suffix'));
+     AEH.aggregate_all_threads_epoch_hashes_permute e mlogs_v' tid;
+     AEH.aggregate_all_threads_epoch_hashes_permute e mlogs_v tid
+
+let epoch_hashes_framing (mlogs_v:AEH.all_processed_entries)
+                         (tsm:M.thread_state_model)
+                         (e':M.epoch_id)
+  : Lemma
+    (requires (
+      let tsm' = spec_verify_epoch tsm in
+      not tsm'.failed /\
+      tsm'.last_verified_epoch <> e' /\
+      M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id /\
+      tsm_entries_invariant tsm
+      ))
+    (ensures (
+      let tsm' = spec_verify_epoch tsm in
+      let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
+      AEH.aggregate_all_threads_epoch_hashes e' mlogs_v ==
+      AEH.aggregate_all_threads_epoch_hashes e' mlogs_v'))
+  = let open AEH in
+    let tsm' = spec_verify_epoch tsm in
+    let tid = tsm'.thread_id in
+    let tsm0 = M.verify_model (M.init_thread_state_model tid) (AEH.log_of_tid mlogs_v tid) in
+    let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
+    let prefix, et, suffix = AEH.split_tid mlogs_v tid in
+    let prefix', et', suffix' = AEH.split_tid mlogs_v' tid in
+    M.last_verified_epoch_constant tsm;
+    assert (tsm0.last_verified_epoch == tsm.last_verified_epoch);
+    assert (U32.v tsm'.last_verified_epoch = U32.v (tsm.last_verified_epoch) + 1);
+    let _ =
+    if (U32.v e' > U32.v tsm'.last_verified_epoch)
+    then (
+      assert (not (is_epoch_verified tsm' e'));
+      assert (Map.sel (thread_contrib_of_log tid et) e' ==
+              Map.sel (thread_contrib_of_log tid et') e')
+    )
+    else (
+      assert (is_epoch_verified tsm0 e');
+      assert (is_epoch_verified tsm' e');
+      assume (Map.sel tsm0.epoch_hashes e' == Map.sel tsm'.epoch_hashes e');
+      assert (Map.sel (thread_contrib_of_log tid et) e' ==
+              Map.sel (thread_contrib_of_log tid et') e')
+    ) in
+    calc (==) {
+      AEH.aggregate_all_threads_epoch_hashes e' mlogs_v';
+      (==) {  AEH.aggregate_all_threads_epoch_hashes_permute e' mlogs_v' tid }
+      AEH.aggregate_epoch_hash
+              (Map.sel (thread_contrib_of_log tid et') e')
+              (AEH.aggregate_all_threads_epoch_hashes e' (Seq.append prefix suffix));
+      (==) { assert (Map.sel (thread_contrib_of_log tid et') e' ==
+                     Map.sel (thread_contrib_of_log tid et) e') }
+      AEH.aggregate_epoch_hash
+              (Map.sel (thread_contrib_of_log tid et) e')
+              (AEH.aggregate_all_threads_epoch_hashes e' (Seq.append prefix suffix));
+      (==) { AEH.aggregate_all_threads_epoch_hashes_permute e' mlogs_v tid }
+      AEH.aggregate_all_threads_epoch_hashes e' mlogs_v;
+    }
+
+let epoch_hashes_update (mlogs_v:AEH.all_processed_entries)
+                        (tsm:M.thread_state_model)
+  : Lemma
+    (requires (
+      let tsm' = spec_verify_epoch tsm in
+      not tsm'.failed /\
+      M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id /\
+      tsm_entries_invariant tsm
+      ))
+    (ensures (
+      let tsm' = spec_verify_epoch tsm in
+      let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
+      let e = tsm'.last_verified_epoch in
+      AEH.aggregate_all_threads_epoch_hashes e mlogs_v' ==
+      AEH.aggregate_epoch_hash (Map.sel tsm'.epoch_hashes e)
+                               (AEH.aggregate_all_threads_epoch_hashes e mlogs_v)))
+  = let open AEH in
+    let tsm' = spec_verify_epoch tsm in
+    let tid = tsm'.thread_id in
+    let tsm0 = M.verify_model (M.init_thread_state_model tid) (AEH.log_of_tid mlogs_v tid) in
+    let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
+    let e = tsm'.last_verified_epoch in
+    let prefix, et, suffix = AEH.split_tid mlogs_v tid in
+    let _, et', _ = AEH.split_tid mlogs_v' tid in
+    M.last_verified_epoch_constant tsm;
+    calc (==) {
+      AEH.aggregate_all_threads_epoch_hashes e mlogs_v;
+    (==) { AEH.aggregate_all_threads_epoch_hashes_permute e mlogs_v tid }
+      AEH.aggregate_epoch_hash
+              (Map.sel (thread_contrib_of_log tid et) e)
+              (AEH.aggregate_all_threads_epoch_hashes e (Seq.append prefix suffix));
+    (==) { assert (Map.sel (thread_contrib_of_log tid et) e == M.init_epoch_hash) }
+      AEH.aggregate_all_threads_epoch_hashes e (Seq.append prefix suffix);
+    };
+    permute_aggregate_all_threads_epoch_hash_update_logs_of_tid mlogs_v tsm' e;
+    AEH.aggregate_epoch_hash_comm (Map.sel tsm'.epoch_hashes e)
+                                  (AEH.aggregate_all_threads_epoch_hashes e mlogs_v)
+
 let map_of_seq_update_lemma  (mlogs_v:AEH.all_processed_entries)
                              (tsm:M.thread_state_model)
   : Lemma (Map.equal (Map.upd (Map.upd (AEH.map_of_seq mlogs_v) tsm.thread_id None)
@@ -1289,7 +1415,7 @@ let restore_all_threads_bitmap_and_max  (bitmaps:AEH.epoch_bitmaps_repr)
                       (update_logs_of_tid mlogs_v tsm')
                       tid)))
   = advance_per_thread_bitmap_and_max bitmaps max mlogs_v tsm e
-#push-options "--print_implicits --print_bound_var_types"
+
 let lemma_restore_hashes_bitmaps_max_ok
                                   (hashes:AEH.epoch_hashes_repr)
                                   (bitmaps:AEH.epoch_bitmaps_repr)
@@ -1322,26 +1448,13 @@ let lemma_restore_hashes_bitmaps_max_ok
     with (
       if e = e'
       then (
-        calc (==) {
-         AEH.aggregate_all_threads_epoch_hashes e mlogs_v';
-         (==) { _ by FStar.Tactics.(trefl()) }
-         Zeta.SeqAux.reduce #(AEH.epoch_hashes_repr) M.init_epoch_hash
-                       (fun s -> AEH.aggregate_epoch_hash (Map.sel s e))
-                       (AEH.all_threads_epoch_hashes_of_logs mlogs_v');
-         (==) {admit()} //probably easier to do this using the permutation monoid
-                             //and we need to know that the bit for tsm was false initially
-         AEH.aggregate_epoch_hash (AEH.aggregate_all_threads_epoch_hashes e mlogs_v)
-                                  (Map.sel tsm'.epoch_hashes e);
-        }
+        epoch_hashes_update mlogs_v tsm
       )
       else (
         assert (Map.sel hashes' e' == Map.sel hashes e');
         assert (Map.sel hashes e' == AEH.aggregate_all_threads_epoch_hashes e' mlogs_v);
-        //need a framing lemma here
-        // -- we only updated the logs of tsm'
-        // -- the only epoch that was propagated was e, since mlogs_v contained all prior committed epoch
-        // -- so, only the epoch contents of e changed, not e'
-        assume (AEH.aggregate_all_threads_epoch_hashes e' mlogs_v ==
+        epoch_hashes_framing mlogs_v tsm e';
+        assert (AEH.aggregate_all_threads_epoch_hashes e' mlogs_v ==
                 AEH.aggregate_all_threads_epoch_hashes e' mlogs_v')
       )
     );

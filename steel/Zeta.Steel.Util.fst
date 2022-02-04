@@ -13,7 +13,7 @@ let larray t (n:U32.t) = A.larray t (U32.v n)
 [@@__steel_reduce__;__reduce__]
 let array_pts_to #t (a:A.array t) (v:Seq.seq t) = A.pts_to a full_perm v
 
-let sum_halves : squash (sum_perm half half == full) = admit()
+let sum_halves : squash (sum_perm half half == full) = ()
 
 [@@warn_on_use "uses an axiom"]
 assume
@@ -102,15 +102,15 @@ let st_check_overflow_add32 (x y:U32.t)
          else None? res)
   = let r = check_overflow_add32 x y in return r
 
-assume
-val map_literal (#k:eqtype) (#v:Type) (f: k -> v)
-  : Map.t k v
+// assume
+// val map_literal (#k:eqtype) (#v:Type) (f: k -> v)
+//   : Map.t k v
 
-let map_literal_interp (#k:eqtype) (#v:Type) (f: k -> v)
-  : Lemma ((forall k. Map.sel (map_literal f) k == f k) /\
-           Map.domain (map_literal f) == Set.complement Set.empty)
-          [SMTPat (map_literal f)]
-  = admit()
+// let map_literal_interp (#k:eqtype) (#v:Type) (f: k -> v)
+//   : Lemma ((forall k. Map.sel (map_literal f) k == f k) /\
+//            Map.domain (map_literal f) == Set.complement Set.empty)
+//           [SMTPat (map_literal f)]
+//   = admit()
 
 let update_if (b:bool) (default_ upd_: 'a)
   : 'a
