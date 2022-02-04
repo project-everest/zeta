@@ -33,12 +33,20 @@ let spec_parser_consumes (l:bytes)
     | None -> ()
     | _ -> LogEntry.Spec.spec_parser_log_entry_consumes_at_least_one_byte l
 
+let parse_one_entry (l:bytes) (from:nat)
+  : GTot (option (log_entry & nat))
+  = if from <= Seq.length l
+    then match LogEntry.spec_parser_log_entry (Seq.slice l from (Seq.length l)) with
+         | None -> None
+         | Some (le, n) -> Some (le, n)
+    else None
+
 let rec parse_full_log' (l:bytes)
                         (offset:nat { offset <= Seq.length l })
   : GTot (option M.log)
          (decreases (Seq.length l - offset))
-  = if Seq.length l = 0 then Some Seq.empty
-    else match LogEntry.spec_parser_log_entry (Seq.slice l offset (Seq.length l)) with
+  = if offset = Seq.length l then Some Seq.empty
+    else match parse_one_entry l offset with
          | None -> None
          | Some (le, n) ->
            spec_parser_consumes (Seq.slice l offset (Seq.length l));
@@ -49,6 +57,20 @@ let rec parse_full_log' (l:bytes)
 let parse_log_up_to (l:bytes) (pos:nat) =
   if pos >= Seq.length l then None
   else parse_full_log' (Seq.slice l 0 pos) 0
+
+#push-options "--ifuel 2 --fuel 2 --query_stats --z3rlimit_factor 4"
+let rec parse_log_up_to_trans (l:bytes) (pos pos':nat) (les:M.log) (le:log_entry)
+  : Lemma
+    (requires
+      parse_log_up_to l pos == Some les /\
+      parse_one_entry l pos == Some (le, pos'))
+    (ensures
+      (match parse_log_up_to l (pos + pos') with
+       | None -> False
+       | Some les' -> les' `Seq.equal` Seq.snoc les le))
+    (decreases (Seq.length les))
+  = admit()
+#pop-options
 
 let compat_with_any_anchor_of_le (l:TLM.log)
                                  (le:log_entry { not (VerifyEpoch? le) })
@@ -647,7 +669,10 @@ let stitch_verify_post_step
                    (#les:M.log)
                    (#out_bytes_1:bytes)
                    (log_pos':U32.t)
-                   (out_pos':U32.t)
+                   (out_pos':U32.t {
+                      UInt.fits (Seq.length log_bytes) 32 /\
+                      UInt.fits (Seq.length out_bytes) 32
+                    })
   : STGhost (squash ((U32.v log_pos + U32.v log_pos') <= Seq.length log_bytes /\
                      (U32.v out_pos + U32.v out_pos') <= Seq.length out_bytes /\
                      UInt.fits (Seq.length log_bytes) 32 /\
@@ -664,9 +689,7 @@ let stitch_verify_post_step
       Application.n_out_bytes tsm (M.verify_model tsm les) 0ul out_pos out_bytes out_bytes_1)
     (ensures fun _ ->
       True)
-  = assume (UInt.fits (Seq.length log_bytes) 32 /\
-            UInt.fits (Seq.length out_bytes) 32);
-    let le = elim_exists () in
+  = let le = elim_exists () in
     elim_pure _;
     let out_bytes_2 = elim_exists () in
     elim_pure _;
@@ -713,9 +736,10 @@ let stitch_verify_post_step
         trefl())
       );
     assert (LogEntry.maybe_parse_log_entry log_bytes log_pos == Some (reveal le, U32.v log_pos'));
-    assume (parse_log_up_to log_bytes (U32.v log_pos) == Some les /\
-            LogEntry.maybe_parse_log_entry log_bytes log_pos == Some (reveal le, U32.v log_pos') ==>
-            parse_log_up_to log_bytes (U32.v log_pos + U32.v log_pos') == Some les');
+    parse_log_up_to_trans log_bytes (U32.v log_pos) (U32.v log_pos') les le;
+    // assume (parse_log_up_to log_bytes (U32.v log_pos) == Some les /\
+    //         LogEntry.maybe_parse_log_entry log_bytes log_pos == Some (reveal le, U32.v log_pos') ==>
+    //         parse_log_up_to log_bytes (U32.v log_pos + U32.v log_pos') == Some les');
     intro_pure (parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les');
     intro_exists les' (fun les' ->
       pure (parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les') `star`
@@ -774,7 +798,8 @@ let rec verify_log_ind
           (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
           (out:larray U8.t outlen) //out array, to write outputs
           (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-   = if log_pos = len
+   = A.pts_to_length log _;
+     if log_pos = len
      then return (Verify_success log_pos out_pos)
      else (
        let _log = elim_exists () in
