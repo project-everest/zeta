@@ -964,13 +964,28 @@ let last_verified_epoch_constant (tsm:thread_state_model)
   = last_verified_epoch_constant_log tsm.processed_entries tsm.thread_id
 
 #push-options "--fuel 2"
+let rec verify_model_thread_id_inv 
+              (tsm:thread_state_model)
+              (les:log)
+  : Lemma (ensures (verify_model tsm les).thread_id == tsm.thread_id)
+          (decreases (Seq.length les))
+  = if Seq.length les = 0 then ()
+    else verify_model_thread_id_inv tsm
+         (Zeta.SeqAux.prefix les (Seq.length les - 1))
+          
 let verify_model_snoc (tsm:thread_state_model)
                       (les:log)
                       (le:log_entry)
   : Lemma (verify_step_model (verify_model tsm les) le ==
-           verify_model tsm (Seq.snoc les le))
+           verify_model tsm (Seq.snoc les le) /\
+           tsm.thread_id == (verify_model tsm les).thread_id /\
+           tsm.thread_id == (verify_model tsm (Seq.snoc les le)).thread_id)
           [SMTPat (verify_model tsm (Seq.snoc les le))]
-  = assert (Zeta.SeqAux.prefix (Seq.snoc les le) (Seq.length les) `Seq.equal` les)
+  = assert (Zeta.SeqAux.prefix (Seq.snoc les le) (Seq.length les) `Seq.equal` les);
+    assert ((verify_model tsm les).thread_id ==
+            (verify_model tsm (Seq.snoc les le)).thread_id);
+    verify_model_thread_id_inv tsm les;
+    verify_model_thread_id_inv tsm (Seq.snoc les le)
 #pop-options  
   
           

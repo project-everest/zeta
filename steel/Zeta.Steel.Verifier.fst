@@ -674,10 +674,11 @@ let stitch_verify_post_step
     let tsm1 = M.verify_model tsm les in
     let tsm2 = M.verify_step_model tsm1 le in
     let les' = Seq.snoc les le in
+    M.verify_model_snoc tsm les le;
     assert (tsm2 == M.verify_model tsm les');
     rewrite (thread_state_inv t _)
             (thread_state_inv t (M.verify_model tsm les'));
-    assume (tsm1.thread_id == tsm2.thread_id);
+    assert (tsm1.thread_id == tsm2.thread_id);
     rewrite (TLM.tid_pts_to _ _ _ _ _)
             (TLM.tid_pts_to aeh.mlogs
                             (M.verify_model tsm les').thread_id

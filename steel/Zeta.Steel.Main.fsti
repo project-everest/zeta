@@ -117,7 +117,7 @@ let verify_post
          pure (V.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
                (let tsm = M.verify_model (M.init_thread_state_model tid) entries in
                 let tsm' = M.verify_model tsm entries' in
-                Application.n_out_bytes tsm tsm' wrote out_bytes out_bytes'))))
+                Application.n_out_bytes tsm tsm' 0ul wrote out_bytes out_bytes'))))
 
      | _ ->
        exists_ (A.pts_to output full_perm) `star`
@@ -128,7 +128,7 @@ val verify_log (t:top_level_state)
                (#entries:erased AEH.log)
                (#log_perm:perm)
                (#log_bytes:erased bytes)
-               (len: U32.t)
+               (len: U32.t { len <> 0ul })
                (input:larray U8.t len)
                (out_len: U32.t)
                (#out_bytes:erased bytes)
