@@ -47,7 +47,7 @@ val vevictm (#tsm:M.thread_state_model)
             (s s':slot_id)
   : ST unit
     (thread_state_inv t tsm)
-    (fun _ -> thread_state_inv t (M.verify_step_model tsm (EvictM ({s; s'}))))
+    (fun _ -> thread_state_inv t (M.verify_step_model tsm (EvictM ({s; s_=s'}))))
     (requires not tsm.failed)
     (ensures fun _ -> True)
 
@@ -67,7 +67,7 @@ val vevictbm (#tsm:M.thread_state_model)
              (ts:timestamp)
   : ST bool
     (thread_state_inv t tsm)
-    (fun b -> thread_state_inv t (update_if b tsm (M.verify_step_model tsm (EvictBM ({s; s'; t=ts})))))
+    (fun b -> thread_state_inv t (update_if b tsm (M.verify_step_model tsm (EvictBM ({s; s_=s'; t=ts})))))
     (requires not tsm.failed)
     (ensures fun _ -> True)
 

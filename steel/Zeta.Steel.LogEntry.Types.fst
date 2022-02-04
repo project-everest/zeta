@@ -68,7 +68,7 @@ type key =
 noeq
 type evictM_payload = {
       s:slot_id;
-      s':slot_id;
+      s_:slot_id;
 }
 
 noeq
@@ -80,7 +80,7 @@ type evictB_payload = {
 noeq
 type evictBM_payload = {
   s:slot_id;
-  s':slot_id;  
+  s_:slot_id;  
   t:timestamp;
 }
 
@@ -105,7 +105,7 @@ open Zeta.Steel.Parser
 noeq
 type log_entry =
   | AddM : s:slot_id ->
-           s':slot_id ->
+           s_:slot_id ->
            r:record ->
            log_entry
 

@@ -630,7 +630,7 @@ let vevictm_core (#tsm:M.thread_state_model)
                  (s s':slot_id)
   : STT unit
     (thread_state_inv_core t tsm)
-    (fun _ -> thread_state_inv_core t (M.verify_log_entry tsm (EvictM ({s; s'}))))
+    (fun _ -> thread_state_inv_core t (M.verify_log_entry tsm (EvictM ({s; s_=s'}))))
   = if not (M.check_slot_bounds s)
     || not (M.check_slot_bounds s')
     then (R.write t.failed true; ())
@@ -805,7 +805,7 @@ let vevictbm_core (#tsm:M.thread_state_model)
                   (ts:timestamp)
   : ST bool
     (thread_state_inv_core t tsm)
-    (fun b -> thread_state_inv_core t (update_if b tsm (M.verify_log_entry tsm (EvictBM ({s; s'; t=ts})))))
+    (fun b -> thread_state_inv_core t (update_if b tsm (M.verify_log_entry tsm (EvictBM ({s; s_=s'; t=ts})))))
     (t.thread_id == tsm.thread_id)
     (fun _ -> True)
   = let bounds_failed =

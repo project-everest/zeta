@@ -240,7 +240,7 @@ let verify_log_entry (#tsm:M.thread_state_model)
          verify_entry_cases t out aeh le b
 
        | EvictM pl ->
-         VerifierSteps.vevictm t pl.s pl.s';
+         VerifierSteps.vevictm t pl.s pl.s_;
          verify_entry_cases t out aeh le true
 
        | EvictB pl ->
@@ -248,7 +248,7 @@ let verify_log_entry (#tsm:M.thread_state_model)
          verify_entry_cases t out aeh le b
 
        | EvictBM pl ->
-         let b = VerifierSteps.vevictbm t pl.s pl.s' pl.t in
+         let b = VerifierSteps.vevictbm t pl.s pl.s_ pl.t in
          verify_entry_cases t out aeh le b
 
        | NextEpoch ->
