@@ -1282,8 +1282,8 @@ let epoch_hashes_update (mlogs_v:AEH.all_processed_entries)
       let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
       let e = tsm'.last_verified_epoch in
       AEH.aggregate_all_threads_epoch_hashes e mlogs_v' ==
-      AEH.aggregate_epoch_hash (Map.sel tsm'.epoch_hashes e)
-                               (AEH.aggregate_all_threads_epoch_hashes e mlogs_v)))
+      AEH.aggregate_epoch_hash (AEH.aggregate_all_threads_epoch_hashes e mlogs_v)
+                               (Map.sel tsm'.epoch_hashes e)))
   = let open AEH in
     let tsm' = spec_verify_epoch tsm in
     let tid = tsm'.thread_id in

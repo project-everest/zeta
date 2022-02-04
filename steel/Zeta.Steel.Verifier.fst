@@ -607,8 +607,9 @@ let elim_verify_step_post_log_entry_failure
      elim_pure _;
      rewrite (verify_log_entry_post tsm t out_bytes out_offset out aeh le None)
              (some_failure t out aeh)
-#push-options "--ifuel 2"
 
+#push-options "--ifuel 1 --z3rlimit_factor 2"
+#restart-solver
 let stitch_verify_post_step
                    (#o:_)
                    (#tsm:M.thread_state_model)

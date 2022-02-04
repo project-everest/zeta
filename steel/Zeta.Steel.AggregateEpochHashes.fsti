@@ -69,7 +69,7 @@ let tsm_of_log (mlogs_v:all_processed_entries) (t:tid) =
 let thread_contrib_of_log (t:tid) (l:log)
   : epoch_hashes_repr
   = let tsm = M.verify_model (M.init_thread_state_model t) l in
-    Zeta.Steel.Util.map_literal
+    FStar.Map.map_literal
       (fun (e:M.epoch_id) ->
          if is_epoch_verified tsm e
          then Map.sel tsm.epoch_hashes e
