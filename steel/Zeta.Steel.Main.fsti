@@ -91,6 +91,71 @@ val init (_:unit)
         (fun t -> core_inv t `star`
                TLM.tids_pts_to t.aeh.mlogs half (Map.const (Some Seq.empty)) false)
 
+let verify_post_success_pure_inv
+  (tid:tid)
+  (entries:erased AEH.log)
+  (log_bytes:erased bytes)
+  (out_bytes:erased bytes)
+  (read wrote:U32.t)  
+  (entries':Seq.seq log_entry)
+  (out_bytes':Seq.seq U8.t)
+  : prop
+  = V.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
+    (let tsm = M.verify_model (M.init_thread_state_model tid) entries in
+     let tsm' = M.verify_model tsm entries' in
+     Application.n_out_bytes tsm tsm' 0ul wrote out_bytes out_bytes')
+
+[@@ __reduce__]
+let verify_post_success_out_bytes_pred
+  (t:top_level_state)
+  (tid:tid)
+  (entries:erased AEH.log)
+  (log_bytes:erased bytes)
+  (out_len: U32.t)
+  (out_bytes:erased bytes)
+  (output:larray U8.t out_len)
+  (read wrote:U32.t)
+  (entries':Seq.seq log_entry)
+  : Seq.seq U8.t -> vprop
+  = fun out_bytes' ->
+    TLM.tid_pts_to t.aeh.mlogs tid half (entries `Seq.append` entries') false
+      `star`
+    A.pts_to output full_perm out_bytes'
+      `star`
+    pure (verify_post_success_pure_inv
+            tid
+            entries
+            log_bytes
+            out_bytes
+            read
+            wrote
+            entries'
+            out_bytes')
+
+[@@ __reduce__]
+let verify_post_success_pred
+  (t:top_level_state)
+  (tid:tid)
+  (entries:erased AEH.log)
+  (log_bytes:erased bytes)
+  (out_len: U32.t)
+  (out_bytes:erased bytes)
+  (output:larray U8.t out_len)
+  (read wrote:U32.t)
+  : Seq.seq log_entry -> vprop
+  = fun entries' ->
+    exists_ (verify_post_success_out_bytes_pred
+               t
+               tid
+               entries
+               log_bytes
+               out_len
+               out_bytes
+               output
+               read
+               wrote
+               entries')
+
 let verify_post
   (t:top_level_state)
   (tid:tid)
@@ -108,16 +173,16 @@ let verify_post
     A.pts_to input log_perm log_bytes `star`
     (match res with
      | Some (V.Verify_success read wrote) ->
-       exists_ (fun entries' ->
-       exists_ (fun out_bytes' ->
-         TLM.tid_pts_to t.aeh.mlogs tid half (entries `Seq.append` entries') false
-           `star`
-         A.pts_to output full_perm out_bytes'
-           `star`
-         pure (V.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
-               (let tsm = M.verify_model (M.init_thread_state_model tid) entries in
-                let tsm' = M.verify_model tsm entries' in
-                Application.n_out_bytes tsm tsm' 0ul wrote out_bytes out_bytes'))))
+       exists_ (verify_post_success_pred
+                  t
+                  tid
+                  entries
+                  log_bytes
+                  out_len
+                  out_bytes
+                  output
+                  read
+                  wrote)
 
      | _ ->
        exists_ (fun s -> A.pts_to output full_perm s) `star`

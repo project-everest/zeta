@@ -299,8 +299,85 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
                             out_len
                             out_bytes
                             output) with
-    | V.Verify_success read wrote -> admit___ ()
-
+    | V.Verify_success read wrote ->
+      rewrite
+        (V.verify_post _ _ _ _ _ _ _)
+        (exists_ (V.verify_post_success_pred tsm st_tid.tsm log_bytes out_bytes output t.aeh read wrote));
+      let log = elim_exists () in
+      TLM.share_tid_pts_to t.aeh.mlogs;
+      rewrite
+        (TLM.tid_pts_to
+           t.aeh.mlogs
+           (M.verify_model tsm log).thread_id
+           (half_perm full)
+           (M.verify_model tsm log).processed_entries
+           false)
+        (TLM.tid_pts_to
+           t.aeh.mlogs
+           (M.verify_model tsm log).thread_id
+           half
+           (M.verify_model tsm log).processed_entries
+           false);
+      rewrite
+        (V.thread_state_inv st_tid.tsm (M.verify_model tsm log)
+           `star`
+         TLM.tid_pts_to
+           t.aeh.mlogs
+           (M.verify_model tsm log).thread_id
+           half
+           (M.verify_model tsm log).processed_entries
+           false)
+        (thread_inv_predicate st_tid.tsm t.aeh.mlogs (M.verify_model tsm log));
+      intro_exists (M.verify_model tsm log) (thread_inv_predicate st_tid.tsm t.aeh.mlogs);
+      release st_tid.lock;
+      intro_exists (Ghost.reveal s)
+                   (fun s -> A.pts_to t.all_threads perm s
+                            `star`
+                          pure (tid_positions_ok s));
+      intro_exists (Ghost.reveal perm)
+                   (fun perm -> exists_ (fun s -> A.pts_to t.all_threads perm s
+                                              `star`
+                                            pure (tid_positions_ok s)));
+      rewrite
+        (exists_ (fun perm -> exists_ (fun s -> A.pts_to t.all_threads perm s
+                                            `star`
+                                          pure (tid_positions_ok s))))
+        (core_inv t);
+      let out_bytes' = elim_exists () in
+      elim_pure _;
+      elim_pure _;
+      assume ((M.verify_model tsm log).thread_id == tid);
+      assume ((M.verify_model tsm log).processed_entries == Seq.append entries log);
+      rewrite
+        (TLM.tid_pts_to
+           t.aeh.mlogs
+           (M.verify_model tsm log).thread_id
+           (half_perm full)
+           (M.verify_model tsm log).processed_entries
+           false)
+        (TLM.tid_pts_to
+           t.aeh.mlogs
+           tid
+           half
+           (entries `Seq.append` log)
+           false);
+      assume (verify_post_success_pure_inv tid entries log_bytes out_bytes read wrote (Ghost.reveal log) out_bytes');
+      intro_pure (verify_post_success_pure_inv tid entries log_bytes out_bytes read wrote (Ghost.reveal log) out_bytes');
+      intro_exists
+        (Ghost.reveal out_bytes')
+        (verify_post_success_out_bytes_pred t tid entries log_bytes out_len out_bytes output read wrote log);
+      intro_exists
+        (Ghost.reveal log)
+        (verify_post_success_pred t tid entries log_bytes out_len out_bytes output read wrote);
+      let res = Some vr in
+      rewrite
+        (core_inv t
+           `star`
+         A.pts_to input log_perm log_bytes
+           `star`
+         exists_ (verify_post_success_pred t tid entries log_bytes out_len out_bytes output read wrote))
+        (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res);
+      return res
     | _ ->
       rewrite
         (V.verify_post _ _ _ _ _ _ _)
@@ -366,5 +443,3 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
           exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)))
         (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output r);
       return r
-
-#set-options "--print_implicits"
