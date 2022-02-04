@@ -120,7 +120,7 @@ let verify_post
                 Application.n_out_bytes tsm tsm' 0ul wrote out_bytes out_bytes'))))
 
      | _ ->
-       exists_ (A.pts_to output full_perm) `star`
+       exists_ (fun s -> A.pts_to output full_perm s) `star`
        exists_ (fun entries' -> TLM.tid_pts_to t.aeh.mlogs tid half entries' false))
 
 val verify_log (t:top_level_state)

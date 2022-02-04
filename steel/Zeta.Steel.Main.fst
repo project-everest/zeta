@@ -224,10 +224,10 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
                                           `star`
                                         pure (tid_positions_ok s))))
       (core_inv t);
-    intro_exists (Ghost.reveal out_bytes) (A.pts_to output full_perm);
+    intro_exists (Ghost.reveal out_bytes) (fun s -> A.pts_to output full_perm s);
     intro_exists (Ghost.reveal entries) (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false);
     rewrite_with_tactic
-      (exists_ (A.pts_to output full_perm)
+      (exists_ (fun s -> A.pts_to output full_perm s)
          `star`
        (A.pts_to input log_perm log_bytes
           `star`
@@ -238,7 +238,7 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
          `star`
        A.pts_to input log_perm log_bytes
          `star`
-       (exists_ (A.pts_to output full_perm)
+       (exists_ (fun s -> A.pts_to output full_perm s)
           `star`
         exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)));
     rewrite
@@ -246,7 +246,7 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
          `star`
        A.pts_to input log_perm log_bytes
          `star`
-       (exists_ (A.pts_to output full_perm)
+       (exists_ (fun s -> A.pts_to output full_perm s)
           `star`
         exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)))
       (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output r);
@@ -325,40 +325,46 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
       elim_pure _;
       //drop thread_state_inv
       drop (exists_ (V.thread_state_inv st_tid.tsm));
-      // rewrite
-      //   (V.some_failure st_tid.tsm output t.aeh)
-      //   (exists_ (V.thread_state_inv st_tid.tsm)
-      //      `star`
-      //    exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs (VerifierTypes.thread_id st_tid.tsm) full entries false)
-      //      `star`
-      //    exists_ (array_pts_to output));
-              
-      admit___ ()
+      let entries' = elim_exists #_ #_
+        #(fun entries' -> TLM.tid_pts_to t.aeh.mlogs (V.thread_id st_tid.tsm) full entries' false)
+        () in
+      assume (V.thread_id st_tid.tsm == tid);
+      rewrite
+        (TLM.tid_pts_to t.aeh.mlogs (V.thread_id st_tid.tsm) full entries' false)
+        (TLM.tid_pts_to t.aeh.mlogs tid full entries' false);
+      TLM.share_tid_pts_to t.aeh.mlogs;
+      drop (TLM.tid_pts_to t.aeh.mlogs tid (half_perm full) entries' false);
+      rewrite
+        (TLM.tid_pts_to t.aeh.mlogs tid (half_perm full) entries' false)
+        (TLM.tid_pts_to t.aeh.mlogs tid half entries' false);
+      intro_exists
+        (Ghost.reveal entries')
+        (fun entries' -> TLM.tid_pts_to t.aeh.mlogs tid half entries' false);
+      rewrite_with_tactic
+        (core_inv t
+           `star`
+         A.pts_to input log_perm log_bytes
+           `star`
+         exists_ (fun s -> A.pts_to output full_perm s)
+            `star`
+         exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false))
+        (core_inv t
+           `star`
+         A.pts_to input log_perm log_bytes
+           `star`
+         (exists_ (fun s -> A.pts_to output full_perm s)
+            `star`
+          exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)));
+      let r = None in
+      rewrite
+        (core_inv t
+           `star`
+         A.pts_to input log_perm log_bytes
+           `star`
+         (exists_ (fun s -> A.pts_to output full_perm s)
+            `star`
+          exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)))
+        (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output r);
+      return r
 
 #set-options "--print_implicits"
-
-  // Lock.acquire st_tid.lock;
-  // rewrite (thread_inv st_tid.tsm t.aeh.mlogs)
-  //         (exists_ (thread_inv_predicate st_tid.tsm t.aeh.mlogs));
-  // let tsm = elim_exists () in
-  // rewrite (thread_inv_predicate st_tid.tsm t.aeh.mlogs tsm)
-  //         (V.thread_state_inv st_tid.tsm tsm
-  //            `star`
-  //          TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
-
-  // assume (Ghost.reveal entries == tsm.M.processed_entries);
-  // assume (tsm.M.thread_id == tid);
-
-  // rewrite
-  //   (TLM.tid_pts_to t.aeh.mlogs tid half entries false)
-  //   (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id half tsm.M.processed_entries false);
-
-  // TLM.gather_tid_pts_to t.aeh.mlogs;
-  
-  // rewrite
-  //   (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id (sum_perm half half) tsm.M.processed_entries false)
-  //   (TLM.tid_pts_to t.aeh.mlogs tsm.M.thread_id full tsm.M.processed_entries false);
-
-  // let vr = V.verify_log st_tid.tsm input output t.aeh in
-
-  // admit___ ()
