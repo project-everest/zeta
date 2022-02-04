@@ -709,7 +709,8 @@ let stitch_verify_post_step
                             (M.verify_model tsm les').processed_entries
                             false);
     assert (Application.n_out_bytes tsm1 tsm2 out_pos out_pos' out_bytes_1 out_bytes_2);
-    assume (Application.delta_out_bytes tsm tsm2 ==
+    Application.delta_out_bytes_trans tsm tsm1 le;
+    assert (Application.delta_out_bytes tsm tsm2 ==
             Seq.append (Application.delta_out_bytes tsm tsm1)
                        (Application.delta_out_bytes tsm1 tsm2));
     intro_pure (Application.n_out_bytes
@@ -737,9 +738,6 @@ let stitch_verify_post_step
       );
     assert (LogEntry.maybe_parse_log_entry log_bytes log_pos == Some (reveal le, U32.v log_pos'));
     parse_log_up_to_trans log_bytes (U32.v log_pos) (U32.v log_pos') les le;
-    // assume (parse_log_up_to log_bytes (U32.v log_pos) == Some les /\
-    //         LogEntry.maybe_parse_log_entry log_bytes log_pos == Some (reveal le, U32.v log_pos') ==>
-    //         parse_log_up_to log_bytes (U32.v log_pos + U32.v log_pos') == Some les');
     intro_pure (parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les');
     intro_exists les' (fun les' ->
       pure (parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les') `star`

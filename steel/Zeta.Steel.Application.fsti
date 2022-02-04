@@ -36,6 +36,14 @@ let delta_out_bytes_not_runapp (tsm:M.thread_state_model)
           [SMTPat (delta_out_bytes tsm (M.verify_step_model tsm le))]
   = admit()
 
+let delta_out_bytes_trans (tsm tsm1:M.thread_state_model)
+                          (le:log_entry)
+  : Lemma (ensures
+              delta_out_bytes tsm (M.verify_step_model tsm1 le) ==
+              Seq.append (delta_out_bytes tsm tsm1)
+                         (delta_out_bytes tsm1 (M.verify_step_model tsm1 le)))
+  = admit()
+
 let split3 (s:Seq.seq U8.t)
            (from:U32.t { U32.v from <= Seq.length s})
            (to:U32.t { U32.v to <= Seq.length s - U32.v from })
