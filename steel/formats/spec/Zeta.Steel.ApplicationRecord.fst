@@ -8,4 +8,6 @@ let spec_parser_app_record' =
     Zeta.Formats.Aux.Application_key.application_key_parser
     (LowParse.Spec.Option.parse_option Zeta.Formats.Aux.Application_value.application_value_parser)
 
-let spec_parser_app_record = spec_parser_app_record'
+let spec_parser_app_record b = match spec_parser_app_record' b with
+  | None -> None
+  | Some (res, consumed) -> Some (res, consumed)

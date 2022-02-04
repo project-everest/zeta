@@ -5,7 +5,7 @@ open LowParse.Spec.Base
 
 let application_key_parser : parser (strong_parser_kind 0 2040 None) _ =
   parser_intro key_type spec_parser_key spec_serializer_key spec_parser_key_injective spec_parser_key_strong_prefix 0 2040 serialized_key_length;
-  spec_parser_key
+  bare_parser_of_spec_parser spec_parser_key
 
 let application_key_serializer : serializer application_key_parser =
   spec_serializer_key

@@ -29,4 +29,4 @@ let parse32_log_entry
 #pop-options
 
 let parser_log_entry =
-  Zeta.Steel.FormatsLib.mk_steel_parser parse32_log_entry
+  Zeta.Steel.FormatsLib.mk_steel_parser parse32_log_entry spec_parser_log_entry ()
