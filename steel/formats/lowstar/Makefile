@@ -16,7 +16,7 @@ all: verify
 
 include $(ZETA_HOME)/Makefile.common
 
-$(OUTPUT_DIRECTORY)/dist/Makefile.basic: $(ALL_KRML_FILES)
+dist/Makefile.basic: $(ALL_KRML_FILES)
 	$(KRML) -tmpdir $(dir $@) -skip-compilation \
 	  $(filter %.krml,$^) \
 	  -warn-error @4@5@18 \
@@ -25,6 +25,6 @@ $(OUTPUT_DIRECTORY)/dist/Makefile.basic: $(ALL_KRML_FILES)
 	  -o zetaformats.a \
 	  -ccopt -Wno-type-limits
 
-extract: $(OUTPUT_DIRECTORY)/dist/Makefile.basic
+extract: dist/Makefile.basic
 
 .PHONY: extract
