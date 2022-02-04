@@ -39,11 +39,11 @@ type thread_state (mlogs:TLM.t) =
 {
   tid: tid;
   tsm: V.thread_state_t;
-  lock : Lock.lock (thread_inv tsm mlogs)
+  lock : cancellable_lock (thread_inv tsm mlogs)
 }
 
 let all_threads_t (mlogs:TLM.t) =
-    larray (thread_state mlogs) n_threads
+  larray (thread_state mlogs) n_threads
 
 noeq
 type top_level_state = {
@@ -102,12 +102,12 @@ let verify_post
   (out_len: U32.t)
   (out_bytes:erased bytes)
   (output:larray U8.t out_len)
-  : post_t (v:V.verify_result { V.verify_result_complete len v })
+  : post_t (option (v:V.verify_result { V.verify_result_complete len v }))
   = fun res ->
     core_inv t `star`
     A.pts_to input log_perm log_bytes `star`
     (match res with
-     | V.Verify_success read wrote ->
+     | Some (V.Verify_success read wrote) ->
        exists_ (fun entries' ->
        exists_ (fun out_bytes' ->
          TLM.tid_pts_to t.aeh.mlogs tid half (entries `Seq.append` entries') false
@@ -133,7 +133,7 @@ val verify_log (t:top_level_state)
                (out_len: U32.t)
                (#out_bytes:erased bytes)
                (output:larray U8.t out_len)
-  : STT (v:V.verify_result { V.verify_result_complete len v })
+  : STT (option (v:V.verify_result { V.verify_result_complete len v }))
     (core_inv t `star`
      A.pts_to input log_perm log_bytes `star`
      A.pts_to output full_perm out_bytes `star`

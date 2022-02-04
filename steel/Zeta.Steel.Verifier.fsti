@@ -62,16 +62,6 @@ let verify_post (tsm:M.thread_state_model)
                 ([@@@smt_fallback] res:verify_result)
  : vprop
  = match res with
-   | Parsing_failure log_pos ->
-      pure (~ (LogEntry.can_parse_log_entry log_bytes log_pos) ) `star`
-      some_failure t out aeh
-
-   | App_failure _ ->
-      some_failure t out aeh
-
-   | Verify_entry_failure _ ->
-      some_failure t out aeh
-
    | Verify_success read wrote ->
      exists_ (fun log ->
        let tsm' = M.verify_model tsm log in
@@ -79,6 +69,11 @@ let verify_post (tsm:M.thread_state_model)
        thread_state_inv t tsm' `star` //tsm' is the new state of the thread
        TLM.tid_pts_to aeh.mlogs tsm'.thread_id full tsm'.processed_entries false `star` //my contributions are updated
        verify_post_out_bytes tsm out_bytes wrote out log)
+   | _ ->
+     some_failure t out aeh
+       `star`
+     pure (Parsing_failure? res ==>
+           ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res)))
 
 val verify_log (#tsm:M.thread_state_model)
                (t:thread_state_t) //handle to the thread state
