@@ -56,6 +56,14 @@ let parser_kind_prop0 (#t: Type) (k: parser_kind) (f: bare_parser t) : GTot Type
   (Some? k.parser_kind_high ==> (parses_at_most (Some?.v k.parser_kind_high) f)) /\
   parser_kind_metadata_prop k f
 
+let bare_parser_of_spec_parser
+  (#t: Type)
+  (p: P.spec_parser t)
+: Tot (bare_parser t)
+= fun x -> match p x with
+  | None -> None
+  | Some (res, consumed) -> Some (res, consumed)
+
 let parser_intro
   (typ : Type0)
   (spec_parser : P.spec_parser typ)
@@ -85,7 +93,7 @@ let parser_intro
   (serialized_length : (v:typ) ->
     Lemma (let l = Seq.length (spec_serializer v) in lo <= l /\ l <= hi))
 : Lemma
-  (parser_kind_prop (strong_parser_kind lo hi None) spec_parser)
+  (parser_kind_prop (strong_parser_kind lo hi None) (bare_parser_of_spec_parser spec_parser))
 =
   let parser_bounds (b: bytes) : Lemma
   (match spec_parser b with
@@ -97,11 +105,12 @@ let parser_intro
     spec_parser_injective b (spec_serializer x);
     serialized_length x
   in
-  parser_injective_intro spec_parser (fun b1 b2 -> spec_parser_injective b1 b2);
-  no_lookahead_intro spec_parser (fun b1 b2 ->
+  let spec_parser' = bare_parser_of_spec_parser spec_parser in
+  parser_injective_intro spec_parser' (fun b1 b2 -> spec_parser_injective b1 b2);
+  no_lookahead_intro spec_parser' (fun b1 b2 ->
     spec_parser_strong_prefix b1 b2;
     spec_parser_injective b1 b2
   );
   Classical.forall_intro parser_bounds;
-  assert (parser_kind_prop0 (strong_parser_kind lo hi None) spec_parser);
-  LowParse.Spec.Base.parser_kind_prop_equiv (strong_parser_kind lo hi None) spec_parser
+  assert (parser_kind_prop0 (strong_parser_kind lo hi None) spec_parser');
+  LowParse.Spec.Base.parser_kind_prop_equiv (strong_parser_kind lo hi None) spec_parser'

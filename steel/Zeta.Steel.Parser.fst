@@ -30,10 +30,15 @@ let slice_ok (s:bytes) (from slice_len:U32.t) =
   *      so that it can be composed with LowParse
   *)
 
-let seq_slice_size_t (b: bytes) : Type0 = (n: nat { n <= Seq.length b })
+let parser_result (b: bytes) (t: Type0) =
+  (res: option (t & nat) {
+    match res with
+    | None -> True
+    | Some (_, consumed) -> consumed <= Seq.length b
+  })
 
 let spec_parser (t:Type0) =
-    b:bytes -> GTot (option (t & seq_slice_size_t b))
+    b:bytes -> GTot (parser_result b t)
 
 let spec_serializer (#t:Type) (p:spec_parser t) =
     x:t -> GTot (b:bytes{ match p b with

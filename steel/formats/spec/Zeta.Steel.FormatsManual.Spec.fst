@@ -25,7 +25,10 @@ let spec_parser_stamped_record' =
     Zeta.Formats.Aux.Stamped_record.stamped_record_parser
     synth_stamped_record
 
-let spec_parser_stamped_record x = LPC.parse spec_parser_stamped_record' x
+let spec_parser_stamped_record x =
+  match LPC.parse spec_parser_stamped_record' x with
+  | None -> None
+  | Some (res, consumed) -> Some (res, consumed)
 
 let spec_serializer_stamped_record' : LPC.serializer spec_parser_stamped_record' =
   LPC.serialize_synth

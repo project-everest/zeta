@@ -14,6 +14,10 @@ let payload (needs_payload: bool) : Tot Type0 =
   then LowParse.Spec.Bytes.parse_bounded_vlbytes_t 0 2147483647
   else unit
 
+inline_for_extraction
+let payload_len (pl: Ghost.erased (payload true)) : Tot Type0 =
+  (x: FStar.UInt32.t { x == FStar.Bytes.len pl })
+
 let payload_parser (needs_payload: bool) : Tot (k: LP.parser_kind & LP.parser k (payload needs_payload)) =
   if needs_payload
   then (| _, LowParse.Spec.Bytes.parse_bounded_vlbytes 0 2147483647 |)
@@ -26,9 +30,8 @@ open Zeta.Formats.Aux.Evictb_payload
 open Zeta.Formats.Aux.Evictbm_payload
 open Zeta.Formats.Synth
 
-let synth_log_entry
-  (x: Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr)
-  (pl: payload (needs_payload x))
+let synth_log_entry_false
+  (x: Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr {needs_payload x == false })
 : Tot Zeta.Steel.LogEntry.Types.log_entry
 = match x with
   | Zeta.Formats.Aux.Log_entry_hdr.Le_payload_AddM apl ->
@@ -44,12 +47,6 @@ let synth_log_entry
       apl.addb_t
       apl.addb_tid
       r
-  | Zeta.Formats.Aux.Log_entry_hdr.Le_payload_RunApp rpl ->
-    Zeta.Steel.LogEntry.Types.RunApp
-      (Zeta.Steel.LogEntry.Types.MkrunApp_payload
-        rpl
-        (Zeta.Steel.LogEntry.Types.Mkuninterpreted (FStar.Bytes.len pl) (FStar.Bytes.reveal pl))
-      )
   | Zeta.Formats.Aux.Log_entry_hdr.Le_payload_NextEpoch _ ->
     Zeta.Steel.LogEntry.Types.NextEpoch
   | Zeta.Formats.Aux.Log_entry_hdr.Le_payload_VerifyEpoch _ ->
@@ -63,6 +60,27 @@ let synth_log_entry
   | Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictBM epl ->
     Zeta.Steel.LogEntry.Types.EvictBM
       (Zeta.Steel.LogEntry.Types.MkevictBM_payload epl.evictbm_s epl.evictbm_s2 epl.evictbm_t)
+
+let synth_log_entry_true
+  (x: Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr { needs_payload x == true })
+  (pl: Ghost.erased (payload true))
+  (pl_len: payload_len pl)
+: Tot Zeta.Steel.LogEntry.Types.log_entry
+= match x with
+  | Zeta.Formats.Aux.Log_entry_hdr.Le_payload_RunApp rpl ->
+    Zeta.Steel.LogEntry.Types.RunApp
+      (Zeta.Steel.LogEntry.Types.MkrunApp_payload
+        rpl
+        (Zeta.Steel.LogEntry.Types.Mkuninterpreted pl_len (FStar.Bytes.reveal pl))
+      )
+
+let synth_log_entry
+  (x: Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr)
+  (pl: payload (needs_payload x))
+: Tot Zeta.Steel.LogEntry.Types.log_entry
+= if needs_payload x
+  then synth_log_entry_true x pl (FStar.Bytes.len pl)
+  else synth_log_entry_false x
 
 let parse_ifthenelse_param =
   LowParse.Spec.IfThenElse.Mkparse_ifthenelse_param

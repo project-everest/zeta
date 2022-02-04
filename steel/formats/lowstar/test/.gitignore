@@ -1,0 +1,7 @@
+Makefile.basic
+Makefile.include
+ZetaFormats.c
+ZetaFormats.h
+*.d
+*.o
+*.a

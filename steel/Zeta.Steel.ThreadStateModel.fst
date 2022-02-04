@@ -803,9 +803,9 @@ let verify_log_entry (tsm:thread_state_model)
     match e with
     | AddM s s' r -> vaddm tsm s s' r
     | AddB s ts tid r -> vaddb tsm s ts tid r
-    | EvictM p -> vevictm tsm p.s p.s'
+    | EvictM p -> vevictm tsm p.s p.s_
     | EvictB p -> vevictb tsm p.s p.t
-    | EvictBM p -> vevictbm tsm p.s p.s' p.t
+    | EvictBM p -> vevictbm tsm p.s p.s_ p.t
     | NextEpoch -> nextepoch tsm
     | VerifyEpoch -> verifyepoch tsm
     | RunApp p -> runapp tsm p

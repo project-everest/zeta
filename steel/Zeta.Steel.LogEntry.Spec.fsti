@@ -32,6 +32,39 @@ val spec_parser_log_entry_consumes_at_least_one_byte
     consumed >= 1
   ))
 
+val spec_parser_log_entry_strong_prefix (l:bytes)
+  : Lemma
+    (requires
+       Some? (spec_parser_log_entry l))
+    (ensures (
+       let Some (le, pos) = spec_parser_log_entry l in
+       (forall (l1:bytes).{:pattern spec_parser_log_entry l1}
+         pos <= Seq.length l1 /\
+         Seq.slice l 0 pos `Seq.equal` Seq.slice l1 0 pos ==>
+         (match spec_parser_log_entry l1 with
+          | None -> False
+          | Some (le', pos') -> le' == le /\ eq2 #nat pos' pos /\ pos > 0))))
+
+val runapp_payload_offset
+  (e: log_entry)
+  (b: Ghost.erased bytes)
+: Pure U32.t
+  (requires (
+    RunApp? e /\
+    begin match spec_parser_log_entry b with
+    | Some (e', _) -> e' == e
+    | _ -> False
+    end
+  ))
+  (ensures (fun res ->
+    let Some (_, len) = spec_parser_log_entry b in
+    let off = U32.v res in
+    let RunApp pl = e in
+    off <= len /\
+    Ghost.reveal pl.rest.ebytes == Seq.slice b off len
+  ))
+
+
 let rec parse_full_log (l:bytes)
   : GTot (option (Seq.seq log_entry))
          (decreases (Seq.length l))
@@ -49,21 +82,7 @@ let full_parse_log_entry (l:bytes) =
   | None -> False
   | Some (le, n) -> n == Seq.length l
 
-let spec_parser_log_entry_strong_prefix (l:bytes)
-  : Lemma
-    (requires
-         Some? (spec_parser_log_entry l))
-    (ensures (
-       let Some (le, pos) = spec_parser_log_entry l in
-       (forall (l1:bytes).{:pattern spec_parser_log_entry l1}
-          pos <= Seq.length l1 /\
-          Seq.slice l 0 pos `Seq.equal` Seq.slice l1 0 pos ==>
-          (match spec_parser_log_entry l1 with
-           | None -> False
-           | Some (le', pos') -> le' == le /\ eq2 #nat pos' pos /\ pos > 0))))
-  = admit()
 #push-options "--query_stats --fuel 2 --ifuel 1 --z3rlimit_factor 4 --using_facts_from '* -FStar.Seq.Properties.slice_slice'"
-
 let rec parse_full_log_trans (l0 l1:bytes)
   : Lemma
     (requires

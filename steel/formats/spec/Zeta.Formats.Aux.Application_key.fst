@@ -4,28 +4,36 @@ friend Zeta.Formats.Aux.External.App
 open Zeta.Steel.ApplicationTypes
 open Zeta.Formats.Lib
 
-let application_key_parser =
-  parser_intro application_key spec_parser_key spec_serializer_key spec_parser_key_injective spec_parser_key_strong_prefix 0 2040 serialized_key_length;
-  spec_parser_key
+module Spec = Zeta.Formats.Aux.Application_key.Spec
+module Size = Zeta.Formats.Aux.Application_key.Size
+module SLow = Zeta.Formats.Aux.Application_key.SLow
+module Low = Zeta.Formats.Aux.Application_key.Low
 
-let application_key_serializer =
-  spec_serializer_key
+let application_key_parser = Spec.application_key_parser
+
+let application_key_serializer = Spec.application_key_serializer
 
 let application_key_bytesize x = Seq.length (spec_serializer_key x)
 
 let application_key_bytesize_eq x = ()
 
-assume val application_key_parser32': LS.parser32 application_key_parser
-let application_key_parser32 = application_key_parser32'
+// we need to add eta-expansions because the callees cannot be marked
+// inline_for_extraction, since they are extern
 
-assume val application_key_serializer32': LS.serializer32 application_key_serializer
-let application_key_serializer32 = application_key_serializer32'
+let application_key_parser32 x = SLow.application_key_parser32 x
 
-assume val application_key_size32': LS.size32 application_key_serializer
-let application_key_size32 = application_key_size32'
+// this function is unused
+assume val __UNUSED__application_key_serializer32': LS.serializer32 application_key_serializer
+let application_key_serializer32 = __UNUSED__application_key_serializer32'
 
-assume val application_key_validator': LL.validator application_key_parser
-let application_key_validator = application_key_validator'
+let application_key_size32 x = Size.application_key_size32 x
 
-assume val application_key_jumper': LL.jumper application_key_parser
-let application_key_jumper = application_key_jumper'
+let application_key_validator input pos = Low.application_key_validator input pos
+
+let application_key_jumper input pos = Low.application_key_jumper input pos
+
+let application_key_reader input pos = Low.application_key_reader input pos
+
+// unused
+assume val __UNUSED__application_key_lserializer': LL.serializer32 application_key_serializer
+let application_key_lserializer = __UNUSED__application_key_lserializer'

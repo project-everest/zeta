@@ -36,7 +36,9 @@ let mk_steel_parser
   (#t: Type)
   (#p: LP.parser k t)
   (p32: LP.parser32 p)
-: Tot (P.parser p)
+  (p0: P.spec_parser t)
+  (p0_eq: squash (forall x . Zeta.Formats.Lib.bare_parser_of_spec_parser p0 x == p x ))
+: Tot (P.parser p0)
 = fun len offset slice_len a ->
   let b = read_bytes len offset slice_len a _ () in
   p32 b

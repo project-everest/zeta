@@ -53,7 +53,7 @@ FSTAR=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 
 .depend:
 	mkdir -p $(CACHE_DIRECTORY)
-	$(FSTAR) --dep full $(notdir $(FSTAR_FILES)) > .depend.aux
+	$(FSTAR) $(FSTAR_DEP_OPTIONS) --dep full $(notdir $(FSTAR_FILES)) > .depend.aux
 	mv .depend.aux .depend
 
 depend: .depend
@@ -64,6 +64,11 @@ include .depend
 # a.fst(i).checked is the binary, checked version of a.fst(i)
 $(CACHE_DIRECTORY)/%.checked:
 	$(FSTAR) $<
+	touch -c $@
+
+%.krml:
+	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen Kremlin \
+	  --extract_module $(basename $(notdir $(subst .checked,,$<)))
 	touch -c $@
 
 verify: $(addprefix $(CACHE_DIRECTORY)/,$(addsuffix .checked, $(notdir $(FSTAR_FILES))))
