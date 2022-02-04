@@ -12,6 +12,28 @@ let spec_parser_log_entry_consumes_at_least_one_byte bytes =
   let _ = LowParse.Spec.Base.parse Zeta.Formats.LogEntry.parse_log_entry bytes in // SMT pattern
   LowParse.Spec.Base.parser_kind_prop_equiv Zeta.Formats.LogEntry.parse_log_entry_kind Zeta.Formats.LogEntry.parse_log_entry
 
+let spec_parser_log_entry_strong_prefix' (l l1:bytes)
+  : Lemma
+    (requires
+       Some? (spec_parser_log_entry l) /\
+       (let Some (le, pos) = spec_parser_log_entry l in
+         pos <= Seq.length l1 /\
+         Seq.slice l 0 pos `Seq.equal` Seq.slice l1 0 pos))
+    (ensures (
+       Some? (spec_parser_log_entry l) /\
+       (let Some (le, pos) = spec_parser_log_entry l in (
+         pos <= Seq.length l1 /\
+         Seq.slice l 0 pos `Seq.equal` Seq.slice l1 0 pos) /\
+         (match spec_parser_log_entry l1 with
+          | None -> False
+          | Some (le', pos') -> le' == le /\ eq2 #nat pos' pos /\ pos > 0))))
+= 
+  LowParse.Spec.Base.parse_strong_prefix Zeta.Formats.LogEntry.parse_log_entry l l1;
+  spec_parser_log_entry_consumes_at_least_one_byte l1
+
+let spec_parser_log_entry_strong_prefix bytes =
+  Classical.forall_intro (Classical.move_requires (spec_parser_log_entry_strong_prefix' bytes))
+
 friend Zeta.Formats.LogEntry
 
 let runapp_payload_offset'

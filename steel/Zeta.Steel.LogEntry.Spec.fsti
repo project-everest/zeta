@@ -32,6 +32,19 @@ val spec_parser_log_entry_consumes_at_least_one_byte
     consumed >= 1
   ))
 
+val spec_parser_log_entry_strong_prefix (l:bytes)
+  : Lemma
+    (requires
+       Some? (spec_parser_log_entry l))
+    (ensures (
+       let Some (le, pos) = spec_parser_log_entry l in
+       (forall (l1:bytes).{:pattern spec_parser_log_entry l1}
+         pos <= Seq.length l1 /\
+         Seq.slice l 0 pos `Seq.equal` Seq.slice l1 0 pos ==>
+         (match spec_parser_log_entry l1 with
+          | None -> False
+          | Some (le', pos') -> le' == le /\ eq2 #nat pos' pos /\ pos > 0))))
+
 val runapp_payload_offset
   (e: log_entry)
   (b: Ghost.erased bytes)
