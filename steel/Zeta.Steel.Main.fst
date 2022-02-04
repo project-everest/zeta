@@ -179,6 +179,8 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
            pure (tid_positions_ok s))));
   let perm = elim_exists () in
   let s = elim_exists () in
+  extract_pure (tid_positions_ok s);
+
   A.pts_to_length t.all_threads s;
   let st_tid = A.read t.all_threads (FStar.Int.Cast.uint16_to_uint32 tid) in
 
