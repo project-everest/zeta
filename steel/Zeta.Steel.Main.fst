@@ -228,21 +228,6 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
       (core_inv t);
     intro_exists (Ghost.reveal out_bytes) (fun s -> A.pts_to output full_perm s);
     intro_exists (Ghost.reveal entries) (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false);
-    rewrite_with_tactic
-      (exists_ (fun s -> A.pts_to output full_perm s)
-         `star`
-       (A.pts_to input log_perm log_bytes
-          `star`
-        (core_inv t
-           `star`
-         exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false))))
-      (core_inv t
-         `star`
-       A.pts_to input log_perm log_bytes
-         `star`
-       (exists_ (fun s -> A.pts_to output full_perm s)
-          `star`
-        exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)));
     rewrite
       (core_inv t
          `star`
@@ -428,21 +413,6 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
       intro_exists
         (Ghost.reveal entries')
         (fun entries' -> TLM.tid_pts_to t.aeh.mlogs tid half entries' false);
-      rewrite_with_tactic
-        (core_inv t
-           `star`
-         A.pts_to input log_perm log_bytes
-           `star`
-         exists_ (fun s -> A.pts_to output full_perm s)
-            `star`
-         exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false))
-        (core_inv t
-           `star`
-         A.pts_to input log_perm log_bytes
-           `star`
-         (exists_ (fun s -> A.pts_to output full_perm s)
-            `star`
-          exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)));
       let r = None in
       rewrite
         (core_inv t
