@@ -302,6 +302,37 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
     | V.Verify_success read wrote -> admit___ ()
 
     | _ ->
+      rewrite
+        (V.verify_post _ _ _ _ _ _ _)
+        (V.some_failure st_tid.tsm output t.aeh
+           `star`
+         pure (V.Parsing_failure? vr ==>
+               ~ (LogEntry.can_parse_log_entry log_bytes (V.Parsing_failure?.log_pos vr))));
+      cancel st_tid.lock;
+      intro_exists (Ghost.reveal s)
+                   (fun s -> A.pts_to t.all_threads perm s
+                            `star`
+                          pure (tid_positions_ok s));
+      intro_exists (Ghost.reveal perm)
+                   (fun perm -> exists_ (fun s -> A.pts_to t.all_threads perm s
+                                              `star`
+                                            pure (tid_positions_ok s)));
+      rewrite
+        (exists_ (fun perm -> exists_ (fun s -> A.pts_to t.all_threads perm s
+                                            `star`
+                                          pure (tid_positions_ok s))))
+        (core_inv t);
+      elim_pure _;
+      //drop thread_state_inv
+      drop (exists_ (V.thread_state_inv st_tid.tsm));
+      // rewrite
+      //   (V.some_failure st_tid.tsm output t.aeh)
+      //   (exists_ (V.thread_state_inv st_tid.tsm)
+      //      `star`
+      //    exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs (VerifierTypes.thread_id st_tid.tsm) full entries false)
+      //      `star`
+      //    exists_ (array_pts_to output));
+              
       admit___ ()
 
 #set-options "--print_implicits"
