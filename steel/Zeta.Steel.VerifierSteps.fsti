@@ -16,6 +16,12 @@ val create (tid:tid)
     emp
     (fun t -> thread_state_inv t (M.init_thread_state_model tid))
 
+val check_failed (#tsm:M.thread_state_model)
+                 (t:thread_state_t)
+  : STT (b:bool { b == tsm.failed })
+    (thread_state_inv t tsm)
+    (fun _ -> thread_state_inv t tsm)
+
 val vaddm (#tsm:M.thread_state_model)
           (t:thread_state_t)
           (s s':slot_id)

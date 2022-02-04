@@ -1,0 +1,131 @@
+\documentclass{article}
+
+% Language setting
+% Replace `english' with e.g. `spanish' to change the document language
+\usepackage[english]{babel}
+
+% Set page size and margins
+% Replace `letterpaper' with`a4paper' for UK/EU standard size
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+% Useful packages
+\usepackage{amsmath,amsthm}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+
+\newtheorem{definition}{Definition}
+\newtheorem{notation}{Notation}
+\newtheorem{claim}{Claim}
+
+\newcommand{\hashFamily}{\mathcal{H}}
+\newcommand{\funcfamily}{\mathcal{F}}
+\newcommand{\XOR}{\bigoplus}
+\newcommand{\set}[1]{\left\{ #1 \right\}}
+\newcommand{\bits}{\set{0,1}}
+
+\title{Multiset Hash}
+\author{Esha Ghosh}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+
+\end{abstract}
+
+\section{Preliminaries}
+
+
+\begin{notation}[Multiplicity of an element]
+ Let $M \subseteq D$ be a multi-set. We will denote such a multiset as $M^D$.For any element $s \in M$, we denote by $m(s)$ multiplicity of $s$ in $S$. That is, $m(s)$ is the number of times $s$ appears in the multi-set $M_D$.
+\end{notation}
+ 
+%  \begin{definition}[Set-Multi-Set (SMS) collision resistance]
+%  Let $\hashFamily$ be a family of hash functions that map a set $D$ to $\{0,1\}^k$. It is said to be SMS collision resistant if for any \textbf{distinct pair} of multi-sets $S_1,S_2 \subseteq D$ where $S_1$ is guaranteed to be a set (i.e., no element of $S_1$ is repeated) and $|S_1|=|S_2|$,
+%  \[
+% \Pr_{h \in \hashFamily} [h(S_1) = h(S_2) ] \leq \frac{1}{2^k}
+%  \]
+%  where $h(S)$ is defined as $h(S)=\XOR_{s\in S} \XOR_{i \in m(S)} h(s)$ for any multi-set $S \subseteq D$.
+%  \end{definition}
+ 
+\begin{definition}[Extending functions on points in $D$ to  multi-subsets of $D$]
+Let $\hashFamily$ be a family of functions from $D$ to $\bits^k$. We define $\funcfamily_\hashFamily$ to be the set of functions $\set{f_h}_{h \in \hashFamily}$ from multi-subsets of $D$ to $\bits^k$  defined as $f_h(M_D)=\XOR_{s\in M_D} \XOR_{i \in m(S)} h(s)$ for any multi-subset $M_D$ of $D$.
+\end{definition}
+ 
+ \begin{claim}
+ Let $\hashFamily$ be the uniform distribution over the set of all functions from $D$ to $\{0,1\}^k$. Then, for any \textbf{distinct pair} of multi-sets $M_1,M_2 \subseteq D$ where $M_1$ is guaranteed to be a set (i.e., no element of $S_1$ is repeated) and $|M_1|=|M_2|$,
+  \[
+\Pr_{h \in \hashFamily} [f_h(M_1) = f_h(M_2) ] \leq \frac{1}{2^k}
+ \]
+ \end{claim}\label{claim:randomfunc}
+ \begin{proof}
+ Since $M_1,M_2$ are distinct and $|M_1| = |M_2|$, there exists an element $d_1 \in M_1$ which do not appear in $M_2$. Since $M_1$ is a set $m(d_1)=1$ in $M_1$. By definition $f_h(M_1)=f_h(\set{d_1}) \XOR f_h(M_1\setminus \{d_1\})$. Thus the condition $f_h(M_1)=f_h(M_2)$ can be rewritten as $f_h(\set{d_1}) = f_h(M_1\setminus \{d_1\}) \XOR f_h(M_2)$.
+Note that by definition, $f_h(\set{d_1})=h(d_1)$.
+ Since $d_1$ does not appear in $M_1\setminus \{d_1\}$ and $M_2$, if $h$ is chosen at random from $\hashFamily$ (which the set of all functions from $D$ to $\{0,1\}^k$), the value on the right hand side is independent of the left hand side and the probability with which $h(d_1)$ is the particular value $h(M_1\setminus \{d_1\}) \XOR h(M_2)$ is $\frac{1}{2^k}$. This is because a random function $h\in \hashFamily$ assigns probability $\frac{1}{2^k}$ for $h(d)=e$ for any $d\in D$ and $e \in \{0,1\}^k$. 
+ \end{proof}
+
+\section{SMS Collision Resistant Function}
+
+Let $\funcfamily$ be a family of functions that map multisets $M^D$ to $\{0,1\}^k$. For a $f \in \funcfamily$, we say $f$ is SMS collision resistant, if for any two (multi)-sets $M^D_1,M^D_2$ and for any PPT adversary $A$, there exists a negligible function $\mathsf{negl}$ such that:
+
+\begin{align*}
+    Pr [b \leftarrow \{0,1\}; b' \leftarrow A^{\mathcal{O}_i,\mathcal{O}_c}: b=b'] \leq 1/2 + \mathsf{negl}(\lambda)
+\end{align*}
+
+where $\mathcal{O}_i$ can be called exactly once and $\mathcal{O}_c$ cannot be called before calling $\mathcal{O_i}$.
+
+\paragraph{Oracle $\mathcal{O}_i$}
+\begin{itemize}
+    \item If $b=0$: return \emph{initialized}
+    \item If $b=1$: $f \leftarrow \funcfamily$; return \emph{initialized}
+\end{itemize}
+
+\paragraph{Oracle $\mathcal{O}_c(M_1,M_2)$}
+\begin{itemize}
+    \item If $|M_1| \neq |M_2| \vee (M_1$ is not a set), return \emph{incorrect input} and halt. Else proceed to the next step.
+    \item If $b=0$: If $M_1 = M_2$ return \emph{sets equal}. Else return \emph{sets unequal}.
+    \item If $b=1$: If $f(M_1) = f(M_2)$ return \emph{sets equal}. Else return \emph{sets unequal}.
+\end{itemize}
+
+\section{Defining a concrete $\funcfamily$}
+
+\begin{definition}
+Let $\mathcal{G} : D \rightarrow \{0,1\}^k$ be a PRF family. We define $\funcfamily=\{f_g\}_{g \in G}$ where $f_g$ is definded as:
+
+$ f_g(M)=\XOR_{s\in M} \XOR_{i \in m(S)} g(s)$, for any multi-set $M \subseteq D$
+\end{definition}
+
+
+
+ \begin{claim} The function family defined above is SMS Collision Resistant as per the definition.
+ \end{claim}
+ \begin{proof}
+ \begin{description}
+ \item [Game 0] This is is the same as the game in the definition
+ \item [Game 1] Same as Game 0, except the following:
+ In oracle $\mathcal{O}_c$, if $b=0$, the condition is replaced with checking if $f(M_1)=f(M_2)$ where  $f(M)=\XOR_{s\in S} \XOR_{i \in m(S)} h(s)$ for any multi-set $S \subseteq D$, $f \leftarrow \hashFamily$, $\hashFamily$ is the uniform distribution over the set of all functions from $D$ to $\{0,1\}^\lambda$.
+ 
+ By Claim~\ref{claim:randomfunc}, the probability that the output of Game 0 and Game 1 differs in negligibly small.
+
+Now, it remains to show, that in Game 1, the probability that a PPT adversary sees different outputs depending on $b=0$ or $ b=1$ is negligibly small.
+
+We will show this by reducing to PRF security. In particular, we show that, if a distinguisher A can distinguish this two cases in Game 1, then we can construct a distinguisher A' that breaks the PRF security as follows:
+
+A' receives as its oracles, Random or PRF and simulates the oracles to A. On input $M_1$ and $M_2$ from A, it first checks if $|M_1| = |M_2| \wedge (M_1$ is a set). Then it invokes its own oracle for each $e \in M_1, M_2$ to compute $f_g(M_1),f_g(M_2)$. Then it checks whether $f_g(M_1)=f_g(M_2)$ and returns the appropriate response to A. Finally it outputs the bit $b'$ output by A as its own output in the PRF security game.
+
+Clearly, if A' has the Random function oracle in the PRF game, then it is exactly simulating $b=0$ case in the oracle $\mathcal{O}_c$. If A' has the PRF oracle in the PRF game, then it is exactly simulating $b=1$ case in oracle $\mathcal{O}_c$. Thus A' wins the PRF game with the same advantage as A.
+ \end{description}
+ 
+ This concludes our proof.
+ 
+ 
+ \end{proof}
+ 
+% \section{Thoughts on generalizing to Multi-Shot}
+ 
+% It should be pretty straightforward if we let the adversary call its oracles multiple times, but each $O_i$ initializes a new hash function and each call of $O_c$ woks with an independent hash function. We should be able to reduce to the game above at the cost of a factor $q$ loss in security, where A can make at most $q$ $O_c$ queries.
+
+
+
+
+\end{document}
