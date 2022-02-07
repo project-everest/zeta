@@ -59,3 +59,15 @@ let parser_log_entry
       Some (res, consumed)
     end
   end
+
+#pop-options
+
+let serialize_stamped_record =
+  fun len offset a v ->
+  LowParse.Low.Combinators.serialize32_synth
+    Zeta.Formats.Aux.Stamped_record.stamped_record_lserializer
+    synth_stamped_record
+    synth_stamped_record_recip
+    (fun x -> synth_stamped_record_recip x)
+    ()
+    v a offset

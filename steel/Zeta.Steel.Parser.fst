@@ -99,7 +99,7 @@ let serializer (#t:Type0) (#p:spec_parser t) (s:spec_serializer p) =
               pure (
                 U32.v slice_len == Seq.length (s v) /\
                 len_offset_slice_ok a len offset slice_len /\
-                Seq.length bs == U32.v len /\
+                Seq.length bs == (U32.v len <: nat) /\
                 s v == slice bs offset slice_len )))
 
 
