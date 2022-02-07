@@ -134,3 +134,10 @@ let parse_log_up_to_trans (l:bytes) (pos:nat) (les:Seq.seq log_entry)
     assert (Seq.slice l 0 (pos + pos') `Seq.equal`
             Seq.append (Seq.slice l 0 pos) (Seq.slice l pos (pos + pos')))
 #pop-options
+
+val spec_parser_stamped_record : spec_parser stamped_record
+val spec_serializer_stamped_record : spec_serializer spec_parser_stamped_record
+
+/// This is an ad hoc bound due to a bound on Blake hashable inputs
+val serialized_stamped_record_length (s:stamped_record)
+  : Lemma (Seq.length (spec_serializer_stamped_record s) <= 4096)

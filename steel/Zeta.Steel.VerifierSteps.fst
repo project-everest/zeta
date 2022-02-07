@@ -12,7 +12,7 @@ module U8 = FStar.UInt8
 module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
-open Zeta.Steel.FormatsManual
+open Zeta.Steel.LogEntry
 open Zeta.Steel.Util
 module T = Zeta.Steel.FormatsManual
 module M = Zeta.Steel.ThreadStateModel
@@ -516,8 +516,8 @@ let update_ht (#tsm:M.thread_state_model)
         timestamp = ts;
         thread_id = thread_id
       } in
-      T.serialized_stamped_record_length sr;
-      let n = T.serialize_stamped_record 4096ul 0ul t.serialization_buffer sr in
+      serialized_stamped_record_length sr;
+      let n = serialize_stamped_record 4096ul 0ul t.serialization_buffer sr in
       let bs = elim_exists () in
       elim_pure ( _ /\ _ /\ _ /\ _);
       let ha = if ht = HAdd then v.hadd else v.hevict in

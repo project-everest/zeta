@@ -149,8 +149,8 @@ let update_hash_value (ha:HA.hash_value_t)
                       (tid:T.thread_id)
   : GTot HA.hash_value_t
   = let sr : T.stamped_record = { record = r; timestamp = t; thread_id = tid} in
-    let b = T.spec_serializer_stamped_record sr in
-    T.serialized_stamped_record_length sr;
+    let b = spec_serializer_stamped_record sr in
+    serialized_stamped_record_length sr;
     let h = HA.hash_one_value b in
     HA.aggregate_hashes ha h
 

@@ -21,4 +21,3 @@ let is_internal_key_root (k:base_key)
 module P = Zeta.Steel.Parser
 val parse_app_record: P.parser Zeta.Steel.ApplicationRecord.spec_parser_app_record
 
-val serialize_stamped_record : P.serializer spec_serializer_stamped_record
