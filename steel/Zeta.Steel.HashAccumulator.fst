@@ -69,10 +69,55 @@ let xor_bytes (s1: Seq.seq U8.t)
   = Seq.init (Seq.length s1)
              (fun i -> Seq.index s1 i `FStar.UInt8.logxor` Seq.index s2 i)
 
+let logxor_zero (x:U8.t)
+  : Lemma (U8.logxor 0uy x == x)
+  = UInt.logxor_lemma_1 (U8.v x);
+    UInt.logxor_commutative (U8.v 0uy) (U8.v x)
+
+let logxor_commutative (x y:U8.t)
+  : Lemma (x `U8.logxor` y == y `U8.logxor` x)
+  = UInt.logxor_commutative (U8.v x) (U8.v y)
+
+let logxor_associative (x y z:U8.t)
+  : Lemma (U8.logxor x (U8.logxor y z) ==
+           U8.logxor (U8.logxor x y) z)
+  = UInt.logxor_associative (U8.v x) (U8.v y) (U8.v z)
+
+let xor_bytes_unit (s:Seq.seq U8.t)
+  : Lemma (xor_bytes (Seq.create (Seq.length s) 0uy) s == s)
+  = Classical.forall_intro logxor_zero;
+    assert (Seq.equal (xor_bytes (Seq.create (Seq.length s) 0uy) s) s)
+
+let xor_bytes_commutative
+  (s1:Seq.seq U8.t)
+  (s2:Seq.seq U8.t{Seq.length s1 == Seq.length s2})
+  : Lemma (xor_bytes s1 s2 == xor_bytes s2 s1)
+  = Classical.forall_intro_2 logxor_commutative;
+    assert (Seq.equal (xor_bytes s1 s2) (xor_bytes s2 s1))
+
+let xor_bytes_associative
+  (s1:Seq.seq U8.t)
+  (s2:Seq.seq U8.t)
+  (s3:Seq.seq U8.t{Seq.length s1 == Seq.length s2 /\
+                   Seq.length s2 == Seq.length s3})
+  : Lemma (xor_bytes s1 (xor_bytes s2 s3) ==
+           xor_bytes (xor_bytes s1 s2) s3)
+  = Classical.forall_intro_3 logxor_associative;
+    assert (Seq.equal (xor_bytes s1 (xor_bytes s2 s3))
+                      (xor_bytes (xor_bytes s1 s2) s3))
+
 let aggregate_hashes (h0 h1: hash_value_t)
   : hash_value_t
   = xor_bytes (fst h0) (fst h1),
     snd h0 + snd h1
+
+let initial_hash_unit h = xor_bytes_unit (fst h)
+
+let aggregate_hashes_commutative h1 h2 =
+  xor_bytes_commutative (fst h1) (fst h2)
+
+let aggregate_hashes_associative h1 h2 h3 =
+  xor_bytes_associative (fst h1) (fst h2) (fst h3)
 
 let mk_hash_value (ws:Seq.lseq U8.t 32) (wc:U32.t)
   : hash_value_t

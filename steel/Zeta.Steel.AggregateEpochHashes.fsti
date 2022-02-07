@@ -48,16 +48,19 @@ let aggregate_epoch_hash (e0 e1:M.epoch_hash)
 let aggregate_epoch_hash_unit (i:M.epoch_hash)
   : Lemma (aggregate_epoch_hash M.init_epoch_hash i == i)
           [SMTPat (aggregate_epoch_hash M.init_epoch_hash i)]
-  = admit()
+  = HA.initial_hash_unit i.hadd;
+    HA.initial_hash_unit i.hevict
 
 let aggregate_epoch_hash_comm (i j:M.epoch_hash)
   : Lemma (aggregate_epoch_hash i j == aggregate_epoch_hash j i)
-  = admit()
+  = HA.aggregate_hashes_commutative i.hadd j.hadd;
+    HA.aggregate_hashes_commutative i.hevict j.hevict
 
 let aggregate_epoch_hash_assoc (i j k:M.epoch_hash)
   : Lemma (aggregate_epoch_hash (aggregate_epoch_hash i j) k ==
            aggregate_epoch_hash i (aggregate_epoch_hash j k))
-  = admit()
+  = HA.aggregate_hashes_associative i.hadd j.hadd k.hadd;
+    HA.aggregate_hashes_associative i.hevict j.hevict k.hevict
 
 let log = Seq.seq log_entry
 let all_processed_entries = Seq.lseq log (U32.v n_threads)

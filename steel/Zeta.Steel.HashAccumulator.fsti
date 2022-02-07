@@ -34,6 +34,16 @@ val hash_one_value (_:hashable_bytes)
 val aggregate_hashes (_ _: hash_value_t)
   : hash_value_t
 
+val initial_hash_unit (h:hash_value_t)
+  : Lemma (aggregate_hashes initial_hash h == h)
+
+val aggregate_hashes_commutative (h1 h2:hash_value_t)
+  : Lemma (aggregate_hashes h1 h2 == aggregate_hashes h2 h1)
+
+val aggregate_hashes_associative (h1 h2 h3:hash_value_t)
+  : Lemma (aggregate_hashes h1 (aggregate_hashes h2 h3) ==
+           aggregate_hashes (aggregate_hashes h1 h2) h3)
+
 (*** THE MAIN INTERFACE ***)
 
 (** Create an instance of a hash accumulator in the heap *)
