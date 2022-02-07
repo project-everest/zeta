@@ -163,19 +163,15 @@ application_value_reader(LowParse_Slice_slice input, uint32_t pos)
   return Zeta_Formats_Aux_Application_value_Low_application_value_reader(input, pos);
 }
 
-extern uint32_t
-Zeta_Formats_Aux_Application_value___UNUSED__application_value_lserializer_(
-  Zeta_Steel_ApplicationTypes_value_type uu___,
-  uint8_t *x0,
-  uint32_t x1
-);
-
 static uint32_t
-(*application_value_lserializer)(
-  Zeta_Steel_ApplicationTypes_value_type x0,
-  uint8_t *x1,
-  uint32_t x2
-) = Zeta_Formats_Aux_Application_value___UNUSED__application_value_lserializer_;
+application_value_lserializer(
+  Zeta_Steel_ApplicationTypes_value_type v,
+  uint8_t *output,
+  uint32_t pos
+)
+{
+  return Zeta_Formats_Aux_Application_value_Low_application_value_lserializer(v, output, pos);
+}
 
 static uint32_t application_key_size32(Zeta_Steel_ApplicationTypes_key_type x)
 {
@@ -198,19 +194,15 @@ application_key_reader(LowParse_Slice_slice input, uint32_t pos)
   return Zeta_Formats_Aux_Application_key_Low_application_key_reader(input, pos);
 }
 
-extern uint32_t
-Zeta_Formats_Aux_Application_key___UNUSED__application_key_lserializer_(
-  Zeta_Steel_ApplicationTypes_key_type uu___,
-  uint8_t *x0,
-  uint32_t x1
-);
-
 static uint32_t
-(*application_key_lserializer)(
-  Zeta_Steel_ApplicationTypes_key_type x0,
-  uint8_t *x1,
-  uint32_t x2
-) = Zeta_Formats_Aux_Application_key___UNUSED__application_key_lserializer_;
+application_key_lserializer(
+  Zeta_Steel_ApplicationTypes_key_type v,
+  uint8_t *output,
+  uint32_t pos
+)
+{
+  return Zeta_Formats_Aux_Application_key_Low_application_key_lserializer(v, output, pos);
+}
 
 typedef uint32_t uninterpreted;
 

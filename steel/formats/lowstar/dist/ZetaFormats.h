@@ -252,6 +252,13 @@ Zeta_Formats_Aux_Application_key_Low_application_key_reader(
 );
 
 extern uint32_t
+Zeta_Formats_Aux_Application_key_Low_application_key_lserializer(
+  Zeta_Steel_ApplicationTypes_key_type uu___,
+  uint8_t *x0,
+  uint32_t x1
+);
+
+extern uint32_t
 Zeta_Formats_Aux_Application_value_Size_application_value_size32(
   Zeta_Steel_ApplicationTypes_value_type uu___
 );
@@ -272,6 +279,13 @@ extern Zeta_Steel_ApplicationTypes_value_type
 Zeta_Formats_Aux_Application_value_Low_application_value_reader(
   LowParse_Slice_slice uu___,
   uint32_t x0
+);
+
+extern uint32_t
+Zeta_Formats_Aux_Application_value_Low_application_value_lserializer(
+  Zeta_Steel_ApplicationTypes_value_type uu___,
+  uint8_t *x0,
+  uint32_t x1
 );
 
 
