@@ -71,7 +71,7 @@ $(CACHE_DIRECTORY)/%.checked:
 	  --extract_module $(basename $(notdir $(subst .checked,,$<)))
 	touch -c $@
 
-verify: $(addprefix $(CACHE_DIRECTORY)/,$(addsuffix .checked, $(notdir $(FSTAR_FILES))))
+verify: $(ALL_CHECKED_FILES)
 
 %.fst-in %.fsti-in:
 	@echo $(FSTAR_OPTIONS)
