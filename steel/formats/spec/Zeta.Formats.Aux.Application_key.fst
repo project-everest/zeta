@@ -34,6 +34,4 @@ let application_key_jumper input pos = Low.application_key_jumper input pos
 
 let application_key_reader input pos = Low.application_key_reader input pos
 
-// unused
-assume val __UNUSED__application_key_lserializer': LL.serializer32 application_key_serializer
-let application_key_lserializer = __UNUSED__application_key_lserializer'
+let application_key_lserializer v output pos = Low.application_key_lserializer v output pos

@@ -8,3 +8,4 @@ open LowParse.Low.Base
 val application_value_validator: validator application_value_parser
 val application_value_jumper: jumper application_value_parser
 val application_value_reader: leaf_reader application_value_parser
+val application_value_lserializer: serializer32 application_value_serializer

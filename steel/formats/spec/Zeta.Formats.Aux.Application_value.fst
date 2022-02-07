@@ -34,6 +34,4 @@ let application_value_jumper input pos = Low.application_value_jumper input pos
 
 let application_value_reader input pos = Low.application_value_reader input pos
 
-// unused
-assume val __UNUSED__application_value_lserializer': LL.serializer32 application_value_serializer
-let application_value_lserializer = __UNUSED__application_value_lserializer'
+let application_value_lserializer v output pos = Low.application_value_lserializer v output pos
