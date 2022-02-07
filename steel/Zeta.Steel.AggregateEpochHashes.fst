@@ -45,6 +45,12 @@ let aggregate_all_threads_epoch_hashes_emp ()
            (fun (s:epoch_hashes_repr) -> aggregate_epoch_hash (Map.sel s e))
            (Seq.create (U32.v n_threads) (Map.const M.init_epoch_hash))
 
+let per_thread_bitmap_and_max_emp (tid:tid) (eid:M.epoch_id)
+  : Lemma
+      (let tsm = M.verify_model (M.init_thread_state_model tid) Seq.empty in
+       is_epoch_verified tsm eid == false)
+  = admit ()
+
 let create () =
   let hashes = EpochMap.create #_ #_ #epoch_hash_perm
     all_hashes_size
@@ -65,14 +71,12 @@ let create () =
   assert (all_contributions_are_accurate (Map.const M.init_epoch_hash)
                                          empty_all_processed_entries);
 
-  assume (forall tid. per_thread_bitmap_and_max (Map.const all_zeroes)
-                                           None
-                                           empty_all_processed_entries
-                                           tid);
+  Classical.forall_intro_2 per_thread_bitmap_and_max_emp;
   intro_pure (hashes_bitmaps_max_ok (Map.const M.init_epoch_hash)
                                     (Map.const all_zeroes)
                                     None
                                     empty_all_processed_entries);
+
   intro_exists (Ghost.reveal empty_all_processed_entries)
                (fun mlogs_v ->
                 lock_inv_body _ _ _ _
