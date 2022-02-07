@@ -639,7 +639,7 @@ let stitch_verify_post_step
       verify_post tsm t log_bytes out_bytes out aeh
         (Verify_success U32.(log_pos +^ log_pos') U32.(out_pos +^ out_pos')))
     (requires
-      LogEntry.parse_log_up_to log_bytes (U32.v log_pos) == Some les /\
+      Log.parse_log_up_to log_bytes (U32.v log_pos) == Some les /\
       Application.n_out_bytes tsm (M.verify_model tsm les) 0ul out_pos out_bytes out_bytes_1 /\
       not (M.verify_model tsm les).failed)
     (ensures fun _ ->
@@ -692,10 +692,10 @@ let stitch_verify_post_step
         trefl())
       );
     assert (LogEntry.maybe_parse_log_entry log_bytes log_pos == Some (reveal le, U32.v log_pos'));
-    LogEntry.parse_log_up_to_trans log_bytes (U32.v log_pos) les;
-    intro_pure (LogEntry.parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les');
+    Log.parse_log_up_to_trans log_bytes (U32.v log_pos) les;
+    intro_pure (Log.parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les');
     intro_exists les' (fun les' ->
-      pure (LogEntry.parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les') `star`
+      pure (Log.parse_log_up_to log_bytes (U32.v (U32.(log_pos +^ log_pos'))) == Some les') `star`
       thread_state_inv t (M.verify_model tsm les') `star`
       TLM.tid_pts_to aeh.mlogs
                       (M.verify_model tsm les').thread_id
@@ -837,7 +837,7 @@ let intro_verify_post_success
      (fun _ ->
        verify_post tsm t log_bytes out_bytes out aeh (Verify_success 0ul 0ul))
    = let les = Seq.empty in
-     intro_pure (LogEntry.parse_log_up_to log_bytes (U32.v 0ul) == Some les);
+     intro_pure (Log.parse_log_up_to log_bytes (U32.v 0ul) == Some les);
      intro_pure (Application.n_out_bytes tsm (M.verify_model tsm les) 0ul 0ul out_bytes out_bytes);
      intro_exists out_bytes (fun out_bytes1 ->
         array_pts_to out out_bytes1 `star`
@@ -849,7 +849,7 @@ let intro_verify_post_success
                                        (M.verify_model tsm les).processed_entries false);
      intro_exists les (fun log ->
        let tsm' = M.verify_model tsm log in
-       pure (LogEntry.parse_log_up_to log_bytes (U32.v 0ul) == Some log) `star`
+       pure (Log.parse_log_up_to log_bytes (U32.v 0ul) == Some log) `star`
        thread_state_inv t tsm' `star` //tsm' is the new state of the thread
        TLM.tid_pts_to aeh.mlogs tsm'.thread_id full tsm'.processed_entries false `star`
        exists_ (fun out_bytes1 ->
@@ -857,7 +857,7 @@ let intro_verify_post_success
          pure (Application.n_out_bytes tsm tsm' 0ul 0ul out_bytes out_bytes1)));
      rewrite_with (exists_ (fun log ->
        let tsm' = M.verify_model tsm log in
-       pure (LogEntry.parse_log_up_to log_bytes (U32.v 0ul) == Some log) `star`
+       pure (Log.parse_log_up_to log_bytes (U32.v 0ul) == Some log) `star`
        thread_state_inv t tsm' `star` //tsm' is the new state of the thread
        TLM.tid_pts_to aeh.mlogs tsm'.thread_id full tsm'.processed_entries false `star`
        exists_ (fun out_bytes1 ->

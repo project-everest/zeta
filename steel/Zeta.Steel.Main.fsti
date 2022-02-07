@@ -101,7 +101,7 @@ let verify_post_success_pure_inv
   (entries':Seq.seq log_entry)
   (out_bytes':Seq.seq U8.t)
   : prop
-  = LogEntry.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
+  = Log.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
     (let tsm = M.verify_model (M.init_thread_state_model tid) entries in
      let tsm' = M.verify_model tsm entries' in
      Application.n_out_bytes tsm tsm' 0ul wrote out_bytes out_bytes')
