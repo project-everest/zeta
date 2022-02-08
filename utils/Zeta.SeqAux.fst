@@ -894,14 +894,19 @@ let rec lemma_reduce_prefix_aux (#a:Type) (#b:Type)
 
 let lemma_reduce_prefix = lemma_reduce_prefix_aux
 
-let rec lemma_reduce_property_closure_ty (#a:Type) (#b:Type) (p: b -> Type) (b0:b) (f: a -> b -> b) (s: seq a):
-  Lemma (requires (p b0 /\ (forall (x:a). forall (y:b). (p y ==> p (f x y)))))
-        (ensures (p (reduce b0 f s)))
-        (decreases (length s)) =
-  let n = length s in
-  if n = 0 then ()
-  else
-    lemma_reduce_property_closure_ty p b0 f (prefix s (n - 1))
+let rec lemma_reduce_property_closure_seq_mem (#a:Type) (#b:Type)
+  (p:b -> Type0)
+  (b0:b)
+  (f:a -> b -> b)
+  (s:seq a)
+  : Lemma
+      (requires
+        p b0 /\
+        (forall (n:seq_index s) (y:b). p y ==> p (f (index s n) y)))
+      (ensures p (reduce b0 f s))
+      (decreases length s)
+  = if length s = 0 then ()
+    else lemma_reduce_property_closure_seq_mem p b0 f (prefix s (length s - 1))
 
 let lemma_reduce_identity (#a:Type) (#b:Type) (b0: b) (f: a -> b -> b) (s: seq a):
   Lemma (requires (forall (x:a). f x b0 == b0))

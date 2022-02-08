@@ -404,9 +404,25 @@ val lemma_reduce_empty (#a:Type) (#b:Type) (b0:b) (f:a -> b -> b):
 val lemma_reduce_prefix (#a:Type) (#b:Type) (b0: b) (f: a -> b -> b) (s: seq a) (i:nat{i <= length s}):
   Lemma (reduce b0 f s == reduce (reduce b0 f (prefix s i)) f (suffix s (length s - i)))
 
-val lemma_reduce_property_closure_ty (#a:Type) (#b:Type) (p: b -> Type0) (b0:b) (f: a -> b -> b) (s: seq a):
+(*
+ * A more general lemma with a weaker precondition
+ *   than lemma_reduce_property_closure_ty
+ *)
+val lemma_reduce_property_closure_seq_mem (#a:Type) (#b:Type)
+  (p:b -> Type0)
+  (b0:b)
+  (f:a -> b -> b)
+  (s:seq a)
+  : Lemma
+      (requires
+        p b0 /\
+        (forall (n:seq_index s) (y:b). p y ==> p (f (index s n) y)))
+      (ensures p (reduce b0 f s))
+
+let lemma_reduce_property_closure_ty (#a:Type) (#b:Type) (p: b -> Type0) (b0:b) (f: a -> b -> b) (s: seq a):
   Lemma (requires (p b0 /\ (forall (x:a). forall (y:b). (p y ==> p (f x y)))))
         (ensures (p (reduce b0 f s)))
+  = lemma_reduce_property_closure_seq_mem p b0 f s
 
 let lemma_reduce_property_closure (#a:Type) (#b:Type) (p: b -> bool) (b0:b) (f: a -> b -> b) (s: seq a)
   : Lemma (requires (p b0 /\ (forall (x:a). forall (y:b). (p y ==> p (f x y)))))

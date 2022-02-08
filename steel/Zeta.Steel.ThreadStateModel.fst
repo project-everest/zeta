@@ -987,8 +987,23 @@ let verify_model_snoc (tsm:thread_state_model)
     verify_model_thread_id_inv tsm les;
     verify_model_thread_id_inv tsm (Seq.snoc les le)
 
-
-let verify_model_append
+let rec verify_model_log_append (tsm:thread_state_model)
+                                (les les':log)
+  : Lemma 
+    (ensures
+      verify_model tsm (Seq.append les les') ==
+      verify_model (verify_model tsm les) les')
+    (decreases (Seq.length les'))
+  = if Seq.length les' = 0
+    then assert (Seq.append les les' `Seq.equal` les)
+    else (
+      let prefix, last = Seq.un_snoc les' in
+      verify_model_log_append tsm les prefix;
+      verify_model_snoc tsm (Seq.append les prefix) last;
+      Seq.append_assoc les prefix (Seq.create 1 last)
+    )
+           
+let rec verify_model_append
   (tsm:thread_state_model)
   (log:log)
   : Lemma
@@ -998,5 +1013,22 @@ let verify_model_append
       (ensures
         (verify_model tsm log).processed_entries ==
         Seq.append tsm.processed_entries log)
-  = admit ()
+      (decreases (Seq.length log))
+  = if Seq.length log = 0
+    then assert (Seq.append tsm.processed_entries log `Seq.equal` tsm.processed_entries)
+    else (
+      let prefix, last = Seq.un_snoc log in
+      verify_model_append tsm prefix;
+      assert (Seq.snoc (Seq.append tsm.processed_entries prefix) last `Seq.equal`
+              Seq.append tsm.processed_entries log)
+    )
+
 #pop-options
+
+
+let verified_epoch_hashes_constant (tsm:thread_state_model)
+                                   (e:epoch_id { U32.v e <= U32.v tsm.last_verified_epoch } )
+                                   (les:log)
+  : Lemma (let tsm' = verify_model tsm les in
+           Map.sel tsm.epoch_hashes e == Map.sel tsm'.epoch_hashes e)
+  = admit()

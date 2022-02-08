@@ -6,6 +6,7 @@ module A = Steel.ST.Array
 module R = Steel.ST.Reference
 module G = Steel.ST.GhostReference
 module Lock = Steel.ST.SpinLock
+module SA = Zeta.SeqAux
 open Zeta.Steel.ApplicationTypes
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
@@ -31,6 +32,23 @@ let aggregate_all_threads_epoch_hashes_emp ()
   : Lemma (forall (e:M.epoch_id).
              aggregate_all_threads_epoch_hashes e empty_all_processed_entries ==
              M.init_epoch_hash)
+  = assert (forall tid. Map.equal (thread_contrib_of_log (U16.uint_to_t tid) (Seq.index empty_all_processed_entries tid))
+                             (Map.const M.init_epoch_hash));
+    assert (Seq.equal (all_threads_epoch_hashes_of_logs empty_all_processed_entries)
+                      (Seq.create (U32.v n_threads) (Map.const M.init_epoch_hash)));
+    introduce forall (e:M.epoch_id).
+                aggregate_all_threads_epoch_hashes e empty_all_processed_entries ==
+                M.init_epoch_hash
+    with SA.lemma_reduce_property_closure_seq_mem
+           (fun h -> h == M.init_epoch_hash)
+           M.init_epoch_hash
+           (fun (s:epoch_hashes_repr) -> aggregate_epoch_hash (Map.sel s e))
+           (Seq.create (U32.v n_threads) (Map.const M.init_epoch_hash))
+
+let per_thread_bitmap_and_max_emp (tid:tid) (eid:M.epoch_id)
+  : Lemma
+      (let tsm = M.verify_model (M.init_thread_state_model tid) Seq.empty in
+       is_epoch_verified tsm eid == false)
   = admit ()
 
 let create () =
@@ -53,14 +71,12 @@ let create () =
   assert (all_contributions_are_accurate (Map.const M.init_epoch_hash)
                                          empty_all_processed_entries);
 
-  assume (forall tid. per_thread_bitmap_and_max (Map.const all_zeroes)
-                                           None
-                                           empty_all_processed_entries
-                                           tid);
+  Classical.forall_intro_2 per_thread_bitmap_and_max_emp;
   intro_pure (hashes_bitmaps_max_ok (Map.const M.init_epoch_hash)
                                     (Map.const all_zeroes)
                                     None
                                     empty_all_processed_entries);
+
   intro_exists (Ghost.reveal empty_all_processed_entries)
                (fun mlogs_v ->
                 lock_inv_body _ _ _ _

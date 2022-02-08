@@ -1249,7 +1249,15 @@ let epoch_hashes_framing (mlogs_v:AEH.all_processed_entries)
     else (
       assert (is_epoch_verified tsm0 e');
       assert (is_epoch_verified tsm' e');
-      assume (Map.sel tsm0.epoch_hashes e' == Map.sel tsm'.epoch_hashes e');
+      assert (tsm.processed_entries `Seq.equal`
+              Seq.append (M.committed_log_entries tsm.processed_entries)
+                         (M.uncommitted_entries tsm.processed_entries));
+      M.verify_model_log_append (M.init_thread_state_model tid)
+                                (M.committed_log_entries tsm.processed_entries)
+                                (M.uncommitted_entries tsm.processed_entries);
+      assert (tsm == M.verify_model tsm0 (M.uncommitted_entries tsm.processed_entries));
+      M.verified_epoch_hashes_constant tsm0 e' (M.uncommitted_entries tsm.processed_entries);
+      assert (Map.sel tsm0.epoch_hashes e' == Map.sel tsm.epoch_hashes e');
       assert (Map.sel (thread_contrib_of_log tid et) e' ==
               Map.sel (thread_contrib_of_log tid et') e')
     ) in
