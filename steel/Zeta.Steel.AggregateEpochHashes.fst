@@ -125,7 +125,10 @@ let check_all_ones (#e:Ghost.erased _)
     (fun _ -> array_pts_to a e)
     (requires True)
     (ensures fun b -> b <==> (reveal e == all_ones))
-  = admit__ ()
+  = A.pts_to_length a e;
+    let b = Zeta.Steel.Util.check_array_forall n_threads a (fun b -> b) in
+    assert (b ==> Seq.equal (reveal e) all_ones);
+    return b
 
 let check_bitmap_for_epoch (#bm:erased _)
                            (tid_bitmaps: epoch_tid_bitmaps)

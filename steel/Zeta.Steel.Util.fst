@@ -1,6 +1,7 @@
 module Zeta.Steel.Util
 open Steel.ST.Util
 open Steel.ST.CancellableSpinLock
+module G = FStar.Ghost
 module A = Steel.ST.Array
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
@@ -217,3 +218,178 @@ let array_literal
     return arr
 
 (***** End ******)
+
+(***** Checking a predicate on array elements *****)
+
+let check_forall_pure
+  (#a:Type0)
+  (n:U32.t)
+  (p:a -> bool)
+  (s:Seq.seq a)
+  (_:squash (Seq.length s == U32.v n))
+  (i:U32.t)
+  : prop
+  = i `U32.lte` n /\ (forall (j:nat). j < U32.v i ==> p (Seq.index s j))
+
+let check_forall_pure_b
+  (#a:Type0)
+  (n:U32.t)
+  (p:a -> bool)
+  (s:Seq.seq a)
+  (_:squash (Seq.length s == U32.v n))
+  (i:U32.t)
+  (b:bool)
+  : prop
+  = b == (i `U32.lt` n && p (Seq.index s (U32.v i)))
+
+[@@ __reduce__]
+let check_forall_pred
+  (#a:Type0)
+  (n:U32.t)
+  (arr:A.array a)
+  (p:a -> bool)
+  (r:R.ref U32.t)
+  (s:Seq.seq a)
+  (_:squash (Seq.length s == U32.v n))
+  (b:bool)
+  : U32.t -> vprop
+  = fun i ->
+    A.pts_to arr full_perm s
+      `star`
+    R.pts_to r full_perm i
+      `star`
+    pure (check_forall_pure n p s () i)
+      `star`
+    pure (check_forall_pure_b n p s () i b)
+
+[@@ __reduce__]
+let check_forall_inv
+  (#a:Type0)
+  (n:U32.t)
+  (arr:A.array a)
+  (p:a -> bool)
+  (r:R.ref U32.t)
+  (s:Seq.seq a)
+  (_:squash (Seq.length s == U32.v n))
+  : bool -> vprop
+  = fun b -> exists_ (check_forall_pred n arr p r s () b)
+
+inline_for_extraction
+let check_forall_cond
+  (#a:Type0)
+  (n:U32.t)
+  (arr:A.array a)
+  (p:a -> bool)
+  (r:R.ref U32.t)
+  (s:G.erased (Seq.seq a))
+  (_:squash (Seq.length s == U32.v n))
+  : unit ->
+    STT bool
+        (exists_ (check_forall_inv n arr p r s ()))
+        (fun b -> check_forall_inv n arr p r s () b)
+  = fun _ ->
+    let _ = elim_exists () in
+    let _ = elim_exists () in
+    elim_pure _;
+    elim_pure _;
+
+    let i = R.read r in
+    let b = i = n in
+    let res =
+      if b then return false
+      else let elt = A.read arr i in
+           return (p elt) in
+
+    intro_pure (check_forall_pure n p s () i);
+    intro_pure (check_forall_pure_b n p s () i res);
+    intro_exists i (check_forall_pred n arr p r s () res);
+    return res
+
+inline_for_extraction
+let check_forall_body
+  (#a:Type0)
+  (n:U32.t)
+  (arr:A.array a)
+  (p:a -> bool)
+  (r:R.ref U32.t)
+  (s:G.erased (Seq.seq a))
+  (_:squash (Seq.length s == U32.v n))
+  : unit ->
+    STT unit
+        (check_forall_inv n arr p r s () true)
+        (fun _ -> exists_ (check_forall_inv n arr p r s ()))
+  = fun _ ->
+    let _ = elim_exists () in
+    elim_pure _;
+    elim_pure _;
+
+    //atomic increment?
+    let i = R.read r in
+    R.write r (U32.add i 1ul);
+
+    intro_pure (check_forall_pure n p s () (U32.add i 1ul));
+    intro_pure (check_forall_pure_b n p s ()
+      (U32.add i 1ul)
+      ((U32.add i 1ul) `U32.lt` n && p (Seq.index s (U32.v (U32.add i 1ul)))));
+    intro_exists
+      (U32.add i 1ul)
+      (check_forall_pred n arr p r s ()
+         ((U32.add i 1ul) `U32.lt` n && p (Seq.index s (U32.v (U32.add i 1ul)))));
+    intro_exists
+      ((U32.add i 1ul) `U32.lt` n && p (Seq.index s (U32.v (U32.add i 1ul))))
+      (check_forall_inv n arr p r s ())
+
+let check_array_forall
+  (#a:Type0)
+  (#s:G.erased (Seq.seq a))
+  (n:U32.t)
+  (arr:A.array a)
+  (p:a -> bool)
+  : ST bool
+       (A.pts_to arr full_perm s)
+       (fun _ -> A.pts_to arr full_perm s)
+       (requires A.length arr == U32.v n)
+       (ensures fun b -> b <==> (forall (i:nat). i < Seq.length s ==>
+                                      p (Seq.index s i)))
+  = A.pts_to_length arr s;
+   
+    let b = n = 0ul in
+    if b returns ST bool
+                    _
+                    (fun _ -> A.pts_to arr full_perm s)
+                    (requires A.length arr == U32.v n)
+                    (ensures fun b -> b <==> (forall (i:nat). i < Seq.length s ==>
+                                                   p (Seq.index s i)))
+    then return true
+    else begin
+      //This could be stack allocated
+      let r = R.alloc 0ul in
+
+      intro_pure (check_forall_pure n p s () 0ul);
+      intro_pure (check_forall_pure_b n p s () 0ul
+        (0ul `U32.lt` n && p (Seq.index s (U32.v 0ul))));
+      intro_exists 0ul
+        (check_forall_pred n arr p r s ()
+           (0ul `U32.lt` n && p (Seq.index s (U32.v 0ul))));
+      intro_exists
+        (0ul `U32.lt` n && p (Seq.index s (U32.v 0ul)))
+        (check_forall_inv n arr p r s ());
+
+      Loops.while_loop
+        (check_forall_inv n arr p r s ())
+        (check_forall_cond n arr p r s ())
+        (check_forall_body n arr p r s ());
+
+      let _ = elim_exists () in
+      let _ = elim_pure _ in
+      let _ = elim_pure _ in
+
+      let i = R.read r in
+
+      //This free would go away if we had stack allocations
+      R.free r;
+
+      return (i = n)
+    end
+
+(***** End *****)
