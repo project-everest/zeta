@@ -1000,8 +1000,7 @@ let rec verify_model_log_append (tsm:thread_state_model)
       let prefix, last = Seq.un_snoc les' in
       verify_model_log_append tsm les prefix;
       verify_model_snoc tsm (Seq.append les prefix) last;
-      assert (Seq.append les les' `Seq.equal`
-              Seq.snoc (Seq.append les prefix) last)
+      Seq.append_assoc les prefix (Seq.create 1 last)
     )
            
 let rec verify_model_append
