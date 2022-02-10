@@ -21,13 +21,16 @@ module V = Zeta.Steel.Verifier
 module SA = Zeta.SeqAux
 #push-options "--ide_id_info_off"
 
-
+[@@ __reduce__]
 let thread_inv_predicate
   (t:V.thread_state_t)
   (mlogs:TLM.t)
   : M.thread_state_model -> vprop
   = fun tsm ->
-    V.thread_state_inv t tsm `star`
+    pure (~ tsm.failed)
+      `star`
+    V.thread_state_inv t tsm
+      `star`
     TLM.tid_pts_to mlogs tsm.M.thread_id half tsm.M.processed_entries false
 
 let thread_inv (t: V.thread_state_t)
