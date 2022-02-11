@@ -212,9 +212,6 @@ let update_merkle_value (v:T.mval_value)
     if d then {v with T.l = desc_hash}
     else {v with T.r = desc_hash}
 
-let hashfn (v:T.value)
-  : T.hash_value
-  = admit()
 
 let init_value (k:key)
   : T.value
@@ -444,7 +441,7 @@ let vaddm (tsm:thread_state_model)
              | Some v' ->
                let d = KU.desc_dir k k' in
                let dh' = desc_hash_dir v' d in
-               let h = hashfn gv in
+               let h = HashValue.hashfn gv in
                match dh' with
                | T.Dh_vnone _ -> (* k' has no child in direction d *)
                  (* first add must be init value *)
@@ -562,7 +559,7 @@ let vevictm (tsm:thread_state_model)
           let d = KU.desc_dir k k' in
           let Some v' = to_merkle_value v' in
           let dh' = desc_hash_dir v' d in
-          let h = hashfn v in
+          let h = HashValue.hashfn v in
           match dh' with
           | T.Dh_vnone _ -> fail tsm
           | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
@@ -993,7 +990,7 @@ let last_verified_epoch_constant (tsm:thread_state_model)
       tsm.last_verified_epoch == tsm0.last_verified_epoch))
   = last_verified_epoch_constant_log tsm.processed_entries tsm.thread_id
 
-#push-options "--fuel 2 --z3rlimit_factor 3"
+#push-options "--fuel 1 --z3rlimit_factor 3"
 let rec verify_model_thread_id_inv 
               (tsm:thread_state_model)
               (les:log)
@@ -1033,6 +1030,7 @@ let rec verify_model_log_append (tsm:thread_state_model)
       Seq.append_assoc les prefix (Seq.create 1 last)
     )
            
+#push-options "--z3rlimit_factor 2"
 let rec verify_model_append
   (tsm:thread_state_model)
   (log:log)
@@ -1052,6 +1050,7 @@ let rec verify_model_append
       assert (Seq.snoc (Seq.append tsm.processed_entries prefix) last `Seq.equal`
               Seq.append tsm.processed_entries log)
     )
+#pop-options
 
 #pop-options
 

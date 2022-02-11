@@ -119,6 +119,7 @@ let create (tid:tid)
     let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
     let app_results : G.ref M.app_results = G.alloc Seq.empty in
     let serialization_buffer = A.alloc 0uy 4096ul in
+    let hasher = HashValue.alloc () in
     let tsm = M.init_thread_state_model tid in
     let t : thread_state_t = {
         thread_id = tid;
@@ -129,7 +130,8 @@ let create (tid:tid)
         last_verified_epoch;
         processed_entries;
         app_results;
-        serialization_buffer
+        serialization_buffer;
+        hasher
     } in
     intro_exists _ (array_pts_to serialization_buffer);
     assert (tsm == M.verify_model tsm Seq.empty);
@@ -143,6 +145,7 @@ let create (tid:tid)
              G.pts_to processed_entries _ _ `star`
              G.pts_to app_results _ _ `star`
              exists_ (array_pts_to serialization_buffer) `star`
+             HashValue.inv hasher `star`
              pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
                    t.thread_id == tsm.thread_id)
             )
@@ -297,7 +300,7 @@ let vaddm_core (#tsm:M.thread_state_model)
              | Some v' ->
                let d = KU.desc_dir k k' in
                let dh' = M.desc_hash_dir v' d in
-               let h = M.hashfn gv in //TODO: low-level hash
+               let h = HashValue.hash_value t.hasher gv in
                match dh' returns
                      (STT bool
                           (thread_state_inv_core t tsm)
@@ -311,6 +314,7 @@ let vaddm_core (#tsm:M.thread_state_model)
                  then (let b = fail_as t _ in return b)
                  else (
                    madd_to_store t s gk gv s' d;
+
                    let v'_upd = M.update_merkle_value v' d k h false in
                    update_value t s' (T.MValue v'_upd);
                    return true
@@ -674,7 +678,7 @@ let vevictm_core (#tsm:M.thread_state_model)
           let d = KU.desc_dir k k' in
           let Some v' = M.to_merkle_value v' in
           let dh' = M.desc_hash_dir v' d in
-          let h = M.hashfn v in
+          let h = HashValue.hash_value t.hasher v in
           match dh' with
           | T.Dh_vnone _ -> fail t; ()
           | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
@@ -941,7 +945,7 @@ let nextepoch_core (#tsm:M.thread_state_model)
     | Some nxt ->
       let c = U64.shift_left (Cast.uint32_to_uint64 nxt) 32ul in
       R.write t.clock c;
-      //would be better to prove this and use nxt: assume (nxt == M.epoch_of_timestamp c);
+      //would be better to prove this and use nxt: (nxt == M.epoch_of_timestamp c);
       let eht = new_epoch (M.epoch_of_timestamp c) in
       epoch_map_add t.epoch_hashes (M.epoch_of_timestamp c) eht M.init_epoch_hash;
       ()
