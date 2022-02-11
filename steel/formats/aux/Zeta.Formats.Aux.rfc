@@ -70,11 +70,11 @@ enum {
      DValueNone,
      DValueSome,
      (255)
-} value_kind;
+} dvalue_kind;
 
 struct {
   application_key ar_key;
-  value_kind v_tag;
+  dvalue_kind v_tag;
   select(v_tag) {
     case DValueNone: Empty;
     case DValueSome: application_value;
@@ -88,6 +88,22 @@ struct {
     case key_application: application_record;
   } record_kv;
 } record;
+
+enum {
+  MV,
+  DVNone,
+  DVSome,
+  (255)
+} value_kind;
+
+struct {
+  value_kind value_tag;
+  select(value_tag) {
+    case MV: mval_value;
+    case DVNone: Empty;
+    case DVSome: application_value;
+  } value_payload;
+} value;
 
 uint16 slot_id;
 

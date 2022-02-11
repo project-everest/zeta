@@ -70,3 +70,8 @@ val spec_serializer_stamped_record : spec_serializer spec_parser_stamped_record
 /// This is an ad hoc bound due to a bound on Blake hashable inputs
 val serialized_stamped_record_length (s:stamped_record)
   : Lemma (Seq.length (spec_serializer_stamped_record s) <= 4096)
+
+val spec_parser_value : spec_parser value
+val spec_serializer_value : spec_serializer spec_parser_value
+val serialized_value_length (s:value)
+  : Lemma (Seq.length (spec_serializer_value s) <= 4096)

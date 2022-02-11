@@ -115,3 +115,25 @@ let spec_serializer_stamped_record' : LPC.serializer spec_parser_stamped_record'
 let spec_serializer_stamped_record x = LPC.serialize spec_serializer_stamped_record' x
 
 let serialized_stamped_record_length s = ()
+
+let spec_parser_value' =
+  LPC.parse_synth
+    Zeta.Formats.Aux.Value.value_parser
+    Zeta.Formats.Synth.synth_value
+
+let spec_parser_value x =
+  match LPC.parse spec_parser_value' x with
+  | None -> None
+  | Some (res, consumed) -> Some (res, consumed)
+
+let spec_serializer_value' : LPC.serializer spec_parser_value' =
+  LPC.serialize_synth
+    _
+    Zeta.Formats.Synth.synth_value
+    Zeta.Formats.Aux.Value.value_serializer
+    Zeta.Formats.Synth.synth_value_recip
+    ()
+
+let spec_serializer_value x = LPC.serialize spec_serializer_value' x
+
+let serialized_value_length s = ()

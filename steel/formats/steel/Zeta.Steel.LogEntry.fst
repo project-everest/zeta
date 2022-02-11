@@ -42,3 +42,15 @@ let serialize32_stamped_record : LowParse.SLow.Base.serializer32 spec_serializer
 
 let serialize_stamped_record =
   Zeta.Steel.FormatsLib.mk_steel_serializer serialize32_stamped_record spec_serializer_stamped_record ()
+
+let serialize32_value : LowParse.SLow.Base.serializer32 spec_serializer_value' =
+  LowParse.SLow.Combinators.serialize32_synth'
+    _
+    Zeta.Formats.Synth.synth_value
+    _
+    Zeta.Formats.Aux.Value.value_serializer32
+    Zeta.Formats.Synth.synth_value_recip
+    ()
+
+let serialize_value =
+  Zeta.Steel.FormatsLib.mk_steel_serializer serialize32_value spec_serializer_value ()
