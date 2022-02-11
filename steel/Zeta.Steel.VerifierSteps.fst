@@ -115,7 +115,7 @@ let create (tid:tid)
     let store : vstore = A.alloc None (as_u32 store_size) in
     let clock = R.alloc 0uL in
     let epoch_hashes = EpochMap.create 64ul M.init_epoch_hash in
-    let last_verified_epoch = R.alloc 0ul in
+    let last_verified_epoch = R.alloc None in
     let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
     let app_results : G.ref M.app_results = G.alloc Seq.empty in
     let serialization_buffer = A.alloc 0uy 4096ul in
@@ -379,9 +379,7 @@ let vaddm (#tsm:M.thread_state_model)
 
 let next (t:T.timestamp)
   : option T.timestamp
-  = if FStar.UInt.fits (U64.v t + 1) 64
-    then Some (U64.add t 1uL)
-    else None
+  = check_overflow_add t 1uL
 
 let max (t0 t1:T.timestamp)
   = let open U64 in
@@ -580,29 +578,33 @@ let vaddb_core (#tsm:M.thread_state_model)
         let ropt = A.read t.store (as_u32 s) in
         if Some? ropt then (fail t; return true) //slot is already full
         else (
-          //add hash (k, v, t, thread_id) to hadd.[epoch_of_timestamp t]
-          let ok = update_ht t (M.epoch_of_timestamp ts) r ts thread_id HAdd in
-          if ok
-          then (
-             rewrite (thread_state_inv_core t _)
-                     (thread_state_inv_core t (update_epoch_hash tsm (M.epoch_of_timestamp ts) r ts thread_id HAdd));
-            let ts_opt = next ts in
-            match ts_opt with
-            | None -> fail t; return true
-            | Some t' ->
-              let clock = R.read t.clock in
-              let next_clock = max clock t' in
-              R.write t.clock next_clock;
-              A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
-              return true
-          )
-          else (
-            rewrite (thread_state_inv_core t _) (thread_state_inv_core t tsm);
-            return ok
+          let lve = R.read t.last_verified_epoch in
+          if not (M.epoch_greater_than_last_verified_epoch lve (M.epoch_of_timestamp ts))
+          then (fail t; return true)
+          else
+            //add hash (k, v, t, thread_id) to hadd.[epoch_of_timestamp t]
+            let ok = update_ht t (M.epoch_of_timestamp ts) r ts thread_id HAdd in
+            if ok
+            then (
+              rewrite (thread_state_inv_core t _)
+                      (thread_state_inv_core t (update_epoch_hash tsm (M.epoch_of_timestamp ts) r ts thread_id HAdd));
+              let ts_opt = next ts in
+              match ts_opt with
+              | None -> fail t; return true
+              | Some t' ->
+                let clock = R.read t.clock in
+                let next_clock = max clock t' in
+                R.write t.clock next_clock;
+                A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
+                return true
+            )
+            else (
+              rewrite (thread_state_inv_core t _) (thread_state_inv_core t tsm);
+              return ok
+            )
           )
         )
       )
-    )
 
 let vaddb (#tsm:M.thread_state_model)
           (t:thread_state_t)
@@ -939,8 +941,9 @@ let nextepoch_core (#tsm:M.thread_state_model)
     | Some nxt ->
       let c = U64.shift_left (Cast.uint32_to_uint64 nxt) 32ul in
       R.write t.clock c;
-      let eht = new_epoch nxt in
-      epoch_map_add t.epoch_hashes nxt eht M.init_epoch_hash;
+      //would be better to prove this and use nxt: assume (nxt == M.epoch_of_timestamp c);
+      let eht = new_epoch (M.epoch_of_timestamp c) in
+      epoch_map_add t.epoch_hashes (M.epoch_of_timestamp c) eht M.init_epoch_hash;
       ()
 
 let nextepoch (#tsm:M.thread_state_model)
@@ -1220,7 +1223,7 @@ let epoch_hashes_framing (mlogs_v:AEH.all_processed_entries)
     (requires (
       let tsm' = spec_verify_epoch tsm in
       not tsm'.failed /\
-      tsm'.last_verified_epoch <> e' /\
+      tsm'.last_verified_epoch <> Some e' /\
       M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id /\
       tsm_entries_invariant tsm
       ))
@@ -1233,34 +1236,38 @@ let epoch_hashes_framing (mlogs_v:AEH.all_processed_entries)
     let tsm' = spec_verify_epoch tsm in
     let tid = tsm'.thread_id in
     let tsm0 = M.verify_model (M.init_thread_state_model tid) (AEH.log_of_tid mlogs_v tid) in
+    M.tsm_entries_invariant_steps tid (AEH.log_of_tid mlogs_v tid);
+    assert (tsm_entries_invariant tsm0);
     let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
     let prefix, et, suffix = AEH.split_tid mlogs_v tid in
     let prefix', et', suffix' = AEH.split_tid mlogs_v' tid in
     M.last_verified_epoch_constant tsm;
     assert (tsm0.last_verified_epoch == tsm.last_verified_epoch);
-    assert (U32.v tsm'.last_verified_epoch = U32.v (tsm.last_verified_epoch) + 1);
+    assert (tsm'.last_verified_epoch = M.maybe_increment_last_verified_epoch tsm.last_verified_epoch);
+    let Some lve' = tsm'.last_verified_epoch in
     let _ =
-    if (U32.v e' > U32.v tsm'.last_verified_epoch)
-    then (
-      assert (not (is_epoch_verified tsm' e'));
-      assert (Map.sel (thread_contrib_of_log tid et) e' ==
-              Map.sel (thread_contrib_of_log tid et') e')
-    )
-    else (
-      assert (is_epoch_verified tsm0 e');
-      assert (is_epoch_verified tsm' e');
-      assert (tsm.processed_entries `Seq.equal`
-              Seq.append (M.committed_log_entries tsm.processed_entries)
-                         (M.uncommitted_entries tsm.processed_entries));
-      M.verify_model_log_append (M.init_thread_state_model tid)
-                                (M.committed_log_entries tsm.processed_entries)
-                                (M.uncommitted_entries tsm.processed_entries);
-      assert (tsm == M.verify_model tsm0 (M.uncommitted_entries tsm.processed_entries));
-      M.verified_epoch_hashes_constant tsm0 e' (M.uncommitted_entries tsm.processed_entries);
-      assert (Map.sel tsm0.epoch_hashes e' == Map.sel tsm.epoch_hashes e');
-      assert (Map.sel (thread_contrib_of_log tid et) e' ==
-              Map.sel (thread_contrib_of_log tid et') e')
-    ) in
+      if (U32.v e' > U32.v lve')
+      then (
+        assert (not (is_epoch_verified tsm' e'));
+        assert (Map.sel (thread_contrib_of_log tid et) e' ==
+               Map.sel (thread_contrib_of_log tid et') e')
+      )
+      else (
+        assert (is_epoch_verified tsm0 e');
+        assert (is_epoch_verified tsm' e');
+        assert (tsm.processed_entries `Seq.equal`
+               Seq.append (M.committed_log_entries tsm.processed_entries)
+                          (M.uncommitted_entries tsm.processed_entries));
+        M.verify_model_log_append (M.init_thread_state_model tid)
+                                  (M.committed_log_entries tsm.processed_entries)
+                                  (M.uncommitted_entries tsm.processed_entries);
+        assert (tsm == M.verify_model tsm0 (M.uncommitted_entries tsm.processed_entries));
+        M.verified_epoch_hashes_constant tsm0 e' (M.uncommitted_entries tsm.processed_entries);
+        assert (Map.sel tsm0.epoch_hashes e' == Map.sel tsm.epoch_hashes e');
+        assert (Map.sel (thread_contrib_of_log tid et) e' ==
+               Map.sel (thread_contrib_of_log tid et') e')
+      )
+    in
     calc (==) {
       AEH.aggregate_all_threads_epoch_hashes e' mlogs_v';
       (==) {  AEH.aggregate_all_threads_epoch_hashes_permute e' mlogs_v' tid }
@@ -1288,7 +1295,7 @@ let epoch_hashes_update (mlogs_v:AEH.all_processed_entries)
     (ensures (
       let tsm' = spec_verify_epoch tsm in
       let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
-      let e = tsm'.last_verified_epoch in
+      let Some e = tsm'.last_verified_epoch in
       AEH.aggregate_all_threads_epoch_hashes e mlogs_v' ==
       AEH.aggregate_epoch_hash (AEH.aggregate_all_threads_epoch_hashes e mlogs_v)
                                (Map.sel tsm'.epoch_hashes e)))
@@ -1297,7 +1304,7 @@ let epoch_hashes_update (mlogs_v:AEH.all_processed_entries)
     let tid = tsm'.thread_id in
     let tsm0 = M.verify_model (M.init_thread_state_model tid) (AEH.log_of_tid mlogs_v tid) in
     let mlogs_v' = update_logs_of_tid mlogs_v tsm' in
-    let e = tsm'.last_verified_epoch in
+    let Some e = tsm'.last_verified_epoch in
     let prefix, et, suffix = AEH.split_tid mlogs_v tid in
     let _, et', _ = AEH.split_tid mlogs_v' tid in
     M.last_verified_epoch_constant tsm;
@@ -1380,7 +1387,7 @@ let advance_per_thread_bitmap_and_max  (bitmaps:EpochMap.repr AEH.tid_bitmap)
     (requires (
       let tsm' = spec_verify_epoch tsm in
       AEH.per_thread_bitmap_and_max bitmaps max mlogs_v tsm.thread_id /\
-      tsm'.last_verified_epoch == e /\
+      tsm'.last_verified_epoch == Some e /\
       not tsm'.failed /\
       tsm_entries_invariant tsm /\
       M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id
@@ -1411,7 +1418,7 @@ let restore_all_threads_bitmap_and_max  (bitmaps:AEH.epoch_bitmaps_repr)
     (requires
       (let tsm' = spec_verify_epoch tsm in
        (forall tid. AEH.per_thread_bitmap_and_max bitmaps max mlogs_v tid) /\
-       tsm'.last_verified_epoch = e /\
+       tsm'.last_verified_epoch = Some e /\
        tsm_entries_invariant tsm /\
        not tsm'.failed /\
        M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id))
@@ -1433,7 +1440,7 @@ let lemma_restore_hashes_bitmaps_max_ok
                                   (e:M.epoch_id)
   : Lemma
     (requires
-      (spec_verify_epoch tsm).last_verified_epoch = e /\
+      (spec_verify_epoch tsm).last_verified_epoch = Some e /\
       AEH.hashes_bitmaps_max_ok hashes bitmaps max mlogs_v /\
       tsm_entries_invariant tsm /\
       not (spec_verify_epoch tsm).failed /\
@@ -1486,7 +1493,7 @@ let restore_hashes_bitmaps_max_ok (#o:_)
       pure (AEH.hashes_bitmaps_max_ok hashes' bitmaps' max mlogs_v'))
     (requires
           M.committed_entries tsm == AEH.log_of_tid mlogs_v tsm.thread_id /\
-          (spec_verify_epoch tsm).last_verified_epoch = e /\
+          (spec_verify_epoch tsm).last_verified_epoch = Some e /\
           tsm_entries_invariant tsm /\
           not (spec_verify_epoch tsm).failed)
     (ensures fun _ -> True)
@@ -1519,52 +1526,60 @@ let verify_epoch_core
       not tsm.failed)
     (ensures fun _ -> True)
   = let e = R.read t.last_verified_epoch in
-    let e' = st_check_overflow_add32 e 1ul in
+    let e' = M.maybe_increment_last_verified_epoch e in // st_check_overflow_add32 e 1ul in
     match e' with
     | None ->
       R.write t.failed true; return true
 
     | Some e ->
-      let acquired = acquire lock in
-      if not acquired
+      let clock = R.read t.clock in
+      if M.epoch_of_timestamp clock = e
       then (
-        rewrite (maybe_acquired _ _)
-                emp;
-        return false
+         R.write t.failed true;
+         return true //can't advance lve
       )
       else (
-        rewrite (maybe_acquired acquired lock)
-                (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs `star` can_release lock);
-        let _hv = elim_exists () in
-        let _bitmaps = elim_exists () in
-        let _max = elim_exists () in
-        let _mlogs_v =
-          elim_exists #_ #_
-            #(AEH.lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
-                                _hv _bitmaps _max)
-            ()
-        in
-        TLM.extract_anchor_invariant mlogs _ _ _ _;
-        let b0 = propagate_epoch_hash t hashes e in
-        let b1 = update_bitmap tid_bitmaps e t.thread_id in
-        if not b0 || not b1
-        then ( //propagation failed, e.g., due to overflow
-           cancel lock;
-           drop _; //drop resources protected by lock; invariant is lost
-           return false
+        let acquired = acquire lock in
+        if not acquired
+        then (
+          rewrite (maybe_acquired _ _)
+                  emp;
+          return false
         )
         else (
-           R.write t.last_verified_epoch e;
-           assert_ (thread_state_inv_core t (M.verifyepoch tsm));
-           assert ((spec_verify_epoch tsm).last_verified_epoch == e);
-           commit_entries t mlogs;
-           restore_hashes_bitmaps_max_ok tsm e;
-           rewrite (if b0 then _ else _)
-                   (EpochMap.full_perm hashes M.init_epoch_hash (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes _hv e));
-           AEH.release_lock #(hide (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes _hv e))
-                            #(hide (update_bitmap_spec _bitmaps e (spec_verify_epoch tsm).thread_id))
-                            lock;
-           return true
+          rewrite (maybe_acquired acquired lock)
+                  (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs `star` can_release lock);
+          let _hv = elim_exists () in
+          let _bitmaps = elim_exists () in
+          let _max = elim_exists () in
+          let _mlogs_v =
+              elim_exists #_ #_
+                #(AEH.lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
+                                    _hv _bitmaps _max)
+                ()
+          in
+          TLM.extract_anchor_invariant mlogs _ _ _ _;
+          let b0 = propagate_epoch_hash t hashes e in
+          let b1 = update_bitmap tid_bitmaps e t.thread_id in
+          if not b0 || not b1
+          then ( //propagation failed, e.g., due to overflow
+            cancel lock;
+            drop _; //drop resources protected by lock; invariant is lost
+            return false
+          )
+          else (
+            R.write t.last_verified_epoch (Some e);
+            assert_ (thread_state_inv_core t (M.verifyepoch tsm));
+            assert ((spec_verify_epoch tsm).last_verified_epoch == Some e);
+            commit_entries t mlogs;
+            restore_hashes_bitmaps_max_ok tsm e;
+            rewrite (if b0 then _ else _)
+                    (EpochMap.full_perm hashes M.init_epoch_hash (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes _hv e));
+            AEH.release_lock #(hide (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes _hv e))
+                             #(hide (update_bitmap_spec _bitmaps e (spec_verify_epoch tsm).thread_id))
+                             lock;
+            return true
+          )
         )
       )
 

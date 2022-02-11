@@ -70,7 +70,7 @@ type thread_state_model = {
   thread_id: tid;
   processed_entries: Seq.seq log_entry;
   app_results: app_results;
-  last_verified_epoch: epoch_id
+  last_verified_epoch: option epoch_id
 }
 
 let init_thread_state_model tid
@@ -83,7 +83,7 @@ let init_thread_state_model tid
       epoch_hashes = initial_epoch_hashes;
       processed_entries = Seq.empty;
       app_results = Seq.empty;
-      last_verified_epoch = 0ul
+      last_verified_epoch = None
     }
 
 let fail tsm = {tsm with failed=true}
@@ -500,6 +500,13 @@ let is_root_key (k:key) =
   | InternalKey k -> k.significant_digits = 0us
   | _ -> false
 
+let epoch_greater_than_last_verified_epoch 
+       (lve:option epoch_id)
+       (e:epoch_id)
+  = match lve with
+    | None -> true
+    | Some e' -> U32.(e' <^ e)
+    
 let vaddb (tsm:thread_state_model)
           (s:slot_id)
           (t:T.timestamp)
@@ -511,6 +518,10 @@ let vaddb (tsm:thread_state_model)
     | ( k, v ) ->
       if is_root_key k then fail tsm //root key
       else if Some? (get_entry tsm s) then fail tsm //slot is already full
+      else if not (epoch_greater_than_last_verified_epoch 
+                          tsm.last_verified_epoch
+                          (epoch_of_timestamp t))
+      then fail tsm
       else (
         //add hash (k, v, t, thread_id) to hadd.[epoch_of_timestamp t]
         let tsm = update_hadd tsm (epoch_of_timestamp t) (k, v) t thread_id in
@@ -665,23 +676,38 @@ let vevictbm (tsm:thread_state_model)
       )
     )
 
+let increment_epoch (t:timestamp)
+  : option timestamp
+  = let e = epoch_of_timestamp t in
+    if not (FStar.UInt.fits (U32.v e + 1) 32)
+    then None
+    else
+      let e' = U32.(e +^ 1ul) in
+      Some (U64.shift_left (C.uint32_to_uint64 e') 32ul)
+    
+  
 let nextepoch (tsm:thread_state_model)
   : thread_state_model
-  = let e = epoch_of_timestamp tsm.clock in
-    if not (FStar.UInt.fits (U32.v e + 1) 32)
-    then fail tsm //overflow
-    else (
-      let e' = U32.(e +^ 1ul) in
-      let clock = U64.shift_left (C.uint32_to_uint64 e') 32ul in
-      {tsm with clock=clock;
-                epoch_hashes = Map.upd tsm.epoch_hashes e' init_epoch_hash }
-    )
+  = match increment_epoch tsm.clock with
+    | None -> fail tsm //overflow
+    | Some new_clock ->
+      let new_epoch = epoch_of_timestamp new_clock in
+      {tsm with clock=new_clock;
+                epoch_hashes = Map.upd tsm.epoch_hashes new_epoch init_epoch_hash }
+
+let maybe_increment_last_verified_epoch (e:option epoch_id)
+  = match e with
+    | None -> Some 0ul
+    | Some e -> check_overflow_add32 e 1ul
 
 let verifyepoch (tsm:thread_state_model)
   : thread_state_model
-  = if not (UInt.fits (U32.v tsm.last_verified_epoch + 1) 32)
-    then fail tsm
-    else { tsm with last_verified_epoch = U32.(tsm.last_verified_epoch +^ 1ul)  }
+  = match maybe_increment_last_verified_epoch tsm.last_verified_epoch with
+    | None -> fail tsm //overflow
+    | Some e ->
+      if epoch_of_timestamp tsm.clock = e
+      then fail tsm //can't advance last_verified_epoch all the way up to the current clock
+      else { tsm with last_verified_epoch = Some e }
     
 let rec read_slots (tsm:thread_state_model)
                    (slots:Seq.seq slot_id)
@@ -744,7 +770,9 @@ let rec write_slots (tsm:thread_state_model)
                       { Seq.length slots == Seq.length values })
   : GTot (tsm':thread_state_model{
             tsm.thread_id == tsm'.thread_id /\
-            tsm.last_verified_epoch == tsm'.last_verified_epoch
+            tsm.last_verified_epoch == tsm'.last_verified_epoch /\
+            tsm.clock == tsm'.clock /\
+            tsm.epoch_hashes == tsm'.epoch_hashes
          })
          (decreases Seq.length slots)
   = if Seq.length slots = 0
@@ -767,7 +795,9 @@ let runapp (tsm:thread_state_model)
            (pl:runApp_payload)
   : GTot (tsm':thread_state_model { 
             tsm'.thread_id == tsm.thread_id /\
-            tsm'.last_verified_epoch == tsm.last_verified_epoch
+            tsm'.last_verified_epoch == tsm.last_verified_epoch /\
+            tsm'.clock == tsm.clock /\
+            tsm'.epoch_hashes == tsm.epoch_hashes
          }) // Need the refinement for tsm_entries_invariant_verify_step
   = if not (Map.contains aprm.A.tbl pl.fid)
     then fail tsm //unknown fid
@@ -1025,10 +1055,163 @@ let rec verify_model_append
 
 #pop-options
 
+let last_verified_epoch_clock_invariant (tsm:thread_state_model)
+  : GTot bool
+  = match tsm.last_verified_epoch with
+    | None -> true
+    | Some e -> U32.v e < U32.v (epoch_of_timestamp tsm.clock)
 
-let verified_epoch_hashes_constant (tsm:thread_state_model)
-                                   (e:epoch_id { U32.v e <= U32.v tsm.last_verified_epoch } )
+let epoch_ordering (t0 t1:timestamp)
+  : Lemma
+    (ensures U64.(t0 <=^ t1) ==>
+             U32.(epoch_of_timestamp t0 <=^ epoch_of_timestamp t1))
+  = admit()
+
+let increment_epoch_increments (t:timestamp)
+  : Lemma (match increment_epoch t with
+           | None -> True
+           | Some t' -> U32.v (epoch_of_timestamp t') = U32.v (epoch_of_timestamp t) + 1)
+  = admit()
+  
+#push-options "--z3rlimit_factor 8"
+let last_verified_epoch_clock_invariant_step
+       (tsm:thread_state_model { last_verified_epoch_clock_invariant tsm })
+       (le: log_entry)
+  : Lemma 
+    (let tsm' = verify_step_model tsm le in
+     last_verified_epoch_clock_invariant tsm')
+  = let tsm' = verify_step_model tsm le in
+    if tsm'.failed
+    then ()
+    else 
+      match le with
+      | AddM _ _ _ -> ()
+      | AddB _ ts _ _ ->
+        let Some ts' = next ts in
+        epoch_ordering tsm.clock (max tsm.clock ts')
+      | EvictM _ -> ()
+      | EvictB _
+      | EvictBM _ ->
+        epoch_ordering tsm.clock tsm'.clock
+      | NextEpoch ->
+        increment_epoch_increments tsm.clock
+      | VerifyEpoch -> ()
+      | RunApp _ -> ()
+
+#push-options "--fuel 1"
+let rec extend_step_invariant
+           (tsm:thread_state_model)
+           (les:log)
+           (p: thread_state_model -> Type)
+           (step_invariant: (tsm:thread_state_model { p tsm } -> le:log_entry -> Lemma (let tsm' = verify_step_model tsm le in p tsm')))
+  : Lemma 
+    (requires p tsm)
+    (ensures  p (verify_model tsm les))
+    (decreases (Seq.length les))
+  = if Seq.length les = 0
+    then ()
+    else (
+      let prefix = Zeta.SeqAux.prefix les (Seq.length les - 1) in
+      let last = Seq.index les (Seq.length les - 1) in
+      extend_step_invariant tsm prefix p step_invariant;
+      let tsm = verify_model tsm prefix in
+      step_invariant tsm last
+    )
+#pop-options
+
+let last_verified_epoch_clock_invariant_steps
+       (tsm:thread_state_model { tsm_entries_invariant tsm /\ not tsm.failed })
+       (les: log)
+  : Lemma 
+    (let tsm' = verify_model tsm les in
+     last_verified_epoch_clock_invariant tsm /\
+     last_verified_epoch_clock_invariant tsm')
+  = extend_step_invariant
+        (init_thread_state_model tsm.thread_id)
+        tsm.processed_entries
+        (fun tsm -> last_verified_epoch_clock_invariant tsm)
+        last_verified_epoch_clock_invariant_step;
+    extend_step_invariant
+           tsm
+           les
+           (fun tsm -> last_verified_epoch_clock_invariant tsm)
+           last_verified_epoch_clock_invariant_step
+
+#push-options "--fuel 1"
+let tsm_entries_invariant_steps (tid:tid) (les:log)
+  : Lemma (tsm_entries_invariant (verify_model (init_thread_state_model tid) les))
+  = assert (tsm_entries_invariant (init_thread_state_model tid));
+    extend_step_invariant (init_thread_state_model tid)
+                          les
+                          tsm_entries_invariant
+                          (fun tsm le -> tsm_entries_invariant_verify_step tsm le)
+#pop-options
+  
+let last_verified_epoch_monotonic (e0 e1:option epoch_id)
+  = match e0, e1 with
+    | None, _ -> true
+    | Some e, None -> false
+    | Some e0, Some e1 -> U32.(e0 <=^ e1) 
+#restart-solver
+let epoch_hashes_constant_step
+       (tsm:thread_state_model { last_verified_epoch_clock_invariant tsm })
+       (le: log_entry)
+       (e: epoch_id {
+         not (epoch_greater_than_last_verified_epoch tsm.last_verified_epoch e)
+       })
+ : Lemma 
+   (let tsm' = verify_step_model tsm le in
+    Map.sel tsm.epoch_hashes e == Map.sel tsm'.epoch_hashes e /\
+    last_verified_epoch_monotonic tsm.last_verified_epoch tsm'.last_verified_epoch
+    )
+  = let tsm' = verify_step_model tsm le in
+    if tsm'.failed
+    then ()
+    else match le with
+         | AddB _ _ _ _ -> ()
+         | EvictB _
+         | EvictBM _ ->
+           epoch_ordering tsm.clock tsm'.clock
+         | NextEpoch ->
+           increment_epoch_increments tsm.clock
+         | _ -> ()
+
+#push-options "--fuel 1"
+let rec epoch_hashes_constant_steps
+       (tsm:thread_state_model { tsm_entries_invariant tsm /\ last_verified_epoch_clock_invariant tsm })
+       (les: log)
+       (e: epoch_id {
+         not (epoch_greater_than_last_verified_epoch tsm.last_verified_epoch e)
+       })
+ : Lemma
+   (ensures (
+     let tsm' = verify_model tsm les in
+     Map.sel tsm.epoch_hashes e == Map.sel tsm'.epoch_hashes e /\
+     last_verified_epoch_monotonic tsm.last_verified_epoch tsm'.last_verified_epoch))
+   (decreases (Seq.length les))
+ = if Seq.length les = 0
+   || tsm.failed
+   then ()
+   else (
+      let prefix = Zeta.SeqAux.prefix les (Seq.length les - 1) in
+      let last = Seq.index les (Seq.length les - 1) in
+      epoch_hashes_constant_steps tsm prefix e;
+      last_verified_epoch_clock_invariant_steps tsm prefix;
+      let tsm' = verify_model tsm prefix in
+      epoch_hashes_constant_step tsm' last e
+   )
+
+
+let verified_epoch_hashes_constant (tsm:thread_state_model { tsm_entries_invariant tsm })
+                                   (e:epoch_id {
+                                     not (epoch_greater_than_last_verified_epoch tsm.last_verified_epoch e)
+                                   })
                                    (les:log)
   : Lemma (let tsm' = verify_model tsm les in
            Map.sel tsm.epoch_hashes e == Map.sel tsm'.epoch_hashes e)
-  = admit()
+  = if tsm.failed
+    then ()
+    else (
+        last_verified_epoch_clock_invariant_steps (init_thread_state_model tsm.thread_id) tsm.processed_entries;
+        epoch_hashes_constant_steps tsm les e
+    )
