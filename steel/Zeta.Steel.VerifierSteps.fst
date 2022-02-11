@@ -1024,34 +1024,6 @@ let aggregate_epoch_hashes_t (#e:_)
       return false
     )
 
-inline_for_extraction
-let with_value_of_key (#v:Type0)
-                      (#contents:Type0)
-                      (#vp: M.epoch_id -> v -> contents -> vprop)
-                      (#init: erased contents)
-                      (#m:erased (EpochMap.repr contents))
-                      (#cf:contents -> GTot contents)
-                      (t:EpochMap.tbl vp)
-                      (i:M.epoch_id)
-                      ($f: (value:v -> STT unit
-                                         (vp i value (Map.sel m i))
-                                         (fun _ -> vp i value (cf (Map.sel m i)))))
-  : STT bool
-    (EpochMap.full_perm t init m)
-    (fun b -> EpochMap.full_perm t init (update_if b (reveal m) (Map.upd m i (cf (Map.sel m i)))))
-  = let res = EpochMap.get t i in
-    match res with
-    | EpochMap.Found value ->
-      rewrite (EpochMap.get_post _ _ _ _ _ _)
-              (EpochMap.perm t init m (PartialMap.upd EpochMap.empty_borrows i value) `star`
-               vp i value (Map.sel m i));
-      f value;
-      EpochMap.ghost_put t i value _;
-      return true
-    | _ ->
-      rewrite (EpochMap.get_post _ _ _ _ _ _)
-              (EpochMap.full_perm t init m);
-      return false
 
 /// Updates the aggregate epoch hash for a thread with the
 /// t thread-local epoch hashes for epoch e
@@ -1167,15 +1139,35 @@ let update_bitmap (#bm:erased _)
                   (update_if b
                              (reveal bm)
                              (update_bitmap_spec bm e tid)))
-  = [@@inline_let]
-    let update_tid (v:larray bool n_threads)
-      : STT unit
-            (array_pts_to v (Map.sel bm e))
-            (fun _ -> array_pts_to v (Seq.upd (Map.sel bm e) (U16.v tid) true))
-      = A.write v (as_u32 tid) true;
-        ()
-    in
-    with_value_of_key tid_bitmaps e update_tid
+  = let res = EpochMap.get tid_bitmaps e in
+    match res with
+    | EpochMap.NotFound ->
+      rewrite (EpochMap.get_post AEH.all_zeroes bm EpochMap.empty_borrows tid_bitmaps e res)
+              (EpochMap.full_perm tid_bitmaps AEH.all_zeroes bm);
+      return false
+
+    | EpochMap.Fresh ->
+      rewrite (EpochMap.get_post AEH.all_zeroes bm EpochMap.empty_borrows tid_bitmaps e res)
+              (EpochMap.full_perm tid_bitmaps AEH.all_zeroes bm);
+      assert (Map.sel bm e == AEH.all_zeroes);
+      let new_bm = A.alloc false n_threads in
+      A.write new_bm (as_u32 tid) true;
+      assert (Map.upd bm e (Seq.upd AEH.all_zeroes (U32.v (as_u32 tid)) true) `Map.equal`
+              update_bitmap_spec bm e tid);
+      assert (forall a. PartialMap.remove (EpochMap.empty_borrows #a) e `PartialMap.equal`
+              EpochMap.empty_borrows #a);
+      EpochMap.put tid_bitmaps e new_bm _;
+      rewrite (EpochMap.perm tid_bitmaps AEH.all_zeroes _ (PartialMap.remove EpochMap.empty_borrows e))
+              (EpochMap.full_perm tid_bitmaps AEH.all_zeroes (update_bitmap_spec bm e tid));
+      return true
+
+    | EpochMap.Found v ->
+      rewrite (EpochMap.get_post AEH.all_zeroes bm EpochMap.empty_borrows tid_bitmaps e res)
+              (EpochMap.perm tid_bitmaps AEH.all_zeroes bm (PartialMap.upd EpochMap.empty_borrows e v) `star`
+               array_pts_to v (Map.sel bm e));
+      A.write v (as_u32 tid) true;
+      EpochMap.ghost_put tid_bitmaps e v _;
+      return true
 
 let update_logs_of_tid
          (mlogs_v:AEH.all_processed_entries)
