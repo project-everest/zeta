@@ -35,7 +35,7 @@ let epoch_tid_bitmaps =
                (fun i -> array_pts_to)
 
 let is_epoch_verified (tsm:M.thread_state_model) (eid:M.epoch_id) =
-  U32.v tsm.M.last_verified_epoch >= U32.v eid
+  not (M.epoch_greater_than_last_verified_epoch tsm.last_verified_epoch eid)
 
 let all_threads_epoch_hashes =
   Seq.lseq epoch_hashes_repr (U32.v n_threads)
@@ -148,7 +148,7 @@ let per_thread_bitmap_and_max (bitmaps:epoch_bitmaps_repr)
                               (tid:tid)
   : prop
   = let tsm = M.verify_model (M.init_thread_state_model tid) (log_of_tid all_logs tid) in
-    (Some? max ==> U32.v (Some?.v max) <= U32.v tsm.last_verified_epoch) /\
+    (Some? max ==> not (M.epoch_greater_than_last_verified_epoch tsm.last_verified_epoch (Some?.v max))) /\
     (forall (eid:M.epoch_id).
        Seq.index (Map.sel bitmaps eid) (U16.v tid) == is_epoch_verified tsm eid)
 
