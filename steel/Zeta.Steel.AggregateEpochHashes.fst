@@ -126,7 +126,7 @@ let check_all_ones (#e:Ghost.erased _)
     (requires True)
     (ensures fun b -> b <==> (reveal e == all_ones))
   = A.pts_to_length a e;
-    let b = Zeta.Steel.Util.check_array_forall n_threads a (fun b -> b) in
+    let b = Steel.ST.Array.Util.for_all n_threads a (fun b -> b) in
     assert (b ==> Seq.equal (reveal e) all_ones);
     return b
 
