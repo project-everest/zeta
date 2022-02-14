@@ -1148,7 +1148,7 @@ let rec propagate_epoch_hash (#tsm:M.thread_state_model)
 let update_bitmap_spec (bm:EpochMap.repr AEH.tid_bitmap)
                        (e:M.epoch_id)
                        (tid:tid)
-  : EpochMap.repr AEH.tid_bitmap
+  : GTot (EpochMap.repr AEH.tid_bitmap)
   = Map.upd bm e (Seq.upd (Map.sel bm e) (U16.v tid) true)
 
 /// Update the bitmap for tid indicating that it's epoch contribution
