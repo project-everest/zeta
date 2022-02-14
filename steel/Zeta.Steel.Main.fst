@@ -24,7 +24,7 @@ module SA = Zeta.SeqAux
 module Loops = Steel.ST.Loops
 
 let init_thread_state
-  (#m:TLM.repr)
+  (#m:Ghost.erased (TLM.repr))
   (mlogs:TLM.t)
   (i:tid)
   (_:squash (Map.sel m i == Some Seq.empty))
@@ -58,7 +58,7 @@ let tid_positions_ok_until #l (all_threads:Seq.seq (thread_state l)) (i:nat)
                  U16.v sj.tid == j)
 
 let rec init_all_threads_state
-  (#m:TLM.repr)
+  (#m:Ghost.erased (TLM.repr))
   (#mlogs:TLM.t)
   (all_threads:all_threads_t mlogs)
   (i:U16.t{U16.v i <= U32.v n_threads})
