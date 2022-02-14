@@ -295,7 +295,7 @@ let elim_global_snapshot (#o:_)
 
 let map_map (m:PM.map tid aval)
             (f:(tid:tid -> a:FAP.avalue anchors{ Map.sel m tid == FAP.Owns a } -> FAP.avalue anchors))
-  : PM.map tid aval
+  : GTot (PM.map tid aval)
   = Map.map_literal (fun tid ->
        match Map.sel m tid with
        | FAP.Owns m -> FAP.Owns (f tid m)
