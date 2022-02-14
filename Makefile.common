@@ -2,6 +2,7 @@
 
 ZETA_HOME ?= .
 FSTAR_HOME ?= $(realpath $(dir $(shell which fstar.exe))/..)
+KREMLIN_HOME ?= $(FSTAR_HOME)/../kremlin
 # FSTAR_HOME ?= everest/FStar
 # KREMLIN_HOME ?= everest/kremlin
 
@@ -47,7 +48,8 @@ FSTAR_OPTIONS=--odir $(OUTPUT_DIRECTORY) \
 		 $(OTHERFLAGS) \
 		 --cache_dir $(CACHE_DIRECTORY) \
 	         $(addprefix --include , $(INCLUDE_PATHS)) \
-		 --cache_checked_modules
+		 --cache_checked_modules \
+		 --cmi
 
 FSTAR=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 

@@ -13,6 +13,6 @@ $(OUTPUT_DIRECTORY)/%.krml:
 	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen Kremlin \
 	--extract_module $(basename $(notdir $(subst .checked,,$<)))
 
-extract: $(filter-out $(OUTPUT_DIRECTORY)/Veritas_Intermediate% $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))
+extract: $(OUTPUT_DIRECTORY)/Steel_ST_Array_Util.krml $(filter-out $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))
 
 # krml -warn-error +9 -skip-compilation "*.krml" -bundle Veritas.Steel.Verifier=Veritas.*
