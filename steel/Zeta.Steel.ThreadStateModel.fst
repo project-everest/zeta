@@ -94,7 +94,7 @@ let get_entry (tsm:thread_state_model) (s:T.slot)
 
 let check_slot_bounds (s:T.slot_id)
   : bool
-  = U16.v s < U16.v store_size
+  = U16.lt s store_size
   
 let has_slot (tsm:thread_state_model) (s:T.slot_id)
   = check_slot_bounds s &&
