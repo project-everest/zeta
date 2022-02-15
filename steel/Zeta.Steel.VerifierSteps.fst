@@ -1516,7 +1516,7 @@ let restore_hashes_bitmaps_max_ok (#o:_)
     (ensures fun _ -> True)
   = elim_pure _;
     lemma_restore_hashes_bitmaps_max_ok hashes bitmaps max mlogs_v tsm e;
-    intro_pure _
+    intro_pure (AEH.hashes_bitmaps_max_ok _ _ _ _)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Finally verify_epoch itself
