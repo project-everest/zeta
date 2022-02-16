@@ -165,3 +165,31 @@ let synth_record_injective = ()
 let synth_record_inverse = ()
 #pop-options
 
+let synth_value
+  (x: Zeta.Formats.Aux.Value.value)
+: Tot Zeta.Steel.LogEntry.Types.value
+= match x with
+  | Zeta.Formats.Aux.Value.Value_payload_MV v ->
+    Zeta.Steel.LogEntry.Types.MValue (synth_mval_value v)
+  | Zeta.Formats.Aux.Value.Value_payload_DVNone _ ->
+    Zeta.Steel.LogEntry.Types.DValue None
+  | Zeta.Formats.Aux.Value.Value_payload_DVSome v ->
+    Zeta.Steel.LogEntry.Types.DValue (Some v)
+
+let synth_value_recip
+  (x: Zeta.Steel.LogEntry.Types.value)
+: Tot Zeta.Formats.Aux.Value.value
+= match x with
+  | Zeta.Steel.LogEntry.Types.MValue v ->
+    Zeta.Formats.Aux.Value.Value_payload_MV (synth_mval_value_recip v)
+  | Zeta.Steel.LogEntry.Types.DValue None ->
+    Zeta.Formats.Aux.Value.Value_payload_DVNone ()
+  | Zeta.Steel.LogEntry.Types.DValue (Some v) ->
+    Zeta.Formats.Aux.Value.Value_payload_DVSome v
+
+let synth_value_injective = ()
+
+#push-options "--ifuel 8"
+let synth_value_inverse = ()
+#pop-options
+

@@ -71,3 +71,13 @@ let serialize_stamped_record =
     (fun x -> synth_stamped_record_recip x)
     ()
     v a offset
+
+let serialize_value =
+  fun len offset a v ->
+  LowParse.Low.Combinators.serialize32_synth
+    Zeta.Formats.Aux.Value.value_lserializer
+    Zeta.Formats.Synth.synth_value
+    Zeta.Formats.Synth.synth_value_recip
+    (fun x -> Zeta.Formats.Synth.synth_value_recip x)
+    ()
+    v a offset
