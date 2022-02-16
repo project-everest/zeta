@@ -1214,3 +1214,25 @@ let verified_epoch_hashes_constant (tsm:thread_state_model { tsm_entries_invaria
         last_verified_epoch_clock_invariant_steps (init_thread_state_model tsm.thread_id) tsm.processed_entries;
         epoch_hashes_constant_steps tsm les e
     )
+
+let delta_out_bytes (tsm tsm':thread_state_model)
+  = bytes_of_app_results (delta_app_results tsm tsm')
+
+let delta_out_bytes_idem (tsm:thread_state_model)
+  : Lemma (delta_out_bytes tsm tsm == Seq.empty)
+          [SMTPat (delta_out_bytes tsm tsm)]
+  = admit()
+
+let delta_out_bytes_not_runapp (tsm:thread_state_model)
+                               (le:log_entry { not (RunApp? le) })
+  : Lemma (delta_out_bytes tsm (verify_step_model tsm le) == Seq.empty)
+          [SMTPat (delta_out_bytes tsm (verify_step_model tsm le))]
+  = admit()
+
+let delta_out_bytes_trans (tsm tsm1:thread_state_model)
+                          (le:log_entry)
+  : Lemma (ensures
+              delta_out_bytes tsm (verify_step_model tsm1 le) ==
+              Seq.append (delta_out_bytes tsm tsm1)
+                         (delta_out_bytes tsm1 (verify_step_model tsm1 le)))
+  = admit()

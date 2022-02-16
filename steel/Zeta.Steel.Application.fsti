@@ -22,28 +22,6 @@ module M = Zeta.Steel.ThreadStateModel
 module V = Zeta.Steel.VerifierTypes
 open Zeta.Steel.FormatsManual
 
-let delta_out_bytes (tsm tsm':M.thread_state_model)
-  = M.bytes_of_app_results (M.delta_app_results tsm tsm')
-
-let delta_out_bytes_idem (tsm:M.thread_state_model)
-  : Lemma (delta_out_bytes tsm tsm == Seq.empty)
-          [SMTPat (delta_out_bytes tsm tsm)]
-  = admit()
-
-let delta_out_bytes_not_runapp (tsm:M.thread_state_model)
-                               (le:log_entry { not (RunApp? le) })
-  : Lemma (delta_out_bytes tsm (M.verify_step_model tsm le) == Seq.empty)
-          [SMTPat (delta_out_bytes tsm (M.verify_step_model tsm le))]
-  = admit()
-
-let delta_out_bytes_trans (tsm tsm1:M.thread_state_model)
-                          (le:log_entry)
-  : Lemma (ensures
-              delta_out_bytes tsm (M.verify_step_model tsm1 le) ==
-              Seq.append (delta_out_bytes tsm tsm1)
-                         (delta_out_bytes tsm1 (M.verify_step_model tsm1 le)))
-  = admit()
-
 let split3 (s:Seq.seq U8.t)
            (from:U32.t { U32.v from <= Seq.length s})
            (to:U32.t { U32.v to <= Seq.length s - U32.v from })
@@ -64,7 +42,7 @@ let n_out_bytes (tsm tsm': M.thread_state_model)
      let pfx', s, sfx' = split3 out_bytes_init out_offset n_out in
      pfx `Seq.equal` pfx' /\
      sfx `Seq.equal` sfx' /\
-     s `Seq.equal` delta_out_bytes tsm tsm')
+     s `Seq.equal` M.delta_out_bytes tsm tsm')
 
 type verify_runapp_result =
   | Run_app_parsing_failure: verify_runapp_result
