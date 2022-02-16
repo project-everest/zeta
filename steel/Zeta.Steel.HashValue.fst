@@ -8,13 +8,23 @@ module A = Steel.ST.Array
 module U8 = FStar.UInt8
 module LE = Zeta.Steel.LogEntry
 
+assume
+val spec_parser_u256 : P.spec_parser T.u256
+
+assume
+val spec_parser_u256_never_fails (b:Seq.seq U8.t { Seq.length b == 32 })
+  : Lemma (match spec_parser_u256 b with
+           | None -> False
+           | Some (_, n) -> n == 32)
+
+assume
+val parser_u256 : P.parser spec_parser_u256
+
 let bytes_as_u256 (b:Seq.seq U8.t { Seq.length b == 32 })
   : GTot T.u256
-  = let u64s = FStar.Endianness.seq_uint64_of_le 4 b in
-    { v0 = Seq.index u64s 0;
-      v1 = Seq.index u64s 1;
-      v2 = Seq.index u64s 2;
-      v3 = Seq.index u64s 3 }
+  = spec_parser_u256_never_fails b;
+    let Some (v, _) = spec_parser_u256 b in
+    v
 
 let hashfn (v:T.value)
   : GTot T.hash_value
@@ -69,8 +79,13 @@ let read_hash_u256 (#hv:Ghost.erased _)
     (ensures fun res ->
       Seq.length hv == 32 /\
       res == bytes_as_u256 hv)
-  = admit__()
+  = A.pts_to_length hb _;
+    spec_parser_u256_never_fails hv;
+    let res = parser_u256 32ul 0ul 32ul hb in
+    let Some (v, _) = res in
+    return v
 
+#push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 3"
 let hash_value (h:hasher_t)
                (v:T.value)
   : ST T.hash_value
@@ -88,3 +103,4 @@ let hash_value (h:hasher_t)
     intro_exists _ (array_pts_to h.serialization_buffer);
     intro_exists _ (array_pts_to h.hash_buffer);
     return res
+#pop-options

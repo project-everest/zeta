@@ -58,12 +58,12 @@ let ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
     else (U64.shift_right kk.T.v3 (C.uint16_to_uint32 (i -^ 192us))) `U64.rem` 2uL = 1uL
 
 let lift_base_key (k: T.base_key)
-  : Zeta.Key.base_key
+  : GTot Zeta.Key.base_key
   = admit()
 
 (* if you lift a lowered key, you get the original key, but not the other way round *)
 let lower_base_key (k: Zeta.Key.base_key)
-  : k':T.base_key { lift_base_key k' = k }
+  : GTot (k':T.base_key { lift_base_key k' = k })
   = admit()
 
 let desc_dir (k0:T.base_key) (k1:T.base_key { k0 `is_proper_descendent` k1 })

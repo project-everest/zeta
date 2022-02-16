@@ -133,3 +133,9 @@ val run_app_function
       (fun res ->
         A.pts_to log_array log_perm log_bytes `star`
         verify_runapp_entry_post tsm t pl out_bytes out_offset out res)
+
+(** A function to map application keys to base keys *)
+module LE = Zeta.Steel.LogEntry.Types
+val key_type_to_base_key (k:key_type)
+  : STT (b:LE.base_key {  b == Zeta.Steel.KeyUtils.lower_base_key (aprm.keyhashfn k) })
+    emp (fun _ -> emp)

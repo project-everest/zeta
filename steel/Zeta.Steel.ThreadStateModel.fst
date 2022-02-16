@@ -393,7 +393,7 @@ let record_of_payload (p:payload)
 *)
 
 let to_base_key (k:key)
-  : base_key
+  : GTot base_key
   = match k with
     | InternalKey k -> k
     | ApplicationKey k -> KU.lower_base_key (aprm.A.keyhashfn k)

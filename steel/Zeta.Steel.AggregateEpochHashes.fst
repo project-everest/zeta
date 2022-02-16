@@ -50,7 +50,7 @@ let per_thread_bitmap_and_max_emp (tid:tid) (eid:M.epoch_id)
   : Lemma
       (let tsm = M.verify_model (M.init_thread_state_model tid) Seq.empty in
        is_epoch_verified tsm eid == false)
-  = admit ()
+  = ()
 
 let create () =
   let hashes = EpochMap.create #_ #_ #epoch_hash_perm

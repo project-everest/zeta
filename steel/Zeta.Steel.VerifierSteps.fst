@@ -100,6 +100,17 @@ let maybe_extend_processed_entries #o
       intro_thread_state_inv t
     )
 
+let to_base_key (x:T.key)
+  : ST T.base_key
+    emp (fun _ -> emp)
+    (requires True)
+    (ensures fun b -> b == M.to_base_key x)
+  = match x with    
+    | InternalKey k -> return k
+    | ApplicationKey k -> 
+      let k' = Zeta.Steel.Application.key_type_to_base_key k in
+      return k'
+      
 ////////////////////////////////////////////////////////////////////////////////
 //create
 ////////////////////////////////////////////////////////////////////////////////
@@ -267,6 +278,8 @@ let update_value (#tsm:M.thread_state_model)
     A.write t.store (as_u32 s) (Some ({v with M.value = r}));
     ()
 
+#restart-solver
+#push-options "--z3rlimit_factor 2"
 let vaddm_core (#tsm:M.thread_state_model)
                (t:thread_state_t)
                (s s':slot_id)
@@ -283,9 +296,9 @@ let vaddm_core (#tsm:M.thread_state_model)
       match ropt with
       | None -> (fail t; return true)
       | Some r' ->
-        let k' = M.to_base_key r'.key in
+        let k' = to_base_key r'.key in
         let v' = r'.value in
-        let k = M.to_base_key gk in
+        let k = to_base_key gk in
         (* check k is a proper desc of k' *)
         if not (KU.is_proper_descendent k k')
         then (fail t; return true)
@@ -294,7 +307,7 @@ let vaddm_core (#tsm:M.thread_state_model)
           let sopt = A.read t.store (as_u32 s) in
           match sopt with
           | Some _ -> fail t; return true
-          | _ ->
+          | _ -> 
              match M.to_merkle_value v' with
              | None -> fail t; return true
              | Some v' ->
@@ -337,7 +350,7 @@ let vaddm_core (#tsm:M.thread_state_model)
                  (* check k2 is a proper desc of k *)
                  else if not (KU.is_proper_descendent k2 k)
                  then (let b = fail_as t _ in return b)
-                 else (
+                 else ( 
                    let d2 = KU.desc_dir k2 k in
                    let Some mv = M.to_merkle_value gv in
                    let mv_upd = M.update_merkle_value mv d2 k2 h2 (b2=T.Vtrue) in
@@ -665,8 +678,8 @@ let vevictm_core (#tsm:M.thread_state_model)
         let v = r.M.value in
         let gk' = r'.M.key in
         let v' = r'.M.value in
-        let k = M.to_base_key gk in
-        let k' = M.to_base_key gk' in
+        let k = to_base_key gk in
+        let k' = to_base_key gk' in
         (* check k is a proper descendent of k' *)
         if not (KU.is_proper_descendent k k')
         then (R.write t.failed true; ())
@@ -859,8 +872,8 @@ let vevictbm_core (#tsm:M.thread_state_model)
                   let gk = r.key in
                   let gk' = r'.key in
                   let v' = r'.value in
-                  let k = M.to_base_key gk in
-                  let k' = M.to_base_key gk' in
+                  let k = to_base_key gk in
+                  let k' = to_base_key gk' in
                   if not (KU.is_proper_descendent k k')
                   then let b = fail_as t _ in return b
                   else (
