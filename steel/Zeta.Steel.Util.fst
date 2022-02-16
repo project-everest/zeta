@@ -18,7 +18,7 @@ let sum_halves : squash (sum_perm half half == full) = ()
 
 [@@warn_on_use "uses an axiom"]
 noextract
-assume
+assume //benign; this is defining admit__
 val admit__ (#a:Type)
             (#p:pre_t)
             (#q:a -> vprop)
@@ -27,7 +27,7 @@ val admit__ (#a:Type)
 
 [@@warn_on_use "uses an axiom"]
 noextract
-assume
+assume //benign; this is defining admit___
 val admit___ (#opened:_)
              (#a:Type)
              (#p:pre_t)

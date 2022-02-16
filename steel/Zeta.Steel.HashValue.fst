@@ -6,21 +6,7 @@ module T = Zeta.Steel.FormatsManual
 module Blake = Hacl.Blake2b_32
 module A = Steel.ST.Array
 module U8 = FStar.UInt8
-
-assume
-val spec_parser_value: P.spec_parser T.value
-
-assume
-val spec_serializer_value: P.spec_serializer spec_parser_value
-
-assume
-val serialize_value : P.serializer spec_serializer_value
-
-/// This is an ad hoc bound due to a bound on Blake hashable inputs
-assume
-val serialized_value_length (s:T.value)
-  : Lemma  (Seq.length (spec_serializer_value s) <= 4096)
-           [SMTPat (Seq.length (spec_serializer_value s))]
+module LE = Zeta.Steel.LogEntry
 
 let bytes_as_u256 (b:Seq.seq U8.t { Seq.length b == 32 })
   : GTot T.u256
@@ -32,7 +18,7 @@ let bytes_as_u256 (b:Seq.seq U8.t { Seq.length b == 32 })
 
 let hashfn (v:T.value)
   : GTot T.hash_value
-  = let bytes = spec_serializer_value v in
+  = let bytes = LE.spec_serializer_value v in
     let hash_bytes = Blake.spec bytes 0 Seq.empty 32 in
     bytes_as_u256 hash_bytes
 
@@ -92,7 +78,7 @@ let hash_value (h:hasher_t)
     (fun _ -> inv h)
     (requires True)
     (ensures fun res -> hashfn v == res)
-  = let n = serialize_value 4096ul 0ul h.serialization_buffer v in
+  = let n = LE.serialize_value 4096ul 0ul h.serialization_buffer v in
     let hv = elim_exists  #_ #_ #(array_pts_to h.hash_buffer) () in
     let sv = elim_exists () in
     elim_pure _;

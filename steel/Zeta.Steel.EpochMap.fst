@@ -14,10 +14,7 @@ module ETbl = Steel.ST.EphemeralHashtbl
 
 module M = Zeta.Steel.ThreadStateModel
 
-//
-//TODO: instantiate this hash function
-//
-assume val hash : ETbl.hash_fn M.epoch_id
+let hash : ETbl.hash_fn M.epoch_id = fun eid -> eid
 
 noeq
 type tbl #v #c vp = {

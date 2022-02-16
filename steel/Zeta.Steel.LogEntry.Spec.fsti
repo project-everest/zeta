@@ -75,3 +75,4 @@ val spec_parser_value : spec_parser value
 val spec_serializer_value : spec_serializer spec_parser_value
 val serialized_value_length (s:value)
   : Lemma (Seq.length (spec_serializer_value s) <= 4096)
+          [SMTPat (Seq.length (spec_serializer_value s))]

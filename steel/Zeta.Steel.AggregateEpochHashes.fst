@@ -22,8 +22,9 @@ module MR = Steel.ST.MonotonicReference
 module TLM = Zeta.Steel.ThreadLogMap
 open Zeta.Steel.EpochHashes
 
-assume val all_hashes_size  : n:U32.t{U32.v n > 0}
-assume val tid_bitmaps_size : n:U32.t{U32.v n > 0}
+let max_epoch_lag = 32ul
+let all_hashes_size : n:U32.t{U32.v n > 0} = max_epoch_lag
+let tid_bitmaps_size : n:U32.t{U32.v n > 0} = max_epoch_lag
 
 let empty_all_processed_entries : Ghost.erased all_processed_entries =
   Seq.create (U32.v n_threads) Seq.empty
