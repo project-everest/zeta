@@ -137,3 +137,14 @@ let spec_serializer_value' : LPC.serializer spec_parser_value' =
 let spec_serializer_value x = LPC.serialize spec_serializer_value' x
 
 let serialized_value_length s = ()
+
+let u256_parser' : LPC.parser Zeta.Formats.Aux.U256.u256_parser_kind u256 =
+  LPC.parse_synth Zeta.Formats.Aux.U256.u256_parser Zeta.Formats.Synth.synth_u256
+
+let spec_parser_u256 x =
+  match LPC.parse u256_parser' x with
+  | None -> None
+  | Some (res, consumed) -> Some (res, consumed)
+
+let spec_parser_u256_never_fails b =
+  LPC.parser_kind_prop_equiv Zeta.Formats.Aux.U256.u256_parser_kind u256_parser'

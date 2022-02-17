@@ -8,22 +8,10 @@ module A = Steel.ST.Array
 module U8 = FStar.UInt8
 module LE = Zeta.Steel.LogEntry
 
-assume
-val spec_parser_u256 : P.spec_parser T.u256
-
-assume
-val spec_parser_u256_never_fails (b:Seq.seq U8.t { Seq.length b == 32 })
-  : Lemma (match spec_parser_u256 b with
-           | None -> False
-           | Some (_, n) -> n == 32)
-
-assume
-val parser_u256 : P.parser spec_parser_u256
-
 let bytes_as_u256 (b:Seq.seq U8.t { Seq.length b == 32 })
   : GTot T.u256
-  = spec_parser_u256_never_fails b;
-    let Some (v, _) = spec_parser_u256 b in
+  = LE.spec_parser_u256_never_fails b;
+    let Some (v, _) = LE.spec_parser_u256 b in
     v
 
 let hashfn (v:T.value)
@@ -80,8 +68,8 @@ let read_hash_u256 (#hv:Ghost.erased _)
       Seq.length hv == 32 /\
       res == bytes_as_u256 hv)
   = A.pts_to_length hb _;
-    spec_parser_u256_never_fails hv;
-    let res = parser_u256 32ul 0ul 32ul hb in
+    LE.spec_parser_u256_never_fails hv;
+    let res = LE.parser_u256 32ul 0ul 32ul hb in
     let Some (v, _) = res in
     return v
 

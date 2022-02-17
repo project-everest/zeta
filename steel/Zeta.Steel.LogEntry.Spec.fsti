@@ -1,6 +1,7 @@
 module Zeta.Steel.LogEntry.Spec
 include Zeta.Steel.LogEntry.Types
 open Zeta.Steel.Parser
+module U8 = FStar.UInt8
 module U32 = FStar.UInt32
 val spec_parser_log_entry : spec_parser log_entry
 
@@ -76,3 +77,10 @@ val spec_serializer_value : spec_serializer spec_parser_value
 val serialized_value_length (s:value)
   : Lemma (Seq.length (spec_serializer_value s) <= 4096)
           [SMTPat (Seq.length (spec_serializer_value s))]
+
+val spec_parser_u256 : spec_parser u256
+
+val spec_parser_u256_never_fails (b:Seq.seq U8.t { Seq.length b == 32 })
+  : Lemma (match spec_parser_u256 b with
+           | None -> False
+           | Some (_, n) -> n == 32)
