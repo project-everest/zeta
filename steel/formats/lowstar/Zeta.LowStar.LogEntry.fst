@@ -81,3 +81,19 @@ let serialize_value =
     (fun x -> Zeta.Formats.Synth.synth_value_recip x)
     ()
     v a offset
+
+let parser_u256
+  len offset slice_len a
+=
+  let h = HST.get () in
+  let sl_base = B.sub a offset slice_len in
+  let sl = LowParse.Low.Base.make_slice sl_base slice_len in
+  LL.valid_facts Zeta.Steel.LogEntry.Spec.u256_parser' h sl 0ul;
+  let consumed = LowParse.Low.Combinators.validate_synth Zeta.Formats.Aux.U256.u256_validator Zeta.Formats.Synth.synth_u256 () sl 0uL in
+  if LL.is_error consumed
+  then None
+  else begin
+    let consumed = LL.uint64_to_uint32 consumed in
+    let res = LowParse.Low.Combinators.read_synth' _ Zeta.Formats.Synth.synth_u256 Zeta.Formats.Aux.U256.u256_reader () sl 0ul in
+    Some (res, consumed)
+  end

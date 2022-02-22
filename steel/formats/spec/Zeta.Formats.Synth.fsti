@@ -2,6 +2,13 @@ module Zeta.Formats.Synth
 
 module LPC = LowParse.Spec.Combinators
 
+val synth_u256
+  (x: Zeta.Formats.Aux.U256.u256)
+: Tot Zeta.Steel.LogEntry.Types.u256
+
+val synth_u256_injective
+: squash (LPC.synth_injective synth_u256)
+
 val synth_record
   (x: Zeta.Formats.Aux.Record.record)
 : Tot Zeta.Steel.LogEntry.Types.record

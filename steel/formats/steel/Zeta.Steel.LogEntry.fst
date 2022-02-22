@@ -54,3 +54,10 @@ let serialize32_value : LowParse.SLow.Base.serializer32 spec_serializer_value' =
 
 let serialize_value =
   Zeta.Steel.FormatsLib.mk_steel_serializer serialize32_value spec_serializer_value ()
+
+let parse32_u256
+: LowParse.SLow.Base.parser32 Zeta.Steel.LogEntry.Spec.u256_parser'
+= LowParse.SLow.Combinators.parse32_synth' _ Zeta.Formats.Synth.synth_u256  Zeta.Formats.Aux.U256.u256_parser32 ()
+
+let parser_u256 =
+  Zeta.Steel.FormatsLib.mk_steel_parser parse32_u256 spec_parser_u256 ()

@@ -12,6 +12,8 @@ let synth_u256
     x.Zeta.Formats.Aux.U256.v1
     x.Zeta.Formats.Aux.U256.v0
 
+let synth_u256_injective = ()
+
 let synth_u256_recip
   (x: Zeta.Steel.LogEntry.Types.u256)
 : Tot Zeta.Formats.Aux.U256.u256
