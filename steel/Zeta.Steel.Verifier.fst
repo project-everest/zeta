@@ -331,21 +331,20 @@ let intro_verify_step_post_verify_failure
        | None -> False
        | Some (le', n') -> le == le'))
     (ensures fun _ -> True)
-  = admit_ ()  //AR: 02/22: the following seems to have regressed?
-   // intro_pure (Verify_entry_failure?.log_pos (Verify_entry_failure log_pos) == log_pos);
-   //  intro_pure (LogEntry.can_parse_log_entry log_bytes log_pos /\
-   //              fst (LogEntry.spec_parse_log_entry log_bytes log_pos) == le);
-   //  intro_exists le (fun le ->
-   //    pure (LogEntry.can_parse_log_entry log_bytes log_pos /\
-   //          fst (LogEntry.spec_parse_log_entry log_bytes log_pos) == le) `star`
-   //    verify_log_entry_post tsm t out_bytes out_offset out aeh le None);
-   //  rewrite_with (pure (Verify_entry_failure?.log_pos (Verify_entry_failure log_pos) == log_pos) `star`
-   //           exists_ (fun le ->
-   //             pure (LogEntry.can_parse_log_entry log_bytes log_pos /\
-   //                   fst (LogEntry.spec_parse_log_entry log_bytes log_pos) == le) `star`
-   //             verify_log_entry_post tsm t out_bytes out_offset out aeh le None))
-   //          _
-   //          (_ by FStar.Tactics.(trefl()))
+  = intro_pure (Verify_entry_failure?.log_pos (Verify_entry_failure log_pos) == log_pos);
+    intro_pure (LogEntry.can_parse_log_entry log_bytes log_pos /\
+                fst (LogEntry.spec_parse_log_entry log_bytes log_pos) == le);
+    intro_exists le (fun le ->
+      pure (LogEntry.can_parse_log_entry log_bytes log_pos /\
+            fst (LogEntry.spec_parse_log_entry log_bytes log_pos) == le) `star`
+      verify_log_entry_post tsm t out_bytes out_offset out aeh le None);
+    rewrite_with (pure (Verify_entry_failure?.log_pos (Verify_entry_failure log_pos) == log_pos) `star`
+             exists_ (fun le ->
+               pure (LogEntry.can_parse_log_entry log_bytes log_pos /\
+                     fst (LogEntry.spec_parse_log_entry log_bytes log_pos) == le) `star`
+               verify_log_entry_post tsm t out_bytes out_offset out aeh le None))
+            _
+            (_ by FStar.Tactics.(trefl()))
 
 let intro_verify_step_post_verify_success
                      (#o:_)
