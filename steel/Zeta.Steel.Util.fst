@@ -3,6 +3,7 @@ open Steel.ST.Util
 open Steel.ST.CancellableSpinLock
 module G = FStar.Ghost
 module A = Steel.ST.Array
+module AUtil = Steel.ST.Array.Util
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 module Cast = FStar.Int.Cast
@@ -161,3 +162,24 @@ let repeat_until
     rewrite (repeat_until_inv p r false)
             (R.pts_to r full false `star` p false);
     R.free r
+
+let compare (#a:eqtype) (#p0 #p1:perm)
+  (a0 a1:A.array a)
+  (#s0 #s1:G.erased (Seq.seq a))
+  (n:U32.t{U32.v n == A.length a0 /\ A.length a0 == A.length a1})
+  : ST bool
+       (A.pts_to a0 p0 s0
+          `star`
+        A.pts_to a1 p1 s1)
+
+       (fun _ ->
+        A.pts_to a0 p0 s0
+          `star`
+        A.pts_to a1 p1 s1)
+       (requires True)
+       (ensures fun b -> b <==> s0 == s1)
+  = let b = AUtil.for_all2 n a0 a1 (fun x y -> x = y) in
+    A.pts_to_length a0 s0;
+    A.pts_to_length a1 s1;
+    assert (b <==> Seq.equal s0 s1);
+    return b

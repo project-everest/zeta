@@ -22,6 +22,7 @@ module MR = Steel.ST.MonotonicReference
 module TLM = Zeta.Steel.ThreadLogMap
 open Zeta.Steel.EpochHashes
 
+inline_for_extraction
 let max_epoch_lag = 32ul
 let all_hashes_size : n:U32.t{U32.v n > 0} = max_epoch_lag
 let tid_bitmaps_size : n:U32.t{U32.v n > 0} = max_epoch_lag
