@@ -293,7 +293,7 @@ let compare #h1 #h2 (b1 b2:ha)
       return false
     )
     else (
-      let b = A.compare b1.acc b2.acc 32ul in
+      let b = Zeta.Steel.Util.compare b1.acc b2.acc 32ul in
       intro_ha_val b1 _ _ h1;
       intro_ha_val b2 _ _ h2;
       return b

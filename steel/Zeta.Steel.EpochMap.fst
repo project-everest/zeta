@@ -14,6 +14,7 @@ module ETbl = Steel.ST.EphemeralHashtbl
 
 module M = Zeta.Steel.ThreadStateModel
 
+inline_for_extraction
 let hash : ETbl.hash_fn M.epoch_id = fun eid -> eid
 
 noeq
