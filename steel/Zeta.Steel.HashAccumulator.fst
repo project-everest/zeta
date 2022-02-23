@@ -274,7 +274,7 @@ let aggregate #h1 #h2 (b1 b2: ha)
       return false
     )
     else (
-      aggregate_raw_hashes _ _ b1.acc b2.acc;
+      aggregate_raw_hashes (fst h1) (fst h2) b1.acc b2.acc;
       R.write b1.ctr (narrow_uint64_to_uint32 ctr);
       intro_ha_val b1 _ _ (maybe_aggregate_hashes true h1 h2);
       intro_ha_val b2 _ _ h2;
@@ -294,6 +294,7 @@ let compare #h1 #h2 (b1 b2:ha)
     )
     else (
       let b = Zeta.Steel.Util.compare b1.acc b2.acc 32ul in
+      assert (b <==> (fst h1 == fst h2));
       intro_ha_val b1 _ _ h1;
       intro_ha_val b2 _ _ h2;
       return b
