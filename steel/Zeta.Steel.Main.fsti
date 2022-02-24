@@ -21,28 +21,33 @@ module V = Zeta.Steel.Verifier
 module SA = Zeta.SeqAux
 #push-options "--ide_id_info_off"
 
-[@@CAbstractStruct]
-val top_level_state : Type0
-
-val core_inv (t:top_level_state) : vprop
-
 let tid_log_map = 
   x:Map.t tid (option M.log) { 
     Map.domain x `Set.equal` Set.complement Set.empty 
   }
 
-val all_logs   (t:top_level_state) (_ : tid_log_map) : vprop
+[@@CAbstractStruct]
+val top_level_state : Type0
+
+val core_inv (t:top_level_state) : vprop
+
+val all_logs (t:top_level_state) (_ : tid_log_map) : vprop
 
 val log_of_tid (t:top_level_state) (tid:tid) (l:M.log) : vprop
 
 val snapshot (t:top_level_state) (_ : tid_log_map) : vprop
 
+module R = Steel.ST.Reference
+
 // This creates a Zeta instance
 val init (_:unit)
-  : STT top_level_state
+  : STT (R.ref top_level_state)
         emp
-        (fun t -> core_inv t `star`
-               all_logs t (Map.const (Some Seq.empty)))
+        (fun r -> 
+          exists_ (fun ts -> 
+            R.pts_to r full ts `star`
+            core_inv ts `star`
+            all_logs ts (Map.const (Some Seq.empty))))
 
 let verify_post_success_pure_inv
   (tid:tid)
@@ -141,7 +146,9 @@ let verify_post
        exists_ (fun s -> A.pts_to output full_perm s) `star`
        exists_ (fun entries' -> log_of_tid t tid entries'))
 
-val verify_log (t:top_level_state)
+val verify_log (#p:perm)
+               (#t:erased top_level_state)
+               (r:R.ref top_level_state)
                (tid:tid)
                (#entries:erased AEH.log)
                (#log_perm:perm)
@@ -152,11 +159,14 @@ val verify_log (t:top_level_state)
                (#out_bytes:erased bytes)
                (output:larray U8.t out_len)
   : STT (option (v:V.verify_result { V.verify_result_complete len v }))
-    (core_inv t `star`
+    (R.pts_to r p t `star`
+     core_inv t `star`
      A.pts_to input log_perm log_bytes `star`
      A.pts_to output full_perm out_bytes `star`
      log_of_tid t tid entries)
-    (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output)
+    (fun res -> 
+       R.pts_to r p t `star`
+       verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res)
 
 
 [@@ __reduce__]
@@ -167,20 +177,26 @@ let read_max_post_pred (t:top_level_state) (max:M.epoch_id)
       `star`
     pure (AEH.max_is_correct logs max)
 
-val max_certified_epoch (t:top_level_state)
-  : STT AEH.max_certified_epoch_result
-        emp 
-        (fun r -> 
-           match r with
-           | AEH.Read_max_error  //underspec: overflow or element went missing in IArray
-           | AEH.Read_max_none -> emp  //no epoch has been certified yet
-           | AEH.Read_max_some max ->
-             exists_ (fun logs ->
-               snapshot t (AEH.map_of_seq logs)
-               `star`
-               pure (AEH.max_is_correct logs max)
-               ))
 
+let read_max_post (t:top_level_state) (res:AEH.max_certified_epoch_result)
+  : vprop
+  = match res with
+    | AEH.Read_max_error  //underspec: overflow or element went missing in IArray
+    | AEH.Read_max_none -> emp  //no epoch has been certified yet
+    | AEH.Read_max_some max ->
+      exists_ (fun logs ->
+        snapshot t (AEH.map_of_seq logs)
+        `star`
+        pure (AEH.max_is_correct logs max))
+        
+val max_certified_epoch (#p:perm)
+                        (#t:erased top_level_state)
+                        (r:R.ref top_level_state)
+  : STT AEH.max_certified_epoch_result
+        (R.pts_to r p t)
+        (fun res -> 
+           R.pts_to r p t `star`
+           read_max_post t res)
 //From this, we should connect back to the semantic
 //proof and show that the entries are sequentially consistent up to eid
 //except for hash collisions

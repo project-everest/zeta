@@ -229,10 +229,30 @@ let init () =
 
   let r = ({ aeh = aeh; all_threads = all_threads }) in
   init_aux aeh all_threads r s;
-  return r
+  let t = R.alloc r in
+  intro_exists r (fun ts ->
+    R.pts_to t full ts `star`
+    core_inv ts `star`
+    all_logs ts (Map.const (Some Seq.empty)));
+  return t
 
-let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes output =
-  rewrite (core_inv t)
+let verify_log_aux (t:top_level_state)
+                   (tid:tid)
+                   (#entries:erased AEH.log)
+                   (#log_perm:perm)
+                   (#log_bytes:erased bytes)
+                   (len: U32.t { len <> 0ul })
+                   (input:larray U8.t len)
+                   (out_len: U32.t)
+                   (#out_bytes:erased bytes)
+                   (output:larray U8.t out_len)
+ : STT (option (v:V.verify_result { V.verify_result_complete len v }))
+    (core_inv t `star`
+     A.pts_to input log_perm log_bytes `star`
+     A.pts_to output full_perm out_bytes `star`
+     log_of_tid t tid entries)
+    (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output)
+ = rewrite (core_inv t)
           (exists_ (fun perm -> exists_ (fun s ->
            A.pts_to t.all_threads perm s
              `star`
@@ -245,7 +265,6 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
   let st_tid = A.read t.all_threads (FStar.Int.Cast.uint16_to_uint32 tid) in
 
   let b = acquire st_tid.lock in
-  
   match b returns STT _
                       (A.pts_to input log_perm log_bytes
                          `star`
@@ -566,17 +585,64 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
         (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output r);
       return r
 
-let max_certified_epoch (t:top_level_state)
-  = let r = AEH.advance_and_read_max_certified_epoch t.aeh in
-    match r with
-    | AEH.Read_max_error
+let verify_log (#p:perm)
+               (#t:erased top_level_state)
+               (r:R.ref top_level_state)
+               (tid:tid)
+               (#entries:erased AEH.log)
+               (#log_perm:perm)
+               (#log_bytes:erased bytes)
+               (len: U32.t { len <> 0ul })
+               (input:larray U8.t len)
+               (out_len: U32.t)
+               (#out_bytes:erased bytes)
+               (output:larray U8.t out_len)
+  : STT (option (v:V.verify_result { V.verify_result_complete len v }))
+    (R.pts_to r p t `star`
+     core_inv t `star`
+     A.pts_to input log_perm log_bytes `star`
+     A.pts_to output full_perm out_bytes `star`
+     log_of_tid t tid entries)
+    (fun res -> 
+       R.pts_to r p t `star`
+       verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res)
+  = let t' = R.read r in
+    rewrite (core_inv t) (core_inv t');
+    rewrite (log_of_tid t tid entries) (log_of_tid t' tid entries);
+    let res = verify_log_aux t' tid len input out_len output in
+    rewrite 
+      (verify_post t' tid entries log_perm log_bytes len input out_len out_bytes output res)
+      (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res);      
+    return res
+
+let max_certified_epoch (#p:perm)
+                         (#t:erased top_level_state)
+                         (r:R.ref top_level_state)
+  : STT AEH.max_certified_epoch_result
+        (R.pts_to r p t)
+        (fun res -> 
+           R.pts_to r p t `star`
+           read_max_post t res)
+  = let t' = R.read r in
+    let res = AEH.advance_and_read_max_certified_epoch t'.aeh in
+    assert_ (AEH.read_max_post t'.aeh res);
+    match res with
+    | AEH.Read_max_error ->
+      rewrite (AEH.read_max_post t'.aeh res)
+              (read_max_post t AEH.Read_max_error);
+      return AEH.Read_max_error
     | AEH.Read_max_none ->
-      return r
+      rewrite (AEH.read_max_post t'.aeh res)
+              (read_max_post t AEH.Read_max_none);    
+      return AEH.Read_max_none
     | AEH.Read_max_some max ->
-      rewrite (AEH.read_max_post t.aeh r)
-              (AEH.read_max_post t.aeh (AEH.Read_max_some max));      
+      rewrite (AEH.read_max_post t'.aeh res)
+              (AEH.read_max_post t'.aeh (AEH.Read_max_some max));      
+                
       let logs = elim_exists () in
-      assert_ (snapshot t (AEH.map_of_seq logs));
+      assert_ (snapshot t' (AEH.map_of_seq logs));
+      rewrite (snapshot t' (AEH.map_of_seq logs))
+              (snapshot t (AEH.map_of_seq logs));   
       intro_exists_erased logs (fun logs ->
         snapshot t (AEH.map_of_seq logs) `star`
         pure (AEH.max_is_correct logs max));
