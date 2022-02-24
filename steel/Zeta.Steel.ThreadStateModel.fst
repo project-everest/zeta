@@ -27,6 +27,7 @@ type add_method =
   | MAdd
   | BAdd
 
+[@@CAbstractStruct]
 noeq
 type store_entry = {
   key : key;

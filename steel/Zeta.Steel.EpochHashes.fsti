@@ -5,6 +5,7 @@ module M = Zeta.Steel.ThreadStateModel
 module HA = Zeta.Steel.HashAccumulator
 
 
+[@@CAbstractStruct]
 noeq
 type epoch_hashes_t = {
   hadd: HA.ha;

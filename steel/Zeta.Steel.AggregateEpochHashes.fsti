@@ -189,6 +189,7 @@ let lock_inv (hashes : all_epoch_hashes)
      lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
                    hashes_v bitmaps max mlogs_v))))
 
+[@@CAbstractStruct]
 noeq
 type aggregate_epoch_hashes = {
   hashes : all_epoch_hashes;

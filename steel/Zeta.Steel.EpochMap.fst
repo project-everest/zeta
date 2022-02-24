@@ -17,6 +17,7 @@ module M = Zeta.Steel.ThreadStateModel
 inline_for_extraction
 let hash : ETbl.hash_fn M.epoch_id = fun eid -> eid
 
+[@@CAbstractStruct]
 noeq
 type tbl #v #c vp = {
   etbl : ETbl.tbl #M.epoch_id #v #c vp hash;

@@ -7,6 +7,7 @@ module M = Zeta.Steel.ThreadStateModel
 
 #push-options "--ide_id_info_off"
 
+[@@CAbstractStruct]
 val thread_state_t
   : Type0
 

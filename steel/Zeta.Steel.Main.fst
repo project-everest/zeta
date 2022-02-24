@@ -23,6 +23,69 @@ module SA = Zeta.SeqAux
 
 module Loops = Steel.ST.Loops
 
+[@@ __reduce__]
+let thread_inv_predicate
+  (t:V.thread_state_t)
+  (mlogs:TLM.t)
+  : M.thread_state_model -> vprop
+  = fun tsm ->
+    pure (~ tsm.failed)
+      `star`
+    V.thread_state_inv t tsm
+      `star`
+    TLM.tid_pts_to mlogs tsm.M.thread_id half tsm.M.processed_entries false
+
+let thread_inv (t: V.thread_state_t)
+               (mlogs: TLM.t)
+  : vprop
+  = exists_ (thread_inv_predicate t mlogs)
+
+[@@CAbstractStruct]
+noeq
+type thread_state (mlogs:TLM.t) =
+{
+  tid: tid;
+  tsm: tsm:V.thread_state_t{V.thread_id tsm == tid};
+  lock : cancellable_lock (thread_inv tsm mlogs)
+}
+
+let all_threads_t (mlogs:TLM.t) =
+  larray (thread_state mlogs) n_threads
+
+noeq
+type top_level_state = {
+  aeh: AEH.aggregate_epoch_hashes;
+  all_threads : all_threads_t aeh.mlogs
+}
+
+let tid_positions_ok #l (all_threads: Seq.seq (thread_state l))
+  : prop
+  = forall (i:SA.seq_index all_threads).
+        let si = Seq.index all_threads i in
+        U16.v si.tid == i
+
+let core_inv (t:top_level_state)
+  : vprop
+  = exists_ (fun perm ->
+    exists_ (fun v ->
+      A.pts_to t.all_threads perm v `star`
+      pure (tid_positions_ok v)))
+
+[@@__steel_reduce__; __reduce__]
+let all_logs (t:top_level_state) (tlm:tid_log_map)
+  : vprop
+  = TLM.tids_pts_to t.aeh.mlogs half tlm false
+
+[@@__steel_reduce__; __reduce__]
+let log_of_tid (t:top_level_state) (tid:tid) (l:M.log)
+  : vprop
+  = TLM.tid_pts_to t.aeh.mlogs tid half l false
+
+[@@__steel_reduce__; __reduce__]
+let snapshot (t:top_level_state) (tlm:tid_log_map)
+  : vprop
+  = TLM.global_snapshot t.aeh.mlogs tlm
+  
 let init_thread_state
   (#m:Ghost.erased (TLM.repr))
   (mlogs:TLM.t)
@@ -182,7 +245,7 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
   let st_tid = A.read t.all_threads (FStar.Int.Cast.uint16_to_uint32 tid) in
 
   let b = acquire st_tid.lock in
-
+  
   match b returns STT _
                       (A.pts_to input log_perm log_bytes
                          `star`
@@ -233,7 +296,7 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
       (fun s -> A.pts_to output full_perm s);
     intro_exists
       (Ghost.reveal entries)
-      (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false);
+      (fun entries -> log_of_tid t tid entries);
     rewrite
       (core_inv t
          `star`
@@ -241,7 +304,7 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
          `star`
        (exists_ (fun s -> A.pts_to output full_perm s)
           `star`
-        exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)))
+        exists_ (fun entries -> log_of_tid t tid entries)))
       (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output r);
     return r
   | _ ->
@@ -354,7 +417,7 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
              false);
         intro_exists
           ((M.verify_model tsm log).processed_entries)
-          (fun entries' -> TLM.tid_pts_to t.aeh.mlogs tid half entries' false);
+          (fun entries' -> log_of_tid t tid entries');
 
         drop (TLM.tid_pts_to _ _ _ _ _);
         drop (V.thread_state_inv _ _);
@@ -367,12 +430,11 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
              `star`
            (exists_ (fun s -> A.pts_to output full_perm s)
               `star`
-            exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)))
+            exists_ (fun entries -> log_of_tid t tid entries)))
           (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res);
         return res
       end
       else begin
-        //
         //Now we know that all is well
         //
         assert (not (M.verify_model tsm log).M.failed);
@@ -491,7 +553,7 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
         (TLM.tid_pts_to t.aeh.mlogs tid half entries' false);
       intro_exists
         (Ghost.reveal entries')
-        (fun entries' -> TLM.tid_pts_to t.aeh.mlogs tid half entries' false);
+        (fun entries' -> log_of_tid t tid entries');
       let r = None in
       rewrite
         (core_inv t
@@ -500,6 +562,22 @@ let verify_log t tid #entries #log_perm #log_bytes len input out_len #out_bytes 
            `star`
          (exists_ (fun s -> A.pts_to output full_perm s)
             `star`
-          exists_ (fun entries -> TLM.tid_pts_to t.aeh.mlogs tid half entries false)))
+          exists_ (fun entries -> log_of_tid t tid entries)))
         (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output r);
       return r
+
+let max_certified_epoch (t:top_level_state)
+  = let r = AEH.advance_and_read_max_certified_epoch t.aeh in
+    match r with
+    | AEH.Read_max_error
+    | AEH.Read_max_none ->
+      return r
+    | AEH.Read_max_some max ->
+      rewrite (AEH.read_max_post t.aeh r)
+              (AEH.read_max_post t.aeh (AEH.Read_max_some max));      
+      let logs = elim_exists () in
+      assert_ (snapshot t (AEH.map_of_seq logs));
+      intro_exists_erased logs (fun logs ->
+        snapshot t (AEH.map_of_seq logs) `star`
+        pure (AEH.max_is_correct logs max));
+      return (AEH.Read_max_some max)

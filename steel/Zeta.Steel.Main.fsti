@@ -21,79 +21,28 @@ module V = Zeta.Steel.Verifier
 module SA = Zeta.SeqAux
 #push-options "--ide_id_info_off"
 
-[@@ __reduce__]
-let thread_inv_predicate
-  (t:V.thread_state_t)
-  (mlogs:TLM.t)
-  : M.thread_state_model -> vprop
-  = fun tsm ->
-    pure (~ tsm.failed)
-      `star`
-    V.thread_state_inv t tsm
-      `star`
-    TLM.tid_pts_to mlogs tsm.M.thread_id half tsm.M.processed_entries false
+[@@CAbstractStruct]
+val top_level_state : Type0
 
-let thread_inv (t: V.thread_state_t)
-               (mlogs: TLM.t)
-  : vprop
-  = exists_ (thread_inv_predicate t mlogs)
+val core_inv (t:top_level_state) : vprop
 
-noeq
-type thread_state (mlogs:TLM.t) =
-{
-  tid: tid;
-  tsm: tsm:V.thread_state_t{V.thread_id tsm == tid};
-  lock : cancellable_lock (thread_inv tsm mlogs)
-}
+let tid_log_map = 
+  x:Map.t tid (option M.log) { 
+    Map.domain x `Set.equal` Set.complement Set.empty 
+  }
 
-let all_threads_t (mlogs:TLM.t) =
-  larray (thread_state mlogs) n_threads
+val all_logs   (t:top_level_state) (_ : tid_log_map) : vprop
 
-noeq
-type top_level_state = {
-  aeh: AEH.aggregate_epoch_hashes;
-  all_threads : all_threads_t aeh.mlogs
-}
+val log_of_tid (t:top_level_state) (tid:tid) (l:M.log) : vprop
 
-
-let tid_positions_ok #l (all_threads: Seq.seq (thread_state l))
-  : prop
-  = forall (i:SA.seq_index all_threads).
-        let si = Seq.index all_threads i in
-        U16.v si.tid == i
-
-let core_inv (t:top_level_state)
-  : vprop
-  = exists_ (fun perm ->
-    exists_ (fun v ->
-      A.pts_to t.all_threads perm v `star`
-      pure (tid_positions_ok v)))
-
-let tid_index = i:U16.t { U16.v i <= U32.v n_threads }
-
-let rec forall_threads_between (from:tid_index)
-                               (to:tid_index { U16.v from <= U16.v to })
-                               (f:tid -> vprop)
-
-  : Tot (vprop)
-        (decreases (U16.v to - U16.v from))
-  = if from = to then emp
-    else f from `star`
-         forall_threads_between U16.(from +^ 1us) to f
-
-noextract
-let n_threads_16 : tid_index = U16.uint_to_t (U32.v n_threads)
-
-let forall_threads (f: tid -> vprop) =
-  forall_threads_between 0us n_threads_16 f
-
+val snapshot (t:top_level_state) (_ : tid_log_map) : vprop
 
 // This creates a Zeta instance
 val init (_:unit)
   : STT top_level_state
         emp
         (fun t -> core_inv t `star`
-               TLM.tids_pts_to t.aeh.mlogs half (Map.const (Some Seq.empty)) false)
+               all_logs t (Map.const (Some Seq.empty)))
 
 let verify_post_success_pure_inv
   (tid:tid)
@@ -122,7 +71,7 @@ let verify_post_success_out_bytes_pred
   (entries':Seq.seq log_entry)
   : Seq.seq U8.t -> vprop
   = fun out_bytes' ->
-    TLM.tid_pts_to t.aeh.mlogs tid half (entries `Seq.append` entries') false
+    log_of_tid t tid (entries `Seq.append` entries')
       `star`
     A.pts_to output full_perm out_bytes'
       `star`
@@ -190,7 +139,7 @@ let verify_post
 
      | _ ->
        exists_ (fun s -> A.pts_to output full_perm s) `star`
-       exists_ (fun entries' -> TLM.tid_pts_to t.aeh.mlogs tid half entries' false))
+       exists_ (fun entries' -> log_of_tid t tid entries'))
 
 val verify_log (t:top_level_state)
                (tid:tid)
@@ -206,12 +155,31 @@ val verify_log (t:top_level_state)
     (core_inv t `star`
      A.pts_to input log_perm log_bytes `star`
      A.pts_to output full_perm out_bytes `star`
-     TLM.tid_pts_to t.aeh.mlogs tid half entries false)
+     log_of_tid t tid entries)
     (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output)
 
-let max_certified_epoch (t:top_level_state)
-  : STT AEH.max_certified_epoch_result emp (AEH.read_max_post t.aeh)
-  = AEH.advance_and_read_max_certified_epoch t.aeh
+
+[@@ __reduce__]
+let read_max_post_pred (t:top_level_state) (max:M.epoch_id)
+  : AEH.all_processed_entries -> vprop
+  = fun logs ->
+    snapshot t (AEH.map_of_seq logs)
+      `star`
+    pure (AEH.max_is_correct logs max)
+
+val max_certified_epoch (t:top_level_state)
+  : STT AEH.max_certified_epoch_result
+        emp 
+        (fun r -> 
+           match r with
+           | AEH.Read_max_error  //underspec: overflow or element went missing in IArray
+           | AEH.Read_max_none -> emp  //no epoch has been certified yet
+           | AEH.Read_max_some max ->
+             exists_ (fun logs ->
+               snapshot t (AEH.map_of_seq logs)
+               `star`
+               pure (AEH.max_is_correct logs max)
+               ))
 
 //From this, we should connect back to the semantic
 //proof and show that the entries are sequentially consistent up to eid

@@ -20,6 +20,7 @@ let hashfn (v:T.value)
     let hash_bytes = Blake.spec bytes 0 Seq.empty 32 in
     bytes_as_u256 hash_bytes
 
+[@@CAbstractStruct]
 noeq
 type hasher_t = {
   serialization_buffer: A.larray U8.t 4096;
