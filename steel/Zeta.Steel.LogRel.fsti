@@ -22,7 +22,7 @@ module TSM = Zeta.Steel.ThreadStateModel
 module SA = Zeta.SeqAux
 
 let valid_app_record (b: T.uninterpreted)
-  = match T.spec_parser_app_record b.ebytes with
+  = match ApplicationRecord.spec_parser_app_record b.ebytes with
     | None -> False
     | Some _ -> True
 
@@ -30,7 +30,7 @@ let parse_app_record_local (b: T.uninterpreted {valid_app_record b})
   : GTot s_record
   = let open AT in
     let open T in
-    match spec_parser_app_record b.ebytes with
+    match ApplicationRecord.spec_parser_app_record b.ebytes with
     | Some ((k,v), _) -> (ApplicationKey k, DValue v)
 
 let valid_app_fid (sfid: s_fid)

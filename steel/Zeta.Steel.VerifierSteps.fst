@@ -112,59 +112,6 @@ let to_base_key (x:T.key)
       return k'
       
 ////////////////////////////////////////////////////////////////////////////////
-//create
-////////////////////////////////////////////////////////////////////////////////
-
-#push-options "--fuel 1"
-let create (tid:tid)
-  : ST thread_state_t
-    emp
-    (fun t -> thread_state_inv t (M.init_thread_state_model tid))
-    (requires True)
-    (ensures fun t -> VerifierTypes.thread_id t == tid)
-  = let failed = R.alloc false in
-    let store : vstore = A.alloc None (as_u32 store_size) in
-    let clock = R.alloc 0uL in
-    let epoch_hashes = EpochMap.create 64ul M.init_epoch_hash in
-    let last_verified_epoch = R.alloc None in
-    let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
-    let app_results : G.ref M.app_results = G.alloc Seq.empty in
-    let serialization_buffer = A.alloc 0uy 4096ul in
-    let hasher = HashValue.alloc () in
-    let tsm = M.init_thread_state_model tid in
-    let t : thread_state_t = {
-        thread_id = tid;
-        failed;
-        store;
-        clock;
-        epoch_hashes;
-        last_verified_epoch;
-        processed_entries;
-        app_results;
-        serialization_buffer;
-        hasher
-    } in
-    intro_exists _ (array_pts_to serialization_buffer);
-    assert (tsm == M.verify_model tsm Seq.empty);
-    intro_pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
-                t.thread_id == tsm.thread_id);
-    rewrite (R.pts_to failed _ _ `star`
-             array_pts_to store _ `star`
-             R.pts_to clock _ _ `star`
-             EpochMap.full_perm epoch_hashes _ _ `star`
-             R.pts_to last_verified_epoch _ _ `star`
-             G.pts_to processed_entries _ _ `star`
-             G.pts_to app_results _ _ `star`
-             exists_ (array_pts_to serialization_buffer) `star`
-             HashValue.inv hasher `star`
-             pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
-                   t.thread_id == tsm.thread_id)
-            )
-            (thread_state_inv t (M.init_thread_state_model tid));
-    return t
-#pop-options
-
-////////////////////////////////////////////////////////////////////////////////
 //check_failed
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1628,3 +1575,93 @@ let verify_epoch (#tsm:M.thread_state_model)
     M.tsm_entries_invariant_verify_step tsm VerifyEpoch;
     intro_thread_state_inv t;
     return b
+
+////////////////////////////////////////////////////////////////////////////////
+//create
+////////////////////////////////////////////////////////////////////////////////
+
+#push-options "--fuel 1"
+let init_basic tid
+  : thread_state_model
+  = {
+      thread_id = tid;
+      failed = false;
+      store = Seq.create (U16.v store_size) None;
+      clock = 0uL;
+      epoch_hashes = initial_epoch_hashes;
+      processed_entries = Seq.empty;
+      app_results = Seq.empty;
+      last_verified_epoch = None;
+    }
+
+let create_basic (tid:tid)
+  : ST thread_state_t
+    emp
+    (fun t -> thread_state_inv t (init_basic tid))
+    (requires True)
+    (ensures fun t -> VerifierTypes.thread_id t == tid)
+  = let failed = R.alloc false in
+    let store : vstore = A.alloc None (as_u32 store_size) in
+    let clock = R.alloc 0uL in
+    let epoch_hashes = EpochMap.create 64ul M.init_epoch_hash in
+    let last_verified_epoch = R.alloc None in
+    let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
+    let app_results : G.ref M.app_results = G.alloc Seq.empty in
+    let serialization_buffer = A.alloc 0uy 4096ul in
+    let hasher = HashValue.alloc () in
+    let tsm = M.init_thread_state_model tid in
+    let t : thread_state_t = {
+        thread_id = tid;
+        failed;
+        store;
+        clock;
+        epoch_hashes;
+        last_verified_epoch;
+        processed_entries;
+        app_results;
+        serialization_buffer;
+        hasher
+    } in
+    intro_exists _ (array_pts_to serialization_buffer);
+    assert (tsm == M.verify_model tsm Seq.empty);
+    intro_pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
+                t.thread_id == tsm.thread_id);
+    rewrite (R.pts_to failed _ _ `star`
+             array_pts_to store _ `star`
+             R.pts_to clock _ _ `star`
+             EpochMap.full_perm epoch_hashes _ _ `star`
+             R.pts_to last_verified_epoch _ _ `star`
+             G.pts_to processed_entries _ _ `star`
+             G.pts_to app_results _ _ `star`
+             exists_ (array_pts_to serialization_buffer) `star`
+             HashValue.inv hasher `star`
+             pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
+                   t.thread_id == tsm.thread_id)
+            )
+            (thread_state_inv t (M.init_thread_state_model tid));
+    return t
+
+assume
+val madd_to_store_root (#tsm:M.thread_state_model)
+                       (t:thread_state_t)
+                       (s:T.slot)
+                       (v:T.value)
+  : ST unit 
+    (thread_state_inv t tsm)
+    (fun _ -> thread_state_inv t (M.madd_to_store_root tsm s v))
+                  
+let create (tid:tid)
+  : ST thread_state_t
+    emp
+    (fun t -> thread_state_inv t (M.init_thread_state_model tid))
+    (requires True)
+    (ensures fun t -> VerifierTypes.thread_id t == tid)
+  = let ts = create_basic tid in
+    if tid = 0us
+    then (
+      madd_to_store_root ts 0us (init_value root_key);
+      return ts
+    )
+    else return ts
+
+#pop-options

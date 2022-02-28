@@ -179,7 +179,7 @@ let identical_except_store (tsm1 tsm2: TSM.thread_state_model)
 
 val lemma_update_value (tsm: TSM.thread_state_model)
                        (s: T.slot {TSM.has_slot tsm s})
-                       (v: T.value {TSM.is_value_of (TSM.key_of_slot tsm s) v})
+                       (v: T.value {T.is_value_of (TSM.key_of_slot tsm s) v})
   : Lemma (ensures (let tsm_ = TSM.update_value tsm s v in
                     identical_except_store tsm tsm_ /\
                     identical_except tsm.store tsm_.store s /\
@@ -199,7 +199,7 @@ let madd_to_store_reqs (tsm: TSM.thread_state_model)
   = let open TSM in
     empty_slot tsm.store s /\
     inuse_slot tsm.store s' /\
-    is_value_of k v
+    T.is_value_of k v
 
 val lemma_madd_to_store (tsm: TSM.thread_state_model)
                         (s: T.slot)
@@ -237,7 +237,7 @@ let madd_to_store_split_reqs (tsm: TSM.thread_state_model)
                              (d d2:bool)
   = empty_slot tsm.store s /\
     inuse_slot tsm.store s' /\
-    TSM.is_value_of k v /\
+    T.is_value_of k v /\
     points_to_some_slot tsm.store s' d
 
 

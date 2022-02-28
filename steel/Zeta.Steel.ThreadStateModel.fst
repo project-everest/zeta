@@ -129,12 +129,13 @@ let init_thread_state_model tid
       clock = 0uL;
       epoch_hashes = initial_epoch_hashes;
       processed_entries = Seq.empty;
-      app_results = Seq.empty
+      app_results = Seq.empty;
+      last_verified_epoch = None;
     } in
     if U16.v tid = 0 then 
       madd_to_store_root tsm U16.zero (init_value root_key)
     else tsm
-
+  
 let put_entry (tsm:thread_state_model) (s:T.slot) (r:store_entry)
   : thread_state_model
   = {tsm with store=Seq.upd tsm.store (U16.v s) (Some r)}
@@ -1258,35 +1259,35 @@ let rec run_all (n:nat{n <= U32.v n_threads})
          let tsm = run tid_last last in
          Seq.snoc tsms tsm
          
-let rec aggregate_epoch_hashes (tsms:Seq.seq thread_state_model) 
-                               (eid:epoch_id)
-  : GTot epoch_hash
-    (decreases Seq.length tsms)
-  = if Seq.length tsms = 0
-    then { init_epoch_hash with epoch_complete = true }
-    else let hd = Seq.head tsms in
-         if hd.failed
-         then init_epoch_hash
-         else (
-           let tl_hash = aggregate_epoch_hashes (Seq.tail tsms) eid in
-           let hd_hash = Map.sel hd.epoch_hashes eid in
-           let hd_hash = 
-             if hd_hash.epoch_complete
-             then hd_hash
-             else init_epoch_hash
-           in
-           {
-             hadd   = HA.aggregate_hashes hd_hash.hadd tl_hash.hadd;
-             hevict = HA.aggregate_hashes hd_hash.hevict tl_hash.hevict;
-             epoch_complete = hd_hash.epoch_complete && tl_hash.epoch_complete
-           }
-         )
+// let rec aggregate_epoch_hashes (tsms:Seq.seq thread_state_model) 
+//                                (eid:epoch_id)
+//   : GTot epoch_hash
+//     (decreases Seq.length tsms)
+//   = if Seq.length tsms = 0
+//     then { init_epoch_hash }
+//     else let hd = Seq.head tsms in
+//          if hd.failed
+//          then init_epoch_hash
+//          else (
+//            let tl_hash = aggregate_epoch_hashes (Seq.tail tsms) eid in
+//            let hd_hash = Map.sel hd.epoch_hashes eid in
+//            let hd_hash = 
+//              if hd_hash.epoch_complete
+//              then hd_hash
+//              else init_epoch_hash
+//            in
+//            {
+//              hadd   = HA.aggregate_hashes hd_hash.hadd tl_hash.hadd;
+//              hevict = HA.aggregate_hashes hd_hash.hevict tl_hash.hevict;
+//              epoch_complete = hd_hash.epoch_complete && tl_hash.epoch_complete
+//            }
+//          )
 
-let epoch_is_certified (logs:all_logs)
-                       (eid:epoch_id)
-  : GTot bool
-  = let tsms = run_all _ logs in
-    let aeh = aggregate_epoch_hashes tsms eid in
-    aeh.epoch_complete &&
-    aeh.hadd = aeh.hevict
+// let epoch_is_certified (logs:all_logs)
+//                        (eid:epoch_id)
+//   : GTot bool
+//   = let tsms = run_all _ logs in
+//     let aeh = aggregate_epoch_hashes tsms eid in
+//     aeh.epoch_complete &&
+//     aeh.hadd = aeh.hevict
 

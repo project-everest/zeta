@@ -70,13 +70,13 @@ let i_tid = Zeta.Thread.thread_id
 let s_fid = U8.t
 let i_fid = appfn_id app
 
-let s_log_entry = T.log_entry_base
+let s_log_entry = T.log_entry
 let i_log_entry = IV.logS_entry i_vcfg
 
 let s_log = TSM.log
 let i_log = IL.logS i_vcfg
 
-let s_hashfn = TSM.hashfn
+let s_hashfn = Zeta.Steel.HashValue.hashfn
 let i_hashfn = Zeta.HashFunction.hashfn #app
 
 let s_hash_value = T.hash_value
