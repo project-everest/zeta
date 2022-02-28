@@ -74,19 +74,6 @@ type thread_state_model = {
   last_verified_epoch: option epoch_id
 }
 
-let init_thread_state_model tid
-  : thread_state_model
-  = {
-      thread_id = tid;
-      failed = false;
-      store = Seq.create (U16.v store_size) None;
-      clock = 0uL;
-      epoch_hashes = initial_epoch_hashes;
-      processed_entries = Seq.empty;
-      app_results = Seq.empty;
-      last_verified_epoch = None
-    }
-
 let fail tsm = {tsm with failed=true}
 
 let get_entry (tsm:thread_state_model) (s:T.slot)
@@ -100,6 +87,53 @@ let check_slot_bounds (s:T.slot_id)
 let has_slot (tsm:thread_state_model) (s:T.slot_id)
   = check_slot_bounds s &&
     Some? (get_entry tsm s)
+
+let root_base_key: T.base_key = 
+  let open T in
+  { 
+    k = { v3 = U64.zero; v2 = U64.zero ; v1 = U64.zero ; v0 = U64.zero };
+    significant_digits = U16.zero;
+  } 
+
+let root_key: T.key = InternalKey root_base_key
+
+let madd_to_store_root (tsm: thread_state_model) (s: T.slot) (v: T.value)
+  : thread_state_model
+  = if has_slot tsm s 
+    || not (is_value_of root_key v)
+    then tsm
+    else
+      let new_entry = {
+        key = root_key;
+        value = v;
+        add_method = MAdd;
+        l_child_in_store = None;
+        r_child_in_store = None;
+        parent_slot = None;
+      } in
+      let store' = Seq.upd tsm.store (U16.v s) (Some new_entry) in
+      { tsm with store = store' }
+
+let init_value (k:key)
+  : T.value
+  = if ApplicationKey? k
+    then DValue None
+    else MValue ({ l = Dh_vnone (); r = Dh_vnone ()})
+  
+let init_thread_state_model tid
+  : thread_state_model
+  = let tsm = {
+      thread_id = tid;
+      failed = false;
+      store = Seq.create (U16.v store_size) None;
+      clock = 0uL;
+      epoch_hashes = initial_epoch_hashes;
+      processed_entries = Seq.empty;
+      app_results = Seq.empty
+    } in
+    if U16.v tid = 0 then 
+      madd_to_store_root tsm U16.zero (init_value root_key)
+    else tsm
 
 let put_entry (tsm:thread_state_model) (s:T.slot) (r:store_entry)
   : thread_state_model
@@ -214,11 +248,10 @@ let update_merkle_value (v:T.mval_value)
     else {v with T.r = desc_hash}
 
 
-let init_value (k:key)
-  : T.value
-  = if ApplicationKey? k
-    then DValue None
-    else MValue ({ l = Dh_vnone (); r = Dh_vnone ()})
+let zero: T.hash_value =
+  let open T in
+  let z = U64.zero in
+  { v3 = z; v2 = z; v1 = z ; v0 = z }
 
 let points_to_some_slot (tsm:thread_state_model)
                         (s:T.slot)
@@ -315,7 +348,7 @@ let madd_to_store_split (tsm:thread_state_model)
                  let e = mk_entry_full k v MAdd None None (Some p) in
                  let e = update_child e d2 s2 in
                  let e' = update_child r' d s in
-                 let p2new = s2, d2 in
+                 let p2new = s, d2 in
                  let e2 = update_parent_slot r2 p2new in
                  let st = Seq.upd st (U16.v s) (Some e) in
                  let st = Seq.upd st (U16.v s') (Some e') in
@@ -351,47 +384,6 @@ let timestamp_lt (t0 t1:T.timestamp) = t0 `U64.lt` t1
 
 ////////////////////////////////////////////////////////////////////////////////
 
-let data_value = v:option value_type
-
-let vget (tsm:thread_state_model)
-         (s:slot)
-         (k:key)
-         (v:data_value)
-  : thread_state_model
-  = match get_entry tsm s with
-    | None -> fail tsm
-    | Some r ->
-      if r.key <> k then fail tsm
-      else if r.value <> DValue v then fail tsm
-      else tsm
-
-let vput (tsm:thread_state_model)
-         (s:slot)
-         (k:key)
-         (v:data_value)
-  : thread_state_model
-  = match get_entry tsm s with
-    | None -> fail tsm
-    | Some r ->
-      if r.key <> k then fail tsm
-      else if not (ApplicationKey? k) then fail tsm
-      else put_entry tsm s ({r with value = DValue v})
-
-(*
-let record_of_payload (p:payload)
-  : GTot (option T.record)
-  = match p with
-    | Inl (k, v) ->
-      if ApplicationKey? k
-      then None
-      else Some ( k, MValue v )
-
-    | Inr p -> 
-      match T.spec_parser_app_record p.ebytes with
-      | None -> None
-      | Some ((k, v), _) -> 
-        Some (ApplicationKey k, DValue v)
-*)
 
 let to_base_key (k:key)
   : GTot base_key
@@ -438,7 +430,7 @@ let vaddm (tsm:thread_state_model)
         else if Some? (get_entry tsm s) then fail tsm
         (* check v' is a merkle value *)
         else match to_merkle_value v' with
-             | None -> fail tsm
+             | None -> fail tsm (* TODO: Remove this? we can assert(False) here *)
              | Some v' ->
                let d = KU.desc_dir k k' in
                let dh' = desc_hash_dir v' d in
@@ -450,7 +442,7 @@ let vaddm (tsm:thread_state_model)
                  else if points_to_some_slot tsm s' d then fail tsm
                  else (
                    let tsm = madd_to_store tsm s gk gv s' d in
-                   let v'_upd = update_merkle_value v' d k h false in
+                   let v'_upd = update_merkle_value v' d k zero false in
                    update_value tsm s' (T.MValue v'_upd)
                  )
                | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
@@ -467,7 +459,7 @@ let vaddm (tsm:thread_state_model)
                    let d2 = KU.desc_dir k2 k in
                    let Some mv = to_merkle_value gv in
                    let mv_upd = update_merkle_value mv d2 k2 h2 (b2=T.Vtrue) in
-                   let v'_upd = update_merkle_value v' d k h false in
+                   let v'_upd = update_merkle_value v' d k zero false in
                    let tsm =
                        if points_to_some_slot tsm s' d then
                          madd_to_store_split tsm s gk (MValue mv_upd) s' d d2
@@ -686,6 +678,7 @@ let increment_epoch (t:timestamp)
   
 let nextepoch (tsm:thread_state_model)
   : thread_state_model
+
   = match increment_epoch tsm.clock with
     | None -> fail tsm //overflow
     | Some new_clock ->
@@ -697,6 +690,20 @@ let maybe_increment_last_verified_epoch (e:option epoch_id)
   = match e with
     | None -> Some 0ul
     | Some e -> check_overflow_add32 e 1ul
+    
+    (*
+=======
+  = let e = epoch_of_timestamp tsm.clock in
+    if not (FStar.UInt.fits (U32.v e + 1) 32)
+    then fail tsm //overflow
+    else (
+      // increment epoch - we have already checked the result fits in 32 bits
+      let e = U32.add e U32.one in
+      let clock = U64.shift_left (C.uint32_to_uint64 e) 32ul in
+      {tsm with clock=clock}
+    )
+>>>>>>> _arvind_zeta_generic
+*)
 
 let verifyepoch (tsm:thread_state_model)
   : thread_state_model
@@ -1055,6 +1062,7 @@ let rec verify_model_append
 
 #pop-options
 
+
 let last_verified_epoch_clock_invariant (tsm:thread_state_model)
   : GTot bool
   = match tsm.last_verified_epoch with
@@ -1237,3 +1245,48 @@ let delta_out_bytes_trans (tsm tsm1:thread_state_model)
               Seq.append (delta_out_bytes tsm tsm1)
                          (delta_out_bytes tsm1 (verify_step_model tsm1 le)))
   = admit()
+
+let run (tid:tid) = verify_model (init_thread_state_model tid)
+
+let rec run_all (n:nat{n <= U32.v n_threads})
+                (logs:Seq.lseq log n)
+  : Seq.seq thread_state_model
+  = if n = 0 then Seq.empty
+    else let prefix, last = Seq.un_snoc logs in
+         let tid_last = U16.uint_to_t (Seq.length logs - 1) in
+         let tsms = run_all (n - 1) prefix in
+         let tsm = run tid_last last in
+         Seq.snoc tsms tsm
+         
+let rec aggregate_epoch_hashes (tsms:Seq.seq thread_state_model) 
+                               (eid:epoch_id)
+  : GTot epoch_hash
+    (decreases Seq.length tsms)
+  = if Seq.length tsms = 0
+    then { init_epoch_hash with epoch_complete = true }
+    else let hd = Seq.head tsms in
+         if hd.failed
+         then init_epoch_hash
+         else (
+           let tl_hash = aggregate_epoch_hashes (Seq.tail tsms) eid in
+           let hd_hash = Map.sel hd.epoch_hashes eid in
+           let hd_hash = 
+             if hd_hash.epoch_complete
+             then hd_hash
+             else init_epoch_hash
+           in
+           {
+             hadd   = HA.aggregate_hashes hd_hash.hadd tl_hash.hadd;
+             hevict = HA.aggregate_hashes hd_hash.hevict tl_hash.hevict;
+             epoch_complete = hd_hash.epoch_complete && tl_hash.epoch_complete
+           }
+         )
+
+let epoch_is_certified (logs:all_logs)
+                       (eid:epoch_id)
+  : GTot bool
+  = let tsms = run_all _ logs in
+    let aeh = aggregate_epoch_hashes tsms eid in
+    aeh.epoch_complete &&
+    aeh.hadd = aeh.hevict
+

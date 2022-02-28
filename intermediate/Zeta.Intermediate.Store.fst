@@ -264,6 +264,7 @@ let madd_to_store
                          add_method_of st' s' = add_method_of st s' /\
                          points_to_dir st' s' d s /\
                          points_to_info st' s' od = points_to_info st s' od /\
+                         parent_info st' s' = parent_info st s' /\
 
                          // slot s contains (k, v, MAdd) and points to nothing
                          inuse_slot st' s /\
@@ -596,6 +597,7 @@ let madd_to_store_split
                           add_method_of st' s' = add_method_of st s' /\
                           points_to_dir st' s' d s /\
                           points_to_info st' s' od = points_to_info st s' od /\
+                          parent_info st' s' = parent_info st s' /\
 
                           // slot s contains (k, v, MAdd) and points to s2 along direction d2
                           inuse_slot st' s /\
@@ -1041,7 +1043,8 @@ let mevict_from_store
                           stored_value st' s' = stored_value st s' /\
                           add_method_of st' s' = add_method_of st s' /\
                           points_to_info st' s' od = points_to_info st s' od /\
-                          points_to_none st' s' d
+                          points_to_none st' s' d /\
+                          parent_info st' s' = parent_info st s'
                           }) =
   let mev = MEV st s s' d in
   apply_mev mev
@@ -1481,7 +1484,8 @@ let rec puts_preserves_aux (#vcfg:_)
                       stored_key st s = stored_key st_ s /\
                       add_method_of st s = add_method_of st_ s /\
                       points_to_info st s Left = points_to_info st_ s Left /\
-                      points_to_info st s Right = points_to_info st_ s Right))))
+                      points_to_info st s Right = points_to_info st_ s Right /\
+                      parent_info st s = parent_info st_ s))))
           (decreases l)
   = if l > 0 then
       puts_preserves_aux st ss ws s (l-1)
@@ -1497,7 +1501,8 @@ let puts_preserves (#vcfg:_)
                       stored_key st s = stored_key st_ s /\
                       add_method_of st s = add_method_of st_ s /\
                       points_to_info st s Left = points_to_info st_ s Left /\
-                      points_to_info st s Right = points_to_info st_ s Right))))
+                      points_to_info st s Right = points_to_info st_ s Right /\
+                      parent_info st s = parent_info st_ s))))
   = puts_preserves_aux st ss ws s (S.length ss)
 
 let rec puts_preserves_non_ref_aux (#vcfg:_)

@@ -58,7 +58,7 @@ let ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
     else (U64.shift_right kk.T.v3 (C.uint16_to_uint32 (i -^ 192us))) `U64.rem` 2uL = 1uL
 
 let lift_base_key (k: T.base_key)
-  : GTot Zeta.Key.base_key
+  : GTot k':Zeta.Key.base_key { Zeta.BinTree.depth k' = U16.v k.significant_digits }
   = admit()
 
 (* if you lift a lowered key, you get the original key, but not the other way round *)

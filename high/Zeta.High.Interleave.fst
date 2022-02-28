@@ -67,6 +67,9 @@ let not_refs_implies_store_containment_unchanged  (#app #n:_) (ki:base_key) (ti:
         ()
 
 #restart-solver
+
+#push-options "--z3rlimit_factor 3"
+
 let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti < n})
   (il: verifiable_log app n) (i:seq_index il)
   : Lemma (ensures (let e = index il i in
@@ -90,6 +93,8 @@ let not_refs_implies_store_key_unchanged  (#app #n:_) (ki:base_key) (ti:nat{ti <
       | RunApp _ _ _ -> runapp_doesnot_change_slot_key ki e vs_pre;
                         runapp_doesnot_change_store_addmethod ki e vs_pre
       | _ -> ()
+
+#pop-options
 
 let runapp_doesnot_change_store_keys_extended (#app #n:_) (k:base_key)
   (il: verifiable_log app n) (i: seq_index il {is_appfn il i})
