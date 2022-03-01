@@ -95,10 +95,10 @@ let s_thread_state = TSM.thread_state_model
 let i_thread_state = Zeta.Intermediate.Verifier.vtls_t i_vcfg
 
 val lift_key (k: s_key)
-  : i_key
+  : GTot i_key
 
 val lower_key (k: i_key)
-  : k': s_key { lift_key k' = k }
+  : GTot (k': s_key { lift_key k' = k })
 
 (* lifting a lowered key produces the same key, but the converse is not true in general since
  * there are some unused portions in the lower representation of a key. But for application

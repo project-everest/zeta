@@ -4,7 +4,7 @@ module GK = Zeta.GenKey
 module T = Zeta.Steel.FormatsManual
 
 let lift_key (k: s_key)
-  : i_key
+  : GTot i_key
   = let open T in
     let open GK in
     match k with
@@ -12,7 +12,7 @@ let lift_key (k: s_key)
     | ApplicationKey k -> AppK k
 
 let lower_key (k: i_key)
-  : s_key
+  : GTot s_key
   = let open T in
     let open GK in
     match k with

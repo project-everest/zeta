@@ -67,7 +67,7 @@ let lemma_related_implies_all_props (st: s_store) (i_st: i_store)
 
 let lemma_update_value (tsm: TSM.thread_state_model)
                        (s: T.slot {TSM.has_slot tsm s})
-                       (v: T.value {TSM.is_value_of (TSM.key_of_slot tsm s) v})
+                       (v: T.value {T.is_value_of (TSM.key_of_slot tsm s) v})
   : Lemma (ensures (let tsm_ = TSM.update_value tsm s v in
                     identical_except_store tsm tsm_ /\
                     identical_except tsm.store tsm_.store s /\
@@ -127,6 +127,7 @@ let lemma_madd_to_store (tsm: TSM.thread_state_model)
     forall_intro aux;
     ()
 
+#push-options "--z3rlimit_factor 2 --query_stats"
 let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
                               (s: T.slot)
                               (k: T.key)
@@ -177,9 +178,11 @@ let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
     let od2 = not d2 in
     let s2 = pointed_slot tsm.store s' d in
     let open TSM in
-
-    assert (identical_except_store tsm tsm_);
-    assume (identical_except3 tsm.store tsm_.store s s' s2);
+    if tsm_.failed
+    then admit()
+    else (
+    assert (tsm_.failed \/ identical_except_store tsm tsm_);
+    assert (identical_except3 tsm.store tsm_.store s s' s2);
 
     assert (points_to_dir tsm.store s' d s2);
     eliminate forall (s1 s2: T.slot). points_to_inuse_local tsm.store s1 s2
@@ -244,6 +247,8 @@ let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
                      e.r_child_in_store = e_.r_child_in_store);
                     *)
     ()
+  )
+#pop-options
 
 let lemma_mevict_from_store (tsm: s_thread_state)
                             (s: T.slot)
