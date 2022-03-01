@@ -6,6 +6,7 @@ open Zeta.Steel.Rel
 open Zeta.Steel.StoreRel
 open Zeta.Steel.ThreadRelDef
 
+module LT = Zeta.Steel.LogEntry.Types
 module T = Zeta.Steel.FormatsManual
 module SS = Zeta.Steel.StoreRel
 module IV = Zeta.Intermediate.Verifier
@@ -13,7 +14,7 @@ module IV = Zeta.Intermediate.Verifier
 (* steel-level addm param *)
 noeq type addm_param =
   | AMP: s: s_slot_id ->
-          p: payload ->
+          p: s_record ->
           s': s_slot_id ->
           vs': s_thread_state -> addm_param
 
@@ -21,14 +22,12 @@ let addm_precond0 (a: addm_param)
   = match a with
     | AMP s p s' _ ->
     check_slot_bounds s /\
-    check_slot_bounds s' /\
-    Some? (record_of_payload p)
+    check_slot_bounds s'
 
 (* the key being added *)
 let addm_key (a: addm_param {addm_precond0 a})
-  = match a with
-    | AMP _ p _ _ -> match record_of_payload p with
-                     | Some (| gk, gv |) -> gk
+  = let AMP _ (gk,gv) _ _ = a in
+    gk
 
 let addm_base_key (a: addm_param {addm_precond0 a})
   = to_base_key (addm_key a)
@@ -63,11 +62,10 @@ let addm_precond1 (a: addm_param) =
 
 let addm_value_pre (a: addm_param {addm_precond1 a})  =
   match a with
-  | AMP _ p _ _ -> match record_of_payload p with
-                   | Some (| gk, gv |) -> gv
+  | AMP _ (gk,gv) _ _ -> gv
 
 let addm_hash_val_pre (a: addm_param {addm_precond1 a}) =
-  hashfn (addm_value_pre a)
+  Zeta.Steel.HashValue.hashfn (addm_value_pre a)
 
 let addm_anc_key (a: addm_param {addm_precond1 a}): GTot (T.internal_key) =
   stored_base_key (addm_store_pre a) (addm_anc_slot a)
@@ -166,7 +164,7 @@ let addm_desc_slot (a: addm_param {addm_precond a /\ addm_has_desc_slot a}) =
   pointed_slot st' s' d
 
 let addm_value_postcond (a: addm_param {addm_precond a})
-  (v: T.value {is_value_of (addm_key a) v}) =
+  (v: T.value {LT.is_value_of (addm_key a) v}) =
   (addm_anc_points_null a /\ (v = addm_value_pre a)) \/
   (addm_anc_points_to_key a /\ (v = addm_value_pre a)) \/
   (addm_anc_points_to_desc a /\

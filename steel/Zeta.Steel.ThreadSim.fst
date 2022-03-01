@@ -12,14 +12,14 @@ module U32 = FStar.UInt32
 
 #push-options "--fuel 2 --ifuel 2 --z3rlimit_factor 3 --query_stats"
 
-let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (p: payload)
+let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
   : Lemma (requires (all_props tsm.store))
-          (ensures (let tsm_ = vaddm tsm s s' p in
-                    let a = AMP s p s' tsm in
+          (ensures (let tsm_ = vaddm tsm s s' r in
+                    let a = AMP s r s' tsm in
                     addm_precond a /\ addm_postcond a tsm_ \/
                     ~ (addm_precond a) /\ tsm_.failed))
-  = let tsm_ = vaddm tsm s s' p in
-    let a = AMP s p s' tsm in
+  = let tsm_ = vaddm tsm s s' r in
+    let a = AMP s r s' tsm in
     if not (check_slot_bounds s)
      || not (check_slot_bounds s')
     then
@@ -30,12 +30,8 @@ let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (p: payload)
     end
     else
     begin
-      match record_of_payload p with
-      | None ->
-        assert (~ (addm_precond0 a));
-        assert (tsm_.failed);
-        ()
-      | Some (| gk, gv |) ->
+      match r with
+      | ( gk, gv ) ->
       begin
         (* check store contains slot s' *)
         match get_entry tsm s' with
@@ -67,7 +63,7 @@ let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (p: payload)
           | Some v' ->
             let d = KU.desc_dir k k' in
             let dh' = desc_hash_dir v' d in
-            let h = hashfn gv in
+            let h = s_hashfn gv in
 
             assert (addm_precond1 a);
 
@@ -200,57 +196,21 @@ let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (p: payload)
 let addm_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_entry) (ie: i_log_entry)
   : Lemma (requires (related_tsm tsm i_tsm /\
                      related_log_entry se ie /\
-                     T.AddM? se /\ not tsm.failed))
-          (ensures (let T.AddM p = se in
+                     LT.AddM? se /\ not tsm.failed))
+          (ensures (let LT.AddM s s' r = se in
                     let GV.AddM ir is is' = ie in
-                    let tsm_ = vaddm tsm p.s p.s' (Inl (p.k, p.v)) in
+                    let tsm_ = vaddm tsm s s' r in
                     let i_tsm_ = IV.addm ir is is' i_tsm in
                     (not tsm_.failed) ==> related_tsm tsm_ i_tsm_))
-  = let T.AddM p = se in
+  = let LT.AddM s s' r = se in
     let GV.AddM ir is is' = ie in
-    let s = p.s in
-    let s' = p.s' in
-    let p = Inl (p.k, p.v) in
-    let a = AMP s p s' tsm in
+    let a = AMP s r s' tsm in
     let i_a = IV.AMP is ir is' i_tsm in
 
     lemma_related_implies_all_props tsm.store i_tsm.IV.st;
-    addm_prop tsm s s' p;
+    addm_prop tsm s s' r;
 
-    let tsm_ = vaddm tsm s s' p in
-    if not tsm_.failed then
-    begin
-      assert (addm_precond a /\ addm_postcond a tsm_);
-      assert (related_addm_param a i_a);
-
-      let i_tsm_ = IV.addm ir is is' i_tsm in
-      assert (IV.addm_precond i_a /\ IV.addm_postcond i_a i_tsm_);
-
-      related_addm_postcond a i_a tsm_ i_tsm_;
-      ()
-    end
-
-let addmapp_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_entry) (ie: i_log_entry)
-  : Lemma (requires (related_tsm tsm i_tsm /\
-                     related_log_entry se ie /\
-                     T.AddMApp? se /\ not tsm.failed))
-          (ensures (let T.AddMApp p = se in
-                    let GV.AddM ir is is' = ie in
-                    let tsm_ = vaddm tsm p.s p.s' (Inr p.rest) in
-                    let i_tsm_ = IV.addm ir is is' i_tsm in
-                    (not tsm_.failed) ==> related_tsm tsm_ i_tsm_))
-  = let T.AddMApp p = se in
-    let GV.AddM ir is is' = ie in
-    let s = p.s in
-    let s' = p.s' in
-    let p = Inr p.rest in
-    let a = AMP s p s' tsm in
-    let i_a = IV.AMP is ir is' i_tsm in
-
-    lemma_related_implies_all_props tsm.store i_tsm.IV.st;
-    addm_prop tsm s s' p;
-
-    let tsm_ = vaddm tsm s s' p in
+    let tsm_ = vaddm tsm s s' r in
     if not tsm_.failed then
     begin
       assert (addm_precond a /\ addm_postcond a tsm_);
@@ -266,7 +226,7 @@ let addmapp_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_
 #pop-options
 
 let related_badd_to_store
-  (tsm: s_thread_state) (s: T.slot {empty_slot tsm.store s}) (k: T.key) (v: T.value{is_value_of k v})
+  (tsm: s_thread_state) (s: T.slot {empty_slot tsm.store s}) (k: T.key) (v: T.value{LT.is_value_of k v})
   (i_st: i_store) (i_s: i_slot_id {IS.empty_slot i_st i_s}) (i_r: i_record)
   : Lemma (requires (let i_k, i_v = i_r in
                      related_store tsm.store i_st /\ related_slot s i_s /\
@@ -301,19 +261,15 @@ let related_badd_to_store
 let addb_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_entry) (ie: i_log_entry)
   : Lemma (requires (related_tsm tsm i_tsm /\
                      related_log_entry se ie /\
-                     T.AddB? se /\ not tsm.failed))
-          (ensures (let T.AddB p = se in
+                     LT.AddB? se /\ not tsm.failed))
+          (ensures (let LT.AddB s t tid r = se in
                     let GV.AddB i_r i_s i_t i_tid = ie in
-                    let tsm_ = vaddb tsm p.s p.t p.tid (Inl (p.k, p.v))  in
+                    let tsm_ = vaddb tsm s t tid r  in
                     let i_tsm_ = IV.addb i_r i_s i_t i_tid i_tsm in
                     (not tsm_.failed) ==> related_tsm tsm_ i_tsm_))
-  = let T.AddB p = se in
-    let s = p.s in
-    let t = p.t in
-    let thread_id = p.tid in
-    let p:payload = Inl (p.k, p.v) in
+  = let T.AddB s t thread_id r = se in
     let st = tsm.store in
-    let tsm_ = vaddb tsm s t thread_id p in
+    let tsm_ = vaddb tsm s t thread_id r in
 
     let GV.AddB i_r i_s i_t i_tid = ie in
     let (i_k, i_v) = i_r in
@@ -326,81 +282,8 @@ let addb_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_ent
     begin
       assert (check_slot_bounds s);
 
-      match record_of_payload p with
-      | Some (| k, v |) ->
-
-        assert (not (is_root_key k));
-        assert (not (Some? (get_entry tsm s)));
-
-        assert (related_key k i_k);
-        related_root k i_k;
-        assert (i_k <> GK.IntK Zeta.BinTree.Root);
-
-        assert (related_slot s i_s);
-
-        eliminate forall i. related_store_entry_opt (Seq.index st i) (Seq.index i_st i)
-        with i_s;
-
-        assert (not (IS.inuse_slot i_st i_s));
-
-        let tsm1 = update_hadd tsm (epoch_of_timestamp t) (k, v) t thread_id in
-        assert (related_tsm tsm1 i_tsm);
-
-        match next t with
-        | Some t' ->
-          let i_t' = Zeta.Time.next i_t in
-
-          related_next t i_t;
-          assert (related_timestamp t' i_t');
-
-          related_max tsm1.clock t' i_tsm.clock i_t';
-          let tsm2 = update_clock tsm1 (max tsm1.clock t') in
-          let i_tsm2 = IV.update_thread_clock i_tsm (Zeta.Time.max i_tsm.clock i_t') in
-          assert (related_tsm tsm2 i_tsm2);
-
-          assert (tsm_ == put_entry tsm2 s (mk_entry k v BAdd));
-          let i_st3 = IS.badd_to_store i_st i_s i_r in
-          assert (i_tsm_ == IV.update_thread_store i_tsm2 i_st3);
-          related_badd_to_store tsm2 s k v i_st i_s i_r;
-          assert (related_store tsm_.store i_st3);
-          ()
-    end
-
-#pop-options
-
-#push-options "--fuel 2 --ifuel 2 --query_stats"
-
-let addbapp_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_entry) (ie: i_log_entry)
-  : Lemma (requires (related_tsm tsm i_tsm /\
-                     related_log_entry se ie /\
-                     T.AddBApp? se /\ not tsm.failed))
-          (ensures (let T.AddBApp p = se in
-                    let GV.AddB i_r i_s i_t i_tid = ie in
-                    let tsm_ = vaddb tsm p.s p.t p.tid (Inr p.rest)  in
-                    let i_tsm_ = IV.addb i_r i_s i_t i_tid i_tsm in
-                    (not tsm_.failed) ==> related_tsm tsm_ i_tsm_))
-  = let T.AddBApp p = se in
-    let s = p.s in
-    let t = p.t in
-    let thread_id = p.tid in
-    let p:payload = Inr p.rest in
-
-    let st = tsm.store in
-    let tsm_ = vaddb tsm s t thread_id p in
-
-    let GV.AddB i_r i_s i_t i_tid = ie in
-    let (i_k, i_v) = i_r in
-    let i_st = i_tsm.IV.st in
-    let i_tsm_ = IV.addb i_r i_s i_t i_tid i_tsm in
-
-    assert (related_store st i_st);
-    if not tsm_.failed then
-    begin
-
-      assert (check_slot_bounds s);
-
-      match record_of_payload p with
-      | Some (| k, v |) ->
+      match r with
+      | ( k, v ) ->
 
         assert (not (is_root_key k));
         assert (not (Some? (get_entry tsm s)));
@@ -447,7 +330,7 @@ module U16 = FStar.UInt16
 
 let related_update_value (tsm: s_thread_state)
                          (s: T.slot {has_slot tsm s})
-                         (v: T.value {is_value_of (key_of_slot tsm s) v})
+                         (v: T.value {LT.is_value_of (key_of_slot tsm s) v})
                          (i_st: i_store)
                          (i_s: i_slot_id {IS.inuse_slot i_st i_s})
                          (i_v: i_val{R.compatible (IS.stored_key i_st i_s) i_v})
@@ -545,15 +428,15 @@ let related_mevict_from_store (tsm: s_thread_state)
 let evictm_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_entry) (ie: i_log_entry)
   : Lemma (requires (related_tsm tsm i_tsm /\
                      related_log_entry se ie /\
-                     T.EvictM? se /\ not tsm.failed))
-          (ensures (let T.EvictM p = se in
+                     LT.EvictM? se /\ not tsm.failed))
+          (ensures (let LT.EvictM p = se in
                     let GV.EvictM i_s i_s' = ie in
-                    let tsm_ = vevictm tsm p.s p.s'  in
+                    let tsm_ = vevictm tsm p.s p.s_  in
                     let i_tsm_ = IV.evictm i_s i_s' i_tsm in
                     (not tsm_.failed) ==> related_tsm tsm_ i_tsm_))
   = let T.EvictM p = se in
     let s: T.slot_id = p.s in
-    let s': T.slot_id = p.s' in
+    let s': T.slot_id = p.s_ in
     let GV.EvictM i_s i_s' = ie in
     let tsm_ = vevictm tsm s s' in
     let i_tsm_ = IV.evictm i_s i_s' i_tsm in
@@ -627,7 +510,7 @@ let evictm_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_e
         let i_dh' = M.desc_hash i_v' i_d in
         assert (related_desc_hash dh' i_dh');
 
-        let h = hashfn v in
+        let h = s_hashfn v in
         let i_h = Zeta.HashFunction.hashfn i_v in
         related_hashfn v i_v;
         assert (related_hash_value h i_h);
@@ -838,12 +721,12 @@ let evictbm_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_
                      T.EvictBM? se /\ not tsm.failed))
           (ensures (let T.EvictBM p = se in
                     let GV.EvictBM i_s i_s' i_t = ie in
-                    let tsm_ = vevictbm tsm p.s p.s' p.t in
+                    let tsm_ = vevictbm tsm p.s p.s_ p.t in
                     let i_tsm_ = IV.evictbm i_s i_s' i_t i_tsm in
                     (not tsm_.failed) ==> related_tsm tsm_ i_tsm_))
   = let T.EvictBM p = se in
     let s: T.slot_id = p.s in
-    let s': T.slot_id = p.s' in
+    let s': T.slot_id = p.s_ in
     let t = p.t in
     let tsm_ = vevictbm tsm s s' t in
 

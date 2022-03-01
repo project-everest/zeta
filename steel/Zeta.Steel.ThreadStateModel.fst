@@ -895,7 +895,7 @@ let tsm_entries_invariant (tsm:thread_state_model) =
     tsm == verify_model (init_thread_state_model tsm.thread_id)
                         tsm.processed_entries
 
-#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 8"
+#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 9"
 let tsm_entries_invariant_verify_step (tsm:thread_state_model)
                                       (le:log_entry)
   : Lemma 

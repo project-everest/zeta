@@ -64,63 +64,46 @@ let parse_slots (fid: _) (b: T.uninterpreted {valid_app_param fid b})
     | Some ((_,slots),_) -> slots
 
 let valid_log_entry (e: s_log_entry)
-  = let open T in
+  = let open Zeta.Steel.LogEntry.Types in
     match e with
-    | AddM e -> valid_record (e.k, MValue e.v) /\
-                valid_slot e.s /\
-                valid_slot e.s'
-    | AddB e -> valid_record (e.k, MValue e.v) /\
-                valid_slot e.s
-    | EvictM e -> valid_slot e.s /\ valid_slot e.s'
+    | AddM s s' r -> valid_record r /\
+                valid_slot s /\
+                valid_slot s'
+    | AddB s ts tid r -> valid_record r /\
+                valid_slot s
+    | EvictM e -> valid_slot e.s /\ valid_slot e.s_
     | EvictB e -> valid_slot e.s /\ True
-    | EvictBM e -> valid_slot e.s /\ valid_slot e.s'
-    | AddMApp e -> valid_slot e.s /\ valid_slot e.s' /\
-                   valid_app_record e.rest
-    | AddBApp e -> valid_slot e.s /\
-                   valid_app_record e.rest
+    | EvictBM e -> valid_slot e.s /\ valid_slot e.s_
     | RunApp e -> valid_app_fid e.fid /\
                   valid_app_param e.fid e.rest
     | _ -> True
 
 let related_log_entry (se: s_log_entry) (ie: i_log_entry)
-  = let open T in
+  = let open Zeta.Steel.LogEntry.Types in
     match se, ie with
-    | AddM p, GV.AddM (k,v) s s'  ->
-      related_key p.k k /\
-      related_val (MValue p.v) v /\
-      related_slot p.s s /\
-      related_slot p.s' s'
-    | AddB p, GV.AddB (k,v) s t j ->
-      related_key p.k k /\
-      related_val (MValue p.v) v /\
-      related_slot p.s s /\
-      related_timestamp p.t t /\
-      related_tid p.tid j
+    | AddM s s' r, GV.AddM i_r i_s i_s'  ->
+      related_record r i_r /\
+      related_slot s i_s /\
+      related_slot s' i_s'
+    | AddB s t tid r, GV.AddB i_r i_s i_t i_tid ->
+      related_record r i_r /\
+      related_slot s i_s /\
+      related_timestamp t i_t /\
+      related_tid tid i_tid
     | EvictM p, GV.EvictM s s' ->
       related_slot p.s s /\
-      related_slot p.s' s'
+      related_slot p.s_ s'
     | EvictB p, GV.EvictB s t ->
       related_slot p.s s /\
       related_timestamp p.t t
     | EvictBM p, GV.EvictBM s s' t ->
       related_slot p.s s /\
-      related_slot p.s' s' /\
+      related_slot p.s_ s' /\
       related_timestamp p.t t
-    | NextEpoch _, GV.NextEpoch ->
+    | NextEpoch, GV.NextEpoch ->
       True
-    | VerifyEpoch _, GV.VerifyEpoch ->
+    | VerifyEpoch, GV.VerifyEpoch ->
       True
-    | AddMApp p, GV.AddM r s s' ->
-      valid_app_record p.rest /\
-      related_record (parse_app_record_local p.rest) r /\
-      related_slot p.s s /\
-      related_slot p.s' s'
-    | AddBApp p, GV.AddB r s t j ->
-      valid_app_record p.rest /\
-      related_record (parse_app_record_local p.rest) r /\
-      related_slot p.s s /\
-      related_timestamp p.t t /\
-      related_tid p.tid j
     | RunApp p, GV.RunApp f arg is ->
       p.fid = f /\
       valid_app_param f p.rest /\
