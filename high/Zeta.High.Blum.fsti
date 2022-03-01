@@ -25,10 +25,10 @@ val eac_instore_addb_diff_elem
                       let es = eac_state_of_key k itsli in
                       EACInStore? es)})
   : (be':ms_hashfn_dom app{let ep = be'.t.e in
-                           let as = add_set ep itsl in
+                           let a_s = add_set ep itsl in
                            let es = evict_set ep itsl in
                            let be = blum_add_elem itsl i in
-                           mem be' as > mem be' es /\
+                           mem be' a_s > mem be' es /\
                            be.t.e = ep})
 
 val eac_evictedm_addb_diff_elem
@@ -42,10 +42,10 @@ val eac_evictedm_addb_diff_elem
                      let es = eac_state_of_key k itsli in
                      EACEvictedMerkle? es)})
   : (be':ms_hashfn_dom app{let ep = be'.t.e in
-                           let as = add_set ep itsl in
+                           let a_s = add_set ep itsl in
                            let es = evict_set ep itsl in
                            let be = blum_add_elem itsl i in
-                           mem be' as > mem be' es /\
+                           mem be' a_s > mem be' es /\
                            be.t.e = ep})
 
 val eac_evictedb_addb_diff_elem
@@ -57,10 +57,10 @@ val eac_evictedb_addb_diff_elem
                          EACEvictedBlum? (eac_state_of_key_pre k itsl i)})
   : (be':ms_hashfn_dom app{let i = eac_boundary itsl in
                            let ep = be'.t.e in
-                           let as = add_set ep itsl in
+                           let a_s = add_set ep itsl in
                            let es = evict_set ep itsl in
                            let be = blum_add_elem itsl i in
-                           mem be' as > mem be' es /\
+                           mem be' a_s > mem be' es /\
                            be.t.e = ep})
 
 val eac_add_set_mem_atleast_evict_set_mem

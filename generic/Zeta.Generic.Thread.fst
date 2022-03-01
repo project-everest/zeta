@@ -79,11 +79,11 @@ let add_seq_snoc
   : Lemma (ensures (let i = length tl - 1 in
                     let tl' = prefix tl i in
                     let as' = add_seq ep tl' in
-                    let as = add_seq ep tl in
+                    let a_s = add_seq ep tl in
                     if is_blum_add_ep ep tl i then
-                      as == SA.append1 as' (blum_add_elem tl i)
+                      a_s == SA.append1 as' (blum_add_elem tl i)
                     else
-                      as == as'))
+                      a_s == as'))
   = let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec ep) (blum_add_elem_ifn #vspec) in
     let i = length tl - 1 in
     if is_blum_add_ep ep tl i then
@@ -92,8 +92,8 @@ let add_seq_snoc
 let add_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_add tl i})
   : (let be = blum_add_elem tl i in
      let ep = be.t.e in
-     let as = add_seq ep tl in
-     j: SA.seq_index as { S.index as j = be })
+     let a_s = add_seq ep tl in
+     j: SA.seq_index a_s { S.index a_s j = be })
   = let be = blum_add_elem tl i in
     let ep = be.t.e in
     let fm = IF.to_fm (is_blum_add_epoch_ifn #vspec ep) (blum_add_elem_ifn #vspec) in
@@ -107,7 +107,7 @@ let add_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_
 let lemma_add_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_add tl i})
   : Lemma (ensures (let be = blum_add_elem tl i in
                     let ep = be.t.e in
-                    let as = add_seq ep tl in
+                    let a_s = add_seq ep tl in
                     let j = add_seq_map tl i in
                     add_seq_invmap ep tl j = i))
   = ()
@@ -210,7 +210,7 @@ let evict_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.se
 let lemma_evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i})
   : Lemma (ensures (let be = blum_evict_elem tl i in
                     let ep = be.t.e in
-                    let as = evict_seq ep tl in
+                    let es = evict_seq ep tl in
                     let j = evict_seq_map tl i in
                     evict_seq_invmap ep tl j = i))
   = ()
