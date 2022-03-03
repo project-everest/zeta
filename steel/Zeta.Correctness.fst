@@ -14,6 +14,7 @@ module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 module HA = Zeta.Steel.HashAccumulator
 module GG = Zeta.Generic.Global
+module AH = Zeta.Steel.AggregateEpochHashes
 
 let hash_collision = Zeta.HashCollision.hash_collision app
 
@@ -62,7 +63,7 @@ let aems_equal_or_hash_collision (epmax: epoch_id)
 
       assert(i_ep <= i_epmax);
       let ep = U32.uint_to_t i_ep in
-      assert(epoch_is_certified logs ep);
+      assert(AH.epoch_is_certified logs ep);
       certified_epoch_aggregate_hashes_equal logs ep;
       aggr_add_hash_correct logs ep;
       aggr_evict_hash_correct logs ep;

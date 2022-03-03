@@ -238,7 +238,7 @@ let related_addm_precond (a: addm_param) (i_a: i_addm_param)
 
 let related_addm_value (a: addm_param {addm_precond a})
                        (i_a: i_addm_param)
-                       (v: T.value {is_value_of (addm_key a) v})
+                       (v: T.value {LT.is_value_of (addm_key a) v})
                        (i_v: i_val {R.compatible (IV.addm_key i_a) i_v})
   : Lemma (requires (related_addm_param a i_a /\
                      addm_value_postcond a v /\
