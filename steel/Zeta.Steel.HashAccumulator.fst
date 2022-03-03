@@ -294,7 +294,7 @@ let compare #h1 #h2 (b1 b2:ha)
       return false
     )
     else (
-      let b = Zeta.Steel.Util.compare b1.acc b2.acc 32ul in
+      let b = Steel.ST.Array.Util.compare b1.acc b2.acc 32ul in
       assert (b <==> (fst h1 == fst h2));
       intro_ha_val b1 _ _ h1;
       intro_ha_val b2 _ _ h2;
