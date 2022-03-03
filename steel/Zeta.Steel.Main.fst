@@ -12,7 +12,7 @@ open Zeta.Steel.Util
 
 module A = Steel.ST.Array
 module G = Steel.ST.GhostReference
-module Lock = Steel.ST.SpinLock
+module Lock = Steel.ST.CancellableSpinLock
 module TLM = Zeta.Steel.ThreadLogMap
 
 module T = Zeta.Steel.FormatsManual
@@ -46,7 +46,7 @@ type thread_state (mlogs:TLM.t) =
 {
   tid: tid;
   tsm: tsm:V.thread_state_t{V.thread_id tsm == tid};
-  lock : cancellable_lock (thread_inv tsm mlogs)
+  lock : Lock.cancellable_lock (thread_inv tsm mlogs)
 }
 
 let all_threads_t (mlogs:TLM.t) =
@@ -111,7 +111,7 @@ let init_thread_state
     rewrite
       (exists_ (thread_inv_predicate st mlogs))
       (thread_inv st mlogs);
-    let lock = new_cancellable_lock (thread_inv st mlogs) in
+    let lock = Lock.new_cancellable_lock (thread_inv st mlogs) in
     return ({tid = i; tsm = st; lock = lock})
 
 let tid_positions_ok_until #l (all_threads:Seq.seq (thread_state l)) (i:nat)
@@ -264,7 +264,7 @@ let verify_log_aux (t:top_level_state)
   A.pts_to_length t.all_threads s;
   let st_tid = A.read t.all_threads (FStar.Int.Cast.uint16_to_uint32 tid) in
 
-  let b = acquire st_tid.lock in
+  let b = Lock.acquire st_tid.lock in
   match b returns STT _
                       (A.pts_to input log_perm log_bytes
                          `star`
@@ -276,7 +276,7 @@ let verify_log_aux (t:top_level_state)
                          `star`
                        pure (tid_positions_ok s)
                          `star`
-                       maybe_acquired b st_tid.lock)
+                       Lock.maybe_acquired b st_tid.lock)
                       (verify_post
                          t
                          tid
@@ -295,7 +295,7 @@ let verify_log_aux (t:top_level_state)
     //Reestablish the inv. and return
     //
     let r = None in
-    rewrite (maybe_acquired false st_tid.lock)
+    rewrite (Lock.maybe_acquired false st_tid.lock)
             emp;
     intro_exists (Ghost.reveal s)
                  (fun s -> A.pts_to t.all_threads perm s
@@ -327,10 +327,10 @@ let verify_log_aux (t:top_level_state)
       (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output r);
     return r
   | _ ->
-    rewrite (maybe_acquired _ _)
+    rewrite (Lock.maybe_acquired _ _)
             (thread_inv st_tid.tsm t.aeh.mlogs
                `star`
-             can_release st_tid.lock);
+             Lock.can_release st_tid.lock);
     rewrite (thread_inv st_tid.tsm t.aeh.mlogs)
             (exists_ (thread_inv_predicate st_tid.tsm t.aeh.mlogs));
     let tsm = elim_exists () in
@@ -356,7 +356,7 @@ let verify_log_aux (t:top_level_state)
     let vr = V.verify_log st_tid.tsm input output t.aeh in
 
     match vr returns STT _
-                         (can_release _
+                         (Lock.can_release _
                             `star`
                           (pure (tid_positions_ok _)
                              `star`
@@ -398,7 +398,7 @@ let verify_log_aux (t:top_level_state)
         //Similar to the case of lock failure,
         //  establish the invariant and return
         //
-        cancel st_tid.lock;
+        Lock.cancel st_tid.lock;
         intro_exists (Ghost.reveal s)
                      (fun s -> A.pts_to t.all_threads perm s
                               `star`
@@ -473,7 +473,7 @@ let verify_log_aux (t:top_level_state)
              false);
         intro_pure (~ (M.verify_model tsm log).M.failed);
         intro_exists (M.verify_model tsm log) (thread_inv_predicate st_tid.tsm   t.aeh.mlogs);
-        release st_tid.lock;
+        Lock.release st_tid.lock;
         intro_exists (Ghost.reveal s)
                      (fun s -> A.pts_to t.all_threads perm s
                               `star`
@@ -542,7 +542,7 @@ let verify_log_aux (t:top_level_state)
            `star`
          pure (V.Parsing_failure? vr ==>
                ~ (LogEntry.can_parse_log_entry log_bytes (V.Parsing_failure?.log_pos vr))));
-      cancel st_tid.lock;
+      Lock.cancel st_tid.lock;
       intro_exists (Ghost.reveal s)
                    (fun s -> A.pts_to t.all_threads perm s
                             `star`

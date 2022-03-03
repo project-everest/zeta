@@ -6,6 +6,7 @@ open Steel.ST.Util
 module G = Steel.ST.GhostReference
 module R = Steel.ST.Reference
 module A = Steel.ST.Array
+module Lock = Steel.ST.CancellableSpinLock
 module TLM = Zeta.Steel.ThreadLogMap
 open Zeta.Steel.ApplicationTypes
 module U8 = FStar.UInt8
@@ -1541,7 +1542,7 @@ let verify_epoch_core
                  (tid_bitmaps : AEH.epoch_tid_bitmaps)
                  (max_certified_epoch : R.ref (option M.epoch_id))
                  (mlogs: TLM.t)
-                 (lock: cancellable_lock (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
+                 (lock: Lock.cancellable_lock (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
   : ST bool
     (thread_state_inv_core t tsm `star`
      TLM.tid_pts_to mlogs t.thread_id full tsm.processed_entries false)
@@ -1569,16 +1570,16 @@ let verify_epoch_core
          return true //can't advance lve
       )
       else (
-        let acquired = acquire lock in
+        let acquired = Lock.acquire lock in
         if not acquired
         then (
-          rewrite (maybe_acquired _ _)
+          rewrite (Lock.maybe_acquired _ _)
                   emp;
           return false
         )
         else (
-          rewrite (maybe_acquired acquired lock)
-                  (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs `star` can_release lock);
+          rewrite (Lock.maybe_acquired acquired lock)
+                  (AEH.lock_inv hashes tid_bitmaps max_certified_epoch mlogs `star` Lock.can_release lock);
           let _hv = elim_exists () in
           let _bitmaps = elim_exists () in
           let _max = elim_exists () in
@@ -1593,7 +1594,7 @@ let verify_epoch_core
           let b1 = update_bitmap tid_bitmaps e t.thread_id in
           if not b0 || not b1
           then ( //propagation failed, e.g., due to overflow
-            cancel lock;
+            Lock.cancel lock;
             drop _; //drop resources protected by lock; invariant is lost
             return false
           )

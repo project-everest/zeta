@@ -1,13 +1,9 @@
 module Zeta.Steel.Util
 open Steel.ST.Util
-open Steel.ST.CancellableSpinLock
-module G = FStar.Ghost
 module A = Steel.ST.Array
-module AUtil = Steel.ST.Array.Util
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 module Cast = FStar.Int.Cast
-let coerce_eq (#a:Type) (#b:Type) (_:squash (a == b)) (x:a) : b = x
 
 let full = Steel.FractionalPermission.full_perm
 let half = Steel.FractionalPermission.half_perm full
@@ -35,29 +31,6 @@ val admit___ (#opened:_)
              (#q:a -> vprop)
              (_:unit)
   : STAtomicF a opened p q True (fun _ -> False)
-
-let cancellable_lock (v:vprop) = cancellable_lock v
-
-let can_release (#v:vprop) (c:cancellable_lock v) = can_release c
-
-let new_cancellable_lock (v:vprop)
-  : STT (cancellable_lock v) v (fun _ -> emp)
-  = new_cancellable_lock v
-
-let maybe_acquired (b:bool) (#v:vprop) (c:cancellable_lock v)
-  = maybe_acquired b c
-
-let acquire (#v:vprop) (c:cancellable_lock v)
-  : STT bool emp (fun b -> maybe_acquired b c)
-  = acquire c
-
-let release (#v:vprop) (c:cancellable_lock v)
-  : STT unit (v `star` can_release c) (fun _ -> emp)
-  = release c
-
-let cancel (#v:vprop) (c:cancellable_lock v)
-  : STT unit (can_release c) (fun _ -> emp)
-  = cancel c
 
 let check_overflow_add32 (x y:U32.t)
   : Pure (option U32.t)
@@ -109,77 +82,3 @@ let st_check_overflow_add32 (x y:U32.t)
 let update_if (b:bool) (default_ upd_: 'a)
   : 'a
   = if b then upd_ else default_
-
-
-module R = Steel.ST.Reference
-module Loops = Steel.ST.Loops
-
-let repeat_until_inv (p:bool -> vprop) (r:R.ref bool)
-  : bool -> vprop
-  = fun b -> R.pts_to r full b `star` p b
-
-inline_for_extraction
-let repeat_until_cond (p:bool -> vprop) (r:R.ref bool) ()
-  : STT bool (exists_ (repeat_until_inv p r)) (repeat_until_inv p r)
-  = let _b = elim_exists () in
-    rewrite (repeat_until_inv p r _b)
-            (R.pts_to r full _b `star` p _b);
-    let b = R.read r in
-    rewrite (R.pts_to r full _b `star` p _b)
-            (repeat_until_inv p r b);
-    return b
-
-inline_for_extraction
-let repeat_until_body
-  (p:bool -> vprop)
-  (r:R.ref bool)
-  ($body: (unit -> STT bool (p true) (fun b -> p b)))
-  ()
-  : STT unit
-        (repeat_until_inv p r true)
-        (fun _ -> exists_ (repeat_until_inv p r))
-  = rewrite (repeat_until_inv p r true)
-            (R.pts_to r full true `star` p true);
-    let b = body () in
-    R.write r b;
-    rewrite (R.pts_to r full b `star` p b)
-            (repeat_until_inv p r b);
-    intro_exists b (repeat_until_inv p r)
-
-inline_for_extraction
-let repeat_until
-  (p: bool -> vprop)
-  ($body: (unit -> STT bool (p true) (fun b -> p b)))
-  : STT unit (p true) (fun _ -> p false)
-  = let r = R.alloc true in
-    rewrite (R.pts_to r full true `star` p true)
-            (repeat_until_inv p r true);
-    intro_exists true (repeat_until_inv p r);
-    Steel.ST.Loops.while_loop
-      (repeat_until_inv p r)
-      (repeat_until_cond p r)
-      (repeat_until_body p r body);
-    rewrite (repeat_until_inv p r false)
-            (R.pts_to r full false `star` p false);
-    R.free r
-
-let compare (#a:eqtype) (#p0 #p1:perm)
-  (a0 a1:A.array a)
-  (#s0 #s1:G.erased (Seq.seq a))
-  (n:U32.t{U32.v n == A.length a0 /\ A.length a0 == A.length a1})
-  : ST bool
-       (A.pts_to a0 p0 s0
-          `star`
-        A.pts_to a1 p1 s1)
-
-       (fun _ ->
-        A.pts_to a0 p0 s0
-          `star`
-        A.pts_to a1 p1 s1)
-       (requires True)
-       (ensures fun b -> b <==> s0 == s1)
-  = let b = AUtil.for_all2 n a0 a1 (fun x y -> x = y) in
-    A.pts_to_length a0 s0;
-    A.pts_to_length a1 s1;
-    assert (b <==> Seq.equal s0 s1);
-    return b

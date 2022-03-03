@@ -5,7 +5,7 @@ open Steel.ST.Util
 module A = Steel.ST.Array
 module R = Steel.ST.Reference
 module G = Steel.ST.GhostReference
-module Lock = Steel.ST.SpinLock
+module Lock = Steel.ST.CancellableSpinLock
 module SA = Zeta.SeqAux
 open Zeta.Steel.ApplicationTypes
 module U8 = FStar.UInt8
@@ -111,7 +111,7 @@ let create () =
                   max
                   mlogs_v)))));
 
-  let lock = new_cancellable_lock (lock_inv _ _ _ _) in
+  let lock = Lock.new_cancellable_lock (lock_inv _ _ _ _) in
 
   let aeh = {hashes; tid_bitmaps; max_certified_epoch; mlogs; lock} in
 
@@ -290,7 +290,8 @@ let try_advance_max (#hashes_v:erased epoch_hashes_repr)
   = intro_exists_erased max_v (fun max_v ->
        R.pts_to max full max_v `star`
        pure (hashes_bitmaps_max_ok hashes_v bitmaps_v max_v mlogs_v));
-    repeat_until _ (fun _ -> try_increment_max #hashes_v #bitmaps_v #mlogs_v hashes bitmaps max);
+    Steel.ST.Loops.Util.repeat_until _
+      (fun _ -> try_increment_max #hashes_v #bitmaps_v #mlogs_v hashes bitmaps max);
     let _ = elim_exists _ in
     let max = R.read max in
     elim_pure _;
@@ -305,12 +306,12 @@ let release_lock (#hv:erased epoch_hashes_repr)
                  (#tid_bitmaps : epoch_tid_bitmaps)
                  (#max_certified_epoch : R.ref (option M.epoch_id))
                  (#mlogs: TLM.t)
-                 (lock: cancellable_lock
+                 (lock: Lock.cancellable_lock
                         (lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
   : STT unit
     (lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
                        hv bitmaps max mlogs_v `star`
-     can_release lock)
+     Lock.can_release lock)
     (fun _ -> emp)
   = intro_exists_erased mlogs_v
       (fun mlogs_v ->  lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
@@ -333,26 +334,26 @@ let release_lock (#hv:erased epoch_hashes_repr)
         exists_ (fun mlogs_v ->
                     lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
                                       hv bitmaps max mlogs_v))));
-    release lock
+    Lock.release lock
 
 let advance_and_read_max_certified_epoch aeh
-  = let b = acquire aeh.lock in
+  = let b = Lock.acquire aeh.lock in
     let b = not b in
     if b returns STT _ _ (read_max_post aeh)
     then (
       let r = Read_max_error in
-      rewrite (maybe_acquired _ _)
+      rewrite (Lock.maybe_acquired _ _)
               emp;
       rewrite emp (read_max_post aeh r);
       return r
     )
     else (
-      rewrite (maybe_acquired _ aeh.lock)
+      rewrite (Lock.maybe_acquired _ aeh.lock)
               (lock_inv aeh.hashes
                         aeh.tid_bitmaps
                         aeh.max_certified_epoch
                         aeh.mlogs `star`
-               can_release aeh.lock);
+               Lock.can_release aeh.lock);
       let _hv = elim_exists () in
       let _bitmaps = elim_exists () in
       let _max = elim_exists () in
@@ -381,7 +382,7 @@ let advance_and_read_max_certified_epoch aeh
                                 `star`
                              TLM.global_anchor aeh.mlogs (map_of_seq _mlogs_v)
                                 `star`
-                             can_release _)
+                             Lock.can_release _)
                             (read_max_post aeh) with
 
       | None ->

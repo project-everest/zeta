@@ -5,7 +5,7 @@ open Steel.ST.Util
 module A = Steel.ST.Array
 module R = Steel.ST.Reference
 module G = Steel.ST.GhostReference
-module Lock = Steel.ST.SpinLock
+module Lock = Steel.ST.CancellableSpinLock
 open Zeta.Steel.ApplicationTypes
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
@@ -196,7 +196,7 @@ type aggregate_epoch_hashes = {
   tid_bitmaps : epoch_tid_bitmaps;
   max_certified_epoch : R.ref (option M.epoch_id);
   mlogs: TLM.t;
-  lock: cancellable_lock (lock_inv hashes tid_bitmaps max_certified_epoch mlogs)
+  lock: Lock.cancellable_lock (lock_inv hashes tid_bitmaps max_certified_epoch mlogs)
 }
 
 val create (_:unit)
@@ -224,12 +224,12 @@ val release_lock (#hv:erased epoch_hashes_repr)
                  (#tid_bitmaps : epoch_tid_bitmaps)
                  (#max_certified_epoch : R.ref (option M.epoch_id))
                  (#mlogs: TLM.t)
-                 (lock: cancellable_lock
+                 (lock: Lock.cancellable_lock
                         (lock_inv hashes tid_bitmaps max_certified_epoch mlogs))
   : STT unit
     (lock_inv_body hashes tid_bitmaps max_certified_epoch mlogs
                        hv bitmaps max mlogs_v `star`
-     can_release lock)
+     Lock.can_release lock)
     (fun _ -> emp)
 
 type max_certified_epoch_result =
