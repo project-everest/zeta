@@ -882,13 +882,13 @@ let committed_entries (tsm:thread_state_model)
   : GTot (Seq.seq log_entry)
   = committed_log_entries tsm.processed_entries
   
-let delta_app_results (tsm0 tsm1:thread_state_model)
+assume
+val delta_app_results (tsm0 tsm1:thread_state_model)
   : GTot (Seq.seq app_results)
-  = Prims.admit()
 
-let bytes_of_app_results (s:Seq.seq app_results)
+assume
+val bytes_of_app_results (s:Seq.seq app_results)
   : GTot bytes
-  = Prims.admit()
 
 let tsm_entries_invariant (tsm:thread_state_model) =
     not tsm.failed ==>
