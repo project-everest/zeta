@@ -46,16 +46,19 @@ let all_app_fcrs_rel (ep: epoch_id) (logs: verifiable_logs)
 let aggregate_add_hash (logs: all_logs) (ep: epoch_id)
   : GTot hash_value_t
   = let tsms = TSM.run_all _ logs in
-    let aeh = TSM.aggregate_epoch_hashes tsms ep in
-    aeh.hadd
+    //let aeh = AH.aggregate_all_threads_epoch_hashes epoch_id all_logs in
+    //TSMS.aggregate_epoch_hashes tsms ep in
+    //aeh.hadd
+    admit()
 
 let aggregate_evict_hash (logs: all_logs) (ep: epoch_id)
   : GTot hash_value_t
   = let tsms = TSM.run_all _ logs in
-    let aeh = TSM.aggregate_epoch_hashes tsms ep in
-    aeh.hevict
+    //let aeh = TSM.aggregate_epoch_hashes tsms ep in
+    //aeh.hevict
+    admit()
 
-let certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {epoch_is_certified logs ep})
+let certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {AH.epoch_is_certified logs ep})
   : Lemma (ensures (aggregate_add_hash logs ep = aggregate_evict_hash logs ep))
   = ()
 
@@ -63,9 +66,10 @@ let all_valid_tsms = tsms: Seq.seq thread_state_model
     {forall i. ThreadRel.valid (Seq.index tsms i)}
 
 let all_epoch_completed (ep: epoch_id) (tsms: Seq.seq thread_state_model)
-  = forall i. let tsm = Seq.index tsms i in
+  = (* (forall i. let tsm = Seq.index tsms i in
           let hash = Map.sel tsm.epoch_hashes ep in
-          hash.epoch_complete
+          hash.epoch_complete) *)
+    admit()
 
 let all_add_sets  (tsms: all_valid_tsms) (ep: epoch_id)
   : GTot (Seq.seq mset)
@@ -113,6 +117,7 @@ let union_all_evict_set (tsms: all_valid_tsms) (ep: epoch_id)
     let sms = Seq.init_ghost (Seq.length tsms) (fun i -> evict_set (Seq.index tsms i) i_ep) in
     union_all sms
 
+(*
 let rec aggregate_epoch_hashes_prop (eid: epoch_id) (tsms: all_valid_tsms {all_epoch_completed eid tsms})
   : Lemma (ensures (let aeh = TSM.aggregate_epoch_hashes tsms eid in
                     aeh.hadd = ms_hashfn (union_all_add_set tsms eid)))
@@ -143,6 +148,7 @@ let rec aggregate_epoch_hashes_prop (eid: epoch_id) (tsms: all_valid_tsms {all_e
       lemma_union (add_set hd i_ep) (union_all_add_set tsms' eid);
       ()
     )
+*)
 
 let to_tsms (logs: verifiable_logs)
   : all_valid_tsms
@@ -153,7 +159,7 @@ let to_tsms (logs: verifiable_logs)
 #push-options "--fuel 1 --ifuel 1 --query_stats"
 
 let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
-  : Lemma (requires (epoch_is_certified logs ep))
+  : Lemma (requires (AH.epoch_is_certified logs ep))
           (ensures (let gl = to_ilog logs in
                     let i_ep = lift_epoch ep in
                     let add_set = GG.add_set i_ep gl in
@@ -170,7 +176,7 @@ let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
 #pop-options
 
 let aggr_evict_hash_correct (logs: verifiable_logs) (ep: epoch_id)
-  : Lemma (requires (epoch_is_certified logs ep))
+  : Lemma (requires (AH.epoch_is_certified logs ep))
           (ensures (let gl = to_ilog logs in
                     let i_ep = lift_epoch ep in
                     let evict_set = GG.evict_set i_ep gl in
