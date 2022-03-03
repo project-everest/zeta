@@ -41,6 +41,7 @@ ALREADY_CACHED = --already_cached $(ALREADY_CACHED_LIST)
 # A place to put all the emitted .ml files
 OUTPUT_DIRECTORY ?= $(ZETA_HOME)/_output
 CACHE_DIRECTORY = $(OUTPUT_DIRECTORY)/cache
+DIST_DIRECTORY=$(ZETA_HOME)/steel/dist
 
 INCLUDE_PATHS+=$(OUTPUT_DIRECTORY) $(SRC_DIRS)
 
