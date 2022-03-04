@@ -113,59 +113,6 @@ let to_base_key (x:T.key)
       return k'
       
 ////////////////////////////////////////////////////////////////////////////////
-//create
-////////////////////////////////////////////////////////////////////////////////
-
-#push-options "--fuel 1"
-let create (tid:tid)
-  : ST thread_state_t
-    emp
-    (fun t -> thread_state_inv t (M.init_thread_state_model tid))
-    (requires True)
-    (ensures fun t -> VerifierTypes.thread_id t == tid)
-  = let failed = R.alloc false in
-    let store : vstore = A.alloc None (as_u32 store_size) in
-    let clock = R.alloc 0uL in
-    let epoch_hashes = EpochMap.create 64ul M.init_epoch_hash in
-    let last_verified_epoch = R.alloc None in
-    let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
-    let app_results : G.ref M.app_results = G.alloc Seq.empty in
-    let serialization_buffer = A.alloc 0uy 4096ul in
-    let hasher = HashValue.alloc () in
-    let tsm = M.init_thread_state_model tid in
-    let t : thread_state_t = {
-        thread_id = tid;
-        failed;
-        store;
-        clock;
-        epoch_hashes;
-        last_verified_epoch;
-        processed_entries;
-        app_results;
-        serialization_buffer;
-        hasher
-    } in
-    intro_exists _ (array_pts_to serialization_buffer);
-    assert (tsm == M.verify_model tsm Seq.empty);
-    intro_pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
-                t.thread_id == tsm.thread_id);
-    rewrite (R.pts_to failed _ _ `star`
-             array_pts_to store _ `star`
-             R.pts_to clock _ _ `star`
-             EpochMap.full_perm epoch_hashes _ _ `star`
-             R.pts_to last_verified_epoch _ _ `star`
-             G.pts_to processed_entries _ _ `star`
-             G.pts_to app_results _ _ `star`
-             exists_ (array_pts_to serialization_buffer) `star`
-             HashValue.inv hasher `star`
-             pure (tsm_entries_invariant (M.init_thread_state_model tid) /\
-                   t.thread_id == tsm.thread_id)
-            )
-            (thread_state_inv t (M.init_thread_state_model tid));
-    return t
-#pop-options
-
-////////////////////////////////////////////////////////////////////////////////
 //check_failed
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,6 +126,54 @@ let check_failed #tsm t
 //vaddm
 ////////////////////////////////////////////////////////////////////////////////
 
+#push-options "--ifuel 2"
+let rewrite_with_squash #o (p q:vprop) 
+                        (f:unit -> squash (p == q))
+  : STGhostT unit o p (fun _ -> q)
+  = f();
+    rewrite p q
+
+
+let spec_madd_to_store_split (tsm:M.thread_state_model)
+                        (s:slot)
+                        (k:key)
+                        (v:T.value)
+                        (s':slot)
+                        (d d2:bool)
+  : GTot (option (slot &
+                  M.store_entry &
+                  M.store_entry &
+                  M.store_entry &
+                  M.store_entry &
+                  (slot & bool) &
+                  M.thread_state_model))
+  = let st = tsm.store in
+    if M.has_slot tsm s
+    || not (is_value_of k v)
+    || not (M.has_slot tsm s')
+    then None
+    else
+      match M.get_entry tsm s' with
+      | Some r' ->
+        let p = (s', d) in
+        let s2_opt = M.child_slot r' d in
+        match s2_opt with
+        | None -> None
+        | Some s2 ->
+          match Seq.index st (U16.v s2) with
+          | None -> None
+          | Some r2 ->
+                 let open M in
+                 let e = mk_entry_full k v M.MAdd None None (Some p) in
+                 let e = update_child e d2 s2 in
+                 let e' = update_child r' d s in
+                 let p2new = s, d2 in
+                 let e2 = update_parent_slot r2 p2new in
+                 let st = Seq.upd st (U16.v s) (Some e) in
+                 let st = Seq.upd st (U16.v s') (Some e') in
+                 let st = Seq.upd st (U16.v s2) (Some e2) in
+                 Some (s2, e, e', e2, r2, p2new, { tsm with store = st })
+  
 let madd_to_store_split (#tsm:M.thread_state_model)
                         (t:thread_state_t)
                         (s:T.slot)
@@ -214,7 +209,7 @@ let madd_to_store_split (#tsm:M.thread_state_model)
               let e = M.mk_entry_full k v M.MAdd None None (Some p) in
               let e = M.update_child e d2 s2 in
               let e' = M.update_child r' d s in
-              let p2new = s2, d2 in
+              let p2new = s, d2 in
               let e2 = M.update_parent_slot r2 p2new in
               A.write t.store (as_u32 s) (Some e);
               A.write t.store (as_u32 s') (Some e');
@@ -329,7 +324,7 @@ let vaddm_core (#tsm:M.thread_state_model)
                  else (
                    madd_to_store t s gk gv s' d;
 
-                   let v'_upd = M.update_merkle_value v' d k h false in
+                   let v'_upd = M.update_merkle_value v' d k M.zero false in
                    update_value t s' (T.MValue v'_upd);
                    return true
                  )
@@ -355,7 +350,7 @@ let vaddm_core (#tsm:M.thread_state_model)
                    let d2 = KU.desc_dir k2 k in
                    let Some mv = M.to_merkle_value gv in
                    let mv_upd = M.update_merkle_value mv d2 k2 h2 (b2=T.Vtrue) in
-                   let v'_upd = M.update_merkle_value v' d k h false in
+                   let v'_upd = M.update_merkle_value v' d k M.zero false in
                    let b = entry_points_to_some_slot r' d in
                    if b returns
                      (STT bool
@@ -1629,3 +1624,114 @@ let verify_epoch (#tsm:M.thread_state_model)
     M.tsm_entries_invariant_verify_step tsm VerifyEpoch;
     intro_thread_state_inv t;
     return b
+
+////////////////////////////////////////////////////////////////////////////////
+//create
+////////////////////////////////////////////////////////////////////////////////
+
+#push-options "--fuel 1"
+let init_basic tid
+  : M.thread_state_model
+  = {
+      thread_id = tid;
+      failed = false;
+      store = Seq.create (U16.v store_size) None;
+      clock = 0uL;
+      epoch_hashes = M.initial_epoch_hashes;
+      processed_entries = Seq.empty;
+      app_results = Seq.empty;
+      last_verified_epoch = None;
+    }
+
+let create_basic (tid:tid)
+  : ST thread_state_t
+    emp
+    (fun t -> thread_state_inv_core t (init_basic tid))
+    (requires True)
+    (ensures fun t -> VerifierTypes.thread_id t == tid)
+  = let failed = R.alloc false in
+    let store : vstore = A.alloc None (as_u32 store_size) in
+    let clock = R.alloc 0uL in
+    let epoch_hashes = EpochMap.create 64ul M.init_epoch_hash in
+    let last_verified_epoch = R.alloc None in
+    let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
+    let app_results : G.ref M.app_results = G.alloc Seq.empty in
+    let serialization_buffer = A.alloc 0uy 4096ul in
+    let hasher = HashValue.alloc () in
+    let tsm = M.init_thread_state_model tid in
+    let t : thread_state_t = {
+        thread_id = tid;
+        failed;
+        store;
+        clock;
+        epoch_hashes;
+        last_verified_epoch;
+        processed_entries;
+        app_results;
+        serialization_buffer;
+        hasher
+    } in
+    intro_exists _ (array_pts_to serialization_buffer);
+    rewrite (R.pts_to failed _ _ `star`
+             array_pts_to store _ `star`
+             R.pts_to clock _ _ `star`
+             EpochMap.full_perm epoch_hashes _ _ `star`
+             R.pts_to last_verified_epoch _ _ `star`
+             G.pts_to processed_entries _ _ `star`
+             G.pts_to app_results _ _ `star`
+             exists_ (array_pts_to serialization_buffer) `star`
+             HashValue.inv hasher
+            )
+            (thread_state_inv_core t (init_basic tid));
+    return t
+
+let madd_to_store_root (#tsm:M.thread_state_model)
+                       (t:thread_state_t)
+                       (s:T.slot)
+                       (v:T.value)
+  : STT unit 
+    (thread_state_inv_core t tsm)
+    (fun _ -> thread_state_inv_core t (M.madd_to_store_root tsm s v))
+  = let b = T.is_value_of M.root_key v in
+    if not b
+    then ( noop(); () )
+    else (
+      let ropt = A.read t.store (as_u32 s) in
+      match ropt with 
+      | Some _ -> noop (); ()
+      | _ ->
+        let new_entry : M.store_entry = {
+          key = M.root_key;
+          value = v;
+          add_method = M.MAdd;
+          l_child_in_store = None;
+          r_child_in_store = None;
+          parent_slot = None;
+        } in
+        A.write t.store (as_u32 s) (Some new_entry);
+        return ()
+    )
+
+let create (tid:tid)
+  : ST thread_state_t
+    emp
+    (fun t -> thread_state_inv t (M.init_thread_state_model tid))
+    (requires True)
+    (ensures fun t -> VerifierTypes.thread_id t == tid)
+  = let ts = create_basic tid in
+    if tid = 0us
+    then (
+      madd_to_store_root ts 0us (M.init_value M.root_key);
+      rewrite (thread_state_inv_core ts _)
+              (thread_state_inv_core ts (M.init_thread_state_model tid));
+      intro_thread_state_inv ts;
+      return ts
+    )
+    else (
+      intro_thread_state_inv ts;
+      rewrite (thread_state_inv ts (init_basic tid))
+              (thread_state_inv ts (M.init_thread_state_model tid));
+      return ts
+    )
+
+#pop-options

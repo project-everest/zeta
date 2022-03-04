@@ -57,14 +57,84 @@ let ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
     then (U64.shift_right kk.T.v2 (C.uint16_to_uint32 (i -^ 128us))) `U64.rem` 2uL = 1uL
     else (U64.shift_right kk.T.v3 (C.uint16_to_uint32 (i -^ 192us))) `U64.rem` 2uL = 1uL
 
-let lift_base_key (k: T.base_key)
-  : GTot Zeta.Key.base_key
-  = admit()
+assume
+val lift_base_key (k: T.base_key)
+  : GTot (k':Zeta.Key.base_key { Zeta.BinTree.depth k' = U16.v k.significant_digits })
+
+
+let root_base_key: T.base_key =
+  let open T in
+  {
+    k = { v3 = U64.zero; v2 = U64.zero ; v1 = U64.zero ; v0 = U64.zero };
+    significant_digits = U16.zero;
+  }
+
+let root_key: T.key = InternalKey root_base_key
 
 (* if you lift a lowered key, you get the original key, but not the other way round *)
-let lower_base_key (k: Zeta.Key.base_key)
-  : GTot (k':T.base_key { lift_base_key k' = k })
-  = admit()
+#push-options "--query_stats"
+assume
+val shift_left_256 (i:u256) (n:U16.t { U16.v n < 256 })
+  : u256
+let shift_left_key (k:T.base_key { U16.v k.significant_digits < 256 })
+  : T.base_key
+  = let key = shift_left_256 k.k 1us in
+    { k with k=key; significant_digits = U16.(k.significant_digits +^ 1us) }
+
+assume
+val shift_left_256_lemma (k:T.base_key { U16.v k.significant_digits < 256 })
+  : Lemma ((forall (i:U16.t { U16.v i < 255 }).
+              ith_bit k i == ith_bit (shift_left_key k) U16.(i +^ 1us)) /\
+            ith_bit (shift_left_key k) 0us = false)
+
+let rec lift_base_key' (k: T.base_key)
+  : GTot (k':Zeta.Key.base_key {
+               Zeta.BinTree.depth k' = U16.v k.significant_digits
+          })
+    (decreases (U16.v k.significant_digits))
+  = let open U16 in
+    let open Zeta.BinTree in
+    if k.significant_digits = 0us then Root
+    else let i = k.significant_digits -^ 1us in
+         let k' = lift_base_key' ({k with significant_digits = i }) in
+         if ith_bit k i
+         then RightChild k'
+         else LeftChild k'
+
+let rec lower_base_key' (k: Zeta.Key.base_key)
+  : GTot (k':T.base_key {
+       //        lift_base_key k' = k /\
+                U16.v k'.significant_digits = Zeta.BinTree.depth k
+          })
+  = let open Zeta.BinTree in
+    match k with
+    | Root -> root_base_key
+    | LeftChild k -> shift_left_key (lower_base_key' k)
+    | RightChild k ->
+      let k = shift_left_key (lower_base_key' k) in
+      let key = {k.k with v0 = k.k.v0 `U64.logxor` 1uL} in
+      {k with k = key }
+
+let rec lift_lower_id (k:Zeta.Key.base_key)
+  : Lemma (lift_base_key' (lower_base_key' k) == k)
+  = let open U16 in
+    let open Zeta.BinTree in
+    match k with
+    | Root -> ()
+    | LeftChild k ->
+      lift_lower_id k;
+      let k0 = lower_base_key' k in
+      let i = k0.significant_digits in
+      shift_left_256_lemma k0;
+      assume (ith_bit k0 i = false);
+      admit()
+    | _ -> admit()
+
+assume
+val lower_base_key (k: Zeta.Key.base_key)
+  : GTot (k':T.base_key {
+                lift_base_key k' = k
+          })
 
 let desc_dir (k0:T.base_key) (k1:T.base_key { k0 `is_proper_descendent` k1 })
   : bool

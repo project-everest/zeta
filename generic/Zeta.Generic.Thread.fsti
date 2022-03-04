@@ -115,11 +115,27 @@ let is_blum_add_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_ind
 val add_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   : S.seq (ms_hashfn_dom vspec.app)
 
+val add_seq_empty (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  : Lemma (ensures (length tl = 0 ==> S.length (add_seq ep tl) = 0))
+
+val add_seq_snoc
+  (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec {length tl > 0})
+  : Lemma (ensures (let i = length tl - 1 in
+                    let tl' = prefix tl i in
+                    let as' = add_seq ep tl' in
+                    let a_s = add_seq ep tl in
+                    if is_blum_add_ep ep tl i then
+                      a_s == SA.append1 as' (blum_add_elem tl i)
+                    else
+                      a_s == as'))
+
 val add_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_add tl i})
   : (let be = blum_add_elem tl i in
      let ep = be.t.e in
-     let as = add_seq ep tl in
-     j: SA.seq_index as { S.index as j = be })
+     let a_s = add_seq ep tl in
+     j: SA.seq_index a_s { S.index a_s j = be })
 
 val add_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_index (add_seq ep tl))
   : i:seq_index tl { is_blum_add_ep ep tl i /\ add_seq_map tl i = j  }
@@ -127,7 +143,7 @@ val add_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_
 val lemma_add_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_add tl i})
   : Lemma (ensures (let be = blum_add_elem tl i in
                     let ep = be.t.e in
-                    let as = add_seq ep tl in
+                    let a_s = add_seq ep tl in
                     let j = add_seq_map tl i in
                     add_seq_invmap ep tl j = i))
           [SMTPat (add_seq_map tl i)]
@@ -164,6 +180,22 @@ let is_blum_evict_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_i
 val evict_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   : S.seq (ms_hashfn_dom vspec.app)
 
+val evict_seq_empty (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  : Lemma (ensures (length tl = 0 ==> S.length (evict_seq ep tl) = 0))
+
+val evict_seq_snoc
+  (#vspec:_)
+  (ep: epoch)
+  (tl: verifiable_log vspec {length tl > 0})
+  : Lemma (ensures (let i = length tl - 1 in
+                    let tl' = prefix tl i in
+                    let es' = evict_seq ep tl' in
+                    let es = evict_seq ep tl in
+                    if is_blum_evict_ep ep tl i then
+                      es == SA.append1 es' (blum_evict_elem tl i)
+                    else
+                      es == es'))
+
 val evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i})
   : (let be = blum_evict_elem tl i in
      let ep = be.t.e in
@@ -176,7 +208,7 @@ val evict_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.se
 val lemma_evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i})
   : Lemma (ensures (let be = blum_evict_elem tl i in
                     let ep = be.t.e in
-                    let as = evict_seq ep tl in
+                    let a_s = evict_seq ep tl in
                     let j = evict_seq_map tl i in
                     evict_seq_invmap ep tl j = i))
           [SMTPat (evict_seq_map tl i)]
@@ -258,6 +290,19 @@ val app_fcrs_within_ep
   (ep: epoch)
   (tl: verifiable_log vspec)
   : S.seq (appfn_call_res vspec.app)
+
+val app_fcrs_empty (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
+  : Lemma (ensures (length tl = 0 ==> S.length (app_fcrs_within_ep ep tl) = 0))
+
+val app_fcrs_snoc (#vspec:_) (ep: epoch) (tl: verifiable_log vspec {length tl > 0})
+  : Lemma (ensures (let i = length tl - 1 in
+                    let tl' = prefix tl i in
+                    let fcrs' = app_fcrs_within_ep ep tl' in
+                    let fcrs = app_fcrs_within_ep ep tl in
+                    if is_appfn_within_epoch ep tl i then
+                      fcrs == SA.append1 fcrs' (to_app_fcr tl i)
+                    else
+                      fcrs == fcrs'))
 
 val app_fcrs_ep_map (#vspec:_)
     (ep: epoch)

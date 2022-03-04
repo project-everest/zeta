@@ -51,20 +51,20 @@ val add_seq_snoc
   : Lemma (ensures (let n = length il in
                     let il' = prefix il (n- 1 ) in
                     let as' = add_seq ep il' in
-                    let as = add_seq ep il in
+                    let a_s = add_seq ep il in
                     if is_blum_add_epoch ep il (n - 1) then
-                      as == SA.append1 as' (blum_add_elem il (n - 1))
+                      a_s == SA.append1 as' (blum_add_elem il (n - 1))
                     else
-                      as == as'))
+                      a_s == as'))
 
 val add_set_snoc (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in
                     let il' = prefix il i in
-                    let as = add_set ep il in
+                    let a_s = add_set ep il in
                     let as' = add_set ep il' in
                     if is_blum_add_epoch ep il i then
-                      as == add_elem as' (blum_add_elem il i)
-                    else as == as'))
+                      a_s == add_elem as' (blum_add_elem il i)
+                    else a_s == as'))
 
 val evict_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
   : interleaving (ms_hashfn_dom vspec.app) n
@@ -91,21 +91,21 @@ val evict_seq_snoc
   (il: verifiable_log vspec n {length il > 0})
   : Lemma (ensures (let n = length il in
                     let il' = prefix il (n- 1 ) in
-                    let as' = evict_seq ep il' in
-                    let as = evict_seq ep il in
+                    let es' = evict_seq ep il' in
+                    let es = evict_seq ep il in
                     if is_blum_evict_epoch ep il (n - 1) then
-                      as == SA.append1 as' (blum_evict_elem il (n - 1))
+                      es == SA.append1 es' (blum_evict_elem il (n - 1))
                     else
-                      as == as'))
+                      es == es'))
 
 val evict_set_snoc (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in
                     let il' = prefix il i in
-                    let as = evict_set ep il in
-                    let as' = evict_set ep il' in
+                    let es = evict_set ep il in
+                    let es' = evict_set ep il' in
                     if is_blum_evict_epoch ep il i then
-                      as == add_elem as' (blum_evict_elem il i)
-                    else as == as'))
+                      es == add_elem es' (blum_evict_elem il i)
+                    else es == es'))
 
 let aems_equal_upto #vspec #n (epmax: epoch) (il: verifiable_log vspec n)
   = forall (ep: epoch). ep <= epmax ==> add_set ep il == evict_set ep il
@@ -157,12 +157,12 @@ val lemma_evict_before_add2
   (i:nat{i <= length itsl})
   (be: ms_hashfn_dom vspec.app)
   : Lemma (requires (let itsli = prefix itsl i in
-                     let as = add_set ep itsli in
+                     let a_s = add_set ep itsli in
                      let es = evict_set ep itsli in
-                     mem be as > mem be es))
-          (ensures (let as = add_set ep itsl in
+                     mem be a_s > mem be es))
+          (ensures (let a_s = add_set ep itsl in
                     let es = evict_set ep itsl in
-                    mem be as > mem be es))
+                    mem be a_s > mem be es))
 
 val lemma_add_set_mem (#vspec #n:_) (il: verifiable_log vspec n) (i1 i2: seq_index il)
   : Lemma (requires (i1 <> i2 /\ is_blum_add il i1 /\ is_blum_add il i2 /\
@@ -261,9 +261,9 @@ val k_add_set_snoc
                     let il' = prefix il (n- 1 ) in
                     let b = is_blum_add_of_key ep gk il (n - 1) in
                     let as' = k_add_set ep gk il' in
-                    let as = k_add_set ep gk il in
-                    (b ==> as == add_elem as' (blum_add_elem il (n - 1))) /\
-                    (~b ==> as == as')))
+                    let a_s = k_add_set ep gk il in
+                    (b ==> a_s == add_elem as' (blum_add_elem il (n - 1))) /\
+                    (~b ==> a_s == as')))
 
 val k_evict_set_empty
   (#vspec: verifier_spec)
@@ -284,9 +284,9 @@ val k_evict_set_snoc
                     let il' = prefix il (n- 1 ) in
                     let b = is_blum_evict_of_key ep gk il (n - 1) in
                     let as' = k_evict_set ep gk il' in
-                    let as = k_evict_set ep gk il in
-                    (b ==> as == add_elem as' (blum_evict_elem il (n - 1))) /\
-                    (~b ==> as == as')))
+                    let a_s = k_evict_set ep gk il in
+                    (b ==> a_s == add_elem as' (blum_evict_elem il (n - 1))) /\
+                    (~b ==> a_s == as')))
 
 val add_set_rel_k_add_set
   (#vspec: verifier_spec)

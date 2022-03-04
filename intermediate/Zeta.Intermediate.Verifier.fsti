@@ -200,7 +200,10 @@ let addm_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstore vc
   stored_key st s = addm_key a   /\            // stores key k
   add_method_of st s = HV.MAdd /\            // stores the correct add method
   addm_value_postcond a (stored_value st s) /\ // value postcond
-  addm_slot_points_postcond a st
+  addm_slot_points_postcond a st /\
+  has_parent st s /\
+  parent_slot st s = addm_anc_slot a /\
+  parent_dir st s = addm_dir a
 
 let addm_anc_val_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (mv: Merkle.value) =
   let mv' = addm_anc_val_pre a in
@@ -231,7 +234,10 @@ let addm_anc_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (st: vstor
   stored_base_key st s' = addm_anc_key a /\
   add_method_of st s' = add_method_of st' s' /\
   addm_anc_val_postcond a (to_merkle_value (stored_value st s')) /\
-  addm_anc_slot_points_postcond a st
+  addm_anc_slot_points_postcond a st /\
+  (let VStoreE _ _ _ _ p = get_inuse_slot st s' in            // parent info does not change ...
+   let VStoreE _ _ _ _ p' = get_inuse_slot st' s' in
+   p = p')
 
 let addm_desc_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a /\ addm_has_desc_slot a}) (st: vstore vcfg) =
   let sd = addm_desc_slot a in
@@ -239,7 +245,12 @@ let addm_desc_slot_postcond #vcfg (a: addm_param vcfg{addm_precond a /\ addm_has
   inuse_slot st sd /\ inuse_slot st' sd /\
   stored_key st sd = stored_key st' sd /\
   stored_value st sd = stored_value st' sd /\
-  add_method_of st sd = add_method_of st' sd
+  add_method_of st sd = add_method_of st' sd /\
+  has_parent st sd /\
+  parent_slot st sd = addm_slot a /\
+  parent_dir st sd = addm_desc_dir a /\
+  points_to_info st sd Left = points_to_info st' sd Left /\
+  points_to_info st sd Right = points_to_info st' sd Right
 
 let addm_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (vs: vtls_t vcfg) =
   let vs' = a.vs' in

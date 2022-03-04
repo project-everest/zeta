@@ -1,8 +1,6 @@
 module Zeta.MultiSet.SSeq
 
 open FStar.Classical
-open FStar.Seq
-open Zeta.SeqAux
 
 let sseq2mset (#a:eqtype) (#f:cmp a) (s:sseq a) : mset a f
   = let open Zeta.Interleave in
@@ -13,22 +11,22 @@ let si_seq (#a #n:_) (il: interleaving a n)
   = i_seq (some_interleaving (s_seq il))
 
 let si_seq_length (#a #n:_) (il: interleaving a n)
-  : Lemma (ensures (length il = length (si_seq il)))
+  : Lemma (ensures (S.length il = S.length (si_seq il)))
           [SMTPat (si_seq il)]
   = let ss = s_seq il in
     let il2 = some_interleaving ss in
     interleaving_flat_length il;
     interleaving_flat_length il2
 
-let i2si (#a #n:_) (il: interleaving a n) (i: seq_index il)
-  : j:seq_index (si_seq il){index (i_seq il) i = index (si_seq il) j}
+let i2si (#a #n:_) (il: interleaving a n) (i: SA.seq_index il)
+  : j:SA.seq_index (si_seq il){S.index (i_seq il) i = S.index (si_seq il) j}
   = let is = i_seq il in
     let ss = s_seq il in
     let il2 = some_interleaving ss in
     let ii = i2s_map il i in
     s2i_map il2 ii
 
-let i2si_prop_aux #a #n (il: interleaving a n) (i1 i2: seq_index il)
+let i2si_prop_aux #a #n (il: interleaving a n) (i1 i2: SA.seq_index il)
   : Lemma (ensures (i1 =!= i2 ==> i2si il i1 =!= i2si il i2))
   = let ss = s_seq il in
     let il2 = some_interleaving ss in
@@ -45,7 +43,7 @@ let i2si_prop #a #n (il: interleaving a n)
   : Lemma (ensures (let s1 = i_seq il in
                     let s2 = si_seq il in
                     let f:smap s1 s2 = i2si il in
-                    forall (i j: seq_index s1). (i =!= j) ==> f i =!= f j))
+                    forall (i j: SA.seq_index s1). (i =!= j) ==> f i =!= f j))
           [SMTPat (i2si il)]
   = forall_intro_2 (i2si_prop_aux il)
 
@@ -53,15 +51,15 @@ let i2si_into #a #n (il: interleaving a n)
   : into_smap (i_seq il) (si_seq il)
   = i2si il
 
-let si2i (#a #n:_) (il: interleaving a n) (j: seq_index (si_seq il))
-  : i:seq_index il{index (i_seq il) i = index (si_seq il) j}
+let si2i (#a #n:_) (il: interleaving a n) (j: SA.seq_index (si_seq il))
+  : i:SA.seq_index il{S.index (i_seq il) i = S.index (si_seq il) j}
   = let is = i_seq il in
     let ss = s_seq il in
     let il2 = some_interleaving ss in
     let jj = i2s_map il2 j in
     s2i_map il jj
 
-let si2i_prop_aux #a #n (il: interleaving a n) (j1 j2: seq_index (si_seq il))
+let si2i_prop_aux #a #n (il: interleaving a n) (j1 j2: SA.seq_index (si_seq il))
   : Lemma (ensures (j1 =!= j2 ==> si2i il j1 =!= si2i il j2))
   = let ss = s_seq il in
     let il2 = some_interleaving ss in
@@ -78,7 +76,7 @@ let si2i_prop #a #n (il: interleaving a n)
   : Lemma (ensures (let s1 = i_seq il in
                     let s2 = si_seq il in
                     let f:smap s2 s1 = si2i il in
-                    forall (i j: seq_index s1). (i =!= j) ==> f i =!= f j))
+                    forall (i j: SA.seq_index s1). (i =!= j) ==> f i =!= f j))
           [SMTPat (si2i il)]
   = forall_intro_2 (si2i_prop_aux il)
 
@@ -91,3 +89,30 @@ let lemma_interleaving_multiset (#a:_) (#f:cmp a) (#n:_) (il: interleaving a n)
   = let ss = s_seq il in
     let il2 = some_interleaving ss in
     bijection_seq_mset #a #f (i_seq il) (si_seq il) (i2si_into il) (si2i_into il)
+
+let rec union_all (#a:eqtype) (#f: cmp a) (s: S.seq (mset a f))
+  : Tot (mset a f)
+    (decreases (S.length s))
+  = if S.length s = 0 then
+      empty
+    else
+      let h = S.head s in
+      let s' = S.tail s in
+      union h (union_all s')
+
+let union_all_empty (#a: eqtype) (#f: cmp a) (s: S.seq (mset a f){ S.length s = 0 })
+  : Lemma (ensures (union_all s == empty #a #f))
+  = ()
+
+let union_all_cons (#a: eqtype) (#f: cmp a) (s: Seq.seq (mset a f) {Seq.length s > 0})
+  : Lemma (ensures (let tail = Seq.tail s in
+                    let hd = Seq.head s in
+                    union_all s == union hd (union_all tail)))
+  = ()
+
+let union_all_sseq (#a: eqtype) (#f: cmp a) (s: sseq a)
+  : Lemma (ensures (let ms1: mset a f = sseq2mset s in
+                    let sms = S.init (S.length s) (fun i -> seq2mset (S.index s i)) in
+                    let ms2: mset a f = union_all sms in
+                    ms1 == ms2))
+  = admit()

@@ -117,7 +117,7 @@ val aprm : app_params
 
 /// The number of entries in the verifier store,
 /// configurable per application
-val store_size : U16.t
+val store_size : n:U16.t {U16.v n > 0}
 
 /// The number of verifier threads to use
 val n_threads : n:U32.t{ 0 < U32.v n /\ U32.v n < FStar.UInt.max_int 16 }

@@ -110,8 +110,8 @@ let add_set
   (ep: epoch)
   (gl: verifiable_log vspec)
   : mset_ms_hashfn_dom vspec.app
-  = let as = add_sseq ep gl in
-    sseq2mset as
+  = let a_s = add_sseq ep gl in
+    sseq2mset a_s
 
 (* blum evict set elements for a given epoch *)
 let evict_set

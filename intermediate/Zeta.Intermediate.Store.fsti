@@ -107,16 +107,19 @@ let lemma_points_to_dir_implies_points_to #vcfg (st:vstore_raw vcfg) (s1: slot_i
         (ensures (points_to st s1 s2))
         [SMTPat (points_to_dir st s1 d s2)] = ()
 
+let parent_info #vcfg st s =
+  VStoreE?.p (get_inuse_slot #vcfg st s)
+
 (* does the slot s have a parent pointing to it *)
 let has_parent #vcfg st s =
-  Some? (VStoreE?.p (get_inuse_slot #vcfg st s))
+  Some? (parent_info #vcfg st s)
 
 (* parent of slot s *)
 let parent_slot #vcfg (st: vstore_raw vcfg) (s: inuse_slot_id st{has_parent st s}): slot_id vcfg =
-  fst (Some?.v (VStoreE?.p (get_inuse_slot #vcfg st s)))
+  fst (Some?.v (parent_info #vcfg st s))
 
 let parent_dir #vcfg (st: vstore_raw vcfg) (s: inuse_slot_id st{has_parent st s}): bin_tree_dir =
-  snd (Some?.v (VStoreE?.p (get_inuse_slot #vcfg st s)))
+  snd (Some?.v (parent_info #vcfg st s))
 
 (* if I have a parent, I should have been added with MAdd and the parent points to me *)
 let parent_props_local #vcfg (st: vstore_raw vcfg) (s: slot_id vcfg) =
@@ -204,6 +207,7 @@ val madd_to_store
                          add_method_of st' s' = add_method_of st s' /\
                          points_to_dir st' s' d s /\
                          points_to_info st' s' od = points_to_info st s' od /\
+                         parent_info st' s' = parent_info st s' /\
 
                          // slot s contains (k, v, MAdd) and points to nothing
                          inuse_slot st' s /\
@@ -238,6 +242,7 @@ val madd_to_store_split
                           add_method_of st' s' = add_method_of st s' /\
                           points_to_dir st' s' d s /\
                           points_to_info st' s' od = points_to_info st s' od /\
+                          parent_info st' s' = parent_info st s' /\
 
                           // slot s contains (k, v, MAdd) and points to s2 along direction d2
                           inuse_slot st' s /\
@@ -306,7 +311,8 @@ val mevict_from_store
                           stored_value st' s' = stored_value st s' /\
                           add_method_of st' s' = add_method_of st s' /\
                           points_to_info st' s' od = points_to_info st s' od /\
-                          points_to_none st' s' d
+                          points_to_none st' s' d /\
+                          parent_info st' s' = parent_info st s'
                           })
 
 (* evict the current entry from a store slot s that was added using BAdd *)
@@ -559,7 +565,8 @@ val puts_preserves (#vcfg:_)
                       stored_key st s = stored_key st_ s /\
                       add_method_of st s = add_method_of st_ s /\
                       points_to_info st s Left = points_to_info st_ s Left /\
-                      points_to_info st s Right = points_to_info st_ s Right))))
+                      points_to_info st s Right = points_to_info st_ s Right /\
+                      parent_info st s = parent_info st_ s))))
 
 (* for non-referenced slots, it preserves everything ... *)
 val puts_preserves_non_ref (#vcfg:_)

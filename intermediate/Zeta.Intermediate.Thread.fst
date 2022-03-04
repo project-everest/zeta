@@ -456,6 +456,7 @@ let consistent_log_snoc_evictb (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0
 
 #pop-options
 
+#push-options "--z3rlimit_factor 3"
 
 let consistent_log_snoc_evictbm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
   : Lemma (requires (let i = length tl - 1 in
@@ -524,6 +525,7 @@ let consistent_log_snoc_evictbm (#vcfg:_) (tl: verifiable_log vcfg {length tl > 
     in
     forall_intro aux
 
+#pop-options
 
 let consistent_log_snoc_next_verify_epoch (#vcfg:_) (tl: verifiable_log vcfg {length tl > 0})
   : Lemma (requires (let i = length tl - 1 in
