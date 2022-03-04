@@ -1,5 +1,0 @@
-USER_TARGET=zetaformats.a
-USER_CFLAGS=
-USER_C_FILES=
-ALL_C_FILES=ZetaFormats.c
-ALL_H_FILES=ZetaFormats.h
