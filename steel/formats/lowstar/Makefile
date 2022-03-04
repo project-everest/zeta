@@ -16,8 +16,9 @@ all: verify test
 
 include $(ZETA_HOME)/Makefile.common
 
-dist/Makefile.basic: $(ALL_KRML_FILES)
-	$(KRML) -tmpdir $(dir $@) -skip-compilation \
+extract: $(ALL_KRML_FILES)
+	mkdir -p out
+	$(KRML) -tmpdir out -skip-compilation \
 	  $(filter %.krml,$^) \
 	  -warn-error @4@5@18 \
 	  -fparentheses \
@@ -26,9 +27,8 @@ dist/Makefile.basic: $(ALL_KRML_FILES)
 	  -no-prefix Zeta.Steel.LogEntry.Spec \
 	  -o zetaformats.a \
 	  -add-include '"ZetaFormatsApplicationTypes.h"'
-	touch $@
-
-extract: dist/Makefile.basic
+	mv out/ZetaFormats.c $(ZETA_HOME)/steel/dist/
+	mv out/ZetaFormats.h $(ZETA_HOME)/steel/dist/
 
 test: extract
 	+$(MAKE) -C test

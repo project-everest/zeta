@@ -1,11 +1,15 @@
 all: test
 
-FILES=Makefile.basic Makefile.include ZetaFormats.c ZetaFormats.h
+OUT_FILES=Makefile.basic Makefile.include
+DIST_FILES=ZetaFormats.c ZetaFormats.h
 
-$(FILES): %: ../dist/%
+$(OUT_FILES): %: ../out/%
 	cp $^ $@
 
-test: $(FILES)
+$(DIST_FILES): %: ../../../dist/%
+	cp $^ $@
+
+test: $(OUT_FILES) $(DIST_FILES)
 	+$(MAKE) -f Makefile.basic USER_CFLAGS='-Wno-type-limits'
 
 clean:
