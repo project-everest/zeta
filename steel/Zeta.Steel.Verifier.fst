@@ -610,6 +610,95 @@ let elim_verify_step_post_log_entry_failure
 
 #push-options "--ifuel 1 --z3rlimit_factor 2"
 #restart-solver
+
+let n_out_bytes_trans tsm tsm1 tsm2 le init nout1 nout2 out_bytes out_bytes_1 out_bytes_2
+  : Lemma
+    (requires
+      tsm2 == M.verify_step_model tsm1 le /\
+      UInt.fits (U32.v init + U32.v nout1) 32 /\
+      UInt.fits (U32.v nout1 + U32.v nout2) 32 /\
+      Application.n_out_bytes tsm tsm1 init nout1 out_bytes out_bytes_1 /\
+      Application.n_out_bytes tsm1 tsm2 U32.(init +^ nout1) nout2 out_bytes_1 out_bytes_2)
+    (ensures
+      Application.n_out_bytes tsm tsm2 init U32.(nout1 +^ nout2) out_bytes out_bytes_2)
+  = M.delta_out_bytes_trans tsm tsm1 le;
+    assert (M.delta_out_bytes tsm tsm2 ==
+            Seq.append (M.delta_out_bytes tsm tsm1)
+                       (M.delta_out_bytes tsm1 tsm2));
+    assert (Seq.length out_bytes == Seq.length out_bytes_2);
+    assert (U32.v init <= Seq.length out_bytes);
+    assert (U32.v nout1 + U32.v nout2 <= Seq.length out_bytes - U32.v init);
+    let nout = U32.(nout1 +^ nout2) in
+    let pfx, _, sfx = Application.split3 out_bytes init nout in
+    let pfx', s, sfx' = Application.split3 out_bytes_2 init nout in
+    let _ =
+      calc (==) {
+        pfx;
+      (==) {}
+       Seq.slice out_bytes 0 (U32.v init);
+      (==) { }
+       Seq.slice out_bytes_1 0 (U32.v init);
+      (Seq.equal) { Seq.Properties.slice_slice out_bytes_1 0 (U32.v init + U32.v nout1) 0 (U32.v init) }
+       Seq.slice (Seq.slice out_bytes_1 0 (U32.v init + U32.v nout1)) 0 (U32.v init);
+      (Seq.equal) { }
+       Seq.slice (Seq.slice out_bytes_2 0 (U32.v init + U32.v nout1)) 0 (U32.v init);
+      (Seq.equal) {Seq.Properties.slice_slice out_bytes_2 0 (U32.v init + U32.v nout1) 0 (U32.v init) }
+       Seq.slice out_bytes_2 0 (U32.v init);
+      (Seq.equal) {}
+        pfx';
+      }
+    in
+    let endpos = U32.v init + U32.v nout in
+    let len = Seq.length out_bytes in
+    let _ =
+      calc (==) {
+        sfx';
+      (==) {}
+       Seq.slice out_bytes_2 endpos len;
+      (==) {}
+       Seq.slice out_bytes_1 endpos len;
+      (==) { Seq.Properties.slice_slice out_bytes_1 (U32.v init + U32.v nout1) len
+                                                  (U32.v nout2) (len - (U32.v init + U32.v nout1)) }
+       Seq.slice (Seq.slice out_bytes_1 (U32.v init + U32.v nout1) len)
+                 (U32.v nout2) (len - (U32.v init + U32.v nout1));
+      (==) { }
+       Seq.slice (Seq.slice out_bytes (U32.v init + U32.v nout1) len)
+                 (U32.v nout2) (len - (U32.v init + U32.v nout1));
+      (==) { Seq.Properties.slice_slice out_bytes (U32.v init + U32.v nout1) len
+                                                  (U32.v nout2) (len - (U32.v init + U32.v nout1)) }
+        sfx;
+      }
+    in
+    let _ =
+      calc (==) {
+        s;
+      (==) {}
+        Seq.slice out_bytes_2 (U32.v init) (U32.v init + U32.v nout);
+      (Seq.equal) {}
+        Seq.append (Seq.slice out_bytes_2 (U32.v init) (U32.v init + U32.v nout1))
+                   (Seq.slice out_bytes_2 (U32.v init + U32.v nout1) (U32.v init + U32.v nout));
+      (==) {}
+        Seq.append (Seq.slice out_bytes_2 (U32.v init) (U32.v init + U32.v nout1))
+                   (M.delta_out_bytes tsm1 tsm2);
+      (==) {
+                  calc (==) {
+                      Seq.slice out_bytes_2 (U32.v init) (U32.v init + U32.v nout1);
+                   (==) { Seq.slice_slice out_bytes_2 0 (U32.v init + U32.v nout1) (U32.v init) (U32.v init + U32.v nout1) }
+                      Seq.slice (Seq.slice out_bytes_2 0 (U32.v init + U32.v nout1))
+                                (U32.v init) (U32.v init + U32.v nout1);
+                   (==) {}
+                      Seq.slice (Seq.slice out_bytes_1 0 (U32.v init + U32.v nout1))
+                                (U32.v init) (U32.v init + U32.v nout1);
+                   (==) { Seq.slice_slice out_bytes_1 0 (U32.v init + U32.v nout1) (U32.v init) (U32.v init + U32.v nout1) }
+                      Seq.slice out_bytes_1 (U32.v init) (U32.v init + U32.v nout1);
+                  }
+           }
+        Seq.append (Seq.slice out_bytes_1 (U32.v init) (U32.v init + U32.v nout1))
+                   (M.delta_out_bytes tsm1 tsm2);
+    } in
+    assert (s `Seq.equal` M.delta_out_bytes tsm tsm2)
+
+
 let stitch_verify_post_step
                    (#o:_)
                    (#tsm:M.thread_state_model)
@@ -664,10 +753,14 @@ let stitch_verify_post_step
                             (M.verify_model tsm les').processed_entries
                             false);
     assert (Application.n_out_bytes tsm1 tsm2 out_pos out_pos' out_bytes_1 out_bytes_2);
-    M.delta_out_bytes_trans tsm tsm1 le;
-    assert (M.delta_out_bytes tsm tsm2 ==
-            Seq.append (M.delta_out_bytes tsm tsm1)
-                       (M.delta_out_bytes tsm1 tsm2));
+    // M.delta_out_bytes_trans tsm tsm1 le;
+    // assert (M.delta_out_bytes tsm tsm2 ==
+    //         Seq.append (M.delta_out_bytes tsm tsm1)
+    //                    (M.delta_out_bytes tsm1 tsm2));
+    // assert (Seq.length out_bytes == Seq.length out_bytes_2);
+    // assert (U32.v (U32.(out_pos +^ out_pos')) <=
+    //            Seq.length out_bytes);
+    n_out_bytes_trans tsm tsm1 tsm2 le 0ul out_pos out_pos' out_bytes out_bytes_1 out_bytes_2;
     intro_pure (Application.n_out_bytes
                       tsm (M.verify_model tsm les')
                       0ul U32.(out_pos +^ out_pos')

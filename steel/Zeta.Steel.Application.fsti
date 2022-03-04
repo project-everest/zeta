@@ -39,7 +39,7 @@ let n_out_bytes (tsm tsm': M.thread_state_model)
     U32.v out_offset <= Seq.length out_bytes_init /\
     U32.v n_out <= Seq.length out_bytes_init - U32.v out_offset /\
     (let pfx, _, sfx = split3 out_bytes_init out_offset n_out in
-     let pfx', s, sfx' = split3 out_bytes_init out_offset n_out in
+     let pfx', s, sfx' = split3 out_bytes_final out_offset n_out in
      pfx `Seq.equal` pfx' /\
      sfx `Seq.equal` sfx' /\
      s `Seq.equal` M.delta_out_bytes tsm tsm')

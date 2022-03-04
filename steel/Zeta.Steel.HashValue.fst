@@ -7,6 +7,7 @@ module Blake = Hacl.Blake2b_32
 module A = Steel.ST.Array
 module U8 = FStar.UInt8
 module LE = Zeta.Steel.LogEntry
+module R = Steel.ST.Reference
 
 let bytes_as_u256 (b:Seq.seq U8.t { Seq.length b == 32 })
   : GTot T.u256
@@ -24,7 +25,8 @@ let hashfn (v:T.value)
 noeq
 type hasher_t = {
   serialization_buffer: A.larray U8.t 4096;
-  hash_buffer: A.larray U8.t 32
+  hash_buffer: A.larray U8.t 32;
+  dummy: A.array U8.t
 }
 
 [@@__steel_reduce__; __reduce__]
@@ -38,14 +40,17 @@ let alloc (_:unit)
     intro_exists _ (array_pts_to hb);
     let sb = A.alloc 0uy 4096ul in
     intro_exists _ (array_pts_to sb);
+    let dummy = A.alloc 0uy 1ul in
     let res = {
       serialization_buffer = sb;
-      hash_buffer = hb
+      hash_buffer = hb;
+      dummy = dummy;
     } in
     rewrite (exists_ (array_pts_to sb))
             (exists_ (array_pts_to res.serialization_buffer));
     rewrite (exists_ (array_pts_to hb))
             (exists_ (array_pts_to res.hash_buffer));
+    drop _;
     return res
 
 let array_free (a:A.array 'a)
@@ -74,7 +79,7 @@ let read_hash_u256 (#hv:Ghost.erased _)
     let Some (v, _) = res in
     return v
 
-#push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 3"
+#push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 4"
 let hash_value (h:hasher_t)
                (v:T.value)
   : ST T.hash_value
@@ -87,7 +92,7 @@ let hash_value (h:hasher_t)
     let sv = elim_exists () in
     elim_pure _;
     A.pts_to_length h.hash_buffer _;
-    Blake.blake2b 32ul h.hash_buffer n h.serialization_buffer;
+    Blake.blake2b 32ul h.hash_buffer n h.serialization_buffer 0ul h.dummy;
     let res = read_hash_u256 h.hash_buffer in
     intro_exists _ (array_pts_to h.serialization_buffer);
     intro_exists _ (array_pts_to h.hash_buffer);

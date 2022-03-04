@@ -39,7 +39,7 @@ KRML_BUNDLING_OPTIONS=-bundle 'Zeta.Steel.Main=Zeta.*,Prims,FStar.*,Hacl.*,Steel
 KRML_ATOMIC_CAS_INCLUDE_OPTION=-add-include \"steel_atomics.h\"
 
 compile:
-	$(KREMLIN_HOME)/krml -skip-compilation $(KRML_BUNDLING_OPTIONS) $(OUTPUT_DIRECTORY)/*.krml -tmpdir=$(OUTPUT_DIRECTORY) $(KRML_ATOMIC_CAS_INCLUDE_OPTION)
+	$(KREMLIN_HOME)/krml -warn-error +9 -skip-compilation $(KRML_BUNDLING_OPTIONS) $(OUTPUT_DIRECTORY)/*.krml -tmpdir=$(OUTPUT_DIRECTORY) $(KRML_ATOMIC_CAS_INCLUDE_OPTION)
 
 dist: $(OUTPUT_DIRECTORY)/*.c $(OUTPUT_DIRECTORY)/*.h
 	cp $(OUTPUT_DIRECTORY)/*.c $(DIST_DIRECTORY)/

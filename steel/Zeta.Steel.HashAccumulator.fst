@@ -306,7 +306,8 @@ let add #h (ha:ha)
         l
   = let acc = A.alloc 0uy 32ul in //TODO:would be nice to stack allocate this
     let ctr = R.alloc 1ul in  //TODO:would be nice to stack allocate this
-    Blake.blake2b 32ul acc l input;
+    let _dummy = A.alloc 0uy 1ul in //TODO: Really should  R.null, but kremlin doesn't handle that yet
+    Blake.blake2b 32ul acc l input 0ul _dummy;
     let ha' = { acc; ctr } in
     rewrite (A.pts_to acc _ _)
             (A.pts_to ha'.acc full_perm
@@ -317,4 +318,5 @@ let add #h (ha:ha)
     intro_ha_val ha' (fst (hash_one_value (Seq.slice s 0 (U32.v l)))) 1ul (hash_one_value (Seq.slice s 0 (U32.v l)));
     let v = aggregate ha ha' in
     free ha';  //TODO:Then we wouldn't need this
+    drop _;
     return v

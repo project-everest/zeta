@@ -16,7 +16,7 @@ module Hacl.Blake2b_32
 module U8 = FStar.UInt8
 module U32 = FStar.UInt32
 module A = Steel.ST.Array
-
+module R = Steel.ST.Reference
 open Steel.ST.Util
 
 inline_for_extraction noextract
@@ -37,13 +37,15 @@ val spec :
   Tot (lbytes nn)
 
 val blake2b:
-    nn:size_t{1 <= UInt32.v nn /\ UInt32.v nn <= max_output}
-  -> #sout:Ghost.erased (Seq.seq U8.t)
-  -> output: A.array U8.t
-  -> ll: size_t
+    #sout:Ghost.erased (Seq.seq U8.t)
   -> #p:perm
   -> #sd:Ghost.erased (Seq.seq U8.t)
+  -> nn:size_t{1 <= UInt32.v nn /\ UInt32.v nn <= max_output}
+  -> output: A.array U8.t
+  -> ll: size_t
   -> d: A.array U8.t { U32.v ll <= Seq.length sd }
+  -> kk: size_t { kk == 0ul }                        //We do not use blake2 in keyed mode
+  -> _dummy: A.array U8.t // this really should be a NULL, but krml doesn't extract Steel's null pointers yet
   -> ST unit
   (A.pts_to output full_perm sout `star` A.pts_to d p sd)
   (fun _ -> A.pts_to output full_perm
