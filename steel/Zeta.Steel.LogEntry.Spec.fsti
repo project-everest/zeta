@@ -46,7 +46,7 @@ val spec_parser_log_entry_strong_prefix (l:bytes)
           | None -> False
           | Some (le', pos') -> le' == le /\ eq2 #nat pos' pos /\ pos > 0))))
 
-val runapp_payload_offset
+val zeta__runapp_payload_offset
   (e: log_entry)
   (b: Ghost.erased bytes)
 : Pure U32.t
@@ -64,6 +64,10 @@ val runapp_payload_offset
     off <= len /\
     Ghost.reveal pl.rest.ebytes == Seq.slice b off len
   ))
+
+inline_for_extraction
+noextract
+let runapp_payload_offset = zeta__runapp_payload_offset
 
 val spec_parser_stamped_record : spec_parser stamped_record
 val spec_serializer_stamped_record : spec_serializer spec_parser_stamped_record

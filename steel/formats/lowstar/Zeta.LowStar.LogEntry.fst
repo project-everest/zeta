@@ -14,7 +14,7 @@ module B = LowStar.Buffer
 #push-options "--z3rlimit 32"
 #restart-solver
 
-let parser_log_entry
+let zeta__parser_log_entry
   len offset slice_len a
 =
   let h = HST.get () in
@@ -62,7 +62,7 @@ let parser_log_entry
 
 #pop-options
 
-let serialize_stamped_record =
+let zeta__serialize_stamped_record =
   fun len offset a v ->
   LowParse.Low.Combinators.serialize32_synth
     Zeta.Formats.Aux.Stamped_record.stamped_record_lserializer
@@ -72,7 +72,7 @@ let serialize_stamped_record =
     ()
     v a offset
 
-let serialize_value =
+let zeta__serialize_value =
   fun len offset a v ->
   LowParse.Low.Combinators.serialize32_synth
     Zeta.Formats.Aux.Value.value_lserializer
@@ -82,7 +82,7 @@ let serialize_value =
     ()
     v a offset
 
-let parser_u256
+let zeta__parser_u256
   len offset slice_len a
 =
   let h = HST.get () in

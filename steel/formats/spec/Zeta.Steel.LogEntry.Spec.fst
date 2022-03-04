@@ -66,7 +66,7 @@ let runapp_payload_offset'
 
 #push-options "--z3rlimit 32"
 
-let runapp_payload_offset
+let zeta__runapp_payload_offset
   e b
 =
   LowParse.Spec.Base.parse_injective Zeta.Formats.LogEntry.parse_log_entry b (Zeta.Formats.LogEntry.serialize_log_entry e);

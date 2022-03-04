@@ -22,6 +22,8 @@ dist/Makefile.basic: $(ALL_KRML_FILES)
 	  -warn-error @4@5@18 \
 	  -fparentheses \
 	  -bundle 'Zeta.Steel.LogEntry.Spec+Zeta.LowStar.LogEntry+Zeta.Formats.Aux.Application_key.Size+Zeta.Formats.Aux.Application_key.Low+Zeta.Formats.Aux.Application_value.Size+Zeta.Formats.Aux.Application_value.Low=*[rename=ZetaFormats]' \
+	  -no-prefix Zeta.LowStar.LogEntry \
+	  -no-prefix Zeta.Steel.LogEntry.Spec \
 	  -o zetaformats.a \
 	  -add-include '"ZetaFormatsApplicationTypes.h"'
 	touch $@

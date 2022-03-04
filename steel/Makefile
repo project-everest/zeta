@@ -28,10 +28,12 @@ STEEL_KRML_FILES=Steel_ST_EphemeralHashtbl.krml \
 
 extract: $(addprefix $(OUTPUT_DIRECTORY)/,$(STEEL_KRML_FILES)) $(filter-out $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))
 
-KRML_BUNDLING_OPTIONS=-bundle Zeta.Steel.Main=Zeta.*,Prims,FStar.*,Hacl.*,Steel.* \
+KRML_BUNDLING_OPTIONS=-bundle 'Zeta.Steel.Main=Zeta.*,Prims,FStar.*,Hacl.*,Steel.*' \
   -library Steel.ST.Loops \
   -library Steel.ST.Reference \
   -static-header Steel.ST.Reference \
+  -no-prefix Zeta.Steel.LogEntry \
+  -no-prefix Zeta.Steel.LogEntry.Spec \
   -hand-written Steel.ST.Reference
 
 KRML_ATOMIC_CAS_INCLUDE_OPTION=-add-include \"steel_atomics.h\"
@@ -43,5 +45,8 @@ dist: $(OUTPUT_DIRECTORY)/*.c $(OUTPUT_DIRECTORY)/*.h
 	cp $(OUTPUT_DIRECTORY)/*.c $(DIST_DIRECTORY)/
 	cp $(OUTPUT_DIRECTORY)/*.h $(DIST_DIRECTORY)/
 
-clean:
-	rm -rf $(OUTPUT_DIRECTORY)/*.krml $(OUTPUT_DIRECTORY)/*.h $(OUTPUT_DIRECTORY)/*.c $(CACHE_DIRECTORY) .depend
+clean_c:
+	rm -rf $(OUTPUT_DIRECTORY)/*.h $(OUTPUT_DIRECTORY)/*.c
+
+clean: clean_c
+	rm -rf $(OUTPUT_DIRECTORY)/*.krml $(CACHE_DIRECTORY) .depend

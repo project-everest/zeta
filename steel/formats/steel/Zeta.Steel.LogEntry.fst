@@ -28,7 +28,7 @@ let parse32_log_entry
 
 #pop-options
 
-let parser_log_entry =
+let zeta__parser_log_entry =
   Zeta.Steel.FormatsLib.mk_steel_parser parse32_log_entry spec_parser_log_entry ()
 
 let serialize32_stamped_record : LowParse.SLow.Base.serializer32 spec_serializer_stamped_record' =
@@ -40,7 +40,7 @@ let serialize32_stamped_record : LowParse.SLow.Base.serializer32 spec_serializer
     synth_stamped_record_recip
     ()
 
-let serialize_stamped_record =
+let zeta__serialize_stamped_record =
   Zeta.Steel.FormatsLib.mk_steel_serializer serialize32_stamped_record spec_serializer_stamped_record ()
 
 let serialize32_value : LowParse.SLow.Base.serializer32 spec_serializer_value' =
@@ -52,12 +52,12 @@ let serialize32_value : LowParse.SLow.Base.serializer32 spec_serializer_value' =
     Zeta.Formats.Synth.synth_value_recip
     ()
 
-let serialize_value =
+let zeta__serialize_value =
   Zeta.Steel.FormatsLib.mk_steel_serializer serialize32_value spec_serializer_value ()
 
 let parse32_u256
 : LowParse.SLow.Base.parser32 Zeta.Steel.LogEntry.Spec.u256_parser'
 = LowParse.SLow.Combinators.parse32_synth' _ Zeta.Formats.Synth.synth_u256  Zeta.Formats.Aux.U256.u256_parser32 ()
 
-let parser_u256 =
+let zeta__parser_u256 =
   Zeta.Steel.FormatsLib.mk_steel_parser parse32_u256 spec_parser_u256 ()
