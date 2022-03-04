@@ -15,49 +15,28 @@ module GK = Zeta.GenKey
 module IS = Zeta.Intermediate.Store
 module SS = Zeta.Steel.StoreRel
 module HA = Zeta.Steel.HashAccumulator
+module LT = Zeta.Steel.LogEntry.Types
 
 #push-options "--fuel 1 --ifuel 2 --query_stats"
 
 let addm_processed_entries_props (tsm: thread_state_model) (e: s_log_entry {T.AddM? e})
   : Lemma (ensures (let open T in
-                    let AddM p = e in
-                    let tsm_ = vaddm tsm p.s p.s' (Inl (p.k, p.v)) in
+                    let LT.AddM s s' r = e in
+                    let tsm_ = vaddm tsm s s' r in
                     tsm_.processed_entries == tsm.processed_entries))
   = ()
 
 let addm_thread_id_prop (tsm: thread_state_model) (e: s_log_entry {T.AddM? e})
   : Lemma (ensures (let open T in
-                    let AddM p = e in
-                    let tsm_ = vaddm tsm p.s p.s' (Inl (p.k, p.v)) in
+                    let AddM s s' r = e in
+                    let tsm_ = vaddm tsm s s' r in
                     tsm_.thread_id == tsm.thread_id))
   = ()
 
 let addm_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_entry {T.AddM? e})
   : Lemma (ensures (let open T in
-                    let AddM p = e in
-                    let tsm_ = vaddm tsm p.s p.s' (Inl (p.k, p.v)) in
-                    not tsm_.failed ==> valid_log_entry e))
-  = ()
-
-let addmapp_processed_entries_props (tsm: thread_state_model) (e: s_log_entry {T.AddMApp? e})
-  : Lemma (ensures (let open T in
-                    let AddMApp p = e in
-                    let tsm_ = vaddm tsm p.s p.s' (Inr p.rest) in
-                    tsm_.processed_entries == tsm.processed_entries))
-  = ()
-
-
-let addmapp_thread_id_prop (tsm: thread_state_model) (e: s_log_entry {T.AddMApp? e})
-  : Lemma (ensures (let open T in
-                    let AddMApp p = e in
-                    let tsm_ = vaddm tsm p.s p.s' (Inr p.rest) in
-                    tsm_.thread_id == tsm.thread_id))
-  = ()
-
-let addmapp_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_entry {T.AddMApp? e})
-  : Lemma (ensures (let open T in
-                    let AddMApp p = e in
-                    let tsm_ = vaddm tsm p.s p.s' (Inr p.rest) in
+                    let AddM s s' r = e in
+                    let tsm_ = vaddm tsm s s' r in
                     not tsm_.failed ==> valid_log_entry e))
   = ()
 
@@ -186,13 +165,12 @@ let runapp_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_entry {T.Run
 
 let verify_step_model_processed_entries_prop (tsm: thread_state_model) (e: s_log_entry)
   : Lemma (ensures (let tsm_ = verify_step_model tsm e in
-                    not tsm.failed ==> tsm_.processed_entries == Seq.snoc tsm.processed_entries e))
+                    not tsm_.failed ==> tsm_.processed_entries == Seq.snoc tsm.processed_entries e))
           [SMTPat (verify_step_model tsm e)]
   = let open T in
     if not tsm.failed then
       match e with
-      | AddM _ -> addm_processed_entries_props tsm e
-      | AddMApp _ -> addmapp_processed_entries_props tsm e
+      | AddM _ _ _ -> addm_processed_entries_props tsm e
       | RunApp _ -> runapp_non_store_prop tsm e
       | _ -> ()
 
@@ -202,8 +180,7 @@ let verify_step_model_thread_id_prop (tsm: thread_state_model) (e: s_log_entry)
           [SMTPat (verify_step_model tsm e)]
   = let open T in
     match e with
-    | AddM _ -> addm_thread_id_prop tsm e
-    | AddMApp _ -> addmapp_thread_id_prop tsm e
+    | AddM _ _ _ -> addm_thread_id_prop tsm e
     | RunApp _ -> runapp_non_store_prop tsm e
     | _ -> ()
 
@@ -215,8 +192,7 @@ let verify_step_model_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_e
     let tsm_ = verify_step_model tsm e in
     if not tsm_.failed then (
       match e with
-      | AddM _ -> addm_valid_log_entry_prop tsm e
-      | AddMApp _ -> addmapp_valid_log_entry_prop tsm e
+      | AddM _ _ _ -> addm_valid_log_entry_prop tsm e
       | RunApp _ -> runapp_valid_log_entry_prop tsm e
       | _ -> ()
     )
@@ -354,29 +330,6 @@ let spec_rel_base_addm (tsm:_ {spec_rel_base tsm}) (e: s_log_entry {T.AddM? e})
       addm_simulation tsm i_tsm e i_e
     )
 
-let spec_rel_base_addmapp (tsm:_ {spec_rel_base tsm}) (e: s_log_entry {T.AddMApp? e})
-  : Lemma (ensures (let tsm_ = verify_step_model tsm e in
-                    not tsm_.failed ==> valid tsm_ /\ spec_rel_base tsm_))
-  = let open T in
-    let tid = tsm.TSM.thread_id in
-    let i_tid = lift_tid tid in
-    let tsm_ = verify_step_model tsm e in
-
-    let i_log = lift_log tsm.processed_entries in
-    let i_tsm = to_i_tsm tsm in
-
-    if not tsm_.failed then (
-      (* verify_step extends validity or fails *)
-      assert(valid tsm_);
-
-      let i_e = lift_log_entry e in
-      assert (related_log_entry e i_e);
-
-      let i_tsm_ = GV.verify_step i_e i_tsm in
-      let i_log_ = lift_log tsm_.processed_entries in
-      addmapp_simulation tsm i_tsm e i_e
-    )
-
 let spec_rel_base_addb (tsm:_ {spec_rel_base tsm}) (e: s_log_entry {T.AddB? e})
   : Lemma (ensures (let tsm_ = verify_step_model tsm e in
                     not tsm_.failed ==> valid tsm_ /\ spec_rel_base tsm_))
@@ -398,29 +351,6 @@ let spec_rel_base_addb (tsm:_ {spec_rel_base tsm}) (e: s_log_entry {T.AddB? e})
       let i_tsm_ = GV.verify_step i_e i_tsm in
       let i_log_ = lift_log tsm_.processed_entries in
       addb_simulation tsm i_tsm e i_e
-    )
-
-let spec_rel_base_addbapp (tsm:_ {spec_rel_base tsm}) (e: s_log_entry {T.AddBApp? e})
-  : Lemma (ensures (let tsm_ = verify_step_model tsm e in
-                    not tsm_.failed ==> valid tsm_ /\ spec_rel_base tsm_))
-  = let open T in
-    let tid = tsm.TSM.thread_id in
-    let i_tid = lift_tid tid in
-    let tsm_ = verify_step_model tsm e in
-
-    let i_log = lift_log tsm.processed_entries in
-    let i_tsm = to_i_tsm tsm in
-
-    if not tsm_.failed then (
-      (* verify_step extends validity or fails *)
-      assert(valid tsm_);
-
-      let i_e = lift_log_entry e in
-      assert (related_log_entry e i_e);
-
-      let i_tsm_ = GV.verify_step i_e i_tsm in
-      let i_log_ = lift_log tsm_.processed_entries in
-      addbapp_simulation tsm i_tsm e i_e
     )
 
 let spec_rel_base_evictm (tsm:_ {spec_rel_base tsm}) (e: s_log_entry {T.EvictM? e})
@@ -567,15 +497,13 @@ let lemma_verify_step_model_spec_rel_base (tsm:_ {spec_rel_base tsm}) (e: s_log_
           [SMTPat (verify_step_model tsm e)]
   = let open T in
     match e with
-    | AddM _ -> spec_rel_base_addm tsm e
-    | AddMApp _ -> spec_rel_base_addmapp tsm e
-    | AddB _ -> spec_rel_base_addb tsm e
-    | AddBApp _ -> spec_rel_base_addbapp tsm e
+    | AddM _ _ _ -> spec_rel_base_addm tsm e
+    | AddB _ _ _ _ -> spec_rel_base_addb tsm e
     | EvictM _ -> spec_rel_base_evictm tsm e
     | EvictB _ -> spec_rel_base_evictb tsm e
     | EvictBM _ -> spec_rel_base_evictbm tsm e
-    | NextEpoch _ -> spec_rel_base_nextepoch tsm e
-    | VerifyEpoch _ -> spec_rel_base_verifyepoch tsm e
+    | NextEpoch -> spec_rel_base_nextepoch tsm e
+    | VerifyEpoch -> spec_rel_base_verifyepoch tsm e
     | RunApp _ -> spec_rel_base_runapp tsm e
 
 let init_tsm_valid (tid: AT.tid)
@@ -613,7 +541,7 @@ let related_madd_to_store_root (tsm: thread_state_model)
     with i_s;
 
     assert (not (has_slot tsm s));
-    assert (is_value_of root_key v);
+    assert (LT.is_value_of root_key v);
 
     let new_entry = {
       key = root_key;
@@ -671,7 +599,8 @@ let init_store_related (tid: AT.tid) (i_tid: i_tid)
         clock = 0uL;
         epoch_hashes = initial_epoch_hashes;
         processed_entries = Seq.empty;
-        app_results = Seq.empty
+        app_results = Seq.empty;
+        last_verified_epoch = None
       } in
 
       let s = U16.zero in
@@ -848,45 +777,32 @@ let init_hadd_correct (tsm: valid_tsm {length tsm = 0}) (ep: epoch_id)
 let is_blum_add e =
   let open T in
   match e with
-  | AddB _ -> true
-  | AddBApp _ -> true
+  | AddB _ _ _ _ -> true
   | _ -> false
 
 let blum_add_timestamp (e:_ {is_blum_add e})
   = let open T in
     match e with
-    | AddB p -> p.t
-    | AddBApp p -> p.t
+    | AddB _  t _ _ -> t
 
 let blum_add_tid (e: _ {is_blum_add e})
   = let open T in
     match e with
-    | AddB p -> p.tid
-    | AddBApp p -> p.tid
+    | AddB _ _ tid _ -> tid
 
-let blum_add_payload (e:_ {is_blum_add e})
+let blum_add_record (e:_ {is_blum_add e})
   = let open T in
     match e with
-    | AddB p -> Inl (p.k, p.v)
-    | AddBApp p -> Inr p.rest
+    | AddB _ _ _ r -> r
 
 let blum_add_slot (e:_ {is_blum_add e})
   = let open T in
     match e with
-    | AddB p -> p.s
-    | AddBApp p -> p.s
-
-let blum_add_record (e:_ {is_blum_add e})
-  = record_of_payload (blum_add_payload e)
+    | AddB s _ _ _ -> s
 
 #push-options "--fuel 2 --ifuel 1 --z3rlimit_factor 3 --query_stats"
 
 let epoch_hashes_unchanged_addm (tsm: thread_state_model) (e: s_log_entry {T.AddM? e})
-  : Lemma (ensures (let tsm_ = verify_step_model tsm e in
-                    not tsm_.failed ==> tsm.epoch_hashes == tsm_.epoch_hashes))
-  = ()
-
-let epoch_hashes_unchanged_addmapp (tsm: thread_state_model) (e: s_log_entry {T.AddMApp? e})
   : Lemma (ensures (let tsm_ = verify_step_model tsm e in
                     not tsm_.failed ==> tsm.epoch_hashes == tsm_.epoch_hashes))
   = ()
@@ -899,7 +815,7 @@ let epoch_hashes_unchanged_evictm (tsm: thread_state_model) (e: s_log_entry {T.E
 let epoch_hashes_unchanged_next_epoch (tsm: thread_state_model) (e: s_log_entry {T.NextEpoch? e})
   : Lemma (ensures (let tsm_ = verify_step_model tsm e in
                     not tsm_.failed ==> tsm.epoch_hashes == tsm_.epoch_hashes))
-  = ()
+  = admit()
 
 let epoch_hashes_unchanged_verify_epoch
     (tsm: thread_state_model)
@@ -982,11 +898,10 @@ let evict_hashes_unchanged_addb (tsm: thread_state_model) (e: s_log_entry {is_bl
     let s = blum_add_slot e in
     let t = blum_add_timestamp e in
     let tid = blum_add_tid e in
-    let p = blum_add_payload e in
+    let (k,v) = blum_add_record e in
 
     if not tsm_.failed then
     begin
-      let Some (| k,v |) = record_of_payload p in
       let tsm1 = update_hadd tsm (epoch_of_timestamp t) (k,v) t tid in
       assert (tsm_.epoch_hashes == tsm1.epoch_hashes);
       update_hadd_unchanged_hevict tsm (epoch_of_timestamp t) (k,v) t tid ep
@@ -1017,13 +932,12 @@ let add_hashes_unchanged_non_addb
                     not tsm_.failed ==> eh.hadd == eh_.hadd))
   = let open T in
     match e with
-    | AddM _ -> epoch_hashes_unchanged_addm tsm e
-    | AddMApp _ -> epoch_hashes_unchanged_addmapp tsm e
+    | AddM _ _ _ -> epoch_hashes_unchanged_addm tsm e
     | EvictM _ -> epoch_hashes_unchanged_evictm tsm e
     | EvictB _ -> add_hashes_unchanged_evictb tsm e ep
     | EvictBM _ -> add_hashes_unchanged_evictbm tsm e ep
-    | NextEpoch _ -> epoch_hashes_unchanged_next_epoch tsm e
-    | VerifyEpoch _ -> epoch_hashes_unchanged_verify_epoch tsm e ep
+    | NextEpoch -> epoch_hashes_unchanged_next_epoch tsm e
+    | VerifyEpoch -> epoch_hashes_unchanged_verify_epoch tsm e ep
     | RunApp _ -> epoch_hashes_unchanged_runapp tsm e
 
 let hadd_correct_snoc_non_addb (tsm: valid_tsm {length tsm > 0}) (ep: epoch_id)
@@ -1077,12 +991,11 @@ let hadd_change_addb
   (tsm: thread_state_model)
   (e: _ {is_blum_add e})
   (ep: epoch_id)
-  : Lemma (requires (epoch_of_timestamp (blum_add_timestamp e) = ep /\
-                     Some? (blum_add_record e)))
+  : Lemma (requires (epoch_of_timestamp (blum_add_timestamp e) = ep))
           (ensures (let tsm_ = verify_step_model tsm e in
                     let eh = Map.sel tsm.epoch_hashes ep in
                     let eh_ = Map.sel tsm_.epoch_hashes ep in
-                    let Some (| k, v |) = blum_add_record e in
+                    let (k, v) = blum_add_record e in
                     let t = blum_add_timestamp e in
                     let tid = blum_add_tid e in
                     not tsm_.failed ==>
@@ -1122,7 +1035,7 @@ let hadd_correct_snoc_addb_diff_epoch (tsm: valid_tsm {length tsm > 0}) (ep: epo
 
     let t = blum_add_timestamp e in
     let tid = blum_add_tid e in
-    let Some (| k, v |) = blum_add_record e in
+    let (k, v) = blum_add_record e in
     let s_be: s_dom =
       let open Zeta.Steel.MultiSetHash in
       { r = (k,v); t ; tid } in
@@ -1174,7 +1087,7 @@ let hadd_correct_snoc_addb_same_epoch (tsm: valid_tsm {length tsm > 0}) (ep: epo
 
     let t = blum_add_timestamp e in
     let tid = blum_add_tid e in
-    let Some (| k, v |) = blum_add_record e in
+    let (k, v) = blum_add_record e in
     let s_be: s_dom =
       let open Zeta.Steel.MultiSetHash in
       { r = (k,v); t ; tid } in
@@ -1283,13 +1196,11 @@ let evict_hashes_unchanged_non_evict
                     not tsm_.failed ==> eh.hevict == eh_.hevict))
   = let open T in
     match e with
-    | AddM _ -> epoch_hashes_unchanged_addm tsm e
-    | AddMApp _ -> epoch_hashes_unchanged_addmapp tsm e
-    | AddB _ -> evict_hashes_unchanged_addb tsm e ep
-    | AddBApp _ -> evict_hashes_unchanged_addb tsm e ep
+    | AddM _ _ _ -> epoch_hashes_unchanged_addm tsm e
+    | AddB _ _ _ _ -> evict_hashes_unchanged_addb tsm e ep
     | EvictM _ -> epoch_hashes_unchanged_evictm tsm e
-    | NextEpoch _ -> epoch_hashes_unchanged_next_epoch tsm e
-    | VerifyEpoch _ -> epoch_hashes_unchanged_verify_epoch tsm e ep
+    | NextEpoch -> epoch_hashes_unchanged_next_epoch tsm e
+    | VerifyEpoch -> epoch_hashes_unchanged_verify_epoch tsm e ep
     | RunApp _ -> epoch_hashes_unchanged_runapp tsm e
 
 let hevict_change_evictb
