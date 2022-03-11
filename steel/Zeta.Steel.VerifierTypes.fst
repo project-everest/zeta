@@ -124,3 +124,22 @@ let elim_thread_state_inv (#o:_) (#tsm:M.thread_state_model) (t:thread_state_t)
       thread_id t == tsm.thread_id /\
       tsm_entries_invariant tsm)
   = elim_pure _
+module Cast = FStar.Int.Cast
+
+let as_u32 (s:U16.t) : U32.t = Cast.uint16_to_uint32 s
+
+let read_store #tsm t slot =
+  let se_opt = A.read t.store (as_u32 slot) in
+  match se_opt with
+  | None -> return None
+  | Some (se : M.store_entry) ->
+    return (Some ({ key = se.key;
+                    value = se.value }))
+
+let write_store #tsm t slot v =
+  let se_opt = A.read t.store (as_u32 slot) in
+  match se_opt with
+  | Some (se : M.store_entry) ->
+    let se' = { se with value = v } in
+    A.write t.store (as_u32 slot) (Some se');
+    return ()
