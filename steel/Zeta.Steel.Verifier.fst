@@ -465,8 +465,8 @@ let verify_step (#tsm:M.thread_state_model)
               len pl pl_pos log
               out_len out_offset out
               t
-              VerifierTypes.read_store
-              VerifierTypes.write_store
+              // VerifierTypes.read_store
+              // VerifierTypes.write_store
           in
           // assert_ (Application.verify_runapp_entry_post tsm t pl out_bytes out_offset out app_res);
           begin

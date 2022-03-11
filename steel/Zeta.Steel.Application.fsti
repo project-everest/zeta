@@ -103,8 +103,8 @@ val run_app_function
       (* The state of the verifier, with pointers to the store etc. *)
       (#tsm:M.thread_state_model)
       (t:V.thread_state_t)
-      (read_store: V.read_store_t)
-      (write_store: V.write_store_t)
+      // (read_store: V.read_store_t)
+      // (write_store: V.write_store_t)
   (* if success, returns the number of bytes written in the output log *)
    : STT verify_runapp_result
       (V.thread_state_inv t tsm `star`

@@ -200,3 +200,6 @@ val max_certified_epoch (#p:perm)
 //From this, we should connect back to the semantic
 //proof and show that the entries are sequentially consistent up to eid
 //except for hash collisions
+
+let read_store : VerifierTypes.read_store_t = Zeta.Steel.VerifierTypes.read_store
+let write_store : VerifierTypes.write_store_t = Zeta.Steel.VerifierTypes.write_store
