@@ -1205,78 +1205,6 @@ static uint32_t as_u32(uint16_t s)
   return (uint32_t)s;
 }
 
-static FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv
-read_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t slot)
-{
-  FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry
-  se_opt = t.store[as_u32(slot)];
-  if (se_opt.tag == FStar_Pervasives_Native_None)
-    return
-      (
-        (FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv){
-          .tag = FStar_Pervasives_Native_None
-        }
-      );
-  else if (se_opt.tag == FStar_Pervasives_Native_Some)
-  {
-    Zeta_Steel_ThreadStateModel_store_entry se = se_opt.v;
-    Zeta_Steel_ThreadStateModel_store_entry se1 = se;
-    return
-      (
-        (FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv){
-          .tag = FStar_Pervasives_Native_Some,
-          .v = { .key = se1.key, .value = se1.value }
-        }
-      );
-  }
-  else
-  {
-    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
-      __FILE__,
-      __LINE__,
-      "unreachable (pattern matches are exhaustive in F*)");
-    KRML_HOST_EXIT(255U);
-  }
-}
-
-static void
-write_store(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  uint16_t slot,
-  Zeta_Steel_LogEntry_Types_value v
-)
-{
-  FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry
-  se_opt = t.store[as_u32(slot)];
-  if (se_opt.tag == FStar_Pervasives_Native_Some)
-  {
-    Zeta_Steel_ThreadStateModel_store_entry se = se_opt.v;
-    Zeta_Steel_ThreadStateModel_store_entry se1 = se;
-    Zeta_Steel_ThreadStateModel_store_entry
-    se_ =
-      {
-        .key = se1.key, .value = v, .add_method = se1.add_method,
-        .l_child_in_store = se1.l_child_in_store, .r_child_in_store = se1.r_child_in_store,
-        .parent_slot = se1.parent_slot
-      };
-    t.store[as_u32(slot)] =
-      (
-        (FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry){
-          .tag = FStar_Pervasives_Native_Some,
-          .v = se_
-        }
-      );
-  }
-  else
-  {
-    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
-      __FILE__,
-      __LINE__,
-      "unreachable (pattern matches are exhaustive in F*)");
-    KRML_HOST_EXIT(255U);
-  }
-}
-
 #define Run_app_parsing_failure 0
 #define Run_app_verify_failure 1
 #define Run_app_success 2
@@ -3631,13 +3559,74 @@ Zeta_Steel_Main_max_certified_epoch(Zeta_Steel_Main_top_level_state *r)
 }
 
 FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv
-(*Zeta_Steel_Main_read_store)(Zeta_Steel_VerifierTypes_thread_state_t x0, uint16_t x1) =
-  read_store;
+Zeta_Steel_Main_read_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t slot)
+{
+  FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry
+  se_opt = t.store[as_u32(slot)];
+  if (se_opt.tag == FStar_Pervasives_Native_None)
+    return
+      (
+        (FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv){
+          .tag = FStar_Pervasives_Native_None
+        }
+      );
+  else if (se_opt.tag == FStar_Pervasives_Native_Some)
+  {
+    Zeta_Steel_ThreadStateModel_store_entry se = se_opt.v;
+    Zeta_Steel_ThreadStateModel_store_entry se1 = se;
+    return
+      (
+        (FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv){
+          .tag = FStar_Pervasives_Native_Some,
+          .v = { .key = se1.key, .value = se1.value }
+        }
+      );
+  }
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
 
 void
-(*Zeta_Steel_Main_write_store)(
-  Zeta_Steel_VerifierTypes_thread_state_t x0,
-  uint16_t x1,
-  Zeta_Steel_LogEntry_Types_value x2
-) = write_store;
+Zeta_Steel_Main_write_store(
+  Zeta_Steel_VerifierTypes_thread_state_t t,
+  uint16_t slot,
+  Zeta_Steel_LogEntry_Types_value v
+)
+{
+  FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry
+  se_opt = t.store[as_u32(slot)];
+  if (se_opt.tag == FStar_Pervasives_Native_Some)
+  {
+    Zeta_Steel_ThreadStateModel_store_entry se = se_opt.v;
+    Zeta_Steel_ThreadStateModel_store_entry se1 = se;
+    Zeta_Steel_ThreadStateModel_store_entry
+    se_ =
+      {
+        .key = se1.key, .value = v, .add_method = se1.add_method,
+        .l_child_in_store = se1.l_child_in_store, .r_child_in_store = se1.r_child_in_store,
+        .parent_slot = se1.parent_slot
+      };
+    t.store[as_u32(slot)] =
+      (
+        (FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry){
+          .tag = FStar_Pervasives_Native_Some,
+          .v = se_
+        }
+      );
+  }
+  else
+  {
+    KRML_HOST_EPRINTF("KreMLin abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
 

@@ -245,13 +245,6 @@ typedef struct Zeta_Steel_VerifierTypes_kv_s
 }
 Zeta_Steel_VerifierTypes_kv;
 
-typedef struct FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv_s
-{
-  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
-  Zeta_Steel_VerifierTypes_kv v;
-}
-FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv;
-
 bool
 __neq__Zeta_Steel_LogEntry_Types_u256(
   Zeta_Steel_LogEntry_Types_u256 y,
@@ -351,14 +344,21 @@ Zeta_Steel_Main_verify_log(
 Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
 Zeta_Steel_Main_max_certified_epoch(Zeta_Steel_Main_top_level_state *r);
 
-extern FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv
-(*Zeta_Steel_Main_read_store)(Zeta_Steel_VerifierTypes_thread_state_t x0, uint16_t x1);
+typedef struct FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv_s
+{
+  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
+  Zeta_Steel_VerifierTypes_kv v;
+}
+FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv;
 
-extern void
-(*Zeta_Steel_Main_write_store)(
-  Zeta_Steel_VerifierTypes_thread_state_t x0,
-  uint16_t x1,
-  Zeta_Steel_LogEntry_Types_value x2
+FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv
+Zeta_Steel_Main_read_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t slot);
+
+void
+Zeta_Steel_Main_write_store(
+  Zeta_Steel_VerifierTypes_thread_state_t t,
+  uint16_t slot,
+  Zeta_Steel_LogEntry_Types_value v
 );
 
 

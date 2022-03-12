@@ -104,5 +104,8 @@ let write_store_t =
        (thread_state_inv_core t tsm)
        (fun _ -> thread_state_inv_core t (update_tsm_slot_value tsm slot v))
 
+inline_for_extraction
 val read_store : read_store_t
+
+inline_for_extraction
 val write_store : write_store_t
