@@ -3,7 +3,7 @@
    Proof things.
 
 1. (Nik) Regenerate code with an --add-include "application_types.h"
-
+   Done
 
 
 2. We would provide an application_types.h, with
@@ -82,16 +82,27 @@ extern uint32_t zeta__runapp_payload_offset(log_entry e);
 
 6.5 (Nik) We need to expose an API to the thread store, i.e., in Zeta_Steel_Main.h, we'll have
 
+    Done
+
+We have:
 
 
-option_Thread_state_model_store_entry
- Zeta_Steel_Main_read_store(Zeta_Steel_VerifierTypes_thread_state_t t,
-                            uint16_t slot);
+typedef struct FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv_s
+{
+  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
+  Zeta_Steel_VerifierTypes_kv v;
+}
+FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv;
+
+FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv
+Zeta_Steel_Main_read_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t slot);
 
 void
- Zeta_Steel_Main_write_store(Zeta_Steel_VerifierTypes_thread_state_t t,
-                             uint16_t slot,
-                             Thread_state_model_store_entry val);
+Zeta_Steel_Main_write_store(
+  Zeta_Steel_VerifierTypes_thread_state_t t,
+  uint16_t slot,
+  Zeta_Steel_LogEntry_Types_value v
+);
 
 
 7. The main callback to be provided by the application is:
