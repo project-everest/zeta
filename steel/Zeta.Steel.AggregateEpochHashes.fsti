@@ -35,6 +35,7 @@ let epoch_tid_bitmaps =
                (fun i -> array_pts_to)
 
 let is_epoch_verified (tsm:M.thread_state_model) (eid:M.epoch_id) =
+  not tsm.failed &&
   not (M.epoch_greater_than_last_verified_epoch tsm.last_verified_epoch eid)
 
 let all_threads_epoch_hashes =

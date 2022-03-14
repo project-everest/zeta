@@ -1279,7 +1279,6 @@ let epoch_hashes_framing (mlogs_v:AEH.all_processed_entries)
                Map.sel (thread_contrib_of_log tid et') e')
       )
       else (
-        assert (is_epoch_verified tsm0 e');
         assert (is_epoch_verified tsm' e');
         assert (tsm.processed_entries `Seq.equal`
                Seq.append (M.committed_log_entries tsm.processed_entries)
@@ -1288,6 +1287,10 @@ let epoch_hashes_framing (mlogs_v:AEH.all_processed_entries)
                                   (M.committed_log_entries tsm.processed_entries)
                                   (M.uncommitted_entries tsm.processed_entries);
         assert (tsm == M.verify_model tsm0 (M.uncommitted_entries tsm.processed_entries));
+        assert (not tsm.failed);
+        M.not_failed_pre_steps tsm0 (M.uncommitted_entries tsm.processed_entries);
+        assert (not (tsm0.failed));
+        assert (is_epoch_verified tsm0 e');
         M.verified_epoch_hashes_constant tsm0 e' (M.uncommitted_entries tsm.processed_entries);
         assert (Map.sel tsm0.epoch_hashes e' == Map.sel tsm.epoch_hashes e');
         assert (Map.sel (thread_contrib_of_log tid et) e' ==
@@ -1425,6 +1428,15 @@ let advance_per_thread_bitmap_and_max  (bitmaps:EpochMap.repr AEH.tid_bitmap)
       AEH.per_thread_bitmap_and_max bitmaps' max logs' tsm.thread_id))
   = let log0 = AEH.log_of_tid mlogs_v tsm.thread_id in
     let tsm0 = M.verify_model (M.init_thread_state_model tsm.thread_id) log0 in
+    assert (tsm.processed_entries `Seq.equal`
+           Seq.append (M.committed_log_entries tsm.processed_entries)
+                      (M.uncommitted_entries tsm.processed_entries));
+    M.verify_model_log_append (M.init_thread_state_model tsm.thread_id)
+                              (M.committed_log_entries tsm.processed_entries)
+                              (M.uncommitted_entries tsm.processed_entries);
+    assert (tsm == M.verify_model tsm0 (M.uncommitted_entries tsm.processed_entries));
+    M.not_failed_pre_steps tsm0 (M.uncommitted_entries tsm.processed_entries);
+    assert (not (tsm0.failed));
     M.last_verified_epoch_constant tsm;
     assert (tsm0.last_verified_epoch == tsm.last_verified_epoch);
     let tsm' = spec_verify_epoch tsm in

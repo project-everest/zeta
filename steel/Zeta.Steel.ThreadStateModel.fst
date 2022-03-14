@@ -1247,6 +1247,29 @@ let delta_out_bytes_trans (tsm tsm1:thread_state_model)
                          (delta_out_bytes tsm1 (verify_step_model tsm1 le)))
   = admit()
 
+let not_failed_pre_step (tsm:thread_state_model) (le:log_entry)
+  : Lemma 
+    (requires (
+         let tsm' = verify_step_model tsm le in
+         not tsm'.failed))
+    (ensures
+         not tsm.failed)
+  = ()
+
+
+let rec not_failed_pre_steps (tsm:thread_state_model) (les:log)
+  : Lemma 
+    (requires (
+         let tsm' = verify_model tsm les in
+         not tsm'.failed))
+    (ensures
+         not tsm.failed)
+    (decreases (Seq.length les))
+  = if Seq.length les = 0 then ()
+    else let prefix = Zeta.SeqAux.prefix les (Seq.length les - 1) in
+         not_failed_pre_steps tsm prefix;
+         not_failed_pre_step (verify_model tsm prefix) (Seq.index les (Seq.length les - 1))
+
 let run (tid:tid) = verify_model (init_thread_state_model tid)
 
 let rec run_all (n:nat{n <= U32.v n_threads})
