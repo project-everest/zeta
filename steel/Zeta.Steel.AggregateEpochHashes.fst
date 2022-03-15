@@ -28,24 +28,51 @@ let all_hashes_size : n:U32.t{U32.v n > 0} = max_epoch_lag
 let tid_bitmaps_size : n:U32.t{U32.v n > 0} = max_epoch_lag
 
 let empty_all_processed_entries : Ghost.erased all_processed_entries =
-  Seq.create (U32.v n_threads) Seq.empty
+  Seq.init #(tid & log) (U32.v n_threads) (fun i -> U16.uint_to_t i, Seq.empty)
+
+let rec aggregate_epoch_hashes_seq_unit (s:Seq.seq M.epoch_hash)
+  : Lemma 
+    (requires
+      forall i. Seq.index s i == M.init_epoch_hash)
+    (ensures
+      aggregate_epoch_hashes_seq s == M.init_epoch_hash)
+    (decreases Seq.length s)
+  = if Seq.length s = 0 then ()
+    else (
+      let prefix, last = Seq.un_snoc s in
+      Seq.un_snoc_snoc prefix last;
+      calc (==) {
+        aggregate_epoch_hashes_seq s;
+        (==) {}
+        aggregate_epoch_hash last (aggregate_epoch_hashes_seq prefix);
+        (==) { aggregate_epoch_hash_unit (aggregate_epoch_hashes_seq prefix) }
+        aggregate_epoch_hashes_seq prefix;
+        (==) { aggregate_epoch_hashes_seq_unit prefix }
+        M.init_epoch_hash;
+      }
+    )
 
 let aggregate_all_threads_epoch_hashes_emp ()
   : Lemma (forall (e:M.epoch_id).
              aggregate_all_threads_epoch_hashes e empty_all_processed_entries ==
              M.init_epoch_hash)
-  = assert (forall tid. Map.equal (thread_contrib_of_log (U16.uint_to_t tid) (Seq.index empty_all_processed_entries tid))
+  = assert (forall tid. Map.equal (thread_contrib_of_log (U16.uint_to_t tid) (snd (Seq.index empty_all_processed_entries tid)))
                              (Map.const M.init_epoch_hash));
+    let all_init = (Seq.create (U32.v n_threads) (Map.const M.init_epoch_hash)) in
     assert (Seq.equal (all_threads_epoch_hashes_of_logs empty_all_processed_entries)
-                      (Seq.create (U32.v n_threads) (Map.const M.init_epoch_hash)));
+                      all_init);
     introduce forall (e:M.epoch_id).
                 aggregate_all_threads_epoch_hashes e empty_all_processed_entries ==
                 M.init_epoch_hash
-    with SA.lemma_reduce_property_closure_seq_mem
-           (fun h -> h == M.init_epoch_hash)
-           M.init_epoch_hash
-           (fun (s:epoch_hashes_repr) -> aggregate_epoch_hash (Map.sel s e))
-           (Seq.create (U32.v n_threads) (Map.const M.init_epoch_hash))
+    with (
+      calc (==) {
+        aggregate_all_threads_epoch_hashes e empty_all_processed_entries;
+       (==) {}
+        aggregate_epoch_hashes_seq (Zeta.SeqAux.map (fun (s:epoch_hashes_repr) -> Map.sel s e) all_init);
+       (==) { aggregate_epoch_hashes_seq_unit (Zeta.SeqAux.map (fun (s:epoch_hashes_repr) -> Map.sel s e) all_init) }
+        M.init_epoch_hash;
+      }
+    )
 
 let per_thread_bitmap_and_max_emp (tid:tid) (eid:M.epoch_id)
   : Lemma

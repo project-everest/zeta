@@ -58,7 +58,7 @@ let aggregate_evict_hash (logs: all_logs) (ep: epoch_id)
     //aeh.hevict
     admit()
 
-let certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {AH.epoch_is_certified logs ep})
+let certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {AH.epoch_is_certified (as_tid_logs logs) ep})
   : Lemma (ensures (aggregate_add_hash logs ep = aggregate_evict_hash logs ep))
   = ()
 
@@ -159,7 +159,7 @@ let to_tsms (logs: verifiable_logs)
 #push-options "--fuel 1 --ifuel 1 --query_stats"
 
 let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
-  : Lemma (requires (AH.epoch_is_certified logs ep))
+  : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
           (ensures (let gl = to_ilog logs in
                     let i_ep = lift_epoch ep in
                     let add_set = GG.add_set i_ep gl in
@@ -176,7 +176,7 @@ let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
 #pop-options
 
 let aggr_evict_hash_correct (logs: verifiable_logs) (ep: epoch_id)
-  : Lemma (requires (AH.epoch_is_certified logs ep))
+  : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
           (ensures (let gl = to_ilog logs in
                     let i_ep = lift_epoch ep in
                     let evict_set = GG.evict_set i_ep gl in

@@ -31,10 +31,15 @@ let index (logs: verifiable_logs) (t: tid)
   : StT.verifiable_log
   = index_ logs t
 
+let as_tid_logs (logs:all_logs)
+  = Zeta.SeqAux.mapi #_ #(tid & log)
+                     logs
+                     (fun (i:Zeta.SeqAux.seq_index logs) -> (FStar.UInt16.uint_to_t i, Seq.index logs i))
+
 (* all verifier threads succeed and have certified upto epmax *)
 let verifiable_and_certified (logs: all_logs) (epmax: epoch_id)
   = verifiable logs /\
-    (forall (eid: epoch_id). (U32.v eid <= U32.v epmax) ==> AH.epoch_is_certified logs eid)
+    (forall (eid: epoch_id). (U32.v eid <= U32.v epmax) ==> AH.epoch_is_certified (as_tid_logs logs) eid)
 
 let n_threads_v = U32.v n_threads
 
@@ -63,11 +68,11 @@ val aggregate_add_hash (logs: all_logs) (ep: epoch_id)
 val aggregate_evict_hash (logs: all_logs) (ep: epoch_id)
   : GTot hash_value_t
 
-val certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {AH.epoch_is_certified logs ep})
+val certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {AH.epoch_is_certified (as_tid_logs logs) ep})
   : Lemma (ensures (aggregate_add_hash logs ep = aggregate_evict_hash logs ep))
 
 val aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
-  : Lemma (requires (AH.epoch_is_certified logs ep))
+  : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
           (ensures (let gl = to_ilog logs in
                     let i_ep = lift_epoch ep in
                     let add_set = GG.add_set i_ep gl in
@@ -75,7 +80,7 @@ val aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
                     h = ms_hashfn add_set))
 
 val aggr_evict_hash_correct (logs: verifiable_logs) (ep: epoch_id)
-  : Lemma (requires (AH.epoch_is_certified logs ep))
+  : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
           (ensures (let gl = to_ilog logs in
                     let i_ep = lift_epoch ep in
                     let evict_set = GG.evict_set i_ep gl in

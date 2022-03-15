@@ -63,7 +63,7 @@ let aems_equal_or_hash_collision (epmax: epoch_id)
 
       assert(i_ep <= i_epmax);
       let ep = U32.uint_to_t i_ep in
-      assert(AH.epoch_is_certified logs ep);
+      assert(AH.epoch_is_certified (as_tid_logs logs) ep);
       certified_epoch_aggregate_hashes_equal logs ep;
       aggr_add_hash_correct logs ep;
       aggr_evict_hash_correct logs ep;

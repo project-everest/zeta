@@ -63,13 +63,30 @@ let aggregate_epoch_hash_assoc (i j k:M.epoch_hash)
   = HA.aggregate_hashes_associative i.hadd j.hadd k.hadd;
     HA.aggregate_hashes_associative i.hevict j.hevict k.hevict
 
+module CE = FStar.Algebra.CommMonoid.Equiv
+
+let aggregate_epoch_hash_equiv 
+  : CE.equiv M.epoch_hash 
+  = CE.EQ ( == ) (fun _ -> ()) (fun _ _ -> ()) (fun _ _ _ -> ())
+let aggregate_epoch_hash_monoid
+  : CE.cm M.epoch_hash aggregate_epoch_hash_equiv
+  = CE.CM M.init_epoch_hash
+       aggregate_epoch_hash
+       aggregate_epoch_hash_unit
+       aggregate_epoch_hash_assoc
+       aggregate_epoch_hash_comm
+       (fun _ _ _ _ -> ())
+
 let log = Seq.seq log_entry
-let all_processed_entries = Seq.lseq log (U32.v n_threads)
 
-let tsm_of_log (mlogs_v:all_processed_entries) (t:tid) =
-  M.verify_model (M.init_thread_state_model t)
-                 (Seq.index mlogs_v (U16.v t))
+let tid_logs = Seq.seq (tid & log)
 
+let maybe_log_of_tid (l:tid_logs) (t:tid)
+  : option (tid & log)
+  = Seq.find_r (fun (t', _) -> t' = t) l
+  
+let all_tid_logs = Seq.lseq (tid & log) (U32.v n_threads)
+    
 let thread_contrib_of_log (t:tid) (l:log)
   : epoch_hashes_repr
   = let tsm = M.verify_model (M.init_thread_state_model t) l in
@@ -79,23 +96,67 @@ let thread_contrib_of_log (t:tid) (l:log)
          then Map.sel tsm.epoch_hashes e
          else M.init_epoch_hash)
 
-let all_threads_epoch_hashes_of_logs (mlogs_v:Seq.seq log { Seq.length mlogs_v <= U32.v n_threads })
+let all_threads_epoch_hashes_of_logs (mlogs_v:Seq.seq (tid & log))
   : mlogs_v':Seq.seq epoch_hashes_repr { Seq.length mlogs_v' == Seq.length mlogs_v }
-  = Zeta.SeqAux.mapi mlogs_v
-                     (fun tid -> thread_contrib_of_log (U16.uint_to_t tid) (Seq.index mlogs_v tid))
+  = Zeta.SeqAux.map (fun (tid, l) -> thread_contrib_of_log tid l) mlogs_v
+                   
+let aggregate_epoch_hashes_seq (epoch_hashes:Seq.seq M.epoch_hash)
+  : M.epoch_hash
+  = FStar.Seq.Permutation.foldm_snoc aggregate_epoch_hash_monoid epoch_hashes
 
 let aggregate_all_threads_epoch_hashes (e:M.epoch_id)
-                                       (mlogs_v:Seq.seq log { Seq.length mlogs_v <= U32.v n_threads })
+                                       (mlogs_v:Seq.seq (tid & log))
   : M.epoch_hash
-  = Zeta.SeqAux.reduce M.init_epoch_hash
-                       (fun (s:epoch_hashes_repr) -> aggregate_epoch_hash (Map.sel s e))
-                       (all_threads_epoch_hashes_of_logs mlogs_v)
+  = aggregate_epoch_hashes_seq (Zeta.SeqAux.map (fun (s:epoch_hashes_repr) -> Map.sel s e)
+                                                (all_threads_epoch_hashes_of_logs mlogs_v))
 
 let split_tid (mlogs_v:Seq.lseq 'a (U32.v n_threads))
               (t:tid)
   = let prefix= Seq.slice mlogs_v 0 (U16.v t) in
     let suffix = Seq.slice mlogs_v (U16.v t + 1) (U32.v n_threads) in
     prefix, Seq.index mlogs_v (U16.v t), suffix
+
+let aggregate_all_threads_epoch_hashes_seq_permute (ehs:Seq.lseq M.epoch_hash (U32.v n_threads))
+                                                   (t:tid)
+  : Lemma (
+      let prefix, et, suffix = split_tid ehs t in
+      aggregate_epoch_hashes_seq ehs ==
+      aggregate_epoch_hash et (aggregate_epoch_hashes_seq (Seq.append prefix suffix)))
+  = let open FStar.Seq.Permutation in
+    let seq_lhs = ehs in
+    let seq_prefix, i, seq_suffix = split_tid seq_lhs t in
+    let seq_rhs = Seq.snoc (Seq.append seq_prefix seq_suffix) i in
+    let permutation_fun
+      : index_fun seq_lhs
+      = fun l -> 
+          if l < U16.v t
+          then l
+          else if l > U16.v t
+          then l - 1
+          else Seq.length seq_lhs - 1
+    in
+    FStar.Seq.Permutation.reveal_is_permutation seq_lhs seq_rhs permutation_fun;
+    assert (is_permutation seq_lhs seq_rhs permutation_fun);
+    FStar.Seq.Permutation.foldm_snoc_perm aggregate_epoch_hash_monoid seq_lhs seq_rhs permutation_fun;
+    assert (aggregate_epoch_hashes_seq seq_lhs == aggregate_epoch_hashes_seq seq_rhs);
+    let s, last = Seq.un_snoc seq_rhs in
+    Seq.un_snoc_snoc (Seq.append seq_prefix seq_suffix) i;
+    assert (s `Seq.equal` Seq.append seq_prefix seq_suffix); ()
+
+let rec all_threads_epoch_hashes_of_logs_append (mlogs_v mlogs_v':Seq.seq (tid & log))
+  : Lemma (ensures
+             (all_threads_epoch_hashes_of_logs (mlogs_v `Seq.append` mlogs_v'))  `Seq.equal`
+             (all_threads_epoch_hashes_of_logs mlogs_v `Seq.append` all_threads_epoch_hashes_of_logs mlogs_v'))
+          (decreases (Seq.length mlogs_v'))
+  = if Seq.length mlogs_v' = 0 then ()
+    else (
+      let prefix, last = Seq.un_snoc mlogs_v' in
+      all_threads_epoch_hashes_of_logs_append mlogs_v prefix
+    )
+
+
+let all_processed_entries = 
+    s:all_tid_logs { forall (i:nat{i < Seq.length s}). U16.v (fst (Seq.index s i)) == i }
 
 let aggregate_all_threads_epoch_hashes_permute (e:M.epoch_id)
                                                (mlogs_v:all_processed_entries)
@@ -104,19 +165,31 @@ let aggregate_all_threads_epoch_hashes_permute (e:M.epoch_id)
       let prefix, et, suffix = split_tid mlogs_v t in
       aggregate_all_threads_epoch_hashes e mlogs_v ==
       aggregate_epoch_hash
-        (Map.sel (thread_contrib_of_log t et) e)
+        (Map.sel (thread_contrib_of_log t (snd et)) e)
         (aggregate_all_threads_epoch_hashes e (Seq.append prefix suffix)))
-  = admit()
-
+  = let lprefix, et, lsuffix = split_tid mlogs_v t in
+    let lhs = Zeta.SeqAux.map (fun (s:epoch_hashes_repr) -> Map.sel s e)
+                              (all_threads_epoch_hashes_of_logs mlogs_v) in
+    aggregate_all_threads_epoch_hashes_seq_permute lhs t;
+    let prefix, it, suffix = split_tid lhs t in
+    let f = (fun (s:epoch_hashes_repr) -> Map.sel s e) in
+    let lp_ls = (Seq.append lprefix lsuffix) in
+    let lmap = (Zeta.SeqAux.map f (all_threads_epoch_hashes_of_logs lp_ls)) in
+    let ps = (Seq.append prefix suffix) in
+    assert (Seq.equal (Zeta.SeqAux.map f (all_threads_epoch_hashes_of_logs lp_ls))
+                      (Seq.append prefix suffix))
 
 (* Global monotonic log of entries *)
 
-
 let map_of_seq (a:all_processed_entries)
   : TLM.repr
-  = FStar.Map.map_literal (fun (tid:tid) -> Some (Seq.index a (U16.v tid)))
+  = FStar.Map.map_literal (fun (tid:tid) -> Some (snd (Seq.index a (U16.v tid))))
 
-let log_of_tid (a:all_processed_entries) (t:tid) = Seq.index a (U16.v t)
+let log_of_tid (a:all_processed_entries) (t:tid) = snd (Seq.index a (U16.v t))
+    
+let tsm_of_log (mlogs_v:all_processed_entries) (t:tid) =
+  M.verify_model (M.init_thread_state_model t)
+                 (log_of_tid mlogs_v t)
 
 let committed_tsm_of_logs (mlogs_v:all_processed_entries) (t:tid) =
    M.verify_model (M.init_thread_state_model t)

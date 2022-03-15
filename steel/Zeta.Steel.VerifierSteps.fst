@@ -1207,7 +1207,7 @@ let update_logs_of_tid
          (mlogs_v:AEH.all_processed_entries)
          (tsm:M.thread_state_model)
   : GTot AEH.all_processed_entries
-  = Seq.upd mlogs_v (U16.v tsm.thread_id) tsm.processed_entries
+  = Seq.upd mlogs_v (U16.v tsm.thread_id) (tsm.thread_id, tsm.processed_entries)
 
 let update_logs_of_tid_framing (tsm:M.thread_state_model)
                                (mlogs_v:AEH.all_processed_entries)
@@ -1232,7 +1232,7 @@ let permute_aggregate_all_threads_epoch_hash_update_logs_of_tid
       let _, et', _ = AEH.split_tid mlogs_v' tid in
       AEH.aggregate_all_threads_epoch_hashes e mlogs_v' ==
       AEH.aggregate_epoch_hash
-                (Map.sel (AEH.thread_contrib_of_log tid et') e)
+                (Map.sel (AEH.thread_contrib_of_log tid (snd et')) e)
                 (AEH.aggregate_all_threads_epoch_hashes e (Seq.append prefix suffix)))
   =  let tid = tsm.thread_id in
      let mlogs_v' = update_logs_of_tid mlogs_v tsm in
@@ -1275,8 +1275,8 @@ let epoch_hashes_framing (mlogs_v:AEH.all_processed_entries)
       if (U32.v e' > U32.v lve')
       then (
         assert (not (is_epoch_verified tsm' e'));
-        assert (Map.sel (thread_contrib_of_log tid et) e' ==
-               Map.sel (thread_contrib_of_log tid et') e')
+        assert (Map.sel (thread_contrib_of_log tid (snd et)) e' ==
+                Map.sel (thread_contrib_of_log tid (snd et')) e')
       )
       else (
         assert (is_epoch_verified tsm' e');
@@ -1293,20 +1293,20 @@ let epoch_hashes_framing (mlogs_v:AEH.all_processed_entries)
         assert (is_epoch_verified tsm0 e');
         M.verified_epoch_hashes_constant tsm0 e' (M.uncommitted_entries tsm.processed_entries);
         assert (Map.sel tsm0.epoch_hashes e' == Map.sel tsm.epoch_hashes e');
-        assert (Map.sel (thread_contrib_of_log tid et) e' ==
-               Map.sel (thread_contrib_of_log tid et') e')
+        assert (Map.sel (thread_contrib_of_log tid (snd et)) e' ==
+               Map.sel (thread_contrib_of_log tid (snd et')) e')
       )
     in
     calc (==) {
       AEH.aggregate_all_threads_epoch_hashes e' mlogs_v';
       (==) {  AEH.aggregate_all_threads_epoch_hashes_permute e' mlogs_v' tid }
       AEH.aggregate_epoch_hash
-              (Map.sel (thread_contrib_of_log tid et') e')
+              (Map.sel (thread_contrib_of_log tid (snd et')) e')
               (AEH.aggregate_all_threads_epoch_hashes e' (Seq.append prefix suffix));
-      (==) { assert (Map.sel (thread_contrib_of_log tid et') e' ==
-                     Map.sel (thread_contrib_of_log tid et) e') }
+      (==) { assert (Map.sel (thread_contrib_of_log tid (snd et')) e' ==
+                     Map.sel (thread_contrib_of_log tid (snd et)) e') }
       AEH.aggregate_epoch_hash
-              (Map.sel (thread_contrib_of_log tid et) e')
+              (Map.sel (thread_contrib_of_log tid (snd et)) e')
               (AEH.aggregate_all_threads_epoch_hashes e' (Seq.append prefix suffix));
       (==) { AEH.aggregate_all_threads_epoch_hashes_permute e' mlogs_v tid }
       AEH.aggregate_all_threads_epoch_hashes e' mlogs_v;
@@ -1341,9 +1341,9 @@ let epoch_hashes_update (mlogs_v:AEH.all_processed_entries)
       AEH.aggregate_all_threads_epoch_hashes e mlogs_v;
     (==) { AEH.aggregate_all_threads_epoch_hashes_permute e mlogs_v tid }
       AEH.aggregate_epoch_hash
-              (Map.sel (thread_contrib_of_log tid et) e)
+              (Map.sel (thread_contrib_of_log tid (snd et)) e)
               (AEH.aggregate_all_threads_epoch_hashes e (Seq.append prefix suffix));
-    (==) { assert (Map.sel (thread_contrib_of_log tid et) e == M.init_epoch_hash) }
+    (==) { assert (Map.sel (thread_contrib_of_log tid (snd et)) e == M.init_epoch_hash) }
       AEH.aggregate_all_threads_epoch_hashes e (Seq.append prefix suffix);
     };
     permute_aggregate_all_threads_epoch_hash_update_logs_of_tid mlogs_v tsm' e;
