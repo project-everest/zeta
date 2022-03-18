@@ -55,11 +55,7 @@ let init_epoch_hash =  {
 }
 let epoch_hashes = m:Map.t epoch_id epoch_hash{ Map.domain m `Set.equal` Set.complement Set.empty }
 let initial_epoch_hashes : epoch_hashes = Map.const init_epoch_hash
-let app_results =
-  Seq.seq (fid:A.appfn_id aprm &
-           app_args fid &
-           app_records fid &
-           app_result fid)
+let app_results = Seq.seq app_result_entry
            
 [@@erasable]
 noeq
@@ -778,7 +774,9 @@ let rec write_slots (tsm:thread_state_model)
             tsm.thread_id == tsm'.thread_id /\
             tsm.last_verified_epoch == tsm'.last_verified_epoch /\
             tsm.clock == tsm'.clock /\
-            tsm.epoch_hashes == tsm'.epoch_hashes
+            tsm.epoch_hashes == tsm'.epoch_hashes /\
+            tsm.app_results == tsm'.app_results /\
+            tsm.failed == tsm'.failed
          })
          (decreases Seq.length slots)
   = if Seq.length slots = 0
@@ -803,7 +801,11 @@ let runapp (tsm:thread_state_model)
             tsm'.thread_id == tsm.thread_id /\
             tsm'.last_verified_epoch == tsm.last_verified_epoch /\
             tsm'.clock == tsm.clock /\
-            tsm'.epoch_hashes == tsm.epoch_hashes
+            tsm'.epoch_hashes == tsm.epoch_hashes /\
+            (tsm'.failed && not tsm.failed ==> tsm.app_results == tsm'.app_results) /\
+            (not tsm'.failed ==>
+              (Seq.length tsm'.app_results > 0 /\
+               fst (Seq.un_snoc tsm'.app_results) `Seq.equal` tsm.app_results))
          }) // Need the refinement for tsm_entries_invariant_verify_step
   = if not (Map.contains aprm.A.tbl pl.fid)
     then fail tsm //unknown fid
@@ -828,7 +830,8 @@ let runapp (tsm:thread_state_model)
               | ( A.Fn_failure, _, _) -> fail tsm
               | (_, res, out_vals) ->
                 let tsm = {tsm with app_results=Seq.Properties.snoc tsm.app_results (| pl.fid, arg, recs, res |)} in
-                write_slots tsm slots out_vals
+                let tsm' = write_slots tsm slots out_vals in
+                tsm'
             )
         )
 
@@ -882,14 +885,24 @@ let committed_entries (tsm:thread_state_model)
   : GTot (Seq.seq log_entry)
   = committed_log_entries tsm.processed_entries
   
-assume
-val delta_app_results (tsm0 tsm1:thread_state_model)
-  : GTot (Seq.seq app_results)
+let delta_app_results (tsm0 tsm1:thread_state_model)
+  : GTot app_results
+  = if Seq.length tsm0.app_results <= Seq.length tsm1.app_results
+    then Seq.slice tsm1.app_results (Seq.length tsm0.app_results)
+                                    (Seq.length tsm1.app_results)
+    else Seq.empty
 
-assume
-val bytes_of_app_results (s:Seq.seq app_results)
+let bytes_of_app_result_entry (a:app_result_entry)
   : GTot bytes
+  = spec_app_result_entry_serializer a
 
+let rec bytes_of_app_results (s:app_results)
+  : GTot bytes
+    (decreases (Seq.length s))
+  = if Seq.length s = 0 then Seq.empty
+    else let prefix, last = Seq.un_snoc s in
+         bytes_of_app_results prefix `Seq.append` (bytes_of_app_result_entry last)
+  
 let tsm_entries_invariant (tsm:thread_state_model) =
     not tsm.failed ==>
     tsm == verify_model (init_thread_state_model tsm.thread_id)
@@ -1231,21 +1244,77 @@ let delta_out_bytes (tsm tsm':thread_state_model)
 let delta_out_bytes_idem (tsm:thread_state_model)
   : Lemma (delta_out_bytes tsm tsm == Seq.empty)
           [SMTPat (delta_out_bytes tsm tsm)]
-  = admit()
+  = ()
 
 let delta_out_bytes_not_runapp (tsm:thread_state_model)
                                (le:log_entry { not (RunApp? le) })
   : Lemma (delta_out_bytes tsm (verify_step_model tsm le) == Seq.empty)
           [SMTPat (delta_out_bytes tsm (verify_step_model tsm le))]
-  = admit()
+  = ()
 
+let delta_app_results_trans (tsm tsm1:thread_state_model)
+                            (le:log_entry)
+  : Lemma 
+    (requires Seq.length tsm.app_results <= Seq.length tsm1.app_results)
+    (ensures
+              delta_app_results tsm (verify_step_model tsm1 le) `Seq.equal`
+              Seq.append (delta_app_results tsm tsm1)
+                        (delta_app_results tsm1 (verify_step_model tsm1 le)))
+  = ()
+
+module CE = FStar.Algebra.CommMonoid.Equiv
+
+let rec bytes_of_app_results_append (s0 s1:app_results)
+  : Lemma (ensures
+              bytes_of_app_results (Seq.append s0 s1) `Seq.equal`
+              ((bytes_of_app_results s0) `Seq.append` (bytes_of_app_results s1)))
+          (decreases (Seq.length s1))
+  = if Seq.length s1 = 0
+    then (
+      assert (Seq.equal (Seq.append s0 s1) s0)
+    )
+    else (
+      let prefix, last = Seq.un_snoc s1 in
+      Seq.un_snoc_snoc prefix last;
+      let prefix', last' = Seq.un_snoc (Seq.append s0 s1) in
+      assert (last == last');
+      assert (Seq.append s0 s1 `Seq.equal` Seq.snoc (Seq.append s0 prefix) last);
+      assert (prefix' `Seq.equal` (Seq.append s0 prefix));
+      calc (Seq.equal) {
+        bytes_of_app_results (Seq.append s0 s1);
+      (Seq.equal) {}
+        bytes_of_app_results (Seq.snoc (Seq.append s0 prefix) last);
+      (Seq.equal) {}
+        bytes_of_app_results (Seq.append s0 prefix) `Seq.append` bytes_of_app_result_entry last;
+      (Seq.equal) { bytes_of_app_results_append s0 prefix }
+        (bytes_of_app_results s0 `Seq.append` bytes_of_app_results prefix) `Seq.append` bytes_of_app_result_entry last;      
+      (Seq.equal) {}
+        bytes_of_app_results s0 `Seq.append` (bytes_of_app_results prefix `Seq.append` bytes_of_app_result_entry last);            
+      (Seq.equal) {}
+        bytes_of_app_results s0 `Seq.append` bytes_of_app_results s1;
+      }
+    )
+  
 let delta_out_bytes_trans (tsm tsm1:thread_state_model)
                           (le:log_entry)
-  : Lemma (ensures
-              delta_out_bytes tsm (verify_step_model tsm1 le) ==
+  : Lemma 
+    (requires Seq.length tsm.app_results <= Seq.length tsm1.app_results)
+    (ensures
+              delta_out_bytes tsm (verify_step_model tsm1 le) `Seq.equal`
               Seq.append (delta_out_bytes tsm tsm1)
                          (delta_out_bytes tsm1 (verify_step_model tsm1 le)))
-  = admit()
+  = calc (==) {
+      delta_out_bytes tsm (verify_step_model tsm1 le);
+    (==) {}
+      bytes_of_app_results (delta_app_results tsm (verify_step_model tsm1 le));
+    (==) { delta_app_results_trans tsm tsm1 le }
+      bytes_of_app_results (Seq.append (delta_app_results tsm tsm1)
+                                       (delta_app_results tsm1 (verify_step_model tsm1 le)));
+    (==) { bytes_of_app_results_append (delta_app_results tsm tsm1)
+                                       (delta_app_results tsm1 (verify_step_model tsm1 le)) }
+      bytes_of_app_results (delta_app_results tsm tsm1) `Seq.append`
+      bytes_of_app_results (delta_app_results tsm1 (verify_step_model tsm1 le));
+    }
 
 let not_failed_pre_step (tsm:thread_state_model) (le:log_entry)
   : Lemma 
@@ -1255,7 +1324,6 @@ let not_failed_pre_step (tsm:thread_state_model) (le:log_entry)
     (ensures
          not tsm.failed)
   = ()
-
 
 let rec not_failed_pre_steps (tsm:thread_state_model) (les:log)
   : Lemma 
@@ -1269,6 +1337,20 @@ let rec not_failed_pre_steps (tsm:thread_state_model) (les:log)
     else let prefix = Zeta.SeqAux.prefix les (Seq.length les - 1) in
          not_failed_pre_steps tsm prefix;
          not_failed_pre_step (verify_model tsm prefix) (Seq.index les (Seq.length les - 1))
+
+let app_results_monotone_step (tsm:thread_state_model) (le:log_entry)
+  : Lemma 
+    (ensures Seq.length tsm.app_results <= Seq.length (verify_step_model tsm le).app_results)
+  = ()
+
+let rec app_results_monotone (tsm:thread_state_model) (les:log)
+  : Lemma 
+    (ensures Seq.length tsm.app_results <= Seq.length (verify_model tsm les).app_results)
+    (decreases (Seq.length les))
+  = if Seq.length les = 0 then ()
+    else let prefix = Zeta.SeqAux.prefix les (Seq.length les - 1) in
+         app_results_monotone tsm prefix;
+         app_results_monotone_step (verify_model tsm prefix) (Seq.index les (Seq.length les - 1))
 
 let run (tid:tid) = verify_model (init_thread_state_model tid)
 

@@ -610,12 +610,16 @@ let elim_verify_step_post_log_entry_failure
      rewrite (verify_log_entry_post tsm t out_bytes out_offset out aeh le None)
              (some_failure t out aeh)
 
-#push-options "--ifuel 1 --z3rlimit_factor 2"
+#push-options "--ifuel 1 --z3rlimit_factor 3"
 #restart-solver
 
-let n_out_bytes_trans tsm tsm1 tsm2 le init nout1 nout2 out_bytes out_bytes_1 out_bytes_2
+let n_out_bytes_trans (tsm tsm1 tsm2:M.thread_state_model) le init nout1 nout2 out_bytes out_bytes_1 out_bytes_2
   : Lemma
     (requires
+      Seq.length tsm.app_results <= Seq.length tsm1.app_results /\
+      not tsm.failed /\
+      not tsm1.failed /\
+      // not tsm2.failed /\
       tsm2 == M.verify_step_model tsm1 le /\
       UInt.fits (U32.v init + U32.v nout1) 32 /\
       UInt.fits (U32.v nout1 + U32.v nout2) 32 /\
@@ -698,7 +702,9 @@ let n_out_bytes_trans tsm tsm1 tsm2 le init nout1 nout2 out_bytes out_bytes_1 ou
         Seq.append (Seq.slice out_bytes_1 (U32.v init) (U32.v init + U32.v nout1))
                    (M.delta_out_bytes tsm1 tsm2);
     } in
-    assert (s `Seq.equal` M.delta_out_bytes tsm tsm2)
+    if tsm2.failed
+    then ()
+    else assert (s `Seq.equal` M.delta_out_bytes tsm tsm2)
 
 
 let stitch_verify_post_step
@@ -762,6 +768,8 @@ let stitch_verify_post_step
     // assert (Seq.length out_bytes == Seq.length out_bytes_2);
     // assert (U32.v (U32.(out_pos +^ out_pos')) <=
     //            Seq.length out_bytes);
+    M.not_failed_pre_steps tsm les;
+    M.app_results_monotone tsm les;
     n_out_bytes_trans tsm tsm1 tsm2 le 0ul out_pos out_pos' out_bytes out_bytes_1 out_bytes_2;
     intro_pure (Application.n_out_bytes
                       tsm (M.verify_model tsm les')
