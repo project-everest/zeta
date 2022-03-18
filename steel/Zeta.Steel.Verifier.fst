@@ -610,7 +610,7 @@ let elim_verify_step_post_log_entry_failure
      rewrite (verify_log_entry_post tsm t out_bytes out_offset out aeh le None)
              (some_failure t out aeh)
 
-#push-options "--ifuel 1 --z3rlimit_factor 3"
+#push-options "--ifuel 1 --z3rlimit_factor 5"
 #restart-solver
 
 let n_out_bytes_trans (tsm tsm1 tsm2:M.thread_state_model) le init nout1 nout2 out_bytes out_bytes_1 out_bytes_2
@@ -619,7 +619,6 @@ let n_out_bytes_trans (tsm tsm1 tsm2:M.thread_state_model) le init nout1 nout2 o
       Seq.length tsm.app_results <= Seq.length tsm1.app_results /\
       not tsm.failed /\
       not tsm1.failed /\
-      // not tsm2.failed /\
       tsm2 == M.verify_step_model tsm1 le /\
       UInt.fits (U32.v init + U32.v nout1) 32 /\
       UInt.fits (U32.v nout1 + U32.v nout2) 32 /\
@@ -705,7 +704,7 @@ let n_out_bytes_trans (tsm tsm1 tsm2:M.thread_state_model) le init nout1 nout2 o
     if tsm2.failed
     then ()
     else assert (s `Seq.equal` M.delta_out_bytes tsm tsm2)
-
+#pop-options
 
 let stitch_verify_post_step
                    (#o:_)

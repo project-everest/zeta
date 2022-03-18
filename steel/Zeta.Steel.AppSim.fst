@@ -450,6 +450,7 @@ let related_slots_mem (slots: Seq.seq s_slot_id) (i_slots: Seq.seq i_slot_id)
       ()
     end
 
+#push-options "--z3rlimit_factor 2"
 let related_writes (tsm: s_thread_state) (slots: Seq.seq s_slot_id)
                    (i_tsm: i_thread_state) (i_slots: Seq.seq i_slot_id)
                    (values: Seq.seq (A.app_value_nullable app.A.adm) {Seq.length slots = Seq.length values})
@@ -470,7 +471,8 @@ let related_writes (tsm: s_thread_state) (slots: Seq.seq s_slot_id)
     let i_st_ = i_tsm_.IV.st in
 
     let aux (i_s:_)
-      : Lemma (ensures (related_store_entry_opt (Seq.index st_ i_s) (Seq.index i_st_ i_s)))
+      : Lemma (ensures (related_store_entry_opt  (Seq.index st_ i_s)(Seq.index i_st_ i_s)))
+              [SMTPat (Seq.index st_ i_s)]
       = let s: T.slot = U16.uint_to_t i_s in
 
         write_slots_slot_prop tsm slots values s;
@@ -488,8 +490,9 @@ let related_writes (tsm: s_thread_state) (slots: Seq.seq s_slot_id)
         else
           IS.puts_preserves_non_ref i_st i_slots values i_s
     in
-    forall_intro aux;
+    assert (related_store tsm_.store i_tsm_.st);
     ()
+#pop-options
 
 let runapp_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_entry) (ie: i_log_entry)
   : Lemma (requires (related_tsm tsm i_tsm /\

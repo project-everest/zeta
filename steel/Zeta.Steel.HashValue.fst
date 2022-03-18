@@ -79,7 +79,8 @@ let read_hash_u256 (#hv:Ghost.erased _)
     let Some (v, _) = res in
     return v
 
-#push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 4"
+//TODO: Not sure why this proof takes so long
+#push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 10"
 let hash_value (h:hasher_t)
                (v:T.value)
   : ST T.hash_value
