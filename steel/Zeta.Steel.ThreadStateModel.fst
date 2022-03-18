@@ -1103,8 +1103,26 @@ let increment_epoch_increments (t:timestamp)
   : Lemma (match increment_epoch t with
            | None -> True
            | Some t' -> U32.v (epoch_of_timestamp t') = U32.v (epoch_of_timestamp t) + 1)
-  = admit()
-  
+  = let open FStar.Mul in
+    match increment_epoch t with
+    | None -> ()
+    | Some t' -> 
+      let e = epoch_of_timestamp t in
+      let e' = U32.(e +^ 1ul) in
+      calc (==) {
+        U32.v (epoch_of_timestamp t');
+       (==) {  }
+        U32.v (FStar.Int.Cast.uint64_to_uint32 (t' `U64.shift_right` 32ul));
+       (==) { }
+        (U64.v t'/ pow2 32);
+       (==) { }
+        (U64.v (U64.shift_left (FStar.Int.Cast.uint32_to_uint64 e') 32ul) / pow2 32); 
+       (==) { FStar.UInt.shift_left_value_lemma #64 (U32.v e') 32 }
+        (((U32.v e' * pow2 32) % pow2 64) / pow2 32);
+       (==) {}
+        U32.v e';
+      } 
+      
 #push-options "--z3rlimit_factor 8"
 let last_verified_epoch_clock_invariant_step
        (tsm:thread_state_model { last_verified_epoch_clock_invariant tsm })
