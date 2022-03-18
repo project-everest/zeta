@@ -1087,7 +1087,17 @@ let epoch_ordering (t0 t1:timestamp)
   : Lemma
     (ensures U64.(t0 <=^ t1) ==>
              U32.(epoch_of_timestamp t0 <=^ epoch_of_timestamp t1))
-  = admit()
+  = let e0 = U64.v (t0 `U64.shift_right` 32ul) in
+    let e1 = U64.v (t1 `U64.shift_right` 32ul) in
+    FStar.UInt.shift_right_value_lemma (U64.v t0) 32;
+    FStar.UInt.shift_right_value_lemma (U64.v t1) 32;    
+    assert (e0 == U64.v t0 / pow2 32);
+    assert (e1 == U64.v t1 / pow2 32);    
+    if (U64.v t0 <= U64.v t1)
+    then (
+      assert (e0 <= e1);
+      assert (e0 % pow2 32 <= e1 % pow2 32)
+    )
 
 let increment_epoch_increments (t:timestamp)
   : Lemma (match increment_epoch t with
