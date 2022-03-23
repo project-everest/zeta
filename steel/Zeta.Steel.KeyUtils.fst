@@ -108,41 +108,93 @@ let set_get_ith_bit_core (k:T.base_key) (i:U16.t { U16.v i < 256 })
   = let open U16 in
     let k' = set_ith_bit k i in
     let word, index = bit_offset_in_word i in
-    let kk =
-      if word = 0ul then k'.k.v0
-      else if word = 1ul then k'.k.v1
-      else if word = 2ul then k'.k.v2
-      else k'.k.v3
+    let kk, kk' =
+      if word = 0ul then k.k.v0, k'.k.v0
+      else if word = 1ul then k.k.v1, k'.k.v1
+      else if word = 2ul then k.k.v2, k'.k.v2
+      else k.k.v3, k'.k.v3
     in
-    let res = ith_bit_64 kk index in
+    let res = ith_bit_64 kk' index in
     let mask = U64.shift_left 1uL index in
       calc (==) {
         ith_bit k' i;
        (==) { }
-        ith_bit_64 kk index;
-       (==) { ith_bit_64_nth kk index }
-        UInt.nth #64 (U64.v kk) (63 - U32.v index);
-       (==) {}
+        ith_bit_64 kk' index;
+       (==) { ith_bit_64_nth kk' index }
+        UInt.nth #64 (U64.v kk') (63 - U32.v index);
+       (==) { }
         UInt.nth #64 (U64.v (kk `U64.logor` mask)) (63 - U32.v index);
-       (==) { UInt.logor_definition #64 (U64.v kk) (U64.v mask) (63 - U32.v index) }
+       (==) { UInt.logor_definition #64 (U64.v kk') (U64.v mask) (63 - U32.v index) }
         (UInt.nth #64 (U64.v kk) (63 - U32.v index) ||
          UInt.nth #64 (U64.v mask) (63 - U32.v index));
        (==) { UInt.shift_left_lemma_2 #64 1 (U32.v index) (63 - U32.v index) }
-        (UInt.nth #64 (U64.v kk) (63 - U32.v index) ||
+        (UInt.nth #64 (U64.v kk') (63 - U32.v index) ||
          UInt.nth #64 1 63);
        (==) { nth_63_mod2 1uL }
-       (UInt.nth #64 (U64.v kk) (63 - U32.v index) ||
+       (UInt.nth #64 (U64.v kk') (63 - U32.v index) ||
         (1%2 = 1));
        (==) {}
         true;
       }
-#pop-options
+
 
 let set_ith_bit_modifies (k:T.base_key)
                          (i:U16.t { U16.v i < 256 })
                          (j:U16.t { U16.v j <> U16.v i /\ U16.v j < 256 })
   : Lemma ((ith_bit (set_ith_bit k i) j == ith_bit k j))
-  = admit()
+  = let open U16 in
+    let k' = set_ith_bit k i in
+    let word_i, index_i = bit_offset_in_word i in
+    let word, index = bit_offset_in_word j in
+    if word_i <> word
+    then ()
+    else (
+      assert (index_i <> index);
+      let kk, kk' =
+        if word = 0ul then k.k.v0, k'.k.v0
+        else if word = 1ul then k.k.v1, k'.k.v1
+        else if word = 2ul then k.k.v2, k'.k.v2
+        else k.k.v3, k'.k.v3
+      in
+      let res = ith_bit_64 kk' index in
+      let mask = U64.shift_left 1uL index_i in
+      calc (==) {
+        ith_bit k' j;
+       (==) { }
+        ith_bit_64 kk' index;
+       (==) { ith_bit_64_nth kk' index }
+        UInt.nth #64 (U64.v kk') (63 - U32.v index);
+       (==) {}
+        UInt.nth #64 (U64.v (kk `U64.logor` mask)) (63 - U32.v index);
+       (==) { UInt.logor_definition #64 (U64.v kk) (U64.v mask) (63 - U32.v index) }
+        (UInt.nth #64 (U64.v kk) (63 - U32.v index) ||
+         UInt.nth #64 (U64.v mask) (63 - U32.v index));
+       (==) {
+              if U32.v index < U32.v index_i
+              then (
+                calc (==) {
+                  UInt.nth #64 (U64.v mask) (63 - U32.v index);
+                (==) { UInt.shift_left_lemma_1 #64 1 (U32.v index_i) (63 - U32.v index) }
+                  false;
+                }
+              ) else (
+                calc (==) {
+                  UInt.nth #64 (U64.v mask) (63 - U32.v index);
+                (==) { UInt.shift_left_lemma_2 #64 1 (U32.v index_i) (63 - U32.v index) }
+                  UInt.nth #64 1 (63 - U32.v index + U32.v index_i);
+                (==) { UInt.one_nth_lemma #64 (63 - U32.v index + U32.v index_i) }
+                  false;
+                }
+              )
+            }
+         UInt.nth #64 (U64.v kk) (63 - U32.v index);
+       (==) { ith_bit_64_nth kk index }
+        ith_bit_64 kk index;
+       (==) { }
+        ith_bit k j;
+      }
+    )
+#pop-options
 
 let set_get_ith_bit (k:T.base_key) (i:U16.t { U16.v i < 256 })
   : Lemma ((ith_bit (set_ith_bit k i) i == true) /\
