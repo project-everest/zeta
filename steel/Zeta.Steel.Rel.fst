@@ -36,6 +36,10 @@ let related_root_inv (_:unit)
                     related_key rk i_rk))
   = ()
 
+let lemma_related_key_proper_descendent_core (sk0 sk1: s_base_key) (ik0 ik1: i_base_key)
+  : Lemma (requires (related_base_key sk0 ik0 /\ related_base_key sk1 ik1))
+          (ensures (is_proper_descendent sk0 sk1 = Zeta.BinTree.is_proper_desc ik0 ik1))
+  = Zeta.Steel.KeyUtils.related_proper_descendent sk0 sk1 ik0 ik1
 
 let lemma_related_key_proper_descendent (sk0 sk1: s_base_key) (ik0 ik1: i_base_key)
   : Lemma (requires (related_base_key sk0 ik0 /\ related_base_key sk1 ik1))

@@ -9,28 +9,49 @@ open Zeta.Steel.FormatsManual
 module T = Zeta.Steel.FormatsManual
 module C = FStar.Int.Cast
 
-let shift_right_64 (x:U64.t) (w:U16.t{U16.v w <= 64})
+let shift_right_64 (x:U64.t) (w:U32.t{U32.v w <= 64})
   : U64.t
-  = if w = 64us then 0uL
-    else U64.shift_right x (C.uint16_to_uint32 w)
+  = if w = 64ul then 0uL
+    else U64.shift_right x w
+
+let bit_offset_in_word (i:U16.t { U16.v i < 256 })
+  : U32.t & U32.t
+  = let open U16 in
+    if i <^ 64us
+    then 0ul, C.uint16_to_uint32 i
+    else if i <^ 128us
+    then 1ul, C.uint16_to_uint32 (i -^ 64us)
+    else if i <^ 192us
+    then 2ul, C.uint16_to_uint32 (i -^ 128us)
+    else 3ul, C.uint16_to_uint32 (i -^ 192us)
+
+let root_base_key: T.base_key =
+  let open T in
+  {
+    k = { v3 = U64.zero; v2 = U64.zero ; v1 = U64.zero ; v0 = U64.zero };
+    significant_digits = U16.zero;
+  }
 
 let truncate_key (k:T.base_key)
-                 (w:U16.t { U16.v w < U16.v k.T.significant_digits })
+                 (w:U16.t { U16.v w <= U16.v k.T.significant_digits })
   : T.base_key
   = let open U16 in
-    let kk =
-      let kk = k.T.k in
-      let zkey = { T.v0 = 0uL; T.v1 = 0uL; T.v2 = 0uL; T.v3 = 0uL } in
-      if w <=^ 64us
-      then { zkey with T.v0 = shift_right_64 kk.T.v0 (64us -^ w) }
-      else if w <=^ 128us
-      then { zkey with T.v0 = kk.T.v0;
-                       T.v1 = shift_right_64 kk.T.v1 (128us -^ w) }
-      else if w <^ 192us
-      then { kk with T.v2 = shift_right_64 kk.T.v2 (192us -^ w); T.v3 = 0uL }
-      else { kk with T.v3 = shift_right_64 kk.T.v3 (256us -^ w) }
-    in
-    { k with T.k = kk; T.significant_digits = w }
+    if w = k.significant_digits then k
+    else (
+      let word, index = bit_offset_in_word w in
+      let shift_index = U32.(64ul -^ index) in
+      let kk = k.k in
+      let kk' =
+        if word = 0ul
+        then { kk with v0 = shift_right_64 kk.v0 shift_index; v1=0uL; v2=0uL; v3=0uL}
+        else if word = 1ul
+        then { kk with v1 = shift_right_64 kk.v1 shift_index; v2=0uL; v3=0uL}
+        else if word = 2ul
+        then { kk with v2 = shift_right_64 kk.v2 shift_index; v3=0uL}
+        else { kk with v3 = shift_right_64 kk.v3 shift_index }
+      in
+      { k with k = kk; significant_digits = w }
+    )
 
 let is_proper_descendent (k0 k1:T.base_key)
   : bool
@@ -44,17 +65,6 @@ let is_proper_descendent_key_type (k0 k1:T.internal_key)
     (ensures  not (T.is_internal_key_for_data k1))
     [SMTPat (is_proper_descendent k0 k1)]
   = ()
-
-let bit_offset_in_word (i:U16.t { U16.v i < 256 })
-  : U32.t & U32.t
-  = let open U16 in
-    if i <^ 64us
-    then 0ul, C.uint16_to_uint32 i
-    else if i <^ 128us
-    then 1ul, C.uint16_to_uint32 (i -^ 64us)
-    else if i <^ 192us
-    then 2ul, C.uint16_to_uint32 (i -^ 128us)
-    else 3ul, C.uint16_to_uint32 (i -^ 192us)
 
 let nth_63_mod2 (x:U64.t)
   : Lemma (UInt.nth (U64.v x) 63 == (U64.v x % 2 = 1))
@@ -99,6 +109,23 @@ let set_ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
       else if word = 2ul
       then { kk with v2 = kk.v2 `U64.logor` mask }
       else { kk with v3 = kk.v3 `U64.logor` mask }
+    in
+    { k0 with k = kk' }
+
+let clear_ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
+  : GTot T.base_key
+  = let open U16 in
+    let kk = k0.T.k in
+    let word, bit = bit_offset_in_word i in
+    let mask = U64.lognot (U64.shift_left 1uL bit) in
+    let kk' =
+      if word = 0ul
+      then { kk with v0 = kk.v0 `U64.logand` mask  }
+      else if word = 1ul
+      then { kk with v1 = kk.v1 `U64.logand` mask }
+      else if word = 2ul
+      then { kk with v2 = kk.v2 `U64.logand` mask }
+      else { kk with v3 = kk.v3 `U64.logand` mask }
     in
     { k0 with k = kk' }
 
@@ -202,12 +229,10 @@ let set_get_ith_bit (k:T.base_key) (i:U16.t { U16.v i < 256 })
   = set_get_ith_bit_core k i;
     FStar.Classical.forall_intro (set_ith_bit_modifies k i)
 
-let root_base_key: T.base_key =
-  let open T in
-  {
-    k = { v3 = U64.zero; v2 = U64.zero ; v1 = U64.zero ; v0 = U64.zero };
-    significant_digits = U16.zero;
-  }
+let clear_set_ith_bit (k:T.base_key) (i:U16.t { U16.v i < 256 })
+  : Lemma (clear_ith_bit (set_ith_bit k i) i ==
+           clear_ith_bit k i)
+  = admit()
 
 let root_key: T.key = InternalKey root_base_key
 
@@ -322,3 +347,162 @@ let desc_dir (k0:T.base_key) (k1:T.base_key { k0 `is_proper_descendent` k1 })
   : bool
   = let open U16 in
     ith_bit k0 k1.T.significant_digits
+
+
+let rec is_desc_aux (d a: Zeta.BinTree.bin_tree_node)
+  : GTot bool =
+  let open Zeta.BinTree in
+  if d = a then true
+  else
+    match d with
+    | Root -> false
+    | LeftChild p -> is_desc_aux p a
+    | RightChild p -> is_desc_aux p a
+
+let is_desc_eq (ik0 ik1:Zeta.Key.base_key)
+  : Lemma (Zeta.BinTree.is_desc ik0 ik1 = is_desc_aux ik0 ik1)
+  = admit()
+
+let parent (k:T.base_key { k.significant_digits <> 0us })
+  : GTot T.base_key
+  = let i = U16.(k.significant_digits -^ 1us) in
+    if ith_bit k i
+    then { clear_ith_bit k i with significant_digits = i }
+    else { k with significant_digits = i }
+
+let clear_ith_bit_elim (k:T.base_key) (i:U16.t { U16.v i < 256 })
+  : Lemma (requires ith_bit k i = false)
+          (ensures clear_ith_bit k i == k)
+  = admit()
+
+#push-options "--query_stats --fuel 1 --ifuel 0 --z3rlimit_factor 10"
+let is_parent_related (k:T.base_key { k.significant_digits <> 0us })
+                      (ik:Zeta.Key.base_key)
+  : Lemma
+    (requires k == lower_base_key ik)
+    (ensures parent k == lower_base_key (Zeta.BinTree.parent ik))
+  = let open U16 in
+    match ik with
+    | Zeta.BinTree.LeftChild ik' ->
+      let sk' = lower_base_key ik' in
+      calc (==) {
+        lower_base_key (Zeta.BinTree.parent ik);
+       (==) {}
+        lower_base_key ik';
+       (==) {}
+        { lower_base_key ik with significant_digits = sk'.significant_digits };
+       (==) { }
+        parent k;
+      }
+    | Zeta.BinTree.RightChild ik' ->
+      let sk' = lower_base_key ik' in
+      assert (Zeta.BinTree.parent ik == ik');
+      calc (==) {
+        lower_base_key' (Zeta.BinTree.parent ik);
+       (==) { }
+        lower_base_key' ik';
+       (==) { lower_base_key_significant_digits ik';
+              clear_ith_bit_elim (lower_base_key' ik') sk'.significant_digits }
+        clear_ith_bit (lower_base_key' ik') sk'.significant_digits;
+       (==) { }
+        clear_ith_bit ({ lower_base_key' ik' with significant_digits = sk'.significant_digits }) sk'.significant_digits;
+       (==) { clear_set_ith_bit ({ lower_base_key' ik' with significant_digits = sk'.significant_digits }) sk'.significant_digits }
+        clear_ith_bit
+          (set_ith_bit ({ lower_base_key' ik' with significant_digits = sk'.significant_digits }) sk'.significant_digits)
+          sk'.significant_digits;
+       (==) { }
+        clear_ith_bit ({ lower_base_key' ik with significant_digits = sk'.significant_digits }) sk'.significant_digits;
+       (==) { }
+        parent k;
+      }
+
+let rec is_desc (k0 k1:T.base_key)
+  : GTot bool (decreases (U16.v (k0.significant_digits)))
+  = if k0 = k1
+    then true
+    else if k0.significant_digits = 0us
+    then false
+    else is_desc (parent k0) k1
+
+let rec is_desc_related (k0 k1:T.base_key) (ik0 ik1:Zeta.Key.base_key)
+  : Lemma
+    (requires
+      k0 == lower_base_key ik0 /\
+      k1 == lower_base_key ik1)
+    (ensures
+      is_desc k0 k1 == is_desc_aux ik0 ik1)
+    (decreases (U16.v k0.significant_digits))
+  = if k0 = k1 then ()
+    else if k0.significant_digits = 0us then (
+      lift_lower_id Zeta.BinTree.Root
+    )
+    else (
+      is_parent_related k0 ik0;
+      is_desc_related (parent k0) k1 (Zeta.BinTree.parent ik0) ik1
+    )
+
+let rec truncate_key_spec (k:T.base_key)
+                          (w:U16.t{U16.v w <= U16.v k.significant_digits })
+  : GTot (k':T.base_key {k'.significant_digits == w})
+         (decreases (U16.v k.significant_digits))
+  = if k.significant_digits = w then k
+    else truncate_key_spec (parent k) w
+
+let rec truncate_key_correct (k:T.base_key) (w:U16.t { U16.v w <= U16.v k.significant_digits })
+  : Lemma
+    (ensures truncate_key k w == truncate_key_spec k w)
+  = admit()
+
+let rec is_desc_significant_digits (k0 k1:T.base_key)
+  : Lemma
+    (requires is_desc k0 k1)
+    (ensures (U16.v k0.significant_digits >= U16.v k1.significant_digits /\
+             (U16.v k0.significant_digits = U16.v k1.significant_digits  ==> k0 == k1)))
+    (decreases U16.v k0.significant_digits)
+  = if k0 = k1 then ()
+    else is_desc_significant_digits (parent k0) k1
+
+let rec is_desc_truncate_key_spec (k0 k1:T.base_key)
+  : Lemma
+    (requires U16.v k0.significant_digits >= U16.v k1.significant_digits)
+    (ensures is_desc k0 k1 == (truncate_key_spec k0 k1.significant_digits = k1))
+    (decreases (U16.v k0.significant_digits))
+  = if k0 = k1 then ()
+    else if k0.significant_digits = k1.significant_digits
+    then (
+      assert (truncate_key_spec k0 k1.significant_digits == k0);
+      if is_desc k0 k1
+      then is_desc_significant_digits k0 k1
+    )
+    else is_desc_truncate_key_spec (parent k0) k1
+
+let truncate_is_desc (k0 k1:T.base_key)
+  : Lemma
+    (requires U16.v k0.significant_digits >= U16.v k1.significant_digits)
+    (ensures is_desc k0 k1 ==  (truncate_key k0 k1.T.significant_digits = k1))
+  = truncate_key_correct k0 k1.significant_digits;
+    is_desc_truncate_key_spec k0 k1
+
+let is_proper_descendent_correct (k0 k1:T.base_key)
+  : Lemma
+    (ensures
+      is_proper_descendent k0 k1 == (k0 <> k1 && is_desc k0 k1))
+  = if U16.v k0.significant_digits < U16.v k1.significant_digits
+    then (
+      assert (not (is_proper_descendent k0 k1));
+      if is_desc k0 k1
+      then is_desc_significant_digits k0 k1
+    )
+    else truncate_is_desc k0 k1
+
+let related_proper_descendent (sk0 sk1: T.base_key)
+                              (ik0 ik1: Zeta.Key.base_key)
+  : Lemma
+    (requires
+      sk0 == lower_base_key ik0 /\
+      sk1 == lower_base_key ik1)
+    (ensures
+      is_proper_descendent sk0 sk1 = Zeta.BinTree.is_proper_desc ik0 ik1)
+  = is_proper_descendent_correct sk0 sk1;
+    is_desc_eq ik0 ik1;
+    is_desc_related sk0 sk1 ik0 ik1

@@ -109,10 +109,10 @@ val lemma_lower_lift_key (k: s_key)
                     ApplicationKey? k ==> lower_key (lift_key k) = k))
 
 let related_key (sk: s_key) (ik: i_key)
-  = ik = lift_key sk
+  = lower_key ik = sk
 
 let related_base_key (sk: s_base_key) (ik: i_base_key)
-  = ik = lift_base_key sk
+  = lower_base_key ik = sk
 
 val related_root (sk: s_key) (ik: i_key)
   : Lemma (requires (related_key sk ik))
