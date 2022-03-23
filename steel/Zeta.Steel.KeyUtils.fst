@@ -220,25 +220,44 @@ let rec lower_base_key_significant_digits (k: Zeta.Key.base_key)
       let kk = lower_base_key' k in
       set_get_ith_bit kk kk.significant_digits
 
-#push-options "--query_stats --fuel 2 --ifuel 1 --z3rlimit_factor 4"
+let rec lift_base_key_irrelevant_bits (b0 b1:T.base_key)
+  : Lemma
+    (requires b0.significant_digits = b1.significant_digits /\
+              (forall (i:U16.t{U16.v i < U16.v b0.significant_digits}).{:pattern (has_type i U16.t)} ith_bit b0 i == ith_bit b1 i))
+    (ensures  lift_base_key b0 == lift_base_key b1)
+    (decreases U16.v b0.significant_digits)
+  = if b0.significant_digits = 0us then ()
+    else (
+      let b0' = { b0 with significant_digits = U16.(b0.significant_digits -^ 1us) } in
+      let b1' = { b1 with significant_digits = U16.(b1.significant_digits -^ 1us) } in
+      lift_base_key_irrelevant_bits b0' b1'
+    )
+
 let rec lift_lower_id (k:Zeta.Key.base_key)
   : Lemma (lift_base_key (lower_base_key' k) == k)
   = let open U16 in
     let open Zeta.BinTree in
     match k with
     | Root -> ()
-    | LeftChild k ->
-      lift_lower_id k;
-      lower_base_key_significant_digits k
-    | RightChild k ->
-      lift_lower_id k;
+    | LeftChild k' ->
+      lift_lower_id k';
+      lower_base_key_significant_digits k'
+    | RightChild k' ->
+      lift_lower_id k';
+      lower_base_key_significant_digits k';
+      let k0' = lower_base_key' k' in
+      assert (lift_base_key k0' == k');
+      set_get_ith_bit k0' k0'.significant_digits;
       let k0 = lower_base_key' k in
-      assert (lift_base_key k0 == k);
-      let res = {set_ith_bit k0 k0.significant_digits with significant_digits = U16.(k0.significant_digits +^ 1us) } in
-      set_get_ith_bit k0 k0.significant_digits;
-      assert (lower_base_key' (RightChild k) == res)
-
-
+      assert (ith_bit k0 k0'.significant_digits);
+      assert (k0.significant_digits <> 0us);
+      calc (==) {
+          lift_base_key k0;
+      (==) {}
+          RightChild (lift_base_key ({k0 with significant_digits = k0.significant_digits -^ 1us }));
+      (==) { lift_base_key_irrelevant_bits k0' ({k0 with significant_digits = k0.significant_digits -^ 1us }) }
+          RightChild (lift_base_key k0');
+      }
 
 let lower_base_key (k: Zeta.Key.base_key)
   : GTot (k':T.base_key {
