@@ -28,13 +28,13 @@ let lemma_lower_lift_key (k: s_key)
 let related_root (sk: s_key) (ik: i_key)
   : Lemma (requires (related_key sk ik))
           (ensures (TSM.is_root_key sk <==> ik = GK.IntK Zeta.BinTree.Root))
-  = admit()
+  = ()
 
 let related_root_inv (_:unit)
   : Lemma (ensures (let rk = TSM.root_key in
                     let i_rk = GK.IntK Zeta.BinTree.Root in
                     related_key rk i_rk))
-  = admit()
+  = ()
 
 
 let lemma_related_key_proper_descendent (sk0 sk1: s_base_key) (ik0 ik1: i_base_key)
@@ -49,7 +49,7 @@ let lemma_related_base_key (sk: s_key) (ik: i_key)
           (ensures (let s = TSM.to_base_key sk in
                     let i = GK.to_base_key ik in
                     related_base_key s i))
-  = admit()
+  = ()
 
 let related_app_key (sk: s_key) (ik: i_key)
   : Lemma (requires (related_key sk ik /\
@@ -58,7 +58,7 @@ let related_app_key (sk: s_key) (ik: i_key)
                     (let T.ApplicationKey ak = sk in
                      let GK.AppK i_ak = ik in
                      ak = i_ak)))
-  = admit()
+  = ()
 
 let related_zero (_:unit)
   : Lemma (ensures (related_hash_value TSM.zero Zeta.Hash.zero))
@@ -121,7 +121,7 @@ let related_timestamp_epoch (st: s_timestamp) (it: i_timestamp)
 let related_epoch_incr (s: s_epoch) (i: i_epoch)
   : Lemma (requires (related_epoch s i /\ FStar.UInt.fits (U32.v s + 1) 32))
           (ensures (related_epoch (U32.add s U32.one) (i+1)))
-  = admit()
+  = ()
 
 let related_epoch_shift (se: s_epoch) (ie: i_epoch)
   : Lemma (ensures (let open Zeta.Time in
@@ -138,4 +138,4 @@ let related_hashfn (sv: s_val) (iv: i_val)
 let related_init_value (sk: s_key) (ik: i_key)
   : Lemma (requires (related_key sk ik))
           (ensures (related_val (TSM.init_value sk) (Zeta.Record.init_value ik)))
-  = admit()
+  = ()
