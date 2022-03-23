@@ -168,16 +168,6 @@ val verify_log (#p:perm)
        R.pts_to r p t `star`
        verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res)
 
-
-[@@ __reduce__]
-let read_max_post_pred (t:top_level_state) (max:M.epoch_id)
-  : AEH.all_processed_entries -> vprop
-  = fun logs ->
-    snapshot t (AEH.map_of_seq logs)
-      `star`
-    pure (AEH.max_is_correct logs max)
-
-
 let read_max_post (t:top_level_state) (res:AEH.max_certified_epoch_result)
   : vprop
   = match res with
@@ -187,7 +177,7 @@ let read_max_post (t:top_level_state) (res:AEH.max_certified_epoch_result)
       exists_ (fun logs ->
         snapshot t (AEH.map_of_seq logs)
         `star`
-        pure (AEH.max_is_correct logs max))
+        pure (Zeta.Correctness.sequentially_consistent_app_entries_except_if_hash_collision logs max))
         
 val max_certified_epoch (#p:perm)
                         (#t:erased top_level_state)

@@ -19,9 +19,10 @@ module AH = Zeta.Steel.AggregateEpochHashes
 let hash_collision = Zeta.HashCollision.hash_collision app
 
 (* Do we really need this for ghost reasoning? *)
-let mset_equal (ms1 ms2: mset)
+assume
+val mset_equal (ms1 ms2: mset)
   : b: bool { b <==> ms1 == ms2 }
-  = admit()
+//  = admit()
 
 let rec search_epoch (epmax: i_epoch)
                      (logs: i_verifiable_logs)
@@ -71,7 +72,8 @@ let aems_equal_or_hash_collision (epmax: epoch_id)
     )
 
 (* the definition of epoch_is_certified may need to be adjusted ... *)
-let main_lemma (epmax: epoch_id)
+let construct_hash_collision_from_non_sequentially_consistent_verifiable_log
+               (epmax: epoch_id)
                (logs: all_logs {verifiable_and_certified logs epmax /\
                                 ~ (seq_consistent (all_app_fcrs epmax logs))})
   : GTot (either hash_collision ms_hash_collision)
@@ -85,3 +87,47 @@ let main_lemma (epmax: epoch_id)
       Inr (Some?.v o)
     else
       Inl (Zeta.Intermediate.Correctness.lemma_verifier_correct i_epmax i_logs)
+
+module AEH = Zeta.Steel.AggregateEpochHashes
+let all_logs_of_all_processed_entries (pe:AEH.all_processed_entries)
+  : all_logs
+  = Zeta.SeqAux.map snd pe
+
+let all_logs_of_all_processed_entries_inverse (pe:AEH.all_processed_entries)
+  : Lemma (as_tid_logs (all_logs_of_all_processed_entries pe) `Seq.equal` pe)
+  = let ls = SeqAux.map snd pe in
+    let pe' = as_tid_logs ls in
+    introduce forall (i:nat { i < Seq.length pe }). Seq.index pe i == Seq.index pe' i
+    with ()
+
+let max_is_correct_verifiable_and_certified
+       (epmax:epoch_id)
+       (mlogs_v:AEH.all_processed_entries)
+  : Lemma
+    (requires AEH.max_is_correct mlogs_v epmax)
+    (ensures verifiable_and_certified (all_logs_of_all_processed_entries mlogs_v) epmax)
+  = let logs = all_logs_of_all_processed_entries mlogs_v in
+    all_logs_of_all_processed_entries_inverse mlogs_v
+
+let sequentially_consistent_app_entries_except_if_hash_collision
+        (pe:AEH.all_processed_entries)
+        (epmax: epoch_id)
+  : prop
+  =  AEH.max_is_correct pe epmax /\
+    (~ (seq_consistent (all_app_fcrs epmax (all_logs_of_all_processed_entries pe)))
+    ==> (hash_collision \/ ms_hash_collision))
+
+let main_theorem (epmax: epoch_id)
+                 (pe:AEH.all_processed_entries { AEH.max_is_correct pe epmax })
+  : Lemma (sequentially_consistent_app_entries_except_if_hash_collision pe epmax)
+  = max_is_correct_verifiable_and_certified epmax pe;
+    introduce ~(seq_consistent (all_app_fcrs epmax (all_logs_of_all_processed_entries pe))) ==> (hash_collision \/ ms_hash_collision)
+    with _ . (
+      match construct_hash_collision_from_non_sequentially_consistent_verifiable_log epmax (all_logs_of_all_processed_entries pe) with
+      | Inl hc ->
+        introduce hash_collision \/ ms_hash_collision
+        with Left (FStar.Squash.return_squash hc)
+      | Inr mhc ->
+        introduce hash_collision \/ ms_hash_collision
+        with Right (FStar.Squash.return_squash mhc)
+    )

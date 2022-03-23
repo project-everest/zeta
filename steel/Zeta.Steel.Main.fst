@@ -642,8 +642,11 @@ let max_certified_epoch (#p:perm)
       let logs = elim_exists () in
       assert_ (snapshot t' (AEH.map_of_seq logs));
       rewrite (snapshot t' (AEH.map_of_seq logs))
-              (snapshot t (AEH.map_of_seq logs));   
+              (snapshot t (AEH.map_of_seq logs));
+      elim_pure _;
+      Zeta.Correctness.main_theorem max logs;
+      intro_pure (Zeta.Correctness.sequentially_consistent_app_entries_except_if_hash_collision logs max);
       intro_exists_erased logs (fun logs ->
         snapshot t (AEH.map_of_seq logs) `star`
-        pure (AEH.max_is_correct logs max));
+        pure (Zeta.Correctness.sequentially_consistent_app_entries_except_if_hash_collision logs max));
       return (AEH.Read_max_some max)
