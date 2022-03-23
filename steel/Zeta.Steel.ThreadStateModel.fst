@@ -391,7 +391,7 @@ let to_base_key (k:key)
 let lower_base_key_sig_digits (k:key_type)
   : Lemma 
     (ensures (KU.lower_base_key (aprm.A.keyhashfn k)).significant_digits == 256us)
-  = admit()
+  = ()
 
 let key_with_descendent_is_merkle_key (k:key) (k':base_key)
   : Lemma 
