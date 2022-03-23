@@ -908,23 +908,48 @@ let tsm_entries_invariant (tsm:thread_state_model) =
     tsm == verify_model (init_thread_state_model tsm.thread_id)
                         tsm.processed_entries
 
-#push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 9"
+#push-options "--ifuel 1 --z3rlimit_factor 9"
+let verify_step_model_thread_id_inv 
+              (tsm:thread_state_model)
+              (le:log_entry)
+  : Lemma (tsm.thread_id == (verify_step_model tsm le).thread_id)
+  = ()
+#pop-options
+
+#push-options "--fuel 1"
+let rec verify_model_thread_id_inv 
+              (tsm:thread_state_model)
+              (les:log)
+  : Lemma (ensures (verify_model tsm les).thread_id == tsm.thread_id)
+          (decreases (Seq.length les))
+  = if Seq.length les = 0 then ()
+    else if tsm.failed then ()
+    else 
+      let tsm0 = verify_model tsm (Zeta.SeqAux.prefix les (Seq.length les - 1)) in
+      verify_model_thread_id_inv tsm (Zeta.SeqAux.prefix les (Seq.length les - 1));
+      assert (tsm0.thread_id == tsm.thread_id);
+      if tsm0.failed then ()
+      else verify_step_model_thread_id_inv tsm0 (Seq.index les (Seq.length les - 1))
+#pop-options      
+
+#push-options "--fuel 1"
 let tsm_entries_invariant_verify_step (tsm:thread_state_model)
                                       (le:log_entry)
   : Lemma 
     (requires tsm_entries_invariant tsm)
-    (ensures tsm_entries_invariant (verify_step_model tsm le)  /\
-             tsm.thread_id == (verify_step_model tsm le).thread_id
-  )
-  = if tsm.failed
+    (ensures tsm_entries_invariant (verify_step_model tsm le) /\
+             (verify_step_model tsm le).thread_id == tsm.thread_id)
+  = let tsm_init = init_thread_state_model tsm.thread_id in
+    let tsm1 = verify_step_model tsm le in
+    verify_model_thread_id_inv (init_thread_state_model tsm.thread_id) tsm.processed_entries;
+    verify_step_model_thread_id_inv tsm le;
+    if tsm.failed || tsm1.failed
     then ()
     else (
-      let tsm_init = init_thread_state_model tsm.thread_id in
       let log0 = tsm.processed_entries in
-      let tsm1 = verify_step_model tsm le in
-      let log1 = (verify_step_model tsm le).processed_entries in
-      if Seq.length log1 > Seq.length log0
-      then assert (Zeta.SeqAux.prefix log1 (Seq.length log1 - 1) `Seq.equal` log0)
+      let log1 = tsm1.processed_entries in
+      assert (log1 == Seq.snoc log0 le);
+      assert (Zeta.SeqAux.prefix log1 (Seq.length log1 - 1) `Seq.equal` log0)
     )
 #pop-options
   
@@ -1013,15 +1038,6 @@ let last_verified_epoch_constant (tsm:thread_state_model)
   = last_verified_epoch_constant_log tsm.processed_entries tsm.thread_id
 
 #push-options "--fuel 1 --z3rlimit_factor 3"
-let rec verify_model_thread_id_inv 
-              (tsm:thread_state_model)
-              (les:log)
-  : Lemma (ensures (verify_model tsm les).thread_id == tsm.thread_id)
-          (decreases (Seq.length les))
-  = if Seq.length les = 0 then ()
-    else verify_model_thread_id_inv tsm
-         (Zeta.SeqAux.prefix les (Seq.length les - 1))
-          
 let verify_model_snoc (tsm:thread_state_model)
                       (les:log)
                       (le:log_entry)
