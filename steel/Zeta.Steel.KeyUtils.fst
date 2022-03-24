@@ -32,6 +32,10 @@ let root_base_key: T.base_key =
     significant_digits = U16.zero;
   }
 
+let truncate_word (k:U64.t) (index:U32.t { U32.v index < 64 })
+  = let shift_index = U32.(64ul -^ index) in
+    shift_right_64 k shift_index
+
 let truncate_key (k:T.base_key)
                  (w:U16.t { U16.v w <= U16.v k.T.significant_digits })
   : T.base_key
@@ -39,19 +43,19 @@ let truncate_key (k:T.base_key)
     if w = k.significant_digits then k
     else (
       let word, index = bit_offset_in_word w in
-      let shift_index = U32.(64ul -^ index) in
       let kk = k.k in
       let kk' =
         if word = 0ul
-        then { kk with v0 = shift_right_64 kk.v0 shift_index; v1=0uL; v2=0uL; v3=0uL}
+        then { kk with v0 = truncate_word kk.v0 index; v1=0uL; v2=0uL; v3=0uL}
         else if word = 1ul
-        then { kk with v1 = shift_right_64 kk.v1 shift_index; v2=0uL; v3=0uL}
+        then { kk with v1 = truncate_word kk.v1 index; v2=0uL; v3=0uL}
         else if word = 2ul
-        then { kk with v2 = shift_right_64 kk.v2 shift_index; v3=0uL}
-        else { kk with v3 = shift_right_64 kk.v3 shift_index }
+        then { kk with v2 = truncate_word kk.v2 index; v3=0uL}
+        else { kk with v3 = truncate_word kk.v3 index }
       in
-      { k with k = kk; significant_digits = w }
+      { k = kk'; significant_digits = w }
     )
+
 
 let is_proper_descendent (k0 k1:T.base_key)
   : bool
@@ -82,6 +86,17 @@ let ith_bit_64_nth (x:U64.t) (i:U32.t { U32.v i < 64 })
       UInt.nth #64 (U64.v x) (63 - U32.v i);
     }
 
+let ith_bit_64_extensional (x y:U64.t)
+  : Lemma
+    (requires (forall (i:U32.t { U32.v i < 64 }). ith_bit_64 x i == ith_bit_64 y i))
+    (ensures x == y)
+  = introduce forall (i:nat { i < 64 }). UInt.nth (U64.v x) i == UInt.nth (U64.v y) i
+    with (
+      ith_bit_64_nth x (U32.uint_to_t (63 - i));
+      ith_bit_64_nth y (U32.uint_to_t (63 - i))
+    );
+    UInt.nth_lemma #64 (U64.v x) (U64.v y)
+
 let ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
   : bool
   = let open U16 in
@@ -94,6 +109,39 @@ let ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
     else if word = 2ul
     then ith_bit_64 kk.T.v2 bit
     else ith_bit_64 kk.T.v3 bit
+
+#push-options "--fuel 0 --ifuel 0"
+let ith_bit_extensional (x y:T.base_key)
+  : Lemma
+    (requires
+      x.significant_digits == y.significant_digits /\
+      (forall (i:U16.t { U16.v i < 256 }). ith_bit x i == ith_bit y i))
+    (ensures x == y)
+  = introduce forall (i:U32.t{U32.v i < 64}). ith_bit_64 x.k.v0 i == ith_bit_64 y.k.v0 i
+    with (
+      assert (ith_bit_64 x.k.v0 i == ith_bit x (U16.uint_to_t (U32.v i)));
+      assert (ith_bit_64 y.k.v0 i == ith_bit y (U16.uint_to_t (U32.v i)))
+    );
+    ith_bit_64_extensional x.k.v0 y.k.v0;
+    introduce forall (i:U32.t{U32.v i < 64}). ith_bit_64 x.k.v1 i == ith_bit_64 y.k.v1 i
+    with (
+      assert (ith_bit_64 x.k.v1 i == ith_bit x (U16.uint_to_t (64 + U32.v i)));
+      assert (ith_bit_64 y.k.v1 i == ith_bit y (U16.uint_to_t (64 + U32.v i)))
+    );
+    ith_bit_64_extensional x.k.v1 y.k.v1;
+    introduce forall (i:U32.t{U32.v i < 64}). ith_bit_64 x.k.v2 i == ith_bit_64 y.k.v2 i
+    with (
+      assert (ith_bit_64 x.k.v2 i == ith_bit x (U16.uint_to_t (128 + U32.v i)));
+      assert (ith_bit_64 y.k.v2 i == ith_bit y (U16.uint_to_t (128 + U32.v i)))
+    );
+    ith_bit_64_extensional x.k.v2 y.k.v2;
+    introduce forall (i:U32.t{U32.v i < 64}). ith_bit_64 x.k.v3 i == ith_bit_64 y.k.v3 i
+    with (
+      assert (ith_bit_64 x.k.v3 i == ith_bit x (U16.uint_to_t (192 + U32.v i)));
+      assert (ith_bit_64 y.k.v3 i == ith_bit y (U16.uint_to_t (192 + U32.v i)))
+    );
+    ith_bit_64_extensional x.k.v3 y.k.v3
+#pop-options
 
 let set_ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
   : GTot T.base_key
@@ -164,7 +212,6 @@ let set_get_ith_bit_core (k:T.base_key) (i:U16.t { U16.v i < 256 })
         true;
       }
 
-
 let set_ith_bit_modifies (k:T.base_key)
                          (i:U16.t { U16.v i < 256 })
                          (j:U16.t { U16.v j <> U16.v i /\ U16.v j < 256 })
@@ -221,6 +268,17 @@ let set_ith_bit_modifies (k:T.base_key)
         ith_bit k j;
       }
     )
+
+let clear_get_ith_bit_core (k:T.base_key) (i:U16.t { U16.v i < 256 })
+  : Lemma ((ith_bit (clear_ith_bit k i) i == false))
+  = admit()
+
+let clear_ith_bit_modifies (k:T.base_key)
+                         (i:U16.t { U16.v i < 256 })
+                         (j:U16.t { U16.v j <> U16.v i /\ U16.v j < 256 })
+  : Lemma ((ith_bit (clear_ith_bit k i) j == ith_bit k j))
+  = admit()
+
 #pop-options
 
 let set_get_ith_bit (k:T.base_key) (i:U16.t { U16.v i < 256 })
@@ -232,6 +290,11 @@ let set_get_ith_bit (k:T.base_key) (i:U16.t { U16.v i < 256 })
 let clear_set_ith_bit (k:T.base_key) (i:U16.t { U16.v i < 256 })
   : Lemma (clear_ith_bit (set_ith_bit k i) i ==
            clear_ith_bit k i)
+  = admit()
+
+let clear_ith_bit_elim (k:T.base_key) (i:U16.t { U16.v i < 256 })
+  : Lemma (requires ith_bit k i = false)
+          (ensures clear_ith_bit k i == k)
   = admit()
 
 let root_key: T.key = InternalKey root_base_key
@@ -370,11 +433,6 @@ let parent (k:T.base_key { k.significant_digits <> 0us })
     then { clear_ith_bit k i with significant_digits = i }
     else { k with significant_digits = i }
 
-let clear_ith_bit_elim (k:T.base_key) (i:U16.t { U16.v i < 256 })
-  : Lemma (requires ith_bit k i = false)
-          (ensures clear_ith_bit k i == k)
-  = admit()
-
 #push-options "--query_stats --fuel 1 --ifuel 0 --z3rlimit_factor 10"
 let is_parent_related (k:T.base_key { k.significant_digits <> 0us })
                       (ik:Zeta.Key.base_key)
@@ -447,6 +505,84 @@ let rec truncate_key_spec (k:T.base_key)
          (decreases (U16.v k.significant_digits))
   = if k.significant_digits = w then k
     else truncate_key_spec (parent k) w
+
+let rec truncate_key_spec_ith_bit (k:T.base_key)
+                                  (w:U16.t{U16.v w <= U16.v k.significant_digits })
+  : Lemma
+    (ensures (
+      let k' = truncate_key_spec k w in
+      k'.significant_digits == w /\
+      (forall (i:U16.t { U16.v i < 256 }).
+         if U16.v w <= U16.v i &&
+            U16.v i < U16.v k.significant_digits
+         then ith_bit k' i == false
+         else ith_bit k' i == ith_bit k i)))
+    (decreases (U16.v k.significant_digits))
+  = if k.significant_digits = w then ()
+    else (
+      truncate_key_spec_ith_bit (parent k) w;
+      clear_get_ith_bit_core k U16.(k.significant_digits -^ 1us);
+      Classical.forall_intro (clear_ith_bit_modifies k U16.(k.significant_digits -^ 1us))
+    )
+
+let truncate_word_ith_bit (k:U64.t) (w:U32.t { U32.v w < 64 }) (i:U32.t { U32.v i < 64 })
+  : Lemma
+    (ensures (
+      let k' = truncate_word k w in
+      if U32.v i < U32.v w
+      then ith_bit_64 k' i == ith_bit_64 k i
+      else ith_bit_64 k' i == false))
+  = admit()
+
+let ith_bit_zero ()
+  : Lemma (forall (i:U32.t { U32.v i < 64 }). ith_bit_64 0uL i == false)
+  = introduce forall (i:U32.t { U32.v i < 64 }). ith_bit_64 0uL i == false
+    with (
+      ith_bit_64_nth 0uL i;
+      FStar.UInt.zero_nth_lemma #64 (63 - U32.v i)
+    )
+
+#push-options "--fuel 0 --ifuel 1"
+let truncate_key_ith_bit (k:T.base_key)
+                             (w:U16.t{U16.v w < U16.v k.significant_digits })
+  : Lemma
+    (ensures (
+      let k' = truncate_key k w in
+      k'.significant_digits == w /\
+      (forall (i:U16.t { U16.v i < 256 }).
+         if U16.v i < U16.v w
+         then ith_bit k' i == ith_bit k i
+         else ith_bit k' i == false)))
+  =
+    let k' = truncate_key k w in
+    let w32 = U32.uint_to_t (U16.v w) in
+    introduce forall (i:U16.t { U16.v i < 256 }).
+                if U16.v i < U16.v w
+                then (ith_bit k' i == ith_bit k i)
+                else (ith_bit k' i == false)
+    with (
+      ith_bit_zero ();
+      let i32 = U32.uint_to_t (U16.v i) in
+      if U16.v w < 64
+      then (
+        if U16.v i < 64
+        then truncate_word_ith_bit k.k.v0 w32 i32
+      )
+      else if U16.v w < 128
+      then (
+        if 64 <= U16.v i && U16.v i < 128
+        then truncate_word_ith_bit k.k.v1 U32.(w32 -^ 64ul) U32.(i32 -^ 64ul)
+      )
+      else if U16.v w < 192
+      then (
+        if 128 <= U16.v i && U16.v i < 192
+        then truncate_word_ith_bit k.k.v2 U32.(w32 -^ 128ul) U32.(i32 -^ 128ul)
+      )
+      else (
+        if 192 <= U16.v i
+        then truncate_word_ith_bit k.k.v3 U32.(w32 -^ 192ul) U32.(i32 -^ 192ul)
+      )
+    )
 
 let rec truncate_key_correct (k:T.base_key) (w:U16.t { U16.v w <= U16.v k.significant_digits })
   : Lemma
