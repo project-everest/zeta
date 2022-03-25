@@ -9,6 +9,15 @@ open Zeta.Steel.FormatsManual
 module T = Zeta.Steel.FormatsManual
 module C = FStar.Int.Cast
 
+let root_base_key: T.base_key =
+  let open T in
+  {
+    k = { v3 = U64.zero; v2 = U64.zero ; v1 = U64.zero ; v0 = U64.zero };
+    significant_digits = U16.zero;
+  }
+
+let root_key: T.key = InternalKey root_base_key
+
 let bit_offset_in_word (i:U16.t { U16.v i < 256 })
   : U32.t & U32.t
   = let open U16 in
@@ -20,14 +29,8 @@ let bit_offset_in_word (i:U16.t { U16.v i < 256 })
     then 2ul, C.uint16_to_uint32 (i -^ 128us)
     else 3ul, C.uint16_to_uint32 (i -^ 192us)
 
-let root_base_key: T.base_key =
-  let open T in
-  {
-    k = { v3 = U64.zero; v2 = U64.zero ; v1 = U64.zero ; v0 = U64.zero };
-    significant_digits = U16.zero;
-  }
-
 let truncate_word (k:U64.t) (index:U32.t { U32.v index < 64 })
+  : U64.t
   = if index = 0ul then 0uL
     else let shift_index = U32.(64ul -^ index) in
          let mask = U64.shift_right 0xffffffffffffffffuL shift_index in
@@ -314,8 +317,6 @@ let clear_ith_bit_elim (k:T.base_key) (i:U16.t { U16.v i < 256 })
   = FStar.Classical.forall_intro_2 clear_get_ith_bit_core;
     FStar.Classical.forall_intro_3 clear_ith_bit_modifies;
     ith_bit_extensional (clear_ith_bit k i) k
-
-let root_key: T.key = InternalKey root_base_key
 
 let ith_bit_root_base_key (i:U16.t { U16.v i < 256 })
   : Lemma (ith_bit root_base_key i == false)
