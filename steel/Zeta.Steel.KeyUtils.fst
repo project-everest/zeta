@@ -428,20 +428,6 @@ let desc_dir (k0:T.base_key) (k1:T.base_key { k0 `is_proper_descendent` k1 })
   = let open U16 in
     ith_bit k0 k1.T.significant_digits
 
-let rec is_desc_aux (d a: Zeta.BinTree.bin_tree_node)
-  : GTot bool =
-  let open Zeta.BinTree in
-  if d = a then true
-  else
-    match d with
-    | Root -> false
-    | LeftChild p -> is_desc_aux p a
-    | RightChild p -> is_desc_aux p a
-
-let is_desc_eq (ik0 ik1:Zeta.Key.base_key)
-  : Lemma (Zeta.BinTree.is_desc ik0 ik1 = is_desc_aux ik0 ik1)
-  = admit()
-
 let parent (k:T.base_key { k.significant_digits <> 0us })
   : GTot T.base_key
   = let i = U16.(k.significant_digits -^ 1us) in
@@ -504,7 +490,7 @@ let rec is_desc_related (k0 k1:T.base_key) (ik0 ik1:Zeta.Key.base_key)
       k0 == lower_base_key ik0 /\
       k1 == lower_base_key ik1)
     (ensures
-      is_desc k0 k1 == is_desc_aux ik0 ik1)
+      is_desc k0 k1 == Zeta.BinTree.is_desc_aux ik0 ik1)
     (decreases (U16.v k0.significant_digits))
   = if k0 = k1 then ()
     else if k0.significant_digits = 0us then (
@@ -721,5 +707,5 @@ let related_proper_descendent (sk0 sk1: T.base_key)
       is_proper_descendent sk0 sk1 = Zeta.BinTree.is_proper_desc ik0 ik1)
   = lowered_keys_are_good ik0;
     is_proper_descendent_correct sk0 sk1;
-    is_desc_eq ik0 ik1;
+    Zeta.BinTree.is_desc_eq ik0 ik1;
     is_desc_related sk0 sk1 ik0 ik1
