@@ -9,11 +9,6 @@ open Zeta.Steel.FormatsManual
 module T = Zeta.Steel.FormatsManual
 module C = FStar.Int.Cast
 
-let shift_right_64 (x:U64.t) (w:U32.t{U32.v w <= 64})
-  : U64.t
-  = if w = 64ul then 0uL
-    else U64.shift_right x w
-
 let bit_offset_in_word (i:U16.t { U16.v i < 256 })
   : U32.t & U32.t
   = let open U16 in
@@ -33,8 +28,10 @@ let root_base_key: T.base_key =
   }
 
 let truncate_word (k:U64.t) (index:U32.t { U32.v index < 64 })
-  = let shift_index = U32.(64ul -^ index) in
-    shift_right_64 k shift_index
+  = if index = 0ul then 0uL
+    else let shift_index = U32.(64ul -^ index) in
+         let mask = U64.shift_right 0xffffffffffffffffuL shift_index in
+         U64.logand k mask
 
 let truncate_key (k:T.base_key)
                  (w:U16.t { U16.v w <= U16.v k.T.significant_digits })
@@ -55,7 +52,6 @@ let truncate_key (k:T.base_key)
       in
       { k = kk'; significant_digits = w }
     )
-
 
 let is_proper_descendent (k0 k1:T.base_key)
   : bool
@@ -160,24 +156,31 @@ let set_ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
     in
     { k0 with k = kk' }
 
+let clear_ith_bit_64 (k:U64.t) (i:U32.t { U32.v i < 64 })
+  : GTot U64.t
+  = let v = UInt.to_vec #64 (U64.v k) in
+    let index = 63 - U32.v i in
+    let v' = Seq.upd v index false in
+    U64.uint_to_t (UInt.from_vec #64 v')
+
 let clear_ith_bit (k0:T.base_key) (i:U16.t { U16.v i < 256 })
   : GTot T.base_key
   = let open U16 in
     let kk = k0.T.k in
     let word, bit = bit_offset_in_word i in
-    let mask = U64.lognot (U64.shift_left 1uL bit) in
     let kk' =
       if word = 0ul
-      then { kk with v0 = kk.v0 `U64.logand` mask  }
+      then { kk with v0 = clear_ith_bit_64 kk.v0 bit }
       else if word = 1ul
-      then { kk with v1 = kk.v1 `U64.logand` mask }
+      then { kk with v1 = clear_ith_bit_64 kk.v1 bit }
       else if word = 2ul
-      then { kk with v2 = kk.v2 `U64.logand` mask }
-      else { kk with v3 = kk.v3 `U64.logand` mask }
+      then { kk with v2 = clear_ith_bit_64 kk.v2 bit }
+      else { kk with v3 = clear_ith_bit_64 kk.v3 bit }
     in
     { k0 with k = kk' }
 
 #push-options "--fuel 0 --ifuel 0"
+
 let set_get_ith_bit_core (k:T.base_key) (i:U16.t { U16.v i < 256 })
   : Lemma ((ith_bit (set_ith_bit k i) i == true))
   = let open U16 in
@@ -269,15 +272,24 @@ let set_ith_bit_modifies (k:T.base_key)
       }
     )
 
+let clear_ith_bit_64_spec (k:U64.t) (i:U32.t { U32.v i < 64 })
+  : Lemma (ith_bit_64 (clear_ith_bit_64 k i) i == false /\
+           (forall j.
+             j <> i ==>
+             ith_bit_64 (clear_ith_bit_64 k i) j ==
+             ith_bit_64 k j))
+  = FStar.Classical.forall_intro (ith_bit_64_nth (clear_ith_bit_64 k i));
+    FStar.Classical.forall_intro (ith_bit_64_nth k)
+
 let clear_get_ith_bit_core (k:T.base_key) (i:U16.t { U16.v i < 256 })
-  : Lemma ((ith_bit (clear_ith_bit k i) i == false))
-  = admit()
+  : Lemma (ith_bit (clear_ith_bit k i) i == false)
+  = FStar.Classical.forall_intro_2 clear_ith_bit_64_spec
 
 let clear_ith_bit_modifies (k:T.base_key)
                          (i:U16.t { U16.v i < 256 })
                          (j:U16.t { U16.v j <> U16.v i /\ U16.v j < 256 })
-  : Lemma ((ith_bit (clear_ith_bit k i) j == ith_bit k j))
-  = admit()
+  : Lemma (ith_bit (clear_ith_bit k i) j == ith_bit k j)
+  = FStar.Classical.forall_intro_2 clear_ith_bit_64_spec
 
 #pop-options
 
@@ -290,12 +302,18 @@ let set_get_ith_bit (k:T.base_key) (i:U16.t { U16.v i < 256 })
 let clear_set_ith_bit (k:T.base_key) (i:U16.t { U16.v i < 256 })
   : Lemma (clear_ith_bit (set_ith_bit k i) i ==
            clear_ith_bit k i)
-  = admit()
+  = FStar.Classical.forall_intro_2 clear_get_ith_bit_core;
+    FStar.Classical.forall_intro_3 clear_ith_bit_modifies;
+    FStar.Classical.forall_intro_2 set_get_ith_bit;
+    ith_bit_extensional (clear_ith_bit (set_ith_bit k i) i)
+                        (clear_ith_bit k i)
 
 let clear_ith_bit_elim (k:T.base_key) (i:U16.t { U16.v i < 256 })
   : Lemma (requires ith_bit k i = false)
           (ensures clear_ith_bit k i == k)
-  = admit()
+  = FStar.Classical.forall_intro_2 clear_get_ith_bit_core;
+    FStar.Classical.forall_intro_3 clear_ith_bit_modifies;
+    ith_bit_extensional (clear_ith_bit k i) k
 
 let root_key: T.key = InternalKey root_base_key
 
@@ -339,7 +357,6 @@ let rec lower_base_key' (k: Zeta.Key.base_key)
       let k' = lower_base_key' k in
       let k'' = { k' with significant_digits = U16.(k'.significant_digits +^ 1us) } in
       set_ith_bit k'' k'.significant_digits
-
 
 let rec lower_base_key_significant_digits (k: Zeta.Key.base_key)
   : Lemma (let k' = lower_base_key' k in
@@ -405,12 +422,10 @@ let lower_base_key (k: Zeta.Key.base_key)
           })
   = lift_lower_id k;
     lower_base_key' k
-
 let desc_dir (k0:T.base_key) (k1:T.base_key { k0 `is_proper_descendent` k1 })
   : bool
   = let open U16 in
     ith_bit k0 k1.T.significant_digits
-
 
 let rec is_desc_aux (d a: Zeta.BinTree.bin_tree_node)
   : GTot bool =
@@ -525,15 +540,6 @@ let rec truncate_key_spec_ith_bit (k:T.base_key)
       Classical.forall_intro (clear_ith_bit_modifies k U16.(k.significant_digits -^ 1us))
     )
 
-let truncate_word_ith_bit (k:U64.t) (w:U32.t { U32.v w < 64 }) (i:U32.t { U32.v i < 64 })
-  : Lemma
-    (ensures (
-      let k' = truncate_word k w in
-      if U32.v i < U32.v w
-      then ith_bit_64 k' i == ith_bit_64 k i
-      else ith_bit_64 k' i == false))
-  = admit()
-
 let ith_bit_zero ()
   : Lemma (forall (i:U32.t { U32.v i < 64 }). ith_bit_64 0uL i == false)
   = introduce forall (i:U32.t { U32.v i < 64 }). ith_bit_64 0uL i == false
@@ -542,52 +548,99 @@ let ith_bit_zero ()
       FStar.UInt.zero_nth_lemma #64 (63 - U32.v i)
     )
 
+#push-options "--fuel 0"
+let truncate_word_ith_bit (k:U64.t)
+                          (w:U32.t { U32.v w < 64 })
+                          (i:U32.t { U32.v i < 64 })
+  : Lemma
+    (ensures (
+      let k' = truncate_word k w in
+      if U32.v i < U32.v w
+      then ith_bit_64 k' i == ith_bit_64 k i
+      else ith_bit_64 k' i == false))
+  = if w = 0ul then (
+       ith_bit_zero ()
+    )
+    else (
+      let index = U32.(64ul -^ w) in
+      let mask = 0xffffffffffffffffuL `U64.shift_right` index in
+      let k' = U64.logand k mask in
+      ith_bit_64_nth k i;
+      calc (==) {
+        ith_bit_64 k' i;
+       (==) { ith_bit_64_nth k' i }
+        UInt.nth #64 (U64.v k') (63 - U32.v i);
+       (==) { UInt.logand_definition #64 (U64.v k) (U64.v mask) (63 - U32.v i) }
+        (UInt.nth #64 (U64.v k) (63 - U32.v i) &&
+         UInt.nth #64 (U64.v mask) (63 - U32.v i));
+      };
+      if U32.v i < U32.v w
+      then (
+        UInt.shift_right_lemma_2 #64 (UInt.ones 64) (U32.v index) (63 - U32.v i)
+      )
+      else (
+        UInt.shift_right_lemma_1 #64 (UInt.ones 64) (U32.v index) (63 - U32.v i)
+      )
+    )
+#pop-options
+
 #push-options "--fuel 0 --ifuel 1"
 let truncate_key_ith_bit (k:T.base_key)
-                             (w:U16.t{U16.v w < U16.v k.significant_digits })
+                         (w:U16.t{U16.v w <= U16.v k.significant_digits })
   : Lemma
     (ensures (
       let k' = truncate_key k w in
-      k'.significant_digits == w /\
-      (forall (i:U16.t { U16.v i < 256 }).
-         if U16.v i < U16.v w
-         then ith_bit k' i == ith_bit k i
-         else ith_bit k' i == false)))
-  =
-    let k' = truncate_key k w in
-    let w32 = U32.uint_to_t (U16.v w) in
-    introduce forall (i:U16.t { U16.v i < 256 }).
-                if U16.v i < U16.v w
-                then (ith_bit k' i == ith_bit k i)
-                else (ith_bit k' i == false)
-    with (
-      ith_bit_zero ();
-      let i32 = U32.uint_to_t (U16.v i) in
-      if U16.v w < 64
-      then (
-        if U16.v i < 64
-        then truncate_word_ith_bit k.k.v0 w32 i32
-      )
-      else if U16.v w < 128
-      then (
-        if 64 <= U16.v i && U16.v i < 128
-        then truncate_word_ith_bit k.k.v1 U32.(w32 -^ 64ul) U32.(i32 -^ 64ul)
-      )
-      else if U16.v w < 192
-      then (
-        if 128 <= U16.v i && U16.v i < 192
-        then truncate_word_ith_bit k.k.v2 U32.(w32 -^ 128ul) U32.(i32 -^ 128ul)
-      )
+      if w = k.significant_digits then k' = k
       else (
-        if 192 <= U16.v i
-        then truncate_word_ith_bit k.k.v3 U32.(w32 -^ 192ul) U32.(i32 -^ 192ul)
+        k'.significant_digits == w /\
+        (forall (i:U16.t { U16.v i < 256 }).
+          if U16.v i < U16.v w
+          then ith_bit k' i == ith_bit k i
+          else ith_bit k' i == false))))
+  = if w = k.significant_digits then ()
+    else (
+      let k' = truncate_key k w in
+      let w32 = U32.uint_to_t (U16.v w) in
+      introduce forall (i:U16.t { U16.v i < 256 }).
+                  if U16.v i < U16.v w
+                  then (ith_bit k' i == ith_bit k i)
+                  else (ith_bit k' i == false)
+      with (
+        ith_bit_zero ();
+        let i32 = U32.uint_to_t (U16.v i) in
+        if U16.v w < 64
+        then (
+          if U16.v i < 64
+          then truncate_word_ith_bit k.k.v0 w32 i32
+        )
+        else if U16.v w < 128
+        then (
+          if 64 <= U16.v i && U16.v i < 128
+          then truncate_word_ith_bit k.k.v1 U32.(w32 -^ 64ul) U32.(i32 -^ 64ul)
+        )
+        else if U16.v w < 192
+        then (
+          if 128 <= U16.v i && U16.v i < 192
+          then truncate_word_ith_bit k.k.v2 U32.(w32 -^ 128ul) U32.(i32 -^ 128ul)
+        )
+        else (
+          if 192 <= U16.v i
+          then truncate_word_ith_bit k.k.v3 U32.(w32 -^ 192ul) U32.(i32 -^ 192ul)
+        )
       )
     )
+#pop-options
 
-let rec truncate_key_correct (k:T.base_key) (w:U16.t { U16.v w <= U16.v k.significant_digits })
+let good_key (k:T.base_key)
+  = forall (i:U16.t { U16.v i < 256 && U16.v i >= U16.v k.significant_digits }). ith_bit k i = false
+
+let truncate_key_correct (k:T.base_key) (w:U16.t { U16.v w <= U16.v k.significant_digits })
   : Lemma
+    (requires good_key k)
     (ensures truncate_key k w == truncate_key_spec k w)
-  = admit()
+  = truncate_key_ith_bit k w;
+    truncate_key_spec_ith_bit k w;
+    ith_bit_extensional (truncate_key k w) (truncate_key_spec k w)
 
 let rec is_desc_significant_digits (k0 k1:T.base_key)
   : Lemma
@@ -614,13 +667,16 @@ let rec is_desc_truncate_key_spec (k0 k1:T.base_key)
 
 let truncate_is_desc (k0 k1:T.base_key)
   : Lemma
-    (requires U16.v k0.significant_digits >= U16.v k1.significant_digits)
+    (requires
+      good_key k0 /\
+      U16.v k0.significant_digits >= U16.v k1.significant_digits)
     (ensures is_desc k0 k1 ==  (truncate_key k0 k1.T.significant_digits = k1))
   = truncate_key_correct k0 k1.significant_digits;
     is_desc_truncate_key_spec k0 k1
 
 let is_proper_descendent_correct (k0 k1:T.base_key)
   : Lemma
+    (requires good_key k0)
     (ensures
       is_proper_descendent k0 k1 == (k0 <> k1 && is_desc k0 k1))
   = if U16.v k0.significant_digits < U16.v k1.significant_digits
@@ -631,6 +687,29 @@ let is_proper_descendent_correct (k0 k1:T.base_key)
     )
     else truncate_is_desc k0 k1
 
+#push-options "--fuel 1 --ifuel 1"
+let rec lowered_keys_are_good (ik:Zeta.Key.base_key)
+  : Lemma
+    (ensures good_key (lower_base_key' ik))
+    (decreases ik)
+  = let sk = lower_base_key' ik in
+    match ik with
+    | Zeta.BinTree.Root -> ith_bit_zero ()
+    | Zeta.BinTree.LeftChild ik' ->
+      lowered_keys_are_good ik';
+      let sk' = lower_base_key' ik' in
+      assert (forall i. ith_bit sk i == ith_bit sk' i)
+    | Zeta.BinTree.RightChild ik' ->
+      lowered_keys_are_good ik';
+      let sk' = lower_base_key' ik' in
+      introduce forall (i:U16.t).
+                   U16.v i < 256 /\
+                   U16.v sk.significant_digits <= U16.v i ==>
+                   ith_bit sk i == ith_bit sk' i
+      with (
+        FStar.Classical.forall_intro (set_ith_bit_modifies sk' sk'.significant_digits)
+      )
+
 let related_proper_descendent (sk0 sk1: T.base_key)
                               (ik0 ik1: Zeta.Key.base_key)
   : Lemma
@@ -639,6 +718,7 @@ let related_proper_descendent (sk0 sk1: T.base_key)
       sk1 == lower_base_key ik1)
     (ensures
       is_proper_descendent sk0 sk1 = Zeta.BinTree.is_proper_desc ik0 ik1)
-  = is_proper_descendent_correct sk0 sk1;
+  = lowered_keys_are_good ik0;
+    is_proper_descendent_correct sk0 sk1;
     is_desc_eq ik0 ik1;
     is_desc_related sk0 sk1 ik0 ik1
