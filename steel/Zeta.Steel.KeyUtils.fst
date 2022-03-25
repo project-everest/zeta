@@ -426,7 +426,7 @@ let lower_base_key (k: Zeta.Key.base_key)
 let desc_dir (k0:T.base_key) (k1:T.base_key { k0 `is_proper_descendent` k1 })
   : bool
   = let open U16 in
-    ith_bit k0 k1.T.significant_digits
+    not (ith_bit k0 k1.T.significant_digits)
 
 let parent (k:T.base_key { k.significant_digits <> 0us })
   : GTot T.base_key
@@ -709,3 +709,114 @@ let related_proper_descendent (sk0 sk1: T.base_key)
     is_proper_descendent_correct sk0 sk1;
     Zeta.BinTree.is_desc_eq ik0 ik1;
     is_desc_related sk0 sk1 ik0 ik1
+
+let truncate_key_extension (k:T.base_key)
+                           (w:U16.t { U16.(w <^ k.significant_digits) })
+  : Lemma
+    (requires good_key k)
+    (ensures (
+      let k0 = truncate_key_spec k w in
+      let k' = truncate_key_spec k U16.(w +^ 1us) in
+      k'.significant_digits = U16.(w +^ 1us) /\
+      (if ith_bit k w
+       then k'.k == (set_ith_bit k0 w).k
+       else k'.k = k0.k)))
+  = let k0 = truncate_key_spec k w in
+    let k' = truncate_key_spec k U16.(w +^ 1us) in
+    truncate_key_spec_ith_bit k w;
+    truncate_key_spec_ith_bit k  U16.(w +^ 1us);
+    set_get_ith_bit k0 w;
+    if ith_bit k w
+    then (
+      let k'' =
+        { set_ith_bit k0 w
+          with significant_digits = k'.significant_digits }
+      in
+      introduce forall (i:U16.t { U16.v i < 256 }).
+                   ith_bit k' i == ith_bit k'' i
+      with (
+        if U16.v i <= U16.v w
+        then assert (ith_bit k' i == ith_bit k i)
+      );
+      ith_bit_extensional k' k''
+    )
+    else (
+      let k'' =
+        { k0
+          with significant_digits = k'.significant_digits }
+      in
+      introduce forall (i:U16.t { U16.v i < 256 }).
+                   ith_bit k' i == ith_bit k'' i
+      with ();
+      ith_bit_extensional k' k''
+    )
+
+module B = Zeta.BinTree
+let related_desc_dir (sk0 sk1: T.base_key) (ik0 ik1: Zeta.Key.base_key)
+  : Lemma
+    (requires
+      sk0 == lower_base_key ik0 /\
+      sk1 == lower_base_key ik1 /\
+      is_proper_descendent sk0 sk1)
+    (ensures (
+      related_proper_descendent sk0 sk1 ik0 ik1;
+      desc_dir sk0 sk1 == (Zeta.BinTree.Left? (Zeta.BinTree.desc_dir ik0 ik1))))
+  = related_proper_descendent sk0 sk1 ik0 ik1;
+    lowered_keys_are_good ik0;
+    lowered_keys_are_good ik1;
+    let c = B.desc_dir ik0 ik1 in
+    if desc_dir sk0 sk1
+    then (
+      assert (not (ith_bit sk0 sk1.significant_digits));
+      assert (truncate_key sk0 sk1.significant_digits ==
+              lower_base_key ik1);
+      assert (ith_bit
+               (lower_base_key (B.LeftChild ik1))
+               sk1.significant_digits = false);
+      calc (==) {
+       truncate_key sk0 U16.(sk1.significant_digits +^ 1us);
+      (==) { truncate_key_correct sk0 U16.(sk1.significant_digits +^ 1us) }
+       truncate_key_spec sk0 U16.(sk1.significant_digits +^ 1us);
+      (==) { truncate_key_extension sk0 sk1.significant_digits }
+       ( { truncate_key_spec sk0 U16.(sk1.significant_digits) with
+              significant_digits = U16.(sk1.significant_digits +^ 1us) } );
+      (==) { truncate_key_correct sk0 U16.(sk1.significant_digits) }
+        lower_base_key (B.LeftChild ik1);
+      };
+      truncate_is_desc
+        sk0
+        (lower_base_key (B.LeftChild ik1));
+      assert (is_desc sk0 (lower_base_key (B.LeftChild ik1)));
+      is_desc_related sk0
+                      (lower_base_key (B.LeftChild ik1))
+                      ik0
+                      (B.LeftChild ik1);
+      B.is_desc_eq ik0 (B.LeftChild ik1);
+      assert (B.is_desc ik0 (B.LeftChild ik1))
+    )
+    else (
+      assert (ith_bit sk0 sk1.significant_digits);
+      calc (==) {
+       truncate_key sk0 U16.(sk1.significant_digits +^ 1us);
+      (==) { truncate_key_correct sk0 U16.(sk1.significant_digits +^ 1us) }
+       truncate_key_spec sk0 U16.(sk1.significant_digits +^ 1us);
+      (==) { truncate_key_extension sk0 sk1.significant_digits }
+       ( { set_ith_bit
+              (truncate_key_spec sk0 sk1.significant_digits)
+              sk1.significant_digits
+           with
+              significant_digits = U16.(sk1.significant_digits +^ 1us) } );
+      (==) { truncate_key_correct sk0 sk1.significant_digits }
+        lower_base_key (B.RightChild ik1);
+      };
+      truncate_is_desc
+        sk0
+        (lower_base_key (B.RightChild ik1));
+      assert (is_desc sk0 (lower_base_key (B.RightChild ik1)));
+      is_desc_related sk0
+                      (lower_base_key (B.RightChild ik1))
+                      ik0
+                      (B.RightChild ik1);
+      B.is_desc_eq ik0 (B.RightChild ik1);
+      assert (B.is_desc ik0 (B.RightChild ik1))
+    )
