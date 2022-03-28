@@ -386,6 +386,8 @@ let addm_has_desc_slot_comp (a: addm_param {addm_precond a})
     is_proper_descendent (mv_pointed_key mv' d) (addm_base_key a) &&
     SS.points_to_some_slot st' s' d
 
+#push-options "--query_stats --z3rlimit_factor 16"
+#restart-solver
 let related_unref_slot (a: addm_param)
                      (i_a: i_addm_param)
                      (tsm_: s_thread_state)
@@ -447,7 +449,7 @@ let related_unref_slot (a: addm_param)
 
       ()
     end
-
+#pop-options
 
 let related_slot_addm_postcond (a: addm_param)
                                (i_a: i_addm_param)
