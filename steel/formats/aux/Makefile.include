@@ -10,15 +10,15 @@ ifeq (,$(FSTAR_HOME))
   $(error FSTAR_HOME is not defined)
 endif
 
-ifeq (,$(KREMLIN_HOME))
-  $(error KREMLIN_HOME is not defined)
+ifeq (,$(KRML_HOME))
+  $(error KRML_HOME is not defined)
 endif
 
-ifeq (,$(QD_HOME))
-  $(error Please define QD_HOME)
+ifeq (,$(EVERPARSE_HOME))
+  $(error Please define EVERPARSE_HOME)
 endif
 
-QD := $(QD_HOME)/bin/qd.exe
+QD := $(EVERPARSE_HOME)/bin/qd.exe
 
 SOURCE_DIRS = \
   $(FORMATS_HOME) \
@@ -26,9 +26,9 @@ SOURCE_DIRS = \
 
 INCLUDE_DIRS = \
   $(SOURCE_DIRS) \
-  $(KREMLIN_HOME)/kremlib \
-  $(KREMLIN_HOME)/kremlib/obj \
-  $(QD_HOME)/src/lowparse
+  $(KRML_HOME)/krmllib \
+  $(KRML_HOME)/krmllib/obj \
+  $(EVERPARSE_HOME)/src/lowparse
 
 FSTAR_INCLUDES = $(addprefix --include ,$(INCLUDE_DIRS))
 

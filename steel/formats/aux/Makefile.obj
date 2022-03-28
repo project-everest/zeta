@@ -6,7 +6,7 @@ all:
 
 FORMATS_HOME ?= ../..
 
-FSTAR_INCLUDES=$(KREMLIN_HOME)/kremlib $(KREMLIN_HOME)/kremlib/obj $(QD_HOME)/src/lowparse $(FORMATS_HOME) $(FORMATS_HOME)/everparse
+FSTAR_INCLUDES=$(KRML_HOME)/krmllib $(KRML_HOME)/krmllib/obj $(EVERPARSE_HOME)/src/lowparse $(FORMATS_HOME) $(FORMATS_HOME)/everparse
 
 FSTAR_OPTIONS=$(addprefix --include ,$(FSTAR_INCLUDES)) --already_cached '*,-Zeta.Formats'
 
