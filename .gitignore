@@ -15,3 +15,6 @@ low-level/mytest
 *.gz
 *.fdb_latexmk
 bin/
+kremlin/
+out/
+.qd_files
