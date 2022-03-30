@@ -1,2 +1,2 @@
 include $(ZETA_STEEL_HOME)/Makefile.shared
-SRC_DIRS += $(ZETA_STEEL_HOME) $(QD_HOME)/src/lowparse $(KREMLIN_HOME)/kremlib $(KREMLIN_HOME)/kremlib/obj
+SRC_DIRS += $(ZETA_STEEL_HOME) $(EVERPARSE_HOME)/src/lowparse $(KRML_HOME)/krmllib $(KRML_HOME)/krmllib/obj

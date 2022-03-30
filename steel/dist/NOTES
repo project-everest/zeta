@@ -1,5 +1,5 @@
 0. Generation of Null values is busted;
-   kremlinit static initializers?;
+   krmlinit static initializers?;
    Proof things.
 
 1. (Nik) Regenerate code with an --add-include "application_types.h"

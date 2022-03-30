@@ -6,10 +6,10 @@ ALREADY_CACHED_LIST='*,-Zeta.LowStar'
 FSTAR_DEP_OPTIONS += --extract '*,-Steel,-FStar.NMST,-Prims'
 OTHERFLAGS += --cmi
 
-KRML := $(KREMLIN_HOME)/krml
+KRML := $(KRML_HOME)/krml
 dummy := $(shell test -e $(KRML))
 ifneq ($(.SHELLSTATUS),0)
-  KRML := $(QD_HOME)/bin/krml
+  KRML := $(EVERPARSE_HOME)/bin/krml
 endif
 
 all: verify test

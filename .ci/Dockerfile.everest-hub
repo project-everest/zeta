@@ -4,6 +4,6 @@ FROM projecteverest/everest-linux:$EVEREST_TAG
 ADD --chown=test:test . veritas
 ARG CI_THREADS=16
 ENV FSTAR_HOME="$HOME/FStar"
-ENV KREMLIN_HOME="$HOME/kremlin"
-ENV QD_HOME="$HOME/quackyducky"
+ENV KRML_HOME="$HOME/karamel"
+ENV EVERPARSE_HOME="$HOME/everparse"
 RUN make -C veritas -j $CI_THREADS ci

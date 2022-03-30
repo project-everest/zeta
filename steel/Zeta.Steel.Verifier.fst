@@ -704,7 +704,8 @@ let n_out_bytes_trans (tsm tsm1 tsm2:M.thread_state_model) le init nout1 nout2 o
     if tsm2.failed
     then ()
     else assert (s `Seq.equal` M.delta_out_bytes tsm tsm2)
-#pop-options
+
+#restart-solver
 
 let stitch_verify_post_step
                    (#o:_)
@@ -814,6 +815,8 @@ let stitch_verify_post_step
          trefl())
        );
      ()
+
+#pop-options
 
 #pop-options
 
