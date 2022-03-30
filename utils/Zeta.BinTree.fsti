@@ -45,8 +45,21 @@ let sibling (n:non_root_node): Tot bin_tree_node =
   | LeftChild p -> RightChild p
   | RightChild p -> LeftChild p
 
+
+let rec is_desc_aux (d a: bin_tree_node)
+  : Tot bool
+  = if d = a then true
+    else
+      match d with
+      | Root -> false
+      | LeftChild p -> is_desc_aux p a
+      | RightChild p -> is_desc_aux p a
+
 (* Is d descendant of a *)
 val is_desc (d a: bin_tree_node): Tot bool
+
+val is_desc_eq (d a: bin_tree_node)
+  : Lemma (is_desc d a == is_desc_aux d a)
 
 (* in an ancestor-desc relationship *)
 let is_anc_desc_sym (a1 a2: bin_tree_node): bool = 

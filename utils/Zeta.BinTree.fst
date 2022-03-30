@@ -11,15 +11,6 @@ type desc: bin_tree_node -> bin_tree_node -> Type =
   | DLTran: a:bin_tree_node -> d:bin_tree_node -> _:(desc d a) -> desc (LeftChild d) a
   | DRTran: a:bin_tree_node -> d:bin_tree_node -> _:(desc d a) -> desc (RightChild d) a
 
-let rec is_desc_aux (d a: bin_tree_node): 
-  Tot bool = 
-  if d = a then true
-  else 
-    match d with
-    | Root -> false
-    | LeftChild p -> is_desc_aux p a 
-    | RightChild p -> is_desc_aux p a
-
 let rec lemma_desc_correct (d a: bin_tree_node) (pf: desc d a) : 
     Lemma (requires (True))
           (ensures (is_desc_aux d a = true))
@@ -39,6 +30,10 @@ let rec lemma_desc_correct2 (d: bin_tree_node) (a: bin_tree_node{is_desc_aux d a
 
 let is_desc d a = is_desc_aux d a
 
+let is_desc_eq (d a: bin_tree_node)
+  : Lemma (is_desc d a == is_desc_aux d a)
+  = ()
+  
 let rec lemma_root_is_univ_ancestor_t (a: bin_tree_node): (desc a Root) = 
   match a with
   | Root -> DSelf Root
