@@ -170,7 +170,7 @@ let create (_:unit)
     intro_ha_val ha _ _ initial_hash;
     return ha
 
-let free (#h:ehash_value_t) (s:ha)
+let reclaim (#h:ehash_value_t) (s:ha)
   = let _ = elim_ha_val s in
     R.free s.ctr;
     intro_exists (fst h) (A.pts_to s.acc full_perm);
@@ -317,6 +317,6 @@ let add #h (ha:ha)
     //TODO: marking ha_val steel_reduce leads to a failure here
     intro_ha_val ha' (fst (hash_one_value (Seq.slice s 0 (U32.v l)))) 1ul (hash_one_value (Seq.slice s 0 (U32.v l)));
     let v = aggregate ha ha' in
-    free ha';  //TODO:Then we wouldn't need this
+    reclaim ha';  //TODO:Then we wouldn't need this
     drop _;
     return v

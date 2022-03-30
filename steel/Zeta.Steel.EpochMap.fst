@@ -79,7 +79,7 @@ let create #v #c #vp n init =
   intro_exists 0ul (high_epoch_id_pred _ _ _ _);
   return r
 
-let free #v #c #vp #init #m #b t =
+let finalize #v #c #vp #init #m #b t =
   let w = elim_exists () in
   elim_pure (high_epoch_id_prop (G.reveal init) m b w);
   ETbl.free t.etbl;
