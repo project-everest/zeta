@@ -115,7 +115,12 @@ typedef struct Zeta_Steel_LogEntry_Types_value_s
 }
 Zeta_Steel_LogEntry_Types_value;
 
-typedef struct Zeta_Steel_HashAccumulator_ha_s Zeta_Steel_HashAccumulator_ha;
+typedef struct Zeta_Steel_HashAccumulator_ha_s
+{
+  uint8_t *acc;
+  uint32_t *ctr;
+}
+Zeta_Steel_HashAccumulator_ha;
 
 typedef struct FStar_Pervasives_Native_option__uint32_t_s
 {
@@ -151,6 +156,14 @@ typedef struct FStar_Pervasives_Native_option__K___uint16_t_bool_s
 FStar_Pervasives_Native_option__K___uint16_t_bool;
 
 typedef struct Zeta_Steel_ThreadStateModel_store_entry_s
+{
+  Zeta_Steel_LogEntry_Types_key key;
+  Zeta_Steel_LogEntry_Types_value value;
+  Zeta_Steel_ThreadStateModel_add_method add_method;
+  FStar_Pervasives_Native_option__uint16_t l_child_in_store;
+  FStar_Pervasives_Native_option__uint16_t r_child_in_store;
+  FStar_Pervasives_Native_option__K___uint16_t_bool parent_slot;
+}
 Zeta_Steel_ThreadStateModel_store_entry;
 
 extern Zeta_Steel_LogEntry_Types_base_key Zeta_Steel_ThreadStateModel_root_base_key;
@@ -159,7 +172,12 @@ extern Zeta_Steel_LogEntry_Types_key Zeta_Steel_ThreadStateModel_root_key;
 
 extern Zeta_Steel_LogEntry_Types_u256 Zeta_Steel_ThreadStateModel_zero;
 
-typedef struct Zeta_Steel_EpochHashes_epoch_hashes_t_s Zeta_Steel_EpochHashes_epoch_hashes_t;
+typedef struct Zeta_Steel_EpochHashes_epoch_hashes_t_s
+{
+  Zeta_Steel_HashAccumulator_ha hadd;
+  Zeta_Steel_HashAccumulator_ha hevict;
+}
+Zeta_Steel_EpochHashes_epoch_hashes_t;
 
 typedef struct K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 {

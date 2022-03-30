@@ -206,13 +206,6 @@ extern uint16_t Zeta_Steel_ApplicationTypes_store_size;
 
 extern uint32_t Zeta_Steel_ApplicationTypes_n_threads;
 
-typedef struct Zeta_Steel_HashAccumulator_ha_s
-{
-  uint8_t *acc;
-  uint32_t *ctr;
-}
-Zeta_Steel_HashAccumulator_ha;
-
 static Zeta_Steel_HashAccumulator_ha create()
 {
   uint8_t *acc = KRML_HOST_CALLOC((uint32_t)32U, sizeof (uint8_t));
@@ -356,17 +349,6 @@ static FStar_Pervasives_Native_option__uint32_t st_check_overflow_add32(uint32_t
   FStar_Pervasives_Native_option__uint32_t r = check_overflow_add32(x, y);
   return r;
 }
-
-typedef struct Zeta_Steel_ThreadStateModel_store_entry_s
-{
-  Zeta_Steel_LogEntry_Types_key key;
-  Zeta_Steel_LogEntry_Types_value value;
-  Zeta_Steel_ThreadStateModel_add_method add_method;
-  FStar_Pervasives_Native_option__uint16_t l_child_in_store;
-  FStar_Pervasives_Native_option__uint16_t r_child_in_store;
-  FStar_Pervasives_Native_option__K___uint16_t_bool parent_slot;
-}
-Zeta_Steel_ThreadStateModel_store_entry;
 
 static bool check_slot_bounds(uint16_t s)
 {
@@ -626,13 +608,6 @@ maybe_increment_last_verified_epoch(FStar_Pervasives_Native_option__uint32_t e)
     KRML_HOST_EXIT(255U);
   }
 }
-
-typedef struct Zeta_Steel_EpochHashes_epoch_hashes_t_s
-{
-  Zeta_Steel_HashAccumulator_ha hadd;
-  Zeta_Steel_HashAccumulator_ha hevict;
-}
-Zeta_Steel_EpochHashes_epoch_hashes_t;
 
 typedef struct Zeta_Steel_AggregateEpochHashes_all_epoch_hashes_s
 {

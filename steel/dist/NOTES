@@ -205,3 +205,31 @@ Zeta_Steel_Application_run_app_function(
 ==
 
 1. Zeta_Steel_Main.c includes "internal/Zeta_Steel_Main.h" - why? this file is in the same directory.
+   (fixed)
+
+2. The following have to be moved to Zeta_Steel_Main.h from .c
+
+typedef struct Zeta_Steel_HashAccumulator_ha_s
+{
+  uint8_t *acc;
+  uint32_t *ctr;
+}
+Zeta_Steel_HashAccumulator_ha;
+
+typedef struct Zeta_Steel_ThreadStateModel_store_entry_s
+{
+  Zeta_Steel_LogEntry_Types_key key;
+  Zeta_Steel_LogEntry_Types_value value;
+  Zeta_Steel_ThreadStateModel_add_method add_method;
+  FStar_Pervasives_Native_option__uint16_t l_child_in_store;
+  FStar_Pervasives_Native_option__uint16_t r_child_in_store;
+  FStar_Pervasives_Native_option__K___uint16_t_bool parent_slot;
+}
+Zeta_Steel_ThreadStateModel_store_entry;
+
+typedef struct Zeta_Steel_EpochHashes_epoch_hashes_t_s
+{
+  Zeta_Steel_HashAccumulator_ha hadd;
+  Zeta_Steel_HashAccumulator_ha hevict;
+}
+Zeta_Steel_EpochHashes_epoch_hashes_t;
