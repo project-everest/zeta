@@ -201,3 +201,7 @@ Zeta_Steel_Application_run_app_function(
 
    }
 }
+
+==
+
+1. Zeta_Steel_Main.c includes "internal/Zeta_Steel_Main.h" - why? this file is in the same directory.
