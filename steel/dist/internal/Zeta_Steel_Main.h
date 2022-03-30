@@ -5,23 +5,19 @@
   KaRaMeL version: d6db69ab
  */
 
-#ifndef __krmlinit_H
-#define __krmlinit_H
+#ifndef __internal_Zeta_Steel_Main_H
+#define __internal_Zeta_Steel_Main_H
 
 #include "krmllib.h"
 
 
-#include "Zeta_Steel_Main.h"
+#include "../Zeta_Steel_Main.h"
 #include "steel_atomics.h"
 #include "zeta_application.h"
+extern uint16_t FStar_UInt16_zero;
 
-#if defined(__GNUC__) && !(defined(_WIN32) || defined(_WIN64))
-__attribute__ ((visibility ("hidden")))
-#endif
-
-
-void krmlinit_globals();
+extern uint64_t FStar_UInt64_zero;
 
 
-#define __krmlinit_H_DEFINED
+#define __internal_Zeta_Steel_Main_H_DEFINED
 #endif
