@@ -245,60 +245,6 @@ typedef struct Zeta_Steel_VerifierTypes_kv_s
 }
 Zeta_Steel_VerifierTypes_kv;
 
-bool
-__neq__Zeta_Steel_LogEntry_Types_u256(
-  Zeta_Steel_LogEntry_Types_u256 y,
-  Zeta_Steel_LogEntry_Types_u256 x
-);
-
-bool
-__neq__Zeta_Steel_LogEntry_Types_base_key(
-  Zeta_Steel_LogEntry_Types_base_key y,
-  Zeta_Steel_LogEntry_Types_base_key x
-);
-
-bool
-__neq__Zeta_Steel_LogEntry_Types_descendent_hash_desc(
-  Zeta_Steel_LogEntry_Types_descendent_hash_desc y,
-  Zeta_Steel_LogEntry_Types_descendent_hash_desc x
-);
-
-bool
-__neq__Zeta_Steel_LogEntry_Types_descendent_hash(
-  Zeta_Steel_LogEntry_Types_descendent_hash y,
-  Zeta_Steel_LogEntry_Types_descendent_hash x
-);
-
-bool
-__neq__Zeta_Steel_LogEntry_Types_mval_value(
-  Zeta_Steel_LogEntry_Types_mval_value y,
-  Zeta_Steel_LogEntry_Types_mval_value x
-);
-
-extern bool
-__eq__Zeta_Steel_ApplicationTypes_value_type(
-  Zeta_Steel_ApplicationTypes_value_type x,
-  Zeta_Steel_ApplicationTypes_value_type y
-);
-
-bool
-__neq__Zeta_Steel_ApplicationTypes_value_type(
-  Zeta_Steel_ApplicationTypes_value_type y,
-  Zeta_Steel_ApplicationTypes_value_type x
-);
-
-bool
-__neq__FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type(
-  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type y,
-  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type x
-);
-
-bool
-__neq__Zeta_Steel_LogEntry_Types_value(
-  Zeta_Steel_LogEntry_Types_value y,
-  Zeta_Steel_LogEntry_Types_value x
-);
-
 #define Zeta_Steel_Verifier_Parsing_failure 0
 #define Zeta_Steel_Verifier_App_failure 1
 #define Zeta_Steel_Verifier_Verify_entry_failure 2
