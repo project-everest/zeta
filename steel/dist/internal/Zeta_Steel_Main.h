@@ -5,39 +5,19 @@
   KaRaMeL version: 70084646
  */
 
-#include "krmlinit.h"
+#ifndef __internal_Zeta_Steel_Main_H
+#define __internal_Zeta_Steel_Main_H
 
-#include "internal/Zeta_Steel_Main.h"
+#include "krmllib.h"
 
 
-#if defined(__GNUC__) && !(defined(_WIN32) || defined(_WIN64))
-__attribute__ ((visibility ("hidden")))
+#include "../Zeta_Steel_Main.h"
+#include "steel_atomics.h"
+#include "zeta_application.h"
+extern uint16_t FStar_UInt16_zero;
+
+extern uint64_t FStar_UInt64_zero;
+
+
+#define __internal_Zeta_Steel_Main_H_DEFINED
 #endif
-
-
-void krmlinit_globals()
-{
-  Zeta_Steel_ThreadStateModel_root_base_key =
-    (
-      (Zeta_Steel_LogEntry_Types_base_key){
-        .k = {
-          .v3 = FStar_UInt64_zero,
-          .v2 = FStar_UInt64_zero,
-          .v1 = FStar_UInt64_zero,
-          .v0 = FStar_UInt64_zero
-        },
-        .significant_digits = FStar_UInt16_zero
-      }
-    );
-  Zeta_Steel_ThreadStateModel_root_key =
-    (
-      (Zeta_Steel_LogEntry_Types_key){
-        .tag = Zeta_Steel_LogEntry_Types_InternalKey,
-        { .case_InternalKey = Zeta_Steel_ThreadStateModel_root_base_key }
-      }
-    );
-  uint64_t z = FStar_UInt64_zero;
-  Zeta_Steel_ThreadStateModel_zero =
-    ((Zeta_Steel_LogEntry_Types_u256){ .v3 = z, .v2 = z, .v1 = z, .v0 = z });
-}
-
