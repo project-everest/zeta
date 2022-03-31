@@ -274,9 +274,6 @@ let update_value (#tsm:M.thread_state_model)
     A.write t.store (as_u32 s) (Some ({v with M.value = r}));
     ()
 
-assume
-val eq_value (v0 v1:T.value)
-  : Tot (b:bool { b <==> (v0 == v1) })
 
 #restart-solver
 #push-options "--z3rlimit_factor 2"
@@ -321,7 +318,7 @@ let vaddm_core (#tsm:M.thread_state_model)
                with
                | T.Dh_vnone _ -> (* k' has no child in direction d *)
                  (* first add must be init value *)
-                 if not (eq_value gv (M.init_value gk))
+                 if not (T.eq_value gv (M.init_value gk))
                  then (let b = fail_as t _ in return b)
                  else if entry_points_to_some_slot r' d
                  then (let b = fail_as t _ in return b)
@@ -345,7 +342,7 @@ let vaddm_core (#tsm:M.thread_state_model)
 //                         intro_thread_state_inv_core (update_if b tsm (M.vaddm tsm s s' p)) t;
                          return b)
                  )
-                 else if not (eq_value gv (M.init_value gk))
+                 else if not (T.eq_value gv (M.init_value gk))
                  then (let b = fail_as t _ in return b)
                  (* check k2 is a proper desc of k *)
                  else if not (KU.is_proper_descendent k2 k)
@@ -639,9 +636,6 @@ let vaddb (#tsm:M.thread_state_model)
 ////////////////////////////////////////////////////////////////////////////////
 
 
-assume 
-val eq_base_key (k0 k1:T.base_key)
-  : Tot (b:bool { b <==> (k0 == k1) })
 
 let evict_from_store (#tsm:M.thread_state_model)
                      (t:thread_state_t)
@@ -700,7 +694,7 @@ let vevictm_core (#tsm:M.thread_state_model)
           match dh' with
           | T.Dh_vnone _ -> fail t; ()
           | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-            if not (eq_base_key k2 k) then (fail t; ())
+            if not (T.eq_base_key k2 k) then (fail t; ())
             else
               let has_parent_slot = Some? r.M.parent_slot in
               if has_parent_slot
@@ -895,7 +889,7 @@ let vevictbm_core (#tsm:M.thread_state_model)
                     | T.Dh_vsome {T.dhd_key=k2;
                                   T.dhd_h=h2;
                                   T.evicted_to_blum = b2} ->
-                      if (not (eq_base_key k2 k)) || (b2 = T.Vtrue)
+                      if (not (T.eq_base_key k2 k)) || (b2 = T.Vtrue)
                       then let b = fail_as t _ in return b
                       else let parent_slot_none = None? r.parent_slot in
                            if parent_slot_none

@@ -202,6 +202,10 @@ typedef struct Steel_ST_EphemeralHashtbl_tbl__uint32_t_Zeta_Steel_EpochHashes_ep
 Steel_ST_EphemeralHashtbl_tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
 
 typedef struct Zeta_Steel_AggregateEpochHashes_all_epoch_hashes_s
+{
+  Steel_ST_EphemeralHashtbl_tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t etbl;
+  uint32_t *high;
+}
 Zeta_Steel_AggregateEpochHashes_all_epoch_hashes;
 
 typedef struct K___uint32_t__bool__s
@@ -226,6 +230,10 @@ typedef struct Steel_ST_EphemeralHashtbl_tbl__uint32_t__bool__s
 Steel_ST_EphemeralHashtbl_tbl__uint32_t__bool_;
 
 typedef struct Zeta_Steel_AggregateEpochHashes_epoch_tid_bitmaps_s
+{
+  Steel_ST_EphemeralHashtbl_tbl__uint32_t__bool_ etbl;
+  uint32_t *high;
+}
 Zeta_Steel_AggregateEpochHashes_epoch_tid_bitmaps;
 
 typedef struct Zeta_Steel_AggregateEpochHashes_aggregate_epoch_hashes_s

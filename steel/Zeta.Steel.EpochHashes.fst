@@ -5,7 +5,7 @@ module M = Zeta.Steel.ThreadStateModel
 module HA = Zeta.Steel.HashAccumulator
 
 
-[@@CAbstractStruct]
+//[@@CAbstractStruct] TODO: Restore this after krml #247
 noeq
 type epoch_hashes_t = {
   hadd: HA.ha;
