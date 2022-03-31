@@ -85,6 +85,16 @@ static void cancel(Steel_ST_CancellableSpinLock_cancellable_lock c)
   KRML_HOST_FREE(c.lref);
 }
 
+extern bool
+Zeta_Steel_ApplicationTypes_eq_value_type(
+  Zeta_Steel_ApplicationTypes_value_type v0,
+  Zeta_Steel_ApplicationTypes_value_type v1
+);
+
+extern uint16_t Zeta_Steel_ApplicationTypes_store_size;
+
+extern uint32_t Zeta_Steel_ApplicationTypes_n_threads;
+
 typedef uint32_t uninterpreted;
 
 static bool uu___is_ApplicationKey(Zeta_Steel_LogEntry_Types_key projectee)
@@ -202,16 +212,154 @@ typedef struct stamped_record_s
 }
 stamped_record;
 
-extern uint16_t Zeta_Steel_ApplicationTypes_store_size;
-
-extern uint32_t Zeta_Steel_ApplicationTypes_n_threads;
-
-typedef struct Zeta_Steel_HashAccumulator_ha_s
+static bool eq_u256(Zeta_Steel_LogEntry_Types_u256 i0, Zeta_Steel_LogEntry_Types_u256 i1)
 {
-  uint8_t *acc;
-  uint32_t *ctr;
+  return i0.v0 == i1.v0 && i0.v1 == i1.v1 && i0.v2 == i1.v2 && i0.v3 == i1.v3;
 }
-Zeta_Steel_HashAccumulator_ha;
+
+static bool
+eq_base_key(Zeta_Steel_LogEntry_Types_base_key k0, Zeta_Steel_LogEntry_Types_base_key k1)
+{
+  return eq_u256(k0.k, k1.k) && k0.significant_digits == k1.significant_digits;
+}
+
+typedef struct __Zeta_Steel_LogEntry_Types_vbool_Zeta_Steel_LogEntry_Types_vbool_s
+{
+  Zeta_Steel_LogEntry_Types_vbool fst;
+  Zeta_Steel_LogEntry_Types_vbool snd;
+}
+__Zeta_Steel_LogEntry_Types_vbool_Zeta_Steel_LogEntry_Types_vbool;
+
+static bool eq_vbool(Zeta_Steel_LogEntry_Types_vbool v0, Zeta_Steel_LogEntry_Types_vbool v1)
+{
+  __Zeta_Steel_LogEntry_Types_vbool_Zeta_Steel_LogEntry_Types_vbool
+  scrut = { .fst = v0, .snd = v1 };
+  if
+  (
+    scrut.fst
+    == Zeta_Steel_LogEntry_Types_Vfalse
+    && scrut.snd == Zeta_Steel_LogEntry_Types_Vfalse
+  )
+    return true;
+  else if
+  (scrut.fst == Zeta_Steel_LogEntry_Types_Vtrue && scrut.snd == Zeta_Steel_LogEntry_Types_Vtrue)
+    return true;
+  else
+    return false;
+}
+
+static bool
+eq_descendent_hash_desc(
+  Zeta_Steel_LogEntry_Types_descendent_hash_desc v0,
+  Zeta_Steel_LogEntry_Types_descendent_hash_desc v1
+)
+{
+  return
+    eq_base_key(v0.dhd_key,
+      v1.dhd_key)
+    && eq_u256(v0.dhd_h, v1.dhd_h)
+    && eq_vbool(v0.evicted_to_blum, v1.evicted_to_blum);
+}
+
+typedef struct
+__Zeta_Steel_LogEntry_Types_descendent_hash_Zeta_Steel_LogEntry_Types_descendent_hash_s
+{
+  Zeta_Steel_LogEntry_Types_descendent_hash fst;
+  Zeta_Steel_LogEntry_Types_descendent_hash snd;
+}
+__Zeta_Steel_LogEntry_Types_descendent_hash_Zeta_Steel_LogEntry_Types_descendent_hash;
+
+static bool
+eq_descendent_hash(
+  Zeta_Steel_LogEntry_Types_descendent_hash v0,
+  Zeta_Steel_LogEntry_Types_descendent_hash v1
+)
+{
+  __Zeta_Steel_LogEntry_Types_descendent_hash_Zeta_Steel_LogEntry_Types_descendent_hash
+  scrut = { .fst = v0, .snd = v1 };
+  if
+  (
+    scrut.fst.tag
+    == Zeta_Steel_LogEntry_Types_Dh_vnone
+    && scrut.snd.tag == Zeta_Steel_LogEntry_Types_Dh_vnone
+  )
+    return true;
+  else if
+  (
+    scrut.fst.tag
+    == Zeta_Steel_LogEntry_Types_Dh_vsome
+    && scrut.snd.tag == Zeta_Steel_LogEntry_Types_Dh_vsome
+  )
+  {
+    Zeta_Steel_LogEntry_Types_descendent_hash_desc v11 = scrut.snd._0;
+    Zeta_Steel_LogEntry_Types_descendent_hash_desc v01 = scrut.fst._0;
+    return eq_descendent_hash_desc(v01, v11);
+  }
+  else
+    return false;
+}
+
+static bool
+eq_mval_value(Zeta_Steel_LogEntry_Types_mval_value v0, Zeta_Steel_LogEntry_Types_mval_value v1)
+{
+  return eq_descendent_hash(v0.l, v1.l) && eq_descendent_hash(v0.r, v1.r);
+}
+
+typedef struct __Zeta_Steel_LogEntry_Types_value_Zeta_Steel_LogEntry_Types_value_s
+{
+  Zeta_Steel_LogEntry_Types_value fst;
+  Zeta_Steel_LogEntry_Types_value snd;
+}
+__Zeta_Steel_LogEntry_Types_value_Zeta_Steel_LogEntry_Types_value;
+
+static bool eq_value(Zeta_Steel_LogEntry_Types_value v0, Zeta_Steel_LogEntry_Types_value v1)
+{
+  __Zeta_Steel_LogEntry_Types_value_Zeta_Steel_LogEntry_Types_value
+  scrut = { .fst = v0, .snd = v1 };
+  if
+  (
+    scrut.fst.tag
+    == Zeta_Steel_LogEntry_Types_MValue
+    && scrut.snd.tag == Zeta_Steel_LogEntry_Types_MValue
+  )
+  {
+    Zeta_Steel_LogEntry_Types_mval_value mv1 = scrut.snd.case_MValue;
+    Zeta_Steel_LogEntry_Types_mval_value mv0 = scrut.fst.case_MValue;
+    return eq_mval_value(mv0, mv1);
+  }
+  else if
+  (
+    scrut.fst.tag
+    == Zeta_Steel_LogEntry_Types_DValue
+    &&
+      scrut.fst.case_DValue.tag
+      == FStar_Pervasives_Native_None
+      &&
+        scrut.snd.tag
+        == Zeta_Steel_LogEntry_Types_DValue
+        && scrut.snd.case_DValue.tag == FStar_Pervasives_Native_None
+  )
+    return true;
+  else if
+  (
+    scrut.fst.tag
+    == Zeta_Steel_LogEntry_Types_DValue
+    &&
+      scrut.fst.case_DValue.tag
+      == FStar_Pervasives_Native_Some
+      &&
+        scrut.snd.tag
+        == Zeta_Steel_LogEntry_Types_DValue
+        && scrut.snd.case_DValue.tag == FStar_Pervasives_Native_Some
+  )
+  {
+    Zeta_Steel_ApplicationTypes_value_type vt1 = scrut.snd.case_DValue.v;
+    Zeta_Steel_ApplicationTypes_value_type vt0 = scrut.fst.case_DValue.v;
+    return Zeta_Steel_ApplicationTypes_eq_value_type(vt0, vt1);
+  }
+  else
+    return false;
+}
 
 static Zeta_Steel_HashAccumulator_ha create()
 {
@@ -626,27 +774,6 @@ maybe_increment_last_verified_epoch(FStar_Pervasives_Native_option__uint32_t e)
     KRML_HOST_EXIT(255U);
   }
 }
-
-typedef struct Zeta_Steel_EpochHashes_epoch_hashes_t_s
-{
-  Zeta_Steel_HashAccumulator_ha hadd;
-  Zeta_Steel_HashAccumulator_ha hevict;
-}
-Zeta_Steel_EpochHashes_epoch_hashes_t;
-
-typedef struct Zeta_Steel_AggregateEpochHashes_all_epoch_hashes_s
-{
-  Steel_ST_EphemeralHashtbl_tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t etbl;
-  uint32_t *high;
-}
-Zeta_Steel_AggregateEpochHashes_all_epoch_hashes;
-
-typedef struct Zeta_Steel_AggregateEpochHashes_epoch_tid_bitmaps_s
-{
-  Steel_ST_EphemeralHashtbl_tbl__uint32_t__bool_ etbl;
-  uint32_t *high;
-}
-Zeta_Steel_AggregateEpochHashes_epoch_tid_bitmaps;
 
 typedef struct Zeta_Steel_AggregateEpochHashes_aggregate_epoch_hashes_s
 {
@@ -1666,12 +1793,6 @@ update_value(
   }
 }
 
-extern bool
-Zeta_Steel_VerifierSteps_eq_value(
-  Zeta_Steel_LogEntry_Types_value v0,
-  Zeta_Steel_LogEntry_Types_value v1
-);
-
 static bool
 vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, record r)
 {
@@ -1727,7 +1848,7 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
             Zeta_Steel_LogEntry_Types_descendent_hash dh_ = desc_hash_dir(v_1, d);
             Zeta_Steel_LogEntry_Types_u256 h = hash_value(t.hasher, gv);
             if (dh_.tag == Zeta_Steel_LogEntry_Types_Dh_vnone)
-              if (!Zeta_Steel_VerifierSteps_eq_value(gv, init_value(gk)))
+              if (!eq_value(gv, init_value(gk)))
               {
                 bool b1 = fail_as(t);
                 return b1;
@@ -1778,7 +1899,7 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
                   madd_to_store(t, s, gk, gv, s_, d);
                   return true;
                 }
-              else if (!Zeta_Steel_VerifierSteps_eq_value(gv, init_value(gk)))
+              else if (!eq_value(gv, init_value(gk)))
               {
                 bool b1 = fail_as(t);
                 return b1;
@@ -2088,12 +2209,6 @@ vaddb(
   return b;
 }
 
-extern bool
-Zeta_Steel_VerifierSteps_eq_base_key(
-  Zeta_Steel_LogEntry_Types_base_key k0,
-  Zeta_Steel_LogEntry_Types_base_key k1
-);
-
 static void
 evict_from_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, bool d)
 {
@@ -2229,7 +2344,7 @@ static void vevictm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
           else if (dh_.tag == Zeta_Steel_LogEntry_Types_Dh_vsome)
           {
             Zeta_Steel_LogEntry_Types_base_key k2 = dh_._0.dhd_key;
-            if (!Zeta_Steel_VerifierSteps_eq_base_key(k2, k))
+            if (!eq_base_key(k2, k))
               fail(t);
             else
             {
@@ -2513,12 +2628,7 @@ vevictbm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_
                   Zeta_Steel_LogEntry_Types_vbool b2 = dh_._0.evicted_to_blum;
                   Zeta_Steel_LogEntry_Types_u256 h2 = dh_._0.dhd_h;
                   Zeta_Steel_LogEntry_Types_base_key k2 = dh_._0.dhd_key;
-                  if
-                  (
-                    !Zeta_Steel_VerifierSteps_eq_base_key(k2,
-                      k)
-                    || b2 == Zeta_Steel_LogEntry_Types_Vtrue
-                  )
+                  if (!eq_base_key(k2, k) || b2 == Zeta_Steel_LogEntry_Types_Vtrue)
                   {
                     bool b = fail_as(t);
                     return b;

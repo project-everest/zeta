@@ -115,7 +115,12 @@ typedef struct Zeta_Steel_LogEntry_Types_value_s
 }
 Zeta_Steel_LogEntry_Types_value;
 
-typedef struct Zeta_Steel_HashAccumulator_ha_s Zeta_Steel_HashAccumulator_ha;
+typedef struct Zeta_Steel_HashAccumulator_ha_s
+{
+  uint8_t *acc;
+  uint32_t *ctr;
+}
+Zeta_Steel_HashAccumulator_ha;
 
 typedef struct FStar_Pervasives_Native_option__uint32_t_s
 {
@@ -159,7 +164,12 @@ extern Zeta_Steel_LogEntry_Types_key Zeta_Steel_ThreadStateModel_root_key;
 
 extern Zeta_Steel_LogEntry_Types_u256 Zeta_Steel_ThreadStateModel_zero;
 
-typedef struct Zeta_Steel_EpochHashes_epoch_hashes_t_s Zeta_Steel_EpochHashes_epoch_hashes_t;
+typedef struct Zeta_Steel_EpochHashes_epoch_hashes_t_s
+{
+  Zeta_Steel_HashAccumulator_ha hadd;
+  Zeta_Steel_HashAccumulator_ha hevict;
+}
+Zeta_Steel_EpochHashes_epoch_hashes_t;
 
 typedef struct K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 {
@@ -184,6 +194,10 @@ typedef struct Steel_ST_EphemeralHashtbl_tbl__uint32_t_Zeta_Steel_EpochHashes_ep
 Steel_ST_EphemeralHashtbl_tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
 
 typedef struct Zeta_Steel_AggregateEpochHashes_all_epoch_hashes_s
+{
+  Steel_ST_EphemeralHashtbl_tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t etbl;
+  uint32_t *high;
+}
 Zeta_Steel_AggregateEpochHashes_all_epoch_hashes;
 
 typedef struct K___uint32_t__bool__s
@@ -208,6 +222,10 @@ typedef struct Steel_ST_EphemeralHashtbl_tbl__uint32_t__bool__s
 Steel_ST_EphemeralHashtbl_tbl__uint32_t__bool_;
 
 typedef struct Zeta_Steel_AggregateEpochHashes_epoch_tid_bitmaps_s
+{
+  Steel_ST_EphemeralHashtbl_tbl__uint32_t__bool_ etbl;
+  uint32_t *high;
+}
 Zeta_Steel_AggregateEpochHashes_epoch_tid_bitmaps;
 
 typedef struct Zeta_Steel_AggregateEpochHashes_aggregate_epoch_hashes_s

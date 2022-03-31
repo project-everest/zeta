@@ -7,7 +7,6 @@ module Set = FStar.Set
 module Map = FStar.Map
 module U32 = FStar.UInt32
 
-inline_for_extraction
 val tbl (#v:Type0)
         (#c:Type0) 
         (vp:M.epoch_id -> v -> c -> vprop)

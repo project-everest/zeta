@@ -13,7 +13,7 @@ module R = Steel.ST.Reference
 
 let hash_value_buf  = x:A.array U8.t { A.length x == 32}
 
-[@@CAbstractStruct]
+//[@@CAbstractStruct] TODO: Restore this after krml #247
 noeq
 type ha = {
   acc: hash_value_buf;
