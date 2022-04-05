@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(zeta_pwdauth LANGUAGES C VERSION 0.1)
+project(zeta_mcounter LANGUAGES C VERSION 0.1)
 
 # export for ccls
 set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -17,9 +17,19 @@ message (STATUS "DIST_DIR = ${DIST_DIR}")
 cmake_path (SET APP_HOME NORMALIZE "${CMAKE_CURRENT_SOURCE_DIR}/../")
 message (STATUS "APP_HOME = ${APP_HOME}")
 
+# app common folder
+cmake_path (SET APP_COMMON NORMALIZE "${APP_HOME}/common/")
+message (STATUS "APP_COMMON = ${APP_COMMON}")
+
 # we want to make sure EVERPARSE_HOME env variable is defined
 if (NOT DEFINED ENV{EVERPARSE_HOME})
   message (FATAL_ERROR "EVERPARSE_HOME not defined")
 endif()
+
+set (STORE_SIZE "16" CACHE STRING "Verifier per-thread store size")
+message (STATUS "Store Size = ${STORE_SIZE}")
+
+set (THREAD_COUNT "1" CACHE STRING "Verifier thread count")
+message (STATUS "Thread count = ${THREAD_COUNT}")
 
 add_subdirectory(verifier)
