@@ -18,3 +18,5 @@ bin/
 kremlin/
 out/
 .qd_files
+.clangd/
+*.json
