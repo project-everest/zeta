@@ -157,9 +157,9 @@ The state is authenticated using the following techniques:
           E.g., it'll have to prove that the hash of those records is
           compatible with the Merkle root hash
 
-              -- But instead of computing a chain up to the root, our
-                 "incremental" Merkle tree allows it to compute
-                 something much smaller and more efficient
+          -- But instead of computing a chain up to the root, our
+             "incremental" Merkle tree allows it to compute
+             something much smaller and more efficient
 
      - Then, once those records are loaded into enclave memory, it
        asks the monitor to perform an abstraction of operation `o`
