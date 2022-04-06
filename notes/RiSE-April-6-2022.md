@@ -118,7 +118,7 @@ TrustZone etc.)
 The state is authenticated using the following techniques:
 
 1. Enclave memory: A small amount of integrity-protected memory (~ 32K
-   memory slots, each 4MB)
+   memory slots, each a few bytes)
 
 2. A sparse Merkle tree with incremental updates
 
