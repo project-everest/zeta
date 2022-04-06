@@ -209,6 +209,9 @@ Compare, e.g., with other approaches, e.g., based on Merkle trees
 alone, where overheads for memory protection are multiple orders of
 magnitude.
 
+Also, 50M op/s is already faster than many other off-the-shelf
+key-value stores
+
 # Proving the correctness of the Zeta monitor using F*
 
 ## Aka, verifying the Zeta verifier
@@ -266,16 +269,68 @@ magnitude.
  Remaining 16 KLOC is Steel + Low Level verifier
   - Aseem, Arvind, and me (Nik), in the last ~6 months
 
-Overall Experience:
 
-  Incredibly subtle protocol proof.
+# High-level takeaways (1)
 
-  Many small design-level bugs found and fixed as part of the proof.
+Proof experience:
 
-  And even at Steel implementaion level, many bit-fiddling tricks
-  etc., impossible (at least for me) to get right without proofs.
+  - Incredibly subtle protocol proof.
 
-# Top-level theorem in Steel
+  - Many small design-level bugs found and fixed as part of the proof.
+
+  - And even at Steel implementaion level, many bit-fiddling tricks
+    etc., impossible (at least for me) to get right without proofs.
+
+  - The use of the tool around the math proof (High, Intermediate) was
+    pretty good. This was Arvind's first real F* development and he
+    was very productive, very quickly
+
+      - Several earlier versions of the proof involved a lot of
+        repeated boilerplate
+
+      - Arvind's newer version got rid of ~1/3 of the code and made it
+        much more generic
+
+      - But, still, a lot of the proof is juggling things across
+        different representations, and maybe there's some way to
+        systematically automate such proofs (homotopy, cough???!!)
+
+  - Steel part of the proof also involved several versions, wrestling
+    with prover performance until we settled on a style that is
+    predictable and efficient though quite verbose
+
+       - Now, trying to automate some parts of it (new experiments
+         with Tahina)
+
+  - But, the overall modular structure of the proof and the way in
+    which we managed ownership, locks, invariants etc. was very
+    modular and clean.
+
+# High-level takeaways (2)
+
+Applications:
+
+We think Zeta is a very flexible, general purpose, cryptographic
+safety monitor
+
+It can be used to retrofit existing services, for which verification
+is impossible/too costly, with strong safety guarantees
+
+FastVer was a great proof of concept, that this can work, and can come
+at not too great cost
+
+  - E.g., compare against Amazon's QLDB, which offers much weaker guarantees
+
+Some things we are looking at:
+
+  - Azure Purview: Governance of Data Estates
+
+    Can we use Zeta to ensure that the correct access control policies are enforced?
+
+
+# A dive into an interesting part of the proof
+
+## Top-level theorem in Steel
 
 Two main functions in the API
 
@@ -347,12 +402,12 @@ val max_certified_epoch (#p:perm) (#t:erased top_level_state) //implicit ghost a
 
 ## Per-thread state:
 
-      `epoch_map         : epoch_id -> hashes`
+      `epoch_map         : Map.t epoch_id hashes`
       `processed_entries : seq log_entry` //ghost
 
    Per-thread invariant:
 
-      `spec_verifier processed_entries initial_epoch_map == epoch_map`
+      `spec_verifier processed_entries == epoch_map`
 
    Every time the service call `verify_log` on a given thread, we
    process each `log_entry` one by one, accumulating them in
@@ -371,8 +426,10 @@ val max_certified_epoch (#p:perm) (#t:erased top_level_state) //implicit ghost a
 
    Shared state:
 
-      `aggregate_epoch_map   : epoch_id -> hashes`
-      `all_committed_entries : thread_id -> seq processed_entries`
+   ```
+      aggregate_epoch_map   : Map.t epoch_id hashes
+      all_committed_entries : Map.t thread_id (seq processed_entries)
+   ```
 
    Global invariant:
 
@@ -469,8 +526,16 @@ val max_certified_epoch (#p:perm) (#t:erased top_level_state) //implicit ghost a
 
 # Encoding Sharing Disciplines with Partial Commutative Monoids
 
-  What is a PCM?
+  What is a PCM? A algebraic gadget that's become a popular way of
+  structure sharing disciplines in separation logic
 
+   - Since around 2009--2012
+       (Separation Algebras; Dockins, Hobor, Appel at al.;
+        Fictional Separation Logic; Jensen and Birkedal)
+
+   - Now, also in Iris, Steel, etc.
+
+## PCM
 ```
   type pcm a = {
     u: a;       //unit element
@@ -527,4 +592,287 @@ val max_certified_epoch (#p:perm) (#t:erased top_level_state) //implicit ghost a
 # Ok, cool generalization, but what is this PCM stuff useful for?
 
 We'll encode our "stable knowledge" sharing discipline for Zeta by
-designing a new PCM called the "Fractional Anchored Preorder" PCM
+designing a new PCM that I'm calling "Fractional Preorders with
+Snapshots and Anchors" PCM (FPSA)
+
+# The FPSA PCM
+
+## Fractions
+
+   Ownership of the state is controlled by a fractional permission, so
+   multiple threads may share read-only privileges on the state, but
+   only one can have write permission.
+
+## Preorders
+
+   The state is governed by a preorder `p` and all updates to the
+   state must respect the preorder (a reflexive, transitive relation
+   on the state)
+
+     - In our case, the preorder will be "append only updates to the log"
+
+
+## Snapshots
+
+   Since the state always evolves by a preorder, it is possible to
+   take a snapshot of the state. A snapshot does not confer any
+   particular ownership on the state, except knowledge of a snapshot
+   ensures that the current state is related to the snapshot by the
+   preorder.
+
+     - If we take a snapshot of the logs, we know that the current logs
+       of each thread will always be ahead of the snapshot
+
+## Anchors
+
+   Anchors are a kind of refinement of the preorder. If a thread
+   owns an anchored value `v`, then no other thread, even a thread
+   owning a full fractional permission, can advance the state "too
+   far" from the anchor.
+
+   In particular, the PCM is parameterized by a binary relation on
+   values, `anchors:anchor_relation`. If a thread owns the anchor `v`,
+   then the current value `cur` of the state must be in relation
+   `anchors v cur`.
+
+   This can be used to ensure that the knowledge of one thread is
+   never too stale.
+
+   - In Zeta, we'll say that the global invariant owns an anchor on
+     the committed prefix and the anchor relation prevents any
+     thread's log from advancing too far beyond the anchored prefix.
+
+# Abstract predicates derived from FPSA
+
+First, a map from threads to their logs
+
+```
+let logs = Map.t tid (option log)
+```
+
+And the type of a handle to ghost state maintaining logs for all
+threads
+
+```
+  val t : Type
+```
+
+Concretely, the type of a reference to a map from thread_ids to
+element of an FPSA PCM over Zeta logs.
+
+
+## Global anchor
+
+The last commited state of all threads is `m`
+
+```
+val global_anchor (x:t)
+                  (m:logs)
+  : vprop
+```
+
+## Single-thread ownership
+
+Indicates ownership of the log `l` for thread `d`
+
+The state may be ahead of the global anchor.
+
+If `with_anchor` is set and `frac == full_perm`, then this indicates
+exclusive ownership of that thread's log---no other thread owns an
+anchor on the thread and this grants full permission to the owner to
+update the log.
+
+```
+val tid_pts_to (x:t)
+               (t:tid)
+               (frac:perm)
+               (l:log)
+               (with_anchor:bool)
+  : vprop
+```
+
+## Multi-thread ownership
+
+Same as above, but for a `logs` map:
+
+```
+val tids_pts_to (x:t)
+                (frac:perm)
+                (l:logs)
+                (with_anchor:bool)
+  : vprop
+```
+
+
+## Snapshot
+
+The state of all threads is at least `m`:
+
+```
+val global_snapshot (x:t) (m: logs)
+  : vprop
+```
+
+# The invariant again, now with FPSA
+
+   Shared state:
+
+      `aggregate_epoch_map   : epoch_id -> hashes`
+      `all_committed_entries : thread_id -> seq processed_entries`
+
+   Global invariant:
+
+   ```
+     val all_logs_hdl : t
+     val aggregate_epoch_hashes : array epoch_id hashes
+
+     let global_invariant =
+         exists_ (fun logs ->
+          global_anchor all_logs_hdl logs `star`
+          aggregate_epoch_hashes -1.0-> aggregate (run_all_verifiers logs))
+   ```
+
+   Per-thread invariant:
+
+    ```
+      val local_epoch_map : array epoch_id hashes
+
+      exists_ (fun log ->
+        tid_maps_to all_logs_hdl tid log false `star`
+        local_epoch_map -1.0-> spec_verifier log)
+    ```
+
+# Ghost Operations
+
+## Allocation
+
+```
+/// [alloc] : Initialize the ghost state
+///
+///  -- Get an anchor on the empty state. this is used to allocate the
+///     aggregate epoch hash lock
+///
+///  -- And a full fraction on the all the thread logs initialize to empty
+val alloc (_:unit)
+  : STGhostT t
+    emp
+    (fun t -> tids_pts_to t 1.0 (Map.const (Some Seq.empty)) false `star`
+              global_anchor t (Map.const (Some Seq.empty)))
+```
+
+## Sharing (fractions)
+
+```
+//// [share_tids_pts_to]
+///
+/// Having allocated the state, share the [tids_pts_to] part so that
+/// half can be given to the top-level client and the rest given to
+/// each thread
+val share_tids_pts_to (#f:perm)
+                      (x:t)
+                      (m:logs)
+  : STGhostT unit
+    (tids_pts_to x f m false)
+    (fun _ -> tids_pts_to x (half_perm f) m false `star`
+              tids_pts_to x (half_perm f) m false)
+```
+
+## Taking a single thread
+
+`take_tid`: Extract a singleton ownership predicate for thread `t:tid`
+
+```
+val take_tid (#o:_)
+             (#f:perm)
+             (x:t)
+             (m:logs)
+             (t:tid { Some? (Map.sel m t) })
+  : STGhostT unit o
+    (tids_pts_to x f m false)
+    (fun _ -> tid_pts_to x t f (Some?.v (Map.sel m t)) false `star`
+              tids_pts_to x f (Map.upd m t None) false)
+```
+
+`put_tid`: Give up a singleton ownership predicate for `t:tid` (converse)
+
+## Updating a log, without advancing too far
+
+This is used in the Zeta.Steel.Verifier, when extending the log
+with an entry that is not finishing an epoch.
+
+In this case, the thread is free to extend the log without
+synchronizing with the shared state and commiting anything
+
+```
+val update_tid_log (#o:_)
+                   (x:t)
+                   (t:tid)
+                   (l0 l1:log)
+  : STGhost unit o
+    (tid_pts_to x t full_perm l0 false)
+    (fun _ -> tid_pts_to x t full_perm l1 false)
+    (requires
+      l0 `log_grows` l1 /\  //we're only extending (preorder)
+      l1 `compat_with_any_anchor_of` l0 //but not too far
+     )
+    (ensures fun _ -> True)
+```
+
+## Update a log and commit, but requires full ownership including the anchor
+
+
+Taking ownership of the anchor for `t`
+
+
+Note, the postcondition is the "main property". It relates the
+anchor to the current state---the anchor is the committed
+current log `l`
+
+```
+val take_anchor_tid (#o:_)
+                    (x:t)
+                    (m:repr)
+                    (t:tid)
+                    (f:perm)
+                    (l:log)
+  : STGhost unit o
+    (tid_pts_to x t f l false `star` global_anchor x m)
+    (fun _ -> tid_pts_to x t f l true `star`
+           global_anchor x (Map.upd m t None))
+    (requires
+      Some? (Map.sel m t))
+    (ensures fun _ ->
+      Some? (Map.sel m t) /\
+      M.committed_log_entries l == Some?.v (Map.sel m t))
+```
+
+And now you can update:
+
+With exclusive ownership, you can update a the log of `t` to
+`l1` so long as `l1` is itself committed.
+
+```
+val update_anchored_tid_log (#o:_)
+                            (x:t)
+                            (t:tid)
+                            (l0 l1:log)
+  : STGhost unit o
+    (tid_pts_to x t full_perm l0 true)
+    (fun _ -> tid_pts_to x t full_perm l1 true)
+    (requires
+      l0 `log_grows` l1 /\
+      M.committed_log_entries l1 == l1)
+    (ensures fun _ -> True)
+```
+
+# PCM takeaway
+
+* They're fun!
+
+* They're very expressive
+
+   - Can use them to encode spatial and temporal ownership over
+     resources
+
+* Find the right PCM to structure your ghost state and the rest of the
+  proof just flows
