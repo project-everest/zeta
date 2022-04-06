@@ -214,7 +214,7 @@ magnitude.
 ## Aka, verifying the Zeta verifier
 
   A stepwise refinement proof, in 4 steps
-
+```
   ------------------------------------------------.---------------------------
                 |                                 |
   High-level    | High-level repr of records      | Verifiers accept
@@ -246,6 +246,7 @@ magnitude.
      Zeta.{c,h} +
      Formats.{c,h} + (EverParse)
      Hacl.{c,h}      (HACL* crypto)
+```
 
  Zeta.{c,h}    ~ 4,000 LOC
  Formats.{c,h} ~ 3,000 LOC (Auto-generated from EverParse spec,
