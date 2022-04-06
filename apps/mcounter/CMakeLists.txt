@@ -13,6 +13,10 @@ message (STATUS "ZETA_HOME = ${ZETA_HOME}")
 cmake_path (SET DIST_DIR NORMALIZE "${ZETA_HOME}/steel/dist/")
 message (STATUS "DIST_DIR = ${DIST_DIR}")
 
+# hacl dir
+cmake_path (SET HACL_DIR NORMALIZE "${DIST_DIR}/hacl-star-v0.3.0/")
+message (STATUS "HACL_DIR = ${HACL_DIR}")
+
 # root directory of all apps
 cmake_path (SET APP_HOME NORMALIZE "${CMAKE_CURRENT_SOURCE_DIR}/../")
 message (STATUS "APP_HOME = ${APP_HOME}")
