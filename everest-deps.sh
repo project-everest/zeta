@@ -16,7 +16,7 @@ A typical usage is:
    e.g., ocaml, opam etc. You should need to do this step only once.
 
 2. Run "EVEREST_OPTS='-j 8' everest-deps.sh build", to build
-   everything that's needed, notably F*, Kremlin, EverParse and HACL*,
+   everything that's needed, notably F*, KaRaMeL, EverParse and HACL*,
    including ocaml bindings for EverCrypt installed as the opam
    package hacl-star.
 
@@ -29,7 +29,7 @@ A typical usage is:
    "EVEREST_OPTS='-j 8 --admit' everest-deps.sh build"
 
 3. Run "source everest-deps.sh setenv" to export environment variables
-   to use the version of F*, Kremlin, etc. that were built in step 2.
+   to use the version of F*, KaRaMeL, etc. that were built in step 2.
 
 HELP
 }
@@ -50,7 +50,7 @@ do_build () {
 
     ./everest $EVEREST_OPTS pull
 
-    ./everest $EVEREST_OPTS FStar make kremlin make
+    ./everest $EVEREST_OPTS FStar make karamel make
     OTHERFLAGS=
     if echo "$EVEREST_OPTS" | grep -- --admit ; then
         OTHERFLAGS="$OTHERFLAGS --admit_smt_queries true"
@@ -80,18 +80,16 @@ do_setenv() {
     if is_windows; then
         export EVEREST_HOME=`cygpath -m $PWD/everest`
         export FSTAR_HOME=`cygpath -m $EVEREST_HOME/FStar`
-        export KREMLIN_HOME=`cygpath -m $EVEREST_HOME/kremlin`
-        export QD_HOME=`cygpath -m $EVEREST_HOME/quackyducky`
-        export EVERPARSE_HOME=`cygpath -m $EVEREST_HOME/quackyducky`
-        export PATH=`cygpath -u $EVEREST_HOME/z3/bin`:`cygpath -u $FSTAR_HOME/bin`:`cygpath -u $QD_HOME`:$PATH
+        export KRML_HOME=`cygpath -m $EVEREST_HOME/karamel`
+        export EVERPARSE_HOME=`cygpath -m $EVEREST_HOME/everparse`
+        export PATH=`cygpath -u $EVEREST_HOME/z3/bin`:`cygpath -u $FSTAR_HOME/bin`:`cygpath -u $EVERPARSE_HOME`:$PATH
         export HACL_HOME=`cygpath -m $EVEREST_HOME/hacl-star`
     else
         export EVEREST_HOME=$PWD/everest
         export FSTAR_HOME=$EVEREST_HOME/FStar
-        export KREMLIN_HOME=$EVEREST_HOME/kremlin
-        export QD_HOME=$EVEREST_HOME/quackyducky
-        export EVERPARSE_HOME=$EVEREST_HOME/quackyducky
-        export PATH=$EVEREST_HOME/z3/bin:$FSTAR_HOME/bin:$QD_HOME:$PATH
+        export KRML_HOME=$EVEREST_HOME/karamel
+        export EVERPARSE_HOME=$EVEREST_HOME/everparse
+        export PATH=$EVEREST_HOME/z3/bin:$FSTAR_HOME/bin:$EVERPARSE_HOME:$PATH
         export HACL_HOME=$EVEREST_HOME/hacl-star
     fi
 }

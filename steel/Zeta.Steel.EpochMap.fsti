@@ -7,7 +7,6 @@ module Set = FStar.Set
 module Map = FStar.Map
 module U32 = FStar.UInt32
 
-inline_for_extraction
 val tbl (#v:Type0)
         (#c:Type0) 
         (vp:M.epoch_id -> v -> c -> vprop)
@@ -71,7 +70,7 @@ val create (#v:Type)
 
 (* Call the finalizer on the array only.
    Freeing every element of the array is up to the client *)
-val free (#v:Type)
+val finalize (#v:Type)
          (#c:Type)
          (#vp:M.epoch_id -> v -> c -> vprop)
          (#init:G.erased c)

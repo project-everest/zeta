@@ -53,7 +53,7 @@ val create (_:unit)
     (fun s -> ha_val s initial_hash)
 
 (** Free the hash accumulator *)
-val free (#h:ehash_value_t) (s:ha)
+val reclaim (#h:ehash_value_t) (s:ha)
   : STT unit
     (ha_val s h)
     (fun _ -> emp)

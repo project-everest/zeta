@@ -800,7 +800,8 @@ let blum_add_slot (e:_ {is_blum_add e})
     match e with
     | AddB s _ _ _ -> s
 
-#push-options "--fuel 2 --ifuel 1 --z3rlimit_factor 3 --query_stats"
+#push-options "--fuel 2 --ifuel 1 --z3rlimit_factor 4 --query_stats"
+#restart-solver
 
 let epoch_hashes_unchanged_addm (tsm: thread_state_model) (e: s_log_entry {T.AddM? e})
   : Lemma (ensures (let tsm_ = verify_step_model tsm e in

@@ -10,7 +10,7 @@ include ../Makefile.common
 
 .PRECIOUS: %.krml
 $(OUTPUT_DIRECTORY)/%.krml:
-	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen Kremlin \
+	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen krml \
 	--extract_module $(basename $(notdir $(subst .checked,,$<)))
 
 extract: $(OUTPUT_DIRECTORY)/Steel_ST_Array_Util.krml $(filter-out $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))

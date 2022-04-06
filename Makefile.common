@@ -2,9 +2,9 @@
 
 ZETA_HOME ?= .
 FSTAR_HOME ?= $(realpath $(dir $(shell which fstar.exe))/..)
-KREMLIN_HOME ?= $(FSTAR_HOME)/../kremlin
+KRML_HOME ?= $(FSTAR_HOME)/../karamel
 # FSTAR_HOME ?= everest/FStar
-# KREMLIN_HOME ?= everest/kremlin
+# KRML_HOME ?= everest/karamel
 
 # List the files that should be verified by verify-extra and verify-all
 EXTRA=
@@ -70,7 +70,7 @@ $(CACHE_DIRECTORY)/%.checked:
 	touch -c $@
 
 %.krml:
-	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen Kremlin \
+	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen krml \
 	  --extract_module $(basename $(notdir $(subst .checked,,$<)))
 	touch -c $@
 

@@ -17,7 +17,7 @@ module M = Zeta.Steel.ThreadStateModel
 inline_for_extraction
 let hash : ETbl.hash_fn M.epoch_id = fun eid -> eid
 
-[@@CAbstractStruct]
+//[@@CAbstractStruct] TODO restore after krml #247
 noeq
 type tbl #v #c vp = {
   etbl : ETbl.tbl #M.epoch_id #v #c vp hash;
@@ -79,7 +79,7 @@ let create #v #c #vp n init =
   intro_exists 0ul (high_epoch_id_pred _ _ _ _);
   return r
 
-let free #v #c #vp #init #m #b t =
+let finalize #v #c #vp #init #m #b t =
   let w = elim_exists () in
   elim_pure (high_epoch_id_prop (G.reveal init) m b w);
   ETbl.free t.etbl;

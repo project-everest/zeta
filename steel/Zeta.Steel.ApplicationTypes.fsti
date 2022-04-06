@@ -69,6 +69,9 @@ val serialized_key_length (v:key_type)
 ///   // may not need to be an eqtype
 val value_type : eqtype
 
+val eq_value_type (v0 v1:value_type)
+  : (b:bool { b <==> (v0 == v1) })
+
 /// A parser and serializer of values
 val spec_parser_value : P.spec_parser value_type
 val parse_value : P.parser spec_parser_value

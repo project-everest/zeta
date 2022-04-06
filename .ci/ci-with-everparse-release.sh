@@ -3,6 +3,9 @@
 set -e
 set -x
 
+echo "TODO: publish a new EverParse release with a renamed Karamel"
+false
+
 # Set the current directory to this script's
 unset CDPATH
 cd "$( dirname "${BASH_SOURCE[0]}" )"

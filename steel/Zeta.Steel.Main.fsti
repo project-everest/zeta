@@ -21,6 +21,8 @@ module V = Zeta.Steel.Verifier
 module SA = Zeta.SeqAux
 #push-options "--ide_id_info_off"
 
+[@@noextract_to "krml"]
+noextract
 let tid_log_map = 
   x:Map.t tid (option M.log) { 
     Map.domain x `Set.equal` Set.complement Set.empty 
@@ -113,6 +115,7 @@ let verify_post_success_pred
                read
                wrote
                entries')
+
 
 let verify_post
   (t:top_level_state)

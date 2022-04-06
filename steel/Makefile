@@ -12,7 +12,7 @@ include ../Makefile.common
 
 .PRECIOUS: %.krml
 $(OUTPUT_DIRECTORY)/%.krml:
-	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen Kremlin --cmi \
+	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen krml --cmi \
 	--extract_module $(basename $(notdir $(subst .checked,,$<)))
 
 
@@ -40,7 +40,7 @@ KRML_ATOMIC_CAS_INCLUDE_OPTION=-add-include \"steel_atomics.h\"
 KRML_APP_INCLUDE_OPTION=-add-include \"zeta_application.h\"
 
 compile:
-	$(KREMLIN_HOME)/krml -warn-error +9 -skip-compilation \
+	$(KRML_HOME)/krml -warn-error +9 -skip-compilation \
 		$(KRML_BUNDLING_OPTIONS) \
 		$(OUTPUT_DIRECTORY)/*.krml \
 		-tmpdir=$(OUTPUT_DIRECTORY) \
@@ -50,6 +50,9 @@ compile:
 dist: $(OUTPUT_DIRECTORY)/*.c $(OUTPUT_DIRECTORY)/*.h
 	cp $(OUTPUT_DIRECTORY)/*.c $(DIST_DIRECTORY)/
 	cp $(OUTPUT_DIRECTORY)/*.h $(DIST_DIRECTORY)/
+	cp -r $(OUTPUT_DIRECTORY)/internal $(DIST_DIRECTORY)/
+	cp -r $(KRML_HOME)/include/* $(DIST_DIRECTORY)/
+	cp -r $(KRML_HOME)/krmllib/dist/minimal/*.h $(DIST_DIRECTORY)/
 
 clean_c:
 	rm -rf $(OUTPUT_DIRECTORY)/*.h $(OUTPUT_DIRECTORY)/*.c
