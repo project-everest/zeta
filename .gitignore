@@ -20,3 +20,4 @@ out/
 .qd_files
 .clangd/
 *.json
+.cache/

@@ -30,6 +30,10 @@ if (NOT DEFINED ENV{EVERPARSE_HOME})
   message (FATAL_ERROR "EVERPARSE_HOME not defined")
 endif()
 
+# project formats dir
+cmake_path (SET APP_FORMATS_DIR NORMALIZE "${PROJECT_SOURCE_DIR}/formats")
+message (STATUS "APP_FORMATS_DIR = ${APP_FORMATS_DIR}")
+
 set (STORE_SIZE "16" CACHE STRING "Verifier per-thread store size")
 message (STATUS "Store Size = ${STORE_SIZE}")
 
