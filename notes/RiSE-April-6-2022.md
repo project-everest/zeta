@@ -136,7 +136,7 @@ The state is authenticated using the following techniques:
 ## Some intuition for how these techniques work together
 
 * System is initialized with a cryptographic summary of the entire
-  state of all the services
+  state of the service
 
 * When service instance `I` receives an operation `o` from a client,
   it services the operation as usual and returns the result `v` to the
