@@ -809,7 +809,7 @@ Shared state:
        calls from the *untrusted* service instance. So, this lock will
        remain (no plans to optimize it away).
 
-3. Process one entry `e` from the log:
+3. For each entry `e` in the log:
 
 ## Common case: Entry doesn't complete an epoch
 
