@@ -200,6 +200,23 @@ The state is authenticated using the following techniques:
     sum in "verified memory", the same abstraction that protects the
     service state.
 
+# Instantiating Zeta for a key-value store
+
+```
+state: {(k,v)}
+
+put (k, v) {
+  let r = read_record k in
+  check(r.v = null); // or anything here (check (r.v <= v)
+  write_record {r with v}
+}
+
+get (k) {
+  let r = read_record k in
+  sign({op_id; cur_epoch; get(k); r.v}) // attest that `op_id: get(k)` returns `r.v` in `cur_epoch`
+}
+```
+
 # FastVer
 
 At SIGMOD 2021, we described using an initial version of this Zeta to
@@ -735,38 +752,110 @@ val global_snapshot (x:t) (m: logs)
   : vprop
 ```
 
-# The invariant again, now with FPSA
+# Invariant again, now with FPSA
 
 See [the full aggregate state invariant](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.AggregateEpochHashes.fsti#L247)
 
-   Shared state:
+See [the full per-thread invariant](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fst#L36)
 
-      `aggregate_epoch_map   : epoch_id -> hashes`
-      `all_committed_entries : thread_id -> seq processed_entries`
+```
 
-   Global invariant:
+Service Instances (client of Zeta monitor)
 
-   ```
-     val all_logs_hdl : t
-     val aggregate_epoch_hashes : array epoch_id hashes
+Holds 0.5 (un-anchored) permission to the log of each thread:
 
-     let global_invariant =
-         exists_ (fun logs ->
+forall tid.
+ exists log.
+   tid_pts_to all_logs_hdl tid 0.5 log false
+
+----------------------------------------------------
+
+Zeta Monitor Instances:
+
+   N locks, 1 per-thread,
+    to ensure client can't call into a running thread
+
+  Lock for tid holds 0.5 (unanchored) permission to the tid's log:
+
+     Lock_tid: exists log. tid_pts_to all_logs_hdl tid 0.5 log false
+
+----------------------------------------------------
+
+Shared state:
+   1 additional lock,
+     - holding an anchor on the logs (i.e., the committed prefix of all the logs)
+     - full permission on the concrete state of the aggregate epoch hash array
+
+
+   Lock_aggregate:
+        exists_ (fun logs ->
           global_anchor all_logs_hdl logs `star`
           aggregate_epoch_hashes -1.0-> aggregate (run_all_verifiers logs))
-   ```
+```
 
-   Per-thread invariant:
+## Workflow
 
-    ```
-      val local_epoch_map : array epoch_id hashes
+1. Service calls the `verify_log` passing on thread `tid`, passing in
+   `0.5` permission on that threads log,
 
-      exists_ (fun log ->
-        tid_maps_to all_logs_hdl tid log false `star`
-        local_epoch_map -1.0-> spec_verifier log)
-    ```
+     * Enters enclave
 
-See [the full per-thread invariant](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fst#L36) (In reality, the thread invariant is owns only 1/2 the permission `all_logs_hdl`, with the other half held by the client, which must pass that permission in on every call to `verify_log` (see [here](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fst#L80))
+2. Acquires lock for thread `tid` (blocks to prevent re-entrancy)
+     * Gains another 0.5 permission on `tid` log
+
+     * So, now we have a full *unanchored* permission on `tid`'s log
+
+     * This lock is very low contention and is meant to synchronize
+       calls from the *untrusted* service instance. So, this lock will
+       remain (no plans to optimize it away).
+
+3. Process one entry `e` from the log:
+
+## Common case: Entry doesn't complete an epoch
+
+3 a. Finish processing entry `e` and add it to the `tid`'s log
+
+  * Need to prove that appending to this entry to the log is
+    compatible with all anchors
+
+  * But, if `e` doesn't finish an epoch, this is true
+
+Note: No need to synchronize with the global state.
+
+## Workflow: Epoch finished
+
+3 b. Entry `e` finishes an epoch
+
+  * Acquire `Lock_aggregate`
+
+    - Gain `global_anchor all_logs_hdl` and full permission to the
+      concrete shared epoch log map
+
+    - In addition to our existing permission on `all_logs_hdl`, we now
+      have full anchored permission on the log for `tid`.
+
+  * Update the log and commit the local hashes for the epoch to the
+    shared epoch map
+
+  * Split out a `global_anchor all_logs_hdl`, by proving that the
+    current log is fully committed
+
+  * Release `Lock_aggregate`
+
+Acquiring `Lock_aggregate` does introduce some contention among
+threads when they're finishing an epoch
+
+But, this is relatively infrequent
+
+Nevertheless, we have a strategy to remove this lock and instead
+progressively update the shared state with atomic `fetch_and_xor`
+operations.
+
+  * Will require a slightly more complex invariant to account for the
+    additional intermediate states, where the shared epoch hashes map
+    has only been partially updated
+
+  * As yet unclear whether optimizing away this lock is important
 
 # Ghost Operations
 
