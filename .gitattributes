@@ -1,0 +1,5 @@
+# Linguist
+*.fst linguist-language=FStar
+*.fst linguist-documentation=false
+*.fsti linguist-language=FStar
+*.fsti linguist-documentation=false
