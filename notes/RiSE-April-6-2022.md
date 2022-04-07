@@ -81,6 +81,10 @@ And we want to ensure that
  * The forms a sentence in the language accepted by the abstract state machine
     i.e., no operation fails
 
+Technically, this is expressive enough to capture all safety
+properties. Our hypothesis is that this is also useful to capture
+aspects of real-world services.
+
 # How does Zeta ensure this? With a high-assurance runtime monitor
 
 
@@ -186,6 +190,15 @@ The state is authenticated using the following techniques:
 
          - Otherwise, the monitor has detected a potential safety
            violation of the system and can report it.
+
+* Note: there does not need to be a one-one correspondence between
+  operation `o` and the monitor calls
+
+  - for example, `o` might want to add up a payload of 6 records
+
+  - we might do 6 monitor calls while storing the intermediate running
+    sum in "verified memory", the same abstraction that protects the
+    service state.
 
 # FastVer
 
