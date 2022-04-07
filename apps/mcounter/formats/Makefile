@@ -11,7 +11,7 @@ kremlin/%.krml:
 	@touch $@
 
 .qd_files: $(QD) $(RFC)
-	$(QD) $(RFC)
+	$(QD) $(RFC) -low
 	+$(MAKE) -f Makefile.qd_files
 
 -include .depend

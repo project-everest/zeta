@@ -41,3 +41,4 @@ set (THREAD_COUNT "1" CACHE STRING "Verifier thread count")
 message (STATUS "Thread count = ${THREAD_COUNT}")
 
 add_subdirectory(verifier)
+add_subdirectory(formats)

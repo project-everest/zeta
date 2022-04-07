@@ -11,21 +11,12 @@ add_custom_command(
   COMMAND ./configure --disable-ocaml
   COMMAND make ${HACL_BLAKE_OBJS})
 
-find_program(MAKE_EXE make)
-
-add_custom_command(
-  OUTPUT ${APP_FORMATS_DIR}/out/App_key.c ${APP_FORMATS_DIR}/out/App_val.c
-  WORKING_DIRECTORY ${APP_FORMATS_DIR}
-  COMMAND ${MAKE_EXE})
-
 add_library(verifier
             ${DIST_DIR}/ZetaFormats.c
             ${DIST_DIR}/krmlinit.c
             ${CMAKE_CURRENT_BINARY_DIR}/config.c
             ${HACL_BLAKE_OBJS}
             app.c
-            ${APP_FORMATS_DIR}/out/App_key.c
-            ${APP_FORMATS_DIR}/out/App_val.c
             ${APP_COMMON}/formats.c
             )
 
@@ -35,5 +26,8 @@ target_include_directories(verifier
     PUBLIC ${DIST_DIR}
     PUBLIC ${APP_FORMATS_DIR}/out
 )
+
+target_link_libraries(verifier
+  PRIVATE format)
 
 add_subdirectory(test)
