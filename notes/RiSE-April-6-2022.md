@@ -337,6 +337,8 @@ Two main functions in the API
 
 1. Feed a monitor a `input` of log entries
 
+    See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fsti#L152)
+
 ```
 val verify_log (#p:perm)
                (#t:erased top_level_state)
@@ -368,6 +370,7 @@ val verify_log (#p:perm)
 
 2. Query a monitor thread to find out the maximum certified epoch
 
+See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fsti#L185)
 
 ```
 val max_certified_epoch (#p:perm) (#t:erased top_level_state) //implicit ghost args
@@ -665,6 +668,8 @@ element of an FPSA PCM over Zeta logs.
 
 The last commited state of all threads is `m`
 
+See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.ThreadLogMap.fsti#L36)
+
 ```
 val global_anchor (x:t)
                   (m:logs)
@@ -681,6 +686,8 @@ If `with_anchor` is set and `frac == full_perm`, then this indicates
 exclusive ownership of that thread's log---no other thread owns an
 anchor on the thread and this grants full permission to the owner to
 update the log.
+
+See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.ThreadLogMap.fsti#L56)
 
 ```
 val tid_pts_to (x:t)
@@ -708,12 +715,16 @@ val tids_pts_to (x:t)
 
 The state of all threads is at least `m`:
 
+See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.ThreadLogMap.fsti#L65)
+
 ```
 val global_snapshot (x:t) (m: logs)
   : vprop
 ```
 
 # The invariant again, now with FPSA
+
+See [the full aggregate state invariant](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.AggregateEpochHashes.fsti#L247)
 
    Shared state:
 
@@ -742,7 +753,11 @@ val global_snapshot (x:t) (m: logs)
         local_epoch_map -1.0-> spec_verifier log)
     ```
 
+See [the full per-thread invariant](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fst#L36) (In reality, the thread invariant is owns only 1/2 the permission `all_logs_hdl`, with the other half held by the client, which must pass that permission in on every call to `verify_log` (see [here](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fst#L80))
+
 # Ghost Operations
+
+See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.ThreadLogMap.fsti#L69)
 
 ## Allocation
 
