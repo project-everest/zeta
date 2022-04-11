@@ -24,7 +24,7 @@ target_include_directories(verifier
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PUBLIC "${APP_HOME}/common"
     PUBLIC ${DIST_DIR}
-    PUBLIC ${APP_FORMATS_DIR}/out
+    PUBLIC ${APP_FORMATS_DIR}
 )
 
 target_link_libraries(verifier
