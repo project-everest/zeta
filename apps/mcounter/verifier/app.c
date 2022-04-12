@@ -5,6 +5,7 @@
 #include <New_p.h>
 #include <Incr_p.h>
 #include <Get_p.h>
+#include <App_val.h>
 
 bool
 Zeta_Steel_ApplicationTypes_eq_value_type(
@@ -74,11 +75,11 @@ verify_runapp_result new_counter (uint8_t *base,
 }
 
 verify_runapp_result incr_counter (uint8_t *base,
-                                  uint32_t len,
-                                  uint32_t out_len,
-                                  uint32_t out_offset,
-                                  uint8_t *out,
-                                  Zeta_Steel_VerifierTypes_thread_state_t t)
+                                   uint32_t len,
+                                   uint32_t out_len,
+                                   uint32_t out_offset,
+                                   uint8_t *out,
+                                   Zeta_Steel_VerifierTypes_thread_state_t t)
 {
     LowParse_Slice_slice sl = { .base = base, .len = len };
 
@@ -109,7 +110,42 @@ verify_runapp_result incr_counter (uint8_t *base,
 
     Zeta_Steel_Main_write_store (t, param.s, new_val);
 
-    return (verify_runapp_result) { .tag = Run_app_success, .wrote = 0 };
+    /* write the output */
+    uint32_t wrote = App_val_app_val_lserializer(old_val, out, out_offset);
+
+    return (verify_runapp_result) { .tag = Run_app_success, .wrote = wrote };
+}
+
+verify_runapp_result get_counter (uint8_t *base,
+                                  uint32_t len,
+                                  uint32_t out_len,
+                                  uint32_t out_offset,
+                                  uint8_t *out,
+                                  Zeta_Steel_VerifierTypes_thread_state_t t)
+{
+    LowParse_Slice_slice sl = { .base = base, .len = len };
+
+    Get_p_get_p param = Get_p_get_p_reader(sl, 0);
+
+    FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv entry =
+        Zeta_Steel_Main_read_store(t, param.s);
+
+    /* check: slot is not empty */
+    if (entry.tag == FStar_Pervasives_Native_None) {
+        return (verify_runapp_result) { .tag = Run_app_verify_failure, .wrote = 0 };
+    }
+
+    /* check slot contains app-key & val */
+    if (entry.v.value.tag != Zeta_Steel_LogEntry_Types_DValue) {
+        return (verify_runapp_result) { .tag = Run_app_verify_failure, .wrote = 0 };
+    }
+
+    app_val_t val = entry.v.value.case_DValue.v;
+
+    /* write the output */
+    uint32_t wrote = App_val_app_val_lserializer(val, out, out_offset);
+
+    return (verify_runapp_result) { .tag = Run_app_success, .wrote = wrote };
 }
 
 
@@ -132,6 +168,9 @@ Zeta_Steel_Application_run_app_function(
 
     case 1:
         return incr_counter(log_param_base, pl.rest, out_len, out_offset, out, t);
+
+    case 2:
+        return get_counter(log_param_base, pl.rest, out_len, out_offset, out, t);
 
     default:
         break;
