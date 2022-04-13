@@ -21,4 +21,6 @@ out/
 .clangd/
 *.json
 .cache/
-*.o
+**/apps/*/formats/*.fst
+**/apps/*/formats/*.fsti
+**/hacl-star-*/gcc-compatible/*.o
