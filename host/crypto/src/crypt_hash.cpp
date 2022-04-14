@@ -23,14 +23,17 @@ namespace Zeta
         Hacl_Blake2b_32_blake2b_init(wv_, hash_, 0, nullptr, HashSize);
 
         memset(block_, 0, sizeof(block_));
+        filled_ = 0;
+        len_ = 0;
     }
-    
+
     Blake2Hasher::CryptoHasher()
         : filled_ { 0 }
+        , len_ { 0 }
     {
         Init();
     }
-    
+
     void Blake2Hasher::Hash(gsl::span<const uint8_t> mesg, HashValue& hashBuf)
     {
         Hacl_Blake2b_32_blake2b(HashSize,
@@ -45,8 +48,9 @@ namespace Zeta
     {
         const uint8_t* data = mesg.data();
         size_t len = mesg.size();
-        
-        assert(filled_ < BlockSize);
+        len_ += len;
+
+        assert(filled_ <= BlockSize);
 
         auto to_fill = (filled_ + len > BlockSize)?
             (BlockSize - filled_) :
@@ -55,15 +59,17 @@ namespace Zeta
         memcpy(block_ + filled_, data, to_fill);
         data += to_fill;
         len -= to_fill;
+        filled_ += to_fill;
 
-        if (filled_ < BlockSize) {
+        if (filled_ < BlockSize || len == 0) {
             return;
         }
 
         Hacl_Blake2b_32_blake2b_update_multi(BlockSize, wv_, hash_, prev_, block_, 1);
+        memset(block_, 0, sizeof(block_));
         filled_ = 0;
 
-        auto nb = len / BlockSize;
+        auto nb = (len - 1) / BlockSize;
         if (nb > 0) {
             Hacl_Blake2b_32_blake2b_update_multi(0 /* not used */,
                                                  wv_,
@@ -72,17 +78,20 @@ namespace Zeta
                                                  const_cast<uint8_t*>(data),
                                                  nb);
             data += nb * BlockSize;
-            assert (len >= nb * BlockSize);
+            assert (len > nb * BlockSize);
             len -= nb * BlockSize;
         }
 
         memcpy(block_, data, len);
-        filled_ = len;       
+        filled_ = len;
     }
 
     void Blake2Hasher::HashFinal(HashValue& hashValue)
     {
-        Hacl_Blake2b_32_blake2b_update_last(filled_, wv_, hash_, prev_, filled_, block_);
+        Hacl_Blake2b_32_blake2b_update_last(len_, wv_, hash_, prev_, filled_,
+                                            /* hacky workaround to make it streaming */
+                                            block_ - len_ + filled_);
+        
         Hacl_Blake2b_32_blake2b_finish(HashSize,
                                        reinterpret_cast<uint8_t*>(hashValue.Bytes()),
                                        hash_);

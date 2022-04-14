@@ -130,7 +130,9 @@ namespace Zeta
         FStar_UInt128_uint128 prev_;
         uint8_t block_ [BlockSize];
         int filled_;
+        int len_;
     };
 
     using Blake2Hasher = CryptoHasher<Blake2Traits>;
+    using Blake2HashValue = Blake2Hasher::HashValue;
 }

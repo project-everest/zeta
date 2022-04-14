@@ -30,6 +30,23 @@ if (NOT DEFINED ENV{EVERPARSE_HOME})
   message (FATAL_ERROR "EVERPARSE_HOME not defined")
 endif()
 
+# Default to release builds
+if (NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif ()
+
+# Write out the build type
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+
+# Trace
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+   option(TRACE_MODE "Enable logging of trace information to the console" OFF)
+   message(STATUS "Trace mode: ${TRACE_MODE}")
+else()
+   option(TRACE_MODE "Enable logging of trace information to the console" ON)
+   message(STATUS "Trace mode: ${TRACE_MODE}")
+endif ()
+
 # configure a header file to pass some of the CMake settings
 # to the source code
 configure_file(zeta_config.h.in zeta_config.h)
@@ -39,6 +56,9 @@ message (STATUS "verifier Store Size = ${STORE_SIZE}")
 
 set (THREAD_COUNT "1" CACHE STRING "Verifier thread count")
 message (STATUS "verifier Thread count = ${THREAD_COUNT}")
+
+# enable testing
+enable_testing()
 
 # Add Catch2 Unit test framework
 find_package(Catch2 REQUIRED)
