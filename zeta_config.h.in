@@ -1,0 +1,7 @@
+#pragma once
+
+#define Zeta_VERSION_MAJOR @Zeta_VERSION_MAJOR@
+#define Zeta_VERSION_MINOR @Zeta_VERSION_MINOR@
+
+#cmakedefine TRACE_MODE
+#cmakedefine STATS_MODE
