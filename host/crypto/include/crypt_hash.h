@@ -14,6 +14,7 @@
 #include <fmt/format.h>
 #include <gsl/span>
 #include <Hacl_Blake2b_32.h>
+#include <blake2.h>
 
 namespace Zeta
 {
@@ -121,16 +122,7 @@ namespace Zeta
 
     private:
         void Init();
-
-        static const int StateSize = 128;
-        static const int BlockSize = 128;
-        static const int StateSize64 = StateSize / sizeof(uint64_t);
-        uint64_t wv_ [StateSize64];
-        uint64_t hash_ [StateSize64];
-        FStar_UInt128_uint128 prev_;
-        uint8_t block_ [BlockSize];
-        int filled_;
-        int len_;
+        blake2b_state state_;
     };
 
     using Blake2Hasher = CryptoHasher<Blake2Traits>;
