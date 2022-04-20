@@ -1,0 +1,10 @@
+#pragma once
+
+#include <crypt_hash.h>
+
+namespace Zeta
+{
+    using HashTraits = @HASH_FUNCTION@Traits;
+    using Hasher = CryptoHasher<HashTraits>;
+    using HashValue = Hasher::HashValue;
+}
