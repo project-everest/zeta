@@ -14,7 +14,7 @@ namespace Zeta
     T RandomGenerator::Generate()
     {
         T val;
-        Generate(gsl::span(reinterpret_cast<uint8_t*>(&val), sizeof(T)));
+        Generate(gsl::span<uint8_t>(reinterpret_cast<uint8_t*>(&val), sizeof(T)));
         return val;
     }
 }

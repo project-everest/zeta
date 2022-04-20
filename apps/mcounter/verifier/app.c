@@ -46,8 +46,8 @@ verify_runapp_result new_counter (uint8_t *base,
     FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv entry =
         Zeta_Steel_Main_read_store(t, param.s);
 
-    /* check: slot is empty */
-    if (entry.tag != FStar_Pervasives_Native_None) {
+    /* check: slot is not empty */
+    if (entry.tag == FStar_Pervasives_Native_None) {
         return (verify_runapp_result) { .tag = Run_app_verify_failure, .wrote = 0 };
     }
 
@@ -61,6 +61,7 @@ verify_runapp_result new_counter (uint8_t *base,
         return (verify_runapp_result) { .tag = Run_app_verify_failure, .wrote = 0 };
     }
 
+    /* initialize value to 0 */
     Zeta_Steel_LogEntry_Types_value new_val = {
         .tag = entry.v.value.tag,
         .case_DValue = {

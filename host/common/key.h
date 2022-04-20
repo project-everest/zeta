@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cstdint>
+#include <stdint.h>
 #include <memory>
 #include <trace.h>
 
@@ -14,7 +14,7 @@ namespace Zeta
     class alignas(8) UInt256
     {
     public:
-        uInt256 () = default;
+        UInt256 () = default;
 
         UInt256 (int ival)
         {
@@ -169,7 +169,7 @@ namespace Zeta
     enum class DescDir: uint8_t
     {
         Left = 0,
-        Right
+        Right = 1
     };
 
     class DescDirTr
