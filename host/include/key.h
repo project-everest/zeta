@@ -221,6 +221,11 @@ namespace Zeta
             return UInt256::GetLargestCommonPrefixSize(path_, other.path_) >= depth_;
         }
 
+        bool operator != (const BaseKey& other) const
+        {
+            return !(*this == other);
+        }
+
         uint16_t GetDepth() const
         {
             return depth_;
@@ -326,6 +331,8 @@ namespace Zeta
         }
 
 #endif
+
+        static BaseKey Root;
 
     private:
 

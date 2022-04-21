@@ -21,7 +21,7 @@ namespace internal
 
     struct MerkleValue
     {
-        DescInfo descInfo_[2];
+        DescInfo descInfo[2];
     };
 
 
@@ -34,13 +34,9 @@ namespace internal
         MerkleTree();
         ~MerkleTree();
 
-        void Put (const BaseKey& key, const MerkleValue& value);
-
+        MerkleValue* Put (const BaseKey& key);
         const MerkleValue* Get(const BaseKey& key) const;
-
         MerkleValue* Get (const BaseKey& key);
-
-        UInt256 GetPath (const BaseKey& ancKey, const BaseKey& leaf) const;
 
     private:
         std::unique_ptr<MerkleTreeImpl> pimpl_;

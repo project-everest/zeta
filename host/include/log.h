@@ -12,7 +12,9 @@ namespace Zeta
         ~Log();
 
         void Serialize(const uint8_t* bytes, size_t len);
-        void TSerialize<T>(const T& v);
+
+        template<typename T>
+        void TSerialize(const T& v);
 
     private:
         uint8_t *buf_;

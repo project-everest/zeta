@@ -35,7 +35,7 @@ namespace internal
         MerkleTreeImpl();
         ~MerkleTreeImpl();
 
-        void Put(const BaseKey& key, const MerkleValue& value);
+        MerkleValue* Put(const BaseKey& key);
         const MerkleTree* Get(const BaseKey& key) const;
         MerkleValue* Get (const BaseKey& key);
 
