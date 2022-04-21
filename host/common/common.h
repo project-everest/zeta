@@ -14,9 +14,9 @@ namespace Zeta
     using VOpId = uint16_t;
 
     // Verifier cache index (location)
-    using VCacheIdx = uint16_t;
+    using SlotId = uint16_t;
 
-    static const VCacheIdx InvalidVCacheIdx = std::numeric_limits<VCacheIdx>::max();
+    static const SlotId InvalidSlotId = std::numeric_limits<SlotId>::max();
 
     // Thread ids for multiple concurrent log streams
     using ThreadId = uint8_t;
@@ -120,53 +120,6 @@ namespace Zeta
             return t;
         }
     };
-
-    struct AuxInfoTr
-    {
-        static bool IsCached(uint64_t auxInfo)
-        {
-            return 0 == TimestampTr::GetEpoch(auxInfo);
-        }
-
-        static ThreadId GetCacheThreadId(uint64_t auxInfo)
-        {
-            assert(IsCached(auxInfo));
-            return TimestampTr::GetThread(auxInfo);
-        }
-
-        static VCacheIdx GetCacheIdx(uint64_t auxInfo)
-        {
-            assert(IsCached(auxInfo));
-            assert(TimestampTr::GetCounter(auxInfo) < std::numeric_limits<VCacheIdx>::max());
-            return static_cast<VCacheIdx>(TimestampTr::GetCounter(auxInfo));
-        }
-
-        static uint64_t GetCacheInfo(ThreadId threadId, VCacheIdx cacheIdx)
-        {
-            return TimestampTr::GetTimestamp(0, threadId, cacheIdx);
-        }
-
-        static const uint64_t DefaultNoInfo = TimestampTr::GetTimestamp(InvalidEpochId,
-                                                                        InvalidThreadId, 0);
-    };
-
-    enum class VMemOpId : VOpId
-    {
-        NextEpoch,
-        VerifyEpoch,
-        MerkleLeafAdd,
-        MerkleIntAdd,
-        MerkleEmptyAdd,
-        MerkleEvict,
-        BlumAdd,
-        BlumEvict,
-        BlumIntAdd,
-        M2BlumEvict,
-        M2B2M,
-        NumVMemOps
-    };
-
-    static const VOpId NumVMemOps = static_cast<VOpId>(VMemOpId::NumVMemOps);
 
     // Cache alignment
     static const int CacheAlign = 64;
