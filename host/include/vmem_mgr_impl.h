@@ -1,11 +1,10 @@
 #pragma once
 
 #include <app.h>
-#include <key.h>
 #include <common.h>
+#include <key.h>
+#include <log.h>
 #include <merkle_tree.h>
-
-using Zeta::internal::MerkleTree;
 
 namespace Zeta
 {
@@ -27,8 +26,10 @@ namespace Zeta
 
     private:
         SlotId GetFreeSlot();
+        SlotId AddInternal(const BaseKey& key, const MerkleValue* value, SlotId parentSlot);
 
         const ThreadId threadId_;
         MerkleTree merkleTree_;
+        Log log_;
     };
 }

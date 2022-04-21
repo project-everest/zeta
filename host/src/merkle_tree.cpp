@@ -2,7 +2,6 @@
 #include <merkle_tree_impl.h>
 
 using namespace Zeta;
-using namespace Zeta::internal;
 
 MerkleTree::MerkleTree() : pimpl_{new MerkleTreeImpl()} {}
 

@@ -1,5 +1,6 @@
-#include "common.h"
 #include <assert.h>
+#include <common.h>
+#include <formats.h>
 #include <vmem_mgr.h>
 #include <vmem_mgr_impl.h>
 
@@ -76,7 +77,10 @@ SlotId VMemoryManagerImpl::Add(const AppRecord* record)
         assert (curValue != nullptr);
 
         if (!curKey.IsRoot()) {
-            // addm ...
+            curSlot = AddInternal(curKey, curValue, curSlot);
+        }
+        else {
+            curSlot = 0;
         }
 
         auto dir = DescDirTr::ToByte(curKey.GetDescDir(appBaseKey));
@@ -106,5 +110,10 @@ SlotId VMemoryManagerImpl::Add(const AppRecord* record)
         }
     }
 
+    return 0;
+}
+
+SlotId VMemoryManagerImpl::AddInternal(const BaseKey& key, const MerkleValue* value, SlotId parentSlot)
+{
     return 0;
 }

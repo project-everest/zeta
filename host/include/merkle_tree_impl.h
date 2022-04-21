@@ -6,11 +6,6 @@
 
 namespace Zeta
 {
-
-namespace internal
-{
-
-
     struct BaseKeyHash
     {
         std::size_t operator() (const BaseKey& key) {
@@ -43,7 +38,5 @@ namespace internal
         std::unordered_map<BaseKey, MerkleValue, BaseKeyHash, BaseKeyEqual> mt_;
     };
 
-
-}
 
 }

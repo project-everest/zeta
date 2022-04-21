@@ -8,10 +8,6 @@
 
 namespace Zeta
 {
-
-namespace internal
-{
-
     struct DescInfo
     {
         BaseKey key;
@@ -41,8 +37,4 @@ namespace internal
     private:
         std::unique_ptr<MerkleTreeImpl> pimpl_;
     };
-
-
-} // namespace internal
-
 } // namespace Zeta
