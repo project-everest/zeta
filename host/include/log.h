@@ -19,5 +19,4 @@ namespace Zeta
         uint8_t *cur_;
         size_t bufSize_;
     };
-
 }

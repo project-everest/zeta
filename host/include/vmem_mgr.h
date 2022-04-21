@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <common.h>
+#include <log.h>
 #include <record.h>
 
 namespace Zeta
