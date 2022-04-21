@@ -4,7 +4,6 @@
 #include <common.h>
 #include <record.h>
 
-
 namespace Zeta
 {
     class VMemoryManagerImpl;

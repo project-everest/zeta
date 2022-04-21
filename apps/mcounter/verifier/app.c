@@ -16,6 +16,7 @@ Zeta_Steel_ApplicationTypes_eq_value_type(
     return v0 == v1;
 }
 
+// TODO: use key serialization
 Zeta_Steel_LogEntry_Types_base_key
 Zeta_Steel_Application_key_type_to_base_key(Zeta_Steel_ApplicationTypes_key_type k)
 {
