@@ -6,8 +6,8 @@
 
 using namespace Zeta;
 
-VMemoryManager::VMemoryManager(ThreadId threadId)
-    : pimpl_ { new VMemoryManagerImpl (threadId) }
+VMemoryManager::VMemoryManager(ThreadId threadId, Log &log)
+    : pimpl_ { new VMemoryManagerImpl (threadId, log) }
 {
 
 }
@@ -49,8 +49,9 @@ void VMemoryManager::EndOperation()
     return pimpl_->EndOperation();
 }
 
-VMemoryManagerImpl::VMemoryManagerImpl(ThreadId threadId)
+VMemoryManagerImpl::VMemoryManagerImpl(ThreadId threadId, Log &log)
     : threadId_ { threadId }
+    , log_ { log }
 {
 
 }
@@ -66,7 +67,6 @@ SlotId VMemoryManagerImpl::Add(const AppRecord* record)
     assert (appBaseKey.GetDepth() == BaseKey::LeafDepth);
 
     auto curKey = BaseKey::Root;
-    auto curSlot = InvalidSlotId;
 
     while (curKey.GetDepth() < appBaseKey.GetDepth()) {
 
@@ -77,10 +77,7 @@ SlotId VMemoryManagerImpl::Add(const AppRecord* record)
         assert (curValue != nullptr);
 
         if (!curKey.IsRoot()) {
-            curSlot = AddInternal(curKey, curValue, curSlot);
-        }
-        else {
-            curSlot = 0;
+            AddInternal(curKey, curValue);
         }
 
         auto dir = DescDirTr::ToByte(curKey.GetDescDir(appBaseKey));
@@ -113,7 +110,12 @@ SlotId VMemoryManagerImpl::Add(const AppRecord* record)
     return 0;
 }
 
-SlotId VMemoryManagerImpl::AddInternal(const BaseKey& key, const MerkleValue* value, SlotId parentSlot)
+void VMemoryManagerImpl::AddInternal(const BaseKey& key, const MerkleValue* value)
 {
-    return 0;
+    assert (value != nullptr);
+
+    auto parentSlot = nextSlot_;
+    auto slot = nextSlot_++;
+
+    Formats::LogAddMInternal(key, value, slot, parentSlot, log_);
 }

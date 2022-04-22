@@ -12,7 +12,7 @@ namespace Zeta
     class VMemoryManager
     {
     public:
-        VMemoryManager (ThreadId threadId);
+        VMemoryManager (ThreadId threadId, Log& log);
         ~VMemoryManager() = default;
 
         void BeginOperation();

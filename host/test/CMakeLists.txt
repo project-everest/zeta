@@ -1,5 +1,8 @@
-file(GLOB TEST_SRC *.cpp)
-add_executable(hosttest ${TEST_SRC})
+file(GLOB TEST_SRC *.cpp *.c)
+add_executable(hosttest
+  ${TEST_SRC}
+  ${DIST_DIR}/ZetaFormats.c
+)
 
 target_include_directories(hosttest
   PRIVATE ${DIST_DIR}

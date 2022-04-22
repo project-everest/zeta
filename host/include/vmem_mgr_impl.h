@@ -11,7 +11,7 @@ namespace Zeta
     class VMemoryManagerImpl
     {
     public:
-        VMemoryManagerImpl(ThreadId threadId);
+        VMemoryManagerImpl(ThreadId threadId, Log &log);
 
         void BeginOperation();
 
@@ -25,11 +25,11 @@ namespace Zeta
         void EndOperation();
 
     private:
-        SlotId GetFreeSlot();
-        SlotId AddInternal(const BaseKey& key, const MerkleValue* value, SlotId parentSlot);
+        void AddInternal(const BaseKey& key, const MerkleValue* value);
 
         const ThreadId threadId_;
         MerkleTree merkleTree_;
-        Log log_;
+        Log &log_;
+        SlotId nextSlot_;
     };
 }
