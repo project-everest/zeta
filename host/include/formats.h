@@ -14,5 +14,7 @@ namespace Zeta
                                     const MerkleValue* value,
                                     SlotId slot, SlotId parentSlot,
                                     Log& log);
+
+        static void LogAddMApp (const AppRecord* record, SlotId slot, SlotId parentSlot, Log& log);
     };
 }

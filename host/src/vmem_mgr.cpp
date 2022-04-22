@@ -1,3 +1,4 @@
+#include "app.h"
 #include <assert.h>
 #include <common.h>
 #include <formats.h>
@@ -70,12 +71,13 @@ SlotId VMemoryManagerImpl::Add(const AppRecord* record)
 
     while (curKey.GetDepth() < appBaseKey.GetDepth()) {
 
-        // invariant: curKey is the ancestor of baseKey
+        // invariant: curKey is an ancestor of baseKey that exists in the merkle tree
         assert (curKey.IsAncestor(appBaseKey));
 
         auto curValue = merkleTree_.Get(curKey);
         assert (curValue != nullptr);
 
+        // if curKey is not root, then it is not in verifier store; add it
         if (!curKey.IsRoot()) {
             AddInternal(curKey, curValue);
         }
@@ -105,9 +107,21 @@ SlotId VMemoryManagerImpl::Add(const AppRecord* record)
 
             curKey = newKey;
         }
+        else {
+            curKey = nextKey;
+        }
     }
 
-    return 0;
+    auto parentSlot = nextSlot_;
+    auto slot = nextSlot_++;
+    Formats::LogAddMApp(record, slot, parentSlot, log_);
+
+    return slot;
+}
+
+void VMemoryManagerImpl::RunApp(SlotId slotId, const AppParam* record)
+{
+
 }
 
 void VMemoryManagerImpl::AddInternal(const BaseKey& key, const MerkleValue* value)
