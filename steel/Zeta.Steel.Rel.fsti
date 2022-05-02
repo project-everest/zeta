@@ -169,8 +169,16 @@ let related_desc_hash (s_hash: s_desc_hash)
       Vtrue? dhd.evicted_to_blum == b
     | _ -> False
 
+let good_key_desc_hash (sdh:s_desc_hash) 
+  = let open T in
+    let open Zeta.Steel.BitUtils in
+    match sdh with
+    | Dh_vnone () -> True
+    | Dh_vsome dhd ->
+      Zeta.Steel.KeyUtils.good_key dhd.dhd_key
+  
 val lift_desc_hash (sdh: s_desc_hash)
-  : idh: i_desc_hash { related_desc_hash sdh idh }
+  : GTot (idh: i_desc_hash { good_key_desc_hash sdh ==> related_desc_hash sdh idh })
 
 let related_mval (smv: s_mval) (imv: i_mval)
   = let open T in
@@ -178,8 +186,12 @@ let related_mval (smv: s_mval) (imv: i_mval)
     related_desc_hash smv.l imv.left /\
     related_desc_hash smv.r imv.right
 
+let good_key_mval (smv:s_mval) =
+  good_key_desc_hash smv.l /\
+  good_key_desc_hash smv.r
+  
 val lift_mval (smv: s_mval)
-  : imv: i_mval { related_mval smv imv }
+  : GTot (imv: i_mval { good_key_mval smv ==> related_mval smv imv })
 
 let related_dval (sdv: s_dval) (idv: i_dval)
   = match sdv, idv with
@@ -188,7 +200,7 @@ let related_dval (sdv: s_dval) (idv: i_dval)
     | _ -> False
 
 val lift_dval (sdv: s_dval)
-  : idv: i_dval {related_dval sdv idv}
+  : GTot (idv: i_dval {related_dval sdv idv})
 
 let related_val (sv: s_val) (iv: i_val)
   = let open Zeta.Record in
@@ -198,13 +210,21 @@ let related_val (sv: s_val) (iv: i_val)
     | DValue sdv, AppV idv -> related_dval sdv idv
     | _ -> False
 
+let good_key_s_val (sv:s_val)
+  = let open T in
+    match sv with
+    | MValue smv -> good_key_mval smv
+    | DValue _ -> True
+  
 val lift_val (sv: s_val)
-  : iv: i_val { related_val sv iv }
+  : GTot (iv: i_val { good_key_s_val sv ==> related_val sv iv })
 
 let valid_record (sr: s_record)
   = let open T in
     match sr with
-    | InternalKey _, MValue _ -> True
+    | InternalKey ik, MValue mv ->
+      Zeta.Steel.KeyUtils.good_key ik /\
+      good_key_mval mv
     | ApplicationKey _, DValue _ -> True
     | _ -> False
 
@@ -217,7 +237,7 @@ let related_record (sr: s_record) (ir: i_record)
     related_val sv iv
 
 val lift_record (sr: s_record {valid_record sr})
-  : ir: i_record { related_record sr ir }
+  : GTot (ir: i_record { related_record sr ir })
 
 let valid_slot (s: s_slot_id)
   = TSM.check_slot_bounds s

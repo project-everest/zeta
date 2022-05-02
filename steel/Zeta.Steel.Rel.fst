@@ -65,25 +65,48 @@ let related_zero (_:unit)
   : Lemma (ensures (related_hash_value TSM.zero Zeta.Hash.zero))
   = Zeta.Steel.BitUtils.related_zero()
 
+#push-options "--query_stats --fuel 0"
+
 let lift_desc_hash (sdh: s_desc_hash)
-  : idh: i_desc_hash { related_desc_hash sdh idh }
-  = admit()
+  : GTot (idh: i_desc_hash { good_key_desc_hash sdh ==> related_desc_hash sdh idh })
+  = let open T in
+    let open M in
+    let open Zeta.Steel.BitUtils in
+    match sdh with
+    | Dh_vnone () -> Empty
+    | Dh_vsome dhd -> 
+      let k = lift_base_key dhd.dhd_key in
+      let h = lift_hash_value dhd.dhd_h in
+      let b = Vtrue? dhd.evicted_to_blum in
+      let idh = Desc k h b in
+      introduce good_key_desc_hash sdh ==> related_desc_hash sdh idh
+      with _ . (
+        Zeta.Steel.KeyUtils.lower_lift_id dhd.dhd_key
+      );
+      idh
 
 let lift_mval (smv: s_mval)
-  : imv: i_mval { related_mval smv imv }
-  = admit()
+  = { left = lift_desc_hash smv.l;
+      right = lift_desc_hash smv.r }
 
 let lift_dval (sdv: s_dval)
-  : idv: i_dval {related_dval sdv idv}
-  = admit()
-
+  = match sdv with
+    | None -> Null
+    | Some sv -> DValue sv
+    
 let lift_val (sv: s_val)
-  : iv: i_val { related_val sv iv }
-  = admit()
+  = match sv with
+    | T.MValue smv -> Zeta.Record.IntV (lift_mval smv)
+    | T.DValue sdv -> Zeta.Record.AppV (lift_dval sdv)
 
 let lift_record (sr: s_record {valid_record sr})
-  : ir: i_record { related_record sr ir }
-  = admit()
+  = match sr with
+    | T.InternalKey k, T.MValue mv ->
+      Zeta.Steel.KeyUtils.lower_lift_id k;
+      Zeta.GenKey.IntK (lift_base_key k), Zeta.Record.IntV (lift_mval mv)
+
+    | T.ApplicationKey k, T.DValue d ->
+      Zeta.GenKey.AppK k, Zeta.Record.AppV (lift_dval d)
 
 let lift_timestamp (st: s_timestamp)
   : i_timestamp
