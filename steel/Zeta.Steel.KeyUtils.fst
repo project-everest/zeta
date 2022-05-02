@@ -820,3 +820,37 @@ let related_desc_dir (sk0 sk1: T.base_key) (ik0 ik1: Zeta.Key.base_key)
       B.is_desc_eq ik0 (B.RightChild ik1);
       assert (B.is_desc ik0 (B.RightChild ik1))
     )
+
+let rec lift_base_key_relevant_bits (b0 b1:T.base_key)
+  : Lemma
+    (requires  lift_base_key b0 == lift_base_key b1)    
+    (ensures   b0.significant_digits = b1.significant_digits /\
+              (forall (i:U16.t{U16.v i < U16.v b0.significant_digits}).{:pattern (has_type i U16.t)} ith_bit b0 i == ith_bit b1 i))
+    (decreases (U16.v b0.significant_digits))
+  = if b0.significant_digits = 0us
+    then ()
+    else if b0.significant_digits = b1.significant_digits then (
+      let b0' = { b0 with significant_digits = U16.(b0.significant_digits -^ 1us) } in
+      let b1' = { b1 with significant_digits = U16.(b1.significant_digits -^ 1us) } in
+      lift_base_key_relevant_bits b0' b1'
+    )
+    else ()
+
+#push-options "--fuel 0 --ifuel 0"
+let lower_lift_id (k:base_key)
+  : Lemma 
+    (requires good_key k)
+    (ensures lower_base_key' (lift_base_key k) == k)
+  = let hk = lift_base_key k in
+    let k' = lower_base_key hk in
+    let hk' = lift_base_key k' in
+    lift_lower_id hk;
+    assert (hk == hk');
+    lowered_keys_are_good hk;
+    assert (good_key k');
+    lift_base_key_relevant_bits k k';
+    ith_bit_extensional k k'
+#pop-options
+
+   
+  
