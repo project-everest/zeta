@@ -52,3 +52,21 @@ let bitvec_of_u256_inj (i j:_)
       (UInt.to_vec (U64.v j.v2))
       (UInt.to_vec (U64.v j.v3))
     )
+
+let related_zero_u64 ()
+  : Lemma (UInt.to_vec (U64.v 0uL) `Seq.equal`
+           FStar.BitVector.zero_vec #64)
+  = assert (U64.v 0uL == UInt.zero 64)
+
+let zero: T.hash_value =
+  let open T in
+  let z = U64.zero in
+  { v3 = z; v2 = z; v1 = z ; v0 = z }
+
+let related_zero ()
+  : Lemma (bitvec_of_u256 zero ==
+           FStar.BitVector.zero_vec #256)
+  = related_zero_u64();
+    assert (bitvec_of_u256 zero `Seq.equal`
+           FStar.BitVector.zero_vec #256)  
+  

@@ -63,7 +63,7 @@ let related_app_key (sk: s_key) (ik: i_key)
 
 let related_zero (_:unit)
   : Lemma (ensures (related_hash_value TSM.zero Zeta.Hash.zero))
-  = admit()
+  = Zeta.Steel.BitUtils.related_zero()
 
 let lift_desc_hash (sdh: s_desc_hash)
   : idh: i_desc_hash { related_desc_hash sdh idh }

@@ -245,10 +245,7 @@ let update_merkle_value (v:T.mval_value)
     else {v with T.r = desc_hash}
 
 
-let zero: T.hash_value =
-  let open T in
-  let z = U64.zero in
-  { v3 = z; v2 = z; v1 = z ; v0 = z }
+let zero: T.hash_value = Zeta.Steel.BitUtils.zero256
 
 let points_to_some_slot (tsm:thread_state_model)
                         (s:T.slot)
