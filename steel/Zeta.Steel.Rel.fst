@@ -110,14 +110,23 @@ let lift_record (sr: s_record {valid_record sr})
 
 let lift_timestamp (st: s_timestamp)
   : i_timestamp
-  = admit()
+  = let epoch = TSM.epoch_of_timestamp st in
+    let ctr = TSM.counter_of_timestamp st in
+    { e = U32.v epoch; c = U32.v ctr }
 
 let related_next (st: s_timestamp) (it: i_timestamp)
   : Lemma (requires (related_timestamp st it))
           (ensures (match TSM.next st with
                     | None -> True
                     | Some st' -> related_timestamp st' (Zeta.Time.next it)))
-  = admit()
+  = let n = TSM.next st in
+    assert (n = Zeta.Steel.Util.try_increment_counter st);
+    match n with
+    | None -> ()
+    | Some st' ->
+      assume (U32.v (TSM.counter_of_timestamp st') = U32.v (TSM.counter_of_timestamp st) + 1);
+      assume (TSM.epoch_of_timestamp st' == TSM.epoch_of_timestamp st);
+      admit()
 
 let related_max (st1 st2: s_timestamp) (it1 it2: i_timestamp)
   : Lemma (requires (related_timestamp st1 it1 /\ related_timestamp st2 it2))

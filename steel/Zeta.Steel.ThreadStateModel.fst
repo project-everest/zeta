@@ -465,9 +465,14 @@ let vaddm (tsm:thread_state_model)
         end
    )
 
+let counter_of_timestamp (t:T.timestamp)
+  : U32.t
+  = FStar.Int.Cast.uint64_to_uint32 t
+  
 let next (t:T.timestamp)
   : option T.timestamp
-  = if FStar.UInt.fits (U64.v t + 1) 64
+  = let ctr = counter_of_timestamp t in
+    if FStar.UInt.fits (U32.v ctr + 1) 32
     then Some (U64.add t 1uL)
     else None
 
@@ -685,20 +690,6 @@ let maybe_increment_last_verified_epoch (e:option epoch_id)
     | None -> Some 0ul
     | Some e -> check_overflow_add32 e 1ul
     
-    (*
-=======
-  = let e = epoch_of_timestamp tsm.clock in
-    if not (FStar.UInt.fits (U32.v e + 1) 32)
-    then fail tsm //overflow
-    else (
-      // increment epoch - we have already checked the result fits in 32 bits
-      let e = U32.add e U32.one in
-      let clock = U64.shift_left (C.uint32_to_uint64 e) 32ul in
-      {tsm with clock=clock}
-    )
->>>>>>> _arvind_zeta_generic
-*)
-
 let verifyepoch (tsm:thread_state_model)
   : thread_state_model
   = match maybe_increment_last_verified_epoch tsm.last_verified_epoch with

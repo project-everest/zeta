@@ -393,7 +393,7 @@ let vaddm (#tsm:M.thread_state_model)
 
 let next (t:T.timestamp)
   : option T.timestamp
-  = check_overflow_add t 1uL
+  = Zeta.Steel.Util.try_increment_counter t
 
 let max (t0 t1:T.timestamp)
   = let open U64 in

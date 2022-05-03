@@ -82,3 +82,29 @@ let st_check_overflow_add32 (x y:U32.t)
 let update_if (b:bool) (default_ upd_: 'a)
   : 'a
   = if b then upd_ else default_
+
+let next (t:U64.t)
+  : option U64.t
+  = let ctr = FStar.Int.Cast.uint64_to_uint32 t in
+    if FStar.UInt.fits (U32.v ctr + 1) 32
+    then Some (U64.add t 1uL)
+    else None
+
+let will_add_overflow32 (x y:U32.t)
+  : res:bool{
+       res <==> not (FStar.UInt.fits (U32.v x + U32.v y) 32)
+    }
+  = let open U32 in
+    (0xfffffffful -^ x) <^ y
+
+module C = FStar.Int.Cast
+
+let try_increment_counter (x:U64.t)
+  : Tot (v:option (U64.t) { v == next x })
+  = let ctr = FStar.Int.Cast.uint64_to_uint32 x in
+    if will_add_overflow32 ctr 1ul
+    then None
+    else let res = U64.(x +^ 1uL) in
+         Some res
+
+       
