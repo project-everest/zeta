@@ -128,13 +128,19 @@ let lemma_madd_to_store (tsm: TSM.thread_state_model)
     ()
 
 #push-options "--z3rlimit_factor 2 --query_stats"
+
+#push-options "--fuel 0 --ifuel 2"
 let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
                               (s: T.slot)
                               (k: T.key)
                               (v: T.value)
                               (s':T.slot)
                               (d d2:bool)
-  : Lemma (requires (madd_to_store_split_reqs tsm s k v s' d d2 /\ all_props tsm.store))
+  : Lemma (requires 
+               madd_to_store_split_reqs tsm s k v s' d d2 /\
+               all_props tsm.store /\
+               (let tsm_ = TSM.madd_to_store_split tsm s k v s' d d2 in
+                not tsm_.failed))
           (ensures (let tsm_ = TSM.madd_to_store_split tsm s k v s' d d2 in
                     let od = not d in
                     let od2 = not d2 in
@@ -143,7 +149,6 @@ let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
 
                     identical_except_store tsm tsm_ /\
                     identical_except3 tsm.store tsm_.store s s' s2 /\
-
                     // nothing changes in slot s', except it now points to s in direction d
                     inuse_slot tsm_.store s' /\
                     stored_key tsm_.store s' = stored_key tsm.store s' /\
@@ -178,10 +183,7 @@ let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
     let od2 = not d2 in
     let s2 = pointed_slot tsm.store s' d in
     let open TSM in
-    if tsm_.failed
-    then admit()
-    else (
-    assert (tsm_.failed \/ identical_except_store tsm tsm_);
+    assert (identical_except_store tsm tsm_);
     assert (identical_except3 tsm.store tsm_.store s s' s2);
 
     assert (points_to_dir tsm.store s' d s2);
@@ -214,40 +216,7 @@ let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
     | Some r' ->
       let p = (s', d) in
       let s2_opt = child_slot r' d in
-      assert (s2_opt = Some s2);
-      //match s2_opt with
-      //| None -> assert(False); ()
-      //| Some s2 ->
-        //if U16.v s2 >= Seq.length st
-        //then
-        //begin
-          //assert(False); ()
-        //end
-        //else //match Seq.index st (U16.v s2) with
-        //| None -> assert(False); ()
-        //| Some r2 ->
-                 //let e = mk_entry_full k v MAdd None None (Some p) in
-                 //let e = update_child e d2 s2 in
-                 //let e' = update_child r' d s in
-                 //let p2new = s, d2 in
-                 //let e2 = update_parent_slot r2 p2new in
-          //assert(Some e2 == get_slot tsm_.store s2);
-          //assert(Some r2 == get_slot tsm.store s2);
-          //assert(e2.value = r2.value);
-
-
-    (*
-    assert(let Some e = get_slot tsm.store s2 in
-           let Some e_ = get_slot tsm_.store s2 in
-            e == r2 /\ e_ == e2 /\
-           e.key = e_.key /\ e.add_method = e_.add_method /\
-                     e.key = e_.key /\ e.value = e_.value /\
-                     e.add_method = e_.add_method /\
-                     e.l_child_in_store = e_.l_child_in_store /\
-                     e.r_child_in_store = e_.r_child_in_store);
-                    *)
-    ()
-  )
+      assert (s2_opt = Some s2)
 #pop-options
 
 let lemma_mevict_from_store (tsm: s_thread_state)

@@ -247,7 +247,11 @@ val lemma_madd_to_store_split (tsm: TSM.thread_state_model)
                               (v: T.value)
                               (s':T.slot)
                               (d d2:bool)
-  : Lemma (requires (madd_to_store_split_reqs tsm s k v s' d d2 /\ all_props tsm.store))
+  : Lemma (requires 
+               madd_to_store_split_reqs tsm s k v s' d d2 /\
+               all_props tsm.store /\
+               (let tsm_ = TSM.madd_to_store_split tsm s k v s' d d2 in
+                not tsm_.failed))
           (ensures (let tsm_ = TSM.madd_to_store_split tsm s k v s' d d2 in
                     let od = not d in
                     let od2 = not d2 in

@@ -11,13 +11,13 @@ module IS = Zeta.Intermediate.Store
 module U32 = FStar.UInt32
 
 #push-options "--fuel 2 --ifuel 2 --z3rlimit_factor 3 --query_stats"
-
+ 
 let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
   : Lemma (requires (all_props tsm.store))
           (ensures (let tsm_ = vaddm tsm s s' r in
                     let a = AMP s r s' tsm in
-                    addm_precond a /\ addm_postcond a tsm_ \/
-                    ~ (addm_precond a) /\ tsm_.failed))
+                    (addm_precond a /\ addm_postcond a tsm_) \/
+                    (tsm_.failed)))
   = let tsm_ = vaddm tsm s s' r in
     let a = AMP s r s' tsm in
     if not (check_slot_bounds s)
@@ -158,18 +158,21 @@ let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
                 if TSM.points_to_some_slot tsm s' d then
                 begin
                   let tsm' =
-                  madd_to_store_split tsm s gk (T.MValue mv_upd) s' d d2 in
-                  lemma_madd_to_store_split tsm s gk (T.MValue mv_upd) s' d d2;
-                  assert (addm_slot_points_postcond a tsm'.store);
-                  assert (addm_slot_postcond a tsm'.store);
-                  assert (tsm_ == update_value tsm' s' (T.MValue v'_upd));
-                  lemma_update_value tsm' s' (T.MValue v'_upd);
-                  assert (addm_slot_postcond a tsm_.store);
-                  assert (addm_anc_slot_postcond a tsm_.store);
-                  assert (addm_has_desc_slot a);
-                  assert (addm_desc_slot_postcond a tsm_.store);
-                  assert (identical_except3 tsm_.store tsm.store (addm_slot a) (addm_anc_slot a) (addm_desc_slot a));
-                  ()
+                    madd_to_store_split tsm s gk (T.MValue mv_upd) s' d d2 in
+                  if tsm_.failed then ()
+                  else (
+                    lemma_madd_to_store_split tsm s gk (T.MValue mv_upd) s' d d2;
+                    assert (addm_slot_points_postcond a tsm'.store);
+                    assert (addm_slot_postcond a tsm'.store);
+                    assert (tsm_ == update_value tsm' s' (T.MValue v'_upd));
+                    lemma_update_value tsm' s' (T.MValue v'_upd);
+                    assert (addm_slot_postcond a tsm_.store);
+                    assert (addm_anc_slot_postcond a tsm_.store);
+                    assert (addm_has_desc_slot a);
+                    assert (addm_desc_slot_postcond a tsm_.store);
+                    assert (identical_except3 tsm_.store tsm.store (addm_slot a) (addm_anc_slot a) (addm_desc_slot a));
+                    ()
+                  )
                 end
                 else
                 begin
@@ -867,7 +870,7 @@ let nextepoch_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_lo
       let i_e1 = i_e + 1 in
       assert (related_epoch e1 i_e1);
       related_epoch_shift e1 i_e1;
-
+      admit();
 
       ()
     end

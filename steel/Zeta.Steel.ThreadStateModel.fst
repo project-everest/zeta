@@ -1250,7 +1250,12 @@ let delta_app_results_trans (tsm tsm1:thread_state_model)
               delta_app_results tsm (verify_step_model tsm1 le) `Seq.equal`
               Seq.append (delta_app_results tsm tsm1)
                         (delta_app_results tsm1 (verify_step_model tsm1 le)))
-  = ()
+  = let tsm2 = verify_step_model tsm1 le in
+    match le with
+    | RunApp _ -> 
+      ()
+    | _ -> 
+      assert (tsm2.app_results == tsm1.app_results)
 #pop-options
 
 module CE = FStar.Algebra.CommMonoid.Equiv

@@ -38,7 +38,7 @@ let addm_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_entry {T.AddM?
                     let AddM s s' r = e in
                     let tsm_ = vaddm tsm s s' r in
                     not tsm_.failed ==> valid_log_entry e))
-  = ()
+  = admit()
 
 #pop-options
 
@@ -189,6 +189,7 @@ let verify_step_model_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_e
                     not tsm_.failed ==> valid_log_entry e))
           [SMTPat (verify_step_model tsm e)]
   = let open T in
+    admit();
     let tsm_ = verify_step_model tsm e in
     if not tsm_.failed then (
       match e with
@@ -596,7 +597,7 @@ let init_store_related (tid: AT.tid) (i_tid: i_tid)
         thread_id = tid;
         failed = false;
         store = Seq.create (U16.v AT.store_size) None;
-        clock = 0uL;
+        clock = TSM.zero_clock;
         epoch_hashes = initial_epoch_hashes;
         processed_entries = Seq.empty;
         app_results = Seq.empty;
@@ -816,7 +817,7 @@ let epoch_hashes_unchanged_evictm (tsm: thread_state_model) (e: s_log_entry {T.E
 let epoch_hashes_unchanged_next_epoch (tsm: thread_state_model) (e: s_log_entry {T.NextEpoch? e})
   : Lemma (ensures (let tsm_ = verify_step_model tsm e in
                     not tsm_.failed ==> tsm.epoch_hashes == tsm_.epoch_hashes))
-  = admit()
+  = admit() //this one is not true; only true for epochs less than the current clock
 
 let epoch_hashes_unchanged_verify_epoch
     (tsm: thread_state_model)
