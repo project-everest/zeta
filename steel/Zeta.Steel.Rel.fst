@@ -70,15 +70,14 @@ let related_zero (_:unit)
 let lift_desc_hash (sdh: s_desc_hash)
   : GTot (idh: i_desc_hash { good_key_desc_hash sdh ==> related_desc_hash sdh idh })
   = let open T in
-    let open M in
     let open Zeta.Steel.BitUtils in
     match sdh with
-    | Dh_vnone () -> Empty
+    | Dh_vnone () -> M.Empty
     | Dh_vsome dhd -> 
       let k = lift_base_key dhd.dhd_key in
       let h = lift_hash_value dhd.dhd_h in
       let b = Vtrue? dhd.evicted_to_blum in
-      let idh = Desc k h b in
+      let idh = M.Desc k h b in
       introduce good_key_desc_hash sdh ==> related_desc_hash sdh idh
       with _ . (
         Zeta.Steel.KeyUtils.lower_lift_id dhd.dhd_key
@@ -110,8 +109,8 @@ let lift_record (sr: s_record {valid_record sr})
 
 let lift_timestamp (st: s_timestamp)
   : i_timestamp
-  = let epoch = TSM.epoch_of_timestamp st in
-    let ctr = TSM.counter_of_timestamp st in
+  = let epoch = st.epoch in
+    let ctr = st.counter in
     { e = U32.v epoch; c = U32.v ctr }
 
 let related_next (st: s_timestamp) (it: i_timestamp)
@@ -119,37 +118,30 @@ let related_next (st: s_timestamp) (it: i_timestamp)
           (ensures (match TSM.next st with
                     | None -> True
                     | Some st' -> related_timestamp st' (Zeta.Time.next it)))
-  = let n = TSM.next st in
-    assert (n = Zeta.Steel.Util.try_increment_counter st);
-    match n with
-    | None -> ()
-    | Some st' ->
-      assume (U32.v (TSM.counter_of_timestamp st') = U32.v (TSM.counter_of_timestamp st) + 1);
-      assume (TSM.epoch_of_timestamp st' == TSM.epoch_of_timestamp st);
-      admit()
-
+  = ()
+  
 let related_max (st1 st2: s_timestamp) (it1 it2: i_timestamp)
   : Lemma (requires (related_timestamp st1 it1 /\ related_timestamp st2 it2))
           (ensures (related_timestamp (TSM.max st1 st2) (Zeta.Time.max it1 it2)))
-  = admit()
-
+  = ()
+  
 let related_timestamp_lt (st1 st2: s_timestamp) (it1 it2: i_timestamp)
   : Lemma (requires (related_timestamp st1 it1 /\ related_timestamp st2 it2))
           (ensures (st1 `TSM.timestamp_lt` st2 <==> it1 `Zeta.Time.ts_lt` it2))
-  = admit()
+  = ()
 
 let related_timestamp_zero (_: unit)
-  : Lemma (ensures (let st = 0uL in
+  : Lemma (ensures (let st = TSM.zero_clock in
                     let it = { Zeta.Time.e = 0 ; Zeta.Time.c = 0 } in
                     related_timestamp st it))
-  = admit()
+  = ()
 
 let related_timestamp_epoch (st: s_timestamp) (it: i_timestamp)
   : Lemma (requires (related_timestamp st it))
           (ensures (let se = TSM.epoch_of_timestamp st in
                     let ie = it.Zeta.Time.e in
                     related_epoch se ie))
-  = admit()
+  = ()
 
 let related_epoch_incr (s: s_epoch) (i: i_epoch)
   : Lemma (requires (related_epoch s i /\ FStar.UInt.fits (U32.v s + 1) 32))
@@ -157,11 +149,12 @@ let related_epoch_incr (s: s_epoch) (i: i_epoch)
   = ()
 
 let related_epoch_shift (se: s_epoch) (ie: i_epoch)
-  : Lemma (ensures (let open Zeta.Time in
-                    let st = U64.shift_left (FStar.Int.Cast.uint32_to_uint64 se) 32ul in
+  : Lemma (requires related_epoch se ie)
+          (ensures (let open Zeta.Time in
+                    let st : T.timestamp = { epoch  = se; counter = 0ul } in
                     let it = {e = ie; c = 0} in
                     related_timestamp st it))
-  = admit()
+  = ()
 
 let related_hashfn (sv: s_val) (iv: i_val)
   : Lemma (requires (related_val sv iv))

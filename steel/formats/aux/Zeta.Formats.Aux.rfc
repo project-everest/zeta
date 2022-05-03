@@ -113,7 +113,10 @@ struct {
   slot_id addm_s2;
 } addm_payload;
 
-uint64 timestamp;
+struct {
+  uint32 epoch;
+  uint32 counter;
+} timestamp;
 uint16 thread_id;
 
 struct {

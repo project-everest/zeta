@@ -393,11 +393,9 @@ let vaddm (#tsm:M.thread_state_model)
 
 let next (t:T.timestamp)
   : option T.timestamp
-  = Zeta.Steel.Util.try_increment_counter t
-
-let max (t0 t1:T.timestamp)
-  = let open U64 in
-    if t0 >=^ t1 then t0 else t1
+  = match Zeta.Steel.Util.check_overflow_add32 t.counter 1ul with
+    | None -> None
+    | Some ctr -> Some ({ t with counter = ctr })
 
 type htype =
   | HAdd
@@ -607,7 +605,7 @@ let vaddb_core (#tsm:M.thread_state_model)
               | None -> fail t; return true
               | Some t' ->
                 let clock = R.read t.clock in
-                let next_clock = max clock t' in
+                let next_clock = M.max clock t' in
                 R.write t.clock next_clock;
                 A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
                 return true
@@ -976,7 +974,7 @@ let nextepoch_core (#tsm:M.thread_state_model)
     | None ->
       fail t; ()
     | Some nxt ->
-      let c = U64.shift_left (Cast.uint32_to_uint64 nxt) 32ul in
+      let c = { c with epoch = nxt } in
       R.write t.clock c;
       //would be better to prove this and use nxt: (nxt == M.epoch_of_timestamp c);
       let eht = new_epoch (M.epoch_of_timestamp c) in
@@ -1651,7 +1649,7 @@ let init_basic tid
       thread_id = tid;
       failed = false;
       store = Seq.create (U16.v store_size) None;
-      clock = 0uL;
+      clock = M.zero_clock;
       epoch_hashes = M.initial_epoch_hashes;
       processed_entries = Seq.empty;
       app_results = Seq.empty;
@@ -1666,7 +1664,7 @@ let create_basic (tid:tid)
     (ensures fun t -> VerifierTypes.thread_id t == tid)
   = let failed = R.alloc false in
     let store : vstore = A.alloc None (as_u32 store_size) in
-    let clock = R.alloc 0uL in
+    let clock = R.alloc M.zero_clock in
     let epoch_hashes = EpochMap.create 64ul M.init_epoch_hash in
     let last_verified_epoch = R.alloc None in
     let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in

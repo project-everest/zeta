@@ -32,6 +32,14 @@ val admit___ (#opened:_)
              (_:unit)
   : STAtomicF a opened p q True (fun _ -> False)
 
+inline_for_extraction
+let will_add_overflow32 (x y:U32.t)
+  : res:bool{
+       res <==> not (FStar.UInt.fits (U32.v x + U32.v y) 32)
+    }
+  = let open U32 in
+    (0xfffffffful -^ x) <^ y
+
 let check_overflow_add32 (x y:U32.t)
   : Pure (option U32.t)
     (requires True)
@@ -40,32 +48,28 @@ let check_overflow_add32 (x y:U32.t)
         then Some? res /\
              Some?.v res == U32.add x y
         else None? res)
- = let open U64 in
-   let res = U64.(Cast.uint32_to_uint64 x +^
-                  Cast.uint32_to_uint64 y)
-   in
-   if res >^ 0xffffffffuL
+ = if will_add_overflow32 x y
    then None
-   else (assert (U64.v res  == U32.v x + U32.v y);
-         assert (U64.v res <= pow2 32);
-         let res = Cast.uint64_to_uint32 res in
-         assert (U32.v res  == U32.v x + U32.v y);
-         Some res)
+   else Some U32.(x +^ y)
 
+inline_for_extraction
+let will_add_overflow64 (x y:U64.t)
+  : res:bool{
+       res <==> not (FStar.UInt.fits (U64.v x + U64.v y) 64)
+    }
+  = let open U64 in
+    (0xffffffffffffffffuL -^ x) <^ y
 
-let check_overflow_add (x y:U64.t)
+let check_overflow_add64 (x y:U64.t)
   : res:option U64.t {
         if FStar.UInt.fits (U64.v x + U64.v y) 64
         then Some? res /\
              Some?.v res == U64.add x y
         else None? res
     }
- = let open U64 in
-   let res = U64.add_mod x y in
-   if res <^ x then None
-   else if res -^ x = y then Some res
-   else None
-
+ = if will_add_overflow64 x y
+   then None
+   else Some U64.(x +^ y)
 
 let st_check_overflow_add32 (x y:U32.t)
   : ST (option U32.t)
@@ -83,28 +87,28 @@ let update_if (b:bool) (default_ upd_: 'a)
   : 'a
   = if b then upd_ else default_
 
-let next (t:U64.t)
-  : option U64.t
-  = let ctr = FStar.Int.Cast.uint64_to_uint32 t in
-    if FStar.UInt.fits (U32.v ctr + 1) 32
-    then Some (U64.add t 1uL)
-    else None
+// let next (t:U64.t)
+//   : option U64.t
+//   = let ctr = FStar.Int.Cast.uint64_to_uint32 t in
+//     if FStar.UInt.fits (U32.v ctr + 1) 32
+//     then Some (U64.add t 1uL)
+//     else None
 
-let will_add_overflow32 (x y:U32.t)
-  : res:bool{
-       res <==> not (FStar.UInt.fits (U32.v x + U32.v y) 32)
-    }
-  = let open U32 in
-    (0xfffffffful -^ x) <^ y
+// let will_add_overflow32 (x y:U32.t)
+//   : res:bool{
+//        res <==> not (FStar.UInt.fits (U32.v x + U32.v y) 32)
+//     }
+//   = let open U32 in
+//     (0xfffffffful -^ x) <^ y
 
-module C = FStar.Int.Cast
+// module C = FStar.Int.Cast
 
-let try_increment_counter (x:U64.t)
-  : Tot (v:option (U64.t) { v == next x })
-  = let ctr = FStar.Int.Cast.uint64_to_uint32 x in
-    if will_add_overflow32 ctr 1ul
-    then None
-    else let res = U64.(x +^ 1uL) in
-         Some res
+// let try_increment_counter (x:U64.t)
+//   : Tot (v:option (U64.t) { v == next x })
+//   = let ctr = FStar.Int.Cast.uint64_to_uint32 x in
+//     if will_add_overflow32 ctr 1ul
+//     then None
+//     else let res = U64.(x +^ 1uL) in
+//          Some res
 
        

@@ -16,7 +16,10 @@ type uninterpreted = {
   ebytes: (ebytes: Ghost.erased (Seq.seq U8.t) { Seq.length ebytes == U32.v len });
 }
 
-type timestamp = U64.t
+type timestamp = {
+  epoch:U32.t;
+  counter: U32.t
+}
 
 type thread_id = U16.t
 

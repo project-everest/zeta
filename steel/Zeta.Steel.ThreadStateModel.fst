@@ -62,7 +62,7 @@ noeq
 type thread_state_model = {
   failed : bool;
   store : contents;
-  clock : U64.t;
+  clock : T.timestamp;
   epoch_hashes: epoch_hashes;
   thread_id: tid;
   processed_entries: Seq.seq log_entry;
@@ -115,14 +115,17 @@ let init_value (k:key)
   = if ApplicationKey? k
     then DValue None
     else MValue ({ l = Dh_vnone (); r = Dh_vnone ()})
-  
+
+inline_for_extraction
+let zero_clock = { epoch = 0ul; counter = 0ul }
+
 let init_thread_state_model tid
   : thread_state_model
   = let tsm = {
       thread_id = tid;
       failed = false;
       store = Seq.create (U16.v store_size) None;
-      clock = 0uL;
+      clock = zero_clock;
       epoch_hashes = initial_epoch_hashes;
       processed_entries = Seq.empty;
       app_results = Seq.empty;
@@ -374,7 +377,9 @@ let bevict_from_store (tsm:thread_state_model)
     }
   = { tsm with store = Seq.upd tsm.store (U16.v s) None }
 
-let timestamp_lt (t0 t1:T.timestamp) = t0 `U64.lt` t1
+let timestamp_lt (t0 t1:T.timestamp) =
+  U32.(t0.epoch <^ t1.epoch ||
+       (t0.epoch = t1.epoch && t0.counter <^ t1.counter))
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -464,25 +469,20 @@ let vaddm (tsm:thread_state_model)
                  )
         end
    )
-
-let counter_of_timestamp (t:T.timestamp)
-  : U32.t
-  = FStar.Int.Cast.uint64_to_uint32 t
   
 let next (t:T.timestamp)
   : option T.timestamp
-  = let ctr = counter_of_timestamp t in
-    if FStar.UInt.fits (U32.v ctr + 1) 32
-    then Some (U64.add t 1uL)
+  = if FStar.UInt.fits (U32.v t.counter + 1) 32
+    then Some ({ t with counter = t.counter `U32.add` 1ul })
     else None
 
 let max (t0 t1:T.timestamp) 
   : T.timestamp
-  = if U64.(t0 <=^ t1) then t1 else t0
+  = if t0 `timestamp_lt` t1 then t1 else t0
 
 let epoch_of_timestamp (t:T.timestamp)
   : epoch_id
-  = C.uint64_to_uint32 (t `U64.shift_right` 32ul)
+  = t.epoch
 
 let is_root_key (k:key) =
   match k with
@@ -667,17 +667,12 @@ let vevictbm (tsm:thread_state_model)
 
 let increment_epoch (t:timestamp)
   : option timestamp
-  = let e = epoch_of_timestamp t in
-    if not (FStar.UInt.fits (U32.v e + 1) 32)
-    then None
-    else
-      let e' = U32.(e +^ 1ul) in
-      Some (U64.shift_left (C.uint32_to_uint64 e') 32ul)
-    
+  = if FStar.UInt.fits (U32.v t.epoch + 1) 32
+    then Some ({t with epoch = t.epoch `U32.add` 1ul })
+    else None
   
 let nextepoch (tsm:thread_state_model)
   : thread_state_model
-
   = match increment_epoch tsm.clock with
     | None -> fail tsm //overflow
     | Some new_clock ->
@@ -1087,77 +1082,38 @@ let last_verified_epoch_clock_invariant (tsm:thread_state_model)
     | None -> true
     | Some e -> U32.v e < U32.v (epoch_of_timestamp tsm.clock)
 
+let timestamp_leq (t0 t1:T.timestamp)
+  = t0 = t1 || t0 `timestamp_lt` t1
+  
 let epoch_ordering (t0 t1:timestamp)
   : Lemma
-    (ensures U64.(t0 <=^ t1) ==>
+    (ensures timestamp_leq t0 t1 ==>
              U32.(epoch_of_timestamp t0 <=^ epoch_of_timestamp t1))
-  = let e0 = U64.v (t0 `U64.shift_right` 32ul) in
-    let e1 = U64.v (t1 `U64.shift_right` 32ul) in
-    FStar.UInt.shift_right_value_lemma (U64.v t0) 32;
-    FStar.UInt.shift_right_value_lemma (U64.v t1) 32;    
-    assert (e0 == U64.v t0 / pow2 32);
-    assert (e1 == U64.v t1 / pow2 32);    
-    if (U64.v t0 <= U64.v t1)
-    then (
-      assert (e0 <= e1);
-      assert (e0 % pow2 32 <= e1 % pow2 32)
-    )
-
+  = ()
+  
 let increment_epoch_increments (t:timestamp)
   : Lemma (match increment_epoch t with
            | None -> True
            | Some t' -> U32.v (epoch_of_timestamp t') = U32.v (epoch_of_timestamp t) + 1)
-  = let open FStar.Mul in
-    match increment_epoch t with
-    | None -> ()
-    | Some t' -> 
-      let e = epoch_of_timestamp t in
-      let e' = U32.(e +^ 1ul) in
-      calc (==) {
-        U32.v (epoch_of_timestamp t');
-       (==) {  }
-        U32.v (FStar.Int.Cast.uint64_to_uint32 (t' `U64.shift_right` 32ul));
-       (==) { }
-        (U64.v t'/ pow2 32);
-       (==) { }
-        (U64.v (U64.shift_left (FStar.Int.Cast.uint32_to_uint64 e') 32ul) / pow2 32); 
-       (==) { FStar.UInt.shift_left_value_lemma #64 (U32.v e') 32 }
-        (((U32.v e' * pow2 32) % pow2 64) / pow2 32);
-       (==) {}
-        U32.v e';
-      } 
-      
-#push-options "--z3rlimit_factor 8"
+  = ()
+  
 let last_verified_epoch_clock_invariant_step
        (tsm:thread_state_model { last_verified_epoch_clock_invariant tsm })
        (le: log_entry)
   : Lemma 
     (let tsm' = verify_step_model tsm le in
      last_verified_epoch_clock_invariant tsm')
-  = let tsm' = verify_step_model tsm le in
-    if tsm'.failed
-    then ()
-    else 
-      match le with
-      | AddM _ _ _ -> ()
-      | AddB _ ts _ _ ->
-        let Some ts' = next ts in
-        epoch_ordering tsm.clock (max tsm.clock ts')
-      | EvictM _ -> ()
-      | EvictB _
-      | EvictBM _ ->
-        epoch_ordering tsm.clock tsm'.clock
-      | NextEpoch ->
-        increment_epoch_increments tsm.clock
-      | VerifyEpoch -> ()
-      | RunApp _ -> ()
+  = ()
 
 #push-options "--fuel 1"
 let rec extend_step_invariant
            (tsm:thread_state_model)
            (les:log)
            (p: thread_state_model -> Type)
-           (step_invariant: (tsm:thread_state_model { p tsm } -> le:log_entry -> Lemma (let tsm' = verify_step_model tsm le in p tsm')))
+           (step_invariant: 
+             (tsm:thread_state_model { p tsm } ->
+               le:log_entry ->
+               Lemma (let tsm' = verify_step_model tsm le in p tsm')))
   : Lemma 
     (requires p tsm)
     (ensures  p (verify_model tsm les))
@@ -1206,6 +1162,7 @@ let last_verified_epoch_monotonic (e0 e1:option epoch_id)
     | None, _ -> true
     | Some e, None -> false
     | Some e0, Some e1 -> U32.(e0 <=^ e1) 
+
 #restart-solver
 let epoch_hashes_constant_step
        (tsm:thread_state_model { last_verified_epoch_clock_invariant tsm })
@@ -1284,6 +1241,7 @@ let delta_out_bytes_not_runapp (tsm:thread_state_model)
           [SMTPat (delta_out_bytes tsm (verify_step_model tsm le))]
   = ()
 
+#push-options "--z3rlimit_factor 2"
 let delta_app_results_trans (tsm tsm1:thread_state_model)
                             (le:log_entry)
   : Lemma 
@@ -1293,6 +1251,7 @@ let delta_app_results_trans (tsm tsm1:thread_state_model)
               Seq.append (delta_app_results tsm tsm1)
                         (delta_app_results tsm1 (verify_step_model tsm1 le)))
   = ()
+#pop-options
 
 module CE = FStar.Algebra.CommMonoid.Equiv
 

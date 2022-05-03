@@ -277,7 +277,7 @@ val related_timestamp_lt (st1 st2: s_timestamp) (it1 it2: i_timestamp)
           (ensures (st1 `TSM.timestamp_lt` st2 <==> it1 `Zeta.Time.ts_lt` it2))
 
 val related_timestamp_zero (_: unit)
-  : Lemma (ensures (let st = 0uL in
+  : Lemma (ensures (let st = TSM.zero_clock in
                     let it = { Zeta.Time.e = 0 ; Zeta.Time.c = 0 } in
                     related_timestamp st it))
 
@@ -299,11 +299,13 @@ val related_epoch_incr (s: s_epoch) (i: i_epoch)
           (ensures (related_epoch (U32.add s U32.one) (i+1)))
 
 val related_epoch_shift (se: s_epoch) (ie: i_epoch)
-  : Lemma (ensures (let open Zeta.Time in
-                    let st = U64.shift_left (FStar.Int.Cast.uint32_to_uint64 se) 32ul in
+  : Lemma (requires related_epoch se ie)
+          (ensures (let open Zeta.Time in
+                    let st : T.timestamp = { epoch  = se; counter = 0ul } in
                     let it = {e = ie; c = 0} in
                     related_timestamp st it))
 
+  
 let lift_tid (st: s_tid)
   : i_tid
   = U16.v st
