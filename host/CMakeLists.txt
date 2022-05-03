@@ -10,6 +10,12 @@ message (STATUS "Transition function count: ${FN_COUNT}")
 SET (MAX_ARITY "8" CACHE STRING "Max function arity")
 message (STATUS "Max function arity: ${MAX_ARITY}")
 
+SET (LOG_BUF_SIZE "(1 << 20)" CACHE STRING "Log buffer size")
+message (LOG_BUF_SIZE "Log buffer size: ${LOG_BUF_SIZE}")
+
+SET (OUT_BUF_SIZE "(1 << 20)" CACHE STRING "Out buffer size")
+message (OUT_BUF_SIZE "Log buffer size: ${OUT_BUF_SIZE}")
+
 # host dir
 cmake_path(SET HOST_DIR NORMALIZE "${ZETA_HOME}/host/")
 message(STATUS "HOST_DIR = ${HOST_DIR}")

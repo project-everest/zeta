@@ -14,7 +14,7 @@ namespace Zeta
     class VerifierStub
     {
     public:        
-        VerifierStub (ThreadId threadId);
+        VerifierStub (ThreadId threadId, OutCallback outCallback);
         ~VerifierStub ();
         
         Timestamp Run (const TransFn* fn);

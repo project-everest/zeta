@@ -13,4 +13,6 @@ namespace Zeta
     static const int MaxArity = @MAX_ARITY@;
     static const SlotId StoreSize = @STORE_SIZE@;
     static const ThreadId ThreadCount = @THREAD_COUNT@;
+    static const size_t LogBufSize = @LOG_BUF_SIZE@;
+    static const size_t OutBufSize = @OUT_BUF_SIZE@;
 }

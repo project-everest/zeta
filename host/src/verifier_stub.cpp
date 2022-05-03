@@ -6,8 +6,8 @@
 namespace Zeta
 {
 
-    VerifierStub::VerifierStub (ThreadId threadId)
-        : pimpl_ { new VerifierStubImpl (threadId) }
+    VerifierStub::VerifierStub (ThreadId threadId, OutCallback outCallback)
+        : pimpl_ { new VerifierStubImpl (threadId, outCallback) }
     {
 
     }
@@ -45,29 +45,44 @@ namespace Zeta
 
         LogTransFn(fn, slots);
 
-        for (int i = 0 ; i < fn->GetArity() ; ++i) {
-            EvictRecord (slots[i]);
+        for (int i = fn->GetArity() - 1 ; i >= 0 ; --i) {
+
+            auto s = slots[i];
+            assert (!slotInfo_[s].touched);
+
+            if (fn->Touches(i)) {
+                auto ps = slotInfo_[s].parentSlot;
+                UpdateMerkleHash(fn->GetRecord(i).GetKey(), fn->GetPostValue(i), slotInfo_[ps].baseKey);
+                slotInfo_[ps].touched = true;
+            }
+
+            EvictSlot (slots[i]);
         }
 
         if (fn->HasOutput()) {
             RegisterForCallback(fn);
         }
 
-        for (int i = 0 ; i < fn->GetArity() ; ++i) {
-            HandleUpdate(fn->GetRecord(i), fn->GetPostValue(i));
-        }
-
         return 0;
     }
 
-    VerifierStubImpl::VerifierStubImpl (ThreadId threadId)
-        : merkleTree_ { }
+    void VerifierStubImpl::Flush()
+    {
+        FlushImpl();
+    }
+
+    VerifierStubImpl::VerifierStubImpl (ThreadId threadId, OutCallback outCallback)
+        : outCallback_ {outCallback}
+        , merkleTree_ { }
+        , writeLog_ { }
     {
         // the current code assumes single verifier thread
         static_assert (ThreadCount == 1, "The current code assumes single verifier thread");
         static_assert (StoreSize > 0, "Verifier store size cannot be zero");
 
         assert (threadId < ThreadCount);
+
+        InitSlots();
         assert (ValidStoreInvariants());
     }
 
@@ -87,7 +102,7 @@ namespace Zeta
             // unless curKey is root, we have the proving ancestor of curKey
             // already in store at slot prevSlot
             assert (curKey == BaseKey::Root ||
-                    prevSlot < nextFreeSlot_ && slots_[prevSlot].baseKey.IsAncestor(curKey));
+                    IsValidSlot(prevSlot) && slotInfo_[prevSlot].baseKey.IsAncestor(curKey));
 
             // curkey is in the merkle tree
             auto curValue = merkleTree_.Get(curKey);
@@ -95,20 +110,9 @@ namespace Zeta
 
             SlotId curSlot = InvalidSlotId;
             if (!IsInStore(curKey, &curSlot)) {
-                if (nextFreeSlot_ >= StoreSize) {
-                    // TODO: throw
-                }
-
-                auto curSlot = nextFreeSlot_++;
+                auto curSlot = NewSlotId(curKey, prevSlot);
                 LogAddMInternal(curKey, curValue, curSlot, prevSlot);
-
-                slots_[curSlot].baseKey = curKey;
-                slots_[curSlot].parentSlot = prevSlot;
             }
-
-            assert (curSlot < nextFreeSlot_);
-            assert (slots_[curSlot].baseKey == curKey);
-            assert (slots_[curSlot].parentSlot == prevSlot);
 
             auto dir = DescDirTr::ToByte(curKey.GetDescDir(leafKey));
             auto& nextKey = curValue->descInfo[dir].key;
@@ -124,16 +128,9 @@ namespace Zeta
                 assert (newKey.IsAncestor(leafKey) && newKey.GetDepth() < BaseKey::LeafDepth);
 
                 auto newVal = merkleTree_.Put(newKey);
+                auto curSlot = NewSlotId(newKey, prevSlot);
 
-                if (nextFreeSlot_ >= StoreSize) {
-                    // TODO: throw
-                }
-
-                auto curSlot = nextFreeSlot_++;
                 LogAddMInternal(newKey, newVal, curSlot, prevSlot);
-
-                slots_[curSlot].baseKey = newKey;
-                slots_[curSlot].parentSlot = prevSlot;
 
                 // update merkle tree
                 auto dir2 = DescDirTr::ToByte(newKey.GetDescDir(leafKey));
@@ -152,14 +149,133 @@ namespace Zeta
         }
 
         assert (prevSlot != InvalidSlotId);
+        auto recSlot = NewSlotId(leafKey, prevSlot);
+        LogAddMApp(record, recSlot, prevSlot);
 
         // all store invariants valid at exit
         assert (ValidStoreInvariants());
 
-        return 0;
+        return recSlot;
+    }
+
+    void VerifierStubImpl::EvictSlot(SlotId s)
+    {
+        assert (s + 1 == nextFreeSlot_);
+        assert (s > 0);
+        assert (IsValidSlot(s));
+
+        auto ps = slotInfo_[s].parentSlot;
+
+        LogEvictM(s, ps);
+
+        if (slotInfo_[s].touched) {
+            assert (slotInfo_[s].baseKey.GetDepth() < BaseKey::LeafDepth);
+            auto key = slotInfo_[s].baseKey;
+            auto value = merkleTree_.Get(key);
+            UpdateMerkleHash(key, value, slotInfo_[ps].baseKey);
+        }
+
+        FreeSlot(s);
+
+        if (ps == s - 1 && ps > 0)
+        {
+            EvictSlot(ps);
+        }
+    }
+
+    void VerifierStubImpl::RegisterForCallback(const TransFn *fn)
+    {
+        toCallback_.push(fn);
+    }
+
+    void VerifierStubImpl::UpdateMerkleHash(const Key& key, const Value& value, const BaseKey& provingAncestor)
+    {
+        auto ancValue = merkleTree_.Get(provingAncestor);
+        auto baseKey = key.GetBaseKey();
+
+        assert (ancValue != nullptr);
+        assert (provingAncestor.IsAncestor(baseKey));
+        assert (provingAncestor.GetDepth() < baseKey.GetDepth());
+
+        auto dir = DescDirTr::ToByte(provingAncestor.GetDescDir(baseKey));
+        assert (ancValue->descInfo[dir].key == baseKey);
+        GetHashValue(value, ancValue->descInfo[dir].hash);
+    }
+
+    void VerifierStubImpl::UpdateMerkleHash(const BaseKey& key, const MerkleValue* value, const BaseKey& provingAncestor)
+    {
+        auto ancValue = merkleTree_.Get(provingAncestor);
+        assert (ancValue != nullptr);
+
+        assert (provingAncestor.IsAncestor(key));
+        assert (provingAncestor.GetDepth() < key.GetDepth());
+
+        auto dir = DescDirTr::ToByte(provingAncestor.GetDescDir(key));
+        assert (ancValue->descInfo[dir].key == key);
+        GetHashValue(value, ancValue->descInfo[dir].hash);
+    }
+
+    void VerifierStubImpl::FlushImpl()
+    {
+
+    }
+
+    void VerifierStubImpl::InitSlots()
+    {
+        slotInfo_[0].baseKey = BaseKey::Root;
+        slotInfo_[0].parentSlot = InvalidSlotId;
+
+        for (SlotId s = 0 ; s < StoreSize ; ++s) {
+            slotInfo_[s].touched = false;
+        }
+
+        nextFreeSlot_ = 1;
+    }
+
+    bool VerifierStubImpl::IsInStore(const BaseKey& baseKey, SlotId* slot)
+    {
+        assert (slot != nullptr);
+
+        for (SlotId s = 0 ; s < nextFreeSlot_ ; ++s) {
+            if (slotInfo_[s].baseKey == baseKey) {
+                *slot = s;
+                return true;
+            }
+        }
+
+        *slot = InvalidSlotId;
+        return false;
+    }
+
+    SlotId VerifierStubImpl::NewSlotId(const BaseKey& key, SlotId parentSlot)
+    {
+        if (nextFreeSlot_ == StoreSize) {
+            // TODO: throw
+        }
+
+        auto s = nextFreeSlot_++;
+        assert (!slotInfo_[s].touched);
+
+        slotInfo_[s].baseKey = key;
+        slotInfo_[s].parentSlot = parentSlot;
+
+        return s;
+    }
+
+    void VerifierStubImpl::FreeSlot(SlotId s)
+    {
+        assert (s == nextFreeSlot_ && s > 0);
+
+        slotInfo_[s].touched = false;
+        nextFreeSlot_--;
     }
 
 #ifdef DEBUG
+
+    bool VerifierStubImpl::IsValidSlot(SlotId s) const
+    {
+        return (s >= 0 && s < nextFreeSlot_);
+    }
 
 #define CHECK(x) if (!(x)) return false;
 
@@ -168,14 +284,18 @@ namespace Zeta
         // root is always in the store at slot id 0
         CHECK(nextFreeSlot_ > 0 && nextFreeSlot_ <= StoreSize);
 
-        CHECK (slots_[0].baseKey == BaseKey::Root);
-        CHECK (slots_[0].parentSlot == InvalidSlotId);
+        CHECK (slotInfo_[0].baseKey == BaseKey::Root);
+        CHECK (slotInfo_[0].parentSlot == InvalidSlotId);
 
         for (SlotId s = 1 ; s < nextFreeSlot_ ; ++s)
         {
-            auto ps = slots_[s].parentSlot;
+            auto ps = slotInfo_[s].parentSlot;
             CHECK(ps < s);
-            CHECK(slots_[ps].baseKey.IsAncestor(slots_[s].baseKey));
+            CHECK(slotInfo_[ps].baseKey.IsAncestor(slotInfo_[s].baseKey));
+        }
+
+        for (SlotId s = nextFreeSlot_ ; s < StoreSize ; ++s) {
+            CHECK(slotInfo_[s].touched == false);
         }
 
         return true;

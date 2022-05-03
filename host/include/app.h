@@ -54,6 +54,7 @@ namespace App
         const bool hasOutput_;
     };
 
+    typedef void (*OutCallback) (const TransFn *fn, const uint8_t* buf, size_t len);
 }
 
 }
