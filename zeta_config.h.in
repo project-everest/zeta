@@ -5,3 +5,7 @@
 
 #cmakedefine TRACE_MODE
 #cmakedefine STATS_MODE
+
+#ifndef NDEBUG
+#define DEBUG
+#endif

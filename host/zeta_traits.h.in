@@ -1,5 +1,6 @@
 #pragma once
 
+#include <common.h>
 #include <crypt_hash.h>
 
 namespace Zeta
@@ -7,4 +8,9 @@ namespace Zeta
     using HashTraits = @HASH_FUNCTION@Traits;
     using Hasher = CryptoHasher<HashTraits>;
     using HashValue = Hasher::HashValue;
+
+    static const int TransFunctionCount = @FN_COUNT@;
+    static const int MaxArity = @MAX_ARITY@;
+    static const SlotId StoreSize = @STORE_SIZE@;
+    static const ThreadId ThreadCount = @THREAD_COUNT@;
 }
