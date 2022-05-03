@@ -23,5 +23,3 @@ target_include_directories(zetastub
 target_link_libraries(zetastub
   PRIVATE crypto
   PRIVATE fmt::fmt)
-
-add_subdirectory(test)
