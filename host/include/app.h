@@ -5,14 +5,55 @@
 
 namespace Zeta
 {
-    class AppRecord
+
+namespace App
+{
+    using Value = Serializable;
+
+    class Key : public Serializable
     {
     public:
-        virtual Serializable& Key() const = 0;
-        virtual Serializable& Value() const = 0;
-
+        virtual ~Key();
         virtual BaseKey GetBaseKey() const;
     };
 
-    using AppParam = Serializable;
+    class Record
+    {
+    public:
+        virtual ~Record();
+        virtual Key& GetKey() const = 0;
+        virtual Value& GetValue() const = 0;
+    };
+
+    using Param = Serializable;
+
+    class TransFn
+    {
+    public:
+        TransFn(int arity, bool hasOutput);
+        ~TransFn();
+
+        int GetArity() const
+        {
+            return arity_;
+        }
+
+        bool HasOutput() const
+        {
+            return hasOutput_;
+        }
+
+        virtual const Record& GetRecord(int idx) const = 0;
+
+        virtual const Value& GetPostValue(int idx) const = 0;
+
+        virtual bool Touches(int idx) const = 0;
+
+    private:
+        const int arity_;
+        const bool hasOutput_;
+    };
+
+}
+
 }
