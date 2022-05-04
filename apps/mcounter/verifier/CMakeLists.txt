@@ -1,4 +1,4 @@
-configure_file(${APP_COMMON}/config.c.in config.c)
+configure_file(${APP_VERIFIER}/config.c.in config.c)
 
 SET (HACL_BLAKE_OBJS
      ${HACL_DIR}/gcc-compatible/Hacl_Blake2b_32.o
@@ -17,12 +17,12 @@ add_library(verifier
             ${CMAKE_CURRENT_BINARY_DIR}/config.c
             ${HACL_BLAKE_OBJS}
             app.c
-            ${APP_COMMON}/formats.c
+            ${APP_VERIFIER}/formats.c
             )
 
 target_include_directories(verifier
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-    PUBLIC "${APP_HOME}/common"
+    PUBLIC ${APP_VERIFIER}
     PUBLIC ${DIST_DIR}
     PUBLIC ${APP_FORMATS_DIR}
 )

@@ -21,9 +21,14 @@ message (STATUS "HACL_DIR = ${HACL_DIR}")
 cmake_path (SET APP_HOME NORMALIZE "${ZETA_HOME}/apps/")
 message (STATUS "APP_HOME = ${APP_HOME}")
 
-# app common folder
-cmake_path (SET APP_COMMON NORMALIZE "${APP_HOME}/common/")
-message (STATUS "APP_COMMON = ${APP_COMMON}")
+# app verifier folder
+cmake_path (SET APP_VERIFIER NORMALIZE "${APP_HOME}/verifier/")
+message (STATUS "APP_VERIFIER = ${APP_VERIFIER}")
+
+# app verifier folder
+cmake_path (SET APP_HOST NORMALIZE "${APP_HOME}/host/")
+message (STATUS "APP_HOST = ${APP_HOST}")
+
 
 # we want to make sure EVERPARSE_HOME env variable is defined
 if (NOT DEFINED ENV{EVERPARSE_HOME})
@@ -72,5 +77,4 @@ find_package(fmt REQUIRED)
 # spdlog package for logging
 find_package(spdlog REQUIRED)
 
-add_subdirectory(apps/mcounter)
-add_subdirectory(host)
+add_subdirectory(apps)
