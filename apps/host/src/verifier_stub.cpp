@@ -1,14 +1,13 @@
 #include <assert.h>
 #include <formats.h>
-#include <verifier_proxy.h>
 #include <verifier_stub.h>
 #include <verifier_stub_impl.h>
 #include <zeta_traits.h>
 
 namespace Zeta
 {
-    VerifierStub::VerifierStub (ThreadId threadId, OutCallback outCallback)
-        : pimpl_ { new VerifierStubImpl (threadId, outCallback) }
+    VerifierStub::VerifierStub (ThreadId threadId, OutCallback outCallback, VerifierProxy verifierProxy)
+        : pimpl_ { new VerifierStubImpl (threadId, outCallback, verifierProxy) }
     {
 
     }
@@ -72,9 +71,15 @@ namespace Zeta
         FlushImpl();
     }
 
-    VerifierStubImpl::VerifierStubImpl (ThreadId threadId, OutCallback outCallback)
+    EpochId VerifierStubImpl::Verify()
+    {
+        return 0;
+    }
+
+    VerifierStubImpl::VerifierStubImpl (ThreadId threadId, OutCallback outCallback, VerifierProxy verifierProxy)
         : threadId_ { threadId }
         , outCallback_ {outCallback}
+        , verifierProxy_ { verifierProxy }
         , merkleTree_ { }
         , writeLog_ { }
     {
@@ -85,8 +90,6 @@ namespace Zeta
         assert (threadId < ThreadCount);
 
         InitSlots();
-
-        VerifierProxy::Init();
         assert (ValidStoreInvariants());
     }
 
@@ -224,15 +227,12 @@ namespace Zeta
         if (writeLog_.Written() > 0) {
             size_t outSize = 0;
 
-            auto rc = VerifierProxy::VerifyLog(threadId_,
-                                               writeLog_.Bytes(),
-                                               writeLog_.Written(),
-                                               outBuf_.get(),
-                                               OutBufSize,
-                                               &outSize);
-
-            // TODO: handle errors
-            assert (rc == VerifierReturnCode::Success);
+            verifierProxy_.VerifyLog(threadId_,
+                                     writeLog_.Bytes(),
+                                     writeLog_.Written(),
+                                     outBuf_.get(),
+                                     OutBufSize,
+                                     &outSize);
 
             auto readLog = ReadLog { outBuf_.get(), outSize };
 

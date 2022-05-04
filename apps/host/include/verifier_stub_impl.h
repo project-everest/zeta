@@ -3,8 +3,10 @@
 #include <appcommon.h>
 #include <common.h>
 #include <log.h>
-#include <memory>
 #include <merkle_tree.h>
+#include <verifier_stub.h>
+
+#include <memory>
 #include <queue>
 
 namespace Zeta
@@ -12,8 +14,8 @@ namespace Zeta
     class VerifierStubImpl
     {
     public:
-        VerifierStubImpl (ThreadId threadId, OutCallback outCallback);
-        ~VerifierStubImpl ();
+        VerifierStubImpl (ThreadId threadId, OutCallback outCallback, VerifierProxy verifierProxy);
+        ~VerifierStubImpl () = default;
 
         Timestamp Run (const AppTransFn* fn);
         void Flush();
@@ -57,6 +59,7 @@ namespace Zeta
 
         const ThreadId threadId_;
         const OutCallback outCallback_;
+        const VerifierProxy verifierProxy_;
         MerkleTree merkleTree_;
         SlotInfo slotInfo_[StoreSize];
         SlotId nextFreeSlot_;

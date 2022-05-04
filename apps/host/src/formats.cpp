@@ -179,3 +179,8 @@ void Formats::GetHashValue(const AppValue& value, HashValue& hashValBuf)
     value.Serialize4Hash(hasher);
     hasher.HashFinal(hashValBuf);
 }
+
+void Formats::LogSlotId (SlotId slotId, WriteLog& log)
+{
+    log.TSerialize(slotId);
+}

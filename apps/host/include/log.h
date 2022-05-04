@@ -47,10 +47,19 @@ namespace Zeta
         ReadLog(const uint8_t* bytes, size_t len);
 
         template<typename T>
-        T Deserialize();
+        T Deserialize() {
+            T tval;
+            auto p = DeserializeBuf(sizeof(T));
+            memcpy (&tval, p, sizeof(T));
+            return tval;
+        }
 
         const uint8_t* DeserializeBuf(size_t len);
 
         size_t LeftToRead() const;
+
+    private:
+        const uint8_t *cur_;
+        const uint8_t *const bufEnd_;
     };
 }
