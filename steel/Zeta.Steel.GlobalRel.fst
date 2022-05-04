@@ -45,19 +45,14 @@ let all_app_fcrs_rel (ep: epoch_id) (logs: verifiable_logs)
 
 let aggregate_add_hash (logs: all_logs) (ep: epoch_id)
   : GTot hash_value_t
-  = let tsms = TSM.run_all _ logs in
-    //let aeh = AH.aggregate_all_threads_epoch_hashes epoch_id all_logs in
-    //TSMS.aggregate_epoch_hashes tsms ep in
-    //aeh.hadd
-    admit()
+  = let aeh = AH.aggregate_all_threads_epoch_hashes ep (as_tid_logs logs) in
+    aeh.hadd
 
 let aggregate_evict_hash (logs: all_logs) (ep: epoch_id)
   : GTot hash_value_t
-  = let tsms = TSM.run_all _ logs in
-    //let aeh = TSM.aggregate_epoch_hashes tsms ep in
-    //aeh.hevict
-    admit()
-
+  = let aeh = AH.aggregate_all_threads_epoch_hashes ep (as_tid_logs logs) in
+    aeh.hevict
+  
 let certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {AH.epoch_is_certified (as_tid_logs logs) ep})
   : Lemma (ensures (aggregate_add_hash logs ep = aggregate_evict_hash logs ep))
   = ()
@@ -66,11 +61,8 @@ let all_valid_tsms = tsms: Seq.seq thread_state_model
     {forall i. ThreadRel.valid (Seq.index tsms i)}
 
 let all_epoch_completed (ep: epoch_id) (tsms: Seq.seq thread_state_model)
-  = (* (forall i. let tsm = Seq.index tsms i in
-          let hash = Map.sel tsm.epoch_hashes ep in
-          hash.epoch_complete) *)
-    admit()
-
+  = forall (i:Zeta.SeqAux.seq_index tsms). AH.is_epoch_verified (Seq.index tsms i) ep
+  
 let all_add_sets  (tsms: all_valid_tsms) (ep: epoch_id)
   : GTot (Seq.seq mset)
   = let i_ep = lift_epoch ep in
@@ -152,8 +144,20 @@ let rec aggregate_epoch_hashes_prop (eid: epoch_id) (tsms: all_valid_tsms {all_e
 
 let to_tsms (logs: verifiable_logs)
   : all_valid_tsms
-  = //let tsms = Seq.init (Seq.length logs) (fun i -> to_tsm (index logs i)) in
-    admit()
+  = let tid_logs = as_tid_logs logs in
+    let tsms = Zeta.SeqAux.map (fun (tid, _) -> AH.tsm_of_log tid_logs tid) tid_logs in
+    assert (forall (tid:tid). Seq.index tsms (U16.v tid) == AH.tsm_of_log tid_logs tid);
+    introduce forall (tid:tid). let tsm = AH.tsm_of_log tid_logs tid in 
+                           not (tsm.failed) /\
+                           tsm.thread_id == tid /\
+                           tsm == run tid tsm.processed_entries
+    with (
+      let tsm = AH.tsm_of_log tid_logs tid in
+      TSM.verify_model_thread_id_inv (init_thread_state_model tid) 
+                                     (AH.log_of_tid tid_logs tid);
+      TSM.tsm_entries_invariant_steps tid (AH.log_of_tid tid_logs tid)                                     
+    );
+    tsms
 
 
 #push-options "--fuel 1 --ifuel 1 --query_stats"
@@ -168,10 +172,7 @@ let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
   = let h = aggregate_add_hash logs ep in
     let tsms = run_all _ logs in
     //assert (forall i. ThreadRel.valid (Seq.index tsms i));
-
-
-
-  admit()
+    admit()
 
 #pop-options
 
