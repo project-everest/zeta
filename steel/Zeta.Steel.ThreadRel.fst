@@ -38,7 +38,7 @@ let addm_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_entry {T.AddM?
                     let AddM s s' r = e in
                     let tsm_ = vaddm tsm s s' r in
                     not tsm_.failed ==> valid_log_entry e))
-  = admit()
+  = ()
 
 #pop-options
 

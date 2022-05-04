@@ -959,3 +959,7 @@ let is_root_spec (k:base_key)
       ith_bit_extensional k root_base_key;
       ith_bit_zero ()
     )
+
+let lowered_leaf_key_is_data_key (k:Zeta.Key.leaf_key)
+  : Lemma (is_data_key (lower_base_key k))
+  = ()

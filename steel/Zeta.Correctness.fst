@@ -18,11 +18,10 @@ module AH = Zeta.Steel.AggregateEpochHashes
 
 let hash_collision = Zeta.HashCollision.hash_collision app
 
-(* Do we really need this for ghost reasoning? *)
-assume
-val mset_equal (ms1 ms2: mset)
-  : b: bool { b <==> ms1 == ms2 }
-//  = admit()
+(* Do we really need this for ghost reasoning?; this could be implemented without using SEM *)
+let mset_equal (ms1 ms2: mset)
+  : GTot (b: bool { b <==> ms1 == ms2 })
+  = FStar.StrongExcludedMiddle.strong_excluded_middle (ms1 == ms2)
 
 let rec search_epoch (epmax: i_epoch)
                      (logs: i_verifiable_logs)
