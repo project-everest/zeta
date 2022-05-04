@@ -14,14 +14,14 @@ namespace App
     class Key : public Serializable
     {
     public:
-        virtual ~Key();
+        virtual ~Key() = default;
         virtual BaseKey GetBaseKey() const;
     };
 
     class Record
     {
     public:
-        virtual ~Record();
+        virtual ~Record() = default;
         virtual Key& GetKey() const = 0;
         virtual Value* GetValue() const = 0;
     };
@@ -32,7 +32,7 @@ namespace App
     {
     public:
         TransFn(uint8_t id, int arity, bool hasOutput);
-        ~TransFn();
+        virtual ~TransFn() = default;
 
         uint8_t GetId() const
         {
