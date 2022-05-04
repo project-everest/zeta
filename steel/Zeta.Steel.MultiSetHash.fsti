@@ -13,6 +13,7 @@ module TSM = Zeta.Steel.ThreadStateModel
 let app = AT.aprm
 
 (* multist domain *)
+noeq
 type s_dom = {
   r: s_record;
   t: s_timestamp;

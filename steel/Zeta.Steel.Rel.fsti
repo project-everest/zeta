@@ -100,26 +100,21 @@ val lift_key (k: s_key)
 val lower_key (k: i_key)
   : GTot (k': s_key { lift_key k' = k })
 
-(* lifting a lowered key produces the same key, but the converse is not true in general since
- * there are some unused portions in the lower representation of a key. But for application
- * key, there is a one-one correspondence between steel and spec-level keys *)
 val lemma_lower_lift_key (k: s_key)
-  : Lemma (ensures (let open T in
-                    let open GK in
-                    ApplicationKey? k ==> lower_key (lift_key k) = k))
+  : Lemma (ensures (lower_key (lift_key k) == k))
 
 let related_key (sk: s_key) (ik: i_key)
-  = lower_key ik = sk
+  = lower_key ik == sk
 
 let related_base_key (sk: s_base_key) (ik: i_base_key)
-  = lower_base_key ik = sk
+  = lower_base_key ik == sk
 
 val related_root (sk: s_key) (ik: i_key)
   : Lemma (requires (related_key sk ik))
           (ensures (TSM.is_root_key sk <==> ik = GK.IntK Zeta.BinTree.Root))
 
 val related_root_inv (_:unit)
-  : Lemma (ensures (let rk = TSM.root_key in
+  : Lemma (ensures (let rk = T.root_key in
                     let i_rk = GK.IntK Zeta.BinTree.Root in
                     related_key rk i_rk))
 
@@ -168,30 +163,18 @@ let related_desc_hash (s_hash: s_desc_hash)
       related_hash_value dhd.dhd_h h /\
       Vtrue? dhd.evicted_to_blum == b
     | _ -> False
-
-let good_key_desc_hash (sdh:s_desc_hash) 
-  = let open T in
-    let open Zeta.Steel.BitUtils in
-    match sdh with
-    | Dh_vnone () -> True
-    | Dh_vsome dhd ->
-      Zeta.Steel.KeyUtils.good_base_key dhd.dhd_key
   
 val lift_desc_hash (sdh: s_desc_hash)
-  : GTot (idh: i_desc_hash { good_key_desc_hash sdh ==> related_desc_hash sdh idh })
+  : GTot (idh: i_desc_hash { related_desc_hash sdh idh })
 
 let related_mval (smv: s_mval) (imv: i_mval)
   = let open T in
     let open M in
     related_desc_hash smv.l imv.left /\
     related_desc_hash smv.r imv.right
-
-let good_key_mval (smv:s_mval) =
-  good_key_desc_hash smv.l /\
-  good_key_desc_hash smv.r
   
 val lift_mval (smv: s_mval)
-  : GTot (imv: i_mval { good_key_mval smv ==> related_mval smv imv })
+  : GTot (imv: i_mval { related_mval smv imv })
 
 let related_dval (sdv: s_dval) (idv: i_dval)
   = match sdv, idv with
@@ -209,24 +192,9 @@ let related_val (sv: s_val) (iv: i_val)
     | MValue smv, IntV imv -> related_mval smv imv
     | DValue sdv, AppV idv -> related_dval sdv idv
     | _ -> False
-
-let good_key_s_val (sv:s_val)
-  = let open T in
-    match sv with
-    | MValue smv -> good_key_mval smv
-    | DValue _ -> True
   
 val lift_val (sv: s_val)
-  : GTot (iv: i_val { good_key_s_val sv ==> related_val sv iv })
-
-let valid_record (sr: s_record)
-  = let open T in
-    match sr with
-    | InternalKey ik, MValue mv ->
-      Zeta.Steel.KeyUtils.good_key ik /\
-      good_key_mval mv
-    | ApplicationKey _, DValue _ -> True
-    | _ -> False
+  : GTot (iv: i_val { related_val sv iv })
 
 let related_record (sr: s_record) (ir: i_record)
   = let open T in
@@ -236,7 +204,7 @@ let related_record (sr: s_record) (ir: i_record)
     related_key sk ik /\
     related_val sv iv
 
-val lift_record (sr: s_record {valid_record sr})
+val lift_record (sr: s_record)
   : GTot (ir: i_record { related_record sr ir })
 
 let valid_slot (s: s_slot_id)

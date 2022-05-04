@@ -66,16 +66,14 @@ let parse_slots (fid: _) (b: T.uninterpreted {valid_app_param fid b})
 let valid_log_entry (e: s_log_entry)
   = let open Zeta.Steel.LogEntry.Types in
     match e with
-    | AddM s s' r -> valid_record r /\
-                valid_slot s /\
-                valid_slot s'
-    | AddB s ts tid r -> valid_record r /\
-                valid_slot s
-    | EvictM e -> valid_slot e.s /\ valid_slot e.s_
+    | AddM s s' r -> valid_slot s /\ valid_slot s' /\ True
+    | AddB s ts tid r -> valid_slot s /\ True
+    | EvictM e -> valid_slot e.s /\ valid_slot e.s_ /\ True
     | EvictB e -> valid_slot e.s /\ True
-    | EvictBM e -> valid_slot e.s /\ valid_slot e.s_
+    | EvictBM e -> valid_slot e.s /\ valid_slot e.s_ /\ True
     | RunApp e -> valid_app_fid e.fid /\
-                  valid_app_param e.fid e.rest
+                 valid_app_param e.fid e.rest /\
+                 True
     | _ -> True
 
 let related_log_entry (se: s_log_entry) (ie: i_log_entry)

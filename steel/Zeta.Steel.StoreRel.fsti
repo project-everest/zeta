@@ -186,9 +186,11 @@ val lemma_update_value (tsm: TSM.thread_state_model)
                     inuse_slot tsm_.store s /\
                     (let Some e = get_slot tsm.store s in
                      let Some e_ = get_slot tsm_.store s in
-                     e.key = e_.key /\ e_.value = v /\ e.add_method = e_.add_method /\
-                     e.l_child_in_store = e_.l_child_in_store /\
-                     e.r_child_in_store = e_.r_child_in_store)))
+                     e.key == e_.key /\
+                     e_.value == v /\
+                     e.add_method = e_.add_method /\
+                     e.l_child_in_store == e_.l_child_in_store /\
+                     e.r_child_in_store == e_.r_child_in_store)))
 
 let madd_to_store_reqs (tsm: TSM.thread_state_model)
                        (s: T.slot)
@@ -216,8 +218,8 @@ val lemma_madd_to_store (tsm: TSM.thread_state_model)
 
                     // nothing changes in slot s' except it now points to s in direction d
                     inuse_slot tsm_.store s' /\
-                    stored_key tsm_.store s' = stored_key tsm.store s' /\
-                    stored_value tsm_.store s' = stored_value tsm.store s' /\
+                    stored_key tsm_.store s' == stored_key tsm.store s' /\
+                    stored_value tsm_.store s' == stored_value tsm.store s' /\
                     add_method_of tsm_.store s' = add_method_of tsm.store s' /\
                     points_to_dir tsm_.store s' d s /\
                     points_to_info tsm_.store s' od = points_to_info tsm.store s' od /\
@@ -225,9 +227,9 @@ val lemma_madd_to_store (tsm: TSM.thread_state_model)
                     // slot s contains (k, v, MAdd) and points to nothing
                     inuse_slot tsm_.store s /\
                     (let Some e = get_slot tsm_.store s in
-                     e.key = k /\ e.value = v /\ e.add_method = MAdd /\
-                     e.l_child_in_store = None /\ e.r_child_in_store = None /\
-                     e.parent_slot = Some (s', d))))
+                     e.key == k /\ e.value == v /\ e.add_method = MAdd /\
+                     e.l_child_in_store == None /\ e.r_child_in_store == None /\
+                     e.parent_slot == Some (s', d))))
 
 let madd_to_store_split_reqs (tsm: TSM.thread_state_model)
                              (s: T.slot)
@@ -263,15 +265,16 @@ val lemma_madd_to_store_split (tsm: TSM.thread_state_model)
 
                     // nothing changes in slot s', except it now points to s in direction d
                     inuse_slot tsm_.store s' /\
-                    stored_key tsm_.store s' = stored_key tsm.store s' /\
-                    stored_value tsm_.store s' = stored_value tsm.store s' /\
+                    stored_key tsm_.store s' == stored_key tsm.store s' /\
+                    stored_value tsm_.store s' == stored_value tsm.store s' /\
                     add_method_of tsm_.store s' = add_method_of tsm.store s' /\
                     points_to_dir tsm_.store s' d s /\
                     points_to_info tsm_.store s' od = points_to_info tsm.store s' od /\
 
                     // slot s contains (k, v, MAdd) and points to s2 along direction d2
                     inuse_slot tsm_.store s /\
-                    stored_key tsm_.store s = k /\ stored_value tsm_.store s = v /\
+                    stored_key tsm_.store s == k /\
+                    stored_value tsm_.store s == v /\
                     add_method_of tsm_.store s = MAdd /\
                     points_to_none tsm_.store s od2 /\
                     points_to_dir tsm_.store s d2 s2 /\
@@ -286,10 +289,10 @@ val lemma_madd_to_store_split (tsm: TSM.thread_state_model)
 
                     (let Some e = get_slot tsm.store s2 in
                      let Some e_ = get_slot tsm_.store s2 in
-                     e.key = e_.key /\ e.value = e_.value /\
-                     e.add_method = e_.add_method /\
-                     e.l_child_in_store = e_.l_child_in_store /\
-                     e.r_child_in_store = e_.r_child_in_store)))
+                     e.key == e_.key /\ e.value == e_.value /\
+                     e.add_method == e_.add_method /\
+                     e.l_child_in_store == e_.l_child_in_store /\
+                     e.r_child_in_store == e_.r_child_in_store)))
 
 val lemma_mevict_from_store (tsm: s_thread_state)
                             (s: T.slot)
@@ -310,12 +313,12 @@ val lemma_mevict_from_store (tsm: s_thread_state)
 
                     // nothing changes in slot s', except it points to none in direction d
                     inuse_slot st_ s' /\
-                    stored_key st_ s' = stored_key st s' /\
-                    stored_value st_ s' = stored_value st s' /\
-                    add_method_of st_ s' = add_method_of st s' /\
-                    points_to_info st_ s' od = points_to_info st s' od /\
+                    stored_key st_ s' == stored_key st s' /\
+                    stored_value st_ s' == stored_value st s' /\
+                    add_method_of st_ s' == add_method_of st s' /\
+                    points_to_info st_ s' od == points_to_info st s' od /\
                     points_to_none st_ s' d /\
-                    parent_info st_ s' = parent_info st s'))
+                    parent_info st_ s' == parent_info st s'))
 
 val lemma_bevict_from_store (tsm: s_thread_state)
                             (s: T.slot)

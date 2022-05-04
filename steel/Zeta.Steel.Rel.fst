@@ -2,39 +2,51 @@ module Zeta.Steel.Rel
 
 module GK = Zeta.GenKey
 module T = Zeta.Steel.FormatsManual
+module KU = Zeta.Steel.KeyUtils
 
 let lift_key (k: s_key)
   : GTot i_key
   = let open T in
     let open GK in
     match k with
-    | InternalKey k -> IntK (lift_base_key k)
+    | InternalKey k -> 
+      KU.lift_internal_key k;
+      IntK (lift_base_key k)
     | ApplicationKey k -> AppK k
 
 let lower_key (k: i_key)
-  : GTot s_key
   = let open T in
     let open GK in
     match k with
-    | IntK k -> InternalKey (lower_base_key k)
+    | IntK k -> 
+      KU.lower_merkle_key k;
+      lift_lower_inv k;
+      InternalKey (lower_base_key k)
     | AppK k -> ApplicationKey k
 
 let lemma_lower_lift_key (k: s_key)
-  : Lemma (ensures (let open T in
-                    let open GK in
-                    ApplicationKey? k ==> lower_key (lift_key k) = k))
-  = ()
+  : Lemma (ensures (lower_key (lift_key k) == k))
+  = match k with
+    | T.InternalKey k ->
+      lower_lift_inv k
+    | _ -> ()
 
 let related_root (sk: s_key) (ik: i_key)
   : Lemma (requires (related_key sk ik))
           (ensures (TSM.is_root_key sk <==> ik = GK.IntK Zeta.BinTree.Root))
-  = ()
+  = match sk with
+    | T.ApplicationKey _ -> ()
+    | T.InternalKey k ->
+      KU.is_root_spec k;
+      T.related_root();
+      T.lower_lift_inv root_base_key
 
 let related_root_inv (_:unit)
-  : Lemma (ensures (let rk = TSM.root_key in
+  : Lemma (ensures (let rk = T.root_key in
                     let i_rk = GK.IntK Zeta.BinTree.Root in
                     related_key rk i_rk))
-  = ()
+  = T.related_root();
+    T.lower_lift_inv root_base_key
 
 let lemma_related_key_proper_descendent (sk0 sk1: s_base_key) (ik0 ik1: i_base_key)
   : Lemma (requires (related_base_key sk0 ik0 /\ related_base_key sk1 ik1))
@@ -68,7 +80,7 @@ let related_zero (_:unit)
 #push-options "--query_stats --fuel 0"
 
 let lift_desc_hash (sdh: s_desc_hash)
-  : GTot (idh: i_desc_hash { good_key_desc_hash sdh ==> related_desc_hash sdh idh })
+  : GTot (idh: i_desc_hash { related_desc_hash sdh idh })
   = let open T in
     let open Zeta.Steel.BitUtils in
     match sdh with
@@ -78,10 +90,7 @@ let lift_desc_hash (sdh: s_desc_hash)
       let h = lift_hash_value dhd.dhd_h in
       let b = Vtrue? dhd.evicted_to_blum in
       let idh = M.Desc k h b in
-      introduce good_key_desc_hash sdh ==> related_desc_hash sdh idh
-      with _ . (
-        Zeta.Steel.KeyUtils.lower_lift_id dhd.dhd_key
-      );
+      Zeta.Steel.KeyUtils.lower_lift_inv dhd.dhd_key;
       idh
 
 let lift_mval (smv: s_mval)
@@ -98,14 +107,15 @@ let lift_val (sv: s_val)
     | T.MValue smv -> Zeta.Record.IntV (lift_mval smv)
     | T.DValue sdv -> Zeta.Record.AppV (lift_dval sdv)
 
-let lift_record (sr: s_record {valid_record sr})
-  = match sr with
-    | T.InternalKey k, T.MValue mv ->
-      Zeta.Steel.KeyUtils.lower_lift_id k;
-      Zeta.GenKey.IntK (lift_base_key k), Zeta.Record.IntV (lift_mval mv)
-
-    | T.ApplicationKey k, T.DValue d ->
-      Zeta.GenKey.AppK k, Zeta.Record.AppV (lift_dval d)
+let lift_record (sr: s_record)
+  = let k = lift_key (fst sr) in
+    lemma_lower_lift_key (fst sr);
+    let v = 
+      match snd sr with
+      | T.MValue mv -> Zeta.Record.IntV (lift_mval mv)
+      | T.DValue d -> Zeta.Record.AppV (lift_dval d)
+    in
+    k, v
 
 let lift_timestamp (st: s_timestamp)
   : i_timestamp

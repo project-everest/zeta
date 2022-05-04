@@ -36,11 +36,9 @@ let lift_store_entry (s: s_store_entry { valid_store_entry s })
     in
     Zeta.Intermediate.Store.VStoreE r am ld rd p
 
-let valid_store (ss: s_store) 
 let lift_store' (ss: s_store)
   : GTot (is: i_store { related_store ss is })
-  = FStar.Seq.Properties.foldr_snoc
-  admit()
+  = admit()
 
 #push-options "--fuel 1 --ifuel 1 --query_stats"
 

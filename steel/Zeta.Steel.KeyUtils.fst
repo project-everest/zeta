@@ -854,7 +854,14 @@ let lower_lift_id (k:raw_key)
    
 let base_key = r:raw_key { good_raw_key r }
 
-let is_internal_key (r:raw_key) = U16.(r.significant_digits <^ 256us)
+let eq_base_key (k0 k1:base_key)
+  : b:bool { b <==> (k0 == k1) }
+  = eq_u256 k0.k k1.k &&
+    k0.significant_digits = k1.significant_digits
+
+let is_internal_key (r:base_key) = U16.(r.significant_digits <^ 256us)
+
+let is_root (r:base_key) = r.significant_digits = 0us
 
 let root_base_key : internal_key =
   FStar.Classical.forall_intro ith_bit_root_raw_key;
@@ -926,3 +933,29 @@ let related_desc_dir (sk0 sk1: base_key)
       related_proper_descendent sk0 sk1 ik0 ik1;
       desc_dir sk0 sk1 == (Zeta.BinTree.Left? (Zeta.BinTree.desc_dir ik0 ik1))))
   = related_desc_dir_raw sk0 sk1 ik0 ik1
+
+let key_with_descendent_is_internal_key (k':base_key) (k:base_key)
+  : Lemma 
+    (requires k' `is_proper_descendent` k)
+    (ensures is_internal_key k)
+  = ()
+
+let lift_internal_key (k:internal_key)
+  : Lemma (Zeta.Key.is_merkle_key (lift_base_key k))
+  = ()
+
+let lower_merkle_key (k:Zeta.Key.merkle_key)
+  : Lemma (is_internal_key (lower_base_key k))
+  = ()
+
+let related_root ()
+  : Lemma (lift_base_key root_base_key == Zeta.BinTree.Root)
+  = ()
+
+let is_root_spec (k:base_key)
+  : Lemma (is_root k <==> k==root_base_key)
+  = if is_root k 
+    then (
+      ith_bit_extensional k root_base_key;
+      ith_bit_zero ()
+    )

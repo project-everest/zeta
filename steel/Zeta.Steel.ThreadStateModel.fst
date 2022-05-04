@@ -30,7 +30,7 @@ type add_method =
 [@@CAbstractStruct]
 noeq
 type store_entry = {
-  key : key;
+  key : T.key;
   value : (v:value { is_value_of key v });
   add_method : add_method;
   l_child_in_store : option slot;
@@ -83,15 +83,6 @@ let check_slot_bounds (s:T.slot_id)
 let has_slot (tsm:thread_state_model) (s:T.slot_id)
   = check_slot_bounds s &&
     Some? (get_entry tsm s)
-
-let root_base_key: T.base_key = 
-  let open T in
-  { 
-    k = { v3 = U64.zero; v2 = U64.zero ; v1 = U64.zero ; v0 = U64.zero };
-    significant_digits = U16.zero;
-  } 
-
-let root_key: T.key = InternalKey root_base_key
 
 let madd_to_store_root (tsm: thread_state_model) (s: T.slot) (v: T.value)
   : thread_state_model
@@ -390,20 +381,22 @@ let to_base_key (k:key)
     | InternalKey k -> k
     | ApplicationKey k -> KU.lower_base_key (aprm.A.keyhashfn k)
 
-let lower_base_key_sig_digits (k:key_type)
+let lower_app_key_is_data_key (k:key_type)
   : Lemma 
-    (ensures (KU.lower_base_key (aprm.A.keyhashfn k)).significant_digits == 256us)
-  = ()
+    (ensures (KU.is_data_key (KU.lower_base_key (aprm.A.keyhashfn k))))
+  = admit()
 
 let key_with_descendent_is_merkle_key (k:key) (k':base_key)
   : Lemma 
     (requires k' `KU.is_proper_descendent` (to_base_key k))
     (ensures InternalKey? k)
     [SMTPat (k' `KU.is_proper_descendent` (to_base_key k))]
-  = match k with
-    | InternalKey _ -> ()
-    | ApplicationKey k -> lower_base_key_sig_digits k
-    
+  = KU.key_with_descendent_is_internal_key k' (to_base_key k);
+    match k with
+    | ApplicationKey k -> lower_app_key_is_data_key k
+    | _ -> ()
+
+  
 #push-options "--query_stats --z3rlimit_factor 2 --fuel 0 --ifuel 2"
 let vaddm (tsm:thread_state_model)
           (s s': T.slot_id)
@@ -437,7 +430,7 @@ let vaddm (tsm:thread_state_model)
                match dh' with
                | T.Dh_vnone _ -> (* k' has no child in direction d *)
                  (* first add must be init value *)
-                 if gv <> init_value gk then fail tsm
+                 if not (eq_value gv (init_value gk)) then fail tsm
                  else if points_to_some_slot tsm s' d then fail tsm
                  else (
                    let tsm = madd_to_store tsm s gk gv s' d in
@@ -445,13 +438,13 @@ let vaddm (tsm:thread_state_model)
                    update_value tsm s' (T.MValue v'_upd)
                  )
                | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-                 if k2 = k then (* k is a child of k' *)
+                 if eq_base_key k2 k then (* k is a child of k' *)
                  (* check hashes match and k was not evicted to blum *)
                  if not (h2 = h && b2 = T.Vfalse) then fail tsm
                  (* check slot s' does not contain a desc along direction d *)
                  else if points_to_some_slot tsm s' d then fail tsm
                       else madd_to_store tsm s gk gv s' d
-                 else if gv <> init_value gk then fail tsm
+                 else if not (eq_value gv (init_value gk)) then fail tsm
                  (* check k2 is a proper desc of k *)
                  else if not (KU.is_proper_descendent k2 k) then fail tsm
                  else (
@@ -486,7 +479,7 @@ let epoch_of_timestamp (t:T.timestamp)
 
 let is_root_key (k:key) =
   match k with
-  | InternalKey k -> k.significant_digits = 0us
+  | InternalKey k -> is_root k
   | _ -> false
 
 let epoch_greater_than_last_verified_epoch 
@@ -555,7 +548,7 @@ let vevictm (tsm:thread_state_model)
           match dh' with
           | T.Dh_vnone _ -> fail tsm
           | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-            if k2 <> k then fail tsm
+            if not (eq_base_key k2 k) then fail tsm
             else if Some? r.parent_slot &&
                     (fst (Some?.v r.parent_slot) <> s' ||
                      snd (Some?.v r.parent_slot) <> d)
@@ -649,7 +642,7 @@ let vevictbm (tsm:thread_state_model)
            match dh' with
            | T.Dh_vnone _ -> fail tsm
            | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-             if (k2 <> k) || (b2 = T.Vtrue)
+             if (not (eq_base_key k2 k)) || (b2 = T.Vtrue)
              then fail tsm
              else if None? r.parent_slot
                   || fst (Some?.v r.parent_slot) <> s'

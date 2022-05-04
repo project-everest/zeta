@@ -1,6 +1,6 @@
 module Zeta.Steel.LogEntry.Types
 open Zeta.Steel.ApplicationRecord
-
+include Zeta.Steel.KeyUtils
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
 module U32 = FStar.UInt32
@@ -24,10 +24,6 @@ type timestamp = {
 }
 
 type thread_id = U16.t
-
-let base_key = KU.base_key
-
-let internal_key = KU.internal_key
 
 let hash_value = KU.u256
 

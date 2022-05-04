@@ -330,9 +330,9 @@ let vaddm_core (#tsm:M.thread_state_model)
                    return true
                  )
                | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-                 if k2 = k
+                 if KeyUtils.eq_base_key k2 k
                  then (
-                   if not (h2 = h && b2 = T.Vfalse)
+                   if not (T.eq_descendent_hash h2 h && b2 = T.Vfalse)
                    then (let b = fail_as t _ in return b)
                    else if entry_points_to_some_slot r' d
                    then (let b = fail_as t _ in return b)
@@ -1705,7 +1705,7 @@ let madd_to_store_root (#tsm:M.thread_state_model)
   : STT unit 
     (thread_state_inv_core t tsm)
     (fun _ -> thread_state_inv_core t (M.madd_to_store_root tsm s v))
-  = let b = T.is_value_of M.root_key v in
+  = let b = T.is_value_of T.root_key v in
     if not b
     then ( noop(); () )
     else (
@@ -1714,7 +1714,7 @@ let madd_to_store_root (#tsm:M.thread_state_model)
       | Some _ -> noop (); ()
       | _ ->
         let new_entry : M.store_entry = {
-          key = M.root_key;
+          key = T.root_key;
           value = v;
           add_method = M.MAdd;
           l_child_in_store = None;
@@ -1734,7 +1734,7 @@ let create (tid:tid)
   = let ts = create_basic tid in
     if tid = 0us
     then (
-      madd_to_store_root ts 0us (M.init_value M.root_key);
+      madd_to_store_root ts 0us (M.init_value T.root_key);
       rewrite (thread_state_inv_core ts _)
               (thread_state_inv_core ts (M.init_thread_state_model tid));
       intro_thread_state_inv ts;
