@@ -51,9 +51,6 @@ let related_store_entry_opt (s: option s_store_entry) (i: option i_store_entry)
 let related_store (ss: s_store) (is: i_store)
   = forall i. related_store_entry_opt (Seq.index ss i) (Seq.index is i)
 
-val lift_store (ss: s_store)
-  : GTot (is: i_store { related_store ss is })
-
 #push-options "--fuel 0 --ifuel 0 --query_stats"
 
 let get_slot (st: s_store) (s: T.slot)

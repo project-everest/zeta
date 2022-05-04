@@ -112,7 +112,7 @@ let related_log_entry (se: s_log_entry) (ie: i_log_entry)
     | _ -> False
 
 val lift_log_entry (se: s_log_entry {valid_log_entry se})
-  : ie: i_log_entry { related_log_entry se ie }
+  : GTot (ie: i_log_entry { related_log_entry se ie })
 
 let valid_log (l: s_log)
   = forall i. (valid_log_entry (Seq.index l i))
@@ -122,7 +122,7 @@ let related_log (sl: s_log) (il: i_log)
     (forall i. related_log_entry (Seq.index sl i) (Seq.index il i))
 
 val lift_log (sl: s_log {valid_log sl})
-  : il:i_log {related_log sl il}
+  : GTot (il:i_log {related_log sl il})
 
 val lift_log_snoc (sl: s_log {valid_log sl}) (se: s_log_entry {valid_log_entry se})
   : Lemma (requires (let sl_ = Seq.snoc sl se in
