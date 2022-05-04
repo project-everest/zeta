@@ -345,7 +345,7 @@ namespace Zeta
     void VerifierStubImpl::LogTransFn (const TransFn* fn, const SlotId* slots)
     {
         EnsureEnoughLogSpace();
-        Formats::LogRunApp(fn->GetArity(), fn->GetParam(), slots, writeLog_);
+        Formats::LogRunApp(fn->GetId(), fn->GetArity(), fn->GetParam(), slots, writeLog_);
     }
 
     void VerifierStubImpl::LogAddMInternal (const BaseKey& key, const MerkleValue* value, SlotId s, SlotId ps)
@@ -363,6 +363,6 @@ namespace Zeta
     void VerifierStubImpl::LogEvictM (SlotId s, SlotId ps)
     {
         EnsureEnoughLogSpace();
-        Formats::LogEvictM(s, ps);
+        Formats::LogEvictM(s, ps, writeLog_);
     }
 }

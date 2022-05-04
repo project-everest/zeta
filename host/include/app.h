@@ -2,6 +2,7 @@
 
 #include <key.h>
 #include <serialize.h>
+#include <stdint.h>
 
 namespace Zeta
 {
@@ -22,7 +23,7 @@ namespace App
     public:
         virtual ~Record();
         virtual Key& GetKey() const = 0;
-        virtual Value& GetValue() const = 0;
+        virtual Value* GetValue() const = 0;
     };
 
     using Param = Serializable;
@@ -30,8 +31,13 @@ namespace App
     class TransFn
     {
     public:
-        TransFn(int arity, bool hasOutput);
+        TransFn(uint8_t id, int arity, bool hasOutput);
         ~TransFn();
+
+        uint8_t GetId() const
+        {
+            return id_;
+        }
 
         int GetArity() const
         {
@@ -52,6 +58,7 @@ namespace App
         virtual bool Touches(int idx) const = 0;
 
     private:
+        const uint8_t id_;
         const int arity_;
         const bool hasOutput_;
     };

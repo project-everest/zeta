@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <stdint.h>
+#include <serialize.h>
 
 namespace Zeta
 {
@@ -13,6 +14,8 @@ namespace Zeta
         ~WriteLog();
 
         void Serialize(const uint8_t* bytes, size_t len);
+        void Serialize(const Serializable& serializable);
+
 
         template<typename T>
         void TSerialize(const T& v) {

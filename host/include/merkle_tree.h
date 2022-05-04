@@ -13,11 +13,17 @@ namespace Zeta
         BaseKey key;
         HashValue hash;
         bool inBlum;
+        bool isNonNull;
     };
 
     struct MerkleValue
     {
         DescInfo descInfo[2];
+
+        MerkleValue() {
+            descInfo[0].isNonNull = false;
+            descInfo[1].isNonNull = false;
+        }
     };
 
 
