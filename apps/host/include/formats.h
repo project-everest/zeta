@@ -1,6 +1,6 @@
 #pragma once
 
-#include <app.h>
+#include <appcommon.h>
 #include <key.h>
 #include <log.h>
 #include <merkle_tree.h>

@@ -11,7 +11,7 @@ add_custom_command(
   COMMAND ./configure --disable-ocaml
   COMMAND make ${HACL_BLAKE_OBJS})
 
-add_library(verifier
+add_library(mcounter-verifier
             ${DIST_DIR}/ZetaFormats.c
             ${DIST_DIR}/krmlinit.c
             ${CMAKE_CURRENT_BINARY_DIR}/config.c
@@ -20,14 +20,12 @@ add_library(verifier
             ${APP_VERIFIER}/formats.c
             )
 
-target_include_directories(verifier
+target_include_directories(mcounter-verifier
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PUBLIC ${APP_VERIFIER}
     PUBLIC ${DIST_DIR}
     PUBLIC ${APP_FORMATS_DIR}
 )
 
-target_link_libraries(verifier
+target_link_libraries(mcounter-verifier
   PRIVATE format)
-
-add_subdirectory(test)
