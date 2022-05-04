@@ -5,10 +5,7 @@ open FStar.Classical
 module IS = Zeta.Intermediate.Store
 module TSM = Zeta.Steel.ThreadStateModel
 
-let valid_store_entry (s:s_store_entry) =
-  valid_record (s.key, s.value)
-  
-let lift_store_entry (s: s_store_entry { valid_store_entry s })
+let lift_store_entry (s: s_store_entry)
   : GTot (i:i_store_entry { related_store_entry s i })
   = let open Zeta.High.Verifier in
     let r = lift_record (s.key, s.value) in
@@ -36,7 +33,7 @@ let lift_store_entry (s: s_store_entry { valid_store_entry s })
     in
     Zeta.Intermediate.Store.VStoreE r am ld rd p
 
-let lift_store' (ss: s_store)
+let lift_store (ss: s_store)
   : GTot (is: i_store { related_store ss is })
   = admit()
 
@@ -105,9 +102,11 @@ let lemma_update_value (tsm: TSM.thread_state_model)
                     inuse_slot tsm_.store s /\
                     (let Some e = get_slot tsm.store s in
                      let Some e_ = get_slot tsm_.store s in
-                     e.key = e_.key /\ e_.value = v /\ e.add_method = e_.add_method /\
-                     e.l_child_in_store = e_.l_child_in_store /\
-                     e.r_child_in_store = e_.r_child_in_store)))
+                     e.key == e_.key /\
+                     e_.value == v /\
+                     e.add_method == e_.add_method /\
+                     e.l_child_in_store == e_.l_child_in_store /\
+                     e.r_child_in_store == e_.r_child_in_store)))
   = let tsm_ = TSM.update_value tsm s v in
 
     assert (identical_except_store tsm tsm_);
@@ -135,18 +134,21 @@ let lemma_madd_to_store (tsm: TSM.thread_state_model)
 
                     // nothing changes in slot s' except it now points to s in direction d
                     inuse_slot tsm_.store s' /\
-                    stored_key tsm_.store s' = stored_key tsm.store s' /\
-                    stored_value tsm_.store s' = stored_value tsm.store s' /\
-                    add_method_of tsm_.store s' = add_method_of tsm.store s' /\
+                    stored_key tsm_.store s' == stored_key tsm.store s' /\
+                    stored_value tsm_.store s' == stored_value tsm.store s' /\
+                    add_method_of tsm_.store s' == add_method_of tsm.store s' /\
                     points_to_dir tsm_.store s' d s /\
-                    points_to_info tsm_.store s' od = points_to_info tsm.store s' od /\
+                    points_to_info tsm_.store s' od == points_to_info tsm.store s' od /\
 
                     // slot s contains (k, v, MAdd) and points to nothing
                     inuse_slot tsm_.store s /\
                     (let Some e = get_slot tsm_.store s in
-                     e.key = k /\ e.value = v /\ e.add_method = MAdd /\
-                     e.l_child_in_store = None /\ e.r_child_in_store = None /\
-                     e.parent_slot = Some (s', d))))
+                     e.key == k /\
+                     e.value == v /\
+                     e.add_method == MAdd /\
+                     e.l_child_in_store == None /\
+                     e.r_child_in_store == None /\
+                     e.parent_slot == Some (s', d))))
   = let open TSM in
     let tsm_ = madd_to_store tsm s k v s' d in
 
@@ -182,33 +184,33 @@ let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
                     identical_except3 tsm.store tsm_.store s s' s2 /\
                     // nothing changes in slot s', except it now points to s in direction d
                     inuse_slot tsm_.store s' /\
-                    stored_key tsm_.store s' = stored_key tsm.store s' /\
-                    stored_value tsm_.store s' = stored_value tsm.store s' /\
-                    add_method_of tsm_.store s' = add_method_of tsm.store s' /\
+                    stored_key tsm_.store s' == stored_key tsm.store s' /\
+                    stored_value tsm_.store s' == stored_value tsm.store s' /\
+                    add_method_of tsm_.store s' == add_method_of tsm.store s' /\
                     points_to_dir tsm_.store s' d s /\
-                    points_to_info tsm_.store s' od = points_to_info tsm.store s' od /\
+                    points_to_info tsm_.store s' od == points_to_info tsm.store s' od /\
 
                     // slot s contains (k, v, MAdd) and points to s2 along direction d2
                     inuse_slot tsm_.store s /\
-                    stored_key tsm_.store s = k /\ stored_value tsm_.store s = v /\
-                    add_method_of tsm_.store s = MAdd /\
+                    stored_key tsm_.store s == k /\ stored_value tsm_.store s == v /\
+                    add_method_of tsm_.store s == MAdd /\
                     points_to_none tsm_.store s od2 /\
                     points_to_dir tsm_.store s d2 s2 /\
                     has_parent tsm_.store s /\
-                    parent_slot tsm_.store s = s' /\
-                    parent_dir tsm_.store s = d /\
+                    parent_slot tsm_.store s == s' /\
+                    parent_dir tsm_.store s == d /\
 
                     inuse_slot tsm_.store s2 /\ inuse_slot tsm.store s2 /\
                     has_parent tsm_.store s2 /\
-                    parent_slot tsm_.store s2 = s /\
-                    parent_dir tsm_.store s2 = d2 /\
+                    parent_slot tsm_.store s2 == s /\
+                    parent_dir tsm_.store s2 == d2 /\
 
                     (let Some e = get_slot tsm.store s2 in
                      let Some e_ = get_slot tsm_.store s2 in
-                     e.key = e_.key /\ e.value = e_.value /\
-                     e.add_method = e_.add_method /\
-                     e.l_child_in_store = e_.l_child_in_store /\
-                     e.r_child_in_store = e_.r_child_in_store)))
+                     e.key == e_.key /\ e.value == e_.value /\
+                     e.add_method == e_.add_method /\
+                     e.l_child_in_store == e_.l_child_in_store /\
+                     e.r_child_in_store == e_.r_child_in_store)))
   = let tsm_ = TSM.madd_to_store_split tsm s k v s' d d2 in
     let od = not d in
     let od2 = not d2 in
@@ -222,23 +224,24 @@ let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
     with s' s2;
 
     assert(inuse_slot tsm_.store s' /\
-                    stored_key tsm_.store s' = stored_key tsm.store s' /\
-                    stored_value tsm_.store s' = stored_value tsm.store s' /\
-                    add_method_of tsm_.store s' = add_method_of tsm.store s' /\
+                    stored_key tsm_.store s' == stored_key tsm.store s' /\
+                    stored_value tsm_.store s' == stored_value tsm.store s' /\
+                    add_method_of tsm_.store s' == add_method_of tsm.store s' /\
                     points_to_dir tsm_.store s' d s /\
-                    points_to_info tsm_.store s' od = points_to_info tsm.store s' od);
+                    points_to_info tsm_.store s' od == points_to_info tsm.store s' od);
     assert(inuse_slot tsm_.store s /\
-                    stored_key tsm_.store s = k /\ stored_value tsm_.store s = v /\
-                    add_method_of tsm_.store s = MAdd /\
+                    stored_key tsm_.store s == k /\
+                    stored_value tsm_.store s == v /\
+                    add_method_of tsm_.store s == MAdd /\
                     points_to_none tsm_.store s od2 /\
                     points_to_dir tsm_.store s d2 s2 /\
                     has_parent tsm_.store s /\
-                    parent_slot tsm_.store s = s' /\
-                    parent_dir tsm_.store s = d);
+                    parent_slot tsm_.store s == s' /\
+                    parent_dir tsm_.store s == d);
     assert(inuse_slot tsm_.store s2 /\ inuse_slot tsm.store s2);
     assert(has_parent tsm_.store s2);
-    assert(parent_slot tsm_.store s2 = s);
-    assert(parent_dir tsm_.store s2 = d2);
+    assert(parent_slot tsm_.store s2 == s);
+    assert(parent_dir tsm_.store s2 == d2);
     assert (s <> s');
     assert (s <> s2);
     assert (s' <> s2);
@@ -247,7 +250,7 @@ let lemma_madd_to_store_split (tsm: TSM.thread_state_model)
     | Some r' ->
       let p = (s', d) in
       let s2_opt = child_slot r' d in
-      assert (s2_opt = Some s2)
+      assert (s2_opt == Some s2)
 #pop-options
 
 let lemma_mevict_from_store (tsm: s_thread_state)
@@ -269,12 +272,12 @@ let lemma_mevict_from_store (tsm: s_thread_state)
 
                     // nothing changes in slot s', except it points to none in direction d
                     inuse_slot st_ s' /\
-                    stored_key st_ s' = stored_key st s' /\
-                    stored_value st_ s' = stored_value st s' /\
-                    add_method_of st_ s' = add_method_of st s' /\
-                    points_to_info st_ s' od = points_to_info st s' od /\
+                    stored_key st_ s' == stored_key st s' /\
+                    stored_value st_ s' == stored_value st s' /\
+                    add_method_of st_ s' == add_method_of st s' /\
+                    points_to_info st_ s' od == points_to_info st s' od /\
                     points_to_none st_ s' d /\
-                    parent_info st_ s' = parent_info st s'))
+                    parent_info st_ s' == parent_info st s'))
   = let od = not d in
     let st = tsm.store in
     let open TSM in

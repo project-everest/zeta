@@ -332,7 +332,7 @@ let vaddm_core (#tsm:M.thread_state_model)
                | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
                  if KeyUtils.eq_base_key k2 k
                  then (
-                   if not (T.eq_descendent_hash h2 h && b2 = T.Vfalse)
+                   if not (T.eq_u256 h2 h && b2 = T.Vfalse)
                    then (let b = fail_as t _ in return b)
                    else if entry_points_to_some_slot r' d
                    then (let b = fail_as t _ in return b)

@@ -121,14 +121,22 @@ let related_anc_points_to (a: addm_param) (i_a: i_addm_param)
       let kd = mv_pointed_key mv' d in
       let i_kd = M.pointed_key i_mv' i_d in
 
-      assert (k = kd \/ is_proper_descendent kd k);
+      assert (k == kd \/ is_proper_descendent kd k);
       assert (related_base_key kd i_kd);
 
-      if k = kd then
-        lemma_desc_reflexive i_kd
+      if KeyUtils.eq_base_key k kd then (
+        assert (k == kd);
+        Zeta.BinTree.lemma_desc_reflexive i_kd;
+        assert (related_base_key k i_k);
+        assert (related_base_key kd i_kd);
+        KeyUtils.lift_lower_inv i_k;
+        KeyUtils.lift_lower_inv i_kd;        
+        assert (i_k == i_kd);
+        assert (is_desc i_kd i_kd)
+      )
       else
       begin
-        assert (i_k <> i_kd);
+        assert (i_k =!= i_kd);
         assert (is_proper_descendent kd k);
         lemma_related_key_proper_descendent kd k i_kd i_k
       end
@@ -146,6 +154,18 @@ let related_addm_caseA (a: addm_param) (i_a: i_addm_param)
            [SMTPat (related_addm_param a i_a)]
    = ()
 
+let related_key_inj_1 (sk:s_base_key) (ik0 ik1:i_base_key)
+  : Lemma 
+    (requires
+      related_base_key sk ik0 /\
+      related_base_key sk ik1)
+    (ensures
+      ik0 == ik1)
+    [SMTPat (related_base_key sk ik0);
+     SMTPat (related_base_key sk ik1)]
+  = KeyUtils.lift_lower_inv ik0;
+    KeyUtils.lift_lower_inv ik1
+
 let related_addm_caseB (a: addm_param) (i_a: i_addm_param)
    : Lemma (requires (related_addm_param a i_a /\ addm_precond2 a /\ addm_anc_points_to_key a))
            (ensures (IV.addm_anc_points_to_key i_a))
@@ -156,8 +176,16 @@ let related_addm_caseC (a: addm_param) (i_a: i_addm_param)
    : Lemma (requires (related_addm_param a i_a /\ addm_precond2 a /\ addm_anc_points_to_desc a))
            (ensures (IV.addm_anc_points_to_desc i_a))
            [SMTPat (related_addm_param a i_a)]
-   = ()
-
+   = let mv' = IV.addm_anc_val_pre i_a in
+     let d = IV.addm_dir i_a in
+     assert (Zeta.Merkle.points_to_some mv' d);
+     introduce forall sk0 sk1 ik0 ik1. 
+                  related_base_key sk0 ik0 /\
+                  related_base_key sk1 ik1 ==>
+                  is_proper_descendent sk0 sk1 = Zeta.BinTree.is_proper_desc ik0 ik1
+     with introduce _ ==> _
+     with _ . Zeta.Steel.KeyUtils.related_proper_descendent sk0 sk1 ik0 ik1
+           
 let related_addm_desc (a: addm_param) (i_a: i_addm_param)
   : Lemma (requires (related_addm_param a i_a /\ addm_precond2 a /\ addm_anc_points_to_desc a))
            (ensures (let kd = addm_desc a in
@@ -184,7 +212,7 @@ let related_addm_precond_caseA (a: addm_param) (i_a: i_addm_param)
     let s' = addm_anc_slot a in
     let d = addm_dir a in
 
-    assert (addm_value_pre a = init_value (addm_key a));
+    assert (addm_value_pre a == init_value (addm_key a));
     assert (points_to_none st s' d);
 
     let i_st = IV.addm_store_pre i_a in
@@ -296,11 +324,11 @@ let related_add_slot (a: addm_param)
     assert (IV.addm_slot_postcond i_a i_st_);
 
     let Some e = Seq.index st_ i_s in
-    assert (e.key = addm_key a);
+    assert (e.key == addm_key a);
     assert (addm_value_postcond a e.value);
 
     let Some (IS.VStoreE (i_gk, i_gv) i_am i_ld i_rd i_p)  = Seq.index i_st_ i_s in
-    assert (i_gk = IV.addm_key i_a);
+    assert (i_gk == IV.addm_key i_a);
     assert (IV.addm_value_postcond i_a i_gv);
 
     related_addm_value a i_a e.value i_gv;

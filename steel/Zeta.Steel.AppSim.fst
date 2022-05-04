@@ -190,12 +190,12 @@ let rec write_slots_slot_prop (tsm: s_thread_state)
                     if Seq.mem s slots then
                       inuse_slot st s /\
                       inuse_slot st_ s /\
-                      stored_key st s = stored_key st_ s /\
-                      stored_value st_ s = to_s_value (Seq.index values (Seq.index_mem s slots)) /\
-                      add_method_of st s = add_method_of st_ s /\
-                      points_to_info st s true = points_to_info st_ s true /\
-                      points_to_info st s false = points_to_info st_ s false /\
-                      parent_info st s = parent_info st_ s
+                      stored_key st s == stored_key st_ s /\
+                      stored_value st_ s == to_s_value (Seq.index values (Seq.index_mem s slots)) /\
+                      add_method_of st s == add_method_of st_ s /\
+                      points_to_info st s true == points_to_info st_ s true /\
+                      points_to_info st s false == points_to_info st_ s false /\
+                      parent_info st s == parent_info st_ s
                     else get_slot st s == get_slot st_ s))
           (decreases (Seq.length slots))
   = let n = Seq.length slots in
@@ -213,7 +213,7 @@ let rec write_slots_slot_prop (tsm: s_thread_state)
         | A.Null -> T.DValue None
         | A.DValue d -> T.DValue (Some d)
       in
-      assert (hd_value = to_s_value (Seq.head values));
+      assert (hd_value == to_s_value (Seq.head values));
       let tsm2 = update_value tsm hd_slot hd_value in
       lemma_update_value tsm hd_slot hd_value;
       write_slots_slot_prop tsm2 tl (Seq.tail values) s;
@@ -225,10 +225,10 @@ let rec write_slots_slot_prop (tsm: s_thread_state)
           let st2 = tsm2.store in
           assert (hd_slot = s);
           assert (inuse_slot st2 s);
-          assert (stored_key st2 s = stored_key st s);
+          assert (stored_key st2 s == stored_key st s);
           lemma_mem_head slots s;
-          assert (stored_key st s = stored_key st_ s);
-          assert (stored_value st_ s = to_s_value (Seq.index values i));
+          assert (stored_key st s == stored_key st_ s);
+          assert (stored_value st_ s == to_s_value (Seq.index values i));
           ()
         end
         else

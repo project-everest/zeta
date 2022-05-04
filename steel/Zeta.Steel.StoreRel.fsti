@@ -52,7 +52,7 @@ let related_store (ss: s_store) (is: i_store)
   = forall i. related_store_entry_opt (Seq.index ss i) (Seq.index is i)
 
 val lift_store (ss: s_store)
-  : is: i_store { related_store ss is }
+  : GTot (is: i_store { related_store ss is })
 
 #push-options "--fuel 0 --ifuel 0 --query_stats"
 

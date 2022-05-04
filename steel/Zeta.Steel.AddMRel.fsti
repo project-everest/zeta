@@ -80,7 +80,7 @@ let addm_dir (a: addm_param {addm_precond1 a}) =
   desc_dir (addm_base_key a) (addm_anc_key a)
 
 let mv_points_to_none (mv: T.mval_value) (d: bool)
-  = desc_hash_dir mv d = T.Dh_vnone ()
+  = T.Dh_vnone? (desc_hash_dir mv d)
 
 let mv_points_to_some (v:T.mval_value) (d:bool): bool =
   T.Dh_vsome? (desc_hash_dir v d)
@@ -93,8 +93,9 @@ let mv_pointed_hash (v:T.mval_value) (d: bool{mv_points_to_some v d}): T.hash_va
   let T.Dh_vsome dh = desc_hash_dir v d in
   dh.dhd_h
 
-let mv_points_to (v:T.mval_value) (d:bool) (k:T.base_key): bool =
-  mv_points_to_some v d && mv_pointed_key v d = k
+let mv_points_to (v:T.mval_value) (d:bool) (k:T.base_key) =
+  mv_points_to_some v d /\
+  mv_pointed_key v d == k
 
 let mv_evicted_to_blum (v: T.mval_value) (d: bool {mv_points_to_some v d})
   = let T.Dh_vsome dh = desc_hash_dir v d in
@@ -141,13 +142,13 @@ let addm_precond (a: addm_param) =
   let s' = addm_anc_slot a in
   addm_precond2 a /\
   (let d = addm_dir a in
-   (addm_anc_points_null a ==> (addm_value_pre a = init_value (addm_key a) /\
-                              points_to_none st s' d)) /\
-   (addm_anc_points_to_key a ==> (addm_desc_hash_dir a = T.Dh_vsome ({ dhd_key = (addm_base_key a);
-                                                                    dhd_h = (addm_hash_val_pre a);
-                                                                    evicted_to_blum = T.Vfalse })) /\
+   (addm_anc_points_null a ==> (addm_value_pre a == init_value (addm_key a) /\
+                                points_to_none st s' d)) /\
+   (addm_anc_points_to_key a ==> (addm_desc_hash_dir a == T.Dh_vsome ({ dhd_key = (addm_base_key a);
+                                                                        dhd_h = (addm_hash_val_pre a);
+                                                                        evicted_to_blum = T.Vfalse })) /\
                                 points_to_none st s' d) /\
-   (addm_anc_points_to_desc a ==> (addm_value_pre a = init_value (addm_key a))))
+   (addm_anc_points_to_desc a ==> (addm_value_pre a == init_value (addm_key a))))
 
 (* does the ancestor point to the descendant slot *)
 let addm_has_desc_slot (a: addm_param {addm_precond a}) =
@@ -165,14 +166,14 @@ let addm_desc_slot (a: addm_param {addm_precond a /\ addm_has_desc_slot a}) =
 
 let addm_value_postcond (a: addm_param {addm_precond a})
   (v: T.value {LT.is_value_of (addm_key a) v}) =
-  (addm_anc_points_null a /\ (v = addm_value_pre a)) \/
-  (addm_anc_points_to_key a /\ (v = addm_value_pre a)) \/
+  (addm_anc_points_null a /\ (v == addm_value_pre a)) \/
+  (addm_anc_points_to_key a /\ (v == addm_value_pre a)) \/
   (addm_anc_points_to_desc a /\
     (let dd = addm_desc_dir a in
      let odd = not dd in
      let Some mv = to_merkle_value v in
-     desc_hash_dir mv dd = desc_hash_dir (addm_anc_val_pre a) (addm_dir a) /\
-     desc_hash_dir mv odd = T.Dh_vnone ()))
+     desc_hash_dir mv dd == desc_hash_dir (addm_anc_val_pre a) (addm_dir a) /\
+     desc_hash_dir mv odd == T.Dh_vnone ()))
 
 let addm_slot_points_postcond (a: addm_param {addm_precond a}) (st: contents) =
   let s = addm_slot a in
@@ -189,26 +190,23 @@ let addm_slot_points_postcond (a: addm_param {addm_precond a}) (st: contents) =
 let addm_slot_postcond (a: addm_param {addm_precond a}) (st: contents) =
   let s = addm_slot a in
   inuse_slot st s  /\                          // in use
-  stored_key st s = addm_key a   /\            // stores key k
-  add_method_of st s = MAdd /\            // stores the correct add method
+  stored_key st s == addm_key a   /\            // stores key k
+  add_method_of st s == MAdd /\            // stores the correct add method
   addm_value_postcond a (stored_value st s) /\ // value postcond
   addm_slot_points_postcond a st /\
   has_parent st s /\
-  parent_slot st s = addm_anc_slot a /\
-  parent_dir st s = addm_dir a
+  parent_slot st s == addm_anc_slot a /\
+  parent_dir st s == addm_dir a
 
 let addm_anc_val_postcond (a: addm_param {addm_precond a}) (mv: T.mval_value) =
   let mv' = addm_anc_val_pre a in
   let d = addm_dir a in
   let od = not d in
-  desc_hash_dir mv od = desc_hash_dir mv' od /\               // merkle value unchanged in other direction
+  desc_hash_dir mv od == desc_hash_dir mv' od /\               // merkle value unchanged in other direction
   mv_points_to mv d (addm_base_key a) /\          // merkle value points to k in addm direction
-  mv_evicted_to_blum mv d = false /\
-  mv_pointed_hash mv d =
-    (if (addm_anc_points_to_key a) then
-      mv_pointed_hash mv' d
-    else
-      zero)
+  mv_evicted_to_blum mv d == false /\
+  (addm_anc_points_to_key a ==> mv_pointed_hash mv d == mv_pointed_hash mv' d) /\
+  (~ (addm_anc_points_to_key a) ==> mv_pointed_hash mv d == zero)
 
 let addm_anc_slot_points_postcond (a: addm_param {addm_precond a}) (st: contents) =
   let st' = addm_store_pre a in
@@ -216,33 +214,33 @@ let addm_anc_slot_points_postcond (a: addm_param {addm_precond a}) (st: contents
   let d = addm_dir a in
   let od = not d in
   inuse_slot st s' /\
-  points_to_info st s' od = points_to_info st' s' od /\        // points to does not change in other dir
+  points_to_info st s' od == points_to_info st' s' od /\        // points to does not change in other dir
   points_to_dir st s' d (addm_slot a)
 
 let addm_anc_slot_postcond (a: addm_param {addm_precond a}) (st: contents) =
   let s' = addm_anc_slot a in
   let st' = addm_store_pre a in
   inuse_slot st s' /\
-  stored_base_key st s' = addm_anc_key a /\
-  add_method_of st s' = add_method_of st' s' /\
+  stored_base_key st s' == addm_anc_key a /\
+  add_method_of st s' == add_method_of st' s' /\
   addm_anc_val_postcond a (Some?. v (to_merkle_value (stored_value st s'))) /\
   addm_anc_slot_points_postcond a st /\
   (let Some e' = get_slot st' s' in
    let Some e = get_slot st s' in
-   e.parent_slot = e'.parent_slot)
+   e.parent_slot == e'.parent_slot)
 
 let addm_desc_slot_postcond (a: addm_param {addm_precond a /\ addm_has_desc_slot a}) (st: contents) =
   let sd = addm_desc_slot a in
   let st' = addm_store_pre a in
   inuse_slot st sd /\ inuse_slot st' sd /\
-  stored_key st sd = stored_key st' sd /\
-  stored_value st sd = stored_value st' sd /\
-  add_method_of st sd = add_method_of st' sd /\
+  stored_key st sd == stored_key st' sd /\
+  stored_value st sd == stored_value st' sd /\
+  add_method_of st sd == add_method_of st' sd /\
   has_parent st sd /\
-  parent_slot st sd = addm_slot a /\
-  parent_dir st sd = addm_desc_dir a /\
-  points_to_info st sd true = points_to_info st' sd true /\
-  points_to_info st sd false = points_to_info st' sd false
+  parent_slot st sd == addm_slot a /\
+  parent_dir st sd == addm_desc_dir a /\
+  points_to_info st sd true == points_to_info st' sd true /\
+  points_to_info st sd false == points_to_info st' sd false
 
 let addm_postcond (a: addm_param {addm_precond a}) (vs: s_thread_state) =
   let vs' = a.vs' in

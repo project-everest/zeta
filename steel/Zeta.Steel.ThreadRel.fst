@@ -189,7 +189,6 @@ let verify_step_model_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_e
                     not tsm_.failed ==> valid_log_entry e))
           [SMTPat (verify_step_model tsm e)]
   = let open T in
-    admit();
     let tsm_ = verify_step_model tsm e in
     if not tsm_.failed then (
       match e with
@@ -542,10 +541,10 @@ let related_madd_to_store_root (tsm: thread_state_model)
     with i_s;
 
     assert (not (has_slot tsm s));
-    assert (LT.is_value_of root_key v);
+    assert (LT.is_value_of T.root_key v);
 
     let new_entry = {
-      key = root_key;
+      key = T.root_key;
       value = v;
       add_method = MAdd;
       l_child_in_store = None;
@@ -608,7 +607,7 @@ let init_store_related (tid: AT.tid) (i_tid: i_tid)
       let i_s = 0 in
       assert (related_slot s i_s);
 
-      let rk = root_key in
+      let rk = T.root_key in
       let v = init_value rk in
 
       let i_rk: GK.key app = GK.IntK Zeta.BinTree.Root in
@@ -616,7 +615,7 @@ let init_store_related (tid: AT.tid) (i_tid: i_tid)
 
       assert (related_val v i_v);
 
-      assert (tsm == madd_to_store_root _tsm U16.zero (init_value root_key));
+      assert (tsm == madd_to_store_root _tsm U16.zero (init_value T.root_key));
       related_madd_to_store_root _tsm i_empty_st s i_s v i_v;
 
       ()
@@ -1298,7 +1297,7 @@ let related_blum_evict_elem (tsm: valid_tsm {spec_rel_base tsm /\ length tsm > 0
     let s = blum_evict_slot e in
 
     let Some se = get_slot _st s in
-    assert (s_be.r = (se.key, se.value));
+    assert (s_be.r == (se.key, se.value));
 
     let i_e = GT.index i_tl i in
     let i_s = GV.evict_slot i_e in
@@ -1315,8 +1314,8 @@ let related_blum_evict_elem (tsm: valid_tsm {spec_rel_base tsm /\ length tsm > 0
 
     assert (related_record (se.key, se.value) i_r2);
     assert (related_record s_be.r i_r2);
-    assert (i_r2 = i_r);
-    ()
+    assert (i_r2 == i_r)
+
 
 #pop-options
 

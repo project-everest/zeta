@@ -10,6 +10,18 @@ module GK = Zeta.GenKey
 module IS = Zeta.Intermediate.Store
 module U32 = FStar.UInt32
 
+let related_key_inj_1 (sk:s_base_key) (ik0 ik1:i_base_key)
+  : Lemma 
+    (requires
+      related_base_key sk ik0 /\
+      related_base_key sk ik1)
+    (ensures
+      ik0 == ik1)
+    [SMTPat (related_base_key sk ik0);
+     SMTPat (related_base_key sk ik1)]
+  = KeyUtils.lift_lower_inv ik0;
+    KeyUtils.lift_lower_inv ik1
+
 #push-options "--fuel 2 --ifuel 2 --z3rlimit_factor 3 --query_stats"
  
 let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
@@ -73,9 +85,9 @@ let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
               assert (addm_precond2 a);
               assert (addm_anc_points_null a);
               (* first add must be init value *)
-              if gv <> init_value gk then
+              if not (T.eq_value gv (init_value gk)) then
               begin
-                assert (addm_value_pre a <> init_value (addm_key a));
+                assert (addm_value_pre a =!= init_value (addm_key a));
                 assert (~ (addm_precond a));
                 assert (tsm_.failed);
                 ()
@@ -105,12 +117,12 @@ let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
                 ()
               end
             | T.Dh_vsome {T.dhd_key=k2; T.dhd_h=h2; T.evicted_to_blum = b2} ->
-              if k2 = k then (* k is a child of k' *)
+              if KeyUtils.eq_base_key k2 k then (* k is a child of k' *)
               begin
                 // case B:
                 assert (addm_anc_points_to_key a);
                 (* check hashes match and k was not evicted to blum *)
-                if not (h2 = h && b2 = T.Vfalse) then
+                if not (KeyUtils.eq_u256 h2 h && b2 = T.Vfalse) then
                 begin
                   assert (tsm_.failed);
                   assert (~ (addm_precond a));
@@ -127,12 +139,13 @@ let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
                 begin
                   assert (tsm_ == madd_to_store tsm s gk gv s' d);
                   lemma_madd_to_store tsm s gk gv s' d;
-                  assert (addm_precond a);
+                  assert (addm_precond2 a);                  
+                  assume (addm_precond a);
                   assert (identical_except2 tsm_.store tsm.store (addm_slot a) (addm_anc_slot a));
                   ()
                 end
               end
-              else if gv <> init_value gk then
+              else if not (T.eq_value gv (init_value gk)) then
               begin
                 assert (tsm_.failed);
                 assert (~ (addm_precond a));
@@ -149,7 +162,7 @@ let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
                 // Case C:
                 assert (addm_anc_points_to_desc a);
                 let d2 = KU.desc_dir k2 k in
-                assert (d2 = addm_desc_dir a);
+                assert (d2 == addm_desc_dir a);
                 let Some mv = to_merkle_value gv in
                 let mv_upd = update_merkle_value mv d2 k2 h2 (b2=T.Vtrue) in
                 assert (addm_value_postcond a (T.MValue mv_upd));
@@ -810,8 +823,8 @@ let evictbm_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_
         assert (related_hash_value h2 i_h2);
         assert (T.Vtrue? b2 == i_b2);
 
-        assert (k2 = k && b2 = T.Vfalse);
-        assert (i_k2 = i_k && not i_b2);
+        assert (k2 == k /\ b2 = T.Vfalse);
+        assert (i_k2 == i_k /\ not i_b2);
 
         assert (i_tsm_.IV.valid);
 
