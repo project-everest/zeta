@@ -870,7 +870,6 @@ let nextepoch_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_lo
       let i_e1 = i_e + 1 in
       assert (related_epoch e1 i_e1);
       related_epoch_shift e1 i_e1;
-      admit();
 
       ()
     end

@@ -175,7 +175,7 @@ let good_key_desc_hash (sdh:s_desc_hash)
     match sdh with
     | Dh_vnone () -> True
     | Dh_vsome dhd ->
-      Zeta.Steel.KeyUtils.good_key dhd.dhd_key
+      Zeta.Steel.KeyUtils.good_base_key dhd.dhd_key
   
 val lift_desc_hash (sdh: s_desc_hash)
   : GTot (idh: i_desc_hash { good_key_desc_hash sdh ==> related_desc_hash sdh idh })

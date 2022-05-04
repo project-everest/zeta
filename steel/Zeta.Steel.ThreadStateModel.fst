@@ -668,7 +668,7 @@ let vevictbm (tsm:thread_state_model)
 let increment_epoch (t:timestamp)
   : option timestamp
   = if FStar.UInt.fits (U32.v t.epoch + 1) 32
-    then Some ({t with epoch = t.epoch `U32.add` 1ul })
+    then Some ({t with epoch = t.epoch `U32.add` 1ul; counter = 0ul })
     else None
   
 let nextepoch (tsm:thread_state_model)

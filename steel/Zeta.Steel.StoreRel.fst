@@ -5,9 +5,42 @@ open FStar.Classical
 module IS = Zeta.Intermediate.Store
 module TSM = Zeta.Steel.ThreadStateModel
 
-let lift_store (ss: s_store)
-  : is: i_store { related_store ss is }
-  = admit()
+let valid_store_entry (s:s_store_entry) =
+  valid_record (s.key, s.value)
+  
+let lift_store_entry (s: s_store_entry { valid_store_entry s })
+  : GTot (i:i_store_entry { related_store_entry s i })
+  = let open Zeta.High.Verifier in
+    let r = lift_record (s.key, s.value) in
+    let am = 
+      match s.add_method with
+      | TSM.MAdd -> MAdd
+      | TSM.BAdd -> BAdd
+    in
+    let ld =
+      match s.l_child_in_store with
+      | None -> None
+      | Some s -> Some (lift_slot s)
+    in
+    let rd =
+      match s.r_child_in_store with
+      | None -> None
+      | Some s -> Some (lift_slot s)
+    in    
+    let p =
+      match s.parent_slot with
+      | None -> None
+      | Some (s,d) ->
+        Some (lift_slot s, 
+              (if d then Zeta.BinTree.Left else Zeta.BinTree.Right))
+    in
+    Zeta.Intermediate.Store.VStoreE r am ld rd p
+
+let valid_store (ss: s_store) 
+let lift_store' (ss: s_store)
+  : GTot (is: i_store { related_store ss is })
+  = FStar.Seq.Properties.foldr_snoc
+  admit()
 
 #push-options "--fuel 1 --ifuel 1 --query_stats"
 

@@ -5,8 +5,10 @@ module U8 = FStar.UInt8
 module U16 = FStar.UInt16
 module U32 = FStar.UInt32
 module U64 = FStar.UInt64
+module KU = Zeta.Steel.KeyUtils
 
-let significant_digits_t = significant_digits: U16.t { U16.v significant_digits <= 256 }
+
+// let significant_digits_t = significant_digits: U16.t { U16.v significant_digits <= 256 }
 
 noeq 
 type uninterpreted = {
@@ -23,32 +25,24 @@ type timestamp = {
 
 type thread_id = U16.t
 
-type u256 = {
-  v3 : U64.t;
-  v2 : U64.t;
-  v1 : U64.t;
-  v0 : U64.t;
-}
+let base_key = KU.base_key
 
-type base_key = {
-  k: u256;
-  significant_digits : significant_digits_t;
-}
+let internal_key = KU.internal_key
 
-let internal_key = k: base_key { U16.v k.significant_digits < 256 }
-
-let hash_value = u256
+let hash_value = KU.u256
 
 type vbool =
   | Vfalse
   | Vtrue
 
+noeq
 type descendent_hash_desc = {
   dhd_key : base_key;
   dhd_h : hash_value;
   evicted_to_blum : vbool;
 }
 
+noeq
 type descendent_hash =
   | Dh_vnone of unit
   | Dh_vsome of descendent_hash_desc
@@ -57,6 +51,7 @@ type value_kind =
   | Mval
   | Dval
 
+noeq
 type mval_value = {
   l : descendent_hash;
   r : descendent_hash;
@@ -64,9 +59,12 @@ type mval_value = {
 
 let slot_id = U16.t
 
+noeq
 type key = 
   | InternalKey of internal_key
   | ApplicationKey of key_type
+
+let root_key = InternalKey KU.root_base_key
 
 noeq
 type evictM_payload = {
@@ -93,6 +91,7 @@ type runApp_payload = {
   rest:uninterpreted
 }
 
+noeq
 type value = 
   | MValue of mval_value
   | DValue of option value_type
@@ -125,6 +124,7 @@ type log_entry =
   | NextEpoch
   | VerifyEpoch
 
+noeq
 type stamped_record = {
   record : record;
   timestamp : timestamp;

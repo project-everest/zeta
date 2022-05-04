@@ -974,7 +974,7 @@ let nextepoch_core (#tsm:M.thread_state_model)
     | None ->
       fail t; ()
     | Some nxt ->
-      let c = { c with epoch = nxt } in
+      let c = { epoch = nxt; counter = 0ul } in
       R.write t.clock c;
       //would be better to prove this and use nxt: (nxt == M.epoch_of_timestamp c);
       let eht = new_epoch (M.epoch_of_timestamp c) in
