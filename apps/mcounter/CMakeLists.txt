@@ -4,4 +4,4 @@ message (STATUS "mcounter APP_FORMATS_DIR = ${APP_FORMATS_DIR}")
 
 add_subdirectory(formats)
 add_subdirectory(verifier)
-# add_subdirectory(host)
+add_subdirectory(host)

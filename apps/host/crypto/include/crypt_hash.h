@@ -13,7 +13,6 @@
 #include <cstdint>
 #include <fmt/format.h>
 #include <gsl/span>
-#include <Hacl_Blake2b_32.h>
 #include <blake2.h>
 
 namespace Zeta

@@ -31,7 +31,7 @@ target_include_directories(crypto
 )
 
 target_link_libraries(crypto
-  PRIVATE fmt::fmt)
+  PUBLIC fmt::fmt)
 
 #----------------------------------------------------------------------
 # Crypto test

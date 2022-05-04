@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cassert>
 #include <cstdint>
+#include <Hacl_Blake2b_32.h>
 
 namespace Zeta
 {

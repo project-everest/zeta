@@ -22,8 +22,8 @@ namespace App
     {
     public:
         virtual ~Record() = default;
-        virtual Key& GetKey() const = 0;
-        virtual Value* GetValue() const = 0;
+        virtual const Key& GetKey() const = 0;
+        virtual const Value* GetValue() const = 0;
     };
 
     using Param = Serializable;

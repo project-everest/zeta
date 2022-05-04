@@ -35,5 +35,5 @@ target_include_directories(zetastub
 )
 
 target_link_libraries(zetastub
-  PRIVATE crypto
+  PUBLIC crypto
   PRIVATE fmt::fmt)
