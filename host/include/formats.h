@@ -19,12 +19,17 @@ namespace Zeta
 
         static void LogAddMApp (const Record &record, SlotId slot, SlotId parentSlot, WriteLog& log);
 
-        static void LogEvictM (SlotId s, SlotId ps);
+        static void LogEvictM (SlotId s, SlotId ps, WriteLog& log);
 
         static void LogRunApp (int arity, const Param& param, const SlotId* slots, WriteLog& log);
 
         static void GetHashValue (const Value& value, HashValue& hashValBuf);
 
         static void GetHashValue (const MerkleValue* value, HashValue& hashValBuf);
+
+    private:
+        static void LogRecord (const BaseKey& key, const MerkleValue* value, WriteLog& log);
+        static void LogRecord (const Record& record, WriteLog& log);
+        static void LogSlotId (SlotId slotId, WriteLog& log);
     };
 }

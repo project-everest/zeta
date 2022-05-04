@@ -1,6 +1,7 @@
 #pragma once
 
-#include <cstdint>
+#include <memory>
+#include <stdint.h>
 
 namespace Zeta
 {
@@ -14,18 +15,27 @@ namespace Zeta
         void Serialize(const uint8_t* bytes, size_t len);
 
         template<typename T>
-        void TSerialize(const T& v);
+        void TSerialize(const T& v) {
+            Serialize(reinterpret_cast<const uint8_t*>(&v), sizeof(T));
+        }
 
         size_t LeftToWrite() const;
 
         size_t Written() const;
-        const uint8_t* Bytes() const;
+
+        const uint8_t* Bytes() const
+        {
+            return buf_;
+        }
+
         void Clear();
 
     private:
-        uint8_t *buf_;
+        std::unique_ptr<uint8_t[]> ubuf_;
+
+        uint8_t *const buf_;
+        uint8_t *const bufEnd_;
         uint8_t *cur_;
-        size_t bufSize_;
     };
 
     class ReadLog
