@@ -43,6 +43,8 @@ namespace App
             return hasOutput_;
         }
 
+        virtual const Param& GetParam() const = 0;
+
         virtual const Record& GetRecord(int idx) const = 0;
 
         virtual const Value& GetPostValue(int idx) const = 0;

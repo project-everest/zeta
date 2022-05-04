@@ -5,6 +5,8 @@
 #include <log.h>
 #include <merkle_tree.h>
 
+using namespace Zeta::App;
+
 namespace Zeta
 {
     class Formats
@@ -13,8 +15,16 @@ namespace Zeta
         static void LogAddMInternal(const BaseKey& key,
                                     const MerkleValue* value,
                                     SlotId slot, SlotId parentSlot,
-                                    Log& log);
+                                    WriteLog& log);
 
-        static void LogAddMApp (const AppRecord* record, SlotId slot, SlotId parentSlot, Log& log);
+        static void LogAddMApp (const Record &record, SlotId slot, SlotId parentSlot, WriteLog& log);
+
+        static void LogEvictM (SlotId s, SlotId ps);
+
+        static void LogRunApp (int arity, const Param& param, const SlotId* slots, WriteLog& log);
+
+        static void GetHashValue (const Value& value, HashValue& hashValBuf);
+
+        static void GetHashValue (const MerkleValue* value, HashValue& hashValBuf);
     };
 }

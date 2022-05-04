@@ -1,11 +1,12 @@
 #include <assert.h>
+#include <formats.h>
+#include <verifier_proxy.h>
 #include <verifier_stub.h>
 #include <verifier_stub_impl.h>
 #include <zeta_traits.h>
 
 namespace Zeta
 {
-
     VerifierStub::VerifierStub (ThreadId threadId, OutCallback outCallback)
         : pimpl_ { new VerifierStubImpl (threadId, outCallback) }
     {
@@ -72,7 +73,8 @@ namespace Zeta
     }
 
     VerifierStubImpl::VerifierStubImpl (ThreadId threadId, OutCallback outCallback)
-        : outCallback_ {outCallback}
+        : threadId_ { threadId }
+        , outCallback_ {outCallback}
         , merkleTree_ { }
         , writeLog_ { }
     {
@@ -83,6 +85,8 @@ namespace Zeta
         assert (threadId < ThreadCount);
 
         InitSlots();
+
+        VerifierProxy::Init();
         assert (ValidStoreInvariants());
     }
 
@@ -199,7 +203,7 @@ namespace Zeta
 
         auto dir = DescDirTr::ToByte(provingAncestor.GetDescDir(baseKey));
         assert (ancValue->descInfo[dir].key == baseKey);
-        GetHashValue(value, ancValue->descInfo[dir].hash);
+        Formats::GetHashValue(value, ancValue->descInfo[dir].hash);
     }
 
     void VerifierStubImpl::UpdateMerkleHash(const BaseKey& key, const MerkleValue* value, const BaseKey& provingAncestor)
@@ -212,12 +216,36 @@ namespace Zeta
 
         auto dir = DescDirTr::ToByte(provingAncestor.GetDescDir(key));
         assert (ancValue->descInfo[dir].key == key);
-        GetHashValue(value, ancValue->descInfo[dir].hash);
+        Formats::GetHashValue(value, ancValue->descInfo[dir].hash);
     }
 
     void VerifierStubImpl::FlushImpl()
     {
+        if (writeLog_.Written() > 0) {
+            size_t outSize = 0;
 
+            auto rc = VerifierProxy::VerifyLog(threadId_,
+                                               writeLog_.Bytes(),
+                                               writeLog_.Written(),
+                                               outBuf_.get(),
+                                               OutBufSize,
+                                               &outSize);
+
+            // TODO: handle errors
+            assert (rc == VerifierReturnCode::Success);
+
+            auto readLog = ReadLog { outBuf_.get(), outSize };
+
+            // Output callbacks
+            for ( ; !toCallback_.empty() ; toCallback_.pop()) {
+                auto fn = toCallback_.front();
+                auto fnOutSize = readLog.Deserialize<uint32_t>();
+                auto fnOut = readLog.DeserializeBuf(fnOutSize);
+                outCallback_(fn, fnOut, fnOutSize);
+           }
+        }
+
+        writeLog_.Clear();
     }
 
     void VerifierStubImpl::InitSlots()
@@ -303,5 +331,38 @@ namespace Zeta
 
 #endif
 
+    static const int MaxLogEntrySize = (1 << 16);
 
+    void VerifierStubImpl::EnsureEnoughLogSpace()
+    {
+        if (writeLog_.LeftToWrite() < MaxLogEntrySize) {
+            FlushImpl();
+        }
+
+        assert (writeLog_.LeftToWrite() > MaxLogEntrySize);
+    }
+
+    void VerifierStubImpl::LogTransFn (const TransFn* fn, const SlotId* slots)
+    {
+        EnsureEnoughLogSpace();
+        Formats::LogRunApp(fn->GetArity(), fn->GetParam(), slots, writeLog_);
+    }
+
+    void VerifierStubImpl::LogAddMInternal (const BaseKey& key, const MerkleValue* value, SlotId s, SlotId ps)
+    {
+        EnsureEnoughLogSpace();
+        Formats::LogAddMInternal(key, value, s, ps, writeLog_);
+    }
+
+    void VerifierStubImpl::LogAddMApp (const Record& record, SlotId s, SlotId ps)
+    {
+        EnsureEnoughLogSpace();
+        Formats::LogAddMApp(record, s, ps, writeLog_);
+    }
+
+    void VerifierStubImpl::LogEvictM (SlotId s, SlotId ps)
+    {
+        EnsureEnoughLogSpace();
+        Formats::LogEvictM(s, ps);
+    }
 }

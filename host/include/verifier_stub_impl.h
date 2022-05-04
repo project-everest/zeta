@@ -27,9 +27,6 @@ namespace Zeta
         void EvictSlot (SlotId slotId);
         void RegisterForCallback (const TransFn* fn);
 
-        void GetHashValue (const Value& value, HashValue& hashValBuf);
-        void GetHashValue (const MerkleValue* value, HashValue& hashValBuf);
-
         void UpdateMerkleHash(const Key& key, const Value& newValue, const BaseKey& provingAncestor);
         void UpdateMerkleHash(const BaseKey& key, const MerkleValue* value, const BaseKey& provingAncestor);
 
@@ -42,6 +39,7 @@ namespace Zeta
         bool IsValidSlot(SlotId slotId) const;
 #endif
 
+        void EnsureEnoughLogSpace();
         void LogTransFn (const TransFn* fn, const SlotId* slots);
         void LogAddMInternal (const BaseKey& key, const MerkleValue* value, SlotId slot, SlotId parentSlot);
         void LogAddMApp (const Record& record, SlotId slot, SlotId parentSlot);
@@ -59,6 +57,7 @@ namespace Zeta
             bool touched;
         };
 
+        const ThreadId threadId_;
         const OutCallback outCallback_;
         MerkleTree merkleTree_;
         SlotInfo slotInfo_[StoreSize];

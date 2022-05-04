@@ -18,6 +18,10 @@ namespace Zeta
 
         size_t LeftToWrite() const;
 
+        size_t Written() const;
+        const uint8_t* Bytes() const;
+        void Clear();
+
     private:
         uint8_t *buf_;
         uint8_t *cur_;
