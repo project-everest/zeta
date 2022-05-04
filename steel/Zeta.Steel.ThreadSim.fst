@@ -23,7 +23,8 @@ let related_key_inj_1 (sk:s_base_key) (ik0 ik1:i_base_key)
     KeyUtils.lift_lower_inv ik1
 
 #push-options "--fuel 2 --ifuel 2 --z3rlimit_factor 3 --query_stats"
- 
+
+
 let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
   : Lemma (requires (all_props tsm.store))
           (ensures (let tsm_ = vaddm tsm s s' r in
@@ -139,8 +140,10 @@ let addm_prop (tsm: thread_state_model) (s s': T.slot_id) (r: s_record)
                 begin
                   assert (tsm_ == madd_to_store tsm s gk gv s' d);
                   lemma_madd_to_store tsm s gk gv s' d;
-                  assert (addm_precond2 a);                  
-                  assume (addm_precond a);
+                  assert (addm_precond2 a);   
+                  FStar.Classical.forall_intro_2 KeyUtils.is_proper_descendent_correct;
+                  assert (addm_anc_points_to_desc a ==> (addm_value_pre a == init_value (addm_key a)));
+                  assert (addm_precond a);
                   assert (identical_except2 tsm_.store tsm.store (addm_slot a) (addm_anc_slot a));
                   ()
                 end

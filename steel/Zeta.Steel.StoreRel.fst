@@ -33,6 +33,11 @@ let lift_store_entry (s: s_store_entry)
     in
     Zeta.Intermediate.Store.VStoreE r am ld rd p
 
+let lift_store_entries (ss: Seq.seq (option s_store_entry))
+  : GTot (is: Seq.seq (option i_store_entry) { Seq.length ss == Seq.length is /\
+                                               (forall i. Seq.index ss i `related_store_entry_opt` Seq.index is i) })
+  = admit()
+
 let lift_store (ss: s_store)
   : GTot (is: i_store { related_store ss is })
   = admit()
