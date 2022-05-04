@@ -2,9 +2,8 @@
 #include <zeta_traits.h>
 
 using namespace Zeta;
-using namespace Zeta::App;
 
-BaseKey Key::GetBaseKey() const
+BaseKey AppKey::GetBaseKey() const
 {
     HashValue hashValue;
     Hasher hasher{};
@@ -17,7 +16,7 @@ BaseKey Key::GetBaseKey() const
     return BaseKey { path, BaseKey::LeafDepth };
 }
 
-TransFn::TransFn(uint8_t id, int arity, bool hasOutput)
+AppTransFn::AppTransFn(uint8_t id, int arity, bool hasOutput)
     : id_ { id }
     , arity_ { arity }
     , hasOutput_ { hasOutput }

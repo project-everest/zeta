@@ -16,7 +16,7 @@ void Formats::LogAddMInternal(const BaseKey &key, const MerkleValue *value, Slot
     LogSlotId(ps, log);
 }
 
-void Formats::LogAddMApp(const Record &record, SlotId s, SlotId ps, WriteLog &log)
+void Formats::LogAddMApp(const AppRecord &record, SlotId s, SlotId ps, WriteLog &log)
 {
     const uint8_t entry_kind = 0U;
 
@@ -34,7 +34,7 @@ void Formats::LogEvictM(SlotId s, SlotId ps, WriteLog& log)
     LogSlotId(ps, log);
 }
 
-void Formats::LogRunApp (uint8_t fnId, int arity, const Param& param, const SlotId* slots, WriteLog& log)
+void Formats::LogRunApp (uint8_t fnId, int arity, const AppParam& param, const SlotId* slots, WriteLog& log)
 {
     const uint8_t entry_kind = 7U;
     log.TSerialize(entry_kind);
@@ -153,7 +153,7 @@ void Formats::LogRecord(const BaseKey& key, const MerkleValue* value, WriteLog& 
     LogMerkleValue(value, log);
 }
 
-void Formats::LogValue (const Value* value, WriteLog& log)
+void Formats::LogValue (const AppValue* value, WriteLog& log)
 {
     const uint8_t nullity = (value == nullptr)? 0U : 1U;
 
@@ -161,7 +161,7 @@ void Formats::LogValue (const Value* value, WriteLog& log)
     log.Serialize(*value);
 }
 
-void Formats::LogRecord (const Record& record, WriteLog& log)
+void Formats::LogRecord (const AppRecord& record, WriteLog& log)
 {
     const uint8_t key_type = 1U;
 
@@ -170,7 +170,7 @@ void Formats::LogRecord (const Record& record, WriteLog& log)
     LogValue(record.GetValue(), log);
 }
 
-void Formats::GetHashValue(const Value& value, HashValue& hashValBuf)
+void Formats::GetHashValue(const AppValue& value, HashValue& hashValBuf)
 {
     const uint8_t value_kind = 2U; // DVSome
     Hasher hasher{};

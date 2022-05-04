@@ -8,7 +8,7 @@ namespace Zeta
 namespace mcounter
 {
 
-    class Key : public Zeta::App::Key
+    class Key : public AppKey
     {
     public:
         using key_t = App_key_app_key;
@@ -39,7 +39,7 @@ namespace mcounter
         value_t v_;
     };
 
-    class Record : public Zeta::App::Record
+    class Record : public AppRecord
     {
     public:
         Record (Key::key_t k, Value::value_t v);
@@ -54,12 +54,12 @@ namespace mcounter
         bool isNull_;
     };
 
-    class New : public Zeta::App::TransFn
+    class New : public AppTransFn
     {
     public:
         New (const Key::key_t k, const Record& r);
 
-        const Zeta::App::Param& GetParam() const override;
+        const AppParam& GetParam() const override;
 
         const Record& GetRecord(int idx) const override;
 
@@ -72,12 +72,12 @@ namespace mcounter
         Record r_;
     };
 
-    class Incr : public Zeta::App::TransFn
+    class Incr : public AppTransFn
     {
     public:
         Incr (const Key::key_t k, const Record& r);
 
-        const Zeta::App::Param& GetParam() const override;
+        const AppParam& GetParam() const override;
 
         const Record& GetRecord(int idx) const override;
 
@@ -91,12 +91,12 @@ namespace mcounter
         Value v_;
     };
 
-    class Get : public Zeta::App::TransFn
+    class Get : public AppTransFn
     {
     public:
         Get (const Key::key_t k, const Record& r);
 
-        const Zeta::App::Param& GetParam() const override;
+        const AppParam& GetParam() const override;
 
         const Record& GetRecord(int idx) const override;
 

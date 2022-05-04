@@ -6,33 +6,30 @@
 
 namespace Zeta
 {
+    using AppValue = Serializable;
 
-namespace App
-{
-    using Value = Serializable;
-
-    class Key : public Serializable
+    class AppKey : public Serializable
     {
     public:
-        virtual ~Key() = default;
+        virtual ~AppKey() = default;
         virtual BaseKey GetBaseKey() const;
     };
 
-    class Record
+    class AppRecord
     {
     public:
-        virtual ~Record() = default;
-        virtual const Key& GetKey() const = 0;
-        virtual const Value* GetValue() const = 0;
+        virtual ~AppRecord() = default;
+        virtual const AppKey& GetKey() const = 0;
+        virtual const AppValue* GetValue() const = 0;
     };
 
-    using Param = Serializable;
+    using AppParam = Serializable;
 
-    class TransFn
+    class AppTransFn
     {
     public:
-        TransFn(uint8_t id, int arity, bool hasOutput);
-        virtual ~TransFn() = default;
+        AppTransFn(uint8_t id, int arity, bool hasOutput);
+        virtual ~AppTransFn() = default;
 
         uint8_t GetId() const
         {
@@ -49,11 +46,11 @@ namespace App
             return hasOutput_;
         }
 
-        virtual const Param& GetParam() const = 0;
+        virtual const AppParam& GetParam() const = 0;
 
-        virtual const Record& GetRecord(int idx) const = 0;
+        virtual const AppRecord& GetRecord(int idx) const = 0;
 
-        virtual const Value& GetPostValue(int idx) const = 0;
+        virtual const AppValue& GetPostValue(int idx) const = 0;
 
         virtual bool Touches(int idx) const = 0;
 
@@ -63,7 +60,5 @@ namespace App
         const bool hasOutput_;
     };
 
-    typedef void (*OutCallback) (const TransFn *fn, const uint8_t* buf, size_t len);
-}
-
+    typedef void (*OutCallback) (const AppTransFn *fn, const uint8_t* buf, size_t len);
 }

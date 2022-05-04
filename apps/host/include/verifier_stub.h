@@ -4,8 +4,6 @@
 #include <common.h>
 #include <appcommon.h>
 
-using namespace Zeta::App;
-
 namespace Zeta
 {
 
@@ -17,7 +15,7 @@ namespace Zeta
         VerifierStub (ThreadId threadId, OutCallback outCallback);
         ~VerifierStub ();
         
-        Timestamp Run (const TransFn* fn);
+        Timestamp Run (const AppTransFn* fn);
         void Flush();
         EpochId Verify();
 

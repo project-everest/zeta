@@ -15,10 +15,10 @@ add_custom_command(
    DEPENDS App.rfc
    COMMAND ${MAKE_EXE})
 
-add_library(format
+add_library(mcounter-format
   ${SRC_FILES})
 
-target_include_directories(format
+target_include_directories(mcounter-format
   PUBLIC ${DIST_DIR}
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/out
   PUBLIC $ENV{EVERPARSE_HOME}/include

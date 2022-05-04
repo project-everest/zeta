@@ -9,6 +9,6 @@ target_include_directories(mcounter-host
 )
 
 target_link_libraries(mcounter-host
-  PRIVATE format
+  PUBLIC mcounter-format
   PUBLIC zetastub
 )

@@ -9,25 +9,23 @@
 
 namespace Zeta
 {
-    using namespace App;
-
     class VerifierStubImpl
     {
     public:
         VerifierStubImpl (ThreadId threadId, OutCallback outCallback);
         ~VerifierStubImpl ();
 
-        Timestamp Run (const TransFn* fn);
+        Timestamp Run (const AppTransFn* fn);
         void Flush();
         EpochId Verify();
 
     private:
 
-        SlotId EnsureRecordInStore (const Record& record);
+        SlotId EnsureRecordInStore (const AppRecord& record);
         void EvictSlot (SlotId slotId);
-        void RegisterForCallback (const TransFn* fn);
+        void RegisterForCallback (const AppTransFn* fn);
 
-        void UpdateMerkleHash(const Key& key, const Value& newValue, const BaseKey& provingAncestor);
+        void UpdateMerkleHash(const AppKey& key, const AppValue& newValue, const BaseKey& provingAncestor);
         void UpdateMerkleHash(const BaseKey& key, const MerkleValue* value, const BaseKey& provingAncestor);
 
         bool IsInStore(const BaseKey& baseKey, SlotId* slot);
@@ -40,9 +38,9 @@ namespace Zeta
 #endif
 
         void EnsureEnoughLogSpace();
-        void LogTransFn (const TransFn* fn, const SlotId* slots);
+        void LogTransFn (const AppTransFn* fn, const SlotId* slots);
         void LogAddMInternal (const BaseKey& key, const MerkleValue* value, SlotId slot, SlotId parentSlot);
-        void LogAddMApp (const Record& record, SlotId slot, SlotId parentSlot);
+        void LogAddMApp (const AppRecord& record, SlotId slot, SlotId parentSlot);
         void LogEvictM (SlotId s, SlotId ps);
         void FlushImpl();
 
@@ -64,7 +62,7 @@ namespace Zeta
         SlotId nextFreeSlot_;
         WriteLog writeLog_;
 
-        std::queue<const TransFn*> toCallback_;
+        std::queue<const AppTransFn*> toCallback_;
         std::unique_ptr<uint8_t> outBuf_;
     };
 

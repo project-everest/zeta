@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <app.h>
 
+using namespace Zeta;
 using namespace Zeta::mcounter;
 
 Key::Key(key_t k) : k_{k} {}
@@ -57,14 +58,14 @@ const Value* Record::GetValue() const
 }
 
 New::New(const Key::key_t k, const Record &r)
-    : Zeta::App::TransFn { 0, 1, false }
+    : AppTransFn { 0, 1, false }
     , k_ { k }
     , r_ { r }
 {
 
 }
 
-const Zeta::App::Param& New::GetParam() const
+const AppParam& New::GetParam() const
 {
     return k_;
 }
@@ -90,7 +91,7 @@ bool New::Touches(int idx) const
 }
 
 Incr::Incr(const Key::key_t k, const Record &r)
-    : Zeta::App::TransFn { 1, 1, false }
+    : AppTransFn { 1, 1, false }
     , k_ { k }
     , r_ { r }
     , v_ { 1 + r_.GetValue()->Get() }
@@ -98,7 +99,7 @@ Incr::Incr(const Key::key_t k, const Record &r)
 
 }
 
-const Zeta::App::Param& Incr::GetParam() const
+const AppParam& Incr::GetParam() const
 {
     return k_;
 }
@@ -122,14 +123,14 @@ bool Incr::Touches(int idx) const
 }
 
 Get::Get(const Key::key_t k, const Record &r)
-    : Zeta::App::TransFn { 2, 1, true }
+    : AppTransFn { 2, 1, true }
     , k_ { k }
     , r_ { r }
 {
 
 }
 
-const Zeta::App::Param& Get::GetParam() const
+const AppParam& Get::GetParam() const
 {
     return k_;
 }

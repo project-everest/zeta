@@ -18,7 +18,7 @@ namespace Zeta
 
     }
 
-    Timestamp VerifierStub::Run (const TransFn* fn)
+    Timestamp VerifierStub::Run (const AppTransFn* fn)
     {
         return pimpl_->Run(fn);
     }
@@ -33,7 +33,7 @@ namespace Zeta
         return pimpl_->Verify();
     }
 
-    Timestamp VerifierStubImpl::Run(const TransFn* fn)
+    Timestamp VerifierStubImpl::Run(const AppTransFn* fn)
     {
         assert (fn != nullptr);
         assert (fn->GetArity() >= 0);
@@ -90,7 +90,7 @@ namespace Zeta
         assert (ValidStoreInvariants());
     }
 
-    SlotId VerifierStubImpl::EnsureRecordInStore(const Record& record)
+    SlotId VerifierStubImpl::EnsureRecordInStore(const AppRecord& record)
     {
         // all store invariants valid at entry
         assert (ValidStoreInvariants());
@@ -187,12 +187,12 @@ namespace Zeta
         }
     }
 
-    void VerifierStubImpl::RegisterForCallback(const TransFn *fn)
+    void VerifierStubImpl::RegisterForCallback(const AppTransFn *fn)
     {
         toCallback_.push(fn);
     }
 
-    void VerifierStubImpl::UpdateMerkleHash(const Key& key, const Value& value, const BaseKey& provingAncestor)
+    void VerifierStubImpl::UpdateMerkleHash(const AppKey& key, const AppValue& value, const BaseKey& provingAncestor)
     {
         auto ancValue = merkleTree_.Get(provingAncestor);
         auto baseKey = key.GetBaseKey();
@@ -342,7 +342,7 @@ namespace Zeta
         assert (writeLog_.LeftToWrite() > MaxLogEntrySize);
     }
 
-    void VerifierStubImpl::LogTransFn (const TransFn* fn, const SlotId* slots)
+    void VerifierStubImpl::LogTransFn (const AppTransFn* fn, const SlotId* slots)
     {
         EnsureEnoughLogSpace();
         Formats::LogRunApp(fn->GetId(), fn->GetArity(), fn->GetParam(), slots, writeLog_);
@@ -354,7 +354,7 @@ namespace Zeta
         Formats::LogAddMInternal(key, value, s, ps, writeLog_);
     }
 
-    void VerifierStubImpl::LogAddMApp (const Record& record, SlotId s, SlotId ps)
+    void VerifierStubImpl::LogAddMApp (const AppRecord& record, SlotId s, SlotId ps)
     {
         EnsureEnoughLogSpace();
         Formats::LogAddMApp(record, s, ps, writeLog_);

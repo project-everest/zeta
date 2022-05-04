@@ -28,4 +28,4 @@ target_include_directories(mcounter-verifier
 )
 
 target_link_libraries(mcounter-verifier
-  PRIVATE format)
+  PRIVATE mcounter-format)
