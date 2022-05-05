@@ -1,5 +1,6 @@
 #pragma once
 
+#include "key.h"
 #include <appcommon.h>
 #include <common.h>
 #include <log.h>
@@ -23,6 +24,8 @@ namespace Zeta
 
     private:
         void InitMerkleTree();
+        void AddMerkleTreeEdge(const BaseKey& anc, const BaseKey& desc);
+        BaseKey SplitMerkleTreeEdge (const BaseKey& anc, const BaseKey& desc);
 
         SlotId EnsureRecordInStore (const AppRecord& record);
         void EvictSlot (SlotId slotId);

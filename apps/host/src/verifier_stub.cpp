@@ -1,3 +1,5 @@
+#include "key.h"
+#include "merkle_tree.h"
 #include <assert.h>
 #include <formats.h>
 #include <verifier_stub.h>
@@ -121,45 +123,26 @@ namespace Zeta
                 auto curSlot = NewSlotId(curKey, prevSlot);
                 LogAddMInternal(curKey, curValue, curSlot, prevSlot);
             }
+            prevSlot = curSlot;
 
             auto dir = DescDirTr::ToByte(curKey.GetDescDir(leafKey));
 
             if (!curValue->descInfo[dir].isNonNull) {
-                prevSlot = curSlot;
+                AddMerkleTreeEdge(curKey, leafKey);
                 break;
             }
 
             auto& nextKey = curValue->descInfo[dir].key;
 
-            if (nextKey.IsAncestor(leafKey)) {
-                prevSlot = curSlot;
-                curKey = nextKey;
-            }
-            else {
-                auto newKey = BaseKey::GetLeastCommonAncestor(leafKey, nextKey);
-                assert (newKey.IsDescendant(curKey) && newKey.GetDepth() > curKey.GetDepth());
-                assert (newKey.IsAncestor(nextKey) && newKey.GetDepth() < nextKey.GetDepth());
-                assert (newKey.IsAncestor(leafKey) && newKey.GetDepth() < BaseKey::LeafDepth);
-
-                auto newVal = merkleTree_.Put(newKey);
+            if (!nextKey.IsAncestor(leafKey)) {
+                auto newKey = SplitMerkleTreeEdge(curKey, leafKey);
+                auto newVal = MerkleValue{};
                 auto curSlot = NewSlotId(newKey, prevSlot);
-
-                LogAddMInternal(newKey, newVal, curSlot, prevSlot);
-
-                // update merkle tree
-                auto dir2 = DescDirTr::ToByte(newKey.GetDescDir(leafKey));
-                auto odir2 = 1 - dir2;
-
-                newVal->descInfo[dir2].key = leafKey;
-                newVal->descInfo[odir2].key = newKey;
-                newVal->descInfo[odir2].inBlum = curValue->descInfo[dir].inBlum;
-
-                curValue->descInfo[dir].inBlum = false;
-                curValue->descInfo[dir].key = newKey;
-
-                prevSlot = curSlot;
-                curKey = leafKey;
+                LogAddMInternal(newKey, &newVal, curSlot, prevSlot);
+                break;
             }
+
+            curKey = nextKey;
         }
 
         assert (prevSlot != InvalidSlotId);
@@ -300,7 +283,7 @@ namespace Zeta
 
     void VerifierStubImpl::FreeSlot(SlotId s)
     {
-        assert (s == nextFreeSlot_ && s > 0);
+        assert (s + 1 == nextFreeSlot_ && s > 0);
 
         slotInfo_[s].touched = false;
         nextFreeSlot_--;
@@ -377,5 +360,67 @@ namespace Zeta
     void VerifierStubImpl::InitMerkleTree()
     {
         merkleTree_.Put(BaseKey::Root);
+    }
+
+    void VerifierStubImpl::AddMerkleTreeEdge(const BaseKey& anc, const BaseKey& desc)
+    {
+        // we can prove that new edges are added only to the root node
+        assert (anc.IsRoot());
+
+        // a leaf basekey always triggers adding/splitting merkle tree edges
+        assert(desc.GetDepth() == BaseKey::LeafDepth);
+
+        auto mv = merkleTree_.Get(anc);
+        assert (mv != nullptr);
+
+        assert(anc.IsAncestor(desc));
+        auto dir = DescDirTr::ToByte(anc.GetDescDir(desc));
+        assert (dir < 2);
+
+        assert (!mv->descInfo[dir].isNonNull);
+        mv->descInfo[dir].isNonNull = true;
+        mv->descInfo[dir].key = desc;
+        mv->descInfo[dir].inBlum = false;
+    }
+
+    BaseKey VerifierStubImpl::SplitMerkleTreeEdge(const BaseKey& anc, const BaseKey& desc)
+    {
+        // a leaf basekey always triggers adding/splitting merkle tree edges
+        assert(desc.GetDepth() == BaseKey::LeafDepth);
+
+        assert(anc.IsAncestor(desc));
+
+        auto mv = merkleTree_.Get(anc);
+        assert (mv != nullptr);
+
+        auto dir = DescDirTr::ToByte(anc.GetDescDir(desc));
+        assert (dir < 2);
+
+        assert (mv->descInfo[dir].isNonNull);
+
+        auto& prevDesc = mv->descInfo[dir].key;
+        assert (!prevDesc.IsAncestor(desc));
+
+        auto newKey = BaseKey::GetLeastCommonAncestor(desc, prevDesc);
+        // newKey is a proper desc of anc and a propert ancestor of desc&prevDesc
+        assert (newKey.IsDescendant(anc) && newKey.GetDepth() > anc.GetDepth());
+        assert (newKey.IsAncestor(prevDesc) && newKey.GetDepth() < prevDesc.GetDepth());
+        assert (newKey.IsAncestor(desc) && newKey.GetDepth() < desc.GetDepth());
+
+        assert (merkleTree_.Get(newKey) == nullptr);
+        auto newVal = merkleTree_.Put(newKey);
+
+        // update merkle tree
+        auto dir2 = DescDirTr::ToByte(newKey.GetDescDir(desc));
+        auto odir2 = 1 - dir2;
+
+        newVal->descInfo[dir2].key = desc;
+        newVal->descInfo[odir2].key = newKey;
+        newVal->descInfo[odir2].inBlum = mv->descInfo[dir].inBlum;
+
+        mv->descInfo[dir].inBlum = false;
+        mv->descInfo[dir].key = newKey;
+
+        return newKey;
     }
 }

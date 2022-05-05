@@ -158,7 +158,9 @@ void Formats::LogValue (const AppValue* value, WriteLog& log)
     const uint8_t nullity = (value == nullptr)? 0U : 1U;
 
     log.TSerialize(nullity);
-    log.Serialize(*value);
+    if (value != nullptr) {
+        log.Serialize(*value);
+    }
 }
 
 void Formats::LogRecord (const AppRecord& record, WriteLog& log)
