@@ -1,6 +1,9 @@
 #include <appcommon.h>
+
+extern "C" {
 #include <App_key.h>
 #include <App_val.h>
+}
 
 namespace Zeta
 {

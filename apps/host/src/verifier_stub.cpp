@@ -227,12 +227,13 @@ namespace Zeta
         if (writeLog_.Written() > 0) {
             size_t outSize = 0;
 
-            verifierProxy_.VerifyLog(threadId_,
-                                     writeLog_.Bytes(),
-                                     writeLog_.Written(),
-                                     outBuf_.get(),
-                                     OutBufSize,
-                                     &outSize);
+            auto rc = verifierProxy_.VerifyLog(threadId_,
+                                               const_cast<uint8_t*>(writeLog_.Bytes()),
+                                               writeLog_.Written(),
+                                               outBuf_.get(),
+                                               OutBufSize,
+                                               &outSize);
+            assert (rc == 0);
 
             auto readLog = ReadLog { outBuf_.get(), outSize };
 

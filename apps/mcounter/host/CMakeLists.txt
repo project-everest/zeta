@@ -1,5 +1,5 @@
 file(GLOB SRC
-  "*.cpp")
+  "*.cpp" "*.c")
 
 add_library(mcounter-host
    ${SRC})
@@ -11,4 +11,5 @@ target_include_directories(mcounter-host
 target_link_libraries(mcounter-host
   PUBLIC mcounter-format
   PUBLIC zetastub
+  PRIVATE mcounter-verifier
 )

@@ -9,12 +9,12 @@ namespace Zeta
 
     class VerifierStubImpl;
 
-    typedef void (*VerifyLogFn) (ThreadId threadId,
-                                 const uint8_t *inp,
-                                 size_t inpLen,
-                                 uint8_t *out,
-                                 size_t outBufSize,
-                                 size_t *outLen);
+    typedef int (*VerifyLogFn) (ThreadId threadId,
+                                uint8_t *inp,
+                                size_t inpLen,
+                                uint8_t *out,
+                                size_t outBufSize,
+                                size_t *outLen);
 
     struct VerifierProxy
     {
