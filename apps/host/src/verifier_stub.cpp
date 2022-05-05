@@ -2,6 +2,7 @@
 #include "merkle_tree.h"
 #include <assert.h>
 #include <formats.h>
+#include <trace.h>
 #include <verifier_stub.h>
 #include <verifier_stub_impl.h>
 #include <zeta_traits.h>
@@ -84,6 +85,8 @@ namespace Zeta
         , verifierProxy_ { verifierProxy }
         , merkleTree_ { }
         , writeLog_ { }
+        , toCallback_ { }
+        , outBuf_ { new uint8_t [OutBufSize] }
     {
         // the current code assumes single verifier thread
         static_assert (ThreadCount == 1, "The current code assumes single verifier thread");
@@ -217,12 +220,15 @@ namespace Zeta
         if (writeLog_.Written() > 0) {
             size_t outSize = 0;
 
+            TRACE_DEBUG("Thread{}: Verifying a log of size {}", threadId_, writeLog_.Written());
+
             auto rc = verifierProxy_.VerifyLog(threadId_,
                                                const_cast<uint8_t*>(writeLog_.Bytes()),
                                                writeLog_.Written(),
                                                outBuf_.get(),
                                                OutBufSize,
                                                &outSize);
+            TRACE_DEBUG("Return code: {}, Output size: {}", rc, outSize);
             assert (rc == 0);
 
             auto readLog = ReadLog { outBuf_.get(), outSize };

@@ -32,5 +32,9 @@ int main(int argc, char *argv[])
     verifier.Run(&newCounter);
     verifier.Flush();
 
+    Incr incrCounter { 0, Record { 0, 0} };
+    verifier.Run(&incrCounter);
+    verifier.Flush();
+
     return 0;
 }

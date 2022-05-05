@@ -240,14 +240,8 @@ namespace Zeta
 
         bool IsLeaf() const { return LeafDepth == GetDepth(); }
 
-        // Am I a proper ancestor of other
         bool IsAncestor (const BaseKey& other) const
         {
-            if (other.GetDepth() <= GetDepth())
-            {
-                return false;
-            }
-
             return UInt256::GetLargestCommonPrefixSize(path_, other.path_) >= depth_;
         }
 

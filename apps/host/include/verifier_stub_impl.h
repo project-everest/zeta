@@ -70,7 +70,7 @@ namespace Zeta
         WriteLog writeLog_;
 
         std::queue<const AppTransFn*> toCallback_;
-        std::unique_ptr<uint8_t> outBuf_;
+        std::unique_ptr<uint8_t[]> outBuf_;
     };
 
 }
