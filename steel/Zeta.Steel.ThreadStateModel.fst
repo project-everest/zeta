@@ -384,7 +384,7 @@ let to_base_key (k:key)
 let lower_app_key_is_data_key (k:key_type)
   : Lemma 
     (ensures (KU.is_data_key (KU.lower_base_key (aprm.A.keyhashfn k))))
-  = admit()
+  = KU.lowered_leaf_key_is_data_key (aprm.A.keyhashfn k)
 
 let key_with_descendent_is_merkle_key (k:key) (k':base_key)
   : Lemma 
@@ -670,8 +670,7 @@ let nextepoch (tsm:thread_state_model)
     | None -> fail tsm //overflow
     | Some new_clock ->
       let new_epoch = epoch_of_timestamp new_clock in
-      {tsm with clock=new_clock;
-                epoch_hashes = Map.upd tsm.epoch_hashes new_epoch init_epoch_hash }
+      { tsm with clock=new_clock }
 
 let maybe_increment_last_verified_epoch (e:option epoch_id)
   = match e with

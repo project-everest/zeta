@@ -497,25 +497,66 @@ let ha_add (#v:erased (HA.hash_value_t))
     let x = HA.add ha input l in
     return x
 
+
+let new_epoch (e:M.epoch_id)
+  : STT EH.epoch_hashes_t
+    emp
+    (fun v -> EH.epoch_hash_perm e v M.init_epoch_hash)
+  = let hadd = HA.create () in
+    let hev = HA.create () in
+    let eh : EH.epoch_hashes_t = { hadd = hadd; hevict = hev } in
+    rewrite (HA.ha_val hadd _ `star` HA.ha_val hev _)
+            (EH.epoch_hash_perm e eh M.init_epoch_hash);
+    return eh
+
+let epoch_map_add (#v:Type0)
+               (#contents:Type0)
+               (#vp:M.epoch_id -> v -> contents -> vprop)
+               (#init:Ghost.erased contents)
+               (#m:Ghost.erased (EpochMap.repr contents))
+               (a:EpochMap.tbl vp)
+               (i:M.epoch_id)
+               (x:v)
+               (c:Ghost.erased contents)
+  : STT unit
+    (EpochMap.full_perm a init m `star`
+     vp i x c)
+    (fun _ ->
+      EpochMap.full_perm a init (Map.upd m i c))
+  = EpochMap.put a i x _;
+    assert (PartialMap.remove (EpochMap.empty_borrows #v) i `PartialMap.equal`
+            EpochMap.empty_borrows #v);
+    rewrite (EpochMap.perm a _ _ (PartialMap.remove EpochMap.empty_borrows i))
+            (EpochMap.full_perm a init (Map.upd m i c))
+
 #push-options "--z3rlimit_factor 2"
-let update_ht (#tsm:M.thread_state_model)
-              (t:thread_state_t)
-              (e:M.epoch_id)
-              (r:T.record)
-              (ts:T.timestamp)
-              (thread_id:T.thread_id)
-              (ht:htype)
+let rec update_ht (#tsm:M.thread_state_model)
+                  (t:thread_state_t)
+                  (e:M.epoch_id)
+                  (r:T.record)
+                  (ts:T.timestamp)
+                  (thread_id:T.thread_id)
+                  (ht:htype)
   : STT bool
     (thread_state_inv_core t tsm)
     (fun b -> thread_state_inv_core t (update_if b tsm (update_epoch_hash tsm e r ts thread_id ht)))
   = let vopt = EpochMap.get t.epoch_hashes e in
     match vopt with
-    | EpochMap.NotFound
-    | EpochMap.Fresh ->
+    | EpochMap.NotFound ->
       rewrite (EpochMap.get_post _ _ _ _ _ vopt)
               (EpochMap.full_perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes);
       return false
 
+    | EpochMap.Fresh ->
+      rewrite (EpochMap.get_post _ _ _ _ _ _)
+              (EpochMap.full_perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes);
+      let eh = new_epoch e in
+      epoch_map_add t.epoch_hashes e eh _;
+      assert (tsm.epoch_hashes `Map.equal` Map.upd tsm.epoch_hashes e M.init_epoch_hash);
+      rewrite (EpochMap.full_perm t.epoch_hashes _ _)
+              (EpochMap.full_perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes);
+      update_ht t e r ts thread_id ht              
+      
     | EpochMap.Found v ->
       rewrite (EpochMap.get_post _ _ _ _ _ vopt)
               (EpochMap.perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes (PartialMap.upd EpochMap.empty_borrows e v) `star`
@@ -930,38 +971,6 @@ let vevictbm (#tsm:M.thread_state_model)
 // nextepoch
 ////////////////////////////////////////////////////////////////////////////////
 
-let new_epoch (e:M.epoch_id)
-  : STT EH.epoch_hashes_t
-    emp
-    (fun v -> EH.epoch_hash_perm e v M.init_epoch_hash)
-  = let hadd = HA.create () in
-    let hev = HA.create () in
-    let eh : EH.epoch_hashes_t = { hadd = hadd; hevict = hev } in
-    rewrite (HA.ha_val hadd _ `star` HA.ha_val hev _)
-            (EH.epoch_hash_perm e eh M.init_epoch_hash);
-    return eh
-
-
-let epoch_map_add (#v:Type0)
-               (#contents:Type0)
-               (#vp:M.epoch_id -> v -> contents -> vprop)
-               (#init:Ghost.erased contents)
-               (#m:Ghost.erased (EpochMap.repr contents))
-               (a:EpochMap.tbl vp)
-               (i:M.epoch_id)
-               (x:v)
-               (c:Ghost.erased contents)
-  : STT unit
-    (EpochMap.full_perm a init m `star`
-     vp i x c)
-    (fun _ ->
-      EpochMap.full_perm a init (Map.upd m i c))
-  = EpochMap.put a i x _;
-    assert (PartialMap.remove (EpochMap.empty_borrows #v) i `PartialMap.equal`
-            EpochMap.empty_borrows #v);
-    rewrite (EpochMap.perm a _ _ (PartialMap.remove EpochMap.empty_borrows i))
-            (EpochMap.full_perm a init (Map.upd m i c))
-
 let nextepoch_core (#tsm:M.thread_state_model)
                    (t:thread_state_t)
   : STT unit
@@ -976,9 +985,6 @@ let nextepoch_core (#tsm:M.thread_state_model)
     | Some nxt ->
       let c = { epoch = nxt; counter = 0ul } in
       R.write t.clock c;
-      //would be better to prove this and use nxt: (nxt == M.epoch_of_timestamp c);
-      let eht = new_epoch (M.epoch_of_timestamp c) in
-      epoch_map_add t.epoch_hashes (M.epoch_of_timestamp c) eht M.init_epoch_hash;
       ()
 
 let nextepoch (#tsm:M.thread_state_model)
@@ -1088,29 +1094,10 @@ let rec propagate_epoch_hash (#tsm:M.thread_state_model)
               (EpochMap.full_perm hashes M.init_epoch_hash hv);
       let eh = new_epoch e in
       epoch_map_add hashes e eh _;
-      let b = propagate_epoch_hash t hashes e in
-      if b then (
-        rewrite (if b then _ else _)
-                (EpochMap.full_perm hashes M.init_epoch_hash
-                                    (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes
-                                                              (Map.upd hv e M.init_epoch_hash)
-                                                              e));
-        assert (Map.sel hv e == M.init_epoch_hash);
-        assert (Map.upd hv e M.init_epoch_hash `Map.equal` reveal hv);
-        rewrite (EpochMap.full_perm hashes M.init_epoch_hash
-                                    (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes
-                                                              (Map.upd hv e M.init_epoch_hash)
-                                                              e))
-                (EpochMap.full_perm hashes M.init_epoch_hash
-                                    (aggregate_one_epoch_hash (spec_verify_epoch tsm).epoch_hashes
-                                                              hv
-                                                              e));
-        return true
-      ) else (
-        rewrite (if b then _ else _)
-                (exists_ (EpochMap.full_perm hashes M.init_epoch_hash));
-        return false
-      )
+      assert (hv `Map.equal` Map.upd hv e M.init_epoch_hash);
+      rewrite (EpochMap.full_perm hashes _ _)
+              (EpochMap.full_perm hashes M.init_epoch_hash hv);
+      propagate_epoch_hash t hashes e
 
     | EpochMap.Found dst ->
 

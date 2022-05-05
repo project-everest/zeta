@@ -816,7 +816,7 @@ let epoch_hashes_unchanged_evictm (tsm: thread_state_model) (e: s_log_entry {T.E
 let epoch_hashes_unchanged_next_epoch (tsm: thread_state_model) (e: s_log_entry {T.NextEpoch? e})
   : Lemma (ensures (let tsm_ = verify_step_model tsm e in
                     not tsm_.failed ==> tsm.epoch_hashes == tsm_.epoch_hashes))
-  = admit() //this one is not true; only true for epochs less than the current clock
+  = ()
 
 let epoch_hashes_unchanged_verify_epoch
     (tsm: thread_state_model)
