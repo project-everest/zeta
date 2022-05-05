@@ -1,5 +1,7 @@
 #pragma once
 
+#include <zeta_config.h>
+
 #ifdef TRACE_MODE
 #include <spdlog/spdlog.h>
 #include <string>

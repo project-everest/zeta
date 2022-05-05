@@ -59,14 +59,6 @@ void WriteLog::Serialize(const Serializable& serializable)
     cur_ += wrote;
 }
 
-
-/*
-template<typename T>
-void WriteLog::TSerialize(const T& v) {
-    Serialize(reinterpret_cast<const uint8_t*>(&v), sizeof(T));
-}
-*/
-
 template <>
 void WriteLog::TSerialize<uint16_t>(const uint16_t& v)
 {

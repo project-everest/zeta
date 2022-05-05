@@ -1,4 +1,5 @@
 #include <app.h>
+#include <trace.h>
 #include <verifier_proxy.h>
 #include <verifier_stub.h>
 
@@ -24,6 +25,7 @@ int main(int argc, char *argv[])
     auto proxy = GetVerifierProxy();
 
     VerifierStub verifier { 0, OutputCallback, proxy };
+    LOG_LEVEL_DEBUG;
 
     Record r { 0 };
     New newCounter { 0, r };

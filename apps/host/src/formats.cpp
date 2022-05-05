@@ -1,6 +1,6 @@
-#include "zeta_traits.h"
 #include <cstdint>
 #include <formats.h>
+#include <trace.h>
 #include <limits>
 #include <stdexcept>
 
@@ -14,6 +14,7 @@ void Formats::LogAddMInternal(const BaseKey &key, const MerkleValue *value, Slot
     LogRecord(key, value, log);
     LogSlotId(s, log);
     LogSlotId(ps, log);
+    TRACE_DEBUG("AddMi {}, {}, {}; Log pos = {}", key.GetFormattedSelf(), s, ps, log.Written());
 }
 
 void Formats::LogAddMApp(const AppRecord &record, SlotId s, SlotId ps, WriteLog &log)
@@ -24,14 +25,16 @@ void Formats::LogAddMApp(const AppRecord &record, SlotId s, SlotId ps, WriteLog 
     LogRecord(record, log);
     LogSlotId(s, log);
     LogSlotId(ps, log);
+    TRACE_DEBUG("AddM {}, {}, {}; Log pos = {}", record.GetKey().GetBaseKey().GetFormattedSelf(), s, ps, log.Written());
 }
 
 void Formats::LogEvictM(SlotId s, SlotId ps, WriteLog& log)
 {
-    const uint8_t entry_kind = 3U;
+    const uint8_t entry_kind = 2U;
     log.TSerialize(entry_kind);
     LogSlotId(s, log);
     LogSlotId(ps, log);
+    TRACE_DEBUG("EvictM {} {}; Log pos = {}", s, ps, log.Written());
 }
 
 void Formats::LogRunApp (uint8_t fnId, int arity, const AppParam& param, const SlotId* slots, WriteLog& log)
@@ -51,6 +54,7 @@ void Formats::LogRunApp (uint8_t fnId, int arity, const AppParam& param, const S
     for (int i = 0 ; i < arity ; ++i) {
         log.TSerialize(slots[i]);
     }
+    TRACE_DEBUG("RunApp {}; Log pos = {}", fnId, log.Written());
 }
 
 void Formats::LogBaseKey (const BaseKey& key, WriteLog& log)
