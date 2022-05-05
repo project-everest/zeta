@@ -90,6 +90,7 @@ namespace Zeta
         assert (threadId < ThreadCount);
 
         InitSlots();
+        InitMerkleTree();
         assert (ValidStoreInvariants());
     }
 
@@ -122,6 +123,12 @@ namespace Zeta
             }
 
             auto dir = DescDirTr::ToByte(curKey.GetDescDir(leafKey));
+
+            if (!curValue->descInfo[dir].isNonNull) {
+                prevSlot = curSlot;
+                break;
+            }
+
             auto& nextKey = curValue->descInfo[dir].key;
 
             if (nextKey.IsAncestor(leafKey)) {
@@ -365,5 +372,10 @@ namespace Zeta
     {
         EnsureEnoughLogSpace();
         Formats::LogEvictM(s, ps, writeLog_);
+    }
+
+    void VerifierStubImpl::InitMerkleTree()
+    {
+        merkleTree_.Put(BaseKey::Root);
     }
 }

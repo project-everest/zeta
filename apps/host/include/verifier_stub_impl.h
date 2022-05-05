@@ -22,6 +22,7 @@ namespace Zeta
         EpochId Verify();
 
     private:
+        void InitMerkleTree();
 
         SlotId EnsureRecordInStore (const AppRecord& record);
         void EvictSlot (SlotId slotId);
