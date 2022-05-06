@@ -58,7 +58,7 @@ let certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {AH.ep
   = ()
 
 let all_valid_tsms = tsms: Seq.seq thread_state_model
-    {forall i. ThreadRel.valid (Seq.index tsms i)}
+    { forall i. ThreadRel.valid (Seq.index tsms i) }
 
 let all_epoch_completed (ep: epoch_id) (tsms: Seq.seq thread_state_model)
   = forall (i:Zeta.SeqAux.seq_index tsms). AH.is_epoch_verified (Seq.index tsms i) ep
@@ -161,6 +161,158 @@ let to_tsms (logs: verifiable_logs)
 
 
 #push-options "--fuel 1 --ifuel 1 --query_stats"
+let valid_spec_rel_tsm (t:tid) (l:log)
+  : Lemma 
+    (let tsm = TSM.verify_model (TSM.init_thread_state_model t) l in
+     tsm.failed \/ (
+     ThreadRel.valid tsm /\
+     ThreadRel.spec_rel tsm))
+  = let tsm = TSM.verify_model (TSM.init_thread_state_model t) l in
+    TSM.tsm_entries_invariant_steps t l;
+    if tsm.failed
+    then ()
+    else (
+      ThreadRel.valid_implies_spec_rel tsm
+    )
+
+
+let thread_contrib_of_log_for_epoch (t:tid) (l:log) (e:epoch_id)
+  : Lemma 
+    (requires (
+      let tsm = TSM.verify_model (TSM.init_thread_state_model t) l in
+      AH.is_epoch_verified tsm e))
+    (ensures (
+      let tsm = TSM.verify_model (TSM.init_thread_state_model t) l in    
+      valid_spec_rel_tsm t l;
+      Map.sel (AH.thread_contrib_of_log t l) e ==  Map.sel tsm.epoch_hashes e /\
+      (Map.sel tsm.epoch_hashes e == ({ hadd = ms_hashfn (ThreadRel.add_set tsm (lift_epoch e));
+                                        hevict = ms_hashfn (ThreadRel.evict_set tsm (lift_epoch e))}))))
+  = let tsm = TSM.verify_model (TSM.init_thread_state_model t) l in
+    valid_spec_rel_tsm t l;
+    ThreadRel.valid_hadd_prop e tsm;
+    ThreadRel.valid_hevict_prop e tsm
+
+let seq_map_fusion (#a:Type) (#b:Type) (#c:Type) (f:a -> b) (g:b -> c) (s:Seq.seq a)
+  : Lemma (Zeta.SeqAux.map g (Zeta.SeqAux.map f s) == Zeta.SeqAux.map (fun x -> g (f x)) s)
+  = admit()
+
+let all_threads_hadd (logs:verifiable_logs) (ep:epoch_id)
+  : GTot (Seq.seq TSM.model_hash)
+  = Zeta.SeqAux.map ms_hashfn (all_add_sets (to_tsms logs) ep)
+module CE = FStar.Algebra.CommMonoid.Equiv
+
+let aggregate_model_hash_equiv 
+  : CE.equiv TSM.model_hash
+  = CE.EQ ( == ) (fun _ -> ()) (fun _ _ -> ()) (fun _ _ _ -> ())
+
+let aggregate_model_hash_monoid
+  : CE.cm TSM.model_hash aggregate_model_hash_equiv
+  = CE.CM HA.initial_hash
+          HA.aggregate_hashes
+          HA.initial_hash_unit 
+          HA.aggregate_hashes_associative
+          HA.aggregate_hashes_commutative
+          (fun _ _ _ _ -> ())
+  
+let aggregate_hashes (s:Seq.seq TSM.model_hash)
+  : TSM.model_hash
+  = FStar.Seq.Permutation.foldm_snoc aggregate_model_hash_monoid s
+        
+let aggregate_all_threads_hadd (logs:verifiable_logs) (ep:epoch_id)
+  : GTot TSM.model_hash
+  = aggregate_hashes (all_threads_hadd logs ep)
+
+let aggregate_all_threads_hevict (logs:verifiable_logs) (ep:epoch_id)
+  : GTot TSM.model_hash
+  = aggregate_hashes (all_threads_hadd logs ep)
+
+let split_aggregate_all_threads_epoch_hashes (logs:verifiable_logs)
+                                             (ep:TSM.epoch_id)
+  : Lemma 
+    (AH.aggregate_all_threads_epoch_hashes ep (as_tid_logs logs) ==
+      ({ hadd = aggregate_all_threads_hadd logs ep;
+         hevict = aggregate_all_threads_hevict logs ep }))
+  = admit()
+
+let union_all_sseq (#a: eqtype) (f: Zeta.MultiSet.cmp a) (s: Zeta.SSeq.sseq a) (_:squash True)
+  : Lemma (ensures (sseq2mset #_ #f s == union_all (Seq.init (Seq.length s) (fun i -> Zeta.MultiSet.seq2mset #_ #f (Seq.index s i)))))
+  = union_all_sseq #a #f s
+
+#push-options "--print_implicits --print_bound_var_types"
+module ZIV = Zeta.Intermediate.Verifier
+
+let hash_union_commute (msets:Seq.seq mset)
+  : Lemma (aggregate_hashes (Zeta.SeqAux.map ms_hashfn msets) ==
+           ms_hashfn (union_all msets))
+  = admit()
+  
+let aggr_add_hash_correct_alt (logs: verifiable_logs) (ep: epoch_id)
+  : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
+          (ensures (let gl = to_ilog logs in
+                    let i_ep = lift_epoch ep in
+                    let hadd = ms_hashfn (GG.add_set #(ZIV.int_verifier_spec_base i_vcfg) i_ep gl) in
+                    aggregate_all_threads_hadd logs ep  == hadd))
+  = let rhs = aggregate_all_threads_hadd logs ep in
+    let gl = to_ilog logs in
+    let i_ep = lift_epoch ep in
+    let lhs = ms_hashfn (GG.add_set i_ep gl) in
+    let ss = (GG.add_sseq i_ep gl) in
+    let vspec = (ZIV.int_verifier_spec_base i_vcfg)  in
+    calc (==) {
+      GG.add_set #vspec i_ep gl;
+    (==) {}
+      sseq2mset #_ #(Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp vspec.app) (GG.add_sseq (lift_epoch ep) (to_ilog logs));
+    (==)  { _ by  FStar.Tactics.(dump "A"; tadmit()) } //mapply (`union_all_sseq)) } //union_all_sseq (Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp vspec.app) (GG.add_sseq i_ep gl) () }
+      union_all (Seq.init (Seq.length gl) (fun i -> Zeta.MultiSet.seq2mset #_ #(Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp vspec.app) (Seq.index (GG.add_sseq i_ep gl) i)));
+    (==) { 
+            assert (forall (i:Zeta.SeqAux.seq_index ss). Seq.index ss i == Zeta.Generic.Thread.add_seq i_ep (GG.index gl i));
+            assert (forall (i:Zeta.SeqAux.seq_index ss). Zeta.MultiSet.seq2mset (Seq.index ss i) == ThreadRel.add_set (Seq.index (to_tsms logs) i) i_ep);
+            assert ((Seq.init (Seq.length gl) (fun i -> Zeta.MultiSet.seq2mset #_ #(Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp vspec.app) (Seq.index (GG.add_sseq i_ep gl) i))) `Seq.equal`
+                     all_add_sets (to_tsms logs) ep)
+         }
+      union_all (all_add_sets (to_tsms logs) ep);
+    };
+    hash_union_commute (all_add_sets (to_tsms logs) ep)
+    
+let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
+  : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
+          (ensures (let gl = to_ilog logs in
+                    let i_ep = lift_epoch ep in
+                    let add_set = GG.add_set i_ep gl in
+                    let h = aggregate_add_hash logs ep in
+                    h = ms_hashfn add_set))
+  = let mlogs_v = as_tid_logs logs in
+    calc (==) {
+         aggregate_add_hash logs ep;
+    (==) {}
+       (AH.aggregate_all_threads_epoch_hashes ep mlogs_v).hadd;
+    (==) {}
+       (AH.aggregate_epoch_hashes_seq 
+         (Zeta.SeqAux.map (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
+                          (AH.all_threads_epoch_hashes_of_logs mlogs_v))).hadd;
+    (==) {}
+      (AH.aggregate_epoch_hashes_seq 
+         (Zeta.SeqAux.map (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
+                          (Zeta.SeqAux.map (fun (tid, l) -> AH.thread_contrib_of_log tid l) mlogs_v))).hadd;
+    (==) {  admit() }
+      (AH.aggregate_epoch_hashes_seq 
+         (Zeta.SeqAux.map (fun (tid, l) -> Map.sel (AH.thread_contrib_of_log tid l) ep) mlogs_v)).hadd;    
+    (==) { admit () }
+      (AH.aggregate_epoch_hashes_seq 
+         (Zeta.SeqAux.map (fun (tid, l) -> Map.sel (AH.thread_contrib_of_log tid l) ep) mlogs_v)).hadd;        
+    
+    };
+    admit()
+
+    // calc (==) {
+    //   AH.all_threads_epoch_hashes_of_logs mlogs_v;
+    // (==) {}
+    //   Zeta.SeqAux.map (fun (tid, l) -> AH.thread_contrib_of_log tid l) mlogs_v;
+    // };
+    // admit();
+    // let tsms = run_all _ logs in
+    // //assert (forall i. ThreadRel.valid (Seq.index tsms i));
+    // admit()
 
 let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
   : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
