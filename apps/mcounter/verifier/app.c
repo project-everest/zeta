@@ -1,3 +1,4 @@
+#include "App_key.h"
 #include <ZetaFormatsApplicationTypes.h>
 #include <Zeta_Steel_Main.h>
 #include <Zeta_Steel_Main.c>
@@ -16,18 +17,30 @@ Zeta_Steel_ApplicationTypes_eq_value_type(
     return v0 == v1;
 }
 
+extern void
+Hacl_Blake2b_32_blake2b(
+  uint32_t nn,
+  uint8_t *output,
+  uint32_t ll,
+  uint8_t *d,
+  uint32_t kk,
+  uint8_t *_dummy
+);
+
 // TODO: use key serialization
 Zeta_Steel_LogEntry_Types_base_key
 Zeta_Steel_Application_key_type_to_base_key(Zeta_Steel_ApplicationTypes_key_type k)
 {
+    uint8_t buf[4096];
+    uint8_t hbuf[32];
+
+    uint32_t n = App_key_app_key_lserializer(k, buf, 0);
+    Hacl_Blake2b_32_blake2b(32, hbuf, n, buf, 0, 0);
+
     Zeta_Steel_LogEntry_Types_base_key bk =
     {
         .significant_digits = 256,
-        .k = { .v0 = k,
-               .v1 = 0,
-               .v2 = 0,
-               .v3 = 0
-        }
+        .k = read_hash_u256(hbuf)
     };
 
     return bk;

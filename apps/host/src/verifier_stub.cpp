@@ -122,7 +122,7 @@ namespace Zeta
 
             SlotId curSlot = InvalidSlotId;
             if (!IsInStore(curKey, &curSlot)) {
-                auto curSlot = NewSlotId(curKey, prevSlot);
+                curSlot = NewSlotId(curKey, prevSlot);
                 LogAddMInternal(curKey, curValue, curSlot, prevSlot);
             }
             prevSlot = curSlot;
@@ -141,6 +141,7 @@ namespace Zeta
                 auto newVal = MerkleValue{};
                 auto curSlot = NewSlotId(newKey, prevSlot);
                 LogAddMInternal(newKey, &newVal, curSlot, prevSlot);
+                prevSlot = curSlot;
                 break;
             }
 
@@ -362,24 +363,28 @@ namespace Zeta
     {
         EnsureEnoughLogSpace();
         Formats::LogRunApp(fn->GetId(), fn->GetArity(), fn->GetParam(), slots, writeLog_);
+        FlushImpl();
     }
 
     void VerifierStubImpl::LogAddMInternal (const BaseKey& key, const MerkleValue* value, SlotId s, SlotId ps)
     {
         EnsureEnoughLogSpace();
         Formats::LogAddMInternal(key, value, s, ps, writeLog_);
+        FlushImpl();
     }
 
     void VerifierStubImpl::LogAddMApp (const AppRecord& record, SlotId s, SlotId ps)
     {
         EnsureEnoughLogSpace();
         Formats::LogAddMApp(record, s, ps, writeLog_);
+        FlushImpl();
     }
 
     void VerifierStubImpl::LogEvictM (SlotId s, SlotId ps)
     {
         EnsureEnoughLogSpace();
         Formats::LogEvictM(s, ps, writeLog_);
+        FlushImpl();
     }
 
     void VerifierStubImpl::InitMerkleTree()
@@ -440,8 +445,12 @@ namespace Zeta
         auto odir2 = 1 - dir2;
 
         newVal->descInfo[dir2].key = desc;
-        newVal->descInfo[odir2].key = newKey;
+        newVal->descInfo[dir2].isNonNull = true;
+
+        newVal->descInfo[odir2].key = mv->descInfo[dir].key;
         newVal->descInfo[odir2].inBlum = mv->descInfo[dir].inBlum;
+        newVal->descInfo[odir2].isNonNull = true;
+        assert (mv->descInfo[dir].isNonNull);
 
         mv->descInfo[dir].inBlum = false;
         mv->descInfo[dir].key = newKey;

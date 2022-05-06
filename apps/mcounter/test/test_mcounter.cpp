@@ -118,3 +118,37 @@ TEST_CASE("test single key output")
     // the read value should be 1
     REQUIRE(getCounter.GetOutput() == 1);
 }
+
+TEST_CASE("test ops on a sequential key range")
+{
+    static const uint64_t KeyCount = 2;
+    LOG_LEVEL_DEBUG;
+    auto proxy = GetVerifierProxy();
+
+    VerifierStub verifier { 0, proxy };
+
+    // initialize a bunch of counters
+    for (uint64_t i = 0 ; i < KeyCount ; ++i) {
+        New newCounter { i, Record { i } };
+        verifier.Run(&newCounter);
+    }
+    verifier.Flush();
+
+    // incr all counters
+    for (uint64_t i = 0 ; i < KeyCount ; ++i) {
+        Incr incrCounter { i, Record { i, 0 } };
+        verifier.Run (&incrCounter);
+        verifier.Flush();
+    }
+
+
+    /*
+    // read all the counters
+    for (uint64_t i = 0 ; i < KeyCount ; ++i) {
+        Get getCounter { i, Record { i, 1 } };
+        verifier.Run (&getCounter);
+        verifier.Flush();
+        REQUIRE(getCounter.GetOutput() == 1);
+    }
+    */
+}
