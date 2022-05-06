@@ -88,10 +88,18 @@ namespace mcounter
 
         bool Touches(int idx) const override;
 
+        void SetOutput(ReadLog& log) override;
+
+        Value::value_t GetOutput() const
+        {
+            return out_;
+        }
+
     private:
         Key k_;
         Record r_;
         Value v_;
+        Value::value_t out_;
     };
 
     class Get : public AppTransFn
@@ -107,9 +115,17 @@ namespace mcounter
 
         bool Touches(int idx) const override;
 
+        void SetOutput(ReadLog& log) override;
+
+        Value::value_t GetOutput() const
+        {
+            return out_;
+        }
+
     private:
         Key k_;
         Record r_;
+        Value::value_t out_;
     };
 
 }

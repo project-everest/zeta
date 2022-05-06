@@ -15,10 +15,10 @@ namespace Zeta
     class VerifierStubImpl
     {
     public:
-        VerifierStubImpl (ThreadId threadId, OutCallback outCallback, VerifierProxy verifierProxy);
+        VerifierStubImpl (ThreadId threadId, VerifierProxy verifierProxy);
         ~VerifierStubImpl () = default;
 
-        Timestamp Run (const AppTransFn* fn);
+        Timestamp Run (AppTransFn* fn);
         void Flush();
         EpochId Verify();
 
@@ -29,7 +29,7 @@ namespace Zeta
 
         SlotId EnsureRecordInStore (const AppRecord& record);
         void EvictSlot (SlotId slotId);
-        void RegisterForCallback (const AppTransFn* fn);
+        void RegisterForCallback (AppTransFn* fn);
 
         void UpdateMerkleHash(const AppKey& key, const AppValue& newValue, const BaseKey& provingAncestor);
         void UpdateMerkleHash(const BaseKey& key, const MerkleValue* value, const BaseKey& provingAncestor);
@@ -62,14 +62,13 @@ namespace Zeta
         };
 
         const ThreadId threadId_;
-        const OutCallback outCallback_;
         const VerifierProxy verifierProxy_;
         MerkleTree merkleTree_;
         SlotInfo slotInfo_[StoreSize];
         SlotId nextFreeSlot_;
         WriteLog writeLog_;
 
-        std::queue<const AppTransFn*> toCallback_;
+        std::queue<AppTransFn*> toCallback_;
         std::unique_ptr<uint8_t[]> outBuf_;
     };
 

@@ -51,6 +51,9 @@ namespace Zeta
             return tval;
         }
 
+        template<typename T>
+        T DeserializeBigEndian();
+
         const uint8_t* DeserializeBuf(size_t len);
 
         size_t LeftToRead() const;

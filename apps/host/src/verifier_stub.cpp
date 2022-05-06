@@ -9,8 +9,8 @@
 
 namespace Zeta
 {
-    VerifierStub::VerifierStub (ThreadId threadId, OutCallback outCallback, VerifierProxy verifierProxy)
-        : pimpl_ { new VerifierStubImpl (threadId, outCallback, verifierProxy) }
+    VerifierStub::VerifierStub (ThreadId threadId, VerifierProxy verifierProxy)
+        : pimpl_ { new VerifierStubImpl (threadId, verifierProxy) }
     {
 
     }
@@ -20,7 +20,7 @@ namespace Zeta
 
     }
 
-    Timestamp VerifierStub::Run (const AppTransFn* fn)
+    Timestamp VerifierStub::Run (AppTransFn* fn)
     {
         return pimpl_->Run(fn);
     }
@@ -35,7 +35,7 @@ namespace Zeta
         return pimpl_->Verify();
     }
 
-    Timestamp VerifierStubImpl::Run(const AppTransFn* fn)
+    Timestamp VerifierStubImpl::Run(AppTransFn* fn)
     {
         assert (fn != nullptr);
         assert (fn->GetArity() >= 0);
@@ -79,9 +79,8 @@ namespace Zeta
         return 0;
     }
 
-    VerifierStubImpl::VerifierStubImpl (ThreadId threadId, OutCallback outCallback, VerifierProxy verifierProxy)
+    VerifierStubImpl::VerifierStubImpl (ThreadId threadId, VerifierProxy verifierProxy)
         : threadId_ { threadId }
-        , outCallback_ {outCallback}
         , verifierProxy_ { verifierProxy }
         , merkleTree_ { }
         , writeLog_ { }
@@ -183,7 +182,7 @@ namespace Zeta
         }
     }
 
-    void VerifierStubImpl::RegisterForCallback(const AppTransFn *fn)
+    void VerifierStubImpl::RegisterForCallback(AppTransFn *fn)
     {
         toCallback_.push(fn);
     }
@@ -252,14 +251,13 @@ namespace Zeta
                 RaiseException(rc);
             }
 
-            auto readLog = ReadLog { outBuf_.get(), outSize };
+            auto outLog = ReadLog { outBuf_.get(), outSize };
 
             // Output callbacks
             for ( ; !toCallback_.empty() ; toCallback_.pop()) {
                 auto fn = toCallback_.front();
-                auto fnOutSize = readLog.Deserialize<uint32_t>();
-                auto fnOut = readLog.DeserializeBuf(fnOutSize);
-                outCallback_(fn, fnOut, fnOutSize);
+                assert (fn->HasOutput());
+                fn->SetOutput(outLog);
            }
         }
 

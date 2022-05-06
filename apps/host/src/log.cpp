@@ -109,3 +109,11 @@ size_t ReadLog::LeftToRead() const
 
     return bufEnd_ - cur_;
 }
+
+template<>
+uint64_t ReadLog::DeserializeBigEndian<uint64_t>()
+{
+    uint64_t v = Deserialize<uint64_t>();
+    v = bswap_64(v);
+    return v;
+}

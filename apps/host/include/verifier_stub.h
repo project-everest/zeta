@@ -28,10 +28,10 @@ namespace Zeta
     class VerifierStub
     {
     public:
-        VerifierStub (ThreadId threadId, OutCallback outCallback, VerifierProxy verifierProxy);
+        VerifierStub (ThreadId threadId, VerifierProxy verifierProxy);
         ~VerifierStub ();
 
-        Timestamp Run (const AppTransFn* fn);
+        Timestamp Run (AppTransFn* fn);
         void Flush();
         EpochId Verify();
 

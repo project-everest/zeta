@@ -1,6 +1,7 @@
 #pragma once
 
 #include <key.h>
+#include <log.h>
 #include <serialize.h>
 #include <stdint.h>
 
@@ -54,11 +55,11 @@ namespace Zeta
 
         virtual bool Touches(int idx) const = 0;
 
+        virtual void SetOutput(ReadLog& log) { /* do nothing */ }
+
     private:
         const uint8_t id_;
         const int arity_;
         const bool hasOutput_;
     };
-
-    typedef void (*OutCallback) (const AppTransFn *fn, const uint8_t* buf, size_t len);
 }

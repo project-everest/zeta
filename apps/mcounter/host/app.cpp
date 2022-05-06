@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <app.h>
 
 using namespace Zeta;
@@ -91,10 +92,11 @@ bool New::Touches(int idx) const
 }
 
 Incr::Incr(const Key::key_t k, const Record &r)
-    : AppTransFn { 1, 1, false }
+    : AppTransFn { 1, 1, true }
     , k_ { k }
     , r_ { r }
     , v_ { 1 + r_.GetValue()->Get() }
+    , out_ { 0 }
 {
 
 }
@@ -122,10 +124,17 @@ bool Incr::Touches(int idx) const
     return true;
 }
 
+
+void Incr::SetOutput(ReadLog& log)
+{
+    out_ = log.DeserializeBigEndian<Value::value_t>();
+}
+
 Get::Get(const Key::key_t k, const Record &r)
     : AppTransFn { 2, 1, true }
     , k_ { k }
     , r_ { r }
+    , out_ { 0 }
 {
 
 }
@@ -150,4 +159,9 @@ bool Get::Touches(int idx) const
 {
     assert (idx == 0);
     return false;
+}
+
+void Get::SetOutput(ReadLog& log)
+{
+    out_ = log.DeserializeBigEndian<Value::value_t>();
 }
