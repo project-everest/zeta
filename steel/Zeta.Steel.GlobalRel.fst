@@ -204,11 +204,14 @@ let rec map_ghost (f:'a -> GTot 'b) (x:Seq.seq 'a)
     else let prefix, last = Seq.un_snoc x in
          Seq.snoc (map_ghost f prefix) (f last)
 
-let map_ghost_spec (f:'a -> GTot 'b) (x:Seq.seq 'a)
-  : Lemma (Seq.length (map_ghost f x) == Seq.length x /\
-           (forall (i:Zeta.SeqAux.seq_index x).
-             Seq.index (map_ghost f x) i == f (Seq.index x i)))
-  = admit()
+let rec map_ghost_spec (f:'a -> GTot 'b) (x:Seq.seq 'a)
+  : Lemma (ensures (Seq.length (map_ghost f x) == Seq.length x /\
+                   (forall (i:Zeta.SeqAux.seq_index x).
+                     Seq.index (map_ghost f x) i == f (Seq.index x i))))
+          (decreases (Seq.length x))
+  = if Seq.length x = 0 then ()
+    else let prefix, last = Seq.un_snoc x in
+         map_ghost_spec f prefix
   
 let all_add_sets_equiv (e:epoch_id) (logs:verifiable_logs)
   : Lemma 
@@ -298,16 +301,46 @@ let aggregate_all_threads_hevict (logs:verifiable_logs) (ep:epoch_id)
   : GTot TSM.model_hash
   = aggregate_hashes (all_threads_hevict logs ep)
 
-
-let split_aggregate_all_threads_epoch_hashes_seq (ehs:Seq.seq TSM.epoch_hash)
-  : Lemma (AH.aggregate_epoch_hashes_seq ehs ==
-           {hadd = aggregate_hashes (map_ghost (fun h -> h.hadd) ehs);
-            hevict = aggregate_hashes (map_ghost (fun h -> h.hevict) ehs)})
-  = admit()
+let rec split_aggregate_all_threads_epoch_hashes_seq (ehs:Seq.seq TSM.epoch_hash)
+  : Lemma 
+    (ensures AH.aggregate_epoch_hashes_seq ehs ==
+             {hadd = aggregate_hashes (map_ghost (fun h -> h.hadd) ehs);
+              hevict = aggregate_hashes (map_ghost (fun h -> h.hevict) ehs)})
+    (decreases (Seq.length ehs))
+  = map_ghost_spec (fun h -> h.hadd) ehs;
+    map_ghost_spec (fun h -> h.hevict) ehs;
+    if Seq.length ehs = 0
+    then ()
+    else (
+      let prefix, last = Seq.un_snoc ehs in
+      map_ghost_spec (fun h -> h.hadd) prefix;
+      map_ghost_spec (fun h -> h.hevict) prefix;      
+      assert (map_ghost (fun h -> h.hadd) ehs `Seq.equal`
+              Seq.snoc (map_ghost (fun h -> h.hadd) prefix) last.hadd);
+      assert (map_ghost (fun h -> h.hevict) ehs `Seq.equal`
+              Seq.snoc (map_ghost (fun h -> h.hevict) prefix) last.hevict);              
+      split_aggregate_all_threads_epoch_hashes_seq prefix;
+      assert (AH.aggregate_epoch_hashes_seq prefix == 
+              { hadd = aggregate_hashes (map_ghost (fun h -> h.hadd) prefix);
+                hevict = aggregate_hashes (map_ghost (fun h -> h.hevict) prefix) });
+      assert (fst (Seq.un_snoc (map_ghost (fun h -> h.hadd) ehs)) `Seq.equal`
+                  (map_ghost (fun h -> h.hadd) prefix));
+      assert (fst (Seq.un_snoc (map_ghost (fun h -> h.hevict) ehs)) `Seq.equal`
+                  (map_ghost (fun h -> h.hevict) prefix));
+      assert (aggregate_hashes (map_ghost (fun h -> h.hadd) ehs) ==
+              HA.aggregate_hashes last.hadd (aggregate_hashes (map_ghost (fun h -> h.hadd) prefix)));
+      assert (aggregate_hashes (map_ghost (fun h -> h.hevict) ehs) ==
+              HA.aggregate_hashes last.hevict (aggregate_hashes (map_ghost (fun h -> h.hevict) prefix)))
+    )
 
 let map_ghost_map_fusion (f:'b -> GTot 'c) (g: 'a -> Tot 'b) (s:Seq.seq 'a)
-  : Lemma (map_ghost f (Zeta.SeqAux.map g s) == map_ghost (fun x -> f (g x)) s)
-  = admit()
+  : Lemma (ensures map_ghost f (Zeta.SeqAux.map g s) == map_ghost (fun x -> f (g x)) s)
+          (decreases (Seq.length s))
+  = map_ghost_spec g s;
+    map_ghost_spec f (Zeta.SeqAux.map g s);
+    map_ghost_spec (fun x -> f (g x)) s;
+    assert (Seq.equal (map_ghost f (Zeta.SeqAux.map g s))
+                      (map_ghost (fun x -> f (g x)) s))
 
 let split_aggregate_all_threads_epoch_hashes (logs:verifiable_logs)
                                              (ep:TSM.epoch_id)
