@@ -98,7 +98,7 @@ let thread_contrib_of_log (t:tid) (l:log)
 
 let all_threads_epoch_hashes_of_logs (mlogs_v:Seq.seq (tid & log))
   : mlogs_v':Seq.seq epoch_hashes_repr { Seq.length mlogs_v' == Seq.length mlogs_v }
-  = Zeta.SeqAux.map (fun (tid, l) -> thread_contrib_of_log tid l) mlogs_v
+  = Zeta.SeqAux.map (fun tid_l -> thread_contrib_of_log (fst tid_l) (snd tid_l)) mlogs_v
                    
 let aggregate_epoch_hashes_seq (epoch_hashes:Seq.seq M.epoch_hash)
   : M.epoch_hash

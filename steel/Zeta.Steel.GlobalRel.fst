@@ -204,15 +204,64 @@ let rec map_ghost (f:'a -> GTot 'b) (x:Seq.seq 'a)
     else let prefix, last = Seq.un_snoc x in
          Seq.snoc (map_ghost f prefix) (f last)
 
-let all_add_sets_equiv (e:epoch_id) (logs:verifiable_logs)
-  : Lemma (map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hadd) (as_tid_logs logs) ==
-           Zeta.SeqAux.map ms_hashfn (all_add_sets (to_tsms logs) e))
+let map_ghost_spec (f:'a -> GTot 'b) (x:Seq.seq 'a)
+  : Lemma (Seq.length (map_ghost f x) == Seq.length x /\
+           (forall (i:Zeta.SeqAux.seq_index x).
+             Seq.index (map_ghost f x) i == f (Seq.index x i)))
   = admit()
+  
+let all_add_sets_equiv (e:epoch_id) (logs:verifiable_logs)
+  : Lemma 
+    (requires (AH.epoch_is_certified (as_tid_logs logs) e))
+    (ensures 
+      map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hadd) (as_tid_logs logs) ==
+      Zeta.SeqAux.map ms_hashfn (all_add_sets (to_tsms logs) e))
+  = let s0 = map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hadd) (as_tid_logs logs) in
+    map_ghost_spec (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hadd) (as_tid_logs logs);
+    let s1 = Zeta.SeqAux.map ms_hashfn (all_add_sets (to_tsms logs) e) in
+    introduce forall i. Seq.index s0 i == Seq.index s1 i
+    with (
+      let tid, l = Seq.index (as_tid_logs logs) i in
+      let tsm = TSM.verify_model (TSM.init_thread_state_model tid) l in
+      valid_spec_rel_tsm tid l;
+      assert (AH.is_epoch_verified tsm e);
+      calc (==) {
+        Seq.index s0 i;
+      (==) { }
+        (Map.sel (AH.thread_contrib_of_log tid l) e).hadd;
+      (==) { thread_contrib_of_log_for_epoch e tid l }
+        ms_hashfn (ThreadRel.add_set tsm (lift_epoch e));
+      };
+      Zeta.SeqAux.lemma_map_index ms_hashfn (all_add_sets (to_tsms logs) e) i
+    );
+    assert (Seq.equal s0 s1)
 
 let all_evict_sets_equiv (e:epoch_id) (logs:verifiable_logs)
-  : Lemma (map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hevict) (as_tid_logs logs) ==
-           Zeta.SeqAux.map ms_hashfn (all_evict_sets (to_tsms logs) e))
-  = admit()
+  : Lemma 
+    (requires (AH.epoch_is_certified (as_tid_logs logs) e))
+    (ensures 
+      map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hevict) (as_tid_logs logs) ==
+      Zeta.SeqAux.map ms_hashfn (all_evict_sets (to_tsms logs) e))
+  = let s0 = map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hevict) (as_tid_logs logs) in
+    map_ghost_spec (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hevict) (as_tid_logs logs);
+    let s1 = Zeta.SeqAux.map ms_hashfn (all_evict_sets (to_tsms logs) e) in
+    introduce forall i. Seq.index s0 i == Seq.index s1 i
+    with (
+      let tid, l = Seq.index (as_tid_logs logs) i in
+      let tsm = TSM.verify_model (TSM.init_thread_state_model tid) l in
+      valid_spec_rel_tsm tid l;
+      assert (AH.is_epoch_verified tsm e);
+      calc (==) {
+        Seq.index s0 i;
+      (==) { }
+        (Map.sel (AH.thread_contrib_of_log tid l) e).hevict;
+      (==) { thread_contrib_of_log_for_epoch e tid l }
+        ms_hashfn (ThreadRel.evict_set tsm (lift_epoch e));
+      };
+      Zeta.SeqAux.lemma_map_index ms_hashfn (all_evict_sets (to_tsms logs) e) i
+    );
+    assert (Seq.equal s0 s1)
+
 
 let all_threads_hadd (logs:verifiable_logs) (ep:epoch_id)
   : GTot (Seq.seq TSM.model_hash)
@@ -260,16 +309,12 @@ let map_ghost_map_fusion (f:'b -> GTot 'c) (g: 'a -> Tot 'b) (s:Seq.seq 'a)
   : Lemma (map_ghost f (Zeta.SeqAux.map g s) == map_ghost (fun x -> f (g x)) s)
   = admit()
 
-let map_ghost_ext (f g:'a -> GTot 'b) (s:Seq.seq 'a)
-  : Lemma (requires f `FStar.FunctionalExtensionality.feq_g` g)
-          (ensures map_ghost f s == map_ghost g s)
-  = admit()
-
-
 let split_aggregate_all_threads_epoch_hashes (logs:verifiable_logs)
                                              (ep:TSM.epoch_id)
   : Lemma 
-    (AH.aggregate_all_threads_epoch_hashes ep (as_tid_logs logs) ==
+    (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
+    (ensures
+      AH.aggregate_all_threads_epoch_hashes ep (as_tid_logs logs) ==
       ({ hadd = aggregate_all_threads_hadd logs ep;
          hevict = aggregate_all_threads_hevict logs ep }))
   = let mlogs_v = (as_tid_logs logs) in
@@ -296,7 +341,7 @@ let split_aggregate_all_threads_epoch_hashes (logs:verifiable_logs)
     (==) { _ by FStar.Tactics.(mapply (`map_ghost_map_fusion)) }
       map_ghost (fun (s:AH.epoch_hashes_repr) -> (Map.sel s ep).hadd)
                 (AH.all_threads_epoch_hashes_of_logs mlogs_v);
-    (==) { admit() }
+    (==) { () }
       map_ghost (fun (s:AH.epoch_hashes_repr) -> (Map.sel s ep).hadd)
                 (Zeta.SeqAux.map (fun tid_l -> AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) mlogs_v);
     (==) { _ by FStar.Tactics.(mapply (`map_ghost_map_fusion)) }
@@ -315,7 +360,7 @@ let split_aggregate_all_threads_epoch_hashes (logs:verifiable_logs)
     (==) { _ by FStar.Tactics.(mapply (`map_ghost_map_fusion)) }
       map_ghost (fun (s:AH.epoch_hashes_repr) -> (Map.sel s ep).hevict)
                 (AH.all_threads_epoch_hashes_of_logs mlogs_v);
-    (==) { admit() }
+    (==) { () }
       map_ghost (fun (s:AH.epoch_hashes_repr) -> (Map.sel s ep).hevict)
                 (Zeta.SeqAux.map (fun tid_l -> AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) mlogs_v);
     (==) { _ by FStar.Tactics.(mapply (`map_ghost_map_fusion)) }
@@ -335,9 +380,7 @@ let union_all_sseq (#a: eqtype) (f: Zeta.MultiSet.cmp a) (s: Zeta.SSeq.sseq a)
          by FStar.Tactics.(norm [delta_only [`%map_seq_mset]];
                            mapply (`union_all_sseq))
 
-#push-options "--print_implicits --print_bound_var_types"
 module ZIV = Zeta.Intermediate.Verifier
-
 let hash_union_commute (msets:Seq.seq mset)
   : Lemma (aggregate_hashes (Zeta.SeqAux.map ms_hashfn msets) ==
            ms_hashfn (union_all msets))
