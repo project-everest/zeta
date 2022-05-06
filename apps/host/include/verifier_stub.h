@@ -6,7 +6,6 @@
 
 namespace Zeta
 {
-
     class VerifierStubImpl;
 
     typedef int (*VerifyLogFn) (ThreadId threadId,
@@ -20,13 +19,18 @@ namespace Zeta
     {
         VerifyLogFn VerifyLog;
     };
-    
+
+    struct VerificationFailureException {};
+    struct VerifierParsingFailure {};
+    struct VerifierAppFailure {};
+    struct VerifierEntryFailure{};
+
     class VerifierStub
     {
-    public:        
+    public:
         VerifierStub (ThreadId threadId, OutCallback outCallback, VerifierProxy verifierProxy);
         ~VerifierStub ();
-        
+
         Timestamp Run (const AppTransFn* fn);
         void Flush();
         EpochId Verify();

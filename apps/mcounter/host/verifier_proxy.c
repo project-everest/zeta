@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <verifier_proxy.h>
+#include <zeta_config.h>
 #include <Zeta_Steel_Main.h>
 
 typedef FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result zeta_res_t;
@@ -27,16 +28,16 @@ int verifier_verify_log (uint8_t threadId,
                                                out);
 
     if (rc.tag == FStar_Pervasives_Native_None) {
-        return -1;
+        return VRC_VerificationFailure;
     }
 
     assert (rc.tag == FStar_Pervasives_Native_Some);
 
     if (rc.v.tag != Zeta_Steel_Verifier_Verify_success) {
-        return -1;
+        return (int) rc.v.tag;
     }
 
     *outLen = rc.v.case_Verify_success.wrote;
 
-    return 0;
+    return VRC_Success;
 }

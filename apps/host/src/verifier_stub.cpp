@@ -1,7 +1,7 @@
-#include "key.h"
-#include "merkle_tree.h"
+#include "zeta_config.h"
 #include <assert.h>
 #include <formats.h>
+#include <stdexcept>
 #include <trace.h>
 #include <verifier_stub.h>
 #include <verifier_stub_impl.h>
@@ -215,6 +215,18 @@ namespace Zeta
         Formats::GetHashValue(value, ancValue->descInfo[dir].hash);
     }
 
+    static void RaiseException (int rc)
+    {
+        switch (rc) {
+        case VRC_VerificationFailure: throw VerificationFailureException();
+        case VRC_AppFailure: throw VerifierAppFailure();
+        case VRC_EntryFailure: throw VerifierEntryFailure();
+        case VRC_ParsingFailure: throw VerifierParsingFailure();
+        default:
+            throw std::runtime_error("invalid return code");
+        }
+    }
+
     void VerifierStubImpl::FlushImpl()
     {
         if (writeLog_.Written() > 0) {
@@ -229,7 +241,16 @@ namespace Zeta
                                                OutBufSize,
                                                &outSize);
             TRACE_DEBUG("Return code: {}, Output size: {}", rc, outSize);
-            assert (rc == 0);
+
+            assert (rc == VRC_VerificationFailure ||
+                    rc == VRC_ParsingFailure ||
+                    rc == VRC_AppFailure ||
+                    rc == VRC_EntryFailure ||
+                    rc == VRC_Success);
+
+            if (rc != VRC_Success) {
+                RaiseException(rc);
+            }
 
             auto readLog = ReadLog { outBuf_.get(), outSize };
 
