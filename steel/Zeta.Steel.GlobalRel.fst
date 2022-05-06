@@ -234,9 +234,13 @@ let split_aggregate_all_threads_epoch_hashes (logs:verifiable_logs)
          hevict = aggregate_all_threads_hevict logs ep }))
   = admit()
 
-let union_all_sseq (#a: eqtype) (f: Zeta.MultiSet.cmp a) (s: Zeta.SSeq.sseq a) (_:squash True)
-  : Lemma (ensures (sseq2mset #_ #f s == union_all (Seq.init (Seq.length s) (fun i -> Zeta.MultiSet.seq2mset #_ #f (Seq.index s i)))))
-  = union_all_sseq #a #f s
+let map_seq_mset #a (f:Zeta.MultiSet.cmp a) (s:Zeta.SSeq.sseq a) (i:nat{i < Seq.length s}) = Zeta.MultiSet.seq2mset #_ #f (Seq.index s i)
+
+let union_all_sseq (#a: eqtype) (f: Zeta.MultiSet.cmp a) (s: Zeta.SSeq.sseq a)
+  : Lemma (ensures (sseq2mset #_ #f s == union_all (Seq.init (Seq.length s) (map_seq_mset f s))))
+  = assert (sseq2mset #_ #f s == union_all (Seq.init (Seq.length s) (map_seq_mset f s)))
+         by FStar.Tactics.(norm [delta_only [`%map_seq_mset]];
+                           mapply (`union_all_sseq))
 
 #push-options "--print_implicits --print_bound_var_types"
 module ZIV = Zeta.Intermediate.Verifier
@@ -261,14 +265,15 @@ let aggr_add_hash_correct_alt (logs: verifiable_logs) (ep: epoch_id)
     calc (==) {
       GG.add_set #vspec i_ep gl;
     (==) {}
-      sseq2mset #_ #(Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp vspec.app) (GG.add_sseq (lift_epoch ep) (to_ilog logs));
-    (==)  { _ by  FStar.Tactics.(dump "A"; tadmit()) } //mapply (`union_all_sseq)) } //union_all_sseq (Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp vspec.app) (GG.add_sseq i_ep gl) () }
-      union_all (Seq.init (Seq.length gl) (fun i -> Zeta.MultiSet.seq2mset #_ #(Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp vspec.app) (Seq.index (GG.add_sseq i_ep gl) i)));
+      sseq2mset #_ #(Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp (ZIV.int_verifier_spec_base i_vcfg).app) (GG.add_sseq (lift_epoch ep) (to_ilog logs));
+    (==)  { union_all_sseq (Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp vspec.app) (GG.add_sseq (lift_epoch ep) (to_ilog logs)) }
+      union_all (Seq.init (Seq.length gl) 
+                          (map_seq_mset _ (GG.add_sseq (lift_epoch ep) (to_ilog logs))));
     (==) { 
             assert (forall (i:Zeta.SeqAux.seq_index ss). Seq.index ss i == Zeta.Generic.Thread.add_seq i_ep (GG.index gl i));
             assert (forall (i:Zeta.SeqAux.seq_index ss). Zeta.MultiSet.seq2mset (Seq.index ss i) == ThreadRel.add_set (Seq.index (to_tsms logs) i) i_ep);
-            assert ((Seq.init (Seq.length gl) (fun i -> Zeta.MultiSet.seq2mset #_ #(Zeta.MultiSetHashDomain.ms_hashfn_dom_cmp vspec.app) (Seq.index (GG.add_sseq i_ep gl) i))) `Seq.equal`
-                     all_add_sets (to_tsms logs) ep)
+            assert ((Seq.init (Seq.length gl) (map_seq_mset _ ss) `Seq.equal`
+                     all_add_sets (to_tsms logs) ep))
          }
       union_all (all_add_sets (to_tsms logs) ep);
     };
