@@ -181,7 +181,7 @@ let valid_spec_rel_tsm (t:tid) (l:log)
     )
 
 
-let thread_contrib_of_log_for_epoch (t:tid) (l:log) (e:epoch_id)
+let thread_contrib_of_log_for_epoch (e:epoch_id) (t:tid) (l:log) 
   : Lemma 
     (requires (
       let tsm = TSM.verify_model (TSM.init_thread_state_model t) l in
@@ -196,6 +196,23 @@ let thread_contrib_of_log_for_epoch (t:tid) (l:log) (e:epoch_id)
     valid_spec_rel_tsm t l;
     ThreadRel.valid_hadd_prop e tsm;
     ThreadRel.valid_hevict_prop e tsm
+
+let rec map_ghost (f:'a -> GTot 'b) (x:Seq.seq 'a)
+  : GTot (Seq.seq 'b)
+         (decreases (Seq.length x))
+  = if Seq.length x = 0 then Seq.empty
+    else let prefix, last = Seq.un_snoc x in
+         Seq.snoc (map_ghost f prefix) (f last)
+
+let all_add_sets_equiv (e:epoch_id) (logs:verifiable_logs)
+  : Lemma (map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hadd) (as_tid_logs logs) ==
+           Zeta.SeqAux.map ms_hashfn (all_add_sets (to_tsms logs) e))
+  = admit()
+
+let all_evict_sets_equiv (e:epoch_id) (logs:verifiable_logs)
+  : Lemma (map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) e).hevict) (as_tid_logs logs) ==
+           Zeta.SeqAux.map ms_hashfn (all_evict_sets (to_tsms logs) e))
+  = admit()
 
 let all_threads_hadd (logs:verifiable_logs) (ep:epoch_id)
   : GTot (Seq.seq TSM.model_hash)
@@ -232,13 +249,83 @@ let aggregate_all_threads_hevict (logs:verifiable_logs) (ep:epoch_id)
   : GTot TSM.model_hash
   = aggregate_hashes (all_threads_hevict logs ep)
 
+
+let split_aggregate_all_threads_epoch_hashes_seq (ehs:Seq.seq TSM.epoch_hash)
+  : Lemma (AH.aggregate_epoch_hashes_seq ehs ==
+           {hadd = aggregate_hashes (map_ghost (fun h -> h.hadd) ehs);
+            hevict = aggregate_hashes (map_ghost (fun h -> h.hevict) ehs)})
+  = admit()
+
+let map_ghost_map_fusion (f:'b -> GTot 'c) (g: 'a -> Tot 'b) (s:Seq.seq 'a)
+  : Lemma (map_ghost f (Zeta.SeqAux.map g s) == map_ghost (fun x -> f (g x)) s)
+  = admit()
+
+let map_ghost_ext (f g:'a -> GTot 'b) (s:Seq.seq 'a)
+  : Lemma (requires f `FStar.FunctionalExtensionality.feq_g` g)
+          (ensures map_ghost f s == map_ghost g s)
+  = admit()
+
+
 let split_aggregate_all_threads_epoch_hashes (logs:verifiable_logs)
                                              (ep:TSM.epoch_id)
   : Lemma 
     (AH.aggregate_all_threads_epoch_hashes ep (as_tid_logs logs) ==
       ({ hadd = aggregate_all_threads_hadd logs ep;
          hevict = aggregate_all_threads_hevict logs ep }))
-  = admit()
+  = let mlogs_v = (as_tid_logs logs) in
+    calc (==) {
+        AH.aggregate_all_threads_epoch_hashes ep mlogs_v;
+     (==) {} 
+        AH.aggregate_epoch_hashes_seq (Zeta.SeqAux.map (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
+                                                       (AH.all_threads_epoch_hashes_of_logs mlogs_v));
+     (==) { _ by FStar.Tactics.(mapply (`split_aggregate_all_threads_epoch_hashes_seq)) }
+       {hadd = aggregate_hashes (map_ghost (fun h -> h.hadd)
+                                            (Zeta.SeqAux.map 
+                                              (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
+                                              (AH.all_threads_epoch_hashes_of_logs mlogs_v)));
+        hevict = aggregate_hashes (map_ghost (fun h -> h.hevict)
+                                            (Zeta.SeqAux.map 
+                                              (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
+                                              (AH.all_threads_epoch_hashes_of_logs mlogs_v)))};
+    };
+    calc (==) {
+      map_ghost (fun h -> h.hadd)
+                (Zeta.SeqAux.map 
+                  (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
+                  (AH.all_threads_epoch_hashes_of_logs mlogs_v));
+    (==) { _ by FStar.Tactics.(mapply (`map_ghost_map_fusion)) }
+      map_ghost (fun (s:AH.epoch_hashes_repr) -> (Map.sel s ep).hadd)
+                (AH.all_threads_epoch_hashes_of_logs mlogs_v);
+    (==) { admit() }
+      map_ghost (fun (s:AH.epoch_hashes_repr) -> (Map.sel s ep).hadd)
+                (Zeta.SeqAux.map (fun tid_l -> AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) mlogs_v);
+    (==) { _ by FStar.Tactics.(mapply (`map_ghost_map_fusion)) }
+      map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) ep).hadd)
+                mlogs_v;
+    (==) { all_add_sets_equiv ep logs }
+      Zeta.SeqAux.map ms_hashfn (all_add_sets (to_tsms logs) ep);
+    (==) { }
+      all_threads_hadd logs ep;
+    };
+    calc (==) {
+      map_ghost (fun h -> h.hevict)
+                (Zeta.SeqAux.map 
+                  (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
+                  (AH.all_threads_epoch_hashes_of_logs mlogs_v));
+    (==) { _ by FStar.Tactics.(mapply (`map_ghost_map_fusion)) }
+      map_ghost (fun (s:AH.epoch_hashes_repr) -> (Map.sel s ep).hevict)
+                (AH.all_threads_epoch_hashes_of_logs mlogs_v);
+    (==) { admit() }
+      map_ghost (fun (s:AH.epoch_hashes_repr) -> (Map.sel s ep).hevict)
+                (Zeta.SeqAux.map (fun tid_l -> AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) mlogs_v);
+    (==) { _ by FStar.Tactics.(mapply (`map_ghost_map_fusion)) }
+      map_ghost (fun tid_l -> (Map.sel (AH.thread_contrib_of_log (fst tid_l) (snd tid_l)) ep).hevict)
+                mlogs_v;
+    (==) { all_evict_sets_equiv ep logs }
+      Zeta.SeqAux.map ms_hashfn (all_evict_sets (to_tsms logs) ep);
+    (==) { }
+      all_threads_hevict logs ep;
+    }
 
 let map_seq_mset #a (f:Zeta.MultiSet.cmp a) (s:Zeta.SSeq.sseq a) (i:nat{i < Seq.length s}) = Zeta.MultiSet.seq2mset #_ #f (Seq.index s i)
 
