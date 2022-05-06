@@ -38,5 +38,4 @@ namespace Zeta
     private:
         std::unique_ptr<VerifierStubImpl> pimpl_;
     };
-
 }
