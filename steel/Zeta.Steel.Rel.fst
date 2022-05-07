@@ -166,11 +166,6 @@ let related_epoch_shift (se: s_epoch) (ie: i_epoch)
                     related_timestamp st it))
   = ()
 
-let related_hashfn (sv: s_val) (iv: i_val)
-  : Lemma (requires (related_val sv iv))
-          (ensures (related_hash_value (s_hashfn sv) (i_hashfn iv)))
-  = admit()
-
 let related_init_value (sk: s_key) (ik: i_key)
   : Lemma (requires (related_key sk ik))
           (ensures (related_val (TSM.init_value sk) (Zeta.Record.init_value ik)))

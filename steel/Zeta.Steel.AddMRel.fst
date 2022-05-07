@@ -250,7 +250,7 @@ let related_addm_precond_caseB (a: addm_param) (i_a: i_addm_param)
 
     assert (related_desc_hash dh i_dh);
     assert (related_val (addm_value_pre a) (IV.addm_value_pre i_a));
-    related_hashfn (addm_value_pre a) (IV.addm_value_pre i_a);
+    Zeta.Steel.RelHashFunction.related_hashfn (addm_value_pre a) (IV.addm_value_pre i_a);
     ()
 
 let related_addm_precond_caseC (a: addm_param) (i_a: i_addm_param)

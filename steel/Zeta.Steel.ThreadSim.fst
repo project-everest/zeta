@@ -531,7 +531,7 @@ let evictm_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_e
 
         let h = s_hashfn v in
         let i_h = Zeta.HashFunction.hashfn i_v in
-        related_hashfn v i_v;
+        Zeta.Steel.RelHashFunction.related_hashfn v i_v;
         assert (related_hash_value h i_h);
 
         match dh', i_dh' with

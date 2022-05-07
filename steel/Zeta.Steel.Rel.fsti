@@ -281,11 +281,6 @@ let lift_tid (st: s_tid)
 let related_tid (st: s_tid) (it: i_tid)
   = lift_tid st == it
 
-(* the hash of two related values is related *)
-val related_hashfn (sv: s_val) (iv: i_val)
-  : Lemma (requires (related_val sv iv))
-          (ensures (related_hash_value (s_hashfn sv) (i_hashfn iv)))
-
 val related_init_value (sk: s_key) (ik: i_key)
   : Lemma (requires (related_key sk ik))
           (ensures (related_val (TSM.init_value sk) (Zeta.Record.init_value ik)))

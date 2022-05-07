@@ -22,3 +22,9 @@ let zero256: T.hash_value =
 val related_zero (_:unit)
   : Lemma (bitvec_of_u256 zero256 ==
            FStar.BitVector.zero_vec #256)
+
+val u256_of_bitvec (x:FStar.BitVector.bv_t 256) 
+  : GTot T.u256
+
+val inverse (x:FStar.BitVector.bv_t 256)
+  : Lemma (bitvec_of_u256 (u256_of_bitvec x) `Seq.equal` x)

@@ -5,7 +5,6 @@ module L = FStar.List.Tot
 module U64 = FStar.UInt64
 module BV = FStar.BV
 
-
 let bitvec_of_u256 (i:T.u256) : FStar.BitVector.bv_t 256 =
   (UInt.to_vec (U64.v i.v0)) `Seq.append` (
   (UInt.to_vec (U64.v i.v1)) `Seq.append` (
@@ -70,3 +69,24 @@ let related_zero ()
     assert (bitvec_of_u256 zero `Seq.equal`
            FStar.BitVector.zero_vec #256)  
   
+let u64_of_bitvec (x:FStar.BitVector.bv_t 64) 
+  : GTot U64.t
+  = U64.uint_to_t (UInt.from_vec x)
+
+let u256_of_bitvec (x:FStar.BitVector.bv_t 256) 
+  : GTot T.u256
+  = { v0 = u64_of_bitvec (Seq.slice x 0 64);
+      v1 = u64_of_bitvec (Seq.slice x 64 128);
+      v2 = u64_of_bitvec (Seq.slice x 128 192);
+      v3 = u64_of_bitvec (Seq.slice x 192 256)}
+
+#push-options "--fuel 0 --ifuel 0"
+let inverse (x:FStar.BitVector.bv_t 256)
+  : Lemma (bitvec_of_u256 (u256_of_bitvec x) `Seq.equal` x)
+  = let t = u256_of_bitvec x in
+    assert (UInt.to_vec (U64.v t.v0) `Seq.equal` (Seq.slice x 0 64));
+    assert (UInt.to_vec (U64.v t.v1) `Seq.equal` (Seq.slice x 64 128));
+    assert (UInt.to_vec (U64.v t.v2) `Seq.equal` (Seq.slice x 128 192));
+    assert (UInt.to_vec (U64.v t.v3) `Seq.equal` (Seq.slice x 192 256))
+#pop-options
+
