@@ -289,23 +289,23 @@ let aggregate_model_hash_monoid
           HA.aggregate_hashes_commutative
           (fun _ _ _ _ -> ())
   
-let aggregate_hashes (s:Seq.seq TSM.model_hash)
+let aggregate_all_hashes (s:Seq.seq TSM.model_hash)
   : TSM.model_hash
   = FStar.Seq.Permutation.foldm_snoc aggregate_model_hash_monoid s
         
 let aggregate_all_threads_hadd (logs:verifiable_logs) (ep:epoch_id)
   : GTot TSM.model_hash
-  = aggregate_hashes (all_threads_hadd logs ep)
+  = aggregate_all_hashes (all_threads_hadd logs ep)
 
 let aggregate_all_threads_hevict (logs:verifiable_logs) (ep:epoch_id)
   : GTot TSM.model_hash
-  = aggregate_hashes (all_threads_hevict logs ep)
+  = aggregate_all_hashes (all_threads_hevict logs ep)
 
 let rec split_aggregate_all_threads_epoch_hashes_seq (ehs:Seq.seq TSM.epoch_hash)
   : Lemma 
     (ensures AH.aggregate_epoch_hashes_seq ehs ==
-             {hadd = aggregate_hashes (map_ghost (fun h -> h.hadd) ehs);
-              hevict = aggregate_hashes (map_ghost (fun h -> h.hevict) ehs)})
+             {hadd = aggregate_all_hashes (map_ghost (fun h -> h.hadd) ehs);
+              hevict = aggregate_all_hashes (map_ghost (fun h -> h.hevict) ehs)})
     (decreases (Seq.length ehs))
   = map_ghost_spec (fun h -> h.hadd) ehs;
     map_ghost_spec (fun h -> h.hevict) ehs;
@@ -321,16 +321,16 @@ let rec split_aggregate_all_threads_epoch_hashes_seq (ehs:Seq.seq TSM.epoch_hash
               Seq.snoc (map_ghost (fun h -> h.hevict) prefix) last.hevict);              
       split_aggregate_all_threads_epoch_hashes_seq prefix;
       assert (AH.aggregate_epoch_hashes_seq prefix == 
-              { hadd = aggregate_hashes (map_ghost (fun h -> h.hadd) prefix);
-                hevict = aggregate_hashes (map_ghost (fun h -> h.hevict) prefix) });
+              { hadd = aggregate_all_hashes (map_ghost (fun h -> h.hadd) prefix);
+                hevict = aggregate_all_hashes (map_ghost (fun h -> h.hevict) prefix) });
       assert (fst (Seq.un_snoc (map_ghost (fun h -> h.hadd) ehs)) `Seq.equal`
                   (map_ghost (fun h -> h.hadd) prefix));
       assert (fst (Seq.un_snoc (map_ghost (fun h -> h.hevict) ehs)) `Seq.equal`
                   (map_ghost (fun h -> h.hevict) prefix));
-      assert (aggregate_hashes (map_ghost (fun h -> h.hadd) ehs) ==
-              HA.aggregate_hashes last.hadd (aggregate_hashes (map_ghost (fun h -> h.hadd) prefix)));
-      assert (aggregate_hashes (map_ghost (fun h -> h.hevict) ehs) ==
-              HA.aggregate_hashes last.hevict (aggregate_hashes (map_ghost (fun h -> h.hevict) prefix)))
+      assert (aggregate_all_hashes (map_ghost (fun h -> h.hadd) ehs) ==
+              HA.aggregate_hashes last.hadd (aggregate_all_hashes (map_ghost (fun h -> h.hadd) prefix)));
+      assert (aggregate_all_hashes (map_ghost (fun h -> h.hevict) ehs) ==
+              HA.aggregate_hashes last.hevict (aggregate_all_hashes (map_ghost (fun h -> h.hevict) prefix)))
     )
 
 let map_ghost_map_fusion (f:'b -> GTot 'c) (g: 'a -> Tot 'b) (s:Seq.seq 'a)
@@ -357,11 +357,11 @@ let split_aggregate_all_threads_epoch_hashes (logs:verifiable_logs)
         AH.aggregate_epoch_hashes_seq (Zeta.SeqAux.map (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
                                                        (AH.all_threads_epoch_hashes_of_logs mlogs_v));
      (==) { _ by FStar.Tactics.(mapply (`split_aggregate_all_threads_epoch_hashes_seq)) }
-       {hadd = aggregate_hashes (map_ghost (fun h -> h.hadd)
+       {hadd = aggregate_all_hashes (map_ghost (fun h -> h.hadd)
                                             (Zeta.SeqAux.map 
                                               (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
                                               (AH.all_threads_epoch_hashes_of_logs mlogs_v)));
-        hevict = aggregate_hashes (map_ghost (fun h -> h.hevict)
+        hevict = aggregate_all_hashes (map_ghost (fun h -> h.hevict)
                                             (Zeta.SeqAux.map 
                                               (fun (s:AH.epoch_hashes_repr) -> Map.sel s ep)
                                               (AH.all_threads_epoch_hashes_of_logs mlogs_v)))};
@@ -413,11 +413,44 @@ let union_all_sseq (#a: eqtype) (f: Zeta.MultiSet.cmp a) (s: Zeta.SSeq.sseq a)
          by FStar.Tactics.(norm [delta_only [`%map_seq_mset]];
                            mapply (`union_all_sseq))
 
+
+assume
+val union_all_snoc (#a: eqtype) (#f: _) (s: Seq.seq (Zeta.MultiSet.mset a f) {Seq.length s > 0})
+  : Lemma (ensures (let prefix, last = Seq.un_snoc s in
+                    union_all s == Zeta.MultiSet.union last (union_all prefix)))
+
 module ZIV = Zeta.Intermediate.Verifier
-let hash_union_commute (msets:Seq.seq mset)
-  : Lemma (aggregate_hashes (Zeta.SeqAux.map ms_hashfn msets) ==
-           ms_hashfn (union_all msets))
-  = admit()
+let rec hash_union_commute (msets:Seq.seq mset)
+  : Lemma 
+    (ensures
+          aggregate_all_hashes (Zeta.SeqAux.map ms_hashfn msets) ==
+          ms_hashfn (union_all msets))
+    (decreases (Seq.length msets))
+  = if Seq.length msets = 0
+    then (
+      union_all_empty msets;
+      lemma_hashfn_empty ();
+      assert (union_all msets == empty)
+    ) else (
+      let prefix, last = Seq.un_snoc msets in
+      hash_union_commute prefix;
+      assert (fst (Seq.un_snoc (Zeta.SeqAux.map ms_hashfn msets)) `Seq.equal`
+                  (Zeta.SeqAux.map ms_hashfn prefix));
+      assert (aggregate_all_hashes (Zeta.SeqAux.map ms_hashfn prefix) ==
+              ms_hashfn (union_all prefix));
+      calc (==) {
+         aggregate_all_hashes (Zeta.SeqAux.map ms_hashfn msets);
+      (==) { }
+         HA.aggregate_hashes (ms_hashfn last) (aggregate_all_hashes (Zeta.SeqAux.map ms_hashfn prefix));
+      (==) { hash_union_commute prefix }
+         HA.aggregate_hashes (ms_hashfn last) (ms_hashfn (union_all prefix));
+      (==) { lemma_union last (union_all prefix) }
+         ms_hashfn (Zeta.MultiSet.union last (union_all prefix));
+      (==) { union_all_snoc msets }
+          ms_hashfn (union_all msets);
+      }
+    )
+      
   
 let aggr_add_hash_correct_alt (logs: verifiable_logs) (ep: epoch_id)
   : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
