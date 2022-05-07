@@ -1,6 +1,7 @@
 #pragma once
 
 #include <assert.h>
+#include <cstdint>
 #include <stdint.h>
 #include <memory>
 #include <trace.h>
@@ -37,6 +38,8 @@ namespace Zeta
             bytes_[3] = b3;
         }
 
+        static UInt256 Deserialize(const uint8_t* buf, size_t len);
+
         bool operator == (const UInt256& v) const
         {
             return bytes_[0] == v.bytes_[0] &&
@@ -45,45 +48,13 @@ namespace Zeta
                    bytes_[3] == v.bytes_[3];
         }
 
-        static uint16_t GetLargestCommonPrefixSize(const UInt256& v1, const UInt256& v2)
-        {
-            for (uint8_t i = 0 ; i < 4 ; ++i)
-            {
-                if (v1.bytes_[i] != v2.bytes_[i])
-                {
-                    return (i << 6) + __builtin_clzll(v1.bytes_[i] ^ v2.bytes_[i]);
-                }
-            }
+        static uint16_t GetLargestCommonPrefixSize(const UInt256& v1, const UInt256& v2);
 
-            return 256;
-        }
+        uint8_t GetBit(uint8_t p) const;
 
-        uint8_t GetBit(uint8_t p) const
-        {
-            uint8_t n = p >> 6;
-            assert (n < 4);
+        void SetBit(uint8_t p);
 
-            uint8_t s = 63 - (p & 0x3f);
-            return (bytes_[n] >> s) & 0x01;
-        }
-
-        void SetBit(uint8_t p)
-        {
-            uint8_t n = p >> 6;
-            assert (n < 4);
-
-            uint8_t s = 63 - (p & 0x3f);
-            bytes_[n] |= (1ull << s);
-        }
-
-        void ClearBit(uint8_t p)
-        {
-            uint8_t n = p >> 6;
-            assert (n < 4);
-
-            uint8_t s = 63 - (p & 0x3f);
-            bytes_[n] &= (~1ull << s);
-        }
+        void ClearBit(uint8_t p);
 
         void ZeroSuffix(uint64_t size)
         {

@@ -40,8 +40,12 @@ struct Verifier_base_key
   uint16_t significant_digits;
 };
 
-struct __uint32_t_uint32_t
+struct LowParse_Slice_slice
 {
-  uint32_t fst;
-  uint32_t snd;
+  uint8_t *base;
+  uint32_t len;
 };
+
+bool ith_bit(Verifier_u256 kk, uint16_t i);
+
+Verifier_u256 u256_reader(LowParse_Slice_slice input, uint32_t pos);
