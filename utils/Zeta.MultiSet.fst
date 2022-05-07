@@ -36,6 +36,10 @@ let rec mem #_ #_ x s =
   | (y, n)::_ -> if x = y then n else mem x (tl s)
 
 
+let mem_empty (#a: eqtype) (f: cmp a) (x:a)
+  : Lemma (mem x (empty #_ #f) == 0)
+  = ()
+
 /// We define an auxiliary add function that
 ///   maintains some invariants on the returned multiset,
 ///   so as to typecheck the body (the recursive call case)

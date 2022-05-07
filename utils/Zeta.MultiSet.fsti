@@ -32,6 +32,10 @@ val create (#a:eqtype) (#f:cmp a) (x:a) (m:pos) : mset a f
 
 val mem (#a:eqtype) (#f:cmp a) (x:a) (s:mset a f) : nat
 
+
+val mem_empty (#a: eqtype) (f: cmp a) (x:a)
+  : Lemma (mem x (empty #_ #f) == 0)
+
 let contains (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a) : bool =
   mem x s > 0
 
@@ -39,7 +43,6 @@ let contains (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a) : bool =
 /// Adding an element to a multiset
 
 val add_elem (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a) : mset a f
-
 
 /// Create a multiset from a sequence
 

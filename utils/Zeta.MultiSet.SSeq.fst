@@ -108,9 +108,85 @@ let union_all_snoc (#a: eqtype) (#f: _) (s: Seq.seq (Zeta.MultiSet.mset a f) {Se
                     union_all s == Zeta.MultiSet.union last (union_all prefix)))
   = ()                    
 
+let rec sum_count (#a:eqtype) (x:a) (s:sseq a)
+  : Tot nat (decreases (Seq.length s))
+  = if Seq.length s = 0 then 0
+    else let prefix, last = S.un_snoc s in
+         Seq.count x last + sum_count x prefix
+         
+let i_seq_count (#a: eqtype) (#f: cmp a) (s: sseq a) (x:a)
+  : Lemma (Seq.count x (i_seq (some_interleaving s)) == 
+           sum_count x s)
+  = admit()
+  
+let rec union_all_sum_count (#a: eqtype) (#f: cmp a) (s: sseq a) (x:a)
+  : Lemma 
+    (ensures mem x (union_all (Zeta.SeqAux.map (seq2mset #_ #f) s)) == sum_count x s)
+    (decreases (Seq.length s))
+  = if Seq.length s = 0 
+    then (
+      mem_empty f x
+    )
+    else (
+      let prefix, last = Seq.un_snoc s in
+      calc (==) {
+        mem x (union_all (Zeta.SeqAux.map (seq2mset #_ #f) s));
+      (==) {
+             assert (fst (Seq.un_snoc (Zeta.SeqAux.map (seq2mset #_ #f) s)) `Seq.equal`
+                         (Zeta.SeqAux.map (seq2mset #_ #f) prefix))
+           }
+        mem x (union (seq2mset #_ #f last) (union_all (Zeta.SeqAux.map (seq2mset #_ #f) prefix)));
+      (==) { 
+             union_all_sum_count #a #f prefix x; 
+             union_mem (seq2mset #_ #f last) (union_all (Zeta.SeqAux.map (seq2mset #_ #f) prefix)) x
+           }
+        mem x (seq2mset #_ #f last) + sum_count x prefix;
+      (==) { seq2mset_mem #_ #f last x }
+        Seq.count x last + sum_count x prefix;
+      }
+    )
+
+let mset_extensional (#a:eqtype) (f:cmp a) (s0 s1:Seq.seq a)
+  : Lemma 
+    (requires (forall x. Seq.count x s0 == Seq.count x s1))
+    (ensures (seq2mset #a #f s0 == seq2mset #a #f s1))
+  = introduce forall x. mem x (seq2mset #a #f s0) == mem x (seq2mset #a #f s1)
+    with (
+      seq2mset_mem #a #f s0 x;
+      seq2mset_mem #a #f s1 x
+    );
+    eq_intro (seq2mset #a #f s0) (seq2mset #a #f s1);
+    eq_elim (seq2mset #a #f s0) (seq2mset #a #f s1)
+
+let i_seq_union_all_eq (#a:eqtype) (f:cmp a) (s: sseq a)
+  : Lemma (seq2mset (i_seq (some_interleaving s)) == union_all #a #f (Zeta.SeqAux.map (seq2mset #a #f) s))
+  = let lhs = seq2mset #a #f (i_seq (some_interleaving s)) in
+    let rhs = union_all (Zeta.SeqAux.map (seq2mset #a #f) s) in
+    introduce forall x. mem x lhs == mem x rhs
+    with (
+      i_seq_count #a #f s x;
+      union_all_sum_count #a #f s x;
+      seq2mset_mem #a #f (i_seq (some_interleaving s)) x
+    );
+    eq_intro lhs rhs;
+    eq_elim lhs rhs
+  
 let union_all_sseq (#a: eqtype) (#f: cmp a) (s: sseq a)
   : Lemma (ensures (let ms1: mset a f = sseq2mset s in
                     let sms = S.init (S.length s) (fun i -> seq2mset (S.index s i)) in
                     let ms2: mset a f = union_all sms in
                     ms1 == ms2))
-  = admit()
+  = let ms1: mset a f = sseq2mset s in
+    let sms = S.init (S.length s) (fun i -> seq2mset (S.index s i)) in
+    let ms2: mset a f = union_all sms in
+    let open Zeta.Interleave in
+    calc (==) {
+      sseq2mset #_ #f s;
+    (==) {}
+      seq2mset (i_seq (some_interleaving s));
+    (==) { i_seq_union_all_eq #a f s }
+      union_all #a #f (Zeta.SeqAux.map (seq2mset #a #f) s);
+    };
+    assert (Zeta.SeqAux.map (seq2mset #a #f) s `Seq.equal` sms)
+
+
