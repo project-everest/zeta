@@ -23,10 +23,9 @@ val union_all (#a:eqtype) (#f: cmp a) (s: S.seq (mset a f))
 val union_all_empty (#a: eqtype) (#f: cmp a) (s: S.seq (mset a f){ S.length s = 0 })
   : Lemma (ensures (union_all s == empty #a #f))
 
-val union_all_cons (#a: eqtype) (#f: cmp a) (s: Seq.seq (mset a f) {Seq.length s > 0})
-  : Lemma (ensures (let tail = Seq.tail s in
-                    let hd = Seq.head s in
-                    union_all s == union hd (union_all tail)))
+val union_all_snoc (#a: eqtype) (#f: _) (s: Seq.seq (Zeta.MultiSet.mset a f) {Seq.length s > 0})
+  : Lemma (ensures (let prefix, last = Seq.un_snoc s in
+                    union_all s == Zeta.MultiSet.union last (union_all prefix)))
 
 val union_all_sseq (#a: eqtype) (#f: cmp a) (s: sseq a)
   : Lemma (ensures (let ms1: mset a f = sseq2mset s in

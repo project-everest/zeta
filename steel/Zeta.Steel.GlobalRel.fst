@@ -98,54 +98,11 @@ let union_all_add_set (tsms: all_valid_tsms) (ep: epoch_id)
   : GTot mset
   =  union_all (all_add_sets tsms ep)
 
-let lemma_all_add_set_cons (tsms: all_valid_tsms {Seq.length tsms > 0}) (ep: epoch_id)
-  : Lemma (ensures (let tail = Seq.tail tsms in
-                    let hd = Seq.head tsms in
-                    let i_ep = lift_epoch ep in
-                    union_all_add_set tsms ep ==
-                    MS.union (add_set hd i_ep)
-                             (union_all_add_set tail ep)))
-  = all_add_sets_cons tsms ep;
-    union_all_cons (all_add_sets tsms ep)
-
 let union_all_evict_set (tsms: all_valid_tsms) (ep: epoch_id)
   : GTot mset
   = let i_ep= lift_epoch ep in
     let sms = Seq.init_ghost (Seq.length tsms) (fun i -> evict_set (Seq.index tsms i) i_ep) in
     union_all sms
-
-(*
-let rec aggregate_epoch_hashes_prop (eid: epoch_id) (tsms: all_valid_tsms {all_epoch_completed eid tsms})
-  : Lemma (ensures (let aeh = TSM.aggregate_epoch_hashes tsms eid in
-                    aeh.hadd = ms_hashfn (union_all_add_set tsms eid)))
-          (decreases (Seq.length tsms))
-  = let add_set_union = union_all_add_set tsms eid in
-    let i_ep = lift_epoch eid in
-    let aeh = TSM.aggregate_epoch_hashes tsms eid in
-
-    if Seq.length tsms = 0 then (
-      union_all_empty (all_add_sets tsms eid);
-      lemma_hashfn_empty()
-    )
-    else (
-      let tsms' = Seq.tail tsms in
-      assert (forall i. ThreadRel.valid (Seq.index tsms' i));
-      assert(all_epoch_completed eid tsms');
-      aggregate_epoch_hashes_prop eid tsms';
-      let hd = Seq.head tsms in
-      assert(not hd.failed);
-      let tl_hash = aggregate_epoch_hashes tsms' eid in
-      assert(tl_hash.hadd = ms_hashfn (union_all_add_set tsms' eid));
-      let hd_hash = Map.sel hd.epoch_hashes eid in
-      assert(hd_hash.epoch_complete);
-      assert(aeh.hadd = HA.aggregate_hashes hd_hash.hadd tl_hash.hadd);
-      valid_hadd_prop eid hd;
-      assert(hd_hash.hadd = ms_hashfn (add_set hd i_ep));
-      lemma_all_add_set_cons tsms eid;
-      lemma_union (add_set hd i_ep) (union_all_add_set tsms' eid);
-      ()
-    )
-*)
 
 let to_tsms (logs: verifiable_logs)
   : all_valid_tsms
@@ -413,11 +370,6 @@ let union_all_sseq (#a: eqtype) (f: Zeta.MultiSet.cmp a) (s: Zeta.SSeq.sseq a)
          by FStar.Tactics.(norm [delta_only [`%map_seq_mset]];
                            mapply (`union_all_sseq))
 
-
-assume
-val union_all_snoc (#a: eqtype) (#f: _) (s: Seq.seq (Zeta.MultiSet.mset a f) {Seq.length s > 0})
-  : Lemma (ensures (let prefix, last = Seq.un_snoc s in
-                    union_all s == Zeta.MultiSet.union last (union_all prefix)))
 
 module ZIV = Zeta.Intermediate.Verifier
 let rec hash_union_commute (msets:Seq.seq mset)
