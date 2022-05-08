@@ -2,7 +2,7 @@
 #include <catch2/catch.hpp>
 
 #include <key.h>
-#include <verifier-bits.h>
+#include <verifier_bits.h>
 
 using namespace Zeta;
 
