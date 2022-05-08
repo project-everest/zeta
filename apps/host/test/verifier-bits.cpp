@@ -79,3 +79,70 @@ Verifier_u256 u256_reader(LowParse_Slice_slice input, uint32_t pos)
   uint64_t v3 = res.fst.fst;
   return ((Verifier_u256){ .v3 = v3, .v2 = v2, .v1 = v1, .v0 = v0 });
 }
+
+static uint64_t truncate_word(uint64_t k, uint32_t index)
+{
+  if (index == (uint32_t)0U)
+    return (uint64_t)0U;
+  else
+  {
+    uint32_t shift_index = (uint32_t)64U - index;
+    uint64_t mask = (uint64_t)0xffffffffffffffffU >> shift_index;
+    return k & mask;
+  }
+}
+
+static Verifier_base_key truncate_key(Verifier_base_key k, uint16_t w)
+{
+  if (w == k.significant_digits)
+    return k;
+  else
+  {
+    __uint32_t_uint32_t scrut = bit_offset_in_word(w);
+    uint32_t word = scrut.fst;
+    uint32_t index = scrut.snd;
+    Verifier_u256 kk = k.k;
+    Verifier_u256 kk_;
+    if (word == (uint32_t)0U)
+      kk_ =
+        (
+          (Verifier_u256){
+            .v3 = (uint64_t)0U,
+            .v2 = (uint64_t)0U,
+            .v1 = (uint64_t)0U,
+            .v0 = truncate_word(kk.v0, index)
+          }
+        );
+    else if (word == (uint32_t)1U)
+      kk_ =
+        (
+          (Verifier_u256){
+            .v3 = (uint64_t)0U,
+            .v2 = (uint64_t)0U,
+            .v1 = truncate_word(kk.v1, index),
+            .v0 = kk.v0
+          }
+        );
+    else if (word == (uint32_t)2U)
+      kk_ =
+        (
+          (Verifier_u256){
+            .v3 = (uint64_t)0U,
+            .v2 = truncate_word(kk.v2, index),
+            .v1 = kk.v1,
+            .v0 = kk.v0
+          }
+        );
+    else
+      kk_ =
+        (
+          (Verifier_u256){
+            .v3 = truncate_word(kk.v3, index),
+            .v2 = kk.v2,
+            .v1 = kk.v1,
+            .v0 = kk.v0
+          }
+        );
+    return ((Verifier_base_key){ .k = kk_, .significant_digits = w });
+  }
+}
