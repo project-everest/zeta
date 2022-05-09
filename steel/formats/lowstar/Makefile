@@ -3,7 +3,7 @@ include ../spec/Makefile.shared
 SRC_DIRS += $(ZETA_STEEL_FORMATS_HOME)/spec $(ZETA_HOME)/_output/cache
 OUTPUT_DIRECTORY ?= _output
 ALREADY_CACHED_LIST='*,-Zeta.LowStar'
-FSTAR_DEP_OPTIONS += --extract '*,-Steel,-FStar.NMST,-Prims'
+FSTAR_DEP_OPTIONS += --extract '*,-Steel,-FStar.NMST,-Prims,-FStar.MST,-FStar.NMSTTotal,-FStar.MSTTotal'
 OTHERFLAGS += --cmi
 
 KRML := $(KRML_HOME)/krml
