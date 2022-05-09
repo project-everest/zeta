@@ -131,3 +131,10 @@ val lemma_interleave_extend
 
 val some_interleaving (#a: eqtype) (ss: sseq a)
   : il: interleaving a (S.length ss) {s_seq il = ss}
+
+
+val i_seq_count (#a: eqtype) (s: sseq a) (x:a)
+  : Lemma 
+    (ensures Seq.count x (i_seq (some_interleaving s)) == 
+             Zeta.SSeq.sum_count x s)
+

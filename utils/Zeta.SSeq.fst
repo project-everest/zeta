@@ -245,3 +245,58 @@ let nonzero_flatlen_implies_nonempty (#a:_) (ss: sseq a)
         aux()
       )
    )
+
+
+let rec sum_count_empty (#a:eqtype) (s:sseq a) (x:a)
+  : Lemma 
+    (ensures 
+      (forall (i:SeqAux.seq_index s).  Seq.index s i `Seq.equal` Seq.empty) ==>
+      sum_count x s == 0)
+    (decreases (Seq.length s))
+  = if Seq.length s = 0 then () else sum_count_empty (fst (Seq.un_snoc s)) x
+
+#push-options "--query_stats --fuel 1 --ifuel 1 --z3rlimit_factor 4"
+let rec sum_count_i (#a:eqtype) (x:a) (ss:sseq a) (i:SeqAux.seq_index ss)
+  : Lemma 
+     (ensures sum_count x ss == sum_count x (Seq.upd ss i Seq.empty) + Seq.count x (Seq.index ss i))
+     (decreases (Seq.length ss))
+  = if i = Seq.length ss - 1
+    then ()
+    else (
+      let prefix, last = Seq.un_snoc ss in
+      calc (==) {
+        sum_count x ss;
+      (==) {}
+        sum_count x prefix + Seq.count x last;
+      (==) { sum_count_i x prefix i }
+        sum_count x (Seq.upd prefix i Seq.empty) + Seq.count x (Seq.index prefix i) + Seq.count x last;
+      (==) { 
+             assert (Seq.equal (Seq.upd ss i Seq.empty) (Seq.upd (Seq.snoc prefix last) i Seq.empty))
+           }
+        sum_count x (Seq.upd ss i Seq.empty) + Seq.count x (Seq.index prefix i);
+      }
+    )
+
+
+let sum_count_sseq_prefix (#a:eqtype) (ss:sseq a) (i: seq_index ss{length (Seq.index ss i) > 0}) (x:a)
+  : Lemma (sum_count x ss == sum_count x (sseq_prefix ss i) + 
+                             (if x = Seq.last (Seq.index ss i) then 1 else 0))
+  = let si = Seq.index ss i in
+    let si_prefix = SeqAux.prefix si (Seq.length si - 1) in
+    let si_last = Seq.last si in
+    calc (==) {
+      sum_count x ss;
+    (==) { sum_count_i x ss i }
+      sum_count x (Seq.upd ss i Seq.empty) + Seq.count x si;
+    (==) { assert (Seq.equal (Seq.upd ss i Seq.empty)
+                             (Seq.upd (sseq_prefix ss i) i Seq.empty)) }
+      sum_count x (Seq.upd (sseq_prefix ss i) i Seq.empty) + Seq.count x si;
+    (==) {
+           assert (si `Seq.equal` Seq.snoc si_prefix si_last);
+           SeqAux.count_snoc si_prefix si_last x
+         }
+      sum_count x (Seq.upd (sseq_prefix ss i) i Seq.empty) + Seq.count x si_prefix + (if x = si_last then 1 else 0);
+    };
+    sum_count_i x (sseq_prefix ss i) i
+    
+#pop-options

@@ -107,21 +107,10 @@ let union_all_snoc (#a: eqtype) (#f: _) (s: Seq.seq (Zeta.MultiSet.mset a f) {Se
   : Lemma (ensures (let prefix, last = Seq.un_snoc s in
                     union_all s == Zeta.MultiSet.union last (union_all prefix)))
   = ()                    
-
-let rec sum_count (#a:eqtype) (x:a) (s:sseq a)
-  : Tot nat (decreases (Seq.length s))
-  = if Seq.length s = 0 then 0
-    else let prefix, last = S.un_snoc s in
-         Seq.count x last + sum_count x prefix
-         
-let i_seq_count (#a: eqtype) (#f: cmp a) (s: sseq a) (x:a)
-  : Lemma (Seq.count x (i_seq (some_interleaving s)) == 
-           sum_count x s)
-  = admit()
   
 let rec union_all_sum_count (#a: eqtype) (#f: cmp a) (s: sseq a) (x:a)
   : Lemma 
-    (ensures mem x (union_all (Zeta.SeqAux.map (seq2mset #_ #f) s)) == sum_count x s)
+    (ensures mem x (union_all (Zeta.SeqAux.map (seq2mset #_ #f) s)) == Zeta.SSeq.sum_count x s)
     (decreases (Seq.length s))
   = if Seq.length s = 0 
     then (
@@ -164,7 +153,7 @@ let i_seq_union_all_eq (#a:eqtype) (f:cmp a) (s: sseq a)
     let rhs = union_all (Zeta.SeqAux.map (seq2mset #a #f) s) in
     introduce forall x. mem x lhs == mem x rhs
     with (
-      i_seq_count #a #f s x;
+      Zeta.Interleave.i_seq_count #a s x;
       union_all_sum_count #a #f s x;
       seq2mset_mem #a #f (i_seq (some_interleaving s)) x
     );

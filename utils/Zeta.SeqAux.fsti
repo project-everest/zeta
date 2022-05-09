@@ -522,3 +522,9 @@ val distinct_elems_comp (#a: eqtype) (s: seq a)
 val lemma_elem_idx_uniq (#a: eqtype) (s: seq a{distinct_elems s}) (i: seq_index s)
   : Lemma (ensures (let e = index s i in
                     index_mem e s = i))
+
+#push-options "--fuel 2"
+let count_snoc (#a:eqtype) (s:seq a) (y x:a)
+  : Lemma (Seq.count x (Seq.snoc s y) == Seq.count x s + (if x = y then 1 else 0))
+  = Seq.lemma_append_count s (Seq.create 1 y)
+#pop-options

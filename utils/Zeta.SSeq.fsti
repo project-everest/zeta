@@ -75,3 +75,24 @@ val sseq_prefix_flatlen (#a:eqtype) (ss: sseq a) (i: seq_index ss{length (index 
 
 val nonzero_flatlen_implies_nonempty (#a:_) (ss: sseq a)
   : Lemma (ensures (flat_length ss > 0 ==> (exists i. (length (index ss i)) > 0)))
+
+
+let rec sum_count (#a:eqtype) (x:a) (s:sseq a)
+  : Tot nat (decreases (Seq.length s))
+  = if Seq.length s = 0 then 0
+    else let prefix, last = Seq.un_snoc s in
+         Seq.count x last + sum_count x prefix
+
+val sum_count_empty (#a:eqtype) (s:sseq a) (x:a)
+  : Lemma 
+    (ensures 
+      (forall (i:SeqAux.seq_index s).  Seq.index s i `Seq.equal` Seq.empty) ==>
+      sum_count x s == 0)
+
+val sum_count_i (#a:eqtype) (x:a) (ss:sseq a) (i:SeqAux.seq_index ss)
+  : Lemma 
+     (ensures sum_count x ss == sum_count x (Seq.upd ss i Seq.empty) + Seq.count x (Seq.index ss i))
+
+val sum_count_sseq_prefix (#a:eqtype) (ss:sseq a) (i: seq_index ss{length (Seq.index ss i) > 0}) (x:a)
+  : Lemma (sum_count x ss == sum_count x (sseq_prefix ss i) + 
+                             (if x = Seq.last (Seq.index ss i) then 1 else 0))
