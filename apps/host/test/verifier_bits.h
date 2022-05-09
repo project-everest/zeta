@@ -49,3 +49,8 @@ struct LowParse_Slice_slice
 bool ith_bit(Verifier_u256 kk, uint16_t i);
 
 Verifier_u256 u256_reader(LowParse_Slice_slice input, uint32_t pos);
+
+bool
+is_proper_descendent(
+  Verifier_base_key k0,
+  Verifier_base_key k1);

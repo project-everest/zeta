@@ -146,3 +146,36 @@ static Verifier_base_key truncate_key(Verifier_base_key k, uint16_t w)
     return ((Verifier_base_key){ .k = kk_, .significant_digits = w });
   }
 }
+
+static bool
+__eq__Verifier_u256(
+  Verifier_u256 y,
+  Verifier_u256 x
+)
+{
+  return true && x.v3 == y.v3 && x.v2 == y.v2 && x.v1 == y.v1 && x.v0 == y.v0;
+}
+
+static bool
+__eq__Verifier_base_key(
+  Verifier_base_key y,
+  Verifier_base_key x
+)
+{
+  return
+    true
+    && __eq__Verifier_u256(x.k, y.k)
+    && x.significant_digits == y.significant_digits;
+}
+
+bool
+is_proper_descendent(
+  Verifier_base_key k0,
+  Verifier_base_key k1
+)
+{
+  return
+    k0.significant_digits
+    > k1.significant_digits
+    && __eq__Verifier_base_key(truncate_key(k0, k1.significant_digits), k1);
+}

@@ -50,11 +50,17 @@ namespace Zeta
 
         static uint16_t GetLargestCommonPrefixSize(const UInt256& v1, const UInt256& v2);
 
+        static uint16_t GetLargestCommonSuffixSize(const UInt256& v1, const UInt256& v2);
+
         uint8_t GetBit(uint8_t p) const;
 
         void SetBit(uint8_t p);
 
         void ClearBit(uint8_t p);
+
+        void ZeroPrefix(uint64_t size);
+
+        bool IsPrefixZero(uint64_t size) const;
 
         void ZeroSuffix(uint64_t size)
         {
@@ -189,7 +195,7 @@ namespace Zeta
                 return false;
             }
 
-            return UInt256::GetLargestCommonPrefixSize(path_, other.path_) >= depth_;
+            return UInt256::GetLargestCommonSuffixSize(path_, other.path_) >= depth_;
         }
 
         bool operator != (const BaseKey& other) const
@@ -245,6 +251,8 @@ namespace Zeta
             return ret;
         }
 
+        BaseKey GetNormalizedKey() const;
+
         bool IsNormalized() const
         {
             auto height = LeafDepth - depth_;
@@ -286,7 +294,6 @@ namespace Zeta
 
             return dw1 < dw2 || dw1 == dw2 && GetDepth() < other.GetDepth();
         }
-
 
 #ifdef TRACE_MODE
 
