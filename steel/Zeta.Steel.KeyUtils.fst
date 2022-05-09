@@ -42,7 +42,7 @@ let truncate_key (k:raw_key)
                  (w:U16.t { U16.v w <= U16.v k.significant_digits })
   : raw_key
   = let open U16 in
-    if w = k.significant_digits then k
+    if w = 256us then k //w = k.significant_digits then k
     else (
       let word, index = bit_offset_in_word w in
       let kk = k.k in
@@ -573,14 +573,15 @@ let truncate_key_ith_bit (k:raw_key)
   : Lemma
     (ensures (
       let k' = truncate_key k w in
-      if w = k.significant_digits then k' = k
-      else (
+      // if w = k.significant_digits then k' = k
+      // else
+  (
         k'.significant_digits == w /\
         (forall (i:U16.t { U16.v i < 256 }).
           if U16.v i < U16.v w
           then ith_bit k' i == ith_bit k i
           else ith_bit k' i == false))))
-  = if w = k.significant_digits then ()
+  = if w = 256us then ()
     else (
       let k' = truncate_key k w in
       let w32 = U32.uint_to_t (U16.v w) in
@@ -662,13 +663,15 @@ let is_proper_descendent_raw_correct (k0 k1:raw_key)
     (requires good_raw_key k0)
     (ensures
       is_proper_descendent' k0 k1 == (k0 <> k1 && is_desc_raw k0 k1))
-  = if U16.v k0.significant_digits < U16.v k1.significant_digits
+  = if U16.v k0.significant_digits <= U16.v k1.significant_digits
     then (
       assert (not (is_proper_descendent' k0 k1));
       if is_desc_raw k0 k1
       then is_desc_significant_digits k0 k1
     )
-    else truncate_is_desc k0 k1
+    else (
+      truncate_is_desc k0 k1
+    )
 
 #push-options "--fuel 1 --ifuel 1"
 let rec lowered_keys_are_good (ik:Zeta.Key.base_key)
@@ -963,3 +966,11 @@ let is_root_spec (k:base_key)
 let lowered_leaf_key_is_data_key (k:Zeta.Key.leaf_key)
   : Lemma (is_data_key (lower_base_key k))
   = ()
+
+let check_good_raw_key (r:raw_key)
+  : b:bool { b <==> good_raw_key r }
+  = let r' = truncate_key r r.significant_digits in
+    truncate_key_ith_bit r r.significant_digits;
+    assert (good_raw_key r');
+    FStar.Classical.forall_intro (FStar.Classical.move_requires (ith_bit_extensional r));
+    r' = r
