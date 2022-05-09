@@ -618,13 +618,6 @@ let truncate_key_ith_bit (k:raw_key)
 let good_raw_key (k:raw_key)
   = forall (i:U16.t { U16.v i < 256 && U16.v i >= U16.v k.significant_digits }). ith_bit k i = false
 
-inline_for_extraction
-let good_raw_key_impl (k: raw_key) // necessary for parsing
-: Pure bool
-  (requires True)
-  (ensures (fun y -> (y == true) <==> good_raw_key k))
-= admit () // good_raw_key_impl
-
 let truncate_key_correct (k:raw_key) (w:U16.t { U16.v w <= U16.v k.significant_digits })
   : Lemma
     (requires good_raw_key k)
@@ -864,11 +857,15 @@ let lower_lift_id (k:raw_key)
    
 let base_key = r:raw_key { good_raw_key r }
 
-let eq_base_key (k0 k1:base_key)
+let eq_raw_key (k0 k1:raw_key)
   : b:bool { b <==> (k0 == k1) }
   = eq_u256 k0.k k1.k &&
     k0.significant_digits = k1.significant_digits
 
+let eq_base_key (k0 k1:base_key)
+  : b:bool { b <==> (k0 == k1) }
+  = eq_raw_key k0 k1 
+  
 let is_internal_key (r:base_key) = U16.(r.significant_digits <^ 256us)
 
 let is_root (r:base_key) = r.significant_digits = 0us
@@ -974,10 +971,11 @@ let lowered_leaf_key_is_data_key (k:Zeta.Key.leaf_key)
   : Lemma (is_data_key (lower_base_key k))
   = ()
 
-let check_good_raw_key (r:raw_key)
+inline_for_extraction
+let good_raw_key_impl (r:raw_key)
   : b:bool { b <==> good_raw_key r }
   = let r' = truncate_key r r.significant_digits in
     truncate_key_ith_bit r r.significant_digits;
-    assert (good_raw_key r');
     FStar.Classical.forall_intro (FStar.Classical.move_requires (ith_bit_extensional r));
     r' = r
+

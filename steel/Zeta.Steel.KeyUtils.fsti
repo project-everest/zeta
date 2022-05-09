@@ -114,5 +114,6 @@ val is_root_spec (k:base_key)
 val lowered_leaf_key_is_data_key (k:Zeta.Key.leaf_key)
   : Lemma (is_data_key (lower_base_key k))
 
-val check_good_raw_key (r:raw_key)
+inline_for_extraction
+val good_raw_key_impl (r:raw_key)
   : b:bool { b <==> good_raw_key r }
