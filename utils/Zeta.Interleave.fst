@@ -322,3 +322,135 @@ let rec some_interleaving (#a:_) (ss: sseq a)
     )
 
 #pop-options
+
+
+let rec sum_count (#a:eqtype) (x:a) (s:sseq a)
+  : Tot nat (decreases (Seq.length s))
+  = if Seq.length s = 0 then 0
+    else let prefix, last = S.un_snoc s in
+         Seq.count x last + sum_count x prefix
+
+
+let count_snoc (#a:eqtype) (s:seq a) (y x:a)
+  : Lemma (Seq.count x (Seq.snoc s y) == Seq.count x s + (if x = y then 1 else 0))
+  = Seq.lemma_append_count s (Seq.create 1 y)
+
+let rec sum_count_empty (#a:eqtype) (s:sseq a) (x:a)
+  : Lemma 
+    (ensures 
+      (forall (i:SeqAux.seq_index s).  Seq.index s i `Seq.equal` Seq.empty) ==>
+      sum_count x s == 0)
+    (decreases (Seq.length s))
+  = if Seq.length s = 0 then () else sum_count_empty (fst (Seq.un_snoc s)) x
+
+#push-options "--query_stats --fuel 1 --ifuel 1 --z3rlimit_factor 4"
+let rec sum_count_i (#a:eqtype) (x:a) (ss:sseq a) (i:SeqAux.seq_index ss)
+  : Lemma 
+     (ensures sum_count x ss == sum_count x (Seq.upd ss i Seq.empty) + Seq.count x (Seq.index ss i))
+     (decreases (Seq.length ss))
+  = if i = Seq.length ss - 1
+    then ()
+    else (
+      let prefix, last = Seq.un_snoc ss in
+      calc (==) {
+        sum_count x ss;
+      (==) {}
+        sum_count x prefix + Seq.count x last;
+      (==) { sum_count_i x prefix i }
+        sum_count x (Seq.upd prefix i Seq.empty) + Seq.count x (Seq.index prefix i) + Seq.count x last;
+      (==) { 
+             assert (Seq.equal (Seq.upd ss i Seq.empty) (Seq.upd (Seq.snoc prefix last) i Seq.empty))
+           }
+        sum_count x (Seq.upd ss i Seq.empty) + Seq.count x (Seq.index prefix i);
+      }
+    )
+
+let sum_count_sseq_prefix (#a:eqtype) (ss:sseq a) (i: seq_index ss{length (Seq.index ss i) > 0}) (x:a)
+  : Lemma (sum_count x ss == sum_count x (sseq_prefix ss i) + 
+                             (if x = Seq.last (Seq.index ss i) then 1 else 0))
+  = let si = Seq.index ss i in
+    let si_prefix = SeqAux.prefix si (Seq.length si - 1) in
+    let si_last = Seq.last si in
+    calc (==) {
+      sum_count x ss;
+    (==) { sum_count_i x ss i }
+      sum_count x (Seq.upd ss i Seq.empty) + Seq.count x si;
+    (==) { assert (Seq.equal (Seq.upd ss i Seq.empty)
+                             (Seq.upd (sseq_prefix ss i) i Seq.empty)) }
+      sum_count x (Seq.upd (sseq_prefix ss i) i Seq.empty) + Seq.count x si;
+    (==) {
+           assert (si `Seq.equal` Seq.snoc si_prefix si_last);
+           count_snoc si_prefix si_last x
+         }
+      sum_count x (Seq.upd (sseq_prefix ss i) i Seq.empty) + Seq.count x si_prefix + (if x = si_last then 1 else 0);
+    };
+    sum_count_i x (sseq_prefix ss i) i
+
+let rec some_interleaving_alt (#a:eqtype) (ss: sseq a)
+  : Tot(il: interleaving a (S.length ss) 
+            {
+              s_seq il = ss /\
+              (forall (x:a). Seq.count x (i_seq il) == sum_count x ss)
+            })
+    (decreases (flat_length ss))
+  = let m = flat_length ss in
+    let n = S.length ss in
+    if m = 0 then (
+      (* if ss has flat length then it is empty *)
+      lemma_flat_length_zero ss;
+      assert(ss == empty _ n);
+      let il = empty_interleaving a n in
+      lemma_empty_interleaving_empty_sseq a n;
+      FStar.Classical.forall_intro (sum_count_empty ss);
+      il
+    )
+    else (
+      let i = find_non_empty_seq ss in
+      let s = S.index ss i in
+      let sn = S.length s in
+
+      let ss' = sseq_prefix ss i in
+      let il' = some_interleaving_alt ss' in
+      let e = S.index s (sn-1) in
+      let il: interleaving a n = SA.append1 il' ({e; s = i}) in
+      interleaving_snoc il;
+      interleaving_flat_length il;
+      lemma_prefix1_append il' ({e;s=i});
+      lemma_interleave_extend ss i il';
+      assert (forall (x:a). Seq.count x (i_seq il') == sum_count x ss');
+      introduce forall (x:a). Seq.count x (i_seq il) == sum_count x ss
+      with ( 
+        calc (==) {
+          sum_count x ss;
+        (==) { sum_count_sseq_prefix ss i x }
+          sum_count x ss' + (if x = Seq.last s then 1 else 0);
+        (==) { }
+          Seq.count x (i_seq il') + (if x = Seq.last s then 1 else 0);
+        (==) { 
+               assert (i_seq il `Seq.equal` Seq.snoc (i_seq il') e);
+               count_snoc (i_seq il') e x 
+             }
+          Seq.count x (i_seq il);
+        }
+      );
+      il
+    )
+
+let rec eq_some_interleaving  (#a:eqtype) (ss:sseq a)
+  : Lemma 
+    (ensures some_interleaving ss == some_interleaving_alt ss)
+    (decreases (flat_length ss))
+  = let m = flat_length ss in
+    if m = 0 then ()
+    else (
+      let i = find_non_empty_seq ss in
+      let ss' = sseq_prefix ss i in
+      eq_some_interleaving ss'
+    )
+
+let i_seq_count (#a: eqtype) (s: sseq a) (x:a)
+  : Lemma 
+    (ensures Seq.count x (i_seq (some_interleaving s)) == 
+             sum_count x s)
+    (decreases (Seq.length (i_seq (some_interleaving s))))
+  = eq_some_interleaving s
