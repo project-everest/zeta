@@ -1,13 +1,7 @@
 module Zeta.Formats.Synth
+include Zeta.Formats.Synth.U256
 
 module LPC = LowParse.Spec.Combinators
-
-val synth_u256
-  (x: Zeta.Formats.Aux.U256.u256)
-: Tot Zeta.Steel.LogEntry.Types.u256
-
-val synth_u256_injective
-: squash (LPC.synth_injective synth_u256)
 
 val synth_record
   (x: Zeta.Formats.Aux.Record.record)
@@ -36,3 +30,19 @@ val synth_value_injective
 
 val synth_value_inverse
 : squash (LPC.synth_inverse synth_value synth_value_recip)
+
+let synth_timestamp
+  (x: Zeta.Formats.Aux.Timestamp.timestamp)
+: Tot Zeta.Steel.LogEntry.Types.timestamp
+= {
+  Zeta.Steel.LogEntry.Types.epoch = x.epoch;
+  counter = x.counter;
+}
+
+let synth_timestamp_recip
+  (x: Zeta.Steel.LogEntry.Types.timestamp)
+: Tot Zeta.Formats.Aux.Timestamp.timestamp
+= {
+  Zeta.Formats.Aux.Timestamp.epoch = x.epoch;
+  counter = x.counter;
+}

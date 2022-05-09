@@ -23,24 +23,21 @@ noextract
 let internal_key_filter
   (x: base_key)
 : Tot bool
-= x.base_key_significant_digits `U16.lt` 256us
+= Zeta.Steel.KeyUtils.is_internal_key x
 
 inline_for_extraction
 noextract
 let internal_key_synth
   (x: LP.parse_filter_refine internal_key_filter)
 : Tot internal_key
-= Zeta.Steel.LogEntry.Types.Mkbase_key
-    (Zeta.Steel.LogEntry.Types.Mku256 x.base_key_k.v3 x.base_key_k.v2 x.base_key_k.v1 x.base_key_k.v0)
-    x.base_key_significant_digits
+= x
 
 inline_for_extraction
 noextract
 let internal_key_synth_recip
   (x: internal_key)
 : Tot (LP.parse_filter_refine internal_key_filter)
-= let Zeta.Steel.LogEntry.Types.Mkbase_key (Zeta.Steel.LogEntry.Types.Mku256 v3 v2 v1 v0) sd = x in
-  { base_key_k = { v3 = v3; v2 = v2; v1 = v1; v0 = v0; }; base_key_significant_digits = sd }
+= x
 
 open Zeta.Formats.Aux.Base_key
 
@@ -69,7 +66,7 @@ let internal_key_parser32 =
   LS.parse32_synth'
     _
     _
-    (LS.parse32_filter base_key_parser32 _ (fun x -> x.base_key_significant_digits `U16.lt` 256us))
+    (LS.parse32_filter base_key_parser32 _ (fun x -> Zeta.Steel.KeyUtils.is_internal_key x))
     ()
 
 let internal_key_serializer32 =
@@ -101,9 +98,8 @@ let internal_key_validator =
       if LL.is_error res
       then res
       else
-        let psd = accessor_base_key_base_key_significant_digits sl (LL.uint64_to_uint32 pos) in
-        let sd = Zeta.Formats.Aux.Significant_digits_t.significant_digits_t_reader sl psd in
-        if sd `U16.lt` 256us
+        let bk = Zeta.Formats.Aux.Base_key.base_key_reader sl (LL.uint64_to_uint32 pos) in
+        if Zeta.Steel.KeyUtils.is_internal_key bk
         then res
         else LL.validator_error_generic
     )

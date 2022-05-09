@@ -3,46 +3,6 @@ module Zeta.Formats.Synth
 friend Zeta.Formats.Aux.External.App
 friend Zeta.Formats.Aux.External
 
-let synth_u256
-  (x: Zeta.Formats.Aux.U256.u256)
-: Tot Zeta.Steel.LogEntry.Types.u256
-= Zeta.Steel.LogEntry.Types.Mku256
-    x.Zeta.Formats.Aux.U256.v3
-    x.Zeta.Formats.Aux.U256.v2
-    x.Zeta.Formats.Aux.U256.v1
-    x.Zeta.Formats.Aux.U256.v0
-
-let synth_u256_injective = ()
-
-let synth_u256_recip
-  (x: Zeta.Steel.LogEntry.Types.u256)
-: Tot Zeta.Formats.Aux.U256.u256
-= match x with
-  | Zeta.Steel.LogEntry.Types.Mku256 v3 v2 v1 v0 ->
-    {
-      Zeta.Formats.Aux.U256.v3 = v3;
-      Zeta.Formats.Aux.U256.v2 = v2;
-      Zeta.Formats.Aux.U256.v1 = v1;
-      Zeta.Formats.Aux.U256.v0 = v0;
-    }
-
-let synth_base_key
-  (x: Zeta.Formats.Aux.Base_key.base_key)
-: Tot Zeta.Steel.LogEntry.Types.base_key
-= Zeta.Steel.LogEntry.Types.Mkbase_key
-    (synth_u256 x.Zeta.Formats.Aux.Base_key.base_key_k)
-    x.Zeta.Formats.Aux.Base_key.base_key_significant_digits
-
-let synth_base_key_recip
-  (x: Zeta.Steel.LogEntry.Types.base_key)
-: Tot Zeta.Formats.Aux.Base_key.base_key
-= match x with
-  | Zeta.Steel.LogEntry.Types.Mkbase_key k sd ->
-    {
-      Zeta.Formats.Aux.Base_key.base_key_k = synth_u256_recip k;
-      Zeta.Formats.Aux.Base_key.base_key_significant_digits = sd;
-    }
-
 let synth_hash_value
   (x: Zeta.Formats.Aux.Hash_value.hash_value)
 : Tot Zeta.Steel.LogEntry.Types.hash_value
@@ -71,7 +31,7 @@ let synth_descendent_hash_desc
   (x: Zeta.Formats.Aux.Descendent_hash_desc.descendent_hash_desc)
 : Tot Zeta.Steel.LogEntry.Types.descendent_hash_desc
 = {
-    Zeta.Steel.LogEntry.Types.dhd_key = synth_base_key x.Zeta.Formats.Aux.Descendent_hash_desc.dhd_key;
+    Zeta.Steel.LogEntry.Types.dhd_key = x.Zeta.Formats.Aux.Descendent_hash_desc.dhd_key;
     Zeta.Steel.LogEntry.Types.dhd_h = synth_hash_value x.Zeta.Formats.Aux.Descendent_hash_desc.dhd_h;
     Zeta.Steel.LogEntry.Types.evicted_to_blum = synth_vbool x.Zeta.Formats.Aux.Descendent_hash_desc.evicted_to_blum;
   }
@@ -80,7 +40,7 @@ let synth_descendent_hash_desc_recip
   (x: Zeta.Steel.LogEntry.Types.descendent_hash_desc)
 : Tot Zeta.Formats.Aux.Descendent_hash_desc.descendent_hash_desc
 = {
-    Zeta.Formats.Aux.Descendent_hash_desc.dhd_key = synth_base_key_recip x.Zeta.Steel.LogEntry.Types.dhd_key;
+    Zeta.Formats.Aux.Descendent_hash_desc.dhd_key = x.Zeta.Steel.LogEntry.Types.dhd_key;
     Zeta.Formats.Aux.Descendent_hash_desc.dhd_h = synth_hash_value_recip
     x.Zeta.Steel.LogEntry.Types.dhd_h;
     Zeta.Formats.Aux.Descendent_hash_desc.evicted_to_blum = synth_vbool_recip x.Zeta.Steel.LogEntry.Types.evicted_to_blum;
