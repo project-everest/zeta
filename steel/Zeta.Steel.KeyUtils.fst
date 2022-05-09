@@ -855,8 +855,6 @@ let lower_lift_id (k:raw_key)
 // Now the main public interface on base_keys
 ////////////////////////////////////////////////////////////////////////////////
    
-let base_key = r:raw_key { good_raw_key r }
-
 let eq_raw_key (k0 k1:raw_key)
   : b:bool { b <==> (k0 == k1) }
   = eq_u256 k0.k k1.k &&

@@ -16,8 +16,13 @@ let eq_u256 (i0 i1: u256)
     i0.v2 = i1.v2 &&
     i0.v3 = i1.v3
   
-val base_key
+val raw_key
   : Type0
+
+val good_raw_key (k:raw_key)
+  : prop
+
+let base_key = k:raw_key { good_raw_key k}
 
 val eq_base_key (k0 k1:base_key)
   : b:bool { b <==> (k0 == k1) }

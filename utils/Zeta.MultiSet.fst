@@ -516,3 +516,7 @@ let rec lemma_add_incr_mem_aux (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
 
 let lemma_add_incr_mem (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
  : Lemma (ensures mem x (add_elem s x) = 1 + mem x s) = lemma_add_incr_mem_aux s x
+
+let eq (#a:eqtype) (#f:cmp a) (s0 s1:mset a f) 
+  : b:bool { b <==> (s0 == s1) }
+  = s0 = s1

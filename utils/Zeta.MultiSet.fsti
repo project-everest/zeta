@@ -214,3 +214,6 @@ let is_set (#a:eqtype) (#f:cmp a) (s:mset a f) = forall (x:a). mem x s <= 1
 
 val lemma_add_incr_mem (#a:eqtype) (#f:cmp a) (s:mset a f) (x:a)
   : Lemma (ensures mem x (add_elem s x) = 1 + mem x s)
+
+val eq (#a:eqtype) (#f:cmp a) (s0 s1:mset a f)
+  : b:bool { b <==> s0==s1 }
