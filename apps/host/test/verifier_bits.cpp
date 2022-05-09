@@ -92,7 +92,7 @@ static uint64_t truncate_word(uint64_t k, uint32_t index)
   }
 }
 
-static Verifier_base_key truncate_key(Verifier_base_key k, uint16_t w)
+Verifier_base_key truncate_key(Verifier_base_key k, uint16_t w)
 {
   if (w == k.significant_digits)
     return k;

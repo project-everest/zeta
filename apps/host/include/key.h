@@ -48,8 +48,6 @@ namespace Zeta
                    bytes_[3] == v.bytes_[3];
         }
 
-        static uint16_t GetLargestCommonPrefixSize(const UInt256& v1, const UInt256& v2);
-
         static uint16_t GetLargestCommonSuffixSize(const UInt256& v1, const UInt256& v2);
 
         uint8_t GetBit(uint8_t p) const;
@@ -61,50 +59,6 @@ namespace Zeta
         void ZeroPrefix(uint64_t size);
 
         bool IsPrefixZero(uint64_t size) const;
-
-        void ZeroSuffix(uint64_t size)
-        {
-            assert(size <= 256);
-
-            auto n = (size >> 6);
-            assert(n <= 4);
-
-            for (auto i = 4 - n ; i < 4 ; ++i) {
-                bytes_[i] = 0;
-            }
-
-            if (n < 4) {
-                auto i = 3 - n;
-                auto s = (size & 0x3f);
-                assert(s < 64);
-                bytes_[i] &= (~0ull << s);
-            }
-        }
-
-        bool IsSuffixZero(uint64_t size) const
-        {
-            assert(size <= 256);
-
-            auto n = (size >> 6);
-            assert(n <= 4);
-
-            for (auto i = 4 - n ; i < 4 ; ++i) {
-                if (bytes_[i] != 0) {
-                    return false;
-                }
-            }
-
-            if (n < 4) {
-                auto i = 3 - n;
-                auto s = (size & 0x3f);
-                assert(s < 64);
-                if ((bytes_[i] & ~(~0ull << s)) != 0) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
 
         uint64_t* Serialize(uint64_t* buf) const
         {
@@ -217,16 +171,29 @@ namespace Zeta
 
         bool IsLeaf() const { return LeafDepth == GetDepth(); }
 
-        bool IsAncestor (const BaseKey& other) const
+        // Am I an ancestor of other
+        bool IsAncestor (const BaseKey& desc) const
         {
-            return UInt256::GetLargestCommonPrefixSize(path_, other.path_) >= depth_;
+            return UInt256::GetLargestCommonSuffixSize(path_, desc.path_) >= depth_;
         }
 
-        // Am I a proper descendant of ancAddr
-        bool IsDescendant (const BaseKey& other) const
+        // am I a proper ancestor of other
+        bool IsProperAncestor(const BaseKey& desc) const
         {
-            return other.IsAncestor(*this);
+            return GetDepth() < desc.GetDepth() && IsAncestor(desc);
         }
+
+        // Am I a descendant of other
+        bool IsDescendant (const BaseKey& anc) const
+        {
+            return anc.IsAncestor(*this);
+        }
+
+        bool IsProperDescendant (const BaseKey& anc) const
+        {
+            return GetDepth() > anc.GetDepth() && IsDescendant(anc);
+        }
+
 
         // Get the descendant direction (Left|Right)
         DescDir GetDescDir (const BaseKey& desc) const
@@ -243,11 +210,11 @@ namespace Zeta
 
         static BaseKey GetLeastCommonAncestor(const BaseKey& a1, const BaseKey& a2)
         {
-            auto d = UInt256::GetLargestCommonPrefixSize(a1.path_, a2.path_);
+            auto d = UInt256::GetLargestCommonSuffixSize(a1.path_, a2.path_);
             d = std::min(d, a1.GetDepth());
             d = std::min(d, a2.GetDepth());
             auto ret = BaseKey{a1.path_, d};
-            ret.path_.ZeroSuffix(LeafDepth - d);
+            ret.path_.ZeroPrefix(LeafDepth - d);
             return ret;
         }
 
@@ -256,7 +223,7 @@ namespace Zeta
         bool IsNormalized() const
         {
             auto height = LeafDepth - depth_;
-            return path_.IsSuffixZero(height);
+            return path_.IsPrefixZero(height);
         }
 
         bool operator < (const BaseKey& other) const

@@ -14,19 +14,6 @@ UInt256 UInt256::Deserialize(const uint8_t* buf, size_t len)
     return ui256;
 }
 
-uint16_t UInt256::GetLargestCommonPrefixSize(const UInt256& v1, const UInt256& v2)
-{
-    for (uint8_t i = 0 ; i < 4 ; ++i)
-    {
-        if (v1.bytes_[i] != v2.bytes_[i])
-        {
-            return (i << 6) + __builtin_clzll(v1.bytes_[i] ^ v2.bytes_[i]);
-        }
-    }
-
-    return 256;
-}
-
 uint16_t UInt256::GetLargestCommonSuffixSize(const UInt256& v1, const UInt256& v2)
 {
     for (int i = 3 ; i >= 0 ; --i)
@@ -34,7 +21,7 @@ uint16_t UInt256::GetLargestCommonSuffixSize(const UInt256& v1, const UInt256& v
         if (v1.bytes_[i] != v2.bytes_[i])
         {
 
-            return ((4-i) << 6) + __builtin_ctzll(bswap_64(v1.bytes_[i]) ^
+            return ((3-i) << 6) + __builtin_ctzll(bswap_64(v1.bytes_[i]) ^
                                                   bswap_64(v2.bytes_[i]));
         }
     }

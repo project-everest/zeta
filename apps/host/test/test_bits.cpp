@@ -120,6 +120,8 @@ TEST_CASE("test host normalize")
     // normalize host key (zero-out unused path bits)
     auto hbk2 = hbk.GetNormalizedKey();
     REQUIRE(hbk == hbk2);
+
+    REQUIRE(hbk2.IsNormalized());
 }
 
 TEST_CASE("test proper desc")
@@ -137,9 +139,42 @@ TEST_CASE("test proper desc")
     auto hbk2 = BaseKey { h256, BaseKey::LeafDepth / 2 };
 
     auto vbk1 = Verifier_base_key { v256, BaseKey::LeafDepth };
-    auto vbk2 = Verifier_base_key { v256, BaseKey::LeafDepth / 2 };
+    auto vbk2 = truncate_key(vbk1, BaseKey::LeafDepth / 2);
 
     REQUIRE(equal(vbk1, hbk1));
     REQUIRE(equal(vbk2, hbk2));
-    REQUIRE(is_proper_descendent(Verifier_base_key k0, Verifier_base_key k1)
+
+    REQUIRE(is_proper_descendent(vbk1, vbk2));
+    REQUIRE(hbk1.IsProperDescendant(hbk2));
+}
+
+TEST_CASE("test least common ancestor")
+{
+    uint64_t v = 0xffffffffffffffffull;
+    UInt256 p1 { v, v, v, 0 };
+    UInt256 p2 { v, 0, 0, v };
+
+    auto bk1 = BaseKey { p1, BaseKey::LeafDepth };
+    auto bk2 = BaseKey { p2, BaseKey::LeafDepth };
+
+    auto bk = BaseKey::GetLeastCommonAncestor(bk1, bk2);
+    REQUIRE(bk.IsProperAncestor(bk1));
+    REQUIRE(bk.IsProperAncestor(bk2));
+}
+
+TEST_CASE("test largest common suffix")
+{
+    uint8_t buf1[32], buf2[32];
+
+    for (int i = 0 ; i < 32 ; ++i) {
+        buf1[i] = buf2[i] = 0;
+    }
+
+    buf1[31] = 0x01;
+
+    auto p1 = UInt256::Deserialize(buf1, sizeof(buf1));
+    auto p2 = UInt256::Deserialize(buf2, sizeof(buf2));
+
+    auto sz = UInt256::GetLargestCommonSuffixSize(p1, p2);
+    REQUIRE(sz == 0);
 }

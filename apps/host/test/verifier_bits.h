@@ -54,3 +54,5 @@ bool
 is_proper_descendent(
   Verifier_base_key k0,
   Verifier_base_key k1);
+
+Verifier_base_key truncate_key(Verifier_base_key k, uint16_t w);
