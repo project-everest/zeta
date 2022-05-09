@@ -79,7 +79,7 @@ let synth_stamped_record
 : Tot Zeta.Steel.LogEntry.Types.stamped_record
 = {
   Zeta.Steel.LogEntry.Types.record = Zeta.Formats.Synth.synth_record x.sr_record;
-  Zeta.Steel.LogEntry.Types.timestamp = x.sr_timestamp;
+  Zeta.Steel.LogEntry.Types.timestamp = Zeta.Formats.Synth.synth_timestamp x.sr_timestamp;
   Zeta.Steel.LogEntry.Types.thread_id = x.sr_thread_id;
 }
 
@@ -88,7 +88,7 @@ let synth_stamped_record_recip
 : Tot Zeta.Formats.Aux.Stamped_record.stamped_record
 = {
   sr_record = Zeta.Formats.Synth.synth_record_recip x.Zeta.Steel.LogEntry.Types.record;
-  sr_timestamp = x.Zeta.Steel.LogEntry.Types.timestamp;
+  sr_timestamp = Zeta.Formats.Synth.synth_timestamp_recip x.Zeta.Steel.LogEntry.Types.timestamp;
   sr_thread_id = x.Zeta.Steel.LogEntry.Types.thread_id;
 }
 

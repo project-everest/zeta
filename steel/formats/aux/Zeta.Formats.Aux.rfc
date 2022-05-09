@@ -9,9 +9,12 @@ abstract /*@has_lserializer*/
 significant_digits_t = "Zeta.Formats.Aux.External.significant_digits_t" < 2..2 >
 
 struct {
-  u256 base_key_k;
-  significant_digits_t base_key_significant_digits;
-} base_key;
+  u256 raw_key_k;
+  significant_digits_t raw_key_significant_digits;
+} raw_key;
+
+abstract /*@has_lserializer*/
+base_key = "Zeta.Formats.Aux.External.base_key" < 34..34 >
 
 abstract /*@has_lserializer*/
 internal_key = "Zeta.Formats.Aux.External.internal_key" < 34..34 >

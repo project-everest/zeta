@@ -44,7 +44,7 @@ let synth_log_entry_false
     let r = synth_record apl.addb_r in
     Zeta.Steel.LogEntry.Types.AddB
       apl.addb_s
-      apl.addb_t
+      (synth_timestamp apl.addb_t)
       apl.addb_tid
       r
   | Zeta.Formats.Aux.Log_entry_hdr.Le_payload_NextEpoch _ ->
@@ -56,10 +56,10 @@ let synth_log_entry_false
       (Zeta.Steel.LogEntry.Types.MkevictM_payload epl.evictm_s epl.evictm_s2)
   | Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictB epl ->
     Zeta.Steel.LogEntry.Types.EvictB
-      (Zeta.Steel.LogEntry.Types.MkevictB_payload epl.evictb_s epl.evictb_t)
+      (Zeta.Steel.LogEntry.Types.MkevictB_payload epl.evictb_s (synth_timestamp epl.evictb_t))
   | Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictBM epl ->
     Zeta.Steel.LogEntry.Types.EvictBM
-      (Zeta.Steel.LogEntry.Types.MkevictBM_payload epl.evictbm_s epl.evictbm_s2 epl.evictbm_t)
+      (Zeta.Steel.LogEntry.Types.MkevictBM_payload epl.evictbm_s epl.evictbm_s2 (synth_timestamp epl.evictbm_t))
 
 let synth_log_entry_true
   (x: Zeta.Formats.Aux.Log_entry_hdr.log_entry_hdr { needs_payload x == true })
@@ -121,7 +121,7 @@ let synth_log_entry_recip_hdr
       Zeta.Formats.Aux.Log_entry_hdr.Le_payload_AddB ({
         addb_r = r0;
         addb_s = s;
-        addb_t = t;
+        addb_t = synth_timestamp_recip t;
         addb_tid = tid;
       })
   | Zeta.Steel.LogEntry.Types.RunApp 
@@ -145,13 +145,13 @@ let synth_log_entry_recip_hdr
       (Zeta.Steel.LogEntry.Types.MkevictB_payload s t)
     ->
     Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictB ({
-        evictb_s = s; evictb_t = t;
+        evictb_s = s; evictb_t = synth_timestamp_recip t;
     })
   | Zeta.Steel.LogEntry.Types.EvictBM
       (Zeta.Steel.LogEntry.Types.MkevictBM_payload s s2 t)
     ->
     Zeta.Formats.Aux.Log_entry_hdr.Le_payload_EvictBM ({
-      evictbm_s = s; evictbm_s2 = s2; evictbm_t = t;
+      evictbm_s = s; evictbm_s2 = s2; evictbm_t = synth_timestamp_recip t;
     })
 
 let synth_log_entry_recip_pl

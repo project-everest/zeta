@@ -617,6 +617,13 @@ let truncate_key_ith_bit (k:raw_key)
 let good_raw_key (k:raw_key)
   = forall (i:U16.t { U16.v i < 256 && U16.v i >= U16.v k.significant_digits }). ith_bit k i = false
 
+inline_for_extraction
+let good_raw_key_impl (k: raw_key) // necessary for parsing
+: Pure bool
+  (requires True)
+  (ensures (fun y -> (y == true) <==> good_raw_key k))
+= admit () // good_raw_key_impl
+
 let truncate_key_correct (k:raw_key) (w:U16.t { U16.v w <= U16.v k.significant_digits })
   : Lemma
     (requires good_raw_key k)
