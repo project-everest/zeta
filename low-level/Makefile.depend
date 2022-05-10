@@ -1,9 +1,0 @@
-all: obj/.depend
-
-include Makefile.include
-
-obj/.depend: $(VERITAS_SOURCES) # Veritas.Formats.rfc
-	rm -rf $@
-	mkdir -p obj
-	$(FSTAR_EXE) --dep full $(VERITAS_SOURCES) $(wildcard formats/*.fst) $(wildcard formats/*.fsti) --codegen Kremlin > obj/.depend.tmp
-	mv obj/.depend.tmp $@
