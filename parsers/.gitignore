@@ -1,9 +1,0 @@
-.qd_files
-cache
-extracted
-test.exe
-*~
-VeritasFormats.*.fst*
-!VeritasFormats.Addr.fst
-!VeritasFormats.Merkle_addr.fst
-!VeritasFormats.Hash_value.fst
