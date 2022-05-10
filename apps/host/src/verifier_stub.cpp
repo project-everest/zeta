@@ -48,6 +48,10 @@ namespace Zeta
 
         LogTransFn(fn, slots);
 
+        if (fn->HasOutput()) {
+            RegisterForCallback(fn);
+        }
+
         for (int i = fn->GetArity() - 1 ; i >= 0 ; --i) {
 
             auto s = slots[i];
@@ -60,10 +64,6 @@ namespace Zeta
             }
 
             EvictSlot (slots[i]);
-        }
-
-        if (fn->HasOutput()) {
-            RegisterForCallback(fn);
         }
 
         return 0;
@@ -363,7 +363,6 @@ namespace Zeta
     {
         EnsureEnoughLogSpace();
         Formats::LogRunApp(fn->GetId(), fn->GetArity(), fn->GetParam(), slots, writeLog_);
-        FlushImpl();
     }
 
     void VerifierStubImpl::LogAddMInternal (const BaseKey& key, const MerkleValue* value, SlotId s, SlotId ps)
@@ -446,9 +445,11 @@ namespace Zeta
 
         newVal->descInfo[dir2].key = desc;
         newVal->descInfo[dir2].isNonNull = true;
+        newVal->descInfo[dir2].inBlum = false;
 
         newVal->descInfo[odir2].key = mv->descInfo[dir].key;
         newVal->descInfo[odir2].inBlum = mv->descInfo[dir].inBlum;
+        newVal->descInfo[odir2].hash = mv->descInfo[dir].hash;
         newVal->descInfo[odir2].isNonNull = true;
         assert (mv->descInfo[dir].isNonNull);
 

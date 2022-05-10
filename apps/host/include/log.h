@@ -17,7 +17,13 @@ namespace Zeta
         void Serialize(const Serializable& serializable);
 
         template<typename T>
-        void TSerialize(const T& v);
+        void TSerializeBe(const T& v);
+
+        template<typename T>
+        void TSerialize(const T& v)
+        {
+            Serialize(reinterpret_cast<const uint8_t*>(&v), sizeof(T));
+        }
 
         size_t LeftToWrite() const;
 

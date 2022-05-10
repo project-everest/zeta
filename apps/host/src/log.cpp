@@ -60,31 +60,26 @@ void WriteLog::Serialize(const Serializable& serializable)
 }
 
 template <>
-void WriteLog::TSerialize<uint16_t>(const uint16_t& v)
+void WriteLog::TSerializeBe<uint16_t>(const uint16_t& v)
 {
     uint16_t ve = bswap_16(v);
     Serialize(reinterpret_cast<const uint8_t*>(&ve), sizeof(uint16_t));
 }
 
 template <>
-void WriteLog::TSerialize<uint32_t>(const uint32_t& v)
+void WriteLog::TSerializeBe<uint32_t>(const uint32_t& v)
 {
     uint32_t ve = bswap_32(v);
     Serialize(reinterpret_cast<const uint8_t*>(&ve), sizeof(uint32_t));
 }
 
 template <>
-void WriteLog::TSerialize<uint64_t>(const uint64_t& v)
+void WriteLog::TSerializeBe<uint64_t>(const uint64_t& v)
 {
     uint64_t ve = bswap_64(v);
     Serialize(reinterpret_cast<const uint8_t*>(&ve), sizeof(uint64_t));
 }
 
-template <>
-void WriteLog::TSerialize<uint8_t>(const uint8_t& v)
-{
-    Serialize(&v, sizeof(uint8_t));
-}
 
 ReadLog::ReadLog(const uint8_t *bytes, size_t len)
     : cur_{bytes}, bufEnd_{cur_ + len} {}

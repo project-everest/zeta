@@ -60,17 +60,6 @@ namespace Zeta
 
         bool IsPrefixZero(uint64_t size) const;
 
-        uint64_t* Serialize(uint64_t* buf) const
-        {
-            const uint64_t* pbytes = bytes_;
-            *buf++ = *pbytes++;
-            *buf++ = *pbytes++;
-            *buf++ = *pbytes++;
-            *buf++ = *pbytes++;
-
-            return buf;
-        }
-
         const uint64_t* Bytes() const
         {
             return bytes_;

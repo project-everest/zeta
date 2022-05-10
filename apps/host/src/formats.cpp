@@ -49,10 +49,10 @@ void Formats::LogRunApp (uint8_t fnId, int arity, const AppParam& param, const S
     }
 
     auto length32 = static_cast<uint32_t>(length);
-    log.TSerialize(length32);
+    log.TSerializeBe(length32);
     log.Serialize(param);
     for (int i = 0 ; i < arity ; ++i) {
-        log.TSerialize(slots[i]);
+        log.TSerializeBe(slots[i]);
     }
     TRACE_DEBUG("RunApp {}; Log pos = {}", fnId, log.Written());
 }
@@ -66,7 +66,7 @@ void Formats::LogBaseKey (const BaseKey& key, WriteLog& log)
     log.TSerialize(*pu64++);
     log.TSerialize(*pu64++);
     log.TSerialize(*pu64++);
-    log.TSerialize(key.GetDepth());
+    log.TSerializeBe(key.GetDepth());
 }
 
 void AddtoHash(const BaseKey& key, Hasher& hasher)
@@ -112,8 +112,6 @@ void Formats::LogDescInfo (const DescInfo& descInfo, WriteLog& log)
         log.TSerialize(bval);
     }
 }
-
-
 
 void AddtoHash(const DescInfo& descInfo, Hasher& hasher)
 {
@@ -188,5 +186,5 @@ void Formats::GetHashValue(const AppValue& value, HashValue& hashValBuf)
 
 void Formats::LogSlotId (SlotId slotId, WriteLog& log)
 {
-    log.TSerialize(slotId);
+    log.TSerializeBe(slotId);
 }
