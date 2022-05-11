@@ -173,6 +173,7 @@ namespace Zeta
             auto key = slotInfo_[s].baseKey;
             auto value = merkleTree_.Get(key);
             UpdateMerkleHash(key, value, slotInfo_[ps].baseKey);
+            slotInfo_[ps].touched = true;
         }
 
         FreeSlot(s);

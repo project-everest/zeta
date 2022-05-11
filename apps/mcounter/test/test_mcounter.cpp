@@ -121,8 +121,8 @@ TEST_CASE("test single key output")
 
 TEST_CASE("test ops on a sequential key range")
 {
-    static const uint64_t KeyCount = 2;
-    LOG_LEVEL_DEBUG;
+    static const uint64_t KeyCount = 256;
+
     auto proxy = GetVerifierProxy();
 
     VerifierStub verifier { 0, proxy };
@@ -141,8 +141,6 @@ TEST_CASE("test ops on a sequential key range")
         verifier.Flush();
     }
 
-
-    /*
     // read all the counters
     for (uint64_t i = 0 ; i < KeyCount ; ++i) {
         Get getCounter { i, Record { i, 1 } };
@@ -150,5 +148,4 @@ TEST_CASE("test ops on a sequential key range")
         verifier.Flush();
         REQUIRE(getCounter.GetOutput() == 1);
     }
-    */
 }
