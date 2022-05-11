@@ -3,6 +3,7 @@
 #include <trace.h>
 #include <limits>
 #include <stdexcept>
+#include <byteswap.h>
 
 using namespace Zeta;
 
@@ -78,7 +79,9 @@ void AddtoHash(const BaseKey& key, Hasher& hasher)
     hasher.HashPartialT(*pu64++);
     hasher.HashPartialT(*pu64++);
     hasher.HashPartialT(*pu64++);
-    hasher.HashPartialT(key.GetDepth());
+
+    auto depthbe = bswap_16(key.GetDepth());
+    hasher.HashPartialT(depthbe);
 }
 
 void Formats::LogHashValue (const HashValue& hashValue, WriteLog& log)
@@ -136,6 +139,7 @@ void Formats::GetHashValue(const MerkleValue* value, HashValue& hashValBuf)
     hasher.HashPartialT(value_kind);
     AddtoHash(value->descInfo[0], hasher);
     AddtoHash(value->descInfo[1], hasher);
+    hasher.HashFinal(hashValBuf);
 }
 
 void Formats::LogMerkleValue(const MerkleValue* value, WriteLog& log)
