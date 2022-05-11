@@ -14,3 +14,13 @@ low-level/mytest
 *.pdf
 *.gz
 *.fdb_latexmk
+bin/
+kremlin/
+out/
+.qd_files
+.clangd/
+*.json
+.cache/
+**/apps/*/formats/*.fst
+**/apps/*/formats/*.fsti
+**/hacl-star-*/gcc-compatible/*.o
