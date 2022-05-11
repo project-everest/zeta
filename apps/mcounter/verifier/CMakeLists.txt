@@ -13,7 +13,6 @@ add_custom_command(
 
 add_library(mcounter-verifier
             ${DIST_DIR}/ZetaFormats.c
-            ${DIST_DIR}/krmlinit.c
             ${CMAKE_CURRENT_BINARY_DIR}/config.c
             ${HACL_BLAKE_OBJS}
             app.c
