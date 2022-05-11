@@ -1289,36 +1289,16 @@ static Zeta_Steel_LogEntry_Types_u256 read_hash_u256(uint8_t *hb)
   }
 }
 
-#include <stdio.h>
-
-static void PrintHexc(uint8_t c)
-{
-    printf("%02hhx", c);
-}
-
-static void PrintHexs(const uint8_t* mesg, size_t len)
-{
-    for (size_t i = 0 ; i < len ; ++i) {
-        PrintHexc(mesg[i]);
-    }
-}
-
-
 static Zeta_Steel_LogEntry_Types_u256
 hash_value(Zeta_Steel_HashValue_hasher_t h, Zeta_Steel_LogEntry_Types_value v)
 {
   uint32_t n = zeta__serialize_value((uint32_t)4096U, (uint32_t)0U, h.serialization_buffer, v);
-  printf("*VH*: ");
-  PrintHexs(h.serialization_buffer, n);
   Hacl_Blake2b_32_blake2b((uint32_t)32U,
     h.hash_buffer,
     n,
     h.serialization_buffer,
     (uint32_t)0U,
     h.dummy);
-  printf(" ==> ");
-  PrintHexs(h.hash_buffer, 32);
-  printf("\n");
   Zeta_Steel_LogEntry_Types_u256 res = read_hash_u256(h.hash_buffer);
   return res;
 }
