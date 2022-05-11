@@ -57,16 +57,11 @@ let related_zero_u64 ()
            FStar.BitVector.zero_vec #64)
   = assert (U64.v 0uL == UInt.zero 64)
 
-let zero: T.hash_value =
-  let open T in
-  let z = U64.zero in
-  { v3 = z; v2 = z; v1 = z ; v0 = z }
-
 let related_zero ()
-  : Lemma (bitvec_of_u256 zero ==
+  : Lemma (bitvec_of_u256 zero256 ==
            FStar.BitVector.zero_vec #256)
   = related_zero_u64();
-    assert (bitvec_of_u256 zero `Seq.equal`
+    assert (bitvec_of_u256 zero256 `Seq.equal`
            FStar.BitVector.zero_vec #256)  
   
 let u64_of_bitvec (x:FStar.BitVector.bv_t 64) 

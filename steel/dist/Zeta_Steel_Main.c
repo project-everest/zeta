@@ -9,10 +9,6 @@
 
 
 
-extern uint16_t FStar_UInt16_zero;
-
-extern uint64_t FStar_UInt64_zero;
-
 extern void
 Hacl_Blake2b_32_blake2b(
   uint32_t nn,
@@ -1886,13 +1882,19 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
               else
               {
                 madd_to_store(t, s, gk, gv, s_, d);
-                uint64_t z = FStar_UInt64_zero;
                 Zeta_Steel_LogEntry_Types_mval_value
                 v__upd =
                   update_merkle_value(v_1,
                     d,
                     k,
-                    ((Zeta_Steel_KeyUtils_u256){ .v3 = z, .v2 = z, .v1 = z, .v0 = z }),
+                    (
+                      (Zeta_Steel_KeyUtils_u256){
+                        .v3 = (uint64_t)0U,
+                        .v2 = (uint64_t)0U,
+                        .v1 = (uint64_t)0U,
+                        .v0 = (uint64_t)0U
+                      }
+                    ),
                     false);
                 update_value(t,
                   s_,
@@ -1949,13 +1951,19 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
                       k2,
                       h2,
                       b2 == Zeta_Steel_LogEntry_Types_Vtrue);
-                  uint64_t z = FStar_UInt64_zero;
                   Zeta_Steel_LogEntry_Types_mval_value
                   v__upd =
                     update_merkle_value(v_1,
                       d,
                       k,
-                      ((Zeta_Steel_KeyUtils_u256){ .v3 = z, .v2 = z, .v1 = z, .v0 = z }),
+                      (
+                        (Zeta_Steel_KeyUtils_u256){
+                          .v3 = (uint64_t)0U,
+                          .v2 = (uint64_t)0U,
+                          .v1 = (uint64_t)0U,
+                          .v0 = (uint64_t)0U
+                        }
+                      ),
                       false);
                   bool b1 = entry_points_to_some_slot(r_, d);
                   if (b1)
@@ -3065,12 +3073,12 @@ madd_to_store_root(
           {
             .case_InternalKey = {
               .k = {
-                .v3 = FStar_UInt64_zero,
-                .v2 = FStar_UInt64_zero,
-                .v1 = FStar_UInt64_zero,
-                .v0 = FStar_UInt64_zero
+                .v3 = (uint64_t)0U,
+                .v2 = (uint64_t)0U,
+                .v1 = (uint64_t)0U,
+                .v0 = (uint64_t)0U
               },
-              .significant_digits = FStar_UInt16_zero
+              .significant_digits = (uint16_t)0U
             }
           }
         }
@@ -3089,12 +3097,12 @@ madd_to_store_root(
             {
               .case_InternalKey = {
                 .k = {
-                  .v3 = FStar_UInt64_zero,
-                  .v2 = FStar_UInt64_zero,
-                  .v1 = FStar_UInt64_zero,
-                  .v0 = FStar_UInt64_zero
+                  .v3 = (uint64_t)0U,
+                  .v2 = (uint64_t)0U,
+                  .v1 = (uint64_t)0U,
+                  .v0 = (uint64_t)0U
                 },
-                .significant_digits = FStar_UInt16_zero
+                .significant_digits = (uint16_t)0U
               }
             }
           }, .value = v, .add_method = MAdd,
@@ -3126,12 +3134,12 @@ static Zeta_Steel_VerifierTypes_thread_state_t create1(uint16_t tid)
             {
               .case_InternalKey = {
                 .k = {
-                  .v3 = FStar_UInt64_zero,
-                  .v2 = FStar_UInt64_zero,
-                  .v1 = FStar_UInt64_zero,
-                  .v0 = FStar_UInt64_zero
+                  .v3 = (uint64_t)0U,
+                  .v2 = (uint64_t)0U,
+                  .v1 = (uint64_t)0U,
+                  .v0 = (uint64_t)0U
                 },
-                .significant_digits = FStar_UInt16_zero
+                .significant_digits = (uint16_t)0U
               }
             }
           }

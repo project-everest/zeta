@@ -17,8 +17,8 @@ type raw_key = {
 inline_for_extraction
 let root_raw_key: raw_key =
   {
-    k = { v3 = U64.zero; v2 = U64.zero ; v1 = U64.zero ; v0 = U64.zero };
-    significant_digits = U16.zero;
+    k = { v3 = 0uL; v2 = 0uL ; v1 = 0uL ; v0 = 0uL };
+    significant_digits = 0us;
   }
 
 let bit_offset_in_word (i:U16.t { U16.v i < 256 })

@@ -17,8 +17,7 @@ val bitvec_of_u256_inj (i j:_)
 inline_for_extraction
 let zero256: T.hash_value =
   let open T in
-  let z = FStar.UInt64.zero in
-  { v3 = z; v2 = z; v1 = z ; v0 = z }
+  { v3 = 0uL; v2 = 0uL; v1 = 0uL ; v0 = 0uL }
 
 val related_zero (_:unit)
   : Lemma (bitvec_of_u256 zero256 ==
