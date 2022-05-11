@@ -1,0 +1,18 @@
+uint64 app_key;
+uint64 app_val;
+uint16 slot;
+
+struct {
+  app_key k;
+  slot s;
+} new_p;
+
+struct {
+  app_key k;
+  slot s;
+} incr_p;
+
+struct {
+  app_key k;
+  slot s;
+} get_p;

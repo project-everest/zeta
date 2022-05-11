@@ -171,6 +171,14 @@ typedef struct FStar_Pervasives_Native_option__K___uint16_t_bool_s
 FStar_Pervasives_Native_option__K___uint16_t_bool;
 
 typedef struct Zeta_Steel_ThreadStateModel_store_entry_s
+{
+  Zeta_Steel_LogEntry_Types_key key;
+  Zeta_Steel_LogEntry_Types_value value;
+  Zeta_Steel_ThreadStateModel_add_method add_method;
+  FStar_Pervasives_Native_option__uint16_t l_child_in_store;
+  FStar_Pervasives_Native_option__uint16_t r_child_in_store;
+  FStar_Pervasives_Native_option__K___uint16_t_bool parent_slot;
+}
 Zeta_Steel_ThreadStateModel_store_entry;
 
 extern Zeta_Steel_KeyUtils_u256 Zeta_Steel_ThreadStateModel_zero;
