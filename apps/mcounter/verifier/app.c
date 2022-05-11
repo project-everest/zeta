@@ -27,8 +27,7 @@ Hacl_Blake2b_32_blake2b(
   uint8_t *_dummy
 );
 
-// TODO: use key serialization
-Zeta_Steel_LogEntry_Types_base_key
+Zeta_Steel_KeyUtils_raw_key
 Zeta_Steel_Application_key_type_to_base_key(Zeta_Steel_ApplicationTypes_key_type k)
 {
     uint8_t buf[4096];
@@ -37,7 +36,7 @@ Zeta_Steel_Application_key_type_to_base_key(Zeta_Steel_ApplicationTypes_key_type
     uint32_t n = App_key_app_key_lserializer(k, buf, 0);
     Hacl_Blake2b_32_blake2b(32, hbuf, n, buf, 0, 0);
 
-    Zeta_Steel_LogEntry_Types_base_key bk =
+    Zeta_Steel_KeyUtils_raw_key bk =
     {
         .significant_digits = 256,
         .k = read_hash_u256(hbuf)
