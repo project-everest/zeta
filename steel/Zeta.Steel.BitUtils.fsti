@@ -14,6 +14,7 @@ val bitvec_of_u256_inj (i j:_)
     [SMTPat (bitvec_of_u256 i);
      SMTPat (bitvec_of_u256 j)]
 
+inline_for_extraction
 let zero256: T.hash_value =
   let open T in
   let z = FStar.UInt64.zero in

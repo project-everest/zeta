@@ -41,6 +41,7 @@ let internal_key
   : Type0
   = k:base_key { is_internal_key k }
 
+inline_for_extraction
 val root_base_key
   : internal_key
 

@@ -60,6 +60,7 @@ type key =
   | InternalKey of internal_key
   | ApplicationKey of key_type
 
+inline_for_extraction
 let root_key = InternalKey KU.root_base_key
 
 noeq

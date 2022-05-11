@@ -14,6 +14,7 @@ type raw_key = {
   significant_digits : significant_digits_t;
 }
 
+inline_for_extraction
 let root_raw_key: raw_key =
   {
     k = { v3 = U64.zero; v2 = U64.zero ; v1 = U64.zero ; v0 = U64.zero };
@@ -868,6 +869,7 @@ let is_internal_key (r:base_key) = U16.(r.significant_digits <^ 256us)
 
 let is_root (r:base_key) = r.significant_digits = 0us
 
+inline_for_extraction
 let root_base_key : internal_key =
   FStar.Classical.forall_intro ith_bit_root_raw_key;
   root_raw_key
