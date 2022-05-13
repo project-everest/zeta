@@ -32,6 +32,7 @@ KRML_BUNDLING_OPTIONS=-bundle 'Zeta.Steel.Main=Zeta.*,Prims,FStar.*,Hacl.*,Steel
   -library Steel.ST.Loops \
   -library Steel.ST.Reference \
   -static-header Steel.ST.Reference \
+  -header noheader.txt \
   -no-prefix Zeta.Steel.LogEntry \
   -no-prefix Zeta.Steel.LogEntry.Spec \
   -hand-written Steel.ST.Reference
