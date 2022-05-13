@@ -4,9 +4,9 @@ jobs:
 
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, X64]
 
     steps:
     - uses: actions/checkout@v2
     - name: Build the Docker image
-      run: docker build . --file .ci/Dockerfile.everest-hub --build-arg CI_THREADS=4
+      run: docker build . --file .ci/Dockerfile.fstar-image
