@@ -1,0 +1,15 @@
+FROM fstar:local-branch-master
+
+ARG CI_THREADS=24
+
+ADD --chown=opam:opam . zeta
+
+SHELL ["/bin/bash", "--login", "-c"]
+ENV KRML_HOME $FSTAR_HOME/karamel
+ENV EVERPARSE_HOME $FSTAR_HOME/everparse
+
+# Rebuild LowParse (which was not fully rebuilt in the F* CI image
+RUN env OTHERFLAGS='--admit_smt_queries true' make -C $EVERPARSE_HOME lowparse -j $CI_THREADS
+
+# Make
+RUN make -C zeta -j $CI_THREADS ci
