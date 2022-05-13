@@ -50,7 +50,7 @@ compile:
 dist: $(OUTPUT_DIRECTORY)/*.c $(OUTPUT_DIRECTORY)/*.h
 	cp $(OUTPUT_DIRECTORY)/*.c $(DIST_DIRECTORY)/
 	cp $(OUTPUT_DIRECTORY)/*.h $(DIST_DIRECTORY)/
-	cp -r $(OUTPUT_DIRECTORY)/internal $(DIST_DIRECTORY)/
+	if test -d $(OUTPUT_DIRECTORY)/internal ; then cp -r $(OUTPUT_DIRECTORY)/internal $(DIST_DIRECTORY)/ ; fi
 	cp -r $(KRML_HOME)/include/* $(DIST_DIRECTORY)/
 	cp -r $(KRML_HOME)/krmllib/dist/minimal/*.h $(DIST_DIRECTORY)/
 
