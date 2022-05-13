@@ -9,20 +9,6 @@ extract-steel: verify
 	+$(MAKE) -C steel
 	+$(MAKE) -C steel/formats
 
-.PHONY: ci low-level low-level-ci low-level/formats extract-steel
-
-low-level:
-	+$(MAKE) -C $@
-
-low-level-ci: low-level/formats
-	+$(MAKE) -C low-level
-
-low-level/formats:
-	cp $@/Veritas.Formats.Types.fst types.old
-	+$(MAKE) -C $@ regen
-	diff types.old $@/Veritas.Formats.Types.fst
-	rm -f types.old
-
-intermediate.verify:
+.PHONY: ci extract-steel
 
 include Makefile.common
