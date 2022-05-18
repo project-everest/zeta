@@ -3,20 +3,51 @@ uint64 app_val;
 
 //----------------------------------------------------------------------
 
+/* initialize a new counter for a specified key */
 void new_counter (app_key k, app_record r)
-{    
-    check (k == key(r));
-    check (isnull(opt_value(r)));
-    setvalue (r, 0);     
+{
+    const key_t *pkey = _key(r);
+
+    /* we are operating on the correct record */
+    _check (k == *pkey);
+
+    /* the value of the key is null (counter for key k does not exist) */
+    _check (_isnull(r));
+
+    /* update the value of the record */
+    _setvalue (r, 0);
 }
 
 //----------------------------------------------------------------------
 
+/* update the counter for a key and return previous counter value */
 uint64 incr_counter (app_key k, app_record r)
 {
-    check (k == key(r));
-    check (!isnull(opt_value(r)));
+    const key_t *pkey = _key(r);
+    val_t *prev_val = _val(r);
+    val_t new_val = *prev_val + 1;
 
-    app_val prev = value(r);    
+    /* we are operating on the correct record */
+    _check (k == *pkey);
+
+    /* update the value of the record */
+    _setvalue (r, new_val);
+    
+    /* output the previous value */
+    _output(*pval);
 }
 
+//----------------------------------------------------------------------
+
+/* output the counter for a key */
+uint64 get_counter (app_key k, app_record r)
+{
+    const key_t *pkey = _key(r);
+    const val_t *prev_val = _val(r);
+
+    /* we are operating on the correct record */
+    _check (k == *pkey);
+    
+    /* output the previous value */
+    _output(*pval);
+}

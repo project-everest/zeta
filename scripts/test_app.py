@@ -43,6 +43,7 @@ x    '''
 
     def test_parse_func(self):
         fstr = '''
+/* some function */
 int func (int x,
           app_key y,
           int z)
