@@ -1,0 +1,22 @@
+uint64 app_key;
+uint64 app_val;
+
+//----------------------------------------------------------------------
+
+void new_counter (app_key k, app_record r)
+{    
+    check (k == key(r));
+    check (isnull(opt_value(r)));
+    setvalue (r, 0);     
+}
+
+//----------------------------------------------------------------------
+
+uint64 incr_counter (app_key k, app_record r)
+{
+    check (k == key(r));
+    check (!isnull(opt_value(r)));
+
+    app_val prev = value(r);    
+}
+

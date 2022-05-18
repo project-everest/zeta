@@ -6,12 +6,10 @@ class StateFn:
 
     Attributes:
         name: name of the function
-        arity: number of input/output records
         params: non-record input parameters
     """
-    def __init__ (self, name, arity, params, output, body):
+    def __init__ (self, name, params, output, body):
         self.name = name
-        self.arity = arity
         self.params = params
         self.body = body
         self.output = output
@@ -22,20 +20,19 @@ class StateFn:
         """
         pass
 
+    def everparse_param_name (self):
+        return "_{}_param".format(self.name)
+
     def gen_everparse_param_type (self):
         """
         Return a string that represents the parameter type of the function in everparse
         """
-
         s = "struct {\n"
 
         for p in self.params:
             s += "  " + p + ";\n"
 
-        for sl in range(self.arity):
-            s += "  slot _s" + str(sl) + ";\n";
-
-        s += "} " + self.name + "_param;\n"
+        s += "} " + self.everparse_param_name() + "\n"
 
         return s
 
