@@ -20,7 +20,7 @@ def separator_indexes(spec_lines):
 
 # index of the first separator
 def first_separator_index(spec_lines):
-    next(separator_indexes(spec_lines))
+    return next(separator_indexes(spec_lines))
 
 def get_type_defs(spec_lines):
     """

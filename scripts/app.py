@@ -21,7 +21,7 @@ class StateFn:
         pass
 
     def everparse_param_name (self):
-        return "_{}_param".format(self.name)
+        return f"{self.name}_param"
 
     def gen_everparse_param_type (self):
         """
@@ -29,10 +29,15 @@ class StateFn:
         """
         s = "struct {\n"
 
-        for p in self.params:
-            s += "  " + p + ";\n"
+        for (t,n) in self.params:
+            # Transform app_record parameters to slot params
+            if t == 'app_record':
+                t = 'slot'
+                n = f's_{n}'
 
-        s += "} " + self.everparse_param_name() + "\n"
+            s += f'  {t} {n};\n'
+
+        s += f'}} {self.everparse_param_name()};\n'
 
         return s
 
@@ -54,3 +59,22 @@ class App:
         self.name = name
         self.type_defs = type_defs
         self.fn_defs = fn_defs
+
+def gen_everparse_types (app):
+    """
+    Generate the text with everparse definitions for the app
+    """
+
+    # carry over the type definitions specified in the app
+    s = '/* Application specified types */\n'
+    s += app.type_defs + "\n"
+
+    # add the type definition for a slot
+    s += '/* Slot type */\n'
+    s += 'uint16 slot;\n\n'
+
+    # add type defs for state transition functions
+    s += '/* Application state transition function parameter types */\n'
+    for f in app.fn_defs:
+        s += f.gen_everparse_param_type() + '\n'
+    return s

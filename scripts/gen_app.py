@@ -5,6 +5,7 @@ import argparse
 import os
 import shutil
 from pathlib import Path
+import app
 import app_parse
 
 def get_argparser():
@@ -80,20 +81,38 @@ def copy_dist_dir(app_dir):
     print(f'Copying directory {dist_dir_src} -> {dist_dir_dest}')
     shutil.copytree(dist_dir_src, dist_dir_dest)
 
-def gen_formats_dir(app_dir, _):
+def gen_app_rfc (app_dir, a):
     formats_temp_dir = Path(app_dir) / '_formats'
-    print(f'Copying directory {get_formats_template_dir()} -> {formats_temp_dir}')
+    app_rfc_file = formats_temp_dir / 'App.rfc'
+
+    with open(app_rfc_file, mode = 'w') as app_rfc_file:
+        app_rfc_file.write(app.gen_everparse_types(a))
+    return app_rfc_file
+
+def build_formats (app_dir, a):
+    # Check FSTAR_HOME and EVERPARSE_HOME environment vars are set
+    if 'FSTAR_HOME' not in os.environ:
+        raise ValueError('FSTAR_HOME not set')
+    if 'EVERPARSE_HOME' not in os.environ:
+        raise ValueError('EVERPARSE_HOME not set')
+    print('FSTAR_HOME and EVERPARSE_HOME set')
+
+
+def gen_formats_dir(app_dir, a):
+    print(f'Copying directory {get_formats_template_dir()} -> {app_dir}')
     shutil.copytree(get_template_dir(), app_dir, dirs_exist_ok = True)
-
-
+    gen_app_rfc (app_dir, a)
 
 def main():
-    argparser = get_argparser()
-    args = argparser.parse_args()
-    app = parse_app(args)
-    app_dir = create_app_dir(get_out_dir(args), app)
-    copy_dist_dir(app_dir)
-    gen_formats_dir(app_dir, app)
+    try:
+        argparser = get_argparser()
+        args = argparser.parse_args()
+        app = parse_app(args)
+        app_dir = create_app_dir(get_out_dir(args), app)
+        copy_dist_dir(app_dir)
+        gen_formats_dir(app_dir, app)
+    except ValueError as e:
+        print(e)
 
 if __name__ == '__main__':
     main()
