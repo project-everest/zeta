@@ -24,7 +24,7 @@ void new_counter (app_key k, app_record r)
 uint64 incr_counter (app_key k, app_record r)
 {
     const key_t *pkey = _key(r);
-    val_t *prev_val = _val(r);
+    const val_t *prev_val = _val(r);
     val_t new_val = *prev_val + 1;
 
     /* we are operating on the correct record */

@@ -14,14 +14,31 @@ class StateFn:
         self.body = body
         self.output = output
 
+    def get_function_header (self):
+        return f'''verify_runapp_result {self.name}
+        (
+          uint8_t *_base, uint32_t _len,
+          uint8_t *_out, uint32_t _out_len, uint32_t _out_offset,
+          vthread_state_t *_t
+        )'''
+
+    def everparse_param_name (self):
+        return f"{self.name}_param"
+
+    def get_param_type (self):
+        return f'{self.name}_param_t'
+
+    def get_function_prefix (self):
+        return f'''
+          LowParse_Slice_slice _sl = {{ .base = _base, .len = _len }};
+        '''
+
     def gen_verifier_code (self):
         """
         Return a string C definition of the function
         """
         pass
 
-    def everparse_param_name (self):
-        return f"{self.name}_param"
 
     def gen_everparse_param_type (self):
         """
