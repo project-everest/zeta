@@ -1,5 +1,27 @@
 """ Classes related to a Zeta application """
 
+import re
+
+def translate_check_statements (code):
+    p = re.compile(r'_check')
+    return p.sub('_CHECK', code)
+
+def translate_key_calls (code):
+    p = re.compile(r'_key\s*\(\s*(\w+)\s*\)')
+    return p.sub(r'_get_record_key(&(_e_\1.v))', code)
+
+def translate_val_calls (code):
+    p = re.compile(r'_val\s*\(\s*(\w+)\s*\)')
+    return p.sub(r'_get_record_val(&(_e_\1.v))', code)
+
+def translate_set_val_calls (code):
+    p = re.compile(r'_setvalue\s*\(\s*(\w+)\s*,\s*(\w+)\s*\)')
+    return p.sub(r'_set_record_val(_t, _param.s_\1, &\2)', code)
+
+def translate_is_null_calls (code):
+    p = re.compile(r'_isnull\s*\(\s*(\w+)\s*\)')
+    return p.sub(r'_isnull(&(_e_\1.v))', code)
+
 class StateFn:
     """
     A state transition function of the Zeta state machine.
@@ -16,29 +38,65 @@ class StateFn:
 
     def get_function_header (self):
         return f'''verify_runapp_result {self.name}
-        (
-          uint8_t *_base, uint32_t _len,
-          uint8_t *_out, uint32_t _out_len, uint32_t _out_offset,
-          vthread_state_t *_t
-        )'''
+(
+    uint8_t *_base, uint32_t _len,
+    uint8_t *_out, uint32_t _out_len, uint32_t _out_offset,
+    vthread_state_t *_t
+)'''
 
     def everparse_param_name (self):
         return f"{self.name}_param"
 
     def get_param_type (self):
-        return f'{self.name}_param_t'
+        param_name = self.everparse_param_name()
+        type_name = f'{param_name}_{param_name}'
+        return type_name.capitalize()
+
+    def get_record_param_prefix (self, r):
+        c = f'''
+    /* read the store entry corresponding to slot s_{r} */
+    FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv _e_{r} =
+        Zeta_Steel_Main_read_store(_t, _param.s_{r});
+
+    /* check: slot s_{r} is not empty */
+    _CHECK(_e_{r}.tag != FStar_Pervasives_Native_None);
+
+    /* check: slot contains app-key & val */
+    _CHECK(_e_{r}.v.value.tag == Zeta_Steel_LogEntry_Types_DValue);'''
+
+        return c
 
     def get_function_prefix (self):
-        return f'''
-          LowParse_Slice_slice _sl = {{ .base = _base, .len = _len }};
-        '''
+        c = f'''LowParse_Slice_slice _sl = {{ .base = _base, .len = _len }};
+
+    {self.get_param_type()} _param = {self.get_param_type()}_reader (_sl, 0);'''
+
+        for t,n in self.params:
+            if t == 'app_record':
+                c += '\n'
+                c += self.get_record_param_prefix(n)
+
+        return c
+
+    def translate_function_body(self):
+        b = translate_check_statements(self.body)
+        b = translate_key_calls(b)
+        b = translate_val_calls(b)
+        b = translate_set_val_calls(b)
+        b = translate_is_null_calls(b)
+        return b
 
     def gen_verifier_code (self):
         """
         Return a string C definition of the function
         """
-        pass
+        return f'''{self.get_function_header()}
+{{
+    {self.get_function_prefix()}
 
+    {self.translate_function_body()}
+}}
+        '''
 
     def gen_everparse_param_type (self):
         """
@@ -76,6 +134,12 @@ class App:
         self.name = name
         self.type_defs = type_defs
         self.fn_defs = fn_defs
+
+    def write_verifier_code (self, file_path):
+        with open(file_path, 'a') as f:
+            for fn in self.fn_defs:
+                f.write('\n\n')
+                f.write(fn.gen_verifier_code())
 
 def gen_everparse_types (app):
     """

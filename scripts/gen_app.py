@@ -76,6 +76,15 @@ def get_dist_dir():
     dist_dir = dist_dir.resolve()
     return dist_dir
 
+def get_formats_temp_dir (app_dir):
+    return app_dir / '_formats'
+
+def get_formats_dir (app_dir):
+    return app_dir / 'formats'
+
+def get_verifier_dir (app_dir):
+    return app_dir / 'verifier'
+
 def copy_dist_dir(app_dir):
     dist_dir_src = get_dist_dir();
     dist_dir_dest = app_dir / 'dist'
@@ -88,12 +97,6 @@ def copy_everparse_includes (app_dir):
     dest = app_dir / 'everparse'
     print(f'Copying directory {everparse_home} -> {dest}')
     shutil.copytree(everparse_home, dest)
-
-def get_formats_temp_dir (app_dir):
-    return app_dir / '_formats'
-
-def get_formats_dir (app_dir):
-    return app_dir / 'formats'
 
 def gen_app_rfc (app_dir, a):
     formats_temp_dir = get_formats_temp_dir (app_dir)
@@ -135,19 +138,6 @@ def copy_formats_output (app_dir):
     dest_dir = get_formats_dir (app_dir)
     shutil.copytree(src_dir, dest_dir)
 
-def gen_formats_dir(app_dir, a):
-    print(f'Copying directory {get_formats_template_dir()} -> {get_formats_temp_dir(app_dir)}')
-    shutil.copytree(get_formats_template_dir(), get_formats_temp_dir(app_dir))
-    gen_app_rfc (app_dir, a)
-    build_formats(app_dir)
-    copy_formats_output(app_dir)
-
-def copy_global_cmake(app_dir):
-    src = get_template_dir() / 'global_cmake.txt'
-    dest = app_dir / 'CMakeLists.txt'
-    print(f'Copying {dest}')
-    shutil.copyfile(src = src, dst = dest)
-
 def copy_formats_cmake(app_dir, a):
     src = get_template_dir() / 'formats_cmake.txt'
     dest = app_dir / 'formats' / 'CMakeLists.txt'
@@ -158,6 +148,30 @@ def copy_formats_cmake(app_dir, a):
                 l = p.sub(a.name, l)
                 out_file.write(l)
 
+def gen_formats_dir(app_dir, a):
+    print(f'Copying directory {get_formats_template_dir()} -> {get_formats_temp_dir(app_dir)}')
+    shutil.copytree(get_formats_template_dir(), get_formats_temp_dir(app_dir))
+    gen_app_rfc (app_dir, a)
+    build_formats(app_dir)
+    copy_formats_output(app_dir)
+    copy_formats_cmake(app_dir, app)
+
+def gen_verifier_dir(app_dir, app):
+    verifier_dir = get_verifier_dir(app_dir)
+    print(f'Creating directory {verifier_dir}')
+    os.makedirs(verifier_dir)
+
+    app_c_template = get_template_dir() / 'app.c'
+    app_c = verifier_dir / 'app.c'
+    shutil.copy(app_c_template, app_c)
+    app.write_verifier_code(app_c)
+
+def copy_global_cmake(app_dir):
+    src = get_template_dir() / 'global_cmake.txt'
+    dest = app_dir / 'CMakeLists.txt'
+    print(f'Copying {dest}')
+    shutil.copyfile(src = src, dst = dest)
+
 def main():
     try:
         argparser = get_argparser()
@@ -166,9 +180,10 @@ def main():
         app_dir = create_app_dir(get_out_dir(args), app)
         copy_dist_dir(app_dir)
         copy_everparse_includes(app_dir)
-        gen_formats_dir(app_dir, app)
         copy_global_cmake(app_dir)
-        copy_formats_cmake(app_dir, app)
+        # gen_formats_dir(app_dir, app)
+        gen_verifier_dir(app_dir, app)
+
 
     except ValueError as e:
         print(e)

@@ -46,12 +46,40 @@ Zeta_Steel_Application_key_type_to_base_key(app_key_t k)
     return bk;
 }
 
-const app_key_t* get_record_key (const record_t* record)
+#define _CHECK(x)                                                              \
+  if (!(x)) {                                                                  \
+    return (verify_runapp_result){.tag = Run_app_verify_failure, .wrote = 0};  \
+  }
+
+const app_key_t* _get_record_key (const record_t* record)
 {
-    return &(record.key.case_ApplicationKey);
+    return &(record->key.case_ApplicationKey);
 }
 
-const app_val_t* get_record_val (const record_t* record)
+const app_val_t* _get_record_val (const record_t* record)
 {
-    return &(record.value.case_DValue.v);
+    return &(record->value.case_DValue.v);
+}
+
+void _set_record_val (vthread_state_t *t, slot_t s, const app_val_t* val)
+{
+    Zeta_Steel_LogEntry_Types_value new_val = {
+        .tag = Zeta_Steel_LogEntry_Types_DValue,
+        .case_DValue = {
+            .tag = FStar_Pervasives_Native_Some,
+            .v = *val
+        }
+    };
+
+    Zeta_Steel_Main_write_store (*t, s, new_val);
+}
+
+int _isnull (const record_t *record)
+{
+    return record->value.case_DValue.tag == FStar_Pervasives_Native_None;
+}
+
+int _isnonnull (const record_t *record)
+{
+    return !(_isnull(record));
 }
