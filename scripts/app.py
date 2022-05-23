@@ -22,6 +22,17 @@ def translate_is_null_calls (code):
     p = re.compile(r'_isnull\s*\(\s*(\w+)\s*\)')
     return p.sub(r'_isnull(&(_e_\1.v))', code)
 
+def translate_output_match (match_obj):
+    type_name = match_obj.group('name')
+    serializer = f'{type_name}_{type_name}_lserializer'.capitalize()
+    val = match_obj.group('val')
+    return f'''wrote = {serializer} ({val}, _out, _out_offset);
+    _out_offset += wrote'''
+
+def translate_output(code):
+    p = re.compile(r'_output_(?P<name>\w+)\s*\(\s*(?P<val>[\w\*]+)\s*\)')
+    return re.sub(p, translate_output_match, code)
+
 class StateFn:
     """
     A state transition function of the Zeta state machine.
@@ -54,6 +65,8 @@ class StateFn:
 
     def get_record_param_prefix (self, r):
         c = f'''
+    uint32_t wrote = 0;
+
     /* read the store entry corresponding to slot s_{r} */
     FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv _e_{r} =
         Zeta_Steel_Main_read_store(_t, _param.s_{r});
@@ -78,12 +91,16 @@ class StateFn:
 
         return c
 
+    def get_function_postfix (self):
+        return f'''return (verify_runapp_result) {{ .tag = Run_app_success, .wrote = wrote }};'''
+
     def translate_function_body(self):
         b = translate_check_statements(self.body)
         b = translate_key_calls(b)
         b = translate_val_calls(b)
         b = translate_set_val_calls(b)
         b = translate_is_null_calls(b)
+        b = translate_output(b)
         return b
 
     def gen_verifier_code (self):
@@ -95,6 +112,8 @@ class StateFn:
     {self.get_function_prefix()}
 
     {self.translate_function_body()}
+
+    {self.get_function_postfix()}
 }}
         '''
 

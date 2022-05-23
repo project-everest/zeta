@@ -34,7 +34,7 @@ uint64 incr_counter (app_key k, app_record r)
     _setvalue (r, new_val);
     
     /* output the previous value */
-    _output(*pval);
+    _output_app_val (*pval);
 }
 
 //----------------------------------------------------------------------
@@ -49,5 +49,5 @@ uint64 get_counter (app_key k, app_record r)
     _check (k == *pkey);
     
     /* output the previous value */
-    _output(*pval);
+    _output_app_val (*pval);
 }
