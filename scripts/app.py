@@ -69,7 +69,7 @@ class StateFn:
 
     /* read the store entry corresponding to slot s_{r} */
     FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv _e_{r} =
-        Zeta_Steel_Main_read_store(_t, _param.s_{r});
+        Zeta_Steel_Main_read_store(*_t, _param.s_{r});
 
     /* check: slot s_{r} is not empty */
     _CHECK(_e_{r}.tag != FStar_Pervasives_Native_None);

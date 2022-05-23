@@ -4,4 +4,12 @@ project(zeta_@app@ LANGUAGES CXX C VERSION 0.1)
 
 # zeta root directory
 cmake_path(SET ZETA_HOME NORMALIZE ${PROJECT_SOURCE_DIR})
+
+set (STORE_SIZE "16" CACHE STRING "Verifier per-thread store size")
+message (STATUS "verifier Store Size = ${STORE_SIZE}")
+
+set (THREAD_COUNT "1" CACHE STRING "Verifier thread count")
+message (STATUS "verifier Thread count = ${THREAD_COUNT}")
+
 add_subdirectory(formats)
+add_subdirectory(verifier)

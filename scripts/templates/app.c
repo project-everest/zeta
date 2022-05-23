@@ -2,6 +2,8 @@
 #include <Zeta_Steel_Main.h>
 #include <Zeta_Steel_Main.c>
 
+@format-includes@
+
 /* shorter name for thread state */
 typedef Zeta_Steel_VerifierTypes_thread_state_t vthread_state_t;
 
