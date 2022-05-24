@@ -79,6 +79,9 @@ class StateFn:
 
         return c
 
+    def get_param_prefix (self, t, n):
+        pass
+
     def get_function_prefix (self):
         c = f'''LowParse_Slice_slice _sl = {{ .base = _base, .len = _len }};
 
