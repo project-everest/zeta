@@ -42,18 +42,49 @@ def get_func_specs(spec_lines):
     for b,e in get_func_intervals(spec_lines):
         yield '\n'.join(spec_lines[b:e])
 
+# int *k; int * k; int* k
 def parse_func_param (spec):
-    tokens = spec.split()
-    if len(tokens) != 2:
+    param_pat = r'''
+      \s*
+      (?P<type>\w+)             # int
+      (?P<sp1>\s*)
+      (\*)?                     # *
+      (?P<sp2>\s*)
+      (?P<var>\w+)              # k
+    '''
+    param_regex = re.compile(param_pat, re.DOTALL | re.VERBOSE)
+    m = param_regex.match(spec)
+    if m == None:
         raise SyntaxError("invalid function parameter: " + spec)
-    return tokens[0], tokens[1]
+
+    if m.group('sp1') == '' and m.group('sp2') == '':
+        raise SyntaxError("invalid function parameter: " + spec)
+
+    return m.group('type'), m.group('var')
 
 def parse_func_params (params_spec):
     return [ parse_func_param(x) for x in params_spec.split(',')]
 
 def parse_func(func_spec):
-    fn_regex_pat = r'\s*(?P<comment>/\*.*\*/)?\s*(?P<out>\w+)\s+(?P<name>\w+)\s*\((?P<param>[^)]*)\)\s*\{(?P<body>.*)\}'
-    fn_regex = re.compile(fn_regex_pat, re.DOTALL)
+    fn_regex_pat = r'''
+      \s*
+      (?P<comment>/\*            # /*
+        .*                       # comment body
+      \*/)?                      # /*
+      \s*
+      (?P<out>\w+)               # void
+      \s+
+      (?P<name>\w+)              # foo
+      \s*
+      \(                         # (
+      (?P<param>[^)]*)           # int x, int y, ...
+      \)                         # )
+      \s*
+      \{                         # {
+      (?P<body>.*)               # printf ("Hello World\n");
+      \}                         # }
+      '''
+    fn_regex = re.compile(fn_regex_pat, re.DOTALL | re.VERBOSE)
     m = fn_regex.match(func_spec)
 
     if m == None:

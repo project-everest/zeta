@@ -33,6 +33,9 @@ def translate_output(code):
     p = re.compile(r'_output_(?P<name>\w+)\s*\(\s*(?P<val>[\w\*]+)\s*\)')
     return re.sub(p, translate_output_match, code)
 
+def get_everparse_type_c_name(t):
+    return f'{t}_{t}'.capitalize()
+
 class StateFn:
     """
     A state transition function of the Zeta state machine.
@@ -59,9 +62,7 @@ class StateFn:
         return f"{self.name}_param"
 
     def get_param_type (self):
-        param_name = self.everparse_param_name()
-        type_name = f'{param_name}_{param_name}'
-        return type_name.capitalize()
+        return get_everparse_type_c_name(self.everparse_param_name())
 
     def get_record_param_prefix (self, r):
         c = f'''
@@ -80,7 +81,7 @@ class StateFn:
         return c
 
     def get_param_prefix (self, t, n):
-        pass
+        return f'    {get_everparse_type_c_name(t)} *{n} = &(_param.{n});'
 
     def get_function_prefix (self):
         c = f'''LowParse_Slice_slice _sl = {{ .base = _base, .len = _len }};
@@ -88,10 +89,11 @@ class StateFn:
     {self.get_param_type()} _param = {self.get_param_type()}_reader (_sl, 0);'''
 
         for t,n in self.params:
+            c += '\n'
             if t == 'app_record':
-                c += '\n'
                 c += self.get_record_param_prefix(n)
-
+            else:
+                c += self.get_param_prefix(t,n)
         return c
 
     def get_function_postfix (self):

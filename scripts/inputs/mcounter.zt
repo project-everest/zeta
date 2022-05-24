@@ -4,13 +4,13 @@ uint64 app_val;
 //----------------------------------------------------------------------
 
 /* initialize a new counter for a specified key */
-void new_counter (app_key k, app_record r)
+void new_counter (app_key *k, app_record r)
 {
     const app_key_t *pkey = _key(r);
     app_val_t new_val = 0;
 
     /* we are operating on the correct record */
-    _check (k == *pkey);
+    _check (*k == *pkey);
 
     /* the value of the key is null (counter for key k does not exist) */
     _check (_isnull(r));
@@ -22,14 +22,14 @@ void new_counter (app_key k, app_record r)
 //----------------------------------------------------------------------
 
 /* update the counter for a key and return previous counter value */
-uint64 incr_counter (app_key k, app_record r)
+uint64 incr_counter (app_key *k, app_record r)
 {
     const app_key_t *pkey = _key(r);
     const app_val_t *prev_val = _val(r);
     app_val_t new_val = *prev_val + 1;
 
     /* we are operating on the correct record */
-    _check (k == *pkey);
+    _check (*k == *pkey);
 
     /* update the value of the record */
     _setvalue (r, new_val);
@@ -41,13 +41,13 @@ uint64 incr_counter (app_key k, app_record r)
 //----------------------------------------------------------------------
 
 /* output the counter for a key */
-uint64 get_counter (app_key k, app_record r)
+uint64 get_counter (app_key *k, app_record r)
 {
     const app_key_t *pkey = _key(r);
     const app_val_t *prev_val = _val(r);
 
     /* we are operating on the correct record */
-    _check (k == *pkey);
+    _check (*k == *pkey);
     
     /* output the previous value */
     _output_app_val (*prev_val);
