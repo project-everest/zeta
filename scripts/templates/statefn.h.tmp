@@ -3,24 +3,32 @@
     public:
         @constructor@
 
+        @if_output@
+        using out_t = @output_type@;
+        @end_if_output@
+
         const AppParam& GetParam() const override;
 
         const Record& GetRecord(int idx) const override;
 
-        const Value& GetPostValue(int idx) const override;
+        Value GetPostValue(int idx) const override;
 
         bool Touches(int idx) const override;
 
         void SetOutput(ReadLog& log) override;
 
-        Value::value_t GetOutput() const
+        @if_output@
+        const out_t *GetOutput() const
         {
             return out_;
         }
+        @end_if_output@
 
     private:
-        Key k_;
-        Record r_;
-        Value v_;
-        Value::value_t out_;
+
+        @param@
+
+        @if_output@
+        out_t out_;
+        @end_if_output@
     };

@@ -1,6 +1,7 @@
 """ Classes related to a Zeta application """
 
 import re
+from paths import *
 
 def translate_check_statements (code):
     p = re.compile(r'_check')
@@ -34,6 +35,8 @@ def translate_output(code):
     return re.sub(p, translate_output_match, code)
 
 def get_everparse_type_c_name(t):
+    if t == 'uint64':
+        return 'uint64_t'
     return f'{t}_{t}'.capitalize()
 
 class StateFn:
@@ -49,6 +52,9 @@ class StateFn:
         self.params = params
         self.body = body
         self.output = output
+
+    def has_output(self):
+        return self.output != 'void'
 
     def get_function_header (self):
         return f'''verify_runapp_result {self.name}
@@ -140,11 +146,69 @@ class StateFn:
 
         return s
 
+    def get_host_class_name (self):
+        return self.name.title()
+
+    def sub_name (self, code):
+        p = re.compile(r'@name@')
+        return p.sub(self.get_host_class_name(), code)
+
+    def get_host_class_constr_param (self):
+        code = ''
+        for t,n in self.params:
+            if code != '':
+                # non-first argument
+                code += f''',
+            '''
+            if t == 'app_record':
+                code += f'''const Record* {n}'''
+            else:
+                code += f'''const {get_everparse_type_c_name(t)}* {n}'''
+        return code
+
+    def sub_constr_param(self, code):
+        p = re.compile('@const_param@')
+        return p.sub(self.get_host_class_constr_param(), code)
+
+    def get_host_class_constr_decl (self):
+        tmp_file = get_template_dir() / 'statefn_constr.h.tmp'
+        with open(tmp_file) as tf:
+            code = tf.read()
+            code = self.sub_name(code)
+            code = self.sub_constr_param(code)
+            return code
+
+    def sub_constructor_decl (self, code):
+        p = re.compile(r'@constructor@')
+        return p.sub(self.get_host_class_constr_decl(), code)
+
+    def suppress_output_code_decl (self, code):
+        p = re.compile(r'@if_output@.*?@end_if_output@', re.DOTALL)
+        return p.sub('', code)
+
+    def remove_if_output_decl (self, code):
+        p = re.compile(r'@if_output@(.*?)@end_if_output@', re.DOTALL)
+        return p.sub(r'\1', code)
+
+    def sub_output_type_decl (self, code):
+        p = re.compile(r'@output_type@')
+        return p.sub(f'{get_everparse_type_c_name(self.output)}', code)
+
     def gen_host_decl (self):
         """
         Return a string C declaration of the class representing the function
         """
-        pass
+        tmp_file = get_template_dir() / 'statefn.h.tmp'
+        with open(tmp_file) as tf:
+            code = tf.read()
+            code = self.sub_name(code)
+            code = self.sub_constructor_decl(code)
+            if self.has_output():
+                code = self.sub_output_type_decl(code)
+                code = self.remove_if_output_decl(code)
+            else:
+                code = self.suppress_output_code_decl(code)
+            return code
 
     def gen_host_def (self):
         pass
@@ -164,6 +228,30 @@ class App:
             for fn in self.fn_defs:
                 f.write('\n\n')
                 f.write(fn.gen_verifier_code())
+
+    def sub_name (self, code):
+        p = re.compile('@app@')
+        return p.sub(self.name, code)
+
+    def get_statefn_host_decl (self):
+        code = ''
+        for fn in self.fn_defs:
+            code += '\n\n'
+            code += fn.gen_host_decl()
+        return code
+
+    def sub_host_statefn_decl (self, code):
+        p = re.compile('@app_statefn@')
+        return p.sub(self.get_statefn_host_decl(), code)
+
+    def write_host_decl (self, file_path):
+        tmp_file = get_template_dir() / 'app.h.tmp'
+        with open(tmp_file) as tf:
+            code = tf.read()
+            code = self.sub_name(code)
+            code = self.sub_host_statefn_decl(code)
+            with open(file_path, 'w') as out_file:
+                out_file.write(code)
 
 def gen_everparse_types (app):
     """

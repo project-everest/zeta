@@ -9,6 +9,7 @@ import subprocess
 import re
 import app
 import app_parse
+from paths import *
 
 def get_argparser():
     parser = argparse.ArgumentParser(description =
@@ -53,32 +54,6 @@ def create_app_dir(parent_dir, app):
     os.makedirs(app_dir)
     return app_dir
 
-def get_script_dir():
-    script_file = Path(__file__)
-    script_dir = script_file.parent.absolute()
-    return script_dir
-
-def get_zeta_root():
-    script_dir = get_script_dir()
-    zeta_dir = script_dir.parent
-    return zeta_dir
-
-def get_template_dir():
-    templates_dir = get_script_dir() / 'templates'
-    return templates_dir
-
-def get_formats_template_dir():
-    return get_template_dir() / '_formats'
-
-def get_verifier_template_dir():
-    return get_template_dir() / 'verifier'
-
-def get_dist_dir():
-    zeta_dir = get_zeta_root()
-    dist_dir = zeta_dir / 'steel' / 'dist'
-    dist_dir = dist_dir.resolve()
-    return dist_dir
-
 def get_formats_temp_dir (app_dir):
     return app_dir / '_formats'
 
@@ -87,6 +62,12 @@ def get_formats_dir (app_dir):
 
 def get_verifier_dir (app_dir):
     return app_dir / 'verifier'
+
+def get_hostgen_dir (app_dir):
+    return app_dir / 'hostgen'
+
+def get_hostapp_dir (app_dir):
+    return app_dir / 'hostapp'
 
 def copy_dist_dir(app_dir):
     dist_dir_src = get_dist_dir();
@@ -238,6 +219,20 @@ def copy_global_cmake(app_dir):
     print(f'Copying {dest}')
     shutil.copyfile(src = src, dst = dest)
 
+def gen_host_dir(app_dir, app):
+    hostgen_src = get_zeta_root() / 'apps' / 'host'
+    hostgen_dest = get_hostgen_dir(app_dir)
+    print(f'Copying directory {hostgen_src} -> {hostgen_dest}')
+    shutil.copytree(hostgen_src, hostgen_dest)
+
+    hostapp_dir = get_hostapp_dir(app_dir)
+    hostapp_tmp_dir = get_hostapp_template_dir()
+    print(f'Copying directory {hostapp_tmp_dir} -> {hostapp_dir}')
+    shutil.copytree(hostapp_tmp_dir, hostapp_dir)
+
+    app_h_file = hostapp_dir / 'app.h'
+    app.write_host_decl(app_h_file)
+
 def main():
     try:
         argparser = get_argparser()
@@ -247,8 +242,10 @@ def main():
         copy_dist_dir(app_dir)
         copy_everparse_includes(app_dir)
         copy_global_cmake(app_dir)
-        gen_formats_dir(app_dir, app)
-        gen_verifier_dir(app_dir, app)
+        #gen_formats_dir(app_dir, app)
+        #gen_verifier_dir(app_dir, app)
+        gen_host_dir(app_dir, app)
+
 
     except ValueError as e:
         print(e)

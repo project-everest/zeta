@@ -22,7 +22,7 @@ void new_counter (app_key *k, app_record r)
 //----------------------------------------------------------------------
 
 /* update the counter for a key and return previous counter value */
-uint64 incr_counter (app_key *k, app_record r)
+app_val incr_counter (app_key *k, app_record r)
 {
     const app_key_t *pkey = _key(r);
     const app_val_t *prev_val = _val(r);
