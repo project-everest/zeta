@@ -166,6 +166,17 @@ class StateFn:
                 code += f'''const {get_everparse_type_c_name(t)}* {n}'''
         return code
 
+    def get_host_param_member_decl (self):
+        code = ''
+        for t,n in self.params:
+            if t == 'app_record':
+                code += f'''
+        Record {n}_;'''
+            else:
+                code += f'''
+        {get_everparse_type_c_name(t)} {n}_;'''
+        return code
+
     def sub_constr_param(self, code):
         p = re.compile('@const_param@')
         return p.sub(self.get_host_class_constr_param(), code)
@@ -194,6 +205,10 @@ class StateFn:
         p = re.compile(r'@output_type@')
         return p.sub(f'{get_everparse_type_c_name(self.output)}', code)
 
+    def sub_param_member_decl (self, code):
+        p = re.compile(r'@param@')
+        return p.sub(f'{self.get_host_param_member_decl()}', code)
+
     def gen_host_decl (self):
         """
         Return a string C declaration of the class representing the function
@@ -203,6 +218,7 @@ class StateFn:
             code = tf.read()
             code = self.sub_name(code)
             code = self.sub_constructor_decl(code)
+            code = self.sub_param_member_decl(code)
             if self.has_output():
                 code = self.sub_output_type_decl(code)
                 code = self.remove_if_output_decl(code)

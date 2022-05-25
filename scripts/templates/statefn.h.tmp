@@ -1,3 +1,17 @@
+    class @name@;
+
+    class @name@_ParamSerializer : public AppParam
+    {
+    public:
+        @name@_ParamSerializer(const @name@* fn);
+        virtual size_t Serialize (uint8_t *buf, size_t size) const override;
+        virtual size_t SerializationLength() const override;
+        virtual void Serialize4Hash(Hasher& hasher) const override;
+
+    private:
+        const @name@* fn_;
+    };
+
     class @name@ : public AppTransFn
     {
     public:
@@ -7,7 +21,10 @@
         using out_t = @output_type@;
         @end_if_output@
 
-        const AppParam& GetParam() const override;
+        const AppParam& GetParam() const override
+        {
+            return paramSerializer_;
+        }
 
         const Record& GetRecord(int idx) const override;
 
@@ -26,8 +43,10 @@
 
     private:
 
-        @param@
+        friend class @name@_ParamSerializer;
 
+        @param@
+        @name@_ParamSerializer paramSerializer_;
         @if_output@
         out_t out_;
         @end_if_output@
