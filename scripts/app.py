@@ -227,7 +227,7 @@ class StateFn:
             return code
 
     def gen_host_def (self):
-        pass
+        return 'TBD'
 
 class App:
     """
@@ -266,6 +266,26 @@ class App:
             code = tf.read()
             code = self.sub_name(code)
             code = self.sub_host_statefn_decl(code)
+            with open(file_path, 'w') as out_file:
+                out_file.write(code)
+
+    def get_statefn_host_def (self):
+        code = ''
+        for fn in self.fn_defs:
+            code += '\n\n'
+            code += fn.gen_host_def()
+        return code
+
+    def sub_statefn_host_def (self, code):
+        p = re.compile('@app_statefn@')
+        return p.sub(self.get_statefn_host_def(), code)
+
+    def write_host_def (self, file_path):
+        tmp_file= get_template_dir() / 'app.cpp.tmp'
+        with open (tmp_file) as tf:
+            code = tf.read()
+            code = self.sub_name(code)
+            code = self.sub_statefn_host_def(code)
             with open(file_path, 'w') as out_file:
                 out_file.write(code)
 

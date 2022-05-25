@@ -15,7 +15,7 @@
     class @name@ : public AppTransFn
     {
     public:
-        @constructor@
+        @constructor@;
 
         @if_output@
         using out_t = @output_type@;

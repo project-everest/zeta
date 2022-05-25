@@ -1,0 +1,33 @@
+@name@::@constructor@
+    : AppTransFn { 1, 1, true }
+    , k_ { k }
+    , r_ { r }
+    , v_ { 1 + r_.GetValue()->Get() }
+    , out_ { 0 }
+{
+
+}
+
+const Record& Incr::GetRecord(int idx) const
+{
+    assert (idx == 0);
+    return r_;
+}
+
+const Value& Incr::GetPostValue(int idx) const
+{
+    assert (idx == 0);
+    return v_;
+}
+
+bool Incr::Touches(int idx) const
+{
+    assert (idx == 0);
+    return true;
+}
+
+
+void Incr::SetOutput(ReadLog& log)
+{
+    out_ = log.DeserializeBigEndian<Value::value_t>();
+}

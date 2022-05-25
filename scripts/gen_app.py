@@ -233,6 +233,9 @@ def gen_host_dir(app_dir, app):
     app_h_file = hostapp_dir / 'app.h'
     app.write_host_decl(app_h_file)
 
+    app_cpp_file = hostapp_dir / 'app.cpp'
+    app.write_host_def (app_cpp_file)
+
 def main():
     try:
         argparser = get_argparser()
