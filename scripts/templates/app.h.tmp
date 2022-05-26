@@ -8,7 +8,7 @@ extern "C" {
 namespace Zeta
 {
 
-namespace @app@
+namespace @name@
 {
 
     class Key : public AppKey
@@ -57,7 +57,7 @@ namespace @app@
         bool isNull_;
     };
 
-    @app_statefn@
+    @statefn_host_decl@
 
 }
 }

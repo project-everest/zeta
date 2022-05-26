@@ -6,7 +6,7 @@
 #include <app.h>
 
 using namespace Zeta;
-using namespace Zeta::@app@;
+using namespace Zeta::@name@;
 
 Key::Key(key_t k) : k_{k} {}
 
@@ -58,4 +58,4 @@ const Value* Record::GetValue() const
     return isNull_? nullptr : &value_;
 }
 
-@app_statefn@
+@statefn_host_def@

@@ -1,25 +1,29 @@
-    class @name@;
+    class @name_title@;
 
-    class @name@_ParamSerializer : public AppParam
+    class @name_title@_ParamSerializer : public AppParam
     {
     public:
-        @name@_ParamSerializer(const @name@* fn);
+        @name_title@_ParamSerializer(const @name_title@* fn);
         virtual size_t Serialize (uint8_t *buf, size_t size) const override;
         virtual size_t SerializationLength() const override;
         virtual void Serialize4Hash(Hasher& hasher) const override;
 
     private:
-        const @name@* fn_;
+        const @name_title@* fn_;
     };
 
-    class @name@ : public AppTransFn
+#define @indicate_has_output@
+
+    class @name_title@ : public AppTransFn
     {
     public:
-        @constructor@;
+        @name_title@ (
+            @c_param_list@
+        );
 
-        @if_output@
-        using out_t = @output_type@;
-        @end_if_output@
+#ifdef @has_output_indicator@
+        using out_t = @c_output_type@;
+#endif
 
         const AppParam& GetParam() const override
         {
@@ -34,20 +38,22 @@
 
         void SetOutput(ReadLog& log) override;
 
-        @if_output@
+#ifdef @has_output_indicator@
         const out_t *GetOutput() const
         {
             return out_;
         }
-        @end_if_output@
+#endif
 
     private:
 
-        friend class @name@_ParamSerializer;
+        friend class @name_title@_ParamSerializer;
 
-        @param@
-        @name@_ParamSerializer paramSerializer_;
-        @if_output@
+        @c_param_member_decl@
+
+        @name_title@_ParamSerializer paramSerializer_;
+
+#ifdef @has_output_indicator@
         out_t out_;
-        @end_if_output@
+#endif
     };

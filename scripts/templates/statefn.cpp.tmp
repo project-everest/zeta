@@ -1,33 +1,39 @@
-@name@::@constructor@
-    : AppTransFn { 1, 1, true }
-    , k_ { k }
-    , r_ { r }
-    , v_ { 1 + r_.GetValue()->Get() }
-    , out_ { 0 }
+@name_title@::@name_title@ (@c_param_list@)
+    : AppTransFn { @fnid@, @arity@, @has_output_bool@ }
+    @c_param_member_init@
 {
 
 }
 
-const Record& Incr::GetRecord(int idx) const
+const Record& @name_title@::GetRecord(int idx) const
 {
-    assert (idx == 0);
-    return r_;
+    assert (idx < @arity@);
+
+    @map_idx_record@
+
+    throw std::invalid_argument("invalid argument");
 }
 
-const Value& Incr::GetPostValue(int idx) const
+const Value& @name_title@::GetPostValue(int idx) const
 {
-    assert (idx == 0);
-    return v_;
+    assert (idx < @arity@);
+
+    // TODO: Implement
+
+    throw std::runtime_error("not implemented");
 }
 
-bool Incr::Touches(int idx) const
+bool @name_title@::Touches(int idx) const
 {
-    assert (idx == 0);
+    assert (idx < @arity@);
+
+    // TODO: Implement correct Touches for better performance
+    // by minimizing merkle tree updates
+
     return true;
 }
 
-
-void Incr::SetOutput(ReadLog& log)
+void @name_title@::SetOutput(ReadLog& log)
 {
-    out_ = log.DeserializeBigEndian<Value::value_t>();
+    out_ = @c_output_type@_reader();
 }

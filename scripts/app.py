@@ -56,6 +56,45 @@ class StateFn:
     def has_output(self):
         return self.output != 'void'
 
+    def has_output_indicator(self):
+        return f"_HAS_OUTPUT_{self.name_title()}"
+
+    def indicate_has_output (self):
+        if self.has_output():
+            return self.has_output_indicator()
+        else:
+            return f"_HAS_NO_OUTPUT_{self.name_title()}"
+
+    def name_title(self):
+        return self.name.title()
+
+    def c_param_list (self):
+        code = ''
+        for t,n in self.params:
+            if code != '':
+                # non-first argument
+                code += f''',
+            '''
+            if t == 'app_record':
+                code += f'''const Record* {n}'''
+            else:
+                code += f'''const {get_everparse_type_c_name(t)}* {n}'''
+        return code
+
+    def c_param_member_decl (self):
+        code = ''
+        for t,n in self.params:
+            if t == 'app_record':
+                code += f'''
+        Record {n}_;'''
+            else:
+                code += f'''
+        {get_everparse_type_c_name(t)} {n}_;'''
+        return code
+
+    def c_output_type (self):
+        return get_everparse_type_c_name(self.output)
+
     def get_function_header (self):
         return f'''verify_runapp_result {self.name}
 (
@@ -146,68 +185,29 @@ class StateFn:
 
         return s
 
-    def get_host_class_name (self):
-        return self.name.title()
+    def sub_name_title (self, code):
+        p = re.compile(r'@name_title@')
+        return p.sub(self.name_title(), code)
 
-    def sub_name (self, code):
-        p = re.compile(r'@name@')
-        return p.sub(self.get_host_class_name(), code)
+    def sub_indicate_has_output (self, code):
+        p = re.compile(r'@indicate_has_output@')
+        return p.sub(self.indicate_has_output(), code)
 
-    def get_host_class_constr_param (self):
-        code = ''
-        for t,n in self.params:
-            if code != '':
-                # non-first argument
-                code += f''',
-            '''
-            if t == 'app_record':
-                code += f'''const Record* {n}'''
-            else:
-                code += f'''const {get_everparse_type_c_name(t)}* {n}'''
-        return code
+    def sub_has_output_indicator (self, code):
+        p = re.compile(r'@has_output_indicator@')
+        return p.sub(self.has_output_indicator(), code)
 
-    def get_host_param_member_decl (self):
-        code = ''
-        for t,n in self.params:
-            if t == 'app_record':
-                code += f'''
-        Record {n}_;'''
-            else:
-                code += f'''
-        {get_everparse_type_c_name(t)} {n}_;'''
-        return code
+    def sub_c_param_list(self, code):
+        p = re.compile('@c_param_list@')
+        return p.sub(self.c_param_list(), code)
 
-    def sub_constr_param(self, code):
-        p = re.compile('@const_param@')
-        return p.sub(self.get_host_class_constr_param(), code)
+    def sub_c_output_type_decl (self, code):
+        p = re.compile(r'@c_output_type@')
+        return p.sub(f'{self.c_output_type()}', code)
 
-    def get_host_class_constr_decl (self):
-        tmp_file = get_template_dir() / 'statefn_constr.h.tmp'
-        with open(tmp_file) as tf:
-            code = tf.read()
-            code = self.sub_name(code)
-            code = self.sub_constr_param(code)
-            return code
-
-    def sub_constructor_decl (self, code):
-        p = re.compile(r'@constructor@')
-        return p.sub(self.get_host_class_constr_decl(), code)
-
-    def suppress_output_code_decl (self, code):
-        p = re.compile(r'@if_output@.*?@end_if_output@', re.DOTALL)
-        return p.sub('', code)
-
-    def remove_if_output_decl (self, code):
-        p = re.compile(r'@if_output@(.*?)@end_if_output@', re.DOTALL)
-        return p.sub(r'\1', code)
-
-    def sub_output_type_decl (self, code):
-        p = re.compile(r'@output_type@')
-        return p.sub(f'{get_everparse_type_c_name(self.output)}', code)
-
-    def sub_param_member_decl (self, code):
-        p = re.compile(r'@param@')
-        return p.sub(f'{self.get_host_param_member_decl()}', code)
+    def sub_c_param_member_decl (self, code):
+        p = re.compile(r'@c_param_member_decl@')
+        return p.sub(f'{self.c_param_member_decl()}', code)
 
     def gen_host_decl (self):
         """
@@ -216,14 +216,12 @@ class StateFn:
         tmp_file = get_template_dir() / 'statefn.h.tmp'
         with open(tmp_file) as tf:
             code = tf.read()
-            code = self.sub_name(code)
-            code = self.sub_constructor_decl(code)
-            code = self.sub_param_member_decl(code)
-            if self.has_output():
-                code = self.sub_output_type_decl(code)
-                code = self.remove_if_output_decl(code)
-            else:
-                code = self.suppress_output_code_decl(code)
+            code = self.sub_name_title(code)
+            code = self.sub_has_output_indicator(code)
+            code = self.sub_indicate_has_output(code)
+            code = self.sub_c_param_list(code)
+            code = self.sub_c_param_member_decl(code)
+            code = self.sub_c_output_type_decl(code)
             return code
 
     def gen_host_def (self):
@@ -245,40 +243,40 @@ class App:
                 f.write('\n\n')
                 f.write(fn.gen_verifier_code())
 
-    def sub_name (self, code):
-        p = re.compile('@app@')
-        return p.sub(self.name, code)
-
-    def get_statefn_host_decl (self):
+    def statefn_host_decl (self):
         code = ''
         for fn in self.fn_defs:
             code += '\n\n'
             code += fn.gen_host_decl()
         return code
 
-    def sub_host_statefn_decl (self, code):
-        p = re.compile('@app_statefn@')
-        return p.sub(self.get_statefn_host_decl(), code)
-
-    def write_host_decl (self, file_path):
-        tmp_file = get_template_dir() / 'app.h.tmp'
-        with open(tmp_file) as tf:
-            code = tf.read()
-            code = self.sub_name(code)
-            code = self.sub_host_statefn_decl(code)
-            with open(file_path, 'w') as out_file:
-                out_file.write(code)
-
-    def get_statefn_host_def (self):
+    def statefn_host_def (self):
         code = ''
         for fn in self.fn_defs:
             code += '\n\n'
             code += fn.gen_host_def()
         return code
 
+    def sub_name (self, code):
+        p = re.compile('@name@')
+        return p.sub(self.name, code)
+
+    def sub_statefn_host_decl (self, code):
+        p = re.compile('@statefn_host_decl@')
+        return p.sub(self.statefn_host_decl(), code)
+
+    def write_host_decl (self, file_path):
+        tmp_file = get_template_dir() / 'app.h.tmp'
+        with open(tmp_file) as tf:
+            code = tf.read()
+            code = self.sub_name(code)
+            code = self.sub_statefn_host_decl(code)
+            with open(file_path, 'w') as out_file:
+                out_file.write(code)
+
     def sub_statefn_host_def (self, code):
-        p = re.compile('@app_statefn@')
-        return p.sub(self.get_statefn_host_def(), code)
+        p = re.compile('@statefn_host_def@')
+        return p.sub(self.statefn_host_def(), code)
 
     def write_host_def (self, file_path):
         tmp_file= get_template_dir() / 'app.cpp.tmp'
