@@ -64,6 +64,11 @@ namespace Zeta
 
         size_t LeftToRead() const;
 
+        const uint8_t* Current() const
+        {
+            return cur_;
+        }
+
     private:
         const uint8_t *cur_;
         const uint8_t *const bufEnd_;

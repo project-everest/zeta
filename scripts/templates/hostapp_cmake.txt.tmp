@@ -1,15 +1,15 @@
 file(GLOB SRC
   "*.cpp" "*.c")
 
-add_library(mcounter-host
+add_library(@name@-host
    ${SRC})
 
-target_include_directories(mcounter-host
+target_include_directories(@name@-host
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_link_libraries(mcounter-host
-  PUBLIC mcounter-format
+target_link_libraries(@name@-host
+  PUBLIC @name@-format
   PUBLIC zetastub
-  PRIVATE mcounter-verifier
+  PRIVATE @name@-verifier
 )

@@ -97,7 +97,7 @@ def build_formats (app_dir):
     if 'EVERPARSE_HOME' not in os.environ:
         raise ValueError('EVERPARSE_HOME not set')
     print('checked FSTAR_HOME and EVERPARSE_HOME set')
-    with subprocess.Popen(['make'],
+    with subprocess.Popen(['make', '-j', '2'],
                           stdout = subprocess.PIPE,
                           stderr = subprocess.PIPE,
                           cwd = get_formats_temp_dir(app_dir)) as bp:
@@ -219,11 +219,33 @@ def copy_global_cmake(app_dir):
     print(f'Copying {dest}')
     shutil.copyfile(src = src, dst = dest)
 
+def gen_hostgen_cmake (app_dir, app):
+    hostgen_cmake = get_hostgen_dir(app_dir) / 'CMakeLists.txt'
+    os.remove(hostgen_cmake)
+
+    hostgen_cmake_tmp = get_template_dir() / 'hostgen_cmake.txt.tmp'
+    with open (hostgen_cmake_tmp) as tf:
+        text = tf.read()
+        text = app.transform_text(text)
+        with open (hostgen_cmake, 'w') as f:
+            f.write(text)
+
+def gen_hostapp_cmake (app_dir, app):
+    hostapp_cmake = get_hostapp_dir(app_dir) / 'CMakeLists.txt'
+    hostapp_cmake_tmp = get_template_dir() / 'hostapp_cmake.txt.tmp'
+
+    with open (hostapp_cmake_tmp) as tf:
+        text = tf.read()
+        text = app.transform_text(text)
+        with open (hostapp_cmake, 'w') as f:
+            f.write(text)
+
 def gen_host_dir(app_dir, app):
     hostgen_src = get_zeta_root() / 'apps' / 'host'
     hostgen_dest = get_hostgen_dir(app_dir)
     print(f'Copying directory {hostgen_src} -> {hostgen_dest}')
     shutil.copytree(hostgen_src, hostgen_dest)
+    gen_hostgen_cmake(app_dir, app)
 
     hostapp_dir = get_hostapp_dir(app_dir)
     hostapp_tmp_dir = get_hostapp_template_dir()
@@ -235,6 +257,13 @@ def gen_host_dir(app_dir, app):
 
     app_cpp_file = hostapp_dir / 'app.cpp'
     app.write_host_def (app_cpp_file)
+    gen_hostapp_cmake(app_dir, app)
+
+def copy_config_file (app_dir):
+    config_file = 'zeta_config.h.in'
+    src = get_zeta_root() / config_file
+    dest = app_dir / config_file
+    shutil.copy(src, dest)
 
 def main():
     try:
@@ -245,10 +274,10 @@ def main():
         copy_dist_dir(app_dir)
         copy_everparse_includes(app_dir)
         copy_global_cmake(app_dir)
-        #gen_formats_dir(app_dir, app)
-        #gen_verifier_dir(app_dir, app)
+        gen_formats_dir(app_dir, app)
+        gen_verifier_dir(app_dir, app)
         gen_host_dir(app_dir, app)
-
+        copy_config_file (app_dir)
 
     except ValueError as e:
         print(e)

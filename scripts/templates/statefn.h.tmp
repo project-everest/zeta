@@ -32,7 +32,7 @@
 
         const Record& GetRecord(int idx) const override;
 
-        Value GetPostValue(int idx) const override;
+        const Value& GetPostValue(int idx) const override;
 
         bool Touches(int idx) const override;
 
@@ -41,7 +41,7 @@
 #ifdef @has_output_indicator@
         const out_t *GetOutput() const
         {
-            return out_;
+            return &out_;
         }
 #endif
 

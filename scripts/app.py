@@ -97,19 +97,19 @@ class StateFn:
         return get_everparse_type_c_name(self.output)
 
     def arity (self):
-        rec_params = [ (t,n) for t,n in self.params ]
+        rec_params = [ (t,n) for t,n in self.params if t == 'app_record']
         return len (rec_params)
 
     def c_param_member_init (self):
         code = ''
         for t,n in self.params:
             code += f'''
-    , {n}_ {{ {n} }}'''
+    , {n}_ {{ *{n} }}'''
         return code
 
     def map_idx_record (self):
         code = ''
-        rec_params = [ (t,n) for t,n in self.params ]
+        rec_params = [ (t,n) for t,n in self.params if t == 'app_record' ]
         for i,(_,n) in enumerate(rec_params):
             code += f'''
     if (idx == {i}) return {n}_;
@@ -277,6 +277,8 @@ class StateFn:
             code = self.sub_c_param_member_init(code)
             code = self.sub_c_param_list(code)
             code = self.sub_map_idx_record(code)
+            code = self.sub_has_output_indicator(code)
+            code = self.sub_indicate_has_output(code)
         return code
 
 class App:
@@ -309,6 +311,12 @@ class App:
             code += fn.gen_host_def()
         return code
 
+    def fncount (self):
+        return len(self.fn_defs)
+
+    def max_arity(self):
+        return max ([ fn.arity() for fn in self.fn_defs ])
+
     def sub_name (self, code):
         p = re.compile('@name@')
         return p.sub(self.name, code)
@@ -317,25 +325,39 @@ class App:
         p = re.compile('@statefn_host_decl@')
         return p.sub(self.statefn_host_decl(), code)
 
+    def sub_statefn_host_def (self, code):
+        p = re.compile('@statefn_host_def@')
+        return p.sub(self.statefn_host_def(), code)
+
+    def sub_fncount (self, code):
+        p = re.compile('@fncount@')
+        return p.sub(str(self.fncount()), code)
+
+    def sub_max_arity (self, code):
+        p = re.compile(r'@max_arity@')
+        return p.sub(str(self.max_arity()), code)
+
+    def transform_text (self, text):
+        text = self.sub_name(text)
+        text = self.sub_statefn_host_def(text)
+        text = self.sub_statefn_host_decl(text)
+        text = self.sub_fncount(text)
+        text = self.sub_max_arity(text)
+        return text
+
     def write_host_decl (self, file_path):
         tmp_file = get_template_dir() / 'app.h.tmp'
         with open(tmp_file) as tf:
             code = tf.read()
-            code = self.sub_name(code)
-            code = self.sub_statefn_host_decl(code)
+            code = self.transform_text(code)
             with open(file_path, 'w') as out_file:
                 out_file.write(code)
-
-    def sub_statefn_host_def (self, code):
-        p = re.compile('@statefn_host_def@')
-        return p.sub(self.statefn_host_def(), code)
 
     def write_host_def (self, file_path):
         tmp_file= get_template_dir() / 'app.cpp.tmp'
         with open (tmp_file) as tf:
             code = tf.read()
-            code = self.sub_name(code)
-            code = self.sub_statefn_host_def(code)
+            code = self.transform_text(code)
             with open(file_path, 'w') as out_file:
                 out_file.write(code)
 
