@@ -96,6 +96,26 @@ class StateFn:
     def c_output_type (self):
         return get_everparse_type_c_name(self.output)
 
+    def arity (self):
+        rec_params = [ (t,n) for t,n in self.params ]
+        return len (rec_params)
+
+    def c_param_member_init (self):
+        code = ''
+        for t,n in self.params:
+            code += f'''
+    , {n}_ {{ {n} }}'''
+        return code
+
+    def map_idx_record (self):
+        code = ''
+        rec_params = [ (t,n) for t,n in self.params ]
+        for i,(_,n) in enumerate(rec_params):
+            code += f'''
+    if (idx == {i}) return {n}_;
+'''
+        return code
+
     def get_function_header (self):
         return f'''verify_runapp_result {self.name}
 (
@@ -190,6 +210,14 @@ class StateFn:
         p = re.compile(r'@id@')
         return p.sub(str(self.id), code)
 
+    def sub_arity (self, code):
+        p = re.compile(r'@arity@')
+        return p.sub(str(self.arity()), code)
+
+    def sub_has_output (self, code):
+        p = re.compile(r'@has_output@')
+        return p.sub(str(self.has_output()).lower(), code)
+
     def sub_name_title (self, code):
         p = re.compile(r'@name_title@')
         return p.sub(self.name_title(), code)
@@ -214,6 +242,14 @@ class StateFn:
         p = re.compile(r'@c_param_member_decl@')
         return p.sub(f'{self.c_param_member_decl()}', code)
 
+    def sub_c_param_member_init (self, code):
+        p = re.compile(r'@c_param_member_init@')
+        return p.sub(f'{self.c_param_member_init()}', code)
+
+    def sub_map_idx_record (self, code):
+        p = re.compile(r'@map_idx_record@')
+        return p.sub(f'{self.map_idx_record()}', code)
+
     def gen_host_decl (self):
         """
         Return a string C declaration of the class representing the function
@@ -234,8 +270,13 @@ class StateFn:
         with open(tmp_file) as tf:
             code = tf.read()
             code = self.sub_id(code)
+            code = self.sub_arity(code)
+            code = self.sub_has_output(code)
             code = self.sub_name_title(code)
             code = self.sub_c_output_type (code)
+            code = self.sub_c_param_member_init(code)
+            code = self.sub_c_param_list(code)
+            code = self.sub_map_idx_record(code)
         return code
 
 class App:
