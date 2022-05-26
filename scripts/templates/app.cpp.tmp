@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <app.h>
+#include <byteswap.h>
 
 using namespace Zeta;
 using namespace Zeta::@name@;
@@ -56,6 +57,18 @@ const Key &Record::GetKey() const { return key_; }
 const Value* Record::GetValue() const
 {
     return isNull_? nullptr : &value_;
+}
+
+static uint32_t uint64_t_jumper(Lowparse_Slice_slice sl, uint32_t pos)
+{
+    return sizeof(uint64_t);
+}
+
+static uint64_t uint64_t_reader(Lowparse_Slice_slice sl, uint32_t pos)
+{
+    uint64_t r;
+    memcpy(reinterpret_cast<uint8_t*>(&r), sl.base + pos, sizeof(uint64_t));
+    return bswap_64(r);
 }
 
 @statefn_host_def@

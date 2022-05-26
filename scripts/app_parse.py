@@ -65,7 +65,7 @@ def parse_func_param (spec):
 def parse_func_params (params_spec):
     return [ parse_func_param(x) for x in params_spec.split(',')]
 
-def parse_func(func_spec):
+def parse_func(id, func_spec):
     fn_regex_pat = r'''
       \s*
       (?P<comment>/\*            # /*
@@ -103,7 +103,7 @@ def parse_func(func_spec):
         # body of the function
         body = m.group('body')
 
-        return app.StateFn(name, params, out_t, body)
+        return app.StateFn(id, name, params, out_t, body)
 
     except IndexError:
         raise SyntaxError("syntax error in function: " + func_spec)
@@ -113,5 +113,5 @@ def parse_app (name, spec_lines):
     spec_lines = [ l.rstrip() for l in spec_lines ]
 
     type_defs = get_type_defs(spec_lines)
-    fn_defs = list(parse_func(fspec) for fspec in get_func_specs (spec_lines))
+    fn_defs = list(parse_func(id, fspec) for id, fspec in enumerate(get_func_specs (spec_lines)))
     return app.App(name, type_defs, fn_defs)

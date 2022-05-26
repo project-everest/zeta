@@ -47,7 +47,8 @@ class StateFn:
         name: name of the function
         params: non-record input parameters
     """
-    def __init__ (self, name, params, output, body):
+    def __init__ (self, id, name, params, output, body):
+        self.id = id
         self.name = name
         self.params = params
         self.body = body
@@ -185,6 +186,10 @@ class StateFn:
 
         return s
 
+    def sub_id (self, code):
+        p = re.compile(r'@id@')
+        return p.sub(str(self.id), code)
+
     def sub_name_title (self, code):
         p = re.compile(r'@name_title@')
         return p.sub(self.name_title(), code)
@@ -201,7 +206,7 @@ class StateFn:
         p = re.compile('@c_param_list@')
         return p.sub(self.c_param_list(), code)
 
-    def sub_c_output_type_decl (self, code):
+    def sub_c_output_type (self, code):
         p = re.compile(r'@c_output_type@')
         return p.sub(f'{self.c_output_type()}', code)
 
@@ -221,11 +226,17 @@ class StateFn:
             code = self.sub_indicate_has_output(code)
             code = self.sub_c_param_list(code)
             code = self.sub_c_param_member_decl(code)
-            code = self.sub_c_output_type_decl(code)
+            code = self.sub_c_output_type (code)
             return code
 
     def gen_host_def (self):
-        return 'TBD'
+        tmp_file = get_template_dir() / 'statefn.cpp.tmp'
+        with open(tmp_file) as tf:
+            code = tf.read()
+            code = self.sub_id(code)
+            code = self.sub_name_title(code)
+            code = self.sub_c_output_type (code)
+        return code
 
 class App:
     """

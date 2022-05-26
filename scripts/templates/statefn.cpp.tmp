@@ -1,5 +1,5 @@
 @name_title@::@name_title@ (@c_param_list@)
-    : AppTransFn { @fnid@, @arity@, @has_output_bool@ }
+    : AppTransFn { @id@, @arity@, @has_output_bool@ }
     @c_param_member_init@
 {
 
@@ -18,7 +18,7 @@ const Value& @name_title@::GetPostValue(int idx) const
 {
     assert (idx < @arity@);
 
-    // TODO: Implement
+    // TODO: Implement: needed for correct merkle updates
 
     throw std::runtime_error("not implemented");
 }
@@ -35,5 +35,8 @@ bool @name_title@::Touches(int idx) const
 
 void @name_title@::SetOutput(ReadLog& log)
 {
-    out_ = @c_output_type@_reader();
+    LowParse_Slice_slice inp(log.Current(), log.LeftToRead());
+    uint32_t len = @c_output_type@_jumper(inp, 0);
+    out_ = @c_output_type@_reader(inp, 0);
+    log.DeserializeBuf(len);
 }
