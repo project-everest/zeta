@@ -28,3 +28,6 @@ def get_dist_dir():
 
 def get_hostapp_template_dir():
     return get_template_dir() / 'hostapp'
+
+def get_config_file():
+    return get_script_dir() / 'config.txt'

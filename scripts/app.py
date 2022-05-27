@@ -39,6 +39,20 @@ def get_everparse_type_c_name(t):
         return 'uint64_t'
     return f'{t}_{t}'.capitalize()
 
+
+class Param:
+    def __init__ (self, tname, vname):
+        self.tname = tname
+        self.vname = vname
+
+        if tname == 'app_record':
+            self.tname_or_slot = 'slot';
+            self.vname_or_slot = f's_{vname}'
+        else:
+            self.tname_or_slot = tname;
+            self.vname_or_slot = vname
+
+
 class StateFn:
     """
     A state transition function of the Zeta state machine.
@@ -53,6 +67,7 @@ class StateFn:
         self.params = params
         self.body = body
         self.output = output
+        self.everparse_param_name = f'{name}_param'
 
     def has_output(self):
         return self.output != 'void'
@@ -124,11 +139,9 @@ class StateFn:
     vthread_state_t *_t
 )'''
 
-    def everparse_param_name (self):
-        return f"{self.name}_param"
 
     def get_param_type (self):
-        return get_everparse_type_c_name(self.everparse_param_name())
+        return get_everparse_type_c_name(self.everparse_param_name)
 
     def get_record_param_prefix (self, r):
         c = f'''
@@ -202,7 +215,7 @@ class StateFn:
 
             s += f'  {t} {n};\n'
 
-        s += f'}} {self.everparse_param_name()};\n'
+        s += f'}} {self.everparse_param_name};\n'
 
         return s
 
@@ -286,10 +299,13 @@ class App:
     A zeta application
     """
     def __init__ (self, name, type_defs, fn_defs):
-
         self.name = name
         self.type_defs = type_defs
         self.fn_defs = fn_defs
+        self.everparse_headers = None
+
+    def set_everparse_headers (self, formats_dir):
+        self.everparse_headers = formats_dir.glob('*.h')
 
     def write_verifier_code (self, file_path):
         with open(file_path, 'a') as f:
@@ -360,22 +376,3 @@ class App:
             code = self.transform_text(code)
             with open(file_path, 'w') as out_file:
                 out_file.write(code)
-
-def gen_everparse_types (app):
-    """
-    Generate the text with everparse definitions for the app
-    """
-
-    # carry over the type definitions specified in the app
-    s = '/* Application specified types */\n'
-    s += app.type_defs + "\n"
-
-    # add the type definition for a slot
-    s += '/* Slot type */\n'
-    s += 'uint16 slot;\n\n'
-
-    # add type defs for state transition functions
-    s += '/* Application state transition function parameter types */\n'
-    for f in app.fn_defs:
-        s += f.gen_everparse_param_type() + '\n'
-    return s

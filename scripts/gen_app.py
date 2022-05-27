@@ -10,6 +10,7 @@ import re
 import app
 import app_parse
 from paths import *
+import sys
 
 def get_argparser():
     parser = argparse.ArgumentParser(description =
@@ -20,6 +21,7 @@ def get_argparser():
     parser.add_argument('-o', '--out_dir',
                         help='output directory (default: the current directory)')
     parser.add_argument('-n', '--name', help='name of the application (default: filename)')
+    parser.add_argument('-f', '--force', action='store_true', help='force delete output directory if exists')
     return parser
 
 def get_name_from_input(inp_file):
@@ -46,14 +48,6 @@ def get_out_dir(args):
 def get_app_dir(parent_dir, app):
     return parent_dir / app.name
 
-def create_app_dir(parent_dir, app):
-    app_dir = get_app_dir (parent_dir, app)
-    if os.path.exists (app_dir):
-        raise ValueError("directory " + app_dir + " exists")
-    print(f'Creating directory {app_dir}')
-    os.makedirs(app_dir)
-    return app_dir
-
 def get_formats_temp_dir (app_dir):
     return app_dir / '_formats'
 
@@ -69,28 +63,7 @@ def get_hostgen_dir (app_dir):
 def get_hostapp_dir (app_dir):
     return app_dir / 'hostapp'
 
-def copy_dist_dir(app_dir):
-    dist_dir_src = get_dist_dir();
-    dist_dir_dest = app_dir / 'dist'
-    print(f'Copying directory {dist_dir_src} -> {dist_dir_dest}')
-    shutil.copytree(dist_dir_src, dist_dir_dest)
-
-def copy_everparse_includes (app_dir):
-    everparse_home = Path(os.environ['EVERPARSE_HOME']) / 'include'
-    print(f'Everparse Home: {everparse_home}')
-    dest = app_dir / 'everparse'
-    print(f'Copying directory {everparse_home} -> {dest}')
-    shutil.copytree(everparse_home, dest)
-
-def gen_app_rfc (app_dir, a):
-    formats_temp_dir = get_formats_temp_dir (app_dir)
-    app_rfc_file = formats_temp_dir / 'App.rfc'
-
-    with open(app_rfc_file, mode = 'w') as app_rfc_file:
-        app_rfc_file.write(app.gen_everparse_types(a))
-    return app_rfc_file
-
-def build_formats (app_dir):
+def build_formats (app_dir,_):
     # Check FSTAR_HOME and EVERPARSE_HOME environment vars are set
     if 'FSTAR_HOME' not in os.environ:
         raise ValueError('FSTAR_HOME not set')
@@ -117,31 +90,9 @@ def build_formats (app_dir):
         if bp.returncode != 0:
             raise ValueError(f'Everparse make fail (return code = {bp.returncode})')
 
-def copy_formats_output (app_dir):
-    src_dir = get_formats_temp_dir(app_dir) / 'out'
-    dest_dir = get_formats_dir (app_dir)
-    shutil.copytree(src_dir, dest_dir)
-
-def translate_cmake_file (src, dest, a):
-    p = re.compile(r'@app@')
-    with open(src) as inp_file:
-        with open(dest, 'w') as out_file:
-            for l in inp_file.readlines():
-                l = p.sub(a.name, l)
-                out_file.write(l)
-
-def copy_formats_cmake(app_dir, a):
-    src = get_template_dir() / 'formats_cmake.txt'
-    dest = app_dir / 'formats' / 'CMakeLists.txt'
-    translate_cmake_file(src, dest, a)
-
-def gen_formats_dir(app_dir, a):
-    print(f'Copying directory {get_formats_template_dir()} -> {get_formats_temp_dir(app_dir)}')
-    shutil.copytree(get_formats_template_dir(), get_formats_temp_dir(app_dir))
-    gen_app_rfc (app_dir, a)
-    build_formats(app_dir)
-    copy_formats_output(app_dir)
-    copy_formats_cmake(app_dir, a)
+def set_everparse_headers (app_dir, app):
+    formats_dir = app_dir / 'formats'
+    app.set_everparse_headers (formats_dir)
 
 def copy_verifier_cmake(app_dir, a):
     src = get_template_dir() / 'verifier_cmake.txt'
@@ -213,12 +164,6 @@ def gen_verifier_dir(app_dir, app):
     copy_verifier_cmake(app_dir, app)
     gen_zeta_app_types_h (app_dir, app)
 
-def copy_global_cmake(app_dir):
-    src = get_template_dir() / 'global_cmake.txt'
-    dest = app_dir / 'CMakeLists.txt'
-    print(f'Copying {dest}')
-    shutil.copyfile(src = src, dst = dest)
-
 def gen_hostgen_cmake (app_dir, app):
     hostgen_cmake = get_hostgen_dir(app_dir) / 'CMakeLists.txt'
     os.remove(hostgen_cmake)
@@ -265,19 +210,117 @@ def copy_config_file (app_dir):
     dest = app_dir / config_file
     shutil.copy(src, dest)
 
+def expand_env_var (src):
+    p = re.compile(r'\$\((?P<ev>.*?)\)')
+    return p.sub(lambda x: os.environ[x.group('ev')], src)
+
+def expand_path (app_dir, p):
+    p = p.replace('@app_dir@', str(app_dir))
+    p = expand_env_var(p)
+
+    if os.path.isabs(p):
+        return Path(p).resolve()
+    else:
+        p = get_script_dir() / p
+        return p.resolve()
+
+def get_attribute (obj, attr):
+    print(f'get_attr {obj} {attr}')
+    if attr == '_':
+        return str(obj)
+    else:
+        return str(getattr(obj, attr))
+
+def iter_interpolate (obj, attr, template, sep):
+    sep = sep.replace('n', '\n')
+    if template[0:5] == 'file:':
+        template_file = get_template_dir() / template[5:]
+        template = template_file.read_text()
+
+    return sep.join([interpolate(o, template) for o in getattr(obj, attr)])
+
+pat_iter_interp = re.compile(r'''
+@@
+(?P<attr>[^|]*)
+\|
+(?P<file>[^|]*)
+\|
+(?P<sep>[^|]*)
+@@
+''', re.VERBOSE)
+
+pat_interp = re.compile(r'@(?P<attr>.*?)@')
+
+def interpolate (obj, template):
+    text = pat_iter_interp.sub (lambda m: iter_interpolate (obj,
+                                                            m.group('attr'),
+                                                            m.group('file'),
+                                                            m.group('sep')),
+                                template)
+    text = pat_interp.sub (lambda m: get_attribute (obj, m.group('attr')), text)
+    return text
+
+def process_config_file (app_dir, app):
+    with open(get_config_file()) as f:
+        for l in f.readlines():
+
+            l = l.strip()
+
+            if len(l) == 0:
+                continue
+
+            # ignore commented lines
+            if l[0] == '#':
+                continue
+
+            p = l.split()
+
+            # a single token implies a command
+            if len(p) == 1:
+                globals()[p[0]](app_dir, app)
+                continue
+
+            if len(p) != 2:
+                raise SyntaxError(f'Invalid config file line: {l}')
+
+            src = expand_path(app_dir, p[0])
+            dest = (app_dir/p[1]).resolve()
+
+            if src.is_dir():
+                print(f'Copying directory {src} -> {dest}')
+                shutil.copytree(src, dest)
+            elif src.suffix != '.tmp':
+                raise SyntaxError(f'file {src} is nota template file with suffix .tmp')
+            else:
+                print(f'transforming file {src} -> {dest}')
+                with open (src) as src_file:
+                    src_text = src_file.read()
+                    dest_text = interpolate(app, src_text)
+                    with open(dest, 'w') as dest_file:
+                        dest_file.write(dest_text)
+
 def main():
     try:
         argparser = get_argparser()
         args = argparser.parse_args()
         app = parse_app(args)
-        app_dir = create_app_dir(get_out_dir(args), app)
-        copy_dist_dir(app_dir)
-        copy_everparse_includes(app_dir)
-        copy_global_cmake(app_dir)
-        gen_formats_dir(app_dir, app)
-        gen_verifier_dir(app_dir, app)
-        gen_host_dir(app_dir, app)
-        copy_config_file (app_dir)
+        app_dir = get_app_dir(get_out_dir(args), app)
+
+        # check if app_dir exists
+        if app_dir.exists():
+            if args.force:
+                shutil.rmtree(app_dir)
+            else:
+                sys.exit(f'directory {app_dir} exists')
+
+        # create app_dir
+        print(f'Creating directory {app_dir}')
+        os.makedirs(app_dir)
+
+        process_config_file(app_dir, app)
+        # gen_verifier_dir(app_dir, app)
+        # gen_host_dir(app_dir, app)
+        # copy_config_file (app_dir)
 
     except ValueError as e:
         print(e)

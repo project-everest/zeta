@@ -60,7 +60,7 @@ def parse_func_param (spec):
     if m.group('sp1') == '' and m.group('sp2') == '':
         raise SyntaxError("invalid function parameter: " + spec)
 
-    return m.group('type'), m.group('var')
+    return app.Param (m.group('type'), m.group('var'))
 
 def parse_func_params (params_spec):
     return [ parse_func_param(x) for x in params_spec.split(',')]

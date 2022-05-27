@@ -1,0 +1,11 @@
+../steel/dist dist
+$(EVERPARSE_HOME)/include everparse
+templates/global_cmake.txt.tmp CMakeLists.txt
+templates/_formats/ _formats/
+templates/App.rfc.tmp _formats/App.rfc
+build_formats
+@app_dir@/_formats/out formats/
+#templates/formats_cmake.txt.tmp formats/CMakeLists.txt
+templates/verifier/ verifier/
+set_everparse_headers
+templates/app.c.tmp verifier/app.c
