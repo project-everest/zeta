@@ -1,0 +1,23 @@
+verify_runapp_result @name@
+(
+    uint8_t *_base, uint32_t _len,
+    uint8_t *_out, uint32_t _out_len, uint32_t _out_offset,
+    vthread_state_t *_t
+)
+{
+    uint32_t wrote = 0;
+
+    /* read the store entry corresponding to slot s_{r} */
+    FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv _e_{r} =
+        Zeta_Steel_Main_read_store(*_t, _param.s_{r});
+
+    /* check: slot s_{r} is not empty */
+    _CHECK(_e_{r}.tag != FStar_Pervasives_Native_None);
+
+    /* check: slot contains app-key & val */
+    _CHECK(_e_{r}.v.value.tag == Zeta_Steel_LogEntry_Types_DValue);
+
+    @verifier_body@
+
+    return (verify_runapp_result) { .tag = Run_app_success, .wrote = wrote };
+}

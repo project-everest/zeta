@@ -1,4 +1,4 @@
-    class @name_title@;
+class @name_title@;
 
     class @name_title@_ParamSerializer : public AppParam
     {
@@ -18,7 +18,7 @@
     {
     public:
         @name_title@ (
-            @c_param_list@
+            @@params|const @host_tname@* @vname@|,n            @@
         );
 
 #ifdef @has_output_indicator@
@@ -49,7 +49,7 @@
 
         friend class @name_title@_ParamSerializer;
 
-        @c_param_member_decl@
+        @@params|@host_tname@ @vname@_;|n        @@
 
         @name_title@_ParamSerializer paramSerializer_;
 

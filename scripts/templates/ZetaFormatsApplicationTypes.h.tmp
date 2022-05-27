@@ -2,7 +2,8 @@
 
 #include <stdint.h>
 
-@app_types@
+@everparse_key_typedef@
+@everparse_val_typedef@
 
 typedef App_key_app_key app_key_t;
 typedef App_val_app_val app_val_t;

@@ -85,3 +85,5 @@ int _isnonnull (const record_t *record)
 {
     return !(_isnull(record));
 }
+
+@@fn_defs|file:statefn_app.c.tmp|nn@@

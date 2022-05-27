@@ -46,12 +46,13 @@ class Param:
         self.vname = vname
 
         if tname == 'app_record':
-            self.tname_or_slot = 'slot';
+            self.tname_or_slot = 'slot'
             self.vname_or_slot = f's_{vname}'
+            self.host_tname = 'Record'
         else:
-            self.tname_or_slot = tname;
+            self.tname_or_slot = tname
             self.vname_or_slot = vname
-
+            self.host_tname = get_everparse_type_c_name(tname)
 
 class StateFn:
     """
@@ -68,21 +69,15 @@ class StateFn:
         self.body = body
         self.output = output
         self.everparse_param_name = f'{name}_param'
-
-    def has_output(self):
-        return self.output != 'void'
-
-    def has_output_indicator(self):
-        return f"_HAS_OUTPUT_{self.name_title()}"
-
-    def indicate_has_output (self):
-        if self.has_output():
-            return self.has_output_indicator()
+        self.verifier_body = self.translate_function_body()
+        self.name_title = name.title()
+        self.has_output = (output != 'void')
+        self.has_output_indicator = f"_HAS_OUTPUT_{self.name_title}"
+        if self.has_output:
+            self.indicate_has_output = self.has_output_indicator
         else:
-            return f"_HAS_NO_OUTPUT_{self.name_title()}"
-
-    def name_title(self):
-        return self.name.title()
+            self.indicate_has_output = f"_HAS_NO_OUTPUT_{self.name_title}"
+        self.c_output_type = get_everparse_type_c_name(output)
 
     def c_param_list (self):
         code = ''
@@ -108,11 +103,8 @@ class StateFn:
         {get_everparse_type_c_name(t)} {n}_;'''
         return code
 
-    def c_output_type (self):
-        return get_everparse_type_c_name(self.output)
-
     def arity (self):
-        rec_params = [ (t,n) for t,n in self.params if t == 'app_record']
+        rec_params = [ p for p in self.params if p.tname == 'app_record']
         return len (rec_params)
 
     def c_param_member_init (self):
@@ -303,9 +295,31 @@ class App:
         self.type_defs = type_defs
         self.fn_defs = fn_defs
         self.everparse_headers = None
+        self.everparse_key_typedef = None
+        self.everparse_val_typedef = None
+        self.fncount = len(fn_defs);
+        self.max_arity = max ([ fn.arity() for fn in fn_defs ])
 
     def set_everparse_headers (self, formats_dir):
         self.everparse_headers = formats_dir.glob('*.h')
+
+    def set_everparse_key_typedef (self, formats_dir):
+        app_key_h = formats_dir / 'App_key.h'
+        p = re.compile(r'typedef.*App_key_app_key;', re.DOTALL)
+        code = app_key_h.read_text()
+        m = p.search(code)
+        if m == None:
+            raise ValueError(f'App_key typedef not found in {app_key_h}')
+        self.everparse_key_typedef = m.group()
+
+    def set_everparse_val_typedef (self, formats_dir):
+        app_val_h = formats_dir / 'App_val.h'
+        p = re.compile(r'typedef.*App_val_app_val;', re.DOTALL)
+        code = app_val_h.read_text()
+        m = p.search(code)
+        if m == None:
+            raise ValueError(f'App_val typedef not found in {app_val_h}')
+        self.everparse_val_typedef = m.group()
 
     def write_verifier_code (self, file_path):
         with open(file_path, 'a') as f:
@@ -327,10 +341,10 @@ class App:
             code += fn.gen_host_def()
         return code
 
-    def fncount (self):
+    def get_fncount (self):
         return len(self.fn_defs)
 
-    def max_arity(self):
+    def get_max_arity(self):
         return max ([ fn.arity() for fn in self.fn_defs ])
 
     def sub_name (self, code):
@@ -347,11 +361,11 @@ class App:
 
     def sub_fncount (self, code):
         p = re.compile('@fncount@')
-        return p.sub(str(self.fncount()), code)
+        return p.sub(str(self.get_fncount()), code)
 
     def sub_max_arity (self, code):
         p = re.compile(r'@max_arity@')
-        return p.sub(str(self.max_arity()), code)
+        return p.sub(str(self.get_max_arity()), code)
 
     def transform_text (self, text):
         text = self.sub_name(text)

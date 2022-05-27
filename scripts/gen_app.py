@@ -94,75 +94,11 @@ def set_everparse_headers (app_dir, app):
     formats_dir = app_dir / 'formats'
     app.set_everparse_headers (formats_dir)
 
-def copy_verifier_cmake(app_dir, a):
-    src = get_template_dir() / 'verifier_cmake.txt'
-    dest = app_dir / 'verifier' / 'CMakeLists.txt'
-    translate_cmake_file(src, dest, a)
+def set_app_keyval_typedefs (app_dir, app):
+    formats_dir = app_dir / 'formats'
+    app.set_everparse_key_typedef (formats_dir)
+    app.set_everparse_val_typedef (formats_dir)
 
-def get_app_key_typedef (app_dir):
-    app_key_h = get_formats_dir(app_dir) / 'App_key.h'
-    p = re.compile(r'typedef.*App_key_app_key;', re.DOTALL)
-    with open (app_key_h) as inp_file:
-        code = inp_file.read()
-        m = p.search(code)
-        if m == None:
-            raise ValueError('App_key typedef not found')
-        return m.group()
-
-def get_app_val_typedef (app_dir):
-    app_key_h = get_formats_dir(app_dir) / 'App_val.h'
-    p = re.compile(r'typedef.*App_val_app_val;', re.DOTALL)
-    with open (app_key_h) as inp_file:
-        code = inp_file.read()
-        m = p.search(code)
-        if m == None:
-            raise ValueError('App_key typedef not found')
-        return m.group()
-
-def gen_zeta_app_types_h (app_dir, app):
-    src = get_template_dir() / 'ZetaFormatsApplicationTypes.h'
-    dest = get_verifier_dir(app_dir) / 'ZetaFormatsApplicationTypes.h'
-
-    key_typedef = get_app_key_typedef(app_dir)
-    val_typedef = get_app_val_typedef(app_dir)
-    app_typedefs = f'{key_typedef}\n{val_typedef}'
-    p = re.compile(r'@app_types@')
-
-    with open(dest, 'w') as out_file:
-        with open(src) as inp_file:
-            code = inp_file.read()
-            code = p.sub(app_typedefs, code)
-            out_file.write(code)
-
-def get_format_includes(app_dir):
-    format_include_files = get_formats_dir(app_dir).glob('*.h')
-    r = ''
-    for f in format_include_files:
-        n = f.name
-        r += f'#include <{n}>\n'
-    return r
-
-def gen_app_c (app_dir, app):
-    verifier_dir = get_verifier_dir(app_dir)
-    app_c_template = get_template_dir() / 'app.c'
-    app_c = verifier_dir / 'app.c'
-    format_includes = get_format_includes(app_dir)
-    p = re.compile(r'@format-includes@')
-
-    with open (app_c_template) as inp:
-        code = inp.read()
-        code = p.sub(format_includes, code)
-        with open (app_c, 'w') as out:
-            out.write(code)
-    app.write_verifier_code(app_c)
-
-def gen_verifier_dir(app_dir, app):
-    verifier_dir = get_verifier_dir(app_dir)
-    print(f'Copying directory {get_verifier_template_dir()} -> {verifier_dir}')
-    shutil.copytree(get_verifier_template_dir(), verifier_dir);
-    gen_app_c(app_dir, app)
-    copy_verifier_cmake(app_dir, app)
-    gen_zeta_app_types_h (app_dir, app)
 
 def gen_hostgen_cmake (app_dir, app):
     hostgen_cmake = get_hostgen_dir(app_dir) / 'CMakeLists.txt'
@@ -225,7 +161,6 @@ def expand_path (app_dir, p):
         return p.resolve()
 
 def get_attribute (obj, attr):
-    print(f'get_attr {obj} {attr}')
     if attr == '_':
         return str(obj)
     else:
@@ -241,11 +176,11 @@ def iter_interpolate (obj, attr, template, sep):
 
 pat_iter_interp = re.compile(r'''
 @@
-(?P<attr>[^|]*)
+(?P<attr>[^|]*?)
 \|
-(?P<file>[^|]*)
+(?P<file>[^|]*?)
 \|
-(?P<sep>[^|]*)
+(?P<sep>[^|]*?)
 @@
 ''', re.VERBOSE)
 
@@ -316,9 +251,7 @@ def main():
         # create app_dir
         print(f'Creating directory {app_dir}')
         os.makedirs(app_dir)
-
         process_config_file(app_dir, app)
-        # gen_verifier_dir(app_dir, app)
         # gen_host_dir(app_dir, app)
         # copy_config_file (app_dir)
 

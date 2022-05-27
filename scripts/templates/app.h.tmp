@@ -57,7 +57,7 @@ namespace @name@
         bool isNull_;
     };
 
-    @statefn_host_decl@
+    @@fn_defs|file:statefn.h.tmp|nn    @@
 
 }
 }

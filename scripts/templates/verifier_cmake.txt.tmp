@@ -26,11 +26,11 @@ add_library(mcounter-verifier
             formats.c
             )
 
-target_include_directories(@app@-verifier
+target_include_directories(@name@-verifier
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
     PUBLIC ${DIST_DIR}
     PUBLIC ${FORMATS_DIR}
 )
 
-target_link_libraries(@app@-verifier
-  PRIVATE @app@-format)
+target_link_libraries(@name@-verifier
+  PRIVATE @name@-format)
