@@ -1,0 +1,9 @@
+/* read the store entry corresponding to slot s_@vname@ */
+    FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv _e_@vname@ =
+        Zeta_Steel_Main_read_store(*_t, _param.s_@vname@);
+
+    /* check: slot s_@vname@ is not empty */
+    _CHECK(_e_@vname@.tag != FStar_Pervasives_Native_None);
+
+    /* check: slot contains app-key & val */
+    _CHECK(_e_@vname@.v.value.tag == Zeta_Steel_LogEntry_Types_DValue);

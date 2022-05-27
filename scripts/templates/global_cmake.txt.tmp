@@ -3,29 +3,29 @@ cmake_minimum_required(VERSION 3.20)
 project(zeta_@name@ LANGUAGES CXX C VERSION 0.1)
 
 # zeta root directory
-cmake_path(SET ZETA_HOME NORMALIZE ${{PROJECT_SOURCE_DIR}})
-message (STATUS "ZETA_HOME = ${{ZETA_HOME}}")
+cmake_path(SET ZETA_HOME NORMALIZE ${PROJECT_SOURCE_DIR})
+message (STATUS "ZETA_HOME = ${ZETA_HOME}")
 
-cmake_path(SET DIST_DIR NORMALIZE "${{ZETA_HOME}}/dist")
-message (STATUS "DIST_DIR = ${{DIST_DIR}}")
+cmake_path(SET DIST_DIR NORMALIZE "${ZETA_HOME}/dist")
+message (STATUS "DIST_DIR = ${DIST_DIR}")
 
 # hacl dir
-cmake_path (SET HACL_DIR NORMALIZE "${{DIST_DIR}}/hacl-star-v0.3.0/")
-message (STATUS "HACL_DIR = ${{HACL_DIR}}")
+cmake_path (SET HACL_DIR NORMALIZE "${DIST_DIR}/hacl-star-v0.3.0/")
+message (STATUS "HACL_DIR = ${HACL_DIR}")
 
 set (STORE_SIZE "16" CACHE STRING "Verifier per-thread store size")
-message (STATUS "verifier Store Size = ${{STORE_SIZE}}")
+message (STATUS "verifier Store Size = ${STORE_SIZE}")
 
 set (THREAD_COUNT "1" CACHE STRING "Verifier thread count")
-message (STATUS "verifier Thread count = ${{THREAD_COUNT}}")
+message (STATUS "verifier Thread count = ${THREAD_COUNT}")
 
 # Trace
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
    option(TRACE_MODE "Enable logging of trace information to the console" OFF)
-   message(STATUS "Trace mode: ${{TRACE_MODE}}")
+   message(STATUS "Trace mode: ${TRACE_MODE}")
 else()
    option(TRACE_MODE "Enable logging of trace information to the console" ON)
-   message(STATUS "Trace mode: ${{TRACE_MODE}}")
+   message(STATUS "Trace mode: ${TRACE_MODE}")
 endif ()
 
 # configure a header file to pass some of the CMake settings

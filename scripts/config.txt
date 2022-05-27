@@ -3,16 +3,18 @@ $(EVERPARSE_HOME)/include everparse
 templates/global_cmake.txt.tmp CMakeLists.txt
 templates/_formats/ _formats/
 templates/App.rfc.tmp _formats/App.rfc
-#build_formats
-#@app_dir@/_formats/out formats/
-#templates/formats_cmake.txt.tmp formats/CMakeLists.txt
+build_formats
+@app_dir@/_formats/out formats/
+templates/formats_cmake.txt.tmp formats/CMakeLists.txt
 templates/verifier/ verifier/
 set_everparse_headers
 templates/app.c.tmp verifier/app.c
 templates/verifier_cmake.txt.tmp verifier/CMakeLists.txt
-# set_app_keyval_typedefs
-# templates/ZetaFormatsApplicationTypes.h.tmp verifier/ZetaFormatsApplicationTypes.h
+set_app_keyval_typedefs
+templates/ZetaFormatsApplicationTypes.h.tmp verifier/ZetaFormatsApplicationTypes.h
 ../apps/host hostgen/
 templates/hostgen_cmake.txt.tmp hostgen/CMakeLists.txt
 templates/hostapp/ hostapp/
 templates/app.h.tmp hostapp/app.h
+templates/app.cpp.tmp hostapp/app.cpp
+templates/hostapp_cmake.txt.tmp hostapp/CMakeLists.txt

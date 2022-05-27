@@ -7,15 +7,13 @@ verify_runapp_result @name@
 {
     uint32_t wrote = 0;
 
-    /* read the store entry corresponding to slot s_{r} */
-    FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv _e_{r} =
-        Zeta_Steel_Main_read_store(*_t, _param.s_{r});
+    LowParse_Slice_slice _sl = { .base = _base, .len = _len };
 
-    /* check: slot s_{r} is not empty */
-    _CHECK(_e_{r}.tag != FStar_Pervasives_Native_None);
+    @everparse_param_c_name@ _param = @everparse_param_c_name@_reader(_sl, 0);
 
-    /* check: slot contains app-key & val */
-    _CHECK(_e_{r}.v.value.tag == Zeta_Steel_LogEntry_Types_DValue);
+    @@record_params|file:record_param_init.tmp|n    @@
+
+    @@non_record_params|@host_tname@ *@vname@ = &(_param.@vname@);|@@
 
     @verifier_body@
 

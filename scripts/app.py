@@ -53,6 +53,13 @@ class Param:
             self.tname_or_slot = tname
             self.vname_or_slot = vname
             self.host_tname = get_everparse_type_c_name(tname)
+        self.record_idx = None
+
+    def set_record_idx (self, idx):
+        self.record_idx = idx
+
+    def is_record (self):
+        return self.tname == 'app_record'
 
 class StateFn:
     """
@@ -72,12 +79,20 @@ class StateFn:
         self.verifier_body = self.translate_function_body()
         self.name_title = name.title()
         self.has_output = (output != 'void')
+        self.has_output_str = str(self.has_output).lower()
         self.has_output_indicator = f"_HAS_OUTPUT_{self.name_title}"
         if self.has_output:
             self.indicate_has_output = self.has_output_indicator
         else:
             self.indicate_has_output = f"_HAS_NO_OUTPUT_{self.name_title}"
         self.c_output_type = get_everparse_type_c_name(output)
+        self.record_params = [p for p in self.params if p.is_record()]
+        self.non_record_params = [ p for p in self.params if not p.is_record()]
+        self.arity = len (self.record_params)
+        self.everparse_param_c_name = get_everparse_type_c_name(self.everparse_param_name)
+
+        for i,p in enumerate(self.record_params):
+            p.set_record_idx(i)
 
     def c_param_list (self):
         code = ''
@@ -102,10 +117,6 @@ class StateFn:
                 code += f'''
         {get_everparse_type_c_name(t)} {n}_;'''
         return code
-
-    def arity (self):
-        rec_params = [ p for p in self.params if p.tname == 'app_record']
-        return len (rec_params)
 
     def c_param_member_init (self):
         code = ''
@@ -298,7 +309,7 @@ class App:
         self.everparse_key_typedef = None
         self.everparse_val_typedef = None
         self.fncount = len(fn_defs);
-        self.max_arity = max ([ fn.arity() for fn in fn_defs ])
+        self.max_arity = max ([ fn.arity for fn in fn_defs ])
 
     def set_everparse_headers (self, formats_dir):
         self.everparse_headers = formats_dir.glob('*.h')

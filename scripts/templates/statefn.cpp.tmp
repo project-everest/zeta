@@ -1,9 +1,9 @@
 @name_title@::@name_title@
-    (
-        @c_param_list@
-    )
-    : AppTransFn { @id@, @arity@, @has_output@ }@c_param_member_init@
-    , paramSerializer_ { this }
+(
+     @@params|const @host_tname@* @vname@|,n    @@
+)
+: AppTransFn { @id@, @arity@, @has_output_str@ }@@params|, @vname@_{*@vname@}|n    @@
+, paramSerializer_ { this }
 {
 
 }
@@ -12,7 +12,7 @@ const Record& @name_title@::GetRecord(int idx) const
 {
     assert (idx < @arity@);
 
-    @map_idx_record@
+    @@record_params|if (idx == @record_idx@) return @vname@_;|n    @@
 
     throw std::invalid_argument("invalid argument");
 }

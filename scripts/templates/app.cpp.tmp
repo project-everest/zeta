@@ -71,4 +71,4 @@ static uint64_t uint64_t_reader(LowParse_Slice_slice sl, uint32_t pos)
     return bswap_64(r);
 }
 
-@statefn_host_def@
+@@fn_defs|file:statefn.cpp.tmp|nn@@

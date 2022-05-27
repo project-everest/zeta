@@ -51,18 +51,6 @@ def get_app_dir(parent_dir, app):
 def get_formats_temp_dir (app_dir):
     return app_dir / '_formats'
 
-def get_formats_dir (app_dir):
-    return app_dir / 'formats'
-
-def get_verifier_dir (app_dir):
-    return app_dir / 'verifier'
-
-def get_hostgen_dir (app_dir):
-    return app_dir / 'hostgen'
-
-def get_hostapp_dir (app_dir):
-    return app_dir / 'hostapp'
-
 def build_formats (app_dir,_):
     # Check FSTAR_HOME and EVERPARSE_HOME environment vars are set
     if 'FSTAR_HOME' not in os.environ:
@@ -98,47 +86,6 @@ def set_app_keyval_typedefs (app_dir, app):
     formats_dir = app_dir / 'formats'
     app.set_everparse_key_typedef (formats_dir)
     app.set_everparse_val_typedef (formats_dir)
-
-
-def gen_hostgen_cmake (app_dir, app):
-    hostgen_cmake = get_hostgen_dir(app_dir) / 'CMakeLists.txt'
-    os.remove(hostgen_cmake)
-
-    hostgen_cmake_tmp = get_template_dir() / 'hostgen_cmake.txt.tmp'
-    with open (hostgen_cmake_tmp) as tf:
-        text = tf.read()
-        text = app.transform_text(text)
-        with open (hostgen_cmake, 'w') as f:
-            f.write(text)
-
-def gen_hostapp_cmake (app_dir, app):
-    hostapp_cmake = get_hostapp_dir(app_dir) / 'CMakeLists.txt'
-    hostapp_cmake_tmp = get_template_dir() / 'hostapp_cmake.txt.tmp'
-
-    with open (hostapp_cmake_tmp) as tf:
-        text = tf.read()
-        text = app.transform_text(text)
-        with open (hostapp_cmake, 'w') as f:
-            f.write(text)
-
-def gen_host_dir(app_dir, app):
-    hostgen_src = get_zeta_root() / 'apps' / 'host'
-    hostgen_dest = get_hostgen_dir(app_dir)
-    print(f'Copying directory {hostgen_src} -> {hostgen_dest}')
-    shutil.copytree(hostgen_src, hostgen_dest)
-    gen_hostgen_cmake(app_dir, app)
-
-    hostapp_dir = get_hostapp_dir(app_dir)
-    hostapp_tmp_dir = get_hostapp_template_dir()
-    print(f'Copying directory {hostapp_tmp_dir} -> {hostapp_dir}')
-    shutil.copytree(hostapp_tmp_dir, hostapp_dir)
-
-    app_h_file = hostapp_dir / 'app.h'
-    app.write_host_decl(app_h_file)
-
-    app_cpp_file = hostapp_dir / 'app.cpp'
-    app.write_host_def (app_cpp_file)
-    gen_hostapp_cmake(app_dir, app)
 
 def copy_config_file (app_dir):
     config_file = 'zeta_config.h.in'
@@ -251,9 +198,9 @@ def main():
         # create app_dir
         print(f'Creating directory {app_dir}')
         os.makedirs(app_dir)
+
         process_config_file(app_dir, app)
-        # gen_host_dir(app_dir, app)
-        # copy_config_file (app_dir)
+        copy_config_file (app_dir)
 
     except ValueError as e:
         print(e)
