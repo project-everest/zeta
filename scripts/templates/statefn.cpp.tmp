@@ -45,3 +45,35 @@ void @name_title@::SetOutput(ReadLog& log)
     log.DeserializeBuf(len);
 #endif
 }
+
+@name_title@_ParamSerializer::@name_title@_ParamSerializer(const @name_title@* fn)
+  : fn_ { fn }
+{
+
+}
+
+size_t @name_title@_ParamSerializer::Serialize(uint8_t *buf, size_t size) const
+{
+    uint32_t pos = 0;
+    uint32_t wrote = 0;
+
+    @@non_record_params|file:param_serialize.tmp|n    @@
+
+    return pos;
+}
+
+size_t @name_title@_ParamSerializer::SerializationLength() const
+{
+    /* Hacky implementation of SerializationLength - fix */
+    uint8_t buf [4096];
+    size_t wrote = Serialize(buf, sizeof(buf));
+    return wrote;
+}
+
+void @name_title@_ParamSerializer::Serialize4Hash(Hasher& hasher) const
+{
+    uint8_t buf[4096];
+    size_t wrote = Serializer(buf, sizeof(buf));
+    gsl::span<const uint8_t> mesg {buf, wrote};
+    hasher.HashPartial(mesg);
+}
