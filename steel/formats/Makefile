@@ -1,8 +1,8 @@
 all: steel lowstar
 
-DIRS=aux spec steel lowstar
+DIRS=qd spec steel lowstar
 
-spec: aux
+spec: qd
 
 steel: spec
 
