@@ -11,7 +11,6 @@
 #include <cstddef>
 #include <cassert>
 #include <cstdint>
-#include <Hacl_Blake2b_32.h>
 
 namespace Zeta
 {
@@ -27,17 +26,17 @@ namespace Zeta
 
     void Blake2Hasher::Hash(gsl::span<const uint8_t> mesg, HashValue& hashBuf)
     {
-        Hacl_Blake2b_32_blake2b(HashSize,
-                                reinterpret_cast<uint8_t*>(hashBuf.Bytes()),
-                                mesg.size(),
-                                const_cast<uint8_t*>(mesg.data()),
-                                0,
-                                nullptr);
+        blake2b(reinterpret_cast<uint8_t*>(hashBuf.Bytes()),
+                HashSize,
+                mesg.data(),
+                mesg.size(),
+                nullptr,
+                0);
     }
 
     void Blake2Hasher::HashPartial(gsl::span<const uint8_t> mesg)
     {
-        blake2b_update(&state_, mesg.data(), mesg.size());       
+        blake2b_update(&state_, mesg.data(), mesg.size());
     }
 
     void Blake2Hasher::HashFinal(HashValue& hashValue)

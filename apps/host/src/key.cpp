@@ -1,5 +1,6 @@
 #include <byteswap.h>
 #include <key.h>
+#include <string.h>
 
 using namespace Zeta;
 

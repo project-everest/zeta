@@ -31,7 +31,7 @@ add_library(zetastub ${STUB_SRC})
 target_include_directories(zetastub
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/
   PUBLIC ${PROJECT_BINARY_DIR}
-  PUBLIC ${PROJECT_BINARY_DIR}/host
+  PUBLIC ${PROJECT_BINARY_DIR}/apps/host
 )
 
 target_link_libraries(zetastub
