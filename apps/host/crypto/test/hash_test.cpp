@@ -57,7 +57,7 @@ TEST_CASE("test blake2")
         mesg[2] = 'c';
         Blake2HashValue hash;
 
-        hasher.Hash(mesg, hash);
+        hasher.Hash(mesg, MesgSize, hash);
 
         auto expHashEnc = "bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319";
         auto expHash = DecodeHash(expHashEnc);
@@ -75,9 +75,9 @@ TEST_CASE("test blake2")
         mesg[2] = 'c';
         Blake2HashValue hash;
 
-        hasher.HashPartial(gsl::span<const uint8_t>(mesg, 1));
-        hasher.HashPartial(gsl::span<const uint8_t>(mesg + 1, 1));
-        hasher.HashPartial(gsl::span<const uint8_t>(mesg + 2, 1));
+        hasher.HashPartial(mesg, 1);
+        hasher.HashPartial(mesg + 1, 1);
+        hasher.HashPartial(mesg + 2, 1);
         hasher.HashFinal(hash);
 
         auto expHashEnc = "bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319";
@@ -92,13 +92,13 @@ TEST_CASE("test blake2")
         uint8_t mesg [MaxMesgSize];
         Blake2HashValue hash1, hash2;
 
-        randGen.Generate(mesg);
+        randGen.Generate(mesg, MaxMesgSize);
 
         for (int i = 1 ; i <= 1024 ; ++i) {
-            hasher.Hash(gsl::span<const uint8_t>(mesg, i), hash1);
+            hasher.Hash(mesg, i, hash1);
 
             for (int j = 0 ; j < i ; ++j) {
-                hasher.HashPartial(gsl::span<const uint8_t>(mesg + j, 1));
+                hasher.HashPartial(mesg + j, 1);
             }
 
             hasher.HashFinal(hash2);

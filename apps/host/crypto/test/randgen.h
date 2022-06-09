@@ -1,4 +1,5 @@
-#include <gsl/span>
+#include <cstdint>
+#include <cstddef>
 
 namespace Zeta
 {
@@ -7,7 +8,7 @@ namespace Zeta
     public:
         RandomGenerator() = default;
 
-        void Generate(gsl::span<uint8_t> buf);
+        void Generate(uint8_t *buf, size_t len);
 
         template<typename T>
         T Generate();

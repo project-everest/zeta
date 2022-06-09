@@ -30,7 +30,6 @@ add_executable(cryptotest ${TEST_SRC})
 
 target_link_libraries(cryptotest
   PRIVATE crypto
-  PRIVATE Microsoft.GSL::GSL
   PRIVATE fmt::fmt
   PRIVATE Catch2::Catch2
 )

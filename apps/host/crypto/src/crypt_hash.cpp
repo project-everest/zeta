@@ -24,19 +24,19 @@ namespace Zeta
         Init();
     }
 
-    void Blake2Hasher::Hash(gsl::span<const uint8_t> mesg, HashValue& hashBuf)
+    void Blake2Hasher::Hash(const uint8_t *mesg, size_t mesgLen, HashValue& hashBuf)
     {
         blake2b(reinterpret_cast<uint8_t*>(hashBuf.Bytes()),
                 HashSize,
-                mesg.data(),
-                mesg.size(),
+                mesg,
+                mesgLen,
                 nullptr,
                 0);
     }
 
-    void Blake2Hasher::HashPartial(gsl::span<const uint8_t> mesg)
+    void Blake2Hasher::HashPartial(const uint8_t *mesg, size_t mesgLen)
     {
-        blake2b_update(&state_, mesg.data(), mesg.size());
+        blake2b_update(&state_, mesg, mesgLen);
     }
 
     void Blake2Hasher::HashFinal(HashValue& hashValue)

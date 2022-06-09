@@ -12,7 +12,6 @@
 #include <zeta_config.h>
 #include <cstdint>
 #include <fmt/format.h>
-#include <gsl/span>
 #include <blake2.h>
 
 namespace Zeta
@@ -108,15 +107,15 @@ namespace Zeta
 
         static const int HashSize = HashTraits::HashSize;
 
-        void Hash(gsl::span<const uint8_t> mesg, HashValue& hashBuf);
+        void Hash(const uint8_t *mesg, size_t mesgLen, HashValue& hashBuf);
 
         template<typename T>
         void HashPartialT(const T& val)
         {
-            HashPartial(gsl::span<const uint8_t>(reinterpret_cast<const uint8_t*>(&val), sizeof(T)));
+            HashPartial(reinterpret_cast<const uint8_t*>(&val), sizeof(T));
         }
 
-        void HashPartial(gsl::span<const uint8_t> mesg);
+        void HashPartial(const uint8_t *mesg, size_t mesgLen);
         void HashFinal(HashValue& hashBuf);
 
     private:

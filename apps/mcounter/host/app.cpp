@@ -24,7 +24,7 @@ void Key::Serialize4Hash(Hasher &hasher) const
 {
     uint8_t buf [sizeof(key_t)];
     Serialize(buf, sizeof(buf));
-    hasher.HashPartial(buf);
+    hasher.HashPartial(buf, sizeof(buf));
 }
 
 Value::Value(value_t v) : v_{v} {}
@@ -43,7 +43,7 @@ void Value::Serialize4Hash(Hasher &hasher) const
 {
     uint8_t buf [sizeof(value_t)];
     Serialize(buf, sizeof(buf));
-    hasher.HashPartial(buf);
+    hasher.HashPartial(buf, sizeof(buf));
 }
 
 Record::Record(Key::key_t k, Value::value_t v)
