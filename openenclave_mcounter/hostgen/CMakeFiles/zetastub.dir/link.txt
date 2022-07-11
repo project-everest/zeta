@@ -1,0 +1,2 @@
+/usr/bin/llvm-ar-10 qc libzetastub.a CMakeFiles/zetastub.dir/src/appcommon.cpp.o CMakeFiles/zetastub.dir/src/formats.cpp.o CMakeFiles/zetastub.dir/src/key.cpp.o CMakeFiles/zetastub.dir/src/log.cpp.o CMakeFiles/zetastub.dir/src/merkle_tree.cpp.o CMakeFiles/zetastub.dir/src/verifier_stub.cpp.o
+/usr/bin/llvm-ranlib-10 libzetastub.a

@@ -1,0 +1,2 @@
+/usr/bin/llvm-ar-10 qc libmcounter-verifier.a CMakeFiles/mcounter-verifier.dir/__/__/dist/ZetaFormats.c.o CMakeFiles/mcounter-verifier.dir/config.c.o CMakeFiles/mcounter-verifier.dir/app.c.o CMakeFiles/mcounter-verifier.dir/formats.c.o ../../dist/hacl-star-v0.3.0/c89-compatible/Hacl_Blake2b_32.o ../../dist/hacl-star-v0.3.0/c89-compatible/Lib_Memzero0.o
+/usr/bin/llvm-ranlib-10 libmcounter-verifier.a

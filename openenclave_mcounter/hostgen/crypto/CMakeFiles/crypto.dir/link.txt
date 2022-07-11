@@ -1,0 +1,2 @@
+/usr/bin/llvm-ar-10 qc libcrypto.a CMakeFiles/crypto.dir/src/blake2b-ref.c.o CMakeFiles/crypto.dir/src/crypt_hash.cpp.o
+/usr/bin/llvm-ranlib-10 libcrypto.a

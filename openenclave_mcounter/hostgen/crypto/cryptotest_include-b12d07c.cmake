@@ -1,0 +1,5 @@
+if(EXISTS "/home/ishtiyaque/veritas-formal/openenclave_mcounter/hostgen/crypto/cryptotest_tests-b12d07c.cmake")
+  include("/home/ishtiyaque/veritas-formal/openenclave_mcounter/hostgen/crypto/cryptotest_tests-b12d07c.cmake")
+else()
+  add_test(cryptotest_NOT_BUILT-b12d07c cryptotest_NOT_BUILT-b12d07c)
+endif()

@@ -1,0 +1,101 @@
+# Copyright (c) Open Enclave SDK contributors.
+# Licensed under the MIT License.
+
+cmake_minimum_required(VERSION 3.11)
+
+if (LVI_MITIGATION MATCHES ControlFlow)
+  # Configure the cmake to use customized compilation toolchain.
+  # This package has to be added before `project()`.
+  find_package(OpenEnclave-LVI-Mitigation CONFIG REQUIRED)
+else ()
+  # Setting the cmake compiler when LVI mitigation is not enabled. If the CC
+  # environment variable has been specified or the if CMAKE_C_COMPILER cmake
+  # variable has been passed to cmake, use the C compiler that has been specified.
+  # Otherwise, prefer clang. Same for C++ compiler. This must be done before
+  # the `project` command.
+  if (UNIX)
+    if (NOT DEFINED ENV{CC} AND NOT DEFINED CMAKE_C_COMPILER)
+      find_program(CMAKE_C_COMPILER clang-10 clang)
+	#find_program(CMAKE_C_COMPILER gcc)
+    endif ()
+    if (NOT DEFINED ENV{CXX} AND NOT DEFINED CMAKE_CXX_COMPILER)
+      find_program(CMAKE_CXX_COMPILER clang++-10 clang++)
+	#find_program(CMAKE_CXX_COMPILER g++)
+    endif ()
+  endif ()
+endif ()
+
+project("openenclave_mcounter" LANGUAGES C CXX)
+
+# Currently the `OpenEnclave` package depends on `project()`.
+find_package(OpenEnclave CONFIG REQUIRED)
+
+set(CMAKE_CXX_STANDARD 11)
+set(OE_CRYPTO_LIB
+    mbedtls
+    CACHE STRING "Crypto library used by enclaves.")
+
+# zeta root directory
+cmake_path(SET ZETA_HOME NORMALIZE ${PROJECT_SOURCE_DIR})
+message (STATUS "ZETA_HOME = ${ZETA_HOME}")
+
+cmake_path(SET DIST_DIR NORMALIZE "${ZETA_HOME}/dist")
+message (STATUS "DIST_DIR = ${DIST_DIR}")
+
+# hacl dir
+cmake_path (SET HACL_DIR NORMALIZE "${DIST_DIR}/hacl-star-v0.3.0/")
+message (STATUS "HACL_DIR = ${HACL_DIR}")
+
+set (STORE_SIZE "16" CACHE STRING "Verifier per-thread store size")
+message (STATUS "verifier Store Size = ${STORE_SIZE}")
+
+set (THREAD_COUNT "1" CACHE STRING "Verifier thread count")
+message (STATUS "verifier Thread count = ${THREAD_COUNT}")
+
+# configure a header file to pass some of the CMake settings
+# to the source code
+configure_file(zeta_config.h.in zeta_config.h)
+
+# enable testing
+enable_testing()
+
+# Add Catch2 Unit test framework
+find_package(Catch2 REQUIRED)
+
+# fmt package for printing
+find_package(fmt REQUIRED)
+
+# spdlog package for logging
+find_package(spdlog REQUIRED)
+
+add_subdirectory(enclave)
+add_subdirectory(formats)
+add_subdirectory(hostgen)
+add_subdirectory(host)
+
+# Generate key
+add_custom_command(
+  OUTPUT private.pem public.pem
+  COMMAND openssl genrsa -out private.pem -3 3072
+  COMMAND openssl rsa -in private.pem -pubout -out public.pem)
+
+# Sign enclave
+add_custom_command(
+  OUTPUT enclave/enclave.signed
+  DEPENDS enclave enclave/openenclave_mcounter.conf private.pem
+  COMMAND openenclave::oesign sign -e $<TARGET_FILE:enclave> -c
+          ${CMAKE_SOURCE_DIR}/enclave/openenclave_mcounter.conf -k private.pem)
+
+add_custom_target(sign ALL DEPENDS enclave/enclave.signed)
+
+if ((NOT DEFINED ENV{OE_SIMULATION}) OR (NOT $ENV{OE_SIMULATION}))
+  add_custom_target(
+    run
+    DEPENDS openenclave_mcounter_host sign
+    COMMAND openenclave_mcounter_host ${CMAKE_BINARY_DIR}/enclave/enclave.signed)
+endif ()
+
+add_custom_target(
+  simulate
+  DEPENDS openenclave_mcounter_host sign
+  COMMAND openenclave_mcounter_host ${CMAKE_BINARY_DIR}/enclave/enclave.signed --simulate)
