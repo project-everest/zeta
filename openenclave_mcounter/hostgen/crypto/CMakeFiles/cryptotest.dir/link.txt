@@ -1,1 +1,0 @@
-/usr/bin/clang++-10 CMakeFiles/cryptotest.dir/test/hash_test.cpp.o CMakeFiles/cryptotest.dir/test/randgen.cpp.o -o cryptotest  libcrypto.a /usr/local/lib/libfmt.a 
