@@ -91,6 +91,7 @@ const Record& New_Counter::GetRecord(int idx) const
 
     throw std::invalid_argument("invalid argument");
 }
+static Value _dummy{ 0 };
 
 const Value& New_Counter::GetPostValue(int idx) const
 {
@@ -98,7 +99,8 @@ const Value& New_Counter::GetPostValue(int idx) const
 
     // TODO: Implement: needed for correct merkle updates
 
-    throw std::runtime_error("not implemented");
+    // throw std::runtime_error("not implemented");
+    return _dummy;
 }
 
 bool New_Counter::Touches(int idx) const
@@ -182,7 +184,9 @@ const Value& Incr_Counter::GetPostValue(int idx) const
 
     // TODO: Implement: needed for correct merkle updates
 
-    throw std::runtime_error("not implemented");
+    // throw std::runtime_error("not implemented");
+    _dummy = Value{ 1 + r_.GetValue()->Get()};
+    return _dummy;
 }
 
 bool Incr_Counter::Touches(int idx) const
@@ -266,7 +270,8 @@ const Value& Get_Counter::GetPostValue(int idx) const
 
     // TODO: Implement: needed for correct merkle updates
 
-    throw std::runtime_error("not implemented");
+    // throw std::runtime_error("not implemented");
+    return *(r_.GetValue());
 }
 
 bool Get_Counter::Touches(int idx) const

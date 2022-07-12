@@ -189,7 +189,6 @@ namespace Zeta
 
     void VerifierStubImpl::UpdateMerkleHash(const AppKey& key, const AppValue& value, const BaseKey& provingAncestor)
     {
-        fprintf(stdout, "reached\n");
         auto ancValue = merkleTree_.Get(provingAncestor);
         auto baseKey = key.GetBaseKey();
 
@@ -204,7 +203,6 @@ namespace Zeta
 
     void VerifierStubImpl::UpdateMerkleHash(const BaseKey& key, const MerkleValue* value, const BaseKey& provingAncestor)
     {
-        fprintf(stdout, "reached\n");
         auto ancValue = merkleTree_.Get(provingAncestor);
         assert (ancValue != nullptr);
 

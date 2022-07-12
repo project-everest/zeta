@@ -23,11 +23,12 @@ CTestTestfile.*
 Makefile
 enclave
 enclave.signed
-cmake_install.cmake
+*.cmake
 *.a
 *.so
 *.lib
 openenclave_mcounter_host
+cryptotest
 .qd_files
 .clangd/
 *.json
