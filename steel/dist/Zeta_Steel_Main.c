@@ -4,14 +4,16 @@
 
 
 
+typedef K___uint8_t___ *byte_array;
+
 extern void
 Hacl_Blake2b_32_blake2b(
   uint32_t nn,
-  uint8_t *output,
+  K___uint8_t___ *output,
   uint32_t ll,
-  uint8_t *d,
+  K___uint8_t___ *d,
   uint32_t kk,
-  uint8_t *_dummy
+  K___uint8_t___ *_dummy
 );
 
 typedef uint32_t *lock_t;
@@ -528,14 +530,16 @@ static bool eq_value(Zeta_Steel_LogEntry_Types_value v0, Zeta_Steel_LogEntry_Typ
 
 typedef struct ha_s
 {
-  uint8_t *acc;
+  K___uint8_t___ *acc;
   uint32_t *ctr;
 }
 ha;
 
 static ha create()
 {
-  uint8_t *acc = KRML_HOST_CALLOC((uint32_t)32U, sizeof (uint8_t));
+  uint8_t *p = KRML_HOST_CALLOC((uint32_t)32U, sizeof (uint8_t));
+  K___uint8_t___ *res = p;
+  K___uint8_t___ *acc = res;
   uint32_t *ctr = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint32_t));
   return ((ha){ .acc = acc, .ctr = ctr });
 }
@@ -543,16 +547,20 @@ static ha create()
 static void reclaim(ha s)
 {
   KRML_HOST_FREE(s.ctr);
-  KRML_HOST_FREE(s.acc);
+  K___uint8_t___ *p = s.acc;
+  KRML_HOST_FREE(p);
 }
 
-static void aggregate_raw_hashes(uint8_t *b1, uint8_t *b2)
+static void aggregate_raw_hashes(K___uint8_t___ *b1, K___uint8_t___ *b2)
 {
   for (uint32_t i = (uint32_t)0U; i < (uint32_t)32U; i++)
   {
-    uint8_t x1 = b1[i];
-    uint8_t x2 = b2[i];
-    b1[i] = x1 ^ x2;
+    K___uint8_t___ *pt0 = b1;
+    uint8_t x1 = pt0[i];
+    K___uint8_t___ *pt1 = b2;
+    uint8_t x2 = pt1[i];
+    K___uint8_t___ *pt = b1;
+    pt[i] = x1 ^ x2;
   }
 }
 
@@ -571,7 +579,7 @@ static bool aggregate(ha b1, ha b2)
   }
 }
 
-static bool compare__uint8_t(uint8_t *a0, uint8_t *a1, uint32_t n)
+static bool compare__uint8_t(K___uint8_t___ *a0, K___uint8_t___ *a1, uint32_t n)
 {
   bool b = n == (uint32_t)0U;
   if (b)
@@ -586,8 +594,10 @@ static bool compare__uint8_t(uint8_t *a0, uint8_t *a1, uint32_t n)
       res0 = false;
     else
     {
-      uint8_t elt0 = a0[i0];
-      uint8_t elt1 = a1[i0];
+      K___uint8_t___ *pt0 = a0;
+      uint8_t elt0 = pt0[i0];
+      K___uint8_t___ *pt = a1;
+      uint8_t elt1 = pt[i0];
       res0 = elt0 == elt1;
     }
     bool cond = res0;
@@ -602,8 +612,10 @@ static bool compare__uint8_t(uint8_t *a0, uint8_t *a1, uint32_t n)
         res = false;
       else
       {
-        uint8_t elt0 = a0[i0];
-        uint8_t elt1 = a1[i0];
+        K___uint8_t___ *pt0 = a0;
+        uint8_t elt0 = pt0[i0];
+        K___uint8_t___ *pt = a1;
+        uint8_t elt1 = pt[i0];
         res = elt0 == elt1;
       }
       cond = res;
@@ -627,12 +639,16 @@ static bool compare(ha b1, ha b2)
   }
 }
 
-static bool add(ha ha1, uint8_t *input, uint32_t l)
+static bool add(ha ha1, K___uint8_t___ *input, uint32_t l)
 {
-  uint8_t *acc = KRML_HOST_CALLOC((uint32_t)32U, sizeof (uint8_t));
+  uint8_t *p10 = KRML_HOST_CALLOC((uint32_t)32U, sizeof (uint8_t));
+  K___uint8_t___ *res = p10;
+  K___uint8_t___ *acc = res;
   uint32_t *ctr = KRML_HOST_MALLOC(sizeof (uint32_t));
   ctr[0U] = (uint32_t)1U;
-  uint8_t *_dummy = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint8_t));
+  uint8_t *p1 = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint8_t));
+  K___uint8_t___ *res0 = p1;
+  K___uint8_t___ *_dummy = res0;
   Hacl_Blake2b_32_blake2b((uint32_t)32U, acc, l, input, (uint32_t)0U, _dummy);
   ha ha_ = { .acc = acc, .ctr = ctr };
   bool v = aggregate(ha1, ha_);
@@ -962,10 +978,16 @@ typedef struct option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 }
 option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
 
+typedef option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t
+__FStar_Pervasives_Native_option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t___;
+
+typedef __FStar_Pervasives_Native_option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t___
+*dtuple2___K___FStar_Pervasives_Native_option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_______;
+
 typedef struct tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 {
   uint32_t store_len;
-  option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t *store;
+  __FStar_Pervasives_Native_option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t___ *store;
 }
 tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
 
@@ -976,30 +998,40 @@ typedef struct all_epoch_hashes_s
 }
 all_epoch_hashes;
 
-typedef struct __uint32_t__bool__s
+typedef bool __bool___;
+
+typedef __bool___ *dtuple2___K___bool_______;
+
+typedef struct __uint32_t_Prims_dtuple2___K___bool________s
 {
   uint32_t fst;
-  bool *snd;
+  __bool___ *snd;
 }
-__uint32_t__bool_;
+__uint32_t_Prims_dtuple2___K___bool_______;
 
-typedef struct option__K___uint32_t__bool__s
+typedef struct option__K___uint32_t_Prims_dtuple2___K___bool________s
 {
   FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
-  __uint32_t__bool_ v;
+  __uint32_t_Prims_dtuple2___K___bool_______ v;
 }
-option__K___uint32_t__bool_;
+option__K___uint32_t_Prims_dtuple2___K___bool_______;
 
-typedef struct tbl__uint32_t__bool__s
+typedef option__K___uint32_t_Prims_dtuple2___K___bool_______
+__FStar_Pervasives_Native_option__K___uint32_t_Prims_dtuple2___K___bool__________;
+
+typedef __FStar_Pervasives_Native_option__K___uint32_t_Prims_dtuple2___K___bool__________
+*dtuple2___K___FStar_Pervasives_Native_option__K___uint32_t_Prims_dtuple2___K___bool______________;
+
+typedef struct tbl__uint32_t_Prims_dtuple2___K___bool________s
 {
   uint32_t store_len;
-  option__K___uint32_t__bool_ *store;
+  __FStar_Pervasives_Native_option__K___uint32_t_Prims_dtuple2___K___bool__________ *store;
 }
-tbl__uint32_t__bool_;
+tbl__uint32_t_Prims_dtuple2___K___bool_______;
 
 typedef struct epoch_tid_bitmaps_s
 {
-  tbl__uint32_t__bool_ etbl;
+  tbl__uint32_t_Prims_dtuple2___K___bool_______ etbl;
   uint32_t *high;
 }
 epoch_tid_bitmaps;
@@ -1021,29 +1053,40 @@ static all_epoch_hashes create__Zeta_Steel_EpochHashes_epoch_hashes_t(uint32_t n
 {
   KRML_CHECK_SIZE(sizeof (option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t), n);
   option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t
-  *store =
-    KRML_HOST_MALLOC(sizeof (option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t) * n);
+  *p = KRML_HOST_MALLOC(sizeof (option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t) * n);
   for (uint32_t _i = 0U; _i < n; ++_i)
-    store[_i]
+    p[_i]
     =
       (
         (option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t){
           .tag = FStar_Pervasives_Native_None
         }
       );
+  __FStar_Pervasives_Native_option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t___
+  *res = p;
+  __FStar_Pervasives_Native_option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t___
+  *store = res;
   tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t etbl = { .store_len = n, .store = store };
   uint32_t *high = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint32_t));
   return ((all_epoch_hashes){ .etbl = etbl, .high = high });
 }
 
-static epoch_tid_bitmaps create___bool_(uint32_t n)
+static epoch_tid_bitmaps create__Prims_dtuple2__bool_________(uint32_t n)
 {
-  KRML_CHECK_SIZE(sizeof (option__K___uint32_t__bool_), n);
-  option__K___uint32_t__bool_
-  *store = KRML_HOST_MALLOC(sizeof (option__K___uint32_t__bool_) * n);
+  KRML_CHECK_SIZE(sizeof (option__K___uint32_t_Prims_dtuple2___K___bool_______), n);
+  option__K___uint32_t_Prims_dtuple2___K___bool_______
+  *p = KRML_HOST_MALLOC(sizeof (option__K___uint32_t_Prims_dtuple2___K___bool_______) * n);
   for (uint32_t _i = 0U; _i < n; ++_i)
-    store[_i] = ((option__K___uint32_t__bool_){ .tag = FStar_Pervasives_Native_None });
-  tbl__uint32_t__bool_ etbl = { .store_len = n, .store = store };
+    p[_i]
+    =
+      (
+        (option__K___uint32_t_Prims_dtuple2___K___bool_______){
+          .tag = FStar_Pervasives_Native_None
+        }
+      );
+  __FStar_Pervasives_Native_option__K___uint32_t_Prims_dtuple2___K___bool__________ *res = p;
+  __FStar_Pervasives_Native_option__K___uint32_t_Prims_dtuple2___K___bool__________ *store = res;
+  tbl__uint32_t_Prims_dtuple2___K___bool_______ etbl = { .store_len = n, .store = store };
   uint32_t *high = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint32_t));
   return ((epoch_tid_bitmaps){ .etbl = etbl, .high = high });
 }
@@ -1051,7 +1094,7 @@ static epoch_tid_bitmaps create___bool_(uint32_t n)
 static aggregate_epoch_hashes create0()
 {
   all_epoch_hashes hashes = create__Zeta_Steel_EpochHashes_epoch_hashes_t(all_hashes_size);
-  epoch_tid_bitmaps tid_bitmaps = create___bool_(tid_bitmaps_size);
+  epoch_tid_bitmaps tid_bitmaps = create__Prims_dtuple2__bool_________(tid_bitmaps_size);
   KRML_CHECK_SIZE(sizeof (option__uint32_t), (uint32_t)1U);
   option__uint32_t *max_certified_epoch = KRML_HOST_MALLOC(sizeof (option__uint32_t));
   max_certified_epoch[0U] = ((option__uint32_t){ .tag = FStar_Pervasives_Native_None });
@@ -1067,7 +1110,7 @@ static aggregate_epoch_hashes create0()
     );
 }
 
-static bool check_all_ones(bool *a)
+static bool check_all_ones(__bool___ *a)
 {
   bool b = Zeta_Steel_ApplicationTypes_n_threads == (uint32_t)0U;
   if (b)
@@ -1081,7 +1124,10 @@ static bool check_all_ones(bool *a)
     if (b10)
       res0 = false;
     else
-      res0 = a[i0];
+    {
+      __bool___ *pt = a;
+      res0 = pt[i0];
+    }
     bool cond = res0;
     while (cond)
     {
@@ -1093,7 +1139,10 @@ static bool check_all_ones(bool *a)
       if (b1)
         res = false;
       else
-        res = a[i0];
+      {
+        __bool___ *pt = a;
+        res = pt[i0];
+      }
       cond = res;
     }
     uint32_t i = r[0U];
@@ -1106,67 +1155,82 @@ static bool check_all_ones(bool *a)
 #define Fresh 1
 #define NotFound 2
 
-typedef uint8_t get_result___bool__tags;
+typedef uint8_t get_result__Prims_dtuple2___K___bool________tags;
 
-typedef struct get_result___bool__s
+typedef struct get_result__Prims_dtuple2___K___bool________s
 {
-  get_result___bool__tags tag;
-  bool *_0;
+  get_result__Prims_dtuple2___K___bool________tags tag;
+  dtuple2___K___bool_______ _0;
 }
-get_result___bool_;
+get_result__Prims_dtuple2___K___bool_______;
 
 #define Present 0
 #define Absent 1
 #define Missing 2
 
-typedef uint8_t get_result__uint32_t__bool__tags;
+typedef uint8_t get_result__uint32_t_Prims_dtuple2___K___bool________tags;
 
-typedef struct get_result__uint32_t__bool__s
+typedef struct get_result__uint32_t_Prims_dtuple2___K___bool________s
 {
-  get_result__uint32_t__bool__tags tag;
+  get_result__uint32_t_Prims_dtuple2___K___bool________tags tag;
   union {
-    bool *case_Present;
+    __bool___ *case_Present;
     uint32_t case_Missing;
   }
   ;
 }
-get_result__uint32_t__bool_;
+get_result__uint32_t_Prims_dtuple2___K___bool_______;
 
-static get_result___bool_ get___bool_(epoch_tid_bitmaps a, uint32_t i)
+static get_result__Prims_dtuple2___K___bool_______
+get__Prims_dtuple2__bool_________(epoch_tid_bitmaps a, uint32_t i)
 {
   uint32_t high_value = a.high[0U];
   bool r = high_value < i;
   if (r)
-    return ((get_result___bool_){ .tag = Fresh });
+    return ((get_result__Prims_dtuple2___K___bool_______){ .tag = Fresh });
   else
   {
     uint32_t idx = i % a.etbl.store_len;
-    option__K___uint32_t__bool_ vopt = a.etbl.store[idx];
-    get_result__uint32_t__bool_ r1;
+    __FStar_Pervasives_Native_option__K___uint32_t_Prims_dtuple2___K___bool__________
+    *pt = a.etbl.store;
+    option__K___uint32_t_Prims_dtuple2___K___bool_______ vopt = pt[idx];
+    get_result__uint32_t_Prims_dtuple2___K___bool_______ r1;
     if (vopt.tag == FStar_Pervasives_Native_None)
-      r1 = ((get_result__uint32_t__bool_){ .tag = Absent });
+      r1 = ((get_result__uint32_t_Prims_dtuple2___K___bool_______){ .tag = Absent });
     else if (vopt.tag == FStar_Pervasives_Native_Some)
     {
-      bool *x = vopt.v.snd;
+      __bool___ *x = vopt.v.snd;
       uint32_t i_ = vopt.v.fst;
       if (i != i_)
-        r1 = ((get_result__uint32_t__bool_){ .tag = Missing, { .case_Missing = i_ } });
+        r1 =
+          (
+            (get_result__uint32_t_Prims_dtuple2___K___bool_______){
+              .tag = Missing,
+              { .case_Missing = i_ }
+            }
+          );
       else
-        r1 = ((get_result__uint32_t__bool_){ .tag = Present, { .case_Present = x } });
+        r1 =
+          (
+            (get_result__uint32_t_Prims_dtuple2___K___bool_______){
+              .tag = Present,
+              { .case_Present = x }
+            }
+          );
     }
     else
       r1 =
-        KRML_EABORT(get_result__uint32_t__bool_,
+        KRML_EABORT(get_result__uint32_t_Prims_dtuple2___K___bool_______,
           "unreachable (pattern matches are exhaustive in F*)");
-    get_result__uint32_t__bool_ x = r1;
+    get_result__uint32_t_Prims_dtuple2___K___bool_______ x = r1;
     if (x.tag == Missing)
-      return ((get_result___bool_){ .tag = NotFound });
+      return ((get_result__Prims_dtuple2___K___bool_______){ .tag = NotFound });
     else if (x.tag == Absent)
-      return ((get_result___bool_){ .tag = NotFound });
+      return ((get_result__Prims_dtuple2___K___bool_______){ .tag = NotFound });
     else if (x.tag == Present)
     {
-      bool *x1 = x.case_Present;
-      return ((get_result___bool_){ .tag = Found, ._0 = x1 });
+      __bool___ *x1 = x.case_Present;
+      return ((get_result__Prims_dtuple2___K___bool_______){ .tag = Found, ._0 = x1 });
     }
     else
     {
@@ -1181,10 +1245,11 @@ static get_result___bool_ get___bool_(epoch_tid_bitmaps a, uint32_t i)
 
 static bool check_bitmap_for_epoch(epoch_tid_bitmaps tid_bitmaps, uint32_t e)
 {
-  get_result___bool_ res = get___bool_(tid_bitmaps, e);
+  get_result__Prims_dtuple2___K___bool_______
+  res = get__Prims_dtuple2__bool_________(tid_bitmaps, e);
   if (res.tag == Found)
   {
-    bool *a = res._0;
+    __bool___ *a = res._0;
     bool b = check_all_ones(a);
     return b;
   }
@@ -1194,14 +1259,14 @@ static bool check_bitmap_for_epoch(epoch_tid_bitmaps tid_bitmaps, uint32_t e)
 
 typedef struct get_result__Zeta_Steel_EpochHashes_epoch_hashes_t_s
 {
-  get_result___bool__tags tag;
+  get_result__Prims_dtuple2___K___bool________tags tag;
   epoch_hashes_t _0;
 }
 get_result__Zeta_Steel_EpochHashes_epoch_hashes_t;
 
 typedef struct get_result__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 {
-  get_result__uint32_t__bool__tags tag;
+  get_result__uint32_t_Prims_dtuple2___K___bool________tags tag;
   union {
     epoch_hashes_t case_Present;
     uint32_t case_Missing;
@@ -1220,7 +1285,9 @@ get__Zeta_Steel_EpochHashes_epoch_hashes_t(all_epoch_hashes a, uint32_t i)
   else
   {
     uint32_t idx = i % a.etbl.store_len;
-    option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t vopt = a.etbl.store[idx];
+    __FStar_Pervasives_Native_option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t___
+    *pt = a.etbl.store;
+    option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t vopt = pt[idx];
     get_result__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t r1;
     if (vopt.tag == FStar_Pervasives_Native_None)
       r1 = ((get_result__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t){ .tag = Absent });
@@ -1408,16 +1475,16 @@ typedef struct option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t_s
 option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t;
 
 extern option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t
-zeta__parser_log_entry(uint32_t x0, uint32_t x1, uint32_t x2, uint8_t *x3);
+zeta__parser_log_entry(uint32_t x0, uint32_t x1, uint32_t x2, K___uint8_t___ *x3);
 
 extern uint32_t
-zeta__serialize_stamped_record(uint32_t x0, uint32_t x1, uint8_t *x2, stamped_record x3);
+zeta__serialize_stamped_record(uint32_t x0, uint32_t x1, K___uint8_t___ *x2, stamped_record x3);
 
 extern uint32_t
 zeta__serialize_value(
   uint32_t x0,
   uint32_t x1,
-  uint8_t *x2,
+  K___uint8_t___ *x2,
   Zeta_Steel_LogEntry_Types_value x3
 );
 
@@ -1436,25 +1503,31 @@ typedef struct option__K___Zeta_Steel_KeyUtils_u256_uint32_t_s
 option__K___Zeta_Steel_KeyUtils_u256_uint32_t;
 
 extern option__K___Zeta_Steel_KeyUtils_u256_uint32_t
-zeta__parser_u256(uint32_t x0, uint32_t x1, uint32_t x2, uint8_t *x3);
+zeta__parser_u256(uint32_t x0, uint32_t x1, uint32_t x2, K___uint8_t___ *x3);
 
 typedef struct hasher_t_s
 {
-  uint8_t *serialization_buffer;
-  uint8_t *hash_buffer;
-  uint8_t *dummy;
+  K___uint8_t___ *serialization_buffer;
+  K___uint8_t___ *hash_buffer;
+  K___uint8_t___ *dummy;
 }
 hasher_t;
 
 static hasher_t alloc()
 {
-  uint8_t *hb = KRML_HOST_CALLOC((uint32_t)32U, sizeof (uint8_t));
-  uint8_t *sb = KRML_HOST_CALLOC((uint32_t)4096U, sizeof (uint8_t));
-  uint8_t *dummy = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint8_t));
+  uint8_t *p0 = KRML_HOST_CALLOC((uint32_t)32U, sizeof (uint8_t));
+  K___uint8_t___ *res = p0;
+  K___uint8_t___ *hb = res;
+  uint8_t *p1 = KRML_HOST_CALLOC((uint32_t)4096U, sizeof (uint8_t));
+  K___uint8_t___ *res0 = p1;
+  K___uint8_t___ *sb = res0;
+  uint8_t *p = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint8_t));
+  K___uint8_t___ *res1 = p;
+  K___uint8_t___ *dummy = res1;
   return ((hasher_t){ .serialization_buffer = sb, .hash_buffer = hb, .dummy = dummy });
 }
 
-static Zeta_Steel_KeyUtils_u256 read_hash_u256(uint8_t *hb)
+static Zeta_Steel_KeyUtils_u256 read_hash_u256(K___uint8_t___ *hb)
 {
   option__K___Zeta_Steel_KeyUtils_u256_uint32_t
   res = zeta__parser_u256((uint32_t)32U, (uint32_t)0U, (uint32_t)32U, hb);
@@ -1490,15 +1563,20 @@ typedef struct option__Zeta_Steel_ThreadStateModel_store_entry_s
 }
 option__Zeta_Steel_ThreadStateModel_store_entry;
 
+typedef option__Zeta_Steel_ThreadStateModel_store_entry
+__FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___;
+
+typedef __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *vstore;
+
 typedef struct Zeta_Steel_VerifierTypes_thread_state_t_s
 {
   uint16_t thread_id;
   bool *failed;
-  option__Zeta_Steel_ThreadStateModel_store_entry *store;
+  __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *store;
   timestamp *clock;
   all_epoch_hashes epoch_hashes;
   option__uint32_t *last_verified_epoch;
-  uint8_t *serialization_buffer;
+  K___uint8_t___ *serialization_buffer;
   hasher_t hasher;
 }
 Zeta_Steel_VerifierTypes_thread_state_t;
@@ -1525,10 +1603,10 @@ extern verify_runapp_result
 Zeta_Steel_Application_run_app_function(
   runApp_payload pl,
   uint32_t pl_pos,
-  uint8_t *log_array,
+  K___uint8_t___ *log_array,
   uint32_t out_len,
   uint32_t out_offset,
-  uint8_t *out,
+  K___uint8_t___ *out,
   Zeta_Steel_VerifierTypes_thread_state_t t
 );
 
@@ -1594,8 +1672,14 @@ madd_to_store_split(
     fail(t);
   else
   {
-    option__Zeta_Steel_ThreadStateModel_store_entry ropt = t.store[as_u320(s)];
-    option__Zeta_Steel_ThreadStateModel_store_entry ropt_ = t.store[as_u320(s_)];
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+    option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt1 = t.store;
+    option__Zeta_Steel_ThreadStateModel_store_entry res1 = pt1[as_u320(s_)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res2 = res1;
+    option__Zeta_Steel_ThreadStateModel_store_entry ropt_ = res2;
     if (ropt.tag == FStar_Pervasives_Native_Some)
       fail(t);
     else if (ropt_.tag == FStar_Pervasives_Native_None)
@@ -1610,7 +1694,10 @@ madd_to_store_split(
       else if (s2_opt.tag == FStar_Pervasives_Native_Some)
       {
         uint16_t s2 = s2_opt.v;
-        option__Zeta_Steel_ThreadStateModel_store_entry r2opt = t.store[as_u320(s2)];
+        __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+        option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s2)];
+        option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+        option__Zeta_Steel_ThreadStateModel_store_entry r2opt = res0;
         if (r2opt.tag == FStar_Pervasives_Native_None)
           fail(t);
         else if (r2opt.tag == FStar_Pervasives_Native_Some)
@@ -1628,21 +1715,27 @@ madd_to_store_split(
           store_entry e_ = update_child(r_, d, s);
           __uint16_t_bool p2new = { .fst = s, .snd = d2 };
           store_entry e2 = update_parent_slot(r2, p2new);
-          t.store[as_u320(s)] =
+          __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___
+          *pt = t.store;
+          pt[as_u320(s)] =
             (
               (option__Zeta_Steel_ThreadStateModel_store_entry){
                 .tag = FStar_Pervasives_Native_Some,
                 .v = e1
               }
             );
-          t.store[as_u320(s_)] =
+          __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___
+          *pt0 = t.store;
+          pt0[as_u320(s_)] =
             (
               (option__Zeta_Steel_ThreadStateModel_store_entry){
                 .tag = FStar_Pervasives_Native_Some,
                 .v = e_
               }
             );
-          t.store[as_u320(s2)] =
+          __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___
+          *pt1 = t.store;
+          pt1[as_u320(s2)] =
             (
               (option__Zeta_Steel_ThreadStateModel_store_entry){
                 .tag = FStar_Pervasives_Native_Some,
@@ -1694,8 +1787,14 @@ madd_to_store(
     fail(t);
   else
   {
-    option__Zeta_Steel_ThreadStateModel_store_entry ropt = t.store[as_u320(s)];
-    option__Zeta_Steel_ThreadStateModel_store_entry ropt_ = t.store[as_u320(s_)];
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+    option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt1 = t.store;
+    option__Zeta_Steel_ThreadStateModel_store_entry res1 = pt1[as_u320(s_)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res2 = res1;
+    option__Zeta_Steel_ThreadStateModel_store_entry ropt_ = res2;
     if (ropt.tag == FStar_Pervasives_Native_Some)
       fail(t);
     else if (ropt_.tag == FStar_Pervasives_Native_None)
@@ -1711,7 +1810,8 @@ madd_to_store(
           .r_child_in_store = { .tag = FStar_Pervasives_Native_None },
           .parent_slot = { .tag = FStar_Pervasives_Native_Some, .v = { .fst = s_, .snd = d } }
         };
-      t.store[as_u320(s)] =
+      __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+      pt0[as_u320(s)] =
         (
           (option__Zeta_Steel_ThreadStateModel_store_entry){
             .tag = FStar_Pervasives_Native_Some,
@@ -1743,7 +1843,8 @@ madd_to_store(
               .parent_slot = r_.parent_slot
             }
           );
-      t.store[as_u320(s_)] =
+      __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+      pt[as_u320(s_)] =
         (
           (option__Zeta_Steel_ThreadStateModel_store_entry){
             .tag = FStar_Pervasives_Native_Some,
@@ -1785,11 +1886,15 @@ update_value(
   Zeta_Steel_LogEntry_Types_value r
 )
 {
-  option__Zeta_Steel_ThreadStateModel_store_entry scrut = t.store[as_u320(s)];
+  __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+  option__Zeta_Steel_ThreadStateModel_store_entry scrut = res0;
   if (scrut.tag == FStar_Pervasives_Native_Some)
   {
     store_entry v = scrut.v;
-    t.store[as_u320(s)] =
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+    pt[as_u320(s)] =
       (
         (option__Zeta_Steel_ThreadStateModel_store_entry){
           .tag = FStar_Pervasives_Native_Some,
@@ -1824,7 +1929,10 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
   {
     Zeta_Steel_LogEntry_Types_key gk = r.fst;
     Zeta_Steel_LogEntry_Types_value gv = r.snd;
-    option__Zeta_Steel_ThreadStateModel_store_entry ropt = t.store[as_u320(s_)];
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s_)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+    option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
     if (ropt.tag == FStar_Pervasives_Native_None)
     {
       fail(t);
@@ -1843,7 +1951,10 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
       }
       else
       {
-        option__Zeta_Steel_ThreadStateModel_store_entry sopt = t.store[as_u320(s)];
+        __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+        option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+        option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+        option__Zeta_Steel_ThreadStateModel_store_entry sopt = res0;
         if (sopt.tag == FStar_Pervasives_Native_Some)
         {
           fail(t);
@@ -2094,7 +2205,7 @@ static option__Zeta_Steel_LogEntry_Types_timestamp next(timestamp t)
 
 typedef uint8_t htype;
 
-static bool ha_add(ha ha0, uint32_t l, uint8_t *input)
+static bool ha_add(ha ha0, uint32_t l, K___uint8_t___ *input)
 {
   bool x = add(ha0, input, l);
   return x;
@@ -2111,7 +2222,9 @@ static void
 put__Zeta_Steel_EpochHashes_epoch_hashes_t(all_epoch_hashes a, uint32_t i, epoch_hashes_t x)
 {
   uint32_t idx = i % a.etbl.store_len;
-  a.etbl.store[idx] =
+  __FStar_Pervasives_Native_option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t___
+  *pt = a.etbl.store;
+  pt[idx] =
     (
       (option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t){
         .tag = FStar_Pervasives_Native_Some,
@@ -2231,7 +2344,10 @@ vaddb_core(
     }
     else
     {
-      option__Zeta_Steel_ThreadStateModel_store_entry ropt = t.store[as_u320(s)];
+      __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+      option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+      option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+      option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
       if (uu___is_Some__Zeta_Steel_ThreadStateModel_store_entry(ropt))
       {
         fail(t);
@@ -2262,7 +2378,9 @@ vaddb_core(
               timestamp clock = t.clock[0U];
               timestamp next_clock = max(clock, t_);
               t.clock[0U] = next_clock;
-              t.store[as_u320(s)] =
+              __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___
+              *pt = t.store;
+              pt[as_u320(s)] =
                 (
                   (option__Zeta_Steel_ThreadStateModel_store_entry){
                     .tag = FStar_Pervasives_Native_Some,
@@ -2304,7 +2422,10 @@ vaddb(
 static void
 evict_from_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, bool d)
 {
-  option__Zeta_Steel_ThreadStateModel_store_entry scrut = t.store[as_u320(s_)];
+  __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s_)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+  option__Zeta_Steel_ThreadStateModel_store_entry scrut = res0;
   if (scrut.tag == FStar_Pervasives_Native_Some)
   {
     store_entry r_ = scrut.v;
@@ -2333,14 +2454,16 @@ evict_from_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t
             .parent_slot = r_.parent_slot
           }
         );
-    t.store[as_u320(s_)] =
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+    pt[as_u320(s_)] =
       (
         (option__Zeta_Steel_ThreadStateModel_store_entry){
           .tag = FStar_Pervasives_Native_Some,
           .v = e_
         }
       );
-    t.store[as_u320(s)] =
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+    pt0[as_u320(s)] =
       ((option__Zeta_Steel_ThreadStateModel_store_entry){ .tag = FStar_Pervasives_Native_None });
   }
   else
@@ -2387,8 +2510,14 @@ static void vevictm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
     t.failed[0U] = true;
   else
   {
-    option__Zeta_Steel_ThreadStateModel_store_entry e = t.store[as_u320(s)];
-    option__Zeta_Steel_ThreadStateModel_store_entry e_ = t.store[as_u320(s_)];
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+    option__Zeta_Steel_ThreadStateModel_store_entry e = res0;
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+    option__Zeta_Steel_ThreadStateModel_store_entry res1 = pt[as_u320(s_)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res2 = res1;
+    option__Zeta_Steel_ThreadStateModel_store_entry e_ = res2;
     __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry_FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry
     scrut0 = { .fst = e, .snd = e_ };
     if (scrut0.fst.tag == FStar_Pervasives_Native_None)
@@ -2521,7 +2650,10 @@ static void vevictm(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint1
 static bool
 sat_evictb_checks(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timestamp ts)
 {
-  option__Zeta_Steel_ThreadStateModel_store_entry ropt = t.store[as_u320(s)];
+  __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+  option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
   if (ropt.tag == FStar_Pervasives_Native_None)
     return false;
   else if (ropt.tag == FStar_Pervasives_Native_Some)
@@ -2550,7 +2682,10 @@ sat_evictb_checks(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timesta
 static bool
 vevictb_update_hash_clock(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timestamp ts)
 {
-  option__Zeta_Steel_ThreadStateModel_store_entry scrut = t.store[as_u320(s)];
+  __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+  option__Zeta_Steel_ThreadStateModel_store_entry scrut = res0;
   if (scrut.tag == FStar_Pervasives_Native_Some)
   {
     store_entry r = scrut.v;
@@ -2594,7 +2729,10 @@ static bool vevictb_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
     }
     else
     {
-      option__Zeta_Steel_ThreadStateModel_store_entry scrut = t.store[as_u320(s)];
+      __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+      option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+      option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+      option__Zeta_Steel_ThreadStateModel_store_entry scrut = res0;
       if (scrut.tag == FStar_Pervasives_Native_Some)
       {
         store_entry r = scrut.v;
@@ -2608,7 +2746,9 @@ static bool vevictb_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
           bool b1 = vevictb_update_hash_clock(t, s, ts);
           if (b1)
           {
-            t.store[as_u320(s)] =
+            __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___
+            *pt = t.store;
+            pt[as_u320(s)] =
               (
                 (option__Zeta_Steel_ThreadStateModel_store_entry){
                   .tag = FStar_Pervasives_Native_None
@@ -2661,13 +2801,19 @@ vevictbm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_
       return fail_as(t);
     else
     {
-      option__Zeta_Steel_ThreadStateModel_store_entry ropt = t.store[as_u320(s_)];
+      __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+      option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s_)];
+      option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+      option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
       if (ropt.tag == FStar_Pervasives_Native_None)
         return fail_as(t);
       else if (ropt.tag == FStar_Pervasives_Native_Some)
       {
         store_entry r_ = ropt.v;
-        option__Zeta_Steel_ThreadStateModel_store_entry scrut0 = t.store[as_u320(s)];
+        __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+        option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+        option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+        option__Zeta_Steel_ThreadStateModel_store_entry scrut0 = res0;
         if (scrut0.tag == FStar_Pervasives_Native_Some)
         {
           store_entry r = scrut0.v;
@@ -2904,12 +3050,14 @@ propagate_epoch_hash(
   }
 }
 
-static void put___bool_(epoch_tid_bitmaps a, uint32_t i, bool *x)
+static void put__Prims_dtuple2__bool_________(epoch_tid_bitmaps a, uint32_t i, __bool___ *x)
 {
   uint32_t idx = i % a.etbl.store_len;
-  a.etbl.store[idx] =
+  __FStar_Pervasives_Native_option__K___uint32_t_Prims_dtuple2___K___bool__________
+  *pt = a.etbl.store;
+  pt[idx] =
     (
-      (option__K___uint32_t__bool_){
+      (option__K___uint32_t_Prims_dtuple2___K___bool_______){
         .tag = FStar_Pervasives_Native_Some,
         .v = { .fst = i, .snd = x }
       }
@@ -2922,23 +3070,28 @@ static void put___bool_(epoch_tid_bitmaps a, uint32_t i, bool *x)
 
 static bool update_bitmap(epoch_tid_bitmaps tid_bitmaps, uint32_t e, uint16_t tid)
 {
-  get_result___bool_ res = get___bool_(tid_bitmaps, e);
+  get_result__Prims_dtuple2___K___bool_______
+  res = get__Prims_dtuple2__bool_________(tid_bitmaps, e);
   if (res.tag == NotFound)
     return false;
   else if (res.tag == Fresh)
   {
     KRML_CHECK_SIZE(sizeof (bool), Zeta_Steel_ApplicationTypes_n_threads);
-    bool *new_bm = KRML_HOST_MALLOC(sizeof (bool) * Zeta_Steel_ApplicationTypes_n_threads);
+    bool *p = KRML_HOST_MALLOC(sizeof (bool) * Zeta_Steel_ApplicationTypes_n_threads);
     for (uint32_t _i = 0U; _i < Zeta_Steel_ApplicationTypes_n_threads; ++_i)
-      new_bm[_i] = false;
-    new_bm[as_u320(tid)] = true;
-    put___bool_(tid_bitmaps, e, new_bm);
+      p[_i] = false;
+    __bool___ *res1 = p;
+    __bool___ *new_bm = res1;
+    __bool___ *pt = new_bm;
+    pt[as_u320(tid)] = true;
+    put__Prims_dtuple2__bool_________(tid_bitmaps, e, new_bm);
     return true;
   }
   else if (res.tag == Found)
   {
-    bool *v = res._0;
-    v[as_u320(tid)] = true;
+    __bool___ *v = res._0;
+    __bool___ *pt = v;
+    pt[as_u320(tid)] = true;
     return true;
   }
   else
@@ -3023,12 +3176,14 @@ static Zeta_Steel_VerifierTypes_thread_state_t create_basic(uint16_t tid)
   KRML_CHECK_SIZE(sizeof (option__Zeta_Steel_ThreadStateModel_store_entry),
     as_u320(Zeta_Steel_ApplicationTypes_store_size));
   option__Zeta_Steel_ThreadStateModel_store_entry
-  *store =
+  *p0 =
     KRML_HOST_MALLOC(sizeof (option__Zeta_Steel_ThreadStateModel_store_entry)
       * as_u320(Zeta_Steel_ApplicationTypes_store_size));
   for (uint32_t _i = 0U; _i < as_u320(Zeta_Steel_ApplicationTypes_store_size); ++_i)
-    store[_i]
+    p0[_i]
     = ((option__Zeta_Steel_ThreadStateModel_store_entry){ .tag = FStar_Pervasives_Native_None });
+  __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *res = p0;
+  __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *store = res;
   KRML_CHECK_SIZE(sizeof (timestamp), (uint32_t)1U);
   timestamp *clock = KRML_HOST_MALLOC(sizeof (timestamp));
   clock[0U] = ((timestamp){ .epoch = (uint32_t)0U, .counter = (uint32_t)0U });
@@ -3036,7 +3191,9 @@ static Zeta_Steel_VerifierTypes_thread_state_t create_basic(uint16_t tid)
   KRML_CHECK_SIZE(sizeof (option__uint32_t), (uint32_t)1U);
   option__uint32_t *last_verified_epoch = KRML_HOST_MALLOC(sizeof (option__uint32_t));
   last_verified_epoch[0U] = ((option__uint32_t){ .tag = FStar_Pervasives_Native_None });
-  uint8_t *serialization_buffer = KRML_HOST_CALLOC((uint32_t)4096U, sizeof (uint8_t));
+  uint8_t *p = KRML_HOST_CALLOC((uint32_t)4096U, sizeof (uint8_t));
+  K___uint8_t___ *res0 = p;
+  K___uint8_t___ *serialization_buffer = res0;
   hasher_t hasher = alloc();
   return
     (
@@ -3081,7 +3238,10 @@ madd_to_store_root(
       v);
   if (!!b)
   {
-    option__Zeta_Steel_ThreadStateModel_store_entry ropt = t.store[as_u320(s)];
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+    option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
     if (!(ropt.tag == FStar_Pervasives_Native_Some))
     {
       store_entry
@@ -3105,7 +3265,8 @@ madd_to_store_root(
           .r_child_in_store = { .tag = FStar_Pervasives_Native_None },
           .parent_slot = { .tag = FStar_Pervasives_Native_None }
         };
-      t.store[as_u320(s)] =
+      __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+      pt[as_u320(s)] =
         (
           (option__Zeta_Steel_ThreadStateModel_store_entry){
             .tag = FStar_Pervasives_Native_Some,
@@ -3234,10 +3395,10 @@ verify_step(
   Zeta_Steel_VerifierTypes_thread_state_t t,
   uint32_t len,
   uint32_t log_pos,
-  uint8_t *log,
+  K___uint8_t___ *log,
   uint32_t out_len,
   uint32_t out_offset,
-  uint8_t *out,
+  K___uint8_t___ *out,
   aggregate_epoch_hashes aeh
 )
 {
@@ -3351,11 +3512,11 @@ static Zeta_Steel_Verifier_verify_result
 verify_log_ind(
   Zeta_Steel_VerifierTypes_thread_state_t t,
   uint32_t len,
-  uint8_t *log,
+  K___uint8_t___ *log,
   uint32_t log_pos,
   uint32_t outlen,
   uint32_t out_pos,
-  uint8_t *out,
+  K___uint8_t___ *out,
   aggregate_epoch_hashes aeh
 )
 {
@@ -3428,9 +3589,9 @@ static Zeta_Steel_Verifier_verify_result
 verify_log(
   Zeta_Steel_VerifierTypes_thread_state_t t,
   uint32_t len,
-  uint8_t *log,
+  K___uint8_t___ *log,
   uint32_t outlen,
-  uint8_t *out,
+  K___uint8_t___ *out,
   aggregate_epoch_hashes aeh
 )
 {
@@ -3445,10 +3606,14 @@ typedef struct thread_state_s
 }
 thread_state;
 
+typedef thread_state __Zeta_Steel_Main_thread_state___;
+
+typedef __Zeta_Steel_Main_thread_state___ *dtuple2___K___Zeta_Steel_Main_thread_state_______;
+
 typedef struct Zeta_Steel_Main_top_level_state_s
 {
   aggregate_epoch_hashes aeh;
-  thread_state *all_threads;
+  __Zeta_Steel_Main_thread_state___ *all_threads;
 }
 Zeta_Steel_Main_top_level_state;
 
@@ -3459,13 +3624,14 @@ static thread_state init_thread_state(uint16_t i)
   return ((thread_state){ .tid = i, .tsm = st, .lock = lock });
 }
 
-static void init_all_threads_state(thread_state *all_threads, uint16_t i)
+static void init_all_threads_state(__Zeta_Steel_Main_thread_state___ *all_threads, uint16_t i)
 {
   bool b = (uint32_t)i == Zeta_Steel_ApplicationTypes_n_threads;
   if (!b)
   {
     thread_state st = init_thread_state(i);
-    all_threads[(uint32_t)i] = st;
+    __Zeta_Steel_Main_thread_state___ *pt = all_threads;
+    pt[(uint32_t)i] = st;
     init_all_threads_state(all_threads, i + (uint16_t)1U);
   }
 }
@@ -3476,9 +3642,11 @@ Zeta_Steel_Main_top_level_state *Zeta_Steel_Main_init()
   thread_state st0 = init_thread_state((uint16_t)0U);
   KRML_CHECK_SIZE(sizeof (thread_state), Zeta_Steel_ApplicationTypes_n_threads);
   thread_state
-  *all_threads = KRML_HOST_MALLOC(sizeof (thread_state) * Zeta_Steel_ApplicationTypes_n_threads);
+  *p = KRML_HOST_MALLOC(sizeof (thread_state) * Zeta_Steel_ApplicationTypes_n_threads);
   for (uint32_t _i = 0U; _i < Zeta_Steel_ApplicationTypes_n_threads; ++_i)
-    all_threads[_i] = st0;
+    p[_i] = st0;
+  __Zeta_Steel_Main_thread_state___ *res = p;
+  __Zeta_Steel_Main_thread_state___ *all_threads = res;
   init_all_threads_state(all_threads, (uint16_t)1U);
   Zeta_Steel_Main_top_level_state r = { .aeh = aeh, .all_threads = all_threads };
   KRML_CHECK_SIZE(sizeof (Zeta_Steel_Main_top_level_state), (uint32_t)1U);
@@ -3493,12 +3661,13 @@ verify_log_aux(
   Zeta_Steel_Main_top_level_state t,
   uint16_t tid,
   uint32_t len,
-  uint8_t *input,
+  K___uint8_t___ *input,
   uint32_t out_len,
-  uint8_t *output
+  K___uint8_t___ *output
 )
 {
-  thread_state st_tid = t.all_threads[(uint32_t)tid];
+  __Zeta_Steel_Main_thread_state___ *pt = t.all_threads;
+  thread_state st_tid = pt[(uint32_t)tid];
   bool b = acquire0(st_tid.lock);
   if (b == false)
     return
@@ -3554,9 +3723,9 @@ Zeta_Steel_Main_verify_log(
   Zeta_Steel_Main_top_level_state *r,
   uint16_t tid,
   uint32_t len,
-  uint8_t *input,
+  K___uint8_t___ *input,
   uint32_t out_len,
-  uint8_t *output
+  K___uint8_t___ *output
 )
 {
   Zeta_Steel_Main_top_level_state t_ = r[0U];
@@ -3609,7 +3778,10 @@ Zeta_Steel_Main_max_certified_epoch(Zeta_Steel_Main_top_level_state *r)
 FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv
 Zeta_Steel_Main_read_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t slot)
 {
-  option__Zeta_Steel_ThreadStateModel_store_entry se_opt = t.store[as_u32(slot)];
+  __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(slot)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+  option__Zeta_Steel_ThreadStateModel_store_entry se_opt = res0;
   if (se_opt.tag == FStar_Pervasives_Native_None)
     return
       (
@@ -3646,7 +3818,10 @@ Zeta_Steel_Main_write_store(
   Zeta_Steel_LogEntry_Types_value v
 )
 {
-  option__Zeta_Steel_ThreadStateModel_store_entry se_opt = t.store[as_u32(slot)];
+  __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt0 = t.store;
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(slot)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+  option__Zeta_Steel_ThreadStateModel_store_entry se_opt = res0;
   if (se_opt.tag == FStar_Pervasives_Native_Some)
   {
     store_entry se = se_opt.v;
@@ -3658,7 +3833,8 @@ Zeta_Steel_Main_write_store(
         .l_child_in_store = se1.l_child_in_store, .r_child_in_store = se1.r_child_in_store,
         .parent_slot = se1.parent_slot
       };
-    t.store[as_u32(slot)] =
+    __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *pt = t.store;
+    pt[as_u32(slot)] =
       (
         (option__Zeta_Steel_ThreadStateModel_store_entry){
           .tag = FStar_Pervasives_Native_Some,
