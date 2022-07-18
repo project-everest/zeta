@@ -24,8 +24,8 @@ let hashfn (v:T.value)
 [@@CAbstractStruct]
 noeq
 type hasher_t = {
-  serialization_buffer: A.larray U8.t 4096;
-  hash_buffer: A.larray U8.t 32;
+  serialization_buffer: (a: A.larray U8.t 4096 { A.is_full_array a });
+  hash_buffer: (a: A.larray U8.t 32 { A.is_full_array a });
   dummy: A.array U8.t
 }
 
@@ -54,7 +54,7 @@ let alloc (_:unit)
     return res
 
 let array_free (a:A.array 'a)
-  : STT unit (exists_ (array_pts_to a)) (fun _ -> emp)
+  : ST unit (exists_ (array_pts_to a)) (fun _ -> emp) (A.is_full_array a) (fun _ -> True)
   = let v = elim_exists () in
     intro_exists_erased v (A.pts_to a full_perm);
     A.free a

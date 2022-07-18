@@ -11,7 +11,7 @@ module R = Steel.ST.Reference
 #push-options "--ide_id_info_off"
 #push-options "--query_stats --fuel 0 --ifuel 0"
 
-let hash_value_buf  = x:A.array U8.t { A.length x == 32}
+let hash_value_buf  = x:A.array U8.t { A.length x == 32 /\ A.is_full_array x }
 
 //[@@CAbstractStruct] TODO: Restore this after krml #247
 noeq
