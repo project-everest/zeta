@@ -293,6 +293,8 @@ let find_non_empty_seq (#a:_) (ss: sseq a {flat_length ss > 0})
 
 #pop-options
 
+#push-options "--z3rlimit_factor 4"
+
 let rec some_interleaving_alt (#a:eqtype) (ss: sseq a)
   : Tot(il: interleaving a (S.length ss) 
             {
@@ -343,6 +345,7 @@ let rec some_interleaving_alt (#a:eqtype) (ss: sseq a)
       il
     )
 
+#pop-options
 
 let some_interleaving (#a:_) (ss: sseq a)
   : Tot(il: interleaving a (S.length ss) {s_seq il = ss})

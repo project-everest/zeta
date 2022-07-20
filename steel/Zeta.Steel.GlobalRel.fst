@@ -445,7 +445,7 @@ let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
 
 #pop-options
 
-#push-options "--z3rlimit_factor 2"
+#push-options "--z3rlimit_factor 3"
 let aggr_evict_hash_correct_alt (logs: verifiable_logs) (ep: epoch_id)
   : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
           (ensures (let gl = to_ilog logs in
