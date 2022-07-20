@@ -9,6 +9,8 @@
 
 #include "steel_atomics.h"
 #include "zeta_application.h"
+typedef uint8_t K___uint8_t___;
+
 static inline bool Steel_ST_Reference_cas_u32(uint32_t *r, uint32_t v_old, uint32_t v_new);
 
 typedef struct Zeta_Steel_KeyUtils_u256_s
@@ -167,9 +169,9 @@ Zeta_Steel_Main_verify_log(
   Zeta_Steel_Main_top_level_state *r,
   uint16_t tid,
   uint32_t len,
-  uint8_t *input,
+  K___uint8_t___ *input,
   uint32_t out_len,
-  uint8_t *output
+  K___uint8_t___ *output
 );
 
 Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
