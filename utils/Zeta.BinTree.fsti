@@ -155,3 +155,17 @@ val bin_tree_node_to_bv (n:bin_tree_node): Tot (v: bv_t (depth n) { bv_to_bin_tr
 val bv_to_bin_tree_consistent (#n:nat) (b:bv_t n):
   Lemma (ensures (b = bin_tree_node_to_bv (bv_to_bin_tree_node b)))
         [SMTPat (bv_to_bin_tree_node b)]
+
+(* define a < ordering of bintree nodes *)
+val lt (n1 n2: bin_tree_node): bool
+
+val lt_is_total (n1 n2: _)
+  : Lemma (ensures (n1 <> n2 ==> lt n1 n2 \/ lt n2 n1))
+
+let geq n1 n2 = not (lt n1 n2)
+
+let leq n1 n2 = n1 = n2 || lt n1 n2
+
+let gt n1 n2 = not (leq n1 n2)
+
+let max n1 n2 = if n1 `lt` n2 then n2 else n1
