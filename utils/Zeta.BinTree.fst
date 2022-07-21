@@ -393,13 +393,79 @@ let proper_least_common_ancestor (d1 d2:_)
   = if not (is_anc_desc_sym d1 d2) then
       ()
 
-
+(* the two nodes take different directions from their least common ancestor *)
+let proper_least_common_ancestor_prop (n1 n2:_)
+  : Lemma (requires (not (is_anc_desc_sym n1 n2)))
+          (ensures (let a = least_common_ancestor n1 n2 in
+                    let d1 = desc_dir n1 a in
+                    let d2 = desc_dir n2 a in
+                    d1 <> d2))
+          [SMTPat (least_common_ancestor n1 n2)]
+  = let a = least_common_ancestor n1 n2 in
+    let d1 = desc_dir n1 a in
+    let d2 = desc_dir n2 a in
+    if d1 = d2 then
+    begin
+      let c = child d1 a in
+      eliminate forall a'. is_common_ancestor a' n1 n2 ==> is_desc a a' with c
+    end
 
 let lt (n1 n2: bin_tree_node): bool
   = if is_anc_desc_sym n1 n2 then
       depth n1 < depth n2
     else 
       let a = least_common_ancestor n1 n2 in
-      assert (a <> n1 && a <> n2);
-      
-      admit()
+      let d1 = desc_dir n1 a in
+      let d2 = desc_dir n2 a in
+      match d1, d2 with
+      | Left, Right -> true
+      | Right, Left -> false
+
+let rec least_common_ancestor_commutative (n1 n2:_)
+  : Lemma (ensures (least_common_ancestor n1 n2 = least_common_ancestor n2 n1))
+          (decreases (depth n1))
+          [SMTPat (least_common_ancestor n1 n2)]
+  = lemma_root_is_univ_ancestor n1;
+    lemma_root_is_univ_ancestor n2;
+    if n1 <> n2 then
+       if is_desc n1 n2 then
+       begin
+         assert (n2 = least_common_ancestor n2 n1);
+         lemma_proper_desc_depth_monotonic n1 n2;
+         if is_desc n2 n1 then
+           lemma_desc_depth_monotonic n2 n1
+       end
+       else if is_desc n2 n1 then
+       begin
+         assert (n1 = least_common_ancestor n1 n2);
+         lemma_proper_desc_depth_monotonic n2 n1;
+         if is_desc n1 n2 then
+           lemma_desc_depth_monotonic n1 n2
+       end
+       else
+         let p1 = parent n1 in
+         let p2 = parent n2 in
+         least_common_ancestor_commutative p1 p2
+
+let lt_is_total (n1 n2: _)
+  : Lemma (ensures (n1 = n2 /\ not (lt n1 n2) /\ not (lt n2 n1) \/
+                    n1 <> n2 /\ (lt n1 n2 \/ lt n2 n1)))
+  = if n1 <> n2 then
+      if is_desc n1 n2 then
+        lemma_proper_desc_depth_monotonic n1 n2
+      else if is_desc n2 n1 then
+        lemma_proper_desc_depth_monotonic n2 n1
+      else
+      begin
+        let a = least_common_ancestor n1 n2 in
+        let d1 = desc_dir n1 a in
+        let d2 = desc_dir n2 a in
+        assert (d1 <> d2);
+        match d1, d2 with
+        | Left, Right ->
+          assert (lt n1 n2);
+          ()
+        | Right, Left ->
+          assert (lt n2 n1);
+          ()
+      end

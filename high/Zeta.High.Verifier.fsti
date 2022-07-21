@@ -11,6 +11,7 @@ open Zeta.HashFunction
 module S = FStar.Seq
 module SA = Zeta.SeqAux
 module GV = Zeta.GenericVerifier
+module T = Zeta.Time
 
 (* for records in the store, how were they added? *)
 type add_method =
@@ -220,7 +221,7 @@ let addb (#aprm: app_params)
     else if store_contains st k then fail vs
     else
       (* updated clock max of current, 1 + t *)
-      let clk = max vs.clock (next t) in
+      let clk = T.max vs.clock (next t) in
       (* update verifier state with new clock *)
       let vs = update_thread_clock vs clk in
       (* add record to store *)

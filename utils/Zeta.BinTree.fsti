@@ -160,7 +160,8 @@ val bv_to_bin_tree_consistent (#n:nat) (b:bv_t n):
 val lt (n1 n2: bin_tree_node): bool
 
 val lt_is_total (n1 n2: _)
-  : Lemma (ensures (n1 <> n2 ==> lt n1 n2 \/ lt n2 n1))
+  : Lemma (ensures (n1 = n2 /\ not (lt n1 n2) /\ not (lt n2 n1) \/
+                    n1 <> n2 /\ (lt n1 n2 \/ lt n2 n1)))
 
 let geq n1 n2 = not (lt n1 n2)
 
