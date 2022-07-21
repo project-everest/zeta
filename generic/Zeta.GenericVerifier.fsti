@@ -13,6 +13,9 @@ module MSD = Zeta.MultiSetHashDomain
 (* identifier type for verifier threads *)
 let thread_id = Zeta.Thread.thread_id
 
+let base_key = Zeta.Key.base_key
+let key_lt = Zeta.BinTree.lt
+
 (* The basic "structure" of a verifier specification. We are interested in specifications that
  * satisfy additional properties as described below. *)
 noeq
@@ -29,6 +32,9 @@ type verifier_spec_base = {
 
   (* clock of a verifier thread. *)
   clock: vtls:vtls_t{valid vtls} -> timestamp;
+
+  (* last merkle added blum evicted key *)
+  last_evict_key: vtls:vtls_t{valid vtls} -> base_key;
 
   (* thread_id of the verifier thread; thread_id can be accessed even in a failed state *)
   tid: vtls_t -> thread_id;
@@ -321,7 +327,11 @@ let evictb_prop (vspec: verifier_spec_base)
     vspec.valid vtls' ==>
     (let clock_pre = vspec.clock vtls in
      let clock_post = vspec.clock vtls' in
-     clock_pre `ts_lt` clock_post /\
+     let lk_pre = vspec.last_evict_key vtls in
+     let lk_post = vspec.last_evict_key vtls' in
+     (clock_pre `ts_lt` clock_post \/
+      clock_pre = clock_post /\ lk_pre `key_lt` lk_post)
+     /\
      clock_post = blum_evict_timestamp e)
 
 let verifier_log vspec = S.seq (verifier_log_entry vspec)

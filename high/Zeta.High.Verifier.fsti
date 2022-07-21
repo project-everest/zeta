@@ -87,26 +87,35 @@ noeq type vtls_t (app: app_params) = {
   (* clock *)
   clock: timestamp;
 
+  (* last key added using merkle and evicted using blum *)
+  last_evict_key: base_key;
+
   (* verifier store *)
   st: store_t app;
 }
 
 let fail (#aprm: app_params) (vtls: vtls_t aprm):
   vtls': vtls_t aprm {not (vtls'.valid)}
-  = { valid = false; tid = vtls.tid; clock = vtls.clock; st = vtls.st }
+  = { valid = false; tid = vtls.tid; clock = vtls.clock; last_evict_key = vtls.last_evict_key; st = vtls.st }
 
 (* update the store of a specified verifier thread *)
 let update_thread_store
   (#aprm: app_params)
   (vtls:vtls_t aprm {vtls.valid})
   (st:store_t aprm)
-  = { valid = vtls.valid; tid = vtls.tid; clock = vtls.clock; st = st  }
+  = { valid = vtls.valid; tid = vtls.tid; clock = vtls.clock; last_evict_key = vtls.last_evict_key; st = st  }
 
 let update_thread_clock
   (#aprm: app_params)
   (vtls:vtls_t aprm {vtls.valid})
   (clock: timestamp)
-  = { valid = vtls.valid; tid = vtls.tid; clock ; st = vtls.st  }
+  = { valid = vtls.valid; tid = vtls.tid; clock ; last_evict_key = vtls.last_evict_key; st = vtls.st  }
+
+let update_thread_last_evict_key
+  (#aprm: app_params)
+  (vtls: vtls_t aprm {vtls.valid})
+  (last_evict_key: base_key)
+  = { valid = vtls.valid; tid = vtls.tid; clock = vtls.clock ; last_evict_key; st = vtls.st  }
 
 let addm (#aprm: app_params)
          (r:record aprm)
@@ -222,11 +231,19 @@ let addb (#aprm: app_params)
     else
       (* updated clock max of current, 1 + t *)
       let clk = T.max vs.clock (next t) in
+
+      (* if clock increases reset last_evict_key to Root, a dummy value *)
+      let vs = if vs.clock `ts_lt` clk then update_thread_last_evict_key vs Zeta.BinTree.Root else vs in
+
       (* update verifier state with new clock *)
       let vs = update_thread_clock vs clk in
       (* add record to store *)
       let st = add_to_store st r BAdd in
       update_thread_store vs st
+
+let lt_timestamp_key (t1 t2:_) (k1 k2:_)
+  = if t1 = t2 then Zeta.BinTree.lt k1 k2
+    else ts_lt t1 t2
 
 let evictb_aux (#aprm: app_params)
                (k:base_key)
@@ -236,12 +253,13 @@ let evictb_aux (#aprm: app_params)
   = let st = vs.st in
     let open Zeta.BinTree in
     if k = Root then fail vs
-    else if not (ts_lt vs.clock t) then fail vs
+    else if not (lt_timestamp_key vs.clock t vs.last_evict_key k) then fail vs
     else if not (store_contains st k) then fail vs
     else if add_method_of st k <> eam then fail vs
     else if has_instore_merkle_desc st k then fail vs
     else
       let vs = update_thread_clock vs t in
+      let vs = update_thread_last_evict_key vs k in
       let st = evict_from_store st k in
       update_thread_store vs st
 
@@ -284,6 +302,7 @@ let nextepoch (#aprm: app_params) (vs: vtls_t aprm{vs.valid})
     : (vs': vtls_t aprm {vs'.tid = vs.tid /\ vs.clock `ts_leq` vs'.clock})
   = let e = vs.clock.e + 1 in
     let clock = { e; c = 0 } in
+    let vs = update_thread_last_evict_key vs Zeta.BinTree.Root in
     update_thread_clock vs clock
 
 let verifyepoch (#aprm: app_params) (vs: vtls_t aprm{vs.valid})
@@ -294,7 +313,7 @@ let empty_store (aprm: app_params): store_t aprm = fun (k:base_key) -> None
 
 (* initialize verifier state *)
 let init_thread_state (aprm: app_params) (tid:thread_id): vtls_t aprm =
-  let vs = { valid = true; tid; clock = { e=0; c=0 }; st = empty_store aprm } in
+  let vs = { valid = true; tid; clock = { e=0; c=0 }; last_evict_key = Zeta.BinTree.Root;  st = empty_store aprm } in
   if tid = 0 then
     let st = vs.st in
     let open Zeta.BinTree in
@@ -351,6 +370,10 @@ let high_verifier_spec_base (app: app_params): Zeta.GenericVerifier.verifier_spe
       = vtls.clock
     in
 
+    let last_evict_key (vtls: vtls_t app{valid vtls})
+      = vtls.last_evict_key
+    in
+
     let tid (vtls: vtls_t app)
       = vtls.tid
     in
@@ -368,7 +391,7 @@ let high_verifier_spec_base (app: app_params): Zeta.GenericVerifier.verifier_spe
     in
 
     let open Zeta.GenericVerifier in
-    { vtls_t = vtls_t app; valid; fail; clock; tid; init; slot_t; app;
+    { vtls_t = vtls_t app; valid; fail; clock; last_evict_key; tid; init; slot_t; app;
       get; puts; addm; addb; evictm; evictb; evictbm; nextepoch; verifyepoch }
 
 module GV = Zeta.GenericVerifier
