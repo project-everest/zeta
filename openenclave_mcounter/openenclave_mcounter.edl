@@ -33,14 +33,11 @@ enclave {
     };
 
     trusted {
-        // public void enclave_helloworld();
         public void enclave_Zeta_Steel_Main_init();
         public enclave_FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result enclave_Zeta_Steel_Main_verify_log(uint16_t tid, uint32_t len, uint8_t* input, uint32_t out_len, uint8_t* output); 
-        public void enclave_strrev(const char* in, int input_len, char* out, int output_len);
     };
 
     untrusted {
-        // void host_helloworld();
     };
 };
 

@@ -16,6 +16,8 @@ extern "C" {
                              size_t outBufSize,
                              size_t *outLen);
 
+    void verifier_terminate();
+
 #ifdef __cplusplus
 }
 #endif

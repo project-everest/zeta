@@ -9,10 +9,6 @@
 
 #include "openenclave_mcounter_u.h"
 
-typedef FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result zeta_res_t;
-typedef Zeta_Steel_Main_top_level_state top_state_t;
-
-top_state_t *verifier_state = NULL;
 oe_enclave_t* enclave = NULL;
 
 
@@ -64,6 +60,14 @@ int verifier_verify_log (uint8_t threadId,
     }
  
     *outLen = rc.v.dummy.case_Verify_success.wrote;
-    fprintf(stdout, "Host: returning VRC_Success\n");
     return VRC_Success;
+}
+
+void verifier_terminate()
+{
+    if (enclave)
+        oe_terminate_enclave(enclave);
+    fprintf(stdout, "Host: cleaned up enclave \n");
+
+    return;
 }

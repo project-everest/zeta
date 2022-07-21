@@ -20,12 +20,6 @@ enclave_FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result enclav
     uint32_t out_len,
     uint8_t* output);
 
-void enclave_strrev(
-    const char* in,
-    int input_len,
-    char* out,
-    int output_len);
-
 oe_result_t oe_get_sgx_report_ecall(
     const void* opt_params,
     size_t opt_params_size,

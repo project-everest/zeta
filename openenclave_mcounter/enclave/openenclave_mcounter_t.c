@@ -12,12 +12,11 @@ enum
 {
     openenclave_mcounter_fcn_id_enclave_Zeta_Steel_Main_init = 0,
     openenclave_mcounter_fcn_id_enclave_Zeta_Steel_Main_verify_log = 1,
-    openenclave_mcounter_fcn_id_enclave_strrev = 2,
-    openenclave_mcounter_fcn_id_oe_get_sgx_report_ecall = 3,
-    openenclave_mcounter_fcn_id_oe_get_report_v2_ecall = 4,
-    openenclave_mcounter_fcn_id_oe_verify_local_report_ecall = 5,
-    openenclave_mcounter_fcn_id_oe_sgx_init_context_switchless_ecall = 6,
-    openenclave_mcounter_fcn_id_oe_sgx_switchless_enclave_worker_thread_ecall = 7,
+    openenclave_mcounter_fcn_id_oe_get_sgx_report_ecall = 2,
+    openenclave_mcounter_fcn_id_oe_get_report_v2_ecall = 3,
+    openenclave_mcounter_fcn_id_oe_verify_local_report_ecall = 4,
+    openenclave_mcounter_fcn_id_oe_sgx_init_context_switchless_ecall = 5,
+    openenclave_mcounter_fcn_id_oe_sgx_switchless_enclave_worker_thread_ecall = 6,
     openenclave_mcounter_fcn_id_trusted_call_id_max = OE_ENUM_MAX
 };
 
@@ -41,17 +40,6 @@ typedef struct _enclave_Zeta_Steel_Main_verify_log_args_t
     uint32_t out_len;
     uint8_t* output;
 } enclave_Zeta_Steel_Main_verify_log_args_t;
-
-typedef struct _enclave_strrev_args_t
-{
-    oe_result_t oe_result;
-    uint8_t* deepcopy_out_buffer;
-    size_t deepcopy_out_buffer_size;
-    char* in;
-    int input_len;
-    char* out;
-    int output_len;
-} enclave_strrev_args_t;
 
 typedef struct _oe_get_sgx_report_ecall_args_t
 {
@@ -216,69 +204,6 @@ static void ecall_enclave_Zeta_Steel_Main_verify_log(
         _pargs_in->input,
         _pargs_in->out_len,
         _pargs_in->output);
-
-    /* There is no deep-copyable out parameter. */
-    _pargs_out->deepcopy_out_buffer = NULL;
-    _pargs_out->deepcopy_out_buffer_size = 0;
-
-    /* Success. */
-    _result = OE_OK;
-    *output_bytes_written = _output_buffer_offset;
-
-done:
-    if (output_buffer_size >= sizeof(*_pargs_out) &&
-        oe_is_within_enclave(_pargs_out, output_buffer_size))
-        _pargs_out->oe_result = _result;
-}
-
-static void ecall_enclave_strrev(
-    uint8_t* input_buffer,
-    size_t input_buffer_size,
-    uint8_t* output_buffer,
-    size_t output_buffer_size,
-    size_t* output_bytes_written)
-{
-    oe_result_t _result = OE_FAILURE;
-
-    /* Prepare parameters. */
-    enclave_strrev_args_t* _pargs_in = (enclave_strrev_args_t*)input_buffer;
-    enclave_strrev_args_t* _pargs_out = (enclave_strrev_args_t*)output_buffer;
-
-    size_t _input_buffer_offset = 0;
-    size_t _output_buffer_offset = 0;
-    OE_ADD_SIZE(_input_buffer_offset, sizeof(*_pargs_in));
-    OE_ADD_SIZE(_output_buffer_offset, sizeof(*_pargs_out));
-
-    if (input_buffer_size < sizeof(*_pargs_in) || output_buffer_size < sizeof(*_pargs_in))
-        goto done;
-
-    /* Make sure input and output buffers lie within the enclave. */
-    /* oe_is_within_enclave explicitly checks if buffers are null or not. */
-    if (!oe_is_within_enclave(input_buffer, input_buffer_size))
-        goto done;
-
-    if (!oe_is_within_enclave(output_buffer, output_buffer_size))
-        goto done;
-
-    /* Set in and in-out pointers. */
-    /* There were no in nor in-out parameters. */
-
-    /* Set out and in-out pointers. */
-    /* In-out parameters are copied to output buffer. */
-    /* There were no out nor in-out parameters. */
-
-    /* Check that in/in-out strings are null terminated. */
-    /* There were no in nor in-out string parameters. */
-
-    /* lfence after checks. */
-    oe_lfence();
-
-    /* Call user function. */
-    enclave_strrev(
-        (const char*)_pargs_in->in,
-        _pargs_in->input_len,
-        _pargs_in->out,
-        _pargs_in->output_len);
 
     /* There is no deep-copyable out parameter. */
     _pargs_out->deepcopy_out_buffer = NULL;
@@ -658,7 +583,6 @@ done:
 oe_ecall_func_t oe_ecalls_table[] = {
     (oe_ecall_func_t) ecall_enclave_Zeta_Steel_Main_init,
     (oe_ecall_func_t) ecall_enclave_Zeta_Steel_Main_verify_log,
-    (oe_ecall_func_t) ecall_enclave_strrev,
     (oe_ecall_func_t) ecall_oe_get_sgx_report_ecall,
     (oe_ecall_func_t) ecall_oe_get_report_v2_ecall,
     (oe_ecall_func_t) ecall_oe_verify_local_report_ecall,

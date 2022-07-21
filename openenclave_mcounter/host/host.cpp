@@ -1,15 +1,7 @@
-// Copyright (c) Open Enclave SDK contributors.
-// Licensed under the MIT License.
-//#define CATCH_CONFIG_MAIN
-
 #include <stdio.h>
 #include <openenclave/host.h>
-
 #include <verifier_proxy.h>
 #include <zeta_config.h>
-// #include <Zeta_Steel_Main.h>  // remove
-
-// #include <catch2/catch.hpp>
 
 #include <app.h>
 #include <trace.h>
@@ -18,6 +10,10 @@
 
 using namespace Zeta;
 using namespace Zeta::mcounter;
+
+void test_case1(const char* type, uint32_t flags);
+void test_case2(const char* type, uint32_t flags);
+
 
 static VerifierProxy GetVerifierProxy(const char *type, uint32_t flags)
 {
@@ -63,9 +59,17 @@ int main(int argc, const char* argv[])
         return ret;
     }
 
- 
-    auto proxy = GetVerifierProxy(argv[1], flags);
+    test_case1(argv[1], flags);
+    // test_case2(argv[1], flags);
 
+    verifier_terminate();
+
+    return 0;
+}
+
+void test_case1(const char* type, uint32_t flags) {
+    fprintf(stdout, "******Starting test case 1: test single function (newcounter)******\n");
+    auto proxy = GetVerifierProxy(type, flags);
     VerifierStub verifier{ 0, proxy };
 
     Record record{ 0 };
@@ -73,38 +77,34 @@ int main(int argc, const char* argv[])
     New_Counter newCounter{ &k, &record };
 
     verifier.Run(&newCounter);
-    fprintf(stdout, "Host: returned from verifier.Run\n");
     verifier.Flush();
-
-    //result = enclave_Zeta_Steel_Main_init(enclave);
-    //enclave_FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result enclave_rc;
-/*
-    result = enclave_Zeta_Steel_Main_verify_log(enclave, &enclave_rc, 0, 0, NULL, 0, NULL);
-    FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result rc = convert(enclave_rc);
-    char input[] = "hello", output[6];
-    result = enclave_strrev(enclave, input, 5, output, 5);
-    fprintf(stdout, "return from strrev\n");
-    fprintf(stdout, output);
-*/
-    ret = 0;
-
-   // Clean up the enclave if we created one
-    // if (enclave)
-        // oe_terminate_enclave(enclave);
-
-    return ret;
+    fprintf(stdout, "Test case 1: Success!\n");
+    fprintf(stdout, "****************************\n\n");
 }
 
-/*
-TEST_CASE("test single function (newcounter)")
-{
-    auto proxy = GetVerifierProxy();
-
+void test_case2(const char* type, uint32_t flags) {
+    fprintf(stdout, "******Starting test case 2: test single key init/incr******\n");
+    auto proxy = GetVerifierProxy(type, flags);
     VerifierStub verifier{ 0, proxy };
 
-    New newCounter{ 0, Record { 0} };
+    // initialize a counter for key 0
+    Record record{ 0 };
+    App_key_app_key k = 0;
+    New_Counter newCounter{ &k, &record };
+
     verifier.Run(&newCounter);
     verifier.Flush();
-}
-*/
 
+    App_key_app_key k2 = 0;
+    Record record2{ 0, 0 };
+    // incr counter for key 0 providing pre-image record (0,0)
+    Incr_Counter incrCounter{ &k2, &record2 };
+    verifier.Run(&incrCounter);
+    verifier.Flush();
+
+    // the output of the operation is the prev value which is 0
+    assert(incrCounter.GetOutput() == 0);
+
+    fprintf(stdout, "Test case 2: Success!\n");
+    fprintf(stdout, "****************************\n\n");
+}

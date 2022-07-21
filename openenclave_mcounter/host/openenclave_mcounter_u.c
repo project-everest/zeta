@@ -12,12 +12,11 @@ enum
 {
     openenclave_mcounter_fcn_id_enclave_Zeta_Steel_Main_init = 0,
     openenclave_mcounter_fcn_id_enclave_Zeta_Steel_Main_verify_log = 1,
-    openenclave_mcounter_fcn_id_enclave_strrev = 2,
-    openenclave_mcounter_fcn_id_oe_get_sgx_report_ecall = 3,
-    openenclave_mcounter_fcn_id_oe_get_report_v2_ecall = 4,
-    openenclave_mcounter_fcn_id_oe_verify_local_report_ecall = 5,
-    openenclave_mcounter_fcn_id_oe_sgx_init_context_switchless_ecall = 6,
-    openenclave_mcounter_fcn_id_oe_sgx_switchless_enclave_worker_thread_ecall = 7,
+    openenclave_mcounter_fcn_id_oe_get_sgx_report_ecall = 2,
+    openenclave_mcounter_fcn_id_oe_get_report_v2_ecall = 3,
+    openenclave_mcounter_fcn_id_oe_verify_local_report_ecall = 4,
+    openenclave_mcounter_fcn_id_oe_sgx_init_context_switchless_ecall = 5,
+    openenclave_mcounter_fcn_id_oe_sgx_switchless_enclave_worker_thread_ecall = 6,
     openenclave_mcounter_fcn_id_trusted_call_id_max = OE_ENUM_MAX
 };
 
@@ -26,7 +25,6 @@ static const oe_ecall_info_t _openenclave_mcounter_ecall_info_table[] =
 {
     { "enclave_Zeta_Steel_Main_init" },
     { "enclave_Zeta_Steel_Main_verify_log" },
-    { "enclave_strrev" },
     { "oe_get_sgx_report_ecall" },
     { "oe_get_report_v2_ecall" },
     { "oe_verify_local_report_ecall" },
@@ -54,17 +52,6 @@ typedef struct _enclave_Zeta_Steel_Main_verify_log_args_t
     uint32_t out_len;
     uint8_t* output;
 } enclave_Zeta_Steel_Main_verify_log_args_t;
-
-typedef struct _enclave_strrev_args_t
-{
-    oe_result_t oe_result;
-    uint8_t* deepcopy_out_buffer;
-    size_t deepcopy_out_buffer_size;
-    char* in;
-    int input_len;
-    char* out;
-    int output_len;
-} enclave_strrev_args_t;
 
 typedef struct _oe_get_sgx_report_ecall_args_t
 {
@@ -317,108 +304,6 @@ done:
 }
 
 OE_WEAK_ALIAS(openenclave_mcounter_enclave_Zeta_Steel_Main_verify_log, enclave_Zeta_Steel_Main_verify_log);
-
-oe_result_t openenclave_mcounter_enclave_strrev(
-    oe_enclave_t* enclave,
-    const char* in,
-    int input_len,
-    char* out,
-    int output_len)
-{
-    oe_result_t _result = OE_FAILURE;
-
-    static uint64_t global_id = OE_GLOBAL_ECALL_ID_NULL;
-
-    /* Marshalling struct. */
-    enclave_strrev_args_t _args, *_pargs_in = NULL, *_pargs_out = NULL;
-    /* Marshalling buffer and sizes. */
-    size_t _input_buffer_size = 0;
-    size_t _output_buffer_size = 0;
-    size_t _total_buffer_size = 0;
-    uint8_t* _buffer = NULL;
-    uint8_t* _input_buffer = NULL;
-    uint8_t* _output_buffer = NULL;
-    size_t _input_buffer_offset = 0;
-    size_t _output_buffer_offset = 0;
-    size_t _output_bytes_written = 0;
-
-    /* Fill marshalling struct. */
-    memset(&_args, 0, sizeof(_args));
-    _args.in = in;
-    _args.input_len = input_len;
-    _args.out = out;
-    _args.output_len = output_len;
-
-    /* Compute input buffer size. Include in and in-out parameters. */
-    OE_ADD_SIZE(_input_buffer_size, sizeof(enclave_strrev_args_t));
-    /* There were no corresponding parameters. */
-    
-    /* Compute output buffer size. Include out and in-out parameters. */
-    OE_ADD_SIZE(_output_buffer_size, sizeof(enclave_strrev_args_t));
-    /* There were no corresponding parameters. */
-    
-    /* Allocate marshalling buffer. */
-    _total_buffer_size = _input_buffer_size;
-    OE_ADD_SIZE(_total_buffer_size, _output_buffer_size);
-    _buffer = (uint8_t*)oe_malloc(_total_buffer_size);
-    _input_buffer = _buffer;
-    _output_buffer = _buffer + _input_buffer_size;
-    if (_buffer == NULL)
-    {
-        _result = OE_OUT_OF_MEMORY;
-        goto done;
-    }
-    
-    /* Serialize buffer inputs (in and in-out parameters). */
-    _pargs_in = (enclave_strrev_args_t*)_input_buffer;
-    OE_ADD_SIZE(_input_buffer_offset, sizeof(*_pargs_in));
-    /* There were no in nor in-out parameters. */
-    
-    /* Copy args structure (now filled) to input buffer. */
-    memcpy(_pargs_in, &_args, sizeof(*_pargs_in));
-
-    /* Call enclave function. */
-    if ((_result = oe_call_enclave_function(
-             enclave,
-             &global_id,
-             _openenclave_mcounter_ecall_info_table[openenclave_mcounter_fcn_id_enclave_strrev].name,
-             _input_buffer,
-             _input_buffer_size,
-             _output_buffer,
-             _output_buffer_size,
-             &_output_bytes_written)) != OE_OK)
-        goto done;
-
-    /* Setup output arg struct pointer. */
-    _pargs_out = (enclave_strrev_args_t*)_output_buffer;
-    OE_ADD_SIZE(_output_buffer_offset, sizeof(*_pargs_out));
-    
-    /* Check if the call succeeded. */
-    if ((_result = _pargs_out->oe_result) != OE_OK)
-        goto done;
-
-    /* Currently exactly _output_buffer_size bytes must be written. */
-    if (_output_bytes_written != _output_buffer_size)
-    {
-        _result = OE_FAILURE;
-        goto done;
-    }
-
-    /* Unmarshal return value and out, in-out parameters. */
-    /* No return value. */
-
-    /* There were no out nor in-out parameters. */
-
-    _result = OE_OK;
-
-done:
-    if (_buffer)
-        oe_free(_buffer);
-
-    return _result;
-}
-
-OE_WEAK_ALIAS(openenclave_mcounter_enclave_strrev, enclave_strrev);
 
 oe_result_t openenclave_mcounter_oe_get_sgx_report_ecall(
     oe_enclave_t* enclave,
@@ -7386,7 +7271,7 @@ oe_result_t oe_create_openenclave_mcounter_enclave(
                _openenclave_mcounter_ocall_function_table,
                85,
                _openenclave_mcounter_ecall_info_table,
-                8,
+                7,
                enclave);
 }
 

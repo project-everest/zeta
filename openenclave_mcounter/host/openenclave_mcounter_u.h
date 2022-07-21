@@ -30,13 +30,6 @@ oe_result_t enclave_Zeta_Steel_Main_verify_log(
     uint32_t out_len,
     uint8_t* output);
 
-oe_result_t enclave_strrev(
-    oe_enclave_t* enclave,
-    const char* in,
-    int input_len,
-    char* out,
-    int output_len);
-
 oe_result_t oe_get_sgx_report_ecall(
     oe_enclave_t* enclave,
     oe_result_t* _retval,
