@@ -1,0 +1,2 @@
+wrote = @host_tname@_lserializer (fn_->@vname@_, buf, pos);
+    pos += wrote;

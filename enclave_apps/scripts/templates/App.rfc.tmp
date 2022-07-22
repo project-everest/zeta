@@ -1,0 +1,8 @@
+
+/* Application specified types */
+@type_defs@
+/* Slot type */
+uint16 slot;
+
+/* Application state transition function parameter types */
+@@fn_defs|file:statefn_everparse_param.tmp|n@@

@@ -1,0 +1,74 @@
+#include <assert.h>
+#include <stdexcept>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <app.h>
+#include <byteswap.h>
+
+using namespace Zeta;
+using namespace Zeta::@name@;
+
+Key::Key(key_t k) : k_{k} {}
+
+size_t Key::Serialize (uint8_t *buf, size_t size) const
+{
+    return App_key_app_key_lserializer(k_, buf, 0);
+}
+
+size_t Key::SerializationLength() const
+{
+    return sizeof(key_t);
+}
+
+void Key::Serialize4Hash(Hasher &hasher) const
+{
+    uint8_t buf [sizeof(key_t)];
+    Serialize(buf, sizeof(buf));
+    hasher.HashPartial(buf, sizeof(buf));
+}
+
+Value::Value(value_t v) : v_{v} {}
+
+size_t Value::Serialize (uint8_t *buf, size_t size) const
+{
+    return App_val_app_val_lserializer(v_, buf, 0);
+}
+
+size_t Value::SerializationLength() const
+{
+    return sizeof(value_t);
+}
+
+void Value::Serialize4Hash(Hasher &hasher) const
+{
+    uint8_t buf [sizeof(value_t)];
+    Serialize(buf, sizeof(buf));
+    hasher.HashPartial(buf, sizeof(buf));
+}
+
+Record::Record(Key::key_t k, Value::value_t v)
+    : key_{k}, value_{v}, isNull_{false} {}
+
+Record::Record(Key::key_t k) : key_{k}, value_{}, isNull_{true} {}
+
+const Key &Record::GetKey() const { return key_; }
+
+const Value* Record::GetValue() const
+{
+    return isNull_? nullptr : &value_;
+}
+
+static uint32_t uint64_t_jumper(LowParse_Slice_slice sl, uint32_t pos)
+{
+    return sizeof(uint64_t);
+}
+
+static uint64_t uint64_t_reader(LowParse_Slice_slice sl, uint32_t pos)
+{
+    uint64_t r;
+    memcpy(reinterpret_cast<uint8_t*>(&r), sl.base + pos, sizeof(uint64_t));
+    return bswap_64(r);
+}
+
+@@fn_defs|file:statefn.cpp.tmp|nn@@
