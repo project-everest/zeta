@@ -308,164 +308,45 @@ let rec bv_to_bin_tree_consistent (#n:nat) (b:bv_t n):
     in
     lemma_eq_intro b b2
 
-(* a is a common ancestor of d1 and d2 *)
-let is_common_ancestor a d1 d2
-  = is_desc d1 a && is_desc d2 a
+let rec node_to_ord (n: bin_tree_node): nat
+  = match n with
+    | Root -> 0
+    | LeftChild p -> (node_to_ord p) + (node_to_ord p) + 1
+    | RightChild p -> (node_to_ord p) + (node_to_ord p) + 2
 
-(* a is the least common ancestor of d1 and d2 *)
-let is_least_common_ancestor a d1 d2
-  = is_common_ancestor a d1 d2 /\
-    (forall a'. is_common_ancestor a' d1 d2 ==> is_desc a a')
+let rec ord_to_node (i: nat)
+  = if i = 0 then Root
+    else if i % 2 = 0 then RightChild (ord_to_node ((i - 2) / 2))
+    else LeftChild (ord_to_node ((i - 1)/2))
 
-let rec least_common_ancestor_aux (d1 d2: bin_tree_node)
-  = lemma_root_is_univ_ancestor d1;
-    lemma_root_is_univ_ancestor d2;    
-    if is_desc d2 d1 then d1
-    else if is_desc d1 d2 then d2
-    else least_common_ancestor_aux (parent d1) (parent d2) 
-
-(* if a is an ancestor of d, then a is the least common ancestor of d & a *)
-let anc_is_least_common_ancestor (a d: bin_tree_node)
-  : Lemma (ensures (is_desc d a ==> is_least_common_ancestor a d a))
-          [SMTPat (is_desc d a)]
-  = if is_desc d a then
-    begin
-      assert (is_common_ancestor a d a);
-      let aux (a':_)
-        : Lemma (ensures (is_common_ancestor a' d a ==> is_desc a a'))
-        = ()
-      in
-      forall_intro aux
-    end
-
-let rec least_common_ancestor_aux_is_correct (d1 d2: bin_tree_node)
-  : Lemma (ensures (is_least_common_ancestor (least_common_ancestor_aux d1 d2) d1 d2))
-          (decreases (depth d1))
-          [SMTPat (least_common_ancestor_aux d1 d2)]
-  = let a = least_common_ancestor_aux d1 d2 in
-    lemma_root_is_univ_ancestor d1;
-    lemma_root_is_univ_ancestor d2;    
-    if is_desc d2 d1 then
-      anc_is_least_common_ancestor d1 d2
-    else if is_desc d1 d2 then
-      anc_is_least_common_ancestor d2 d1
-    else
-      let p1 = parent d1 in
-      let p2 = parent d2 in
-      assert (a = least_common_ancestor_aux p1 p2);
-      least_common_ancestor_aux_is_correct p1 p2;
-      assert (is_least_common_ancestor a p1 p2);
-      assert (is_common_ancestor a d1 d2);
-
-      let aux (a':_)
-        : Lemma (ensures (is_common_ancestor a' d1 d2 ==> is_desc a a'))
-        = if is_common_ancestor a' d1 d2 then ()
-      in
-      forall_intro aux
-
-(* compute the least common ancestor of d1 and d2 *)
-let least_common_ancestor (d1 d2: bin_tree_node)
-  : a:_{is_least_common_ancestor a d1 d2}
-  = least_common_ancestor_aux d1 d2
-
-let least_common_ancestor_is_uniq (a1 a2 d1 d2: bin_tree_node)
-  : Lemma (requires (is_least_common_ancestor a1 d1 d2 /\ is_least_common_ancestor a2 d1 d2))
-          (ensures (a1 = a2))
-  = eliminate forall a'. is_common_ancestor a' d1 d2 ==> is_desc a1 a' with a2;
-    assert (is_desc a1 a2);
-
-    assert (forall a'. is_common_ancestor a' d1 d2 ==> is_desc a2 a');
-    eliminate forall a'. is_common_ancestor a' d1 d2 ==> is_desc a2 a' with a1;
-    assert (is_desc a2 a1);
-
-    if a1 <> a2 then
-    begin
-      lemma_proper_desc_depth_monotonic a1 a2;
-      lemma_proper_desc_depth_monotonic a2 a1;
-      ()
-    end
-
-(* if d1 and d2 are not anc-desc then the least common ancestor is a proper ancestor *)
-let proper_least_common_ancestor (d1 d2:_)
-  : Lemma (ensures (let a = least_common_ancestor d1 d2 in
-                    not (is_anc_desc_sym d1 d2) ==> is_proper_desc d1 a /\ is_proper_desc d2 a))
-          [SMTPat (least_common_ancestor d1 d2)]
-  = if not (is_anc_desc_sym d1 d2) then
-      ()
-
-(* the two nodes take different directions from their least common ancestor *)
-let proper_least_common_ancestor_prop (n1 n2:_)
-  : Lemma (requires (not (is_anc_desc_sym n1 n2)))
-          (ensures (let a = least_common_ancestor n1 n2 in
-                    let d1 = desc_dir n1 a in
-                    let d2 = desc_dir n2 a in
-                    d1 <> d2))
-          [SMTPat (least_common_ancestor n1 n2)]
-  = let a = least_common_ancestor n1 n2 in
-    let d1 = desc_dir n1 a in
-    let d2 = desc_dir n2 a in
-    if d1 = d2 then
-    begin
-      let c = child d1 a in
-      eliminate forall a'. is_common_ancestor a' n1 n2 ==> is_desc a a' with c
-    end
-
-let lt (n1 n2: bin_tree_node): bool
-  = if is_anc_desc_sym n1 n2 then
-      depth n1 < depth n2
-    else 
-      let a = least_common_ancestor n1 n2 in
-      let d1 = desc_dir n1 a in
-      let d2 = desc_dir n2 a in
-      match d1, d2 with
-      | Left, Right -> true
-      | Right, Left -> false
-
-let rec least_common_ancestor_commutative (n1 n2:_)
-  : Lemma (ensures (least_common_ancestor n1 n2 = least_common_ancestor n2 n1))
-          (decreases (depth n1))
-          [SMTPat (least_common_ancestor n1 n2)]
-  = lemma_root_is_univ_ancestor n1;
-    lemma_root_is_univ_ancestor n2;
-    if n1 <> n2 then
-       if is_desc n1 n2 then
-       begin
-         assert (n2 = least_common_ancestor n2 n1);
-         lemma_proper_desc_depth_monotonic n1 n2;
-         if is_desc n2 n1 then
-           lemma_desc_depth_monotonic n2 n1
-       end
-       else if is_desc n2 n1 then
-       begin
-         assert (n1 = least_common_ancestor n1 n2);
-         lemma_proper_desc_depth_monotonic n2 n1;
-         if is_desc n1 n2 then
-           lemma_desc_depth_monotonic n1 n2
-       end
+let rec ord_to_node_inv (i: nat)
+  : Lemma (ensures (let n = ord_to_node i in
+                    node_to_ord n = i))
+  = if i > 0 then
+       if i % 2 = 0 then
+         let pi = (i - 2) / 2 in
+         ord_to_node_inv pi
        else
-         let p1 = parent n1 in
-         let p2 = parent n2 in
-         least_common_ancestor_commutative p1 p2
+         let pi = (i - 1) / 2 in
+         ord_to_node_inv pi
 
+let rec node_to_ord_inv (n: bin_tree_node)
+  : Lemma (ensures (let i = node_to_ord n in
+                    ord_to_node i = n))
+          [SMTPat (node_to_ord n)]
+  = match n with 
+    | Root -> ()
+    | LeftChild p -> node_to_ord_inv p
+    | RightChild p -> node_to_ord_inv p
+  
+let lt (n1 n2: bin_tree_node): bool
+  = (node_to_ord n1) < (node_to_ord n2)
+  
 let lt_is_total (n1 n2: _)
   : Lemma (ensures (n1 = n2 /\ not (lt n1 n2) /\ not (lt n2 n1) \/
                     n1 <> n2 /\ (lt n1 n2 \/ lt n2 n1)))
-  = if n1 <> n2 then
-      if is_desc n1 n2 then
-        lemma_proper_desc_depth_monotonic n1 n2
-      else if is_desc n2 n1 then
-        lemma_proper_desc_depth_monotonic n2 n1
-      else
-      begin
-        let a = least_common_ancestor n1 n2 in
-        let d1 = desc_dir n1 a in
-        let d2 = desc_dir n2 a in
-        assert (d1 <> d2);
-        match d1, d2 with
-        | Left, Right ->
-          assert (lt n1 n2);
-          ()
-        | Right, Left ->
-          assert (lt n2 n1);
-          ()
-      end
+  = ()
+
+let lt_is_transitive (n1 n2 n3:_)
+  : Lemma (ensures (n1 `lt` n2 ==> n2 `lt` n3 ==> n1 `lt` n3))
+  = ()

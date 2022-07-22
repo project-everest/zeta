@@ -21,20 +21,36 @@ let rec verifiable_implies_prefix_verifiable (#vspec:verifier_spec)
     if n = i then ()
     else verifiable_implies_prefix_verifiable (prefix_base tl (n-1)) i
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--fuel 1 --ifuel 1 --query_stats"
 
-let rec lemma_clock_monotonic (#vspec:verifier_spec)
+let lemma_clock_lek_monotonic_aux (#vspec: verifier_spec)
+  (tl: verifiable_log vspec) (i: seq_index tl)
+  : Lemma (ensures ((clock_lek_pre tl i) `Zeta.TimeKey.lte` (clock_lek_post tl i)))
+          [SMTPat (clock_lek tl i)]
+  = lemma_state_transition tl i
+
+let rec lemma_clock_lek_monotonic (#vspec: verifier_spec)
+  (tl: verifiable_log vspec) (i:nat) (j: seq_index tl {j >= i})
+  : Lemma (ensures (clock_lek tl i `Zeta.TimeKey.lte` clock_lek tl j))
+          (decreases (i + j + length tl))
+  = let n = length tl - 1 in
+    let tl' = prefix tl n in
+    let lte = Zeta.TimeKey.lte in
+    if i <> j then
+      if j < n then lemma_clock_lek_monotonic tl' i j
+      else
+      begin
+        lemma_clock_lek_monotonic tl' i (j-1);
+        Zeta.TimeKey.lt_is_transitive (clock_lek tl i) (clock_lek tl (j-1)) (clock_lek tl j)
+      end
+
+#pop-options
+
+let lemma_clock_monotonic (#vspec:verifier_spec)
   (tl: verifiable_log vspec) (i:nat) (j: seq_index tl {j >= i}):
   Lemma (ensures (clock tl i `ts_leq` clock tl j))
   (decreases (i + j + length tl))
-  = let n = length tl - 1 in
-    let tl' = prefix tl n in
-    if j < n
-    then lemma_clock_monotonic tl' i j
-    else if i = j then ()
-    else lemma_clock_monotonic tl i (j-1)
-
-#pop-options
+  = lemma_clock_lek_monotonic tl i j
 
 (* the thread id in the state is always the one specified in the parameter *)
 let rec lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
@@ -243,6 +259,34 @@ let lemma_evict_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_
   : Lemma (ensures (let be = blum_evict_elem tl i in
                     be.t = clock tl i))
   = ()
+
+#push-options "--fuel 1 --ifuel 1 --query_stats"
+
+let evict_elem_unique_aux (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (evict_seq ep tl))
+  : Lemma (ensures (let es = evict_seq ep tl in
+                    j1 <  j2 ==>  S.index es j1 <> S.index es j2))
+  = let lt = Zeta.TimeKey.lt in
+    if j1 < j2 then
+    begin
+      let i1 = evict_seq_invmap ep tl j1 in
+      let i2 = evict_seq_invmap ep tl j2 in
+      evict_seq_invmap_monotonic ep tl j1 j2;
+      assert(i1 < i2);
+
+      (* the clock increases during the evict processing *)
+      let i2' = i2 - 1 in
+      lemma_state_transition tl i2;
+      assume(clock_lek tl i2' `lt` clock_lek tl i2);
+
+      assert(i1 <= i2');
+      lemma_clock_lek_monotonic tl i1 i2';
+      Zeta.TimeKey.lt_is_transitive (clock_lek tl i1) (clock_lek tl i2') (clock_lek tl i2);
+      assert(clock_lek tl i1 `lt` clock_lek tl i2);
+
+      admit()
+    end
+
+#pop-options
 
 #push-options "--z3rlimit_factor 4 --query_stats"
 

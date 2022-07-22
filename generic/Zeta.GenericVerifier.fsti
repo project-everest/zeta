@@ -77,6 +77,10 @@ type verifier_spec_base = {
   verifyepoch: vtls: vtls_t { valid vtls } -> vtls_t;
 }
 
+let clock_evict_key (#vspec: verifier_spec_base) (vtls: vspec.vtls_t {vspec.valid vtls})
+  : Zeta.TimeKey.timestamp_key
+  = vspec.clock vtls, vspec.last_evict_key vtls
+
 type verifier_log_entry (vspec: verifier_spec_base): eqtype =
   | AddM: r: record vspec.app -> s: vspec.slot_t -> s': vspec.slot_t -> verifier_log_entry vspec
   | AddB: r: record vspec.app -> s: vspec.slot_t -> t: timestamp -> tid: thread_id -> verifier_log_entry vspec
@@ -278,9 +282,9 @@ let clock_monotonic_prop (vspec: verifier_spec_base) =
   forall (e: verifier_log_entry vspec) (vtls: vspec.vtls_t).
     {:pattern verify_step e vtls}
     let vtls_post = verify_step e vtls in
-    vspec.valid vtls_post ==> (let clock_pre = vspec.clock vtls in
-                               let clock_post = vspec.clock vtls_post in
-                               clock_pre `ts_leq` clock_post)
+    vspec.valid vtls_post ==> (let clock_pre = clock_evict_key vtls in
+                               let clock_post = clock_evict_key vtls_post in
+                               clock_pre `Zeta.TimeKey.lte` clock_post)
 
 (* thread_id is constant *)
 let thread_id_constant_prop (vspec: verifier_spec_base) =
@@ -319,20 +323,25 @@ let addb_prop (vspec: verifier_spec_base)
     vspec.valid vtls' ==>
     blum_add_timestamp e `ts_lt` vspec.clock vtls'
 
+let evicted_base_key
+  (#vspec: verifier_spec_base {evict_prop vspec})
+  (vtls: vspec.vtls_t {vspec.valid vtls})
+  (e: verifier_log_entry vspec {is_evict e /\ vspec.valid (verify_step e vtls)})
+  : base_key
+  = let Some (gk,_) = vspec.get (evict_slot e) vtls in
+    Zeta.GenKey.to_base_key gk
+
 let evictb_prop (vspec: verifier_spec_base)
   = forall (e: verifier_log_entry vspec) (vtls: vspec.vtls_t).
     {:pattern verify_step e vtls}
     let vtls' = verify_step e vtls in
     is_blum_evict e ==>
     vspec.valid vtls' ==>
-    (let clock_pre = vspec.clock vtls in
-     let clock_post = vspec.clock vtls' in
-     let lk_pre = vspec.last_evict_key vtls in
-     let lk_post = vspec.last_evict_key vtls' in
-     (clock_pre `ts_lt` clock_post \/
-      clock_pre = clock_post /\ lk_pre `key_lt` lk_post)
+    (let (c1,k1) = clock_evict_key  vtls in
+     let (c2,k2) = clock_evict_key vtls' in
+     (c1,k1) `Zeta.TimeKey.lt` (c2,k2)
      /\
-     clock_post = blum_evict_timestamp e)
+     c2 = blum_evict_timestamp e)
 
 let verifier_log vspec = S.seq (verifier_log_entry vspec)
 

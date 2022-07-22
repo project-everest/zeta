@@ -163,6 +163,9 @@ val lt_is_total (n1 n2: _)
   : Lemma (ensures (n1 = n2 /\ not (lt n1 n2) /\ not (lt n2 n1) \/
                     n1 <> n2 /\ (lt n1 n2 \/ lt n2 n1)))
 
+val lt_is_transitive (n1 n2 n3:_)
+  : Lemma (ensures (n1 `lt` n2 ==> n2 `lt` n3 ==> n1 `lt` n3))
+
 let geq n1 n2 = not (lt n1 n2)
 
 let leq n1 n2 = n1 = n2 || lt n1 n2

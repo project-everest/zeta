@@ -78,6 +78,20 @@ let clock_pre (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
   = let tl' = prefix tl i in
     clock_base tl'
 
+let clock_lek_base (#vspec:_) (tl: verifiable_log vspec)
+  = let vs = state tl in
+    GV.clock_evict_key vs
+
+let clock_lek_post #vspec (tl: verifiable_log vspec) (i: seq_index tl)
+  = let tl' = prefix tl (i+1) in
+    clock_lek_base tl'
+
+let clock_lek_pre #vspec (tl: verifiable_log vspec) (i: seq_index tl)
+  = let tl' = prefix tl i in
+    clock_lek_base tl'
+
+let clock_lek #vspec = clock_lek_post #vspec
+
 (* the epoch of the i'th entry *)
 let epoch_of #vspec (tl: verifiable_log vspec) (i: seq_index tl)
   = let t = clock tl i in
@@ -87,6 +101,10 @@ let epoch_of #vspec (tl: verifiable_log vspec) (i: seq_index tl)
 let is_within_epoch #vspec (ep: epoch)
   (tl: verifiable_log vspec) (i: seq_index tl)
   = epoch_of tl i <= ep
+
+val lemma_clock_lek_monotonic (#vspec: verifier_spec)
+  (tl: verifiable_log vspec) (i:nat) (j: seq_index tl {j >= i})
+  : Lemma (ensures (clock_lek tl i `Zeta.TimeKey.lte` clock_lek tl j))
 
 (* clock is monotonic *)
 val lemma_clock_monotonic (#vspec:verifier_spec)
