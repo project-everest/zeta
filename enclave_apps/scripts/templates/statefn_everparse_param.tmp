@@ -1,3 +1,0 @@
-struct {
-  @@params|@tname_or_slot@ @vname_or_slot@;|n  @@
-} @everparse_param_name@;
