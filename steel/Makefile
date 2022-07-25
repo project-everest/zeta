@@ -23,6 +23,7 @@ STEEL_KRML_FILES=Steel_ST_EphemeralHashtbl.krml \
   Steel_ST_SpinLock.krml \
   Steel_ST_Array_Util.krml \
   Steel_ST_Reference.krml \
+  Steel_Loops.krml \
   Steel_ST_Loops.krml
 
 
