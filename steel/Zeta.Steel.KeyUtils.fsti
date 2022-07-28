@@ -123,3 +123,20 @@ val lowered_leaf_key_is_data_key (k:Zeta.Key.leaf_key)
 inline_for_extraction
 val good_raw_key_impl (r:raw_key)
   : b:bool { b <==> good_raw_key r }
+
+(* define a total ordering of base_keys *)
+val base_key_lt (bk1 bk2: base_key): bool
+
+(* the total ordering at steel level consistent with the spec level ordering *)
+val base_key_lt_rel (sbk1 sbk2: base_key)
+  : Lemma (ensures (let ibk1 = lift_base_key sbk1 in
+                    let ibk2 = lift_base_key sbk2 in
+                    sbk1 `base_key_lt` sbk2 = ibk1 `Zeta.BinTree.lt` ibk2))
+
+let base_key_gt bk1 bk2 = bk2 `base_key_lt` bk1
+
+let base_key_lte bk1 bk2 = not (bk1 `base_key_gt` bk2)
+
+let base_key_gte bk1 bk2 = not (bk1 `base_key_lt` bk2)
+
+let base_key_eq bk1 bk2 = base_key_lte bk1 bk2 && base_key_gte bk1 bk2

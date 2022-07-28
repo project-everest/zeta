@@ -63,6 +63,7 @@ type thread_state_model = {
   failed : bool;
   store : contents;
   clock : T.timestamp;
+  last_evict_key: T.base_key;
   epoch_hashes: epoch_hashes;
   thread_id: tid;
   processed_entries: Seq.seq log_entry;
@@ -117,6 +118,7 @@ let init_thread_state_model tid
       failed = false;
       store = Seq.create (U16.v store_size) None;
       clock = zero_clock;
+      last_evict_key = root_base_key;
       epoch_hashes = initial_epoch_hashes;
       processed_entries = Seq.empty;
       app_results = Seq.empty;
@@ -169,6 +171,11 @@ let update_clock (tsm:thread_state_model) (ts:T.timestamp)
   : thread_state_model
   = { tsm with clock = ts }
 
+let update_last_evict_key (tsm: thread_state_model) (k: T.base_key)
+  : thread_state_model
+  = { tsm with last_evict_key = k }
+  
+    
 let update_hash_value (ha:HA.hash_value_t)
                       (r:T.record)
                       (t:T.timestamp)
@@ -373,6 +380,24 @@ let timestamp_lt (t0 t1:T.timestamp) =
   U32.(t0.epoch <^ t1.epoch ||
        (t0.epoch = t1.epoch && t0.counter <^ t1.counter))
 
+let timestamp_key = T.timestamp & T.base_key
+
+let clock_lek (tsm: thread_state_model) 
+  = tsm.clock, tsm.last_evict_key
+
+let tk_lt (tk1 tk2: timestamp_key): bool
+  = let t1,k1 = tk1 in
+    let t2,k2 = tk2 in
+    t1 `timestamp_lt` t2 || t1 = t2 && k1 `T.base_key_lt` k2
+
+let tk_gt tk1 tk2 = tk2 `tk_lt` tk1
+
+let tk_lte tk1 tk2 = not (tk1 `tk_gt` tk2)
+
+let tk_gte tk1 tk2 = not (tk1 `tk_lt` tk2)
+
+let tk_eq tk1 tk2 = (tk_lte tk1 tk2) && (tk_gte tk1 tk2)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -512,6 +537,9 @@ let vaddb (tsm:thread_state_model)
         | None -> 
           fail tsm //overflow
         | Some t' -> 
+          let tsm = if tsm.clock `timestamp_lt` (max tsm.clock t') 
+                    then update_last_evict_key tsm root_base_key 
+                    else tsm in
           let tsm = update_clock tsm (max tsm.clock t') in
           put_entry tsm s (mk_entry k v BAdd)
       )
@@ -572,13 +600,14 @@ let sat_evictb_checks (tsm:_)
     | None -> false
     | Some r ->
       let k = r.key in
+      let bk = to_base_key k in
       let v = r.value in
       let clock = tsm.clock in
       (* check key at s is not root *)
       not (is_root_key k) &&
 
-      (* check time of evict < current time *)
-      clock `timestamp_lt` t &&
+      (* check time of evict < current time (generalized with keys)  *)
+      (clock_lek tsm) `tk_lt` (t,bk) &&
 
       (* check k has no (merkle) children n the store *)
       not (points_to_some_slot tsm s true) &&
@@ -590,9 +619,11 @@ let vevictb_update_hash_clock (tsm:thread_state_model)
    : thread_state_model
    = let Some r = get_entry tsm s in
      let k = r.key in
+     let bk = to_base_key k in
      let v = r.value in
      (* update evict hash *)
      let tsm = update_hevict tsm (epoch_of_timestamp t) (k, v) t tsm.thread_id in
+     let tsm = update_last_evict_key tsm bk in
      {tsm with clock = t}
 
 let vevictb (tsm:thread_state_model)
@@ -671,6 +702,7 @@ let nextepoch (tsm:thread_state_model)
     | None -> fail tsm //overflow
     | Some new_clock ->
       let new_epoch = epoch_of_timestamp new_clock in
+      let tsm = update_last_evict_key tsm root_base_key in
       { tsm with clock=new_clock }
 
 let maybe_increment_last_verified_epoch (e:option epoch_id)
@@ -1044,7 +1076,7 @@ let rec verify_model_log_append (tsm:thread_state_model)
       Seq.append_assoc les prefix (Seq.create 1 last)
     )
            
-#push-options "--z3rlimit_factor 2"
+#push-options "--z3rlimit_factor 3"
 let rec verify_model_append
   (tsm:thread_state_model)
   (log:log)

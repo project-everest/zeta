@@ -1637,6 +1637,7 @@ let init_basic tid
       failed = false;
       store = Seq.create (U16.v store_size) None;
       clock = M.zero_clock;
+      last_evict_key = root_base_key;
       epoch_hashes = M.initial_epoch_hashes;
       processed_entries = Seq.empty;
       app_results = Seq.empty;

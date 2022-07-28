@@ -979,3 +979,13 @@ let good_raw_key_impl (r:raw_key)
     FStar.Classical.forall_intro (FStar.Classical.move_requires (ith_bit_extensional r));
     r' = r
 
+(* define a total ordering of base_keys *)
+let base_key_lt (bk1 bk2: base_key): bool
+  = admit()
+
+(* the total ordering at steel level consistent with the spec level ordering *)
+let base_key_lt_rel (sbk1 sbk2: base_key)
+  : Lemma (ensures (let ibk1 = lift_base_key sbk1 in
+                    let ibk2 = lift_base_key sbk2 in
+                    sbk1 `base_key_lt` sbk2 = ibk1 `Zeta.BinTree.lt` ibk2))
+  = admit()

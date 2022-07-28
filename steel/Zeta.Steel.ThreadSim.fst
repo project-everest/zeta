@@ -329,8 +329,20 @@ let addb_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_ent
           assert (related_timestamp t' i_t');
 
           related_max tsm1.clock t' i_tsm.clock i_t';
-          let tsm2 = update_clock tsm1 (max tsm1.clock t') in
-          let i_tsm2 = IV.update_thread_clock i_tsm (Zeta.Time.max i_tsm.clock i_t') in
+          let clk_ = max tsm1.clock t' in
+          let i_clk_ = Zeta.Time.max i_tsm.clock i_t' in
+          assert (related_timestamp clk_ i_clk_);
+
+          let tsm15 = if tsm1.clock `timestamp_lt` clk_ 
+                     then update_last_evict_key tsm1 T.root_base_key
+                     else tsm1 in
+          let i_tsm15 = if i_tsm.clock `Zeta.Time.ts_lt` i_clk_
+                        then IV.update_thread_last_evict_key i_tsm Zeta.BinTree.Root
+                        else i_tsm in
+          assert (related_tsm tsm15 i_tsm15);
+
+          let tsm2 = update_clock tsm15 clk_ in
+          let i_tsm2 = IV.update_thread_clock i_tsm15 i_clk_ in
           assert (related_tsm tsm2 i_tsm2);
 
           assert (tsm_ == put_entry tsm2 s (mk_entry k v BAdd));
@@ -599,6 +611,7 @@ let related_sat_evictb_checks (tsm: s_thread_state)
       let i_clock = i_tsm.IV.clock in
       assert (related_timestamp clock i_clock);
 
+      assume(False);
       assert (clock `timestamp_lt` t);
       related_timestamp_lt clock t i_clock i_t;
       assert (i_clock `Zeta.Time.ts_lt` i_t);
