@@ -38,6 +38,9 @@ type vtls_t (vcfg: verifier_config) = {
   (* clock *)
   clock: timestamp;
 
+  (* last key evicted using blum *)
+  last_evict_key: base_key;
+
   (* verifier store *)
   st: vstore vcfg;
 }
@@ -46,14 +49,21 @@ let thread_store_size #vcfg (vs: vtls_t vcfg): nat =
   Seq.length vs.st
 
 let update_thread_store #vcfg (vs:vtls_t vcfg {vs.valid}) (st:vstore vcfg) : vtls_t _
-  = { valid = vs.valid; tid = vs.tid; clock = vs.clock; st }
+  = { valid = vs.valid; tid = vs.tid; clock = vs.clock; last_evict_key = vs.last_evict_key;  st }
 
 let update_thread_clock #vcfg (vs:vtls_t vcfg {vs.valid}) (clock:timestamp): vtls_t _
-  = { valid = vs.valid; tid = vs.tid; clock ; st = vs.st }
+  = { valid = vs.valid; tid = vs.tid; clock ; last_evict_key = vs.last_evict_key; st = vs.st }
+
+let update_thread_last_evict_key #vcfg
+  (vs: vtls_t vcfg {vs.valid}) (last_evict_key: base_key)
+  = { valid = vs.valid; tid = vs.tid; clock = vs.clock ; last_evict_key; st = vs.st }
 
 let fail (#vcfg:_) (vtls: vtls_t vcfg):
   vtls': vtls_t vcfg {not (vtls'.valid)}
-  = { valid = false; tid = vtls.tid; clock = vtls.clock; st = vtls.st }
+  = { valid = false; tid = vtls.tid; clock = vtls.clock; last_evict_key = vtls.last_evict_key; st = vtls.st }
+
+let clock_lek (#vcfg:_) (vtls: vtls_t vcfg)
+  = (vtls.clock, vtls.last_evict_key)
 
 (* addm params *)
 noeq type addm_param (vcfg: verifier_config) =
@@ -257,7 +267,7 @@ let addm_postcond #vcfg (a: addm_param vcfg{addm_precond a}) (vs: vtls_t vcfg) =
 
   (* if the precond holds then addm succeeds *)
   vs.valid /\
-  (vs.tid = vs'.tid /\ vs.clock = vs'.clock /\                // everything except store is unchanged
+  (vs.tid = vs'.tid /\ vs.clock = vs'.clock /\  vs.last_evict_key = vs'.last_evict_key /\// everything except store is unchanged
    (addm_has_desc_slot a /\
     identical_except3 vs.st vs'.st (addm_slot a) (addm_anc_slot a) (addm_desc_slot a) /\
     addm_desc_slot_postcond a vs.st
@@ -322,6 +332,10 @@ let addb #vcfg (r:record vcfg.app) (s:slot_id vcfg) (t:timestamp) (j:thread_id) 
   else if inuse_slot st s then fail vs
   else
     let clk = max vs.clock (next t) in
+
+    (* if clock increases reset last_evict_key to Root, a dummy value *)
+    let vs = if vs.clock `ts_lt` clk then update_thread_last_evict_key vs Zeta.BinTree.Root else vs in
+
     let vs = update_thread_clock vs clk in
     (* add record to store *)
     let st = badd_to_store st s r in
@@ -332,12 +346,13 @@ let sat_evictb_checks #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls_t _ {vs.vali
   inuse_slot st s &&
   (
     let k = stored_key st s in
+    let bk = to_base_key k in
 
     (* check key at s is not root *)
     k <> IntK Root &&
 
     (* check time of evict < current time *)
-    vs.clock `ts_lt` t &&
+    (clock_lek vs) `Zeta.TimeKey.lt` (t,bk) &&
 
     (* check k has no (merkle) children n the store *)
     points_to_none st s Left && points_to_none st s Right
@@ -346,8 +361,16 @@ let sat_evictb_checks #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls_t _ {vs.vali
 let vevictb_update_hash_clock #vcfg (s:slot_id vcfg) (t:timestamp)
   (vs:vtls_t _ {vs.valid /\ sat_evictb_checks s t vs}):
   (vs':vtls_t _ {vs'.valid}) =
+  let st = vs.st in
+  let k = stored_key st s in
+  let bk = to_base_key k in
+
+  (* update last evict key *)
+  let vs = update_thread_last_evict_key vs bk in
+
   (* update clock and return *)
-  update_thread_clock vs t
+  let vs = update_thread_clock vs t in
+  vs
 
 let evictb #vcfg (s:slot_id vcfg) (t:timestamp) (vs:vtls_t _ {vs.valid}): vtls_t _ =
   let st = vs.st in
@@ -396,6 +419,7 @@ let evictbm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (t:timestamp)
 let nextepoch #vcfg (vs: vtls_t vcfg{vs.valid}): vtls_t _ =
   let e = vs.clock.e + 1 in
   let clk = {e; c = 0} in
+  let vs = update_thread_last_evict_key vs Zeta.BinTree.Root in
   update_thread_clock vs clk
 
 let verifyepoch #vcfg (vs: vtls_t vcfg{vs.valid})
@@ -408,7 +432,7 @@ let init_store (vcfg:_) (t: thread_id): vstore _
 
 let init_thread_state vcfg (tid: thread_id): vtls_t vcfg =
   let st = init_store vcfg tid in
-  { valid = true; tid; clock = {e = 0; c = 0}; st  }
+  { valid = true; tid; clock = {e = 0; c = 0}; last_evict_key = Zeta.BinTree.Root; st  }
 
 let puts (#vcfg:_)
   (vs: vtls_t vcfg{vs.valid})
@@ -429,6 +453,10 @@ let int_verifier_spec_base (vcfg: verifier_config) : GV.verifier_spec_base
       = vtls.clock
     in
 
+    let last_evict_key (vtls: vtls_t vcfg{valid vtls})
+      = vtls.last_evict_key
+    in
+
     let tid (vtls: vtls_t vcfg)
       = vtls.tid
     in
@@ -446,7 +474,7 @@ let int_verifier_spec_base (vcfg: verifier_config) : GV.verifier_spec_base
     in
 
     let open Zeta.GenericVerifier in
-    { vtls_t = vtls_t vcfg; valid; fail; clock; tid; init; slot_t; app = vcfg.app;
+    { vtls_t = vtls_t vcfg; valid; fail; clock; last_evict_key; tid; init; slot_t; app = vcfg.app;
       get; puts; addm; addb; evictm; evictb; evictbm; nextepoch; verifyepoch }
 
 val lemma_int_verifier (vcfg: verifier_config)

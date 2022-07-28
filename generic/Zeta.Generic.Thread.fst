@@ -260,9 +260,38 @@ let lemma_evict_clock (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_
                     be.t = clock tl i))
   = ()
 
-#push-options "--fuel 1 --ifuel 1 --query_stats"
+#push-options "--fuel 1 --ifuel 1  --query_stats"
 
-let evict_elem_unique_aux (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (evict_seq ep tl))
+let lemma_evictb_prop (#vspec: verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl)
+  : Lemma (requires (is_blum_evict tl i))
+          (ensures (let c1,k1 = clock_lek_pre tl i in
+                    let c2,k2 = clock_lek_post tl i in
+                    let e = index tl i in
+                    let MHDom (k,_) t tid = blum_evict_elem tl i in
+                    (c1,k1) `Zeta.TimeKey.lt` (c2,k2) /\
+                    t = blum_evict_timestamp e /\
+                    Zeta.GenKey.to_base_key k = k2))
+  = lemma_state_transition tl i
+
+let blum_evict_clock_lek (#vspec: verifier_spec) (tl: verifiable_log vspec) (i: seq_index tl)
+  : Lemma (requires (is_blum_evict tl i))
+          (ensures (let c,k = clock_lek tl i in
+                    let MHDom (gk,_) c' _ = blum_evict_elem tl i in
+                    c = c' /\ k = Zeta.GenKey.to_base_key gk))
+  = ()
+
+let lemma_clock_lek_neq_implies_blum_evict_elem_neq
+  (#vspec: verifier_spec)
+  (tl: verifiable_log vspec)
+  (i1 i2: seq_index tl)
+  : Lemma (requires (is_blum_evict tl i1 /\ is_blum_evict tl i2 /\ clock_lek tl i1 <> clock_lek tl i2))
+          (ensures (blum_evict_elem tl i1 <> blum_evict_elem tl i2))
+  = blum_evict_clock_lek tl i1;
+    blum_evict_clock_lek tl i2;
+    ()
+
+let evict_elem_unique_aux (#vspec:verifier_spec)
+                          (ep: epoch) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (evict_seq ep tl))
   : Lemma (ensures (let es = evict_seq ep tl in
                     j1 <  j2 ==>  S.index es j1 <> S.index es j2))
   = let lt = Zeta.TimeKey.lt in
@@ -276,39 +305,24 @@ let evict_elem_unique_aux (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 
       (* the clock increases during the evict processing *)
       let i2' = i2 - 1 in
       lemma_state_transition tl i2;
-      assume(clock_lek tl i2' `lt` clock_lek tl i2);
+      let _st = state_pre tl i2 in
+      let e = index tl i2 in
+      let st_ = state_post tl i2 in
+      assert (GV.is_blum_evict e);
+      assert (st_ == verify_step e _st);
+      assert (vspec.valid st_);
+      lemma_evictb_prop tl i2;
+      assert(clock_lek tl i2' `lt` clock_lek tl i2);
 
       assert(i1 <= i2');
       lemma_clock_lek_monotonic tl i1 i2';
       Zeta.TimeKey.lt_is_transitive (clock_lek tl i1) (clock_lek tl i2') (clock_lek tl i2);
       assert(clock_lek tl i1 `lt` clock_lek tl i2);
 
-      admit()
+      lemma_clock_lek_neq_implies_blum_evict_elem_neq tl i1 i2;
+
+      ()
     end
-
-#pop-options
-
-#push-options "--z3rlimit_factor 4 --query_stats"
-
-let evict_elem_unique_aux (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (evict_seq ep tl))
-  : Lemma (ensures (let es = evict_seq ep tl in
-                    j1 <  j2 ==>  S.index es j1 <> S.index es j2))
-  = if j1 < j2 then (
-      let i1 = evict_seq_invmap ep tl j1 in
-      let i2 = evict_seq_invmap ep tl j2 in
-      evict_seq_invmap_monotonic ep tl j1 j2;
-      assert(i1 < i2);
-
-      (* the clock increases during the evict processing *)
-      let i2' = i2 - 1 in
-      lemma_state_transition tl i2;
-      assert(clock tl i2' `ts_lt` clock tl i2);
-
-      (* the clock is monotonic => the clock after the first evict < clock after the second *)
-      assert(i1 <= i2');
-      lemma_clock_monotonic tl i1 i2';
-      assert(clock tl i1 `ts_lt` clock tl i2)
-    )
 
 #pop-options
 

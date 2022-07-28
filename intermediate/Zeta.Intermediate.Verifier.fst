@@ -101,6 +101,7 @@ let evict_prop
 
 let lemma_int_verifier_evict_prop (vcfg:_)
   : Lemma (ensures (GV.evict_prop (int_verifier_spec_base vcfg)))
+          [SMTPat (GV.evict_prop (int_verifier_spec_base vcfg))]
   = FStar.Classical.forall_intro_2 (evict_prop #vcfg)
 
 let add_prop
@@ -137,10 +138,17 @@ let evictb_prop
   (e: GV.verifier_log_entry (int_verifier_spec_base vcfg))
   (vs: vtls_t vcfg)
   : Lemma (ensures (let vs_post = GV.verify_step e vs in
+                    let vspec = int_verifier_spec_base vcfg in
                     GV.is_blum_evict e ==>
                     vs_post.valid ==>
-                    (vs.clock `ts_lt` vs_post.clock /\
-                     vs_post.clock = GV.blum_evict_timestamp e)))
+                    (let (c1,k1) = clock_lek vs in
+                     let (c2,k2) = clock_lek vs_post in
+                     let x = GV.evicted_base_key vs e in
+                     assert(vspec.valid vs);
+                     assert (GV.is_evict e);
+                     assert (vspec.valid (GV.verify_step e vs));
+                     (c1,k1) `Zeta.TimeKey.lt` (c2,k2) /\
+                     k2 = GV.evicted_base_key vs e)))
   = ()
 
 let lemma_int_verifier_evictb_prop (vcfg:_)

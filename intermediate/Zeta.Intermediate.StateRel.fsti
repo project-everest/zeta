@@ -20,6 +20,7 @@ let vtls_rel #vcfg (vs:vtls_t vcfg) (vs':HV.vtls_t vcfg.app) : Type =
   vs.valid = vs'.valid /\
   (vs.valid ==> (vs.tid = vs'.tid /\
                  vs.clock = vs'.clock /\
+                 vs.last_evict_key = vs'.last_evict_key /\
                  store_rel vs.st vs'.st))
 
 let valid_logS_entry (#vcfg:_)

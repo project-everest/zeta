@@ -331,7 +331,7 @@ let evicted_base_key
   = let Some (gk,_) = vspec.get (evict_slot e) vtls in
     Zeta.GenKey.to_base_key gk
 
-let evictb_prop (vspec: verifier_spec_base)
+let evictb_prop (vspec: verifier_spec_base {evict_prop vspec})
   = forall (e: verifier_log_entry vspec) (vtls: vspec.vtls_t).
     {:pattern verify_step e vtls}
     let vtls' = verify_step e vtls in
@@ -341,7 +341,8 @@ let evictb_prop (vspec: verifier_spec_base)
      let (c2,k2) = clock_evict_key vtls' in
      (c1,k1) `Zeta.TimeKey.lt` (c2,k2)
      /\
-     c2 = blum_evict_timestamp e)
+     c2 = blum_evict_timestamp e /\
+     k2 = evicted_base_key vtls e)
 
 let verifier_log vspec = S.seq (verifier_log_entry vspec)
 

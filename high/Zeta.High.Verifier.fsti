@@ -87,7 +87,7 @@ noeq type vtls_t (app: app_params) = {
   (* clock *)
   clock: timestamp;
 
-  (* last key added using merkle and evicted using blum *)
+  (* last key evicted using blum *)
   last_evict_key: base_key;
 
   (* verifier store *)
@@ -97,6 +97,8 @@ noeq type vtls_t (app: app_params) = {
 let fail (#aprm: app_params) (vtls: vtls_t aprm):
   vtls': vtls_t aprm {not (vtls'.valid)}
   = { valid = false; tid = vtls.tid; clock = vtls.clock; last_evict_key = vtls.last_evict_key; st = vtls.st }
+
+let clock_lek (#app: app_params) (vtls: vtls_t app) = (vtls.clock, vtls.last_evict_key)
 
 (* update the store of a specified verifier thread *)
 let update_thread_store
@@ -241,10 +243,6 @@ let addb (#aprm: app_params)
       let st = add_to_store st r BAdd in
       update_thread_store vs st
 
-let lt_timestamp_key (t1 t2:_) (k1 k2:_)
-  = if t1 = t2 then Zeta.BinTree.lt k1 k2
-    else ts_lt t1 t2
-
 let evictb_aux (#aprm: app_params)
                (k:base_key)
                (t:timestamp)
@@ -253,7 +251,7 @@ let evictb_aux (#aprm: app_params)
   = let st = vs.st in
     let open Zeta.BinTree in
     if k = Root then fail vs
-    else if not (lt_timestamp_key vs.clock t vs.last_evict_key k) then fail vs
+    else if not (clock_lek vs `Zeta.TimeKey.lt`  (t,k)) then fail vs
     else if not (store_contains st k) then fail vs
     else if add_method_of st k <> eam then fail vs
     else if has_instore_merkle_desc st k then fail vs

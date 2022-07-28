@@ -924,7 +924,7 @@ let ev_is_sv_snoc_evict
   = let ki = to_base_key gk in
     eac_state_snoc ki il
 
-#push-options "--z3rlimit_factor 3"
+#push-options "--z3rlimit_factor 4"
 
 let ev_is_sv_snoc_appfn
   (#app #n:_)

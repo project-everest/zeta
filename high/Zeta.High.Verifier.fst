@@ -75,9 +75,21 @@ let evictb_prop
   : Lemma (ensures (let vs_post = GV.verify_step e vs in
                     GV.is_blum_evict e ==>
                     vs_post.valid ==>
-                    (vs.clock `ts_lt` vs_post.clock /\
-                     vs_post.clock = GV.blum_evict_timestamp e)))
-  = ()
+                    (let (c1,k1) = clock_lek vs in
+                     let (c2,k2) = clock_lek vs_post in
+                     (c1,k1) `Zeta.TimeKey.lt` (c2,k2) /\
+                     c2 = GV.blum_evict_timestamp e /\
+                     k2 = GV.evicted_base_key vs e)))
+  = let vs_post = GV.verify_step e vs in
+    if GV.is_blum_evict e && vs_post.valid then
+    begin
+      let c1,k1 = clock_lek vs in
+      let c2,k2 = clock_lek vs_post in
+      assert ((c1,k1) `Zeta.TimeKey.lt` (c2,k2));
+      assert (c2 = GV.blum_evict_timestamp e);
+      assert (k2 = GV.evicted_base_key vs e);
+      ()
+    end
 
 let lemma_high_verifier_evictb_prop (app:_)
   : Lemma (ensures (GV.evictb_prop (high_verifier_spec_base app)))

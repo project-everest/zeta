@@ -399,6 +399,36 @@ let lemma_runapp_simulates_spec
 
 #pop-options
 
+#push-options "--query_stats"
+
+let lemma_int_appfn_succ
+  (#vcfg:_)
+  (a: appfn_rel_t vcfg)
+  : Lemma (requires (let AFR vss _ e = a in
+                     let vss_ = GV.verify_step e vss in
+                     vss_.valid))
+          (ensures (int_appfn_succ a))
+  = let AFR vss _ e = a in
+    let GV.RunApp f p ss = e in
+
+    assert (ss == int_slots a);
+    assert (GV.contains_distinct_app_keys_comp vss ss);
+    contains_distinct_app_keys_rel a;
+    assert (contains_distinct_app_keys a);
+
+    let fn = appfn f in
+    assert (S.length ss = appfn_arity f);
+
+    let rs = GV.reads vss ss in
+    assert (rs == int_reads a);
+
+    let rc, _, ws = fn p rs in
+    assert (rc <> Fn_failure);
+    assert (rc = Fn_success);
+    assert (int_appfn_succ a);
+
+    ()
+
 let lemma_app_res_rel
   (#vcfg:_)
   (vss: vtls_t vcfg{vss.valid})
@@ -410,17 +440,23 @@ let lemma_app_res_rel
                     GV.appfn_result e vss = GV.appfn_result ek vsk))
   = lemma_runapp_simulates_spec vss vsk e;
     let a = AFR vss vsk e in
-    assert(int_appfn_succ a);
     lemma_appfn_succ_rel a;
+    lemma_int_appfn_succ a;
+    assert(int_appfn_succ a);
+
     lemma_res_rel a;
     ()
+
+#pop-options
 
 let amp (#vcfg:_) (vss:vtls_t vcfg {vss.valid}) (e: logS_entry vcfg {GV.AddM? e})
   : addm_param vcfg
   = let GV.AddM r s s' = e in
     AMP s r s' vss
 
-#push-options "--fuel 0 --ifuel 1 --query_stats"
+#push-options "--fuel 1 --ifuel 1 --query_stats"
+
+#push-options "--z3rlimit_factor 3"
 
 let lemma_vaddm_preserves_spec_unrelatedkey
   (#vcfg: verifier_config)
@@ -480,6 +516,8 @@ let lemma_vaddm_preserves_spec_unrelatedkey
 
       lemma_addm_identical_except2 vss e si
     )
+
+#pop-options
 
 let lemma_vaddm_preserves_spec_key
   (#vcfg: verifier_config)
@@ -681,7 +719,7 @@ let lemma_vaddm_preserves_spec_new_key
     else
       lemma_vaddm_preserves_spec_case_fail vs vs' e
 
-#push-options "--z3rlimit_factor 6"
+// #push-options "--z3rlimit_factor 6"
 
 let lemma_vaddb_preserves_spec_new_key
       (#vcfg:_)
@@ -838,7 +876,7 @@ let lemma_evictb_simulates_spec
     let stk = vsk.st in
     let GV.EvictB s t = e in
     assert(inuse_slot sts s);
-    let clk = vss.clock in
+
     let open Zeta.Time in
 
     let k = stored_base_key sts s in
@@ -846,7 +884,9 @@ let lemma_evictb_simulates_spec
     let vss_ = GV.verify_step e vss in
     let sts_ = vss_.st in
     let vsk_: HV.vtls_t vcfg.app = GV.verify_step ek vsk in
-    if k <> Root && clk `ts_lt` t then
+
+    if k <> Root && (clock_lek vs) `Zeta.TimeKey.lt` (t,k) then
+    begin
       if points_to_some_slot sts s Left || points_to_some_slot sts s Right then
         lemma_points_to_some_implies_has_instore_merkle_desc sts stk s
       else if add_method_of sts s = HV.BAdd then
@@ -869,8 +909,9 @@ let lemma_evictb_simulates_spec
           in
           forall_intro aux
         )
+    end
 
-#pop-options
+//#pop-options
 
 #push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 4 --query_stats"
 
@@ -1018,7 +1059,7 @@ let lemma_evictbm_simulates_spec
     let k' = stored_base_key sts s' in
     let open Zeta.Time in
 
-    if k <> Root && vss.clock `ts_lt` t then
+    if k <> Root && (clock_lek vss) `Zeta.TimeKey.lt` (t,k) then
       if points_to_some_slot sts s Left || points_to_some_slot sts s Right then
         lemma_points_to_some_implies_has_instore_merkle_desc sts stk s
       else if HV.has_instore_merkle_desc stk k then
