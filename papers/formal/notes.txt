@@ -1,0 +1,117 @@
+* Title
+
+Zeta: A formally verified implementation of a concurrent, high-performance state-machine monitor based on memory checking
+
+
+* Abstract
+
+
+
+
+
+* Introduction
+
+  1.0
+ - Context
+ - Abstract summary of what Zeta is
+
+  1.1 Example
+  
+ - Grounded in an example of key-value store
+   
+     highly concurrent, many threads,
+
+     naive monitor is likely to introduce concurrency bottlenecks
+     
+     challenge: how to do this while remaining performant; Strawman with Merkle trees
+
+     opportunity: if we can do this efficiently, then we can get
+     safety property enforcement on the cheap (compared to fully
+     verified Faster)
+    
+// Context
+
+Blum et al. (1992) propose memory checking as a technique to monitor
+the integrity of computations. Improvements over the years have led to
+systems like FastVer (Arasu et al. (SIGMOD 21)), which combines
+several memory checking techiques to monitor the execution of
+key-value stores. FastVer enables enforcing end-to-end safety
+properties of the Faster key-value store, while degrading its overall
+performance by a factor of 2, while trading off various concerns, like
+latency and throughput.  In this paper, we formalize a generalization
+of the the FastVer monitor in a framework called Zeta, which in
+addition to being able to monitor key-value stores, can also monitor
+arbitrary application-specific state machines.
+
+//Summary of what Zeta is
+
+Consider a scenario in which a skeptical client C is interacting with
+a remote stateful service P. To provide an assurance to the C that P
+respects a given safety property expressed as a state machine M, Zeta
+offers a monitor or verifier V, such that at each operation that C
+issues to P, P proves to V that its behavior is compatible with the
+state machine M.
+
+The main novelty of Zeta is that it offers an API that enables the
+state of P to evolve in a concurrent fashion, while enabling P to
+prove to V that the state-machine M transitions in a sequentially
+consistent manner.
+
+... figure ... ?
+
+We provide a formally verified implementation of the Zeta monitor in
+the F* proof-oriented language, yielding high-performance, concurrent
+C code, whose main guarantee is that if the monitor accepts a trace of
+interactions with several prover threads, then there exists an
+interleaving of that trace that is accepted by the state machine,
+otherwise exhibiting a hash collision.
+
+
+
+
+
+To illustrate, consider for the stateful service a key-value store.
+
+
+
+that
+
+
+for multiple threads
+of the service P to interact with the multiple verifier threads in V,
+such 
+
+
+
+
+
+Zeta is a formally verified state-machine monitor which provides a
+small API: an untrusted application
+
+
+Consider an application A consisting of several threads interacting
+via shared memory M. Zeta maintains an abstraction \hat{M} of the
+memory M, where \hat{M} is compactly represented using a combination
+of cryptographic hashes and trusted memory. For example, for a
+key-value store, \hat{M} may abstract only the key-value map, ignoring
+data structures like indexes that are only relevant for performance
+rather than correctness. At an application-chosen granularity, state
+transitions in A are instrumented with calls into the Zeta monitor to
+query or update the abstraction/
+
+
+
+(\hat{M}) and offers an interface to A to maintain the
+relationship between M and \hat{M}. 
+
+
+
+
+
+
+//Summary of main results: theorem, etc.
+
+Further, we formalize Zeta and build a fully verified generic implementation of the framework in the F* proof-oriented language, producing high-performance, concurrent, C code that can be run in a TEE like SGX Enclaves.
+
+
+
