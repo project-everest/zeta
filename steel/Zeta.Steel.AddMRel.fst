@@ -525,9 +525,10 @@ let related_addm_postcond (a: addm_param) (i_a: i_addm_param) (tsm_: s_thread_st
     let i_st = IV.addm_store_pre i_a in
 
     assert (related_tsm tsm i_tsm);
-
+        
     (* follows from the post condition *)
     assert (not tsm_.failed = i_tsm_.IV.valid);
 
     if not tsm_.failed then
       related_store_addm_postcond a i_a tsm_ i_tsm_
+

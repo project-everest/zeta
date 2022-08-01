@@ -112,7 +112,8 @@ val lower_merkle_key (k:Zeta.Key.merkle_key)
   : Lemma (is_internal_key (lower_base_key k))
 
 val related_root (_:unit)
-  : Lemma (lift_base_key root_base_key == Zeta.BinTree.Root)
+  : Lemma (lift_base_key root_base_key == Zeta.BinTree.Root /\ 
+           lower_base_key Zeta.BinTree.Root == root_base_key)
 
 val is_root_spec (k:base_key)
   : Lemma (is_root k <==> k==root_base_key)

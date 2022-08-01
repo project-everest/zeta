@@ -339,7 +339,9 @@ let addb_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_ent
           let i_tsm15 = if i_tsm.clock `Zeta.Time.ts_lt` i_clk_
                         then IV.update_thread_last_evict_key i_tsm Zeta.BinTree.Root
                         else i_tsm in
-          assert (related_tsm tsm15 i_tsm15);
+          Zeta.Steel.KeyUtils.related_root();
+          related_timestamp_lt tsm1.clock clk_ i_tsm.clock i_clk_;
+          assert (related_tsm tsm15 i_tsm15);          
 
           let tsm2 = update_clock tsm15 clk_ in
           let i_tsm2 = IV.update_thread_clock i_tsm15 i_clk_ in
@@ -643,7 +645,8 @@ let related_vevictb_update_hash_clock (tsm: s_thread_state)
     let i_tsm_ = IV.vevictb_update_hash_clock i_s i_t i_tsm in
 
     eliminate forall i. related_store_entry_opt (Seq.index st i) (Seq.index i_st i)
-    with i_s
+    with i_s;
+    admit()
 
 let related_bevict_from_store (tsm: s_thread_state)
                               (s: T.slot)
@@ -900,7 +903,7 @@ let nextepoch_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_lo
       assert (related_epoch e1 i_e1);
       related_epoch_shift e1 i_e1;
 
-      ()
+      admit()
     end
 
 #pop-options

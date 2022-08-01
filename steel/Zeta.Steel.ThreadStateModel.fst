@@ -782,6 +782,7 @@ let rec write_slots (tsm:thread_state_model)
             tsm.thread_id == tsm'.thread_id /\
             tsm.last_verified_epoch == tsm'.last_verified_epoch /\
             tsm.clock == tsm'.clock /\
+            tsm.last_evict_key == tsm'.last_evict_key /\
             tsm.epoch_hashes == tsm'.epoch_hashes /\
             tsm.app_results == tsm'.app_results /\
             tsm.failed == tsm'.failed
@@ -809,6 +810,7 @@ let runapp (tsm:thread_state_model)
             tsm'.thread_id == tsm.thread_id /\
             tsm'.last_verified_epoch == tsm.last_verified_epoch /\
             tsm'.clock == tsm.clock /\
+            tsm'.last_evict_key == tsm.last_evict_key /\
             tsm'.epoch_hashes == tsm.epoch_hashes /\
             (tsm'.failed && not tsm.failed ==> tsm.app_results == tsm'.app_results) /\
             (not tsm'.failed ==>

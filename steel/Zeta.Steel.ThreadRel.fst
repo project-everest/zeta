@@ -597,6 +597,7 @@ let init_store_related (tid: AT.tid) (i_tid: i_tid)
         failed = false;
         store = Seq.create (U16.v AT.store_size) None;
         clock = TSM.zero_clock;
+        last_evict_key = root_base_key;
         epoch_hashes = initial_epoch_hashes;
         processed_entries = Seq.empty;
         app_results = Seq.empty;
@@ -642,6 +643,7 @@ let init_state_related (tid: AT.tid) (i_tid: i_tid)
     assert (related_tid tsm.thread_id i_tsm.IV.tid);
     related_timestamp_zero ();
     assert (related_timestamp tsm.clock i_tsm.IV.clock);
+    Zeta.Steel.KeyUtils.related_root();
 
     init_store_related tid i_tid
 

@@ -246,7 +246,8 @@ let addm_postcond (a: addm_param {addm_precond a}) (vs: s_thread_state) =
   let vs' = a.vs' in
 
   (vs.failed = vs'.failed /\
-   vs.thread_id = vs'.thread_id /\ vs.clock = vs'.clock /\                // everything except store is unchanged
+  // everything except store is unchanged
+   vs.thread_id = vs'.thread_id /\ vs.clock = vs'.clock /\ vs.last_evict_key == vs'.last_evict_key /\
    (addm_has_desc_slot a /\
     identical_except3 vs.store vs'.store (addm_slot a) (addm_anc_slot a) (addm_desc_slot a) /\
     addm_desc_slot_postcond a vs.store

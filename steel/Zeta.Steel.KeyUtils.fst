@@ -955,8 +955,9 @@ let lower_merkle_key (k:Zeta.Key.merkle_key)
   : Lemma (is_internal_key (lower_base_key k))
   = ()
 
-let related_root ()
-  : Lemma (lift_base_key root_base_key == Zeta.BinTree.Root)
+let related_root (_:unit)
+  : Lemma (lift_base_key root_base_key == Zeta.BinTree.Root /\ 
+           lower_base_key Zeta.BinTree.Root == root_base_key)
   = ()
 
 let is_root_spec (k:base_key)
