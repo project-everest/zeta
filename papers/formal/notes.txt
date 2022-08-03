@@ -194,13 +194,15 @@ perspective (cite Henzinger et al), it has obvious benefits in that it
 requires no changes to the (likely quite complex) service; however, it
 is hard to make a black box monitor efficient.
 
-Instead, Zeta offers a protocol between a (formally verified) monitor
-and the untrusted service, where, the service can interactively
-convince the monitor that its interactions so far are valid, and, if
-convinced, the monitor can attest to the validity of the log
-interactions so far by issuing signed tokens of identified
-request/response pairs to the client.
+Instead, Zeta allows the untrusted service to interactively convince
+the monitor that its interactions so far are valid, and, if convinced,
+the monitor can attest to the validity of the log interactions so far
+by issuing signed tokens of identified request/response pairs to the
+client.
 
+To interact with the monitor, the service makes use of a monitor API,
+an interface consisting of 8 different messages. We describe this API
+and the architecture of the monitor next.
 
 ** 2.1 
 
