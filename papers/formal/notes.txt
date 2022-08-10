@@ -1,0 +1,281 @@
+* Title
+
+Zeta: A formally verified implementation of a concurrent,
+state-machine monitor based on memory checking
+
+* Abstract
+
+* 1. Introduction
+
+
+** Context     
+
+Blum et al. (1992) propose memory checking as a technique to monitor
+the integrity of computations. Improvements over the years have led to
+systems like FastVer (Arasu et al. (SIGMOD 21)), which combines
+several memory checking techiques to monitor the execution of
+key-value stores. FastVer enables enforcing end-to-end safety
+properties of the Faster key-value store, while degrading its overall
+performance by a factor of 2, while trading off various concerns, like
+latency and throughput.  In this paper, we formalize a generalization
+of the the FastVer monitor in a framework called Zeta, which in
+addition to being able to monitor key-value stores, can also monitor
+arbitrary application-specific state machines.
+
+** Zeta: A Summary
+
+Consider a scenario in which a skeptical client C is interacting with
+a remote stateful service P. To provide an assurance to the C that P
+respects a given safety property expressed as a state machine M, Zeta
+offers a monitor or verifier V, such that at each operation that C
+issues to P, P proves to V that its behavior is compatible with the
+state machine M.
+
+The main novelty of Zeta is that it offers an API that enables the
+state of P to evolve in a concurrent fashion, while enabling P to
+prove to V that the state-machine M transitions in a sequentially
+consistent manner.
+
+... figure ... ?
+
+We provide a formally verified implementation of the Zeta monitor in
+the F* proof-oriented language, yielding high-performance, concurrent
+C code, whose main guarantee is that if the monitor accepts a trace of
+interactions with several prover threads, then there exists an
+interleaving of that trace that is accepted by the state machine,
+otherwise exhibiting a hash collision.
+
+** A Running Example: Zeta for key-value stores
+
+ - Grounded in an example of key-value store
+   
+     highly concurrent, many threads,
+
+     naive monitor is likely to introduce concurrency bottlenecks
+     
+     challenge: how to do this while remaining performant; Strawman with Merkle trees
+
+     opportunity: if we can do this efficiently, then we can get
+     safety property enforcement on the cheap (compared to fully
+     verified Faster)
+
+** Contributions
+
+The overall architecture of Zeta and its proof is shown in the Figure:
+
+   1. We present the design and implementation of Zeta, a new family
+      of protocols based on memory-checking that enables monitoring
+      and enforcing application-specific safety properties on stateful
+      services. Zeta includes two new cryptographic data structures,
+      including a sparse incremental Merkle tree and a multiset hash.
+
+   2. We prove that a high-level purely functional specification of
+      the Zeta correct in F*, in the sense that a monitored concurrent
+      execution of the service is sequentially consistent and meets
+      the safety property, except due to a Merkle hash collision.
+
+   3. Through a series of implementation refinement steps, we prove
+      that a implementation of Zeta in Steel (an imperative, embedded
+      DSL in F* based on concurrent separation logic) refines the
+      high-level specification, and any accepting run of the Zeta
+      state machine monitor in Steel is also sequentially consistent
+      and safe, except for a Merkle hash collision or a multiset hash
+      collision.
+
+   4. Our implementation of Zeta in Steel produces C code, which has
+      no external dependences. We report on experiments using Zeta to
+      monitor the executions of the Faster key-value store,
+      reproducing the results of Arasu et al. SIGMOD 2021, but this
+      time providing formal guarantees of correctness.
+
+  A stepwise refinement proof, in 4 steps
+  
+```
+  ------------------------------------------------.---------------------------
+                |                                 |
+  High-level    | High-level repr of records      | Verifiers accept
+  spec          | 256 bit record identifiers      | only sequentially consistent logs
+                |                                 | except for Merkle collision
+  --------------.---------------------------------.----------------------------
+                |                                 |
+  Intermediate  | Add a sub protocol to bind      | Verifiers accept
+  verifier      | record ids to shorter 16-bit    | only S.C logs
+                | ids.                            | except for Merkle collision
+                |                                 |
+  --------------.---------Simulation proof--------.-----------------------------
+                |                                 |
+  Low-level     | Move to low-level binary        | ... S.C. logs
+  verifier      | reprs (using EverParse)         | except for Merkle collision
+                | Add multiset hashes             | or multiset hash collision
+                |                                 |
+  --------------.-------Functional correctness----.------------------------------
+                |                                 |
+  Imperative    | Executable imperative code      | ... S.C. logs
+  code (Steel)  | Epoch management                | except for Merkle collision
+                | Explicit state aggregation      | or multiset hash collision
+                |                                 |
+  ----||--------.----------------------------------------------------------------
+      ||
+      || F* + Karamel
+      ||
+      \/
+     Zeta.{c,h} +
+     Formats.{c,h} + (EverParse)
+     Hacl.{c,h}      (HACL* crypto)
+```
+
+ Zeta.{c,h}    ~ 4,000 LOC
+ Formats.{c,h} ~ 3,000 LOC (Auto-generated from EverParse spec,
+                            spec carefully designed by Tahina)
+
+ Total F* + Steel code & proof: About 43 KLOC
+ 
+
+* 2. Zeta by Example, on a Key-Value Store
+
+We start by presenting Zeta informally, based on the scenario of
+clients interacting with a key-value store service. Typically, for
+scalability, the service is implemented using multiple instances or
+threads and multiple clients can interact with the service
+concurrently, as depicted by the following sketch:
+
+
+```
+  Client_0 <------.
+   ...             \  .------> Service Instance 0
+   ...              \/          ...
+   ...              /\.------> Service Instance M
+  Client_N <------./
+```
+
+The overall system is modeled by a log of interactions at service
+instance, which each element in the log pairs an identified client
+request with the service's corresponding response, i.e., we have a set
+of traces, one of each service instance, of the form:
+
+```
+     L0: op_{0,0}, ..., op_{0, L0)
+     ...
+     LM: op_{0,0}, ..., op_{0, LM)
+```
+
+where, in the case of a key-value store, `op` is described by:
+
+```
+ op ::= get(k), v  |  put(k,v)
+```
+
+i.e., `get(k), v`, records a client's request for the value of key `k`
+and the service's response is `v`; and `put(k,v)`, is a client's
+request to update the value of `k` to `v`, for which there is no
+associated response value (or, equivalently, the response is just the
+unit value `()`).
+
+Our overall goal is to offer each client a guarantee that a monitored
+execution of the system is provably sequentially consistent, except
+with negligible probability, and that deviations from a sequentially
+consistent execution are detected within a chosen latency window, a
+parameter of the system.
+
+That is, if the monitor has not yet detected a failure, then there
+exists an interleaving of the logs `L0, ... LM` compatible with the
+observed result of each operation.  For key-value stores, this means
+that there is an interleaving of the logs such for each `get(k),v` in
+the interleaved logs, for the most recent preceding `put(k,v')`
+operation, the value `v = v'`, i.e., each `get(k)` returns the value
+of the most recent `put` on the same key.  The challenge is, of
+course, is in designing a monitor that is efficient.
+
+At one end of the spectrum is a monitor that views the service as a
+black box and simply monitors the logs, somehow deciding whether or
+not the interaction so far is valid. This form of black box monitoring
+has been the subject of much recent study from an automata-theoretic
+perspective (cite Henzinger et al), it has obvious benefits in that it
+requires no changes to the (likely quite complex) service; however, it
+is hard to make a black box monitor efficient.
+
+Instead, Zeta allows the untrusted service to interactively convince
+the monitor that its interactions so far are valid, and, if convinced,
+the monitor can attest to the validity of the log interactions so far
+by issuing signed tokens of identified request/response pairs to the
+client.
+
+To interact with the monitor, the service makes use of a monitor API,
+an interface consisting of 8 different messages. We describe this API
+and the architecture of the monitor next.
+
+** 2.1 
+
+* 3. Formalizing Zeta and Proving its Implementation Correct
+
+** 3.1 A Generic Verifier
+
+*** 3.1.1 Signature of a Generic Verifier 
+
+*** 3.1.2 Main Lemma: S.C except for Merkle Collision
+
+
+** 3.2 A Sub-protocol for Short Key Identifiers
+
+*** 3.2.1 Instantiating the Generic Verifier
+
+*** 3.2.2 Main Lemma: S.C. except for Merkle Collision
+
+
+** 3.3 Low-level Verifier Specification
+
+   Low-level binary formats, rather than high-level types
+   
+   Resource bounds, e.g., 64 bit counters etc.
+
+
+** 3.4 Imperative implementation
+
+*** 3.4.1 Single Thread Functional Correctness
+
+*** 3.4.2 Thread State Aggregation
+
+*** 3.4.3 Top-level Interface and Main Theorem
+
+
+
+* 4. Monitoring Faster with Zeta
+
+* 5. Related Work
+
+* 6. Conclusions
+
+
+
+--------------------------------------------------------------------------------
+
+* Random notes
+
+
+Zeta is a formally verified state-machine monitor which provides a
+small API: an untrusted application
+
+
+Consider an application A consisting of several threads interacting
+via shared memory M. Zeta maintains an abstraction \hat{M} of the
+memory M, where \hat{M} is compactly represented using a combination
+of cryptographic hashes and trusted memory. For example, for a
+key-value store, \hat{M} may abstract only the key-value map, ignoring
+data structures like indexes that are only relevant for performance
+rather than correctness. At an application-chosen granularity, state
+transitions in A are instrumented with calls into the Zeta monitor to
+query or update the abstraction/
+
+
+
+(\hat{M}) and offers an interface to A to maintain the
+relationship between M and \hat{M}. 
+
+
+
+
+
+
+//Summary of main results: theorem, etc.
+
+Further, we formalize Zeta and build a fully verified generic implementation of the framework in the F* proof-oriented language, producing high-performance, concurrent, C code that can be run in a TEE like SGX Enclaves.
