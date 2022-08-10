@@ -646,10 +646,19 @@ let vaddb_core (#tsm:M.thread_state_model)
               | None -> fail t; return true
               | Some t' ->
                 let clock = R.read t.clock in
-                let next_clock = M.max clock t' in
-                R.write t.clock next_clock;
-                A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
-                return true
+                let next_clock = M.max clock t' in                
+                if clock `M.timestamp_lt` next_clock
+                then (
+                  R.write t.last_evict_key root_base_key;
+                  R.write t.clock next_clock;
+                  A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
+                  return true
+                )
+                else (
+                  R.write t.clock next_clock;
+                  A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
+                  return true
+                )
             )
             else (
               rewrite (thread_state_inv_core t _) (thread_state_inv_core t tsm);
@@ -790,12 +799,14 @@ let sat_evictb_checks (#tsm:M.thread_state_model)
       return false
     | Some r ->
       let k = r.key in
+      let bk = to_base_key k in
       let v = r.value in
       let clock = R.read t.clock in
+      let lek = R.read t.last_evict_key in
       let b =
         not (M.is_root_key k) &&
         (* check time of evict < current time *)
-        clock `M.timestamp_lt` ts &&
+        (clock, lek) `M.tk_lt` (ts,bk) &&
         (* check k has no (merkle) children n the store *)
         not (entry_points_to_some_slot r true) &&
         not (entry_points_to_some_slot r false)
@@ -813,6 +824,7 @@ let vevictb_update_hash_clock (#tsm:M.thread_state_model)
      (ensures fun _ -> True)
    = let Some r = A.read t.store (as_u32 s) in
      let k = r.key in
+     let bk = to_base_key k in
      let v = r.value in
      (* update evict hash *)
      let e = M.epoch_of_timestamp ts in
@@ -820,6 +832,7 @@ let vevictb_update_hash_clock (#tsm:M.thread_state_model)
      if b
      then (
        R.write t.clock ts;
+       R.write t.last_evict_key bk;
        return b
      )
      else (
@@ -985,6 +998,7 @@ let nextepoch_core (#tsm:M.thread_state_model)
     | Some nxt ->
       let c = { epoch = nxt; counter = 0ul } in
       R.write t.clock c;
+      R.write t.last_evict_key root_base_key;
       ()
 
 let nextepoch (#tsm:M.thread_state_model)
@@ -1653,6 +1667,7 @@ let create_basic (tid:tid)
   = let failed = R.alloc false in
     let store : vstore = A.alloc None (as_u32 store_size) in
     let clock = R.alloc M.zero_clock in
+    let last_evict_key = R.alloc root_base_key in
     let epoch_hashes = EpochMap.create 64ul M.init_epoch_hash in
     let last_verified_epoch = R.alloc None in
     let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
@@ -1665,6 +1680,7 @@ let create_basic (tid:tid)
         failed;
         store;
         clock;
+        last_evict_key;
         epoch_hashes;
         last_verified_epoch;
         processed_entries;
@@ -1676,6 +1692,7 @@ let create_basic (tid:tid)
     rewrite (R.pts_to failed _ _ `star`
              array_pts_to store _ `star`
              R.pts_to clock _ _ `star`
+             R.pts_to last_evict_key _ _ `star`             
              EpochMap.full_perm epoch_hashes _ _ `star`
              R.pts_to last_verified_epoch _ _ `star`
              G.pts_to processed_entries _ _ `star`

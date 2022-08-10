@@ -37,6 +37,7 @@ type thread_state_t = {
   failed       : R.ref bool;
   store        : vstore;
   clock        : R.ref T.timestamp;
+  last_evict_key : R.ref T.base_key;
   epoch_hashes : AEH.all_epoch_hashes;
   last_verified_epoch: R.ref (option M.epoch_id);
   processed_entries: G.ref (Seq.seq log_entry);
@@ -54,6 +55,7 @@ let thread_state_inv_core (t:thread_state_t)
   = R.pts_to t.failed full tsm.failed `star`
     array_pts_to t.store tsm.store `star`
     R.pts_to t.clock full tsm.clock `star`
+    R.pts_to t.last_evict_key full tsm.last_evict_key `star`
     EpochMap.full_perm t.epoch_hashes M.init_epoch_hash tsm.epoch_hashes `star`
     R.pts_to t.last_verified_epoch full tsm.last_verified_epoch `star`
     G.pts_to t.processed_entries full tsm.processed_entries `star`
@@ -66,6 +68,7 @@ let intro_thread_state_inv_core #o
                            (#f:_)
                            (#s:_)
                            (#c:_)
+                           (#lev:_)
                            (#eh:_)
                            (#lve:_)
                            (#pe:_)
@@ -75,6 +78,7 @@ let intro_thread_state_inv_core #o
      (R.pts_to t.failed full f `star`
       array_pts_to t.store s `star`
       R.pts_to t.clock full c `star`
+      R.pts_to t.last_evict_key full lev `star`      
       EpochMap.full_perm t.epoch_hashes M.init_epoch_hash eh `star`
       R.pts_to t.last_verified_epoch full lve `star`
       G.pts_to t.processed_entries full pe `star`
@@ -86,6 +90,7 @@ let intro_thread_state_inv_core #o
        tsm.failed == f /\
        tsm.store == s /\
        tsm.clock == c /\
+       tsm.last_evict_key == lev /\
        tsm.epoch_hashes == eh /\
        tsm.last_verified_epoch == lve /\
        tsm.processed_entries == pe /\
@@ -95,6 +100,7 @@ let intro_thread_state_inv_core #o
    = rewrite (R.pts_to t.failed _ _ `star`
               array_pts_to t.store _ `star`
               R.pts_to t.clock _ _ `star`
+              R.pts_to t.last_evict_key _ _ `star`              
               EpochMap.full_perm t.epoch_hashes _ _ `star`
               R.pts_to t.last_verified_epoch _ _ `star`
               G.pts_to t.processed_entries _ _ `star`
