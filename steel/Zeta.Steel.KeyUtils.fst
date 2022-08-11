@@ -982,11 +982,276 @@ let good_raw_key_impl (r:raw_key)
 
 (* define a total ordering of base_keys *)
 let base_key_lt (bk1 bk2: base_key): bool
-  = admit()
+  = if bk1.significant_digits = bk2.significant_digits
+    then (
+      let open U64 in
+      if bk1.k.v3 <^ bk2.k.v3
+      then true
+      else if bk1.k.v3 = bk2.k.v3
+           then if bk1.k.v2 <^ bk2.k.v2
+                then true
+                else if bk1.k.v2 = bk2.k.v2
+                     then if bk1.k.v1 <^ bk2.k.v1
+                          then true
+                          else if bk1.k.v1 = bk2.k.v1
+                               then bk1.k.v0 <^ bk2.k.v0
+                               else false
+                     else false
+           else false
+    )
+    else U16.(bk1.significant_digits <^ bk2.significant_digits)
 
+let rec bv_of_key (r:raw_key)
+  : GTot (FStar.BitVector.bv_t (U16.v r.significant_digits))
+         (decreases (U16.v r.significant_digits))
+  = if r.significant_digits = 0us
+    then Seq.empty
+    else let i = U16.(r.significant_digits -^ 1us) in
+         let r' = { r with significant_digits = i } in
+         let n = bv_of_key r' in
+         if ith_bit r i
+         then Seq.cons true n
+         else Seq.cons false n
+
+let ord_of_raw_key r = FStar.UInt.from_vec (bv_of_key r)
+
+let ord_of_bv (r:base_key)
+  : Lemma (ord_of_raw_key r == FStar.UInt.from_vec (bv_of_key r))
+  = ()
+
+open FStar.Mul
+
+let from_vec_words_256 (b:FStar.BitVector.bv_t 256)
+  : Lemma FStar.UInt.(
+          from_vec b == 
+          from_vec #64 (Seq.slice b 192 256) +
+          (pow2 64 * from_vec #64 (Seq.slice b 128 192)) +
+          (pow2 128 * from_vec #64 (Seq.slice b 64 128)) +          
+          (pow2 192 *  from_vec #64 (Seq.slice b 0 64)))
+  = assert_norm (pow2 192 = 6277101735386680763835789423207666416102355444464034512896);
+    let v123 = (Seq.append (Seq.append (Seq.slice b 0 64) (Seq.slice b 64 128))
+                                         (Seq.slice b 128 192)) in
+    let v0 = (Seq.slice b 192 256) in
+    assert (Seq.equal b 
+                 (Seq.append v123 v0));
+    FStar.UInt.append_lemma #192 #64 v123 v0;
+    let v23 = (Seq.append (Seq.slice b 0 64) (Seq.slice b 64 128)) in
+    let v1 = (Seq.slice b 128 192) in
+    FStar.UInt.append_lemma #128 #64 v23 v1;
+    let v3 = Seq.slice b 0 64 in
+    let v2 = Seq.slice b 64 128 in
+    FStar.UInt.append_lemma #64 #64 v3 v2
+  
+let ord_of_raw_key_words (k:raw_key)
+  : GTot nat
+  = let open FStar.Mul in
+    assert_norm (pow2 192 = 6277101735386680763835789423207666416102355444464034512896);
+    U64.v k.k.v0 +
+    (pow2 64 * U64.v k.k.v1) +
+    (pow2 128 * U64.v k.k.v2) + 
+    (pow2 192 * U64.v k.k.v3)
+
+let append_zeros_left (#n:pos) (x:BitVector.bv_t n) (m:pos)
+  : Lemma (UInt.from_vec #(m + n) (Seq.append (BitVector.zero_vec #m) x) ==
+           UInt.from_vec x)
+  = let open FStar.UInt in
+    append_lemma #m #n (BitVector.zero_vec #m) x;
+    zero_from_vec_lemma #m;
+    assert (UInt.from_vec #(m + n) (Seq.append (BitVector.zero_vec #m) x) ==
+            (pow2 n * from_vec (BitVector.zero_vec #m)) +
+            UInt.from_vec x);
+    assert (from_vec (BitVector.zero_vec #m) == 0);
+    calc (==) {
+      pow2 n * from_vec (BitVector.zero_vec #m);
+     (==) {} 
+      pow2 n * 0;
+     (==) {} 
+      0;
+     }
+
+let ord_of_raw_key_words_root ()
+  : Lemma (ord_of_raw_key_words root_raw_key == 0)
+  = let k = root_raw_key in
+    assert (pow2 64 * U64.v k.k.v1 == 0);
+    assert (pow2 128 * U64.v k.k.v2 == 0);
+    calc (==) {
+      (pow2 192 * U64.v k.k.v3);
+    (==) {} 
+      (pow2 192 * 0);
+    (==) {}
+      0;
+    }
+
+let bv_of_key_pad (k:raw_key)
+  : GTot (BitVector.bv_t 256)
+  = if U16.v k.significant_digits = 256
+    then bv_of_key k
+    else Seq.append (Seq.create (256 - U16.v k.significant_digits) false)
+                    (bv_of_key k)
+
+let rec bv_of_key_index (r:raw_key) 
+                        (i:nat { i < U16.v r.significant_digits })
+  : Lemma 
+    (ensures
+      FStar.Seq.index (bv_of_key r) i == 
+      ith_bit r (U16.uint_to_t (U16.v r.significant_digits - i - 1)))
+    (decreases i)
+   = if i = 0
+     then ()
+     else (
+      let j = U16.(r.significant_digits -^ 1us) in
+      let r_tail = { r with significant_digits = j } in
+      bv_of_key_index r_tail (i - 1)
+    )
+
+let bv_of_key_pad_index (r:base_key) (i:nat { i < 256 })
+  : Lemma (FStar.Seq.index (bv_of_key_pad r) i ==
+           ith_bit r (U16.uint_to_t (256 - i - 1)))
+  = let pad_length = 256 - U16.v r.significant_digits in
+    if i >= pad_length
+    then (
+      bv_of_key_index r (i - pad_length)
+    )
+    else ()
+
+#push-options "--fuel 1 --ifuel 0"
+let bv_of_key_pad_v0 (k:base_key)
+  : Lemma (UInt.to_vec #64 (U64.v k.k.v0) `Seq.equal` (Seq.slice (bv_of_key_pad k) 192 256))
+  = let lhs = UInt.to_vec #64 (U64.v k.k.v0) in
+    let rhs = Seq.slice (bv_of_key_pad k) 192 256 in
+    introduce forall (i:nat { i < 64 }). Seq.index lhs i == Seq.index rhs i
+    with (
+      ith_bit_64_nth k.k.v0 (U32.uint_to_t i);
+      bv_of_key_pad_index k (192 + i)
+  )
+
+let bv_of_key_pad_v1 (k:base_key)
+  : Lemma (UInt.to_vec #64 (U64.v k.k.v1) `Seq.equal` (Seq.slice (bv_of_key_pad k) 128 192))
+  = let lhs = UInt.to_vec #64 (U64.v k.k.v1) in
+    let rhs = Seq.slice (bv_of_key_pad k) 128 192 in
+    introduce forall (i:nat { i < 64 }). Seq.index lhs i == Seq.index rhs i
+    with (
+      ith_bit_64_nth k.k.v1 (U32.uint_to_t i);
+      bv_of_key_pad_index k (128 + i)
+  )
+
+let bv_of_key_pad_v2 (k:base_key)
+  : Lemma (UInt.to_vec #64 (U64.v k.k.v2) `Seq.equal` (Seq.slice (bv_of_key_pad k) 64 128))
+  = let lhs = UInt.to_vec #64 (U64.v k.k.v2) in
+    let rhs = Seq.slice (bv_of_key_pad k) 64 128 in
+    introduce forall (i:nat { i < 64 }). Seq.index lhs i == Seq.index rhs i
+    with (
+      ith_bit_64_nth k.k.v2 (U32.uint_to_t i);
+      bv_of_key_pad_index k (64 + i)
+  )
+
+let bv_of_key_pad_v3 (k:base_key)
+  : Lemma (UInt.to_vec #64 (U64.v k.k.v3) `Seq.equal` (Seq.slice (bv_of_key_pad k) 0 64))
+  = let lhs = UInt.to_vec #64 (U64.v k.k.v3) in
+    let rhs = Seq.slice (bv_of_key_pad k) 0 64 in
+    introduce forall (i:nat { i < 64 }). Seq.index lhs i == Seq.index rhs i
+    with (
+      ith_bit_64_nth k.k.v3 (U32.uint_to_t i);
+      bv_of_key_pad_index k (0 + i)
+  )
+
+let ord_of_raw_key_words_bv (k:base_key)
+  : Lemma (ord_of_raw_key_words k == FStar.UInt.from_vec (bv_of_key k))
+  = let open FStar.UInt in
+    let kk : FStar.BitVector.bv_t 256 = bv_of_key_pad k in
+    bv_of_key_pad_v0 k;
+    bv_of_key_pad_v1 k;
+    bv_of_key_pad_v2 k;
+    bv_of_key_pad_v3 k;  
+    from_vec_words_256 kk;
+    if k.significant_digits = 256us
+    then (
+      assert (Seq.equal kk (bv_of_key k))
+    )
+    else if k.significant_digits = 0us
+    then (
+      is_root_spec k;
+      ord_of_raw_key_words_root()
+    )
+    else (
+       append_zeros_left (bv_of_key k) (256 - U16.v k.significant_digits)
+    )
+  
+let ord_of_raw_key_words_correct (k:base_key)
+  : Lemma (ord_of_raw_key k == ord_of_raw_key_words k)
+  = ord_of_bv k;
+    ord_of_raw_key_words_bv k
+  
+let ord_of_base_key (b:base_key) = ord_of_raw_key b
+
+let base_key_lt_ord_word (bk1 bk2:base_key)
+  : Lemma 
+    (requires bk1.significant_digits = bk2.significant_digits)
+    (ensures base_key_lt bk1 bk2 = (ord_of_raw_key_words bk1 < ord_of_raw_key_words bk2))
+  = assert_norm (pow2 192 = 6277101735386680763835789423207666416102355444464034512896)
+
+let base_key_lt_ord (bk1 bk2:base_key)
+  : Lemma 
+    (requires bk1.significant_digits = bk2.significant_digits)
+    (ensures base_key_lt bk1 bk2 = (ord_of_base_key bk1 < ord_of_base_key bk2))
+  = ord_of_raw_key_words_correct bk1;
+    ord_of_raw_key_words_correct bk2;
+    base_key_lt_ord_word bk1 bk2
+
+let from_vec_singleton (b:bool) 
+  : Lemma (FStar.UInt.from_vec #1 (Seq.create 1 b) == (if b then 1 else 0))
+  = ()
+  
+let rec ord_of_raw_key_node_to_ord (b:raw_key)
+  : Lemma 
+    (ensures ord_of_raw_key b == Zeta.BinTree.node_to_ord (lift_raw_key b))
+    (decreases (U16.v b.significant_digits))
+  = if b.significant_digits = 0us
+    then ()
+    else (
+      let i = U16.(b.significant_digits -^ 1us) in
+      let b_tail = {b with significant_digits = i } in
+      if U16.v i = 0
+      then ()
+      else (
+        assert (bv_of_key b == Seq.cons (if ith_bit b i then true else false)
+                                        (bv_of_key b_tail));
+        FStar.UInt.append_lemma #1 #(U16.v i) 
+                                (Seq.create 1 (if ith_bit b i then true else false))
+                                (bv_of_key b_tail);
+        ord_of_raw_key_node_to_ord b_tail;
+        let open FStar.UInt in
+        calc (==) {
+         ord_of_raw_key b;
+        (==) {}
+         (FStar.UInt.from_vec (bv_of_key b));
+        (==) {}
+         (FStar.UInt.from_vec (Seq.append (Seq.create 1 (if ith_bit b i then true else false))
+                                          (bv_of_key b_tail)));        
+        (==) { FStar.UInt.append_lemma #1 #(U16.v i)
+                                       (Seq.create 1 (if ith_bit b i then true else false))
+                                       (bv_of_key b_tail) }
+        (from_vec (bv_of_key b_tail) + pow2 (U16.v i) * (from_vec #1 (Seq.create 1 (if ith_bit b i then true else false))));
+        (==) { from_vec_singleton (if ith_bit b i then true else false) }
+        (from_vec (bv_of_key b_tail) + (pow2 (U16.v i) * (if ith_bit b i then 1 else 0)));
+        (==) { }
+        (Zeta.BinTree.node_to_ord (lift_raw_key b_tail) +  (pow2 (U16.v i) * (if ith_bit b i then 1 else 0)));
+        };
+        ()
+      )
+    )
+  
 (* the total ordering at steel level consistent with the spec level ordering *)
 let base_key_lt_rel (sbk1 sbk2: base_key)
   : Lemma (ensures (let ibk1 = lift_base_key sbk1 in
                     let ibk2 = lift_base_key sbk2 in
                     sbk1 `base_key_lt` sbk2 = ibk1 `Zeta.BinTree.lt` ibk2))
-  = admit()
+  = let ibk1 = lift_base_key sbk1 in
+    let ibk2 = lift_base_key sbk2 in
+    Zeta.BinTree.lt_definition ibk1 ibk2;
+    if sbk1.significant_digits = sbk2.significant_digits
+    then (
+      ord_of_raw_key_node_to_ord sbk1;
+      ord_of_raw_key_node_to_ord sbk2;
+      base_key_lt_ord sbk1 sbk2
+    )

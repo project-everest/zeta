@@ -156,9 +156,25 @@ val bv_to_bin_tree_consistent (#n:nat) (b:bv_t n):
   Lemma (ensures (b = bin_tree_node_to_bv (bv_to_bin_tree_node b)))
         [SMTPat (bv_to_bin_tree_node b)]
 
+let rec node_to_ord (n: bin_tree_node): (i:nat { i <= pow2 (depth n) - 1 })
+  = let open FStar.Mul in
+    match n with
+    | Root -> 0
+    | LeftChild p -> node_to_ord p
+    | RightChild p -> pow2 (depth p) + node_to_ord p
+  
+
 (* define a < ordering of bintree nodes *)
 val lt (n1 n2: bin_tree_node): bool
 
+(* We do not rely on this particular definition
+   Except to prove the functional correctness of the implementation *)
+val lt_definition (n1 n2:bin_tree_node)
+  : Lemma (lt n1 n2 == 
+           (if depth n1 = depth n2
+            then node_to_ord n1 < node_to_ord n2
+            else depth n1 < depth n2))
+  
 val lt_is_total (n1 n2: _)
   : Lemma (ensures (n1 = n2 /\ not (lt n1 n2) /\ not (lt n2 n1) \/
                     n1 <> n2 /\ (lt n1 n2 \/ lt n2 n1)))

@@ -308,31 +308,17 @@ let rec bv_to_bin_tree_consistent (#n:nat) (b:bv_t n):
     in
     lemma_eq_intro b b2
 
-let rec node_to_ord (n: bin_tree_node): nat
-  = match n with
-    | Root -> 0
-    | LeftChild p -> (node_to_ord p) + (node_to_ord p) + 1
-    | RightChild p -> (node_to_ord p) + (node_to_ord p) + 2
-
-let rec ord_to_node (i: nat)
-  = if i = 0 then Root
-    else if i % 2 = 0 then RightChild (ord_to_node ((i - 2) / 2))
-    else LeftChild (ord_to_node ((i - 1)/2))
-
-let rec ord_to_node_inv (i: nat)
-  : Lemma (ensures (let n = ord_to_node i in
-                    node_to_ord n = i))
-  = if i > 0 then
-       if i % 2 = 0 then
-         let pi = (i - 2) / 2 in
-         ord_to_node_inv pi
-       else
-         let pi = (i - 1) / 2 in
-         ord_to_node_inv pi
+let rec ord_to_node (n:nat) (i: nat { i <= pow2 n - 1 })
+  = if n = 0 then Root
+    else (
+      if i < pow2 (n - 1) 
+      then LeftChild (ord_to_node (n - 1) i)
+      else RightChild (ord_to_node (n - 1) (i - pow2 (n - 1)))
+    )
 
 let rec node_to_ord_inv (n: bin_tree_node)
   : Lemma (ensures (let i = node_to_ord n in
-                    ord_to_node i = n))
+                    ord_to_node (depth n) i = n))
           [SMTPat (node_to_ord n)]
   = match n with 
     | Root -> ()
@@ -340,8 +326,17 @@ let rec node_to_ord_inv (n: bin_tree_node)
     | RightChild p -> node_to_ord_inv p
   
 let lt (n1 n2: bin_tree_node): bool
-  = (node_to_ord n1) < (node_to_ord n2)
-  
+  = if depth n1 = depth n2
+    then node_to_ord n1 < node_to_ord n2
+    else depth n1 < depth n2
+
+let lt_definition (n1 n2:bin_tree_node)
+  : Lemma (lt n1 n2 == 
+           (if depth n1 = depth n2
+            then node_to_ord n1 < node_to_ord n2
+            else depth n1 < depth n2))
+  = ()
+
 let lt_is_total (n1 n2: _)
   : Lemma (ensures (n1 = n2 /\ not (lt n1 n2) /\ not (lt n2 n1) \/
                     n1 <> n2 /\ (lt n1 n2 \/ lt n2 n1)))
