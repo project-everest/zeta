@@ -26,13 +26,14 @@ noeq
 type hasher_t = {
   serialization_buffer: (a: A.larray U8.t 4096 { A.is_full_array a });
   hash_buffer: (a: A.larray U8.t 32 { A.is_full_array a });
-  dummy: A.array U8.t
+  dummy: (a:A.array U8.t { A.is_full_array a })
 }
 
 [@@__steel_reduce__; __reduce__]
 let inv (h:hasher_t) =
   exists_ (array_pts_to h.hash_buffer) `star`
-  exists_ (array_pts_to h.serialization_buffer)
+  exists_ (array_pts_to h.serialization_buffer) `star`
+  exists_ (array_pts_to h.dummy)
 
 let alloc (_:unit)
   : STT hasher_t emp inv
@@ -50,7 +51,8 @@ let alloc (_:unit)
             (exists_ (array_pts_to res.serialization_buffer));
     rewrite (exists_ (array_pts_to hb))
             (exists_ (array_pts_to res.hash_buffer));
-    drop _;
+    rewrite (exists_ (array_pts_to dummy))
+            (exists_ (array_pts_to res.dummy));
     return res
 
 let array_free (a:A.array 'a)
@@ -62,7 +64,8 @@ let array_free (a:A.array 'a)
 let free (h:hasher_t)
   : STT unit (inv h) (fun _ -> emp)
   = array_free h.hash_buffer;
-    array_free h.serialization_buffer
+    array_free h.serialization_buffer;
+    array_free h.dummy
 
 let read_hash_u256 (#hv:Ghost.erased _)
                    (hb:A.larray U8.t 32)

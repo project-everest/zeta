@@ -561,13 +561,6 @@ static ha create()
   return ((ha){ .acc = acc, .ctr = ctr });
 }
 
-static void reclaim(ha s)
-{
-  KRML_HOST_FREE(s.ctr);
-  K___uint8_t___ *p = s.acc;
-  KRML_HOST_FREE(p);
-}
-
 static void aggregate_raw_hashes(K___uint8_t___ *b1, K___uint8_t___ *b2)
 {
   for (uint32_t i = (uint32_t)0U; i < (uint32_t)32U; i++)
@@ -658,19 +651,22 @@ static bool compare(ha b1, ha b2)
 
 static bool add(ha ha1, K___uint8_t___ *input, uint32_t l)
 {
+  uint32_t r = (uint32_t)1U;
   uint8_t *p10 = KRML_HOST_CALLOC((uint32_t)32U, sizeof (uint8_t));
   K___uint8_t___ *res = p10;
   K___uint8_t___ *acc = res;
-  uint32_t *ctr = KRML_HOST_MALLOC(sizeof (uint32_t));
-  ctr[0U] = (uint32_t)1U;
-  uint8_t *p1 = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint8_t));
-  K___uint8_t___ *res0 = p1;
+  uint8_t *p11 = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint8_t));
+  K___uint8_t___ *res0 = p11;
   K___uint8_t___ *_dummy = res0;
   Hacl_Blake2b_32_blake2b((uint32_t)32U, acc, l, input, (uint32_t)0U, _dummy);
-  ha ha_ = { .acc = acc, .ctr = ctr };
+  ha ha_ = { .acc = acc, .ctr = &r };
   bool v = aggregate(ha1, ha_);
-  reclaim(ha_);
-  return v;
+  K___uint8_t___ *p1 = ha_.acc;
+  KRML_HOST_FREE(p1);
+  K___uint8_t___ *p12 = _dummy;
+  KRML_HOST_FREE(p12);
+  bool v0 = v;
+  return v0;
 }
 
 typedef struct option__uint32_t_s

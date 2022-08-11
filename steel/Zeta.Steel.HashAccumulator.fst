@@ -9,7 +9,7 @@ module Blake = Hacl.Blake2b_32
 module Loops = Steel.ST.Loops
 module R = Steel.ST.Reference
 #push-options "--ide_id_info_off"
-#push-options "--query_stats --fuel 0 --ifuel 0"
+#push-options "--fuel 0 --ifuel 0"
 
 let hash_value_buf  = x:A.array U8.t { A.length x == 32 /\ A.is_full_array x }
 
@@ -304,19 +304,22 @@ let compare #h1 #h2 (b1 b2:ha)
 let add #h (ha:ha)
         #p #s (input:hashable_buffer)
         l
-  = let acc = A.alloc 0uy 32ul in //TODO:would be nice to stack allocate this
-    let ctr = R.alloc 1ul in  //TODO:would be nice to stack allocate this
-    let _dummy = A.alloc 0uy 1ul in //TODO: Really should  R.null, but kremlin doesn't handle that yet
-    Blake.blake2b 32ul acc l input 0ul _dummy;
-    let ha' = { acc; ctr } in
-    rewrite (A.pts_to acc _ _)
-            (A.pts_to ha'.acc full_perm
-                      (fst (hash_one_value (Seq.slice s 0 (U32.v l)))));
-    rewrite (R.pts_to ctr _ _)
-            (R.pts_to ha'.ctr full_perm 1ul);
-    //TODO: marking ha_val steel_reduce leads to a failure here
-    intro_ha_val ha' (fst (hash_one_value (Seq.slice s 0 (U32.v l)))) 1ul (hash_one_value (Seq.slice s 0 (U32.v l)));
-    let v = aggregate ha ha' in
-    reclaim ha';  //TODO:Then we wouldn't need this
-    drop _;
-    return v
+  = R.with_local 1ul (fun ctr ->
+     let acc = A.alloc 0uy 32ul in //TODO:would be nice to stack allocate this
+     let _dummy = A.alloc 0uy 1ul in //TODO: Really should  R.null, but kremlin doesn't handle that yet
+     Blake.blake2b 32ul acc l input 0ul _dummy;
+     let ha' = { acc; ctr } in
+     rewrite (A.pts_to acc _ _)
+             (A.pts_to ha'.acc full_perm
+                       (fst (hash_one_value (Seq.slice s 0 (U32.v l)))));
+     rewrite (R.pts_to ctr _ _)
+             (R.pts_to ha'.ctr full_perm 1ul);
+     //TODO: marking ha_val steel_reduce leads to a failure here
+     intro_ha_val ha' (fst (hash_one_value (Seq.slice s 0 (U32.v l)))) 1ul (hash_one_value (Seq.slice s 0 (U32.v l)));
+     let v = aggregate ha ha' in
+     let n = elim_ha_val ha' in
+     A.free ha'.acc;
+     rewrite (R.pts_to ha'.ctr full_perm n)
+             (R.pts_to ctr full_perm n);
+     A.free _dummy;
+     return v)
