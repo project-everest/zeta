@@ -985,19 +985,13 @@ let base_key_lt (bk1 bk2: base_key): bool
   = if bk1.significant_digits = bk2.significant_digits
     then (
       let open U64 in
-      if bk1.k.v3 <^ bk2.k.v3
-      then true
-      else if bk1.k.v3 = bk2.k.v3
-           then if bk1.k.v2 <^ bk2.k.v2
-                then true
-                else if bk1.k.v2 = bk2.k.v2
-                     then if bk1.k.v1 <^ bk2.k.v1
-                          then true
-                          else if bk1.k.v1 = bk2.k.v1
-                               then bk1.k.v0 <^ bk2.k.v0
-                               else false
-                     else false
-           else false
+      if bk1.k.v3 = bk2.k.v3
+      then if bk1.k.v2 = bk2.k.v2
+           then if bk1.k.v1 = bk2.k.v1
+                then bk1.k.v0 <^ bk2.k.v0
+                else bk1.k.v1 <^ bk2.k.v1
+           else bk1.k.v2 <^ bk2.k.v2
+      else bk1.k.v3 <^ bk2.k.v3
     )
     else U16.(bk1.significant_digits <^ bk2.significant_digits)
 
@@ -1183,6 +1177,7 @@ let ord_of_raw_key_words_correct (k:base_key)
     ord_of_raw_key_words_bv k
   
 let ord_of_base_key (b:base_key) = ord_of_raw_key b
+
 
 let base_key_lt_ord_word (bk1 bk2:base_key)
   : Lemma 
