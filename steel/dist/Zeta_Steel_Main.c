@@ -266,6 +266,23 @@ static bool desc_dir(Zeta_Steel_KeyUtils_raw_key k0, Zeta_Steel_KeyUtils_raw_key
   return desc_dir_raw(k0, k1);
 }
 
+static bool base_key_lt(Zeta_Steel_KeyUtils_raw_key bk1, Zeta_Steel_KeyUtils_raw_key bk2)
+{
+  if (bk1.significant_digits == bk2.significant_digits)
+    if (bk1.k.v3 == bk2.k.v3)
+      if (bk1.k.v2 == bk2.k.v2)
+        if (bk1.k.v1 == bk2.k.v1)
+          return bk1.k.v0 < bk2.k.v0;
+        else
+          return bk1.k.v1 < bk2.k.v1;
+      else
+        return bk1.k.v2 < bk2.k.v2;
+    else
+      return bk1.k.v3 < bk2.k.v3;
+  else
+    return bk1.significant_digits < bk2.significant_digits;
+}
+
 typedef uint32_t uninterpreted;
 
 typedef struct timestamp_s
@@ -895,6 +912,30 @@ static bool timestamp_lt(timestamp t0, timestamp t1)
   return t0.epoch < t1.epoch || t0.epoch == t1.epoch && t0.counter < t1.counter;
 }
 
+typedef struct timestamp_key_s
+{
+  timestamp fst;
+  Zeta_Steel_KeyUtils_raw_key snd;
+}
+timestamp_key;
+
+static bool __eq__Zeta_Steel_LogEntry_Types_timestamp(timestamp y, timestamp x)
+{
+  return true && x.epoch == y.epoch && x.counter == y.counter;
+}
+
+static bool tk_lt(timestamp_key tk1, timestamp_key tk2)
+{
+  timestamp t1 = tk1.fst;
+  Zeta_Steel_KeyUtils_raw_key k1 = tk1.snd;
+  timestamp t2 = tk2.fst;
+  Zeta_Steel_KeyUtils_raw_key k2 = tk2.snd;
+  return
+    timestamp_lt(t1,
+      t2)
+    || __eq__Zeta_Steel_LogEntry_Types_timestamp(t1, t2) && base_key_lt(k1, k2);
+}
+
 static timestamp max(timestamp t0, timestamp t1)
 {
   if (timestamp_lt(t0, t1))
@@ -1398,15 +1439,12 @@ try_increment_max(all_epoch_hashes hashes, epoch_tid_bitmaps bitmaps, option__ui
 static option__uint32_t
 try_advance_max(all_epoch_hashes hashes, epoch_tid_bitmaps bitmaps, option__uint32_t *max)
 {
-  KRML_CHECK_SIZE(sizeof (bool), (uint32_t)1U);
-  bool *r = KRML_HOST_MALLOC(sizeof (bool));
-  r[0U] = true;
-  while (r[0U])
+  bool r = true;
+  while (r)
   {
     bool b = try_increment_max(hashes, bitmaps, max);
-    r[0U] = b;
+    r = b;
   }
-  KRML_HOST_FREE(r);
   return max[0U];
 }
 
@@ -1574,6 +1612,7 @@ typedef struct Zeta_Steel_VerifierTypes_thread_state_t_s
   bool *failed;
   __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___ *store;
   timestamp *clock;
+  Zeta_Steel_KeyUtils_raw_key *last_evict_key;
   all_epoch_hashes epoch_hashes;
   option__uint32_t *last_verified_epoch;
   K___uint8_t___ *serialization_buffer;
@@ -2377,17 +2416,46 @@ vaddb_core(
               timestamp t_ = ts_opt.v;
               timestamp clock = t.clock[0U];
               timestamp next_clock = max(clock, t_);
-              t.clock[0U] = next_clock;
-              __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___
-              *pt = t.store;
-              pt[as_u320(s)] =
-                (
-                  (option__Zeta_Steel_ThreadStateModel_store_entry){
-                    .tag = FStar_Pervasives_Native_Some,
-                    .v = mk_entry(k, v, BAdd)
-                  }
-                );
-              return true;
+              if (timestamp_lt(clock, next_clock))
+              {
+                t.last_evict_key[0U] =
+                  (
+                    (Zeta_Steel_KeyUtils_raw_key){
+                      .k = {
+                        .v3 = (uint64_t)0U,
+                        .v2 = (uint64_t)0U,
+                        .v1 = (uint64_t)0U,
+                        .v0 = (uint64_t)0U
+                      },
+                      .significant_digits = (uint16_t)0U
+                    }
+                  );
+                t.clock[0U] = next_clock;
+                __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___
+                *pt = t.store;
+                pt[as_u320(s)] =
+                  (
+                    (option__Zeta_Steel_ThreadStateModel_store_entry){
+                      .tag = FStar_Pervasives_Native_Some,
+                      .v = mk_entry(k, v, BAdd)
+                    }
+                  );
+                return true;
+              }
+              else
+              {
+                t.clock[0U] = next_clock;
+                __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry___
+                *pt = t.store;
+                pt[as_u320(s)] =
+                  (
+                    (option__Zeta_Steel_ThreadStateModel_store_entry){
+                      .tag = FStar_Pervasives_Native_Some,
+                      .v = mk_entry(k, v, BAdd)
+                    }
+                  );
+                return true;
+              }
             }
             else
             {
@@ -2660,11 +2728,15 @@ sat_evictb_checks(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timesta
   {
     store_entry r = ropt.v;
     Zeta_Steel_LogEntry_Types_key k = r.key;
+    Zeta_Steel_KeyUtils_raw_key bk = to_base_key(k);
     timestamp clock = t.clock[0U];
+    Zeta_Steel_KeyUtils_raw_key lek = t.last_evict_key[0U];
     bool
     b =
       !is_root_key(k)
-      && timestamp_lt(clock, ts)
+      &&
+        tk_lt(((timestamp_key){ .fst = clock, .snd = lek }),
+          ((timestamp_key){ .fst = ts, .snd = bk }))
       && !entry_points_to_some_slot(r, true)
       && !entry_points_to_some_slot(r, false);
     return b;
@@ -2690,12 +2762,14 @@ vevictb_update_hash_clock(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s,
   {
     store_entry r = scrut.v;
     Zeta_Steel_LogEntry_Types_key k = r.key;
+    Zeta_Steel_KeyUtils_raw_key bk = to_base_key(k);
     Zeta_Steel_LogEntry_Types_value v = r.value;
     uint32_t e = epoch_of_timestamp(ts);
     bool b = update_ht(t, e, ((record){ .fst = k, .snd = v }), ts, t.thread_id, HEvict);
     if (b)
     {
       t.clock[0U] = ts;
+      t.last_evict_key[0U] = bk;
       return b;
     }
     else
@@ -2965,6 +3039,13 @@ static void nextepoch_core(Zeta_Steel_VerifierTypes_thread_state_t t)
     uint32_t nxt = res.v;
     timestamp c1 = { .epoch = nxt, .counter = (uint32_t)0U };
     t.clock[0U] = c1;
+    t.last_evict_key[0U] =
+      (
+        (Zeta_Steel_KeyUtils_raw_key){
+          .k = { .v3 = (uint64_t)0U, .v2 = (uint64_t)0U, .v1 = (uint64_t)0U, .v0 = (uint64_t)0U },
+          .significant_digits = (uint16_t)0U
+        }
+      );
   }
   else
   {
@@ -3187,6 +3268,17 @@ static Zeta_Steel_VerifierTypes_thread_state_t create_basic(uint16_t tid)
   KRML_CHECK_SIZE(sizeof (timestamp), (uint32_t)1U);
   timestamp *clock = KRML_HOST_MALLOC(sizeof (timestamp));
   clock[0U] = ((timestamp){ .epoch = (uint32_t)0U, .counter = (uint32_t)0U });
+  KRML_CHECK_SIZE(sizeof (Zeta_Steel_KeyUtils_raw_key), (uint32_t)1U);
+  Zeta_Steel_KeyUtils_raw_key
+  *last_evict_key = KRML_HOST_MALLOC(sizeof (Zeta_Steel_KeyUtils_raw_key));
+  last_evict_key[0U]
+  =
+    (
+      (Zeta_Steel_KeyUtils_raw_key){
+        .k = { .v3 = (uint64_t)0U, .v2 = (uint64_t)0U, .v1 = (uint64_t)0U, .v0 = (uint64_t)0U },
+        .significant_digits = (uint16_t)0U
+      }
+    );
   all_epoch_hashes epoch_hashes = create__Zeta_Steel_EpochHashes_epoch_hashes_t((uint32_t)64U);
   KRML_CHECK_SIZE(sizeof (option__uint32_t), (uint32_t)1U);
   option__uint32_t *last_verified_epoch = KRML_HOST_MALLOC(sizeof (option__uint32_t));
@@ -3202,6 +3294,7 @@ static Zeta_Steel_VerifierTypes_thread_state_t create_basic(uint16_t tid)
         .failed = failed,
         .store = store,
         .clock = clock,
+        .last_evict_key = last_evict_key,
         .epoch_hashes = epoch_hashes,
         .last_verified_epoch = last_verified_epoch,
         .serialization_buffer = serialization_buffer,
