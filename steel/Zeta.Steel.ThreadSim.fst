@@ -578,6 +578,40 @@ let evictm_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_e
 
 #pop-options
 
+let related_clock_lek_lt (tk1 tk2: timestamp_key)
+                         (i_tk1 i_tk2: Zeta.TimeKey.timestamp_key)
+  : Lemma (requires (let t1,k1 = tk1 in
+                     let t2,k2 = tk2 in
+                     let i_t1, i_k1 = i_tk1 in
+                     let i_t2, i_k2 = i_tk2 in
+                     related_timestamp t1 i_t1 /\
+                     related_timestamp t2 i_t2 /\
+                     related_base_key k1 i_k1 /\
+                     related_base_key k2 i_k2 /\
+                     tk1 `tk_lt` tk2))
+          (ensures (i_tk1 `Zeta.TimeKey.lt` i_tk2))
+  = let t1,k1 = tk1 in
+    let t2,k2 = tk2 in
+    let i_t1, i_k1 = i_tk1 in
+    let i_t2, i_k2 = i_tk2 in
+
+    if t1 `timestamp_lt` t2 then
+      related_timestamp_lt t1 t2 i_t1 i_t2
+    else
+    begin
+      assert (t1 = t2);
+      assert (i_t1 = i_t2);
+      assert (k1 `T.base_key_lt` k2);
+
+      T.lift_lower_inv i_k1;
+      T.lift_lower_inv i_k2;
+      assert (T.lift_base_key k1 == i_k1);
+      assert (T.lift_base_key k2 == i_k2);
+      T.base_key_lt_rel k1 k2;
+      assert (i_k1 `Zeta.BinTree.lt` i_k2);
+      ()
+    end
+
 let related_sat_evictb_checks (tsm: s_thread_state)
                               (s: T.slot)
                               (t: s_timestamp)
@@ -602,8 +636,13 @@ let related_sat_evictb_checks (tsm: s_thread_state)
     match get_entry tsm s with
     | Some r ->
       let k = r.key in
+      let bk = to_base_key k in
       let i_k = IS.stored_key i_st i_s in
+      let i_bk = GK.to_base_key i_k in
       assert (related_key k i_k);
+
+      lemma_related_base_key k i_k;
+      assert (related_base_key bk i_bk);
 
       assert (not (is_root_key k));
       related_root k i_k;
@@ -613,10 +652,11 @@ let related_sat_evictb_checks (tsm: s_thread_state)
       let i_clock = i_tsm.IV.clock in
       assert (related_timestamp clock i_clock);
 
-      assume(False);
-      assert (clock `timestamp_lt` t);
-      related_timestamp_lt clock t i_clock i_t;
-      assert (i_clock `Zeta.Time.ts_lt` i_t);
+      assert ( (clock_lek tsm) `tk_lt` (t,bk));
+
+      related_clock_lek_lt (clock_lek tsm) (t,bk) (IV.clock_lek i_tsm) (i_t, i_bk);
+
+      assert ((IV.clock_lek i_tsm) `Zeta.TimeKey.lt` (i_t, i_bk));
       ()
 
 #push-options "--fuel 1 --ifuel 1 --query_stats"
@@ -646,7 +686,18 @@ let related_vevictb_update_hash_clock (tsm: s_thread_state)
 
     eliminate forall i. related_store_entry_opt (Seq.index st i) (Seq.index i_st i)
     with i_s;
-    admit()
+
+    match get_entry tsm s with
+    | Some r ->
+      let k = r.key in
+      let bk = to_base_key k in
+      let i_k = IS.stored_key i_st i_s in
+      let i_bk = GK.to_base_key i_k in
+      assert (related_key k i_k);
+
+      lemma_related_base_key k i_k;
+      assert (related_base_key bk i_bk);
+      ()
 
 let related_bevict_from_store (tsm: s_thread_state)
                               (s: T.slot)
@@ -902,8 +953,9 @@ let nextepoch_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_lo
       let i_e1 = i_e + 1 in
       assert (related_epoch e1 i_e1);
       related_epoch_shift e1 i_e1;
-
-      admit()
+      assert (tsm_.last_evict_key == T.root_base_key);
+      assert (i_tsm_.IV.last_evict_key == Zeta.BinTree.Root);
+      T.related_root()
     end
 
 #pop-options
