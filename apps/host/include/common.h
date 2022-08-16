@@ -70,7 +70,7 @@ namespace Zeta
         }
 
         // Construct a timestamp from its constituents
-        static constexpr Timestamp GetTimestamp(EpochId epoch, ThreadId thread, Counter counter) {
+        static Timestamp GetTimestamp(EpochId epoch, ThreadId thread, Counter counter) {
             Timestamp t = thread;
 
             t <<= 16;

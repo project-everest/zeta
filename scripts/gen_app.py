@@ -22,6 +22,7 @@ def get_argparser():
                         help='output directory (default: the current directory)')
     parser.add_argument('-n', '--name', help='name of the application (default: filename)')
     parser.add_argument('-f', '--force', action='store_true', help='force delete output directory if exists')
+    parser.add_argument('-e', '--enclave', action='store_true', help='run the verifier on hardware enclave')
     return parser
 
 def get_name_from_input(inp_file):
@@ -142,8 +143,8 @@ def interpolate (obj, template):
     text = pat_interp.sub (lambda m: get_attribute (obj, m.group('attr')), text)
     return text
 
-def process_config_file (app_dir, app):
-    with open(get_config_file()) as f:
+def process_config_file (app_dir, app, use_enclave):
+    with open(get_config_file(use_enclave)) as f:
         for l in f.readlines():
 
             l = l.strip()
@@ -172,7 +173,7 @@ def process_config_file (app_dir, app):
                 print(f'Copying directory {src} -> {dest}')
                 shutil.copytree(src, dest)
             elif src.suffix != '.tmp':
-                raise SyntaxError(f'file {src} is nota template file with suffix .tmp')
+                raise SyntaxError(f'file {src} is not a template file with suffix .tmp')
             else:
                 print(f'transforming file {src} -> {dest}')
                 with open (src) as src_file:
@@ -199,7 +200,7 @@ def main():
         print(f'Creating directory {app_dir}')
         os.makedirs(app_dir)
 
-        process_config_file(app_dir, app)
+        process_config_file(app_dir, app, args.enclave)
         copy_config_file (app_dir)
 
     except ValueError as e:

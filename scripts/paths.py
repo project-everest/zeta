@@ -29,5 +29,9 @@ def get_dist_dir():
 def get_hostapp_template_dir():
     return get_template_dir() / 'hostapp'
 
-def get_config_file():
-    return get_script_dir() / 'config.txt'
+def get_config_file(use_enclave):
+    if use_enclave:
+        config_file_name = 'config_enclave.txt'
+    else:
+        config_file_name = 'config.txt'
+    return get_script_dir() / config_file_name
