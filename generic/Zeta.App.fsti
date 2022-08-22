@@ -101,6 +101,13 @@ let distinct_keys #adm (sk: seq (app_record adm)) =
                                          let k2,_ = index sk i2 in
                                          k1 <> k2)
 
+type app_fn_t (adm:app_data_model) (farg_t:code) (fres_t:code) (arity:nat) =
+  arg:interp_code adm farg_t ->
+  inp:seq (app_record adm){length inp == arity /\ distinct_keys inp} ->
+  fn_return_code &
+  interp_code adm fres_t &
+  out:seq (app_value_nullable adm){length out == arity}
+
 noeq
 type fn_sig (adm: app_data_model) = {
   (* code of the argument of the function *)
@@ -117,11 +124,7 @@ type fn_sig (adm: app_data_model) = {
    * of records, and returns a succ/failure, a result, a new internal
    * state, and updated values for the input records.
    *)
-  f : arg: interp_code adm farg_t ->
-      inp: seq (app_record adm) {length inp = arity /\ distinct_keys inp} ->
-      (fn_return_code &
-       interp_code adm fres_t &
-       out:seq (app_value_nullable adm) {length out = arity});
+  f : app_fn_t adm farg_t fres_t arity
 }
 
 (*
