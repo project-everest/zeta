@@ -40,6 +40,7 @@ let parser_result (b: bytes) (t: Type0) =
 let spec_parser (t:Type0) =
     b:bytes -> GTot (parser_result b t)
 
+
 let spec_serializer (#t:Type) (p:spec_parser t) =
     x:t -> GTot (b:bytes{ match p b with
                    | None -> False
