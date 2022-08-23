@@ -20,7 +20,6 @@ val value_parser : P.parser value_spec_parser
 val value_spec_serializer : P.spec_serializer value_spec_parser
 val value_serializer : P.serializer value_spec_serializer
 
-// What is the right place to include it from?
 type slot_id = u16
 
 type vget_args_t = {
