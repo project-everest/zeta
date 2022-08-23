@@ -68,7 +68,7 @@ let slice (s:bytes) (from:U32.t) (slice_len:U32.t { slice_ok s from slice_len })
   *)
 let parser (#t:Type0) (p:spec_parser t) =
     #perm:perm ->
-    len:U32.t ->
+    len:Ghost.erased U32.t ->
     offset:U32.t ->
     slice_len:U32.t ->
     #b:erased bytes { Seq.length b == U32.v len }  ->

@@ -46,7 +46,7 @@ let vput_spec_f : app_fn_t adm vput_spec_arg_t vput_spec_res_t vput_spec_arity =
   let k_store, v_store = Seq.index inp 0 in
   if k_arg = k_store
   then Fn_success, (), Seq.create 1 (DValue v_arg)
-  else Fn_success, (), Seq.create 1 v_store
+  else Fn_failure, (), Seq.create 1 v_store
 let vput_sig : fn_sig adm = {
   farg_t = vput_spec_arg_t;
   fres_t = vput_spec_res_t;

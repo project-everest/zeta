@@ -150,8 +150,7 @@ let slots (fid:A.appfn_id aprm) =
 
 (* A specifiational parser for the arguments of an app function *)
 val spec_app_parser (fid:A.appfn_id aprm)
-  : P.spec_parser (app_args fid &
-                   slots fid)
+  : P.spec_parser (app_args fid & slots fid)
 
 val spec_result_parser (fid:A.appfn_id aprm)
   : P.spec_parser (app_result fid)

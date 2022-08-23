@@ -49,6 +49,10 @@ type verify_runapp_result =
   | Run_app_verify_failure: verify_runapp_result
   | Run_app_success: wrote:U32.t -> verify_runapp_result
 
+//
+// AR: temporarily adding this so that the tactic unfolds it
+//
+[@@ __reduce__]
 let verify_runapp_entry_post (tsm:M.thread_state_model)
                              (t:V.thread_state_t)
                              (pl: runApp_payload)
