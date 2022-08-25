@@ -126,7 +126,6 @@ let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
             if r.vput_key = k
             then begin
               VT.elim_thread_state_inv t;
-              assume (VT.value_compat_with_slot tsm r.vput_slot (DValue (Some r.vput_value)));
               VT.write_store #tsm t r.vput_slot (DValue (Some r.vput_value));
               assert (ApplicationKey? (TSM.key_of_slot tsm r.vput_slot));
               assert (TSM.has_slot tsm r.vput_slot);
@@ -135,7 +134,6 @@ let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
                       Some (((r.vput_key, r.vput_value), Seq.create 1 r.vput_slot), U32.v consumed));
               assume (consumed == pl.rest.len);
               assert (Zeta.SeqAux.distinct_elems_comp (Seq.create 1 r.vput_slot));
-              assume (Some? (TSM.read_slots tsm (Seq.create 1 r.vput_slot)));
               assert (
                 let slots = Seq.create 1 r.vput_slot in
                 let arg = r.vput_key, r.vput_value in
