@@ -177,16 +177,15 @@ let appfn_ws_t (#aprm: app_params) (fid: appfn_id aprm) =
   let arity = appfn_arity fid in
   out:seq (value_t){length out = arity}
 
-(* TODO: F* does not type check this without an explicit return type  *)
+(* 
+ * F* does not type check this without an explicit return type
+ *
+ * It's because fnsig escapes in the return type,
+ *   so we need an explicit annotation
+ *)
 let appfn (#aprm: app_params) (fid: appfn_id aprm):
-  (let adm = aprm.adm in
-   let arg_t = appfn_arg fid in
-   let res_t = appfn_res fid in
-   let arity = appfn_arity fid in
-
-   arg_t -> appfn_rs_t fid  ->
-   (fn_return_code & res_t & appfn_ws_t fid)
-  )
+  (let fn_sig = Map.sel aprm.tbl fid in
+   app_fn_t aprm.adm fn_sig.farg_t fn_sig.fres_t fn_sig.arity)
   =
   let fnsig = Map.sel aprm.tbl fid in
   fnsig.f

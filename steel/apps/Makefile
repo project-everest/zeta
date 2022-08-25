@@ -8,5 +8,7 @@ SRC_DIRS+=$(ZETA_HOME)/steel
 # other common stuff
 include $(ZETA_HOME)/Makefile.common
 
+FSTAR_FILES=$(wildcard *fst *fsti)
+
 all:
 	$(MAKE) verify
