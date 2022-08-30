@@ -149,3 +149,11 @@ let write_store #tsm t slot v =
     let se' = { se with value = v } in
     A.write t.store (as_u32 slot) (Some se');
     return ()
+
+let restore_thread_state_inv_app #_ #tsm t app_results processed_entries =
+  G.write t.app_results app_results;
+  G.write t.processed_entries processed_entries;
+  intro_thread_state_inv t
+  
+
+

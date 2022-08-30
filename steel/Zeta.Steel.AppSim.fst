@@ -124,9 +124,7 @@ let rec read_slots_val_idx (tsm: s_thread_state) (slots: Seq.seq s_slot_id) (i: 
 #pop-options
 
 let write_slots_precond (tsm: s_thread_state) (slots: Seq.seq s_slot_id)
-  = forall (s:U16.t). Seq.contains slots s ==>
-                 has_slot tsm s /\
-                 T.ApplicationKey? (key_of_slot tsm s)
+  = TSM.valid_app_slots tsm slots
 
 let rec write_slots_prop (tsm: s_thread_state)
                          (slots: Seq.seq s_slot_id {write_slots_precond tsm slots})
@@ -457,9 +455,7 @@ let related_writes (tsm: s_thread_state) (slots: Seq.seq s_slot_id)
   : Lemma (requires (related_tsm tsm i_tsm /\ related_slots slots i_slots /\ not tsm.failed /\
                      SA.distinct_elems slots /\
                      IS.contains_only_app_keys i_tsm.IV.st i_slots /\
-                      ( forall (s:U16.t). Seq.contains slots s ==>
-                                     has_slot tsm s /\
-                                     T.ApplicationKey? (key_of_slot tsm s))))
+                     TSM.valid_app_slots tsm slots))
           (ensures (let tsm_ = write_slots tsm slots values in
                     let i_tsm_ = i_vspec.GV.puts i_tsm i_slots values in
                     related_tsm tsm_ i_tsm_))

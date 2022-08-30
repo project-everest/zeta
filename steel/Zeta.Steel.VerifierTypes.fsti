@@ -109,3 +109,40 @@ val read_store : read_store_t
 
 inline_for_extraction
 val write_store : write_store_t
+
+
+//
+// Wrapper over read_store,
+//   with additional check that the slot contains application key and value
+//
+inline_for_extraction
+let read_store_app (#tsm:M.thread_state_model)
+  (t:thread_state_t)
+  (slot:slot)
+  : ST (option (key_type & option value_type))
+       (thread_state_inv_core t tsm)
+       (fun _ -> thread_state_inv_core t tsm)
+       (requires True)
+       (ensures fun o ->
+        match Seq.index tsm.store (U16.v slot), o with
+        | Some (se:M.store_entry), Some (k, vopt) ->
+          se.key == ApplicationKey k /\ se.value == DValue vopt
+        | _, None -> True
+        | _, _ -> False)
+
+  = let kvopt = read_store t slot in
+    match kvopt with
+    | Some ({key=ApplicationKey k; value=DValue vopt}) -> Some (k, vopt)
+    | _ -> None
+
+val restore_thread_state_inv_app (#opened:_) (#tsm:M.thread_state_model)
+  (t:thread_state_t)
+  (app_results:M.app_results)
+  (processed_entries:Seq.seq log_entry)
+  : STGhost unit opened
+      (thread_state_inv_core t tsm)
+      (fun _ -> thread_state_inv t ({tsm with app_results; processed_entries}))
+      (requires
+        thread_id t == tsm.thread_id /\
+        M.tsm_entries_invariant ({tsm with app_results; processed_entries}))
+      (ensures fun _ -> True)

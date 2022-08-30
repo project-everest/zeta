@@ -19,41 +19,85 @@ friend Zeta.Steel.ApplicationTypes
 assume val admit__ (#a:Type) (#p:vprop) (#q:post_t a) (_:unit)
   : STF a p q (True) (fun _ -> False)
 
-let seq_create_singleton_contains (#a:Type) (x:a) (y:a)
-  : Lemma (Seq.Properties.contains (Seq.create 1 x) y <==> x == y)
-          [SMTPat (Seq.Properties.contains (Seq.create 1 x) y)]
-  = admit ()
+let vget_spec_args (r:KVF.vget_args_t)
+  : GTot (App.interp_code KVS.adm KVS.vget_spec_arg_t)
+  = r.vget_key, r.vget_value
 
-let restore_thread_state_inv (#opened:_)
-  (t:VT.thread_state_t)
-  (tsm:TSM.thread_state_model)
-  (e:log_entry)
-  : STGhostT unit opened
-      (VT.thread_state_inv t tsm)
-      (fun _ -> VT.thread_state_inv t (TSM.verify_step_model tsm e))
-  = VT.elim_thread_state_inv t;
-    TSM.tsm_entries_invariant_verify_step tsm e;
-    let tsm' = TSM.verify_step_model tsm e in
-    assert (VT.thread_id t == tsm'.thread_id);
-    assert (VT.tsm_entries_invariant tsm');
-    // TODO: need a lemma to establish VT.thread_state_inv_core for tsm'
-    //       it is missing from the interface
-    // VT.intro_thread_state_inv #_ #(TSM.verify_step_model tsm e) t
-    admit_ ()
+let vget_spec_slots (r:KVF.vget_args_t)
+  : GTot (Seq.seq slot_id)
+  = Seq.create 1 r.vget_slot
 
-let restore_thread_state_inv_core_put (#opened:_)
-  (t:VT.thread_state_t)
+let vget_spec_out_vals (tsm:TSM.thread_state_model) (r:KVF.vget_args_t)
+  : Ghost (r:Seq.seq (App.app_value_nullable KVS.adm){Seq.length r == KVS.vget_spec_arity})
+          (requires Some? (TSM.read_slots tsm (vget_spec_slots r)))
+          (ensures fun _ -> True)
+  = let recs = Some?.v (TSM.read_slots tsm (vget_spec_slots r)) in
+    let _, _, out_vals = KVS.vget_spec_f (vget_spec_args r) recs in
+    out_vals
+
+let vget_app_result (tsm:TSM.thread_state_model) (r:KVF.vget_args_t)
+  : Ghost app_result_entry
+      (requires Some? (TSM.read_slots tsm (vget_spec_slots r)))
+      (ensures fun _ -> True)
+  = let recs = Some?.v (TSM.read_slots tsm (vget_spec_slots r)) in
+    let _, res, _ = KVS.vget_spec_f (vget_spec_args r) recs in  
+    (| KVS.vget_id, vget_spec_args r, recs, res |)
+
+let slot_value_is_kv
   (tsm:TSM.thread_state_model)
-  (app_results:TSM.app_results)
-  (es:Seq.seq log_entry)
-  : STGhostT unit opened
+  (slot:slot_id)
+  (store_kv:KVS.key_t & option KVS.value_t)
+  = U16.v slot < U16.v KAT.store_size /\
+    Some? (Seq.index tsm.store (U16.v slot)) /\
+    (let Some se = Seq.index tsm.store (U16.v slot) in
+     se.key == ApplicationKey (fst store_kv) /\
+     se.value == DValue (snd store_kv))
+    
+let vget_impl (#tsm:TSM.thread_state_model)
+  (t:VT.thread_state_t)
+  (r:KVF.vget_args_t)
+  (store_kv:(KVS.key_t & option KVS.value_t){slot_value_is_kv tsm r.vget_slot store_kv})
+  : ST bool
       (VT.thread_state_inv_core t tsm)
-      (fun _ -> VT.thread_state_inv_core t ({tsm with app_results=app_results;
-                                                processed_entries=es}))
-  = admit_ ()
-  
-//#push-options "--z3rlimit 100 --fuel 4 --ifuel 4 --using_facts_from '* -FStar.Tactics -FStar.Reflection' --split_queries --query_stats"
-#set-options "--print_full_names"
+      (fun b -> 
+       if b
+       then VT.thread_state_inv_core t tsm
+       else VT.thread_state_inv_core t tsm)
+      (requires True)
+      (ensures fun b ->
+         (b ==> (r.vget_key == fst store_kv /\
+                Some r.vget_value == snd store_kv /\
+                (let recs = Some?.v (TSM.read_slots tsm (vget_spec_slots r)) in
+                 let r, _, _ = KVS.vget_spec_f (vget_spec_args r) recs in
+                 App.Fn_success? r))))
+  = if r.vget_key = fst store_kv
+    then if Some r.vget_value = snd store_kv
+         then begin
+           let b = true in
+           rewrite (VT.thread_state_inv_core t tsm)
+                   (if b
+                    then VT.thread_state_inv_core t tsm
+                    else VT.thread_state_inv_core t tsm);
+           return b           
+         end
+         else begin
+           let b = false in
+           rewrite (VT.thread_state_inv_core t tsm)
+                   (if b
+                    then VT.thread_state_inv_core t tsm
+                    else VT.thread_state_inv_core t tsm);
+           return b
+         end
+    else begin
+      let b = false in
+      rewrite (VT.thread_state_inv_core t tsm)
+              (if b
+               then VT.thread_state_inv_core t tsm
+               else VT.thread_state_inv_core t tsm);
+      return b
+    end
+
+#push-options "--z3rlimit 100"
 let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
   #out_bytes out_len out_offset out
   #tsm t
@@ -62,47 +106,84 @@ let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
       let ropt = KVF.vget_args_parser log_len pl_pos pl.rest.len log_array in
       match ropt with
       | None -> return Run_app_parsing_failure
-      | Some (r, _) ->
-        //
-        // TODO: need to change the type in Zeta.Steel.Formats.fsti,
-        //       that file is generated by EverParse
-        //
-        assume (U16.v r.vget_slot < U16.v KAT.store_size);
-        let kvopt = VT.read_store t r.vget_slot in
-        match kvopt with
-        | None -> return Run_app_verify_failure
-        | Some kv ->
-          match kv.key, kv.value with
-          | InternalKey _, _ -> return Run_app_verify_failure
-          | _, MValue _ -> return Run_app_verify_failure
-          | ApplicationKey k, DValue vopt ->
-            //
-            // This comparison requires us to friend Zeta.Steel.ApplicationTypes
-            // Since k:Zeta.Steel.ApplicationTypes.key_type
-            // and r.vget_key:KVS.key_t
-            // and both are related only in ApplicationTypes.fst
-            //
-            if r.vget_key = k && Some r.vget_value = vopt
-            then begin
-              restore_thread_state_inv t tsm (RunApp pl);
-              let wrote = 0ul in
-              assume (n_out_bytes
-                        tsm
-                        (TSM.verify_step_model tsm (RunApp pl))
-                        out_offset
-                        wrote
-                        out_bytes
-                        out_bytes);
-              intro_pure (n_out_bytes
-                            tsm
-                            (TSM.verify_step_model tsm (RunApp pl))
-                            out_offset
-                            wrote
-                            out_bytes
-                            out_bytes);
-              return (Run_app_success wrote)
-            end
-            else return Run_app_verify_failure
+      | Some (r, consumed) ->
+        if consumed = pl.rest.len
+        then begin
+          if U16.v r.vget_slot < U16.v KAT.store_size
+          then begin
+            VT.elim_thread_state_inv t;
+            let kvopt = VT.read_store_app t r.vget_slot in
+            match kvopt with
+            | None ->
+              VT.intro_thread_state_inv t;
+              return Run_app_verify_failure
+            | Some (k, vopt) ->
+              let b = vget_impl t r (k, vopt) in
+              if b
+              then begin
+                let tsm_impl = tsm in
+                rewrite (if b
+                         then VT.thread_state_inv_core t tsm
+                         else VT.thread_state_inv_core t tsm)
+                        (if b
+                         then VT.thread_state_inv_core t tsm_impl
+                         else VT.thread_state_inv_core t tsm);
+                rewrite (if b
+                         then VT.thread_state_inv_core t tsm_impl
+                         else VT.thread_state_inv_core t tsm)
+                        (VT.thread_state_inv_core t tsm_impl);
+                let tsm_write_slots =
+                  TSM.write_slots tsm (vget_spec_slots r)
+                                      (vget_spec_out_vals tsm r) in
+                assert (Seq.equal tsm_impl.store tsm_write_slots.store);
+                rewrite (VT.thread_state_inv_core t tsm_impl)
+                        (VT.thread_state_inv_core t tsm_write_slots);
+
+                assume (Zeta.SeqAux.distinct_elems_comp (vget_spec_slots r));
+                assume (TSM.check_distinct_keys (Some?.v (TSM.read_slots tsm (vget_spec_slots r))));
+
+                let tsm_final =
+                  {tsm_write_slots
+                   with app_results = Seq.snoc tsm_write_slots.app_results (vget_app_result tsm r);
+                        processed_entries=Seq.snoc tsm.processed_entries (RunApp pl)} in
+
+                assert (TSM.verify_step_model tsm (RunApp pl) == tsm_final);
+                assert (VT.tsm_entries_invariant tsm_final);
+
+                VT.restore_thread_state_inv_app t
+                  (Seq.snoc tsm_write_slots.app_results (vget_app_result tsm r))
+                  (Seq.snoc tsm.processed_entries (RunApp pl));
+
+                let wrote = 0ul in
+
+                assume (n_out_bytes
+                          tsm
+                          (TSM.verify_step_model tsm (RunApp pl))
+                          out_offset
+                          wrote
+                          out_bytes
+                          out_bytes);
+                intro_pure (n_out_bytes
+                              tsm
+                              (TSM.verify_step_model tsm (RunApp pl))
+                              out_offset
+                              wrote
+                              out_bytes
+                              out_bytes);
+                return (Run_app_success wrote)
+              end
+              else begin
+                rewrite (if b
+                         then VT.thread_state_inv_core t tsm
+                         else VT.thread_state_inv_core t tsm)
+                        (VT.thread_state_inv_core t tsm);
+                VT.intro_thread_state_inv t;
+                return Run_app_verify_failure
+              end
+          end
+          else return Run_app_verify_failure
+        end
+        else return Run_app_parsing_failure
     end
     else admit__ ()
 

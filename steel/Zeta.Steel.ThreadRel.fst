@@ -43,10 +43,8 @@ let addm_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_entry {T.AddM?
 #pop-options
 
 let runapp_slots_prop (tsm: thread_state_model) (slots: S.seq T.slot_id)
-  = forall (s:U16.t). Seq.contains slots s ==>
-                  has_slot tsm s /\
-                  T.ApplicationKey? (key_of_slot tsm s)
-
+  = TSM.valid_app_slots tsm slots
+  
 let rec read_slots_valid_prop (tsm: thread_state_model) (slots: S.seq T.slot_id)
   : Lemma (ensures (let or = read_slots tsm slots in
                     Some? or ==> (forall i. valid_slot (S.index slots i))))

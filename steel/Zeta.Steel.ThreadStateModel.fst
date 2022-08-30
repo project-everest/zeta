@@ -718,17 +718,20 @@ let verifyepoch (tsm:thread_state_model)
       if epoch_of_timestamp tsm.clock = e
       then fail tsm //can't advance last_verified_epoch all the way up to the current clock
       else { tsm with last_verified_epoch = Some e }
-    
+
+unfold
+let valid_app_slots (tsm:thread_state_model) (slots:Seq.seq slot_id) =
+  forall (i:nat{i < Seq.length slots}).
+    let s = Seq.index slots i in
+    has_slot tsm s /\ ApplicationKey? (key_of_slot tsm s)
+
 let rec read_slots (tsm:thread_state_model)
                    (slots:Seq.seq slot_id)
   : GTot (option 
     (recs:Seq.seq (A.app_record aprm.A.adm){ 
       Seq.length recs == Seq.length slots /\
-      (forall (s:slot_id). {:pattern Seq.contains slots s}
-                    Seq.contains slots s ==> 
-                    has_slot tsm s /\
-                    ApplicationKey? (key_of_slot tsm s))
-    })) (decreases (Seq.length slots))
+      valid_app_slots tsm slots}))
+    (decreases (Seq.length slots))
   = if Seq.length slots = 0
     then (
       Seq.lemma_contains_empty #U16.t;
@@ -770,12 +773,9 @@ let check_distinct_keys (s:Seq.seq (A.app_record aprm.A.adm))
              fst (Seq.index s i));
     b
 
+
 let rec write_slots (tsm:thread_state_model)
-                    (slots:Seq.seq slot_id { forall (s:U16.t). {:pattern Seq.contains slots s}
-                                                Seq.contains slots s ==> 
-                                                has_slot tsm s /\
-                                                ApplicationKey? (key_of_slot tsm s)
-                                         })
+                    (slots:(Seq.seq slot_id){valid_app_slots tsm slots})
                     (values:Seq.seq (A.app_value_nullable aprm.A.adm)
                       { Seq.length slots == Seq.length values })
   : GTot (tsm':thread_state_model{
@@ -839,8 +839,8 @@ let runapp (tsm:thread_state_model)
               match res with
               | ( A.Fn_failure, _, _) -> fail tsm
               | (_, res, out_vals) ->
-                let tsm = {tsm with app_results=Seq.Properties.snoc tsm.app_results (| pl.fid, arg, recs, res |)} in
                 let tsm' = write_slots tsm slots out_vals in
+                let tsm' = {tsm' with app_results=Seq.Properties.snoc tsm'.app_results (| pl.fid, arg, recs, res |)} in
                 tsm'
             )
         )
@@ -1418,4 +1418,3 @@ let rec run_all (n:nat{n <= U32.v n_threads})
 //     let aeh = aggregate_epoch_hashes tsms eid in
 //     aeh.epoch_complete &&
 //     aeh.hadd = aeh.hevict
-

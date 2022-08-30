@@ -110,13 +110,15 @@ val run_app_function
       // (read_store: V.read_store_t)
       // (write_store: V.write_store_t)
   (* if success, returns the number of bytes written in the output log *)
-   : STT verify_runapp_result
+   : ST verify_runapp_result
       (V.thread_state_inv t tsm `star`
        A.pts_to log_array log_perm log_bytes `star`
        A.pts_to out full_perm out_bytes)
       (fun res ->
         A.pts_to log_array log_perm log_bytes `star`
         verify_runapp_entry_post tsm t pl out_bytes out_offset out res)
+      (requires not tsm.failed)
+      (ensures fun _ -> True)
 
 (** A function to map application keys to base keys *)
 module LE = Zeta.Steel.LogEntry.Types
