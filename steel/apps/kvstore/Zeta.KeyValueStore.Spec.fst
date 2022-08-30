@@ -35,6 +35,7 @@ let vget_sig : fn_sig adm = {
   farg_t = vget_spec_arg_t;
   fres_t = vget_spec_res_t;
   arity = vget_spec_arity;
+  writes_output_log = false;
   f = vget_spec_f
 }
 
@@ -51,6 +52,7 @@ let vput_sig : fn_sig adm = {
   farg_t = vput_spec_arg_t;
   fres_t = vput_spec_res_t;
   arity = vput_spec_arity;
+  writes_output_log = false;
   f = vput_spec_f
 }
 

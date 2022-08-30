@@ -119,6 +119,8 @@ type fn_sig (adm: app_data_model) = {
   (* number of records touched by the function *)
   arity: nat;
 
+  writes_output_log: bool;
+
   (*
    * the actual function that takes in the argument, an input sequence
    * of records, and returns a succ/failure, a result, a new internal

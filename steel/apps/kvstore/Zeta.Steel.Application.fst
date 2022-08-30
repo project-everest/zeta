@@ -156,7 +156,7 @@ let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
 
                 let wrote = 0ul in
 
-                assume (n_out_bytes
+                assert (n_out_bytes
                           tsm
                           (TSM.verify_step_model tsm (RunApp pl))
                           out_offset
