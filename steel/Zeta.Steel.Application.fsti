@@ -118,7 +118,7 @@ val run_app_function
         A.pts_to log_array log_perm log_bytes `star`
         verify_runapp_entry_post tsm t pl out_bytes out_offset out res)
       (requires not tsm.failed)
-      (ensures fun _ -> True)
+      (ensures fun _ -> True)  //AR: if all goes well, can we prove not final_tsm.failed?
 
 (** A function to map application keys to base keys *)
 module LE = Zeta.Steel.LogEntry.Types
