@@ -144,7 +144,6 @@ let runapp_non_store_prop (tsm: thread_state_model) (e: s_log_entry {T.RunApp? e
           let res = fsig.f arg recs in
           match res with
           | _, res, out_vals ->
-            let tsm = {tsm with app_results=Seq.Properties.snoc tsm.app_results (| p.fid, arg, recs, res |)} in
             write_slots_non_store_prop tsm slots out_vals
 
 let runapp_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_entry {T.RunApp? e})
@@ -847,10 +846,11 @@ let runapp_does_not_change_epoch_hashes (tsm: thread_state_model) (pl: T.runApp_
           let res = fsig.f arg recs in
           match res with
           | (_, res, out_vals) ->
-            let tsm1 = {tsm with app_results=Seq.Properties.snoc tsm.app_results (| pl.fid, arg, recs, res |)} in
+            write_slots_non_store_prop tsm slots out_vals;
+            let tsm1 = write_slots tsm slots out_vals in
+            let tsm1 = {tsm1 with app_results=Seq.Properties.snoc tsm1.app_results (| pl.fid, arg, recs, res |)} in
             assert (tsm1.epoch_hashes == tsm.epoch_hashes);
-            assert (tsm_ == write_slots tsm1 slots out_vals);
-            write_slots_non_store_prop tsm1 slots out_vals;
+            assert (tsm_ == tsm1);
             assert (tsm_.epoch_hashes == tsm1.epoch_hashes);
             ()
     end

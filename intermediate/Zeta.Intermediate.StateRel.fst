@@ -389,11 +389,12 @@ let lemma_runapp_simulates_spec
         assert (GV.contains_distinct_app_keys_comp vss ss);
         assert (S.length ss = appfn_arity f);
         let fn = appfn f in
+        let rc,_,_ = fn p (hi_reads a) in
+        assert (rc == Fn_failure);
         let rs = GV.reads vss ss in
         assert(rs == int_reads a);
         assert (not (vss_.valid));
-        assert (not (vsk_.valid));
-        ()
+        assert (not (vsk_.valid))
       )
     )
 

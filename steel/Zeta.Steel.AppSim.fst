@@ -538,11 +538,11 @@ let runapp_simulation (tsm: s_thread_state) (i_tsm: i_thread_state) (se: s_log_e
           | (_, res, out_vals) ->
             assert (i_rc <> A.Fn_failure);
             assert (i_ws == out_vals);
+            related_writes tsm slots i_tsm i_slots out_vals;
             let tsm2 = {tsm with app_results=Seq.Properties.snoc tsm.app_results (| p.fid, arg, recs, res |)} in
             assert (related_tsm tsm2 i_tsm);
             assert (GV.contains_only_app_keys i_tsm i_slots);
-            assert (IS.contains_only_app_keys i_st i_slots);
-            related_writes tsm2 slots i_tsm i_slots out_vals
+            assert (IS.contains_only_app_keys i_st i_slots)
     end
 
 #pop-options
@@ -568,9 +568,9 @@ let runapp_output (tsm: s_thread_state)
         match res with
         | (_, res, out_vals) ->
           let o = (| p.fid, arg, recs, res |) in
-          let tsm2 = {tsm with app_results=Seq.Properties.snoc tsm.app_results o} in
-          assert (tsm_ == write_slots tsm2 slots out_vals);
-          write_slots_prop tsm2 slots out_vals;
+          write_slots_prop tsm slots out_vals;
+          let tsm2 = write_slots tsm slots out_vals in
+          assert (tsm_ == {tsm2 with app_results=Seq.Properties.snoc tsm2.app_results o});
           o
 
 #pop-options
