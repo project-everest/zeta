@@ -71,8 +71,8 @@ let read_store_t =
     t:thread_state_t ->
     slot:slot ->
     ST (option kv)
-       (thread_state_inv t tsm)
-       (fun _ -> thread_state_inv t tsm)
+       (thread_state_inv_core t tsm)
+       (fun _ -> thread_state_inv_core t tsm)
        (requires True)
        (ensures fun o ->
          match Seq.index tsm.store (U16.v slot), o with
