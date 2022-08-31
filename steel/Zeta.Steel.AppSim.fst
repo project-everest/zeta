@@ -123,11 +123,8 @@ let rec read_slots_val_idx (tsm: s_thread_state) (slots: Seq.seq s_slot_id) (i: 
 
 #pop-options
 
-let write_slots_precond (tsm: s_thread_state) (slots: Seq.seq s_slot_id)
-  = TSM.valid_app_slots tsm slots
-
 let rec write_slots_prop (tsm: s_thread_state)
-                         (slots: Seq.seq s_slot_id {write_slots_precond tsm slots})
+                         (slots: Seq.seq s_slot_id {TSM.valid_app_slots tsm slots})
                          (values: Seq.seq (A.app_value_nullable app.A.adm) {Seq.length slots = Seq.length values})
   : Lemma (ensures (let tsm_ = write_slots tsm slots values in
                     identical_except_store tsm tsm_))
@@ -177,7 +174,7 @@ let lemma_mem_head (slots: Seq.seq s_slot_id) (s: s_slot_id)
     end
 
 let rec write_slots_slot_prop (tsm: s_thread_state)
-                         (slots: Seq.seq s_slot_id {write_slots_precond tsm slots})
+                         (slots: Seq.seq s_slot_id {TSM.valid_app_slots tsm slots})
                          (values: Seq.seq (A.app_value_nullable app.A.adm) {Seq.length slots = Seq.length values})
                          (s: T.slot)
   : Lemma (requires (SA.distinct_elems slots))

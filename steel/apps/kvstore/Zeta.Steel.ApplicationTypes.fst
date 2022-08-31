@@ -3,7 +3,8 @@ module Zeta.Steel.ApplicationTypes
 module S = Zeta.KeyValueStore.Spec
 module F = Zeta.KeyValueStore.Formats
 
-/// Implementation of the Zeta.Steel.ApplicationsTypes interface
+/// Implementation of the steel/Zeta.Steel.ApplicationsTypes interface
+///   for the key value store app
 
 type key_type = F.key_t
 
@@ -39,7 +40,10 @@ let aprm = S.kv_params
 let store_size = FStar.UInt16.uint_to_t (FStar.UInt.max_int 16)
 let n_threads = FStar.UInt32.uint_to_t (FStar.UInt.max_int 15)
 
+//
 // As in LowParse
+// We perhaps don't need it in Zeta
+//
 let synth_injective
   (#t1: Type)
   (#t2: Type)

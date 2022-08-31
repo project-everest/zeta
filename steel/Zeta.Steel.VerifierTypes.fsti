@@ -135,6 +135,9 @@ let read_store_app (#tsm:M.thread_state_model)
     | Some ({key=ApplicationKey k; value=DValue vopt}) -> Some (k, vopt)
     | _ -> None
 
+//
+// Used by app function implementations
+//
 val restore_thread_state_inv_app (#opened:_) (#tsm:M.thread_state_model)
   (t:thread_state_t)
   (app_results:M.app_results)

@@ -101,6 +101,11 @@ let distinct_keys #adm (sk: seq (app_record adm)) =
                                          let k2,_ = index sk i2 in
                                          k1 <> k2)
 
+(*
+ * Type of the actual function that takes in the argument, an input sequence
+ * of records, and returns a succ/failure, a result, a new internal
+ * state, and updated values for the input records.
+ *)
 type app_fn_t (adm:app_data_model) (farg_t:code) (fres_t:code) (arity:nat) =
   arg:interp_code adm farg_t ->
   inp:seq (app_record adm){length inp == arity /\ distinct_keys inp} ->
@@ -119,13 +124,10 @@ type fn_sig (adm: app_data_model) = {
   (* number of records touched by the function *)
   arity: nat;
 
+  (* whether this function writes to the output log *)
   writes_output_log: bool;
 
-  (*
-   * the actual function that takes in the argument, an input sequence
-   * of records, and returns a succ/failure, a result, a new internal
-   * state, and updated values for the input records.
-   *)
+  (* the actual function *)
   f : app_fn_t adm farg_t fres_t arity
 }
 
@@ -182,7 +184,7 @@ let appfn_ws_t (#aprm: app_params) (fid: appfn_id aprm) =
 (* 
  * F* does not type check this without an explicit return type
  *
- * It's because fnsig escapes in the return type,
+ * Because fnsig escapes in the return type,
  *   so we need an explicit annotation
  *)
 let appfn (#aprm: app_params) (fid: appfn_id aprm):

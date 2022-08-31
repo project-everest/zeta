@@ -16,11 +16,22 @@ module F = Zeta.KeyValueStore.Formats
 
 friend Zeta.Steel.ApplicationTypes
 
-#set-options "--using_facts_from '* -FStar.Tactics -FStar.Reflection'"
+/// Implementation of the steel/Zeta.Steel.Application interface
+///
+/// Each app function implementation is staged
+///   There is an impl function that implements the core functionality and optionally writes to the store
+///   And there is a wrapper around this impl, that:
+///     - parses the input log to read function arguments etc.
+///     - reads the store for requested keys
+///     - calls the impl function with the arguments and read store values,
+///     - writes to the output log if needed
 
-assume val admit__ (#a:Type) (#p:vprop) (#q:post_t a) (_:unit)
-  : STF a p q (True) (fun _ -> False)
+#set-options "--using_facts_from '* -FStar.Tactics -FStar.Reflection' --z3rlimit 50"
 
+
+//
+// This is the precondition of the impl functions
+//
 let slot_value_is_kv
   (tsm:TSM.thread_state_model)
   (slot:slot_id)
@@ -30,7 +41,11 @@ let slot_value_is_kv
     (let Some se = Seq.index tsm.store (U16.v slot) in
      se.key == ApplicationKey (fst store_kv) /\
      se.value == DValue (snd store_kv))
-    
+
+
+/// Following are some helpers for each function,
+///   we will use these ghostly to re-establish invariants
+
 let vget_spec_args (r:F.vget_args_t)
   : GTot (App.interp_code S.adm S.vget_spec_arg_t)
   = r.vget_key, r.vget_value
@@ -63,6 +78,12 @@ let vget_app_success (tsm:TSM.thread_state_model) (r:F.vget_args_t)
     let r, _, _ = S.vget_spec_f (vget_spec_args r) recs in
     App.Fn_success? r
 
+//
+// Final tsm for every app function impl (note impl)
+// Differs from input tsm only in store (if at all)
+//
+// It is more interesting for vput
+//
 let vget_impl_tsm
   (tsm:TSM.thread_state_model)
   (r:F.vget_args_t)
@@ -70,6 +91,11 @@ let vget_impl_tsm
   : TSM.thread_state_model
   = tsm
 
+//
+// The core vget implementation
+//
+// If it succeeds, it provides all the successful checks in its postcondition,
+//
 let vget_impl (#tsm:TSM.thread_state_model)
   (t:VT.thread_state_t)
   (r:F.vget_args_t)
@@ -85,8 +111,10 @@ let vget_impl (#tsm:TSM.thread_state_model)
          (b ==> (r.vget_key == fst store_kv /\
                 Some r.vget_value == snd store_kv /\
                 vget_app_success tsm r)))
-  = if r.vget_key = fst store_kv
-    then if Some r.vget_value = snd store_kv
+  = // First check, that the keys match
+    if r.vget_key = fst store_kv
+    then //Second check that the values match
+         if Some r.vget_value = snd store_kv
          then begin
            let b = true in
            rewrite (VT.thread_state_inv_core t (vget_impl_tsm tsm r store_kv))
@@ -112,7 +140,12 @@ let vget_impl (#tsm:TSM.thread_state_model)
       return b
     end
 
-#push-options "--z3rlimit 50"
+//
+// The main vget function
+//
+// Its signature is same as Zeta.Steel.Application::run_app_function,
+//   with a precondition that pl.fid == vget
+//
 let run_vget 
   (#log_perm:perm)
   (#log_bytes:Ghost.erased bytes)
@@ -141,28 +174,38 @@ let run_vget
         verify_runapp_entry_post tsm t pl out_bytes out_offset out res)
        (requires not tsm.failed /\ pl.fid == S.vget_id)
        (ensures fun _ -> True)
-  = let ropt = F.vget_args_parser log_len pl_pos pl.rest.len log_array in
+  = // Parse the input log
+    let ropt = F.vget_args_parser log_len pl_pos pl.rest.len log_array in
     match ropt with
     | None -> return Run_app_parsing_failure
     | Some (r, consumed) ->
+      // Check that we consumed all the bytes
       if consumed = pl.rest.len
       then begin
+        // For all slots check that they are in range
         if U16.v r.vget_slot < U16.v AT.store_size
         then begin
+          // Get to thread_state_inv_core
           VT.elim_thread_state_inv t;
+          // Read store for all the slots
           let kvopt = VT.read_store_app t r.vget_slot in
           match kvopt with
           | None ->
             VT.intro_thread_state_inv t;
             return Run_app_verify_failure
           | Some (k, vopt) ->
+            // After we have read all the slots, call impl, with the input and store values
             let b = vget_impl t r (k, vopt) in
             if b
             then begin
+              // We now have to match up to TSM.runapp
+              // First eliminate conditional
               rewrite (if b
                        then VT.thread_state_inv_core t (vget_impl_tsm tsm r (k, vopt))
                        else VT.thread_state_inv_core t tsm)
                       (VT.thread_state_inv_core t (vget_impl_tsm tsm r (k, vopt)));
+              // This write_slots is what is used in TSM.runapp,
+              //   so assert equality and rewrite to write_slots
               let tsm_write_slots =
                 TSM.write_slots tsm (vget_spec_slots r)
                                     (vget_spec_out_vals tsm r) in
@@ -170,9 +213,11 @@ let run_vget
               rewrite (VT.thread_state_inv_core t (vget_impl_tsm tsm r (k, vopt)))
                       (VT.thread_state_inv_core t tsm_write_slots);
 
+              // These should be proved with tactic or something?
               assume (Zeta.SeqAux.distinct_elems_comp (vget_spec_slots r));
               assume (TSM.check_distinct_keys (Some?.v (TSM.read_slots tsm (vget_spec_slots r))));
 
+              // Final tsm as computed by TSM.runapp
               let tsm_final =
                 {tsm_write_slots
                  with app_results = Seq.snoc tsm_write_slots.app_results (vget_app_result tsm r);
@@ -181,10 +226,12 @@ let run_vget
               assert (TSM.verify_step_model tsm (RunApp pl) == tsm_final);
               assert (VT.tsm_entries_invariant tsm_final);
 
+              // Call helper in VT to get the invariant
               VT.restore_thread_state_inv_app t
                 (Seq.snoc tsm_write_slots.app_results (vget_app_result tsm r))
                 (Seq.snoc tsm.processed_entries (RunApp pl));
 
+              // Not writing any output
               let wrote = 0ul in
 
               intro_pure (n_out_bytes
@@ -208,7 +255,8 @@ let run_vget
         else return Run_app_verify_failure
       end
       else return Run_app_parsing_failure
-#pop-options
+
+/// Same exercise for vput
 
 let vput_spec_args (r:F.vput_args_t)
   : GTot (App.interp_code S.adm S.vput_spec_arg_t)
@@ -242,6 +290,10 @@ let vput_app_success (tsm:TSM.thread_state_model) (r:F.vput_args_t)
     let r, _, _ = S.vput_spec_f (vput_spec_args r) recs in
     App.Fn_success? r
 
+//
+// Note that it updates the store
+//   (matches with what VT.write_store gives us)
+//
 let vput_impl_tsm
   (tsm:TSM.thread_state_model)
   (r:F.vput_args_t)
@@ -249,6 +301,9 @@ let vput_impl_tsm
   : TSM.thread_state_model
   = VT.update_tsm_slot_value tsm r.vput_slot (DValue (Some r.vput_value))
 
+//
+// This writes the store also
+//
 let vput_impl (#tsm:TSM.thread_state_model)
   (t:VT.thread_state_t)
   (r:F.vput_args_t)
@@ -292,7 +347,6 @@ let vput_impl (#tsm:TSM.thread_state_model)
       return b
     end
 
-#push-options "--z3rlimit 50"
 let run_vput 
   (#log_perm:perm)
   (#log_bytes:Ghost.erased bytes)
@@ -388,7 +442,6 @@ let run_vput
         else return Run_app_verify_failure
       end
       else return Run_app_parsing_failure
-#pop-options
 
 let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
   #out_bytes out_len out_offset out
@@ -399,4 +452,9 @@ let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
     then run_vput log_len pl pl_pos log_array out_len out_offset out t
     else return Run_app_parsing_failure
 
+//
+// TODO
+//
+assume val admit__ (#a:Type) (#p:vprop) (#q:post_t a) (_:unit)
+  : STF a p q (True) (fun _ -> False)
 let key_type_to_base_key _ = admit__ ()

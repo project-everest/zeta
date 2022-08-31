@@ -41,9 +41,6 @@ let addm_valid_log_entry_prop (tsm: thread_state_model) (e: s_log_entry {T.AddM?
   = ()
 
 #pop-options
-
-let runapp_slots_prop (tsm: thread_state_model) (slots: S.seq T.slot_id)
-  = TSM.valid_app_slots tsm slots
   
 let rec read_slots_valid_prop (tsm: thread_state_model) (slots: S.seq T.slot_id)
   : Lemma (ensures (let or = read_slots tsm slots in
@@ -67,7 +64,7 @@ let rec read_slots_valid_prop (tsm: thread_state_model) (slots: S.seq T.slot_id)
 
 let rec write_slots_non_store_prop
   (tsm: thread_state_model)
-  (slots: _ {runapp_slots_prop tsm slots})
+  (slots: _ {TSM.valid_app_slots tsm slots})
   (values: S.seq (app_value_nullable app.adm) {S.length slots == S.length values})
   : Lemma (ensures (let tsm_ = write_slots tsm slots values in
                     tsm_.failed == tsm.failed /\
@@ -851,8 +848,7 @@ let runapp_does_not_change_epoch_hashes (tsm: thread_state_model) (pl: T.runApp_
             let tsm1 = {tsm1 with app_results=Seq.Properties.snoc tsm1.app_results (| pl.fid, arg, recs, res |)} in
             assert (tsm1.epoch_hashes == tsm.epoch_hashes);
             assert (tsm_ == tsm1);
-            assert (tsm_.epoch_hashes == tsm1.epoch_hashes);
-            ()
+            assert (tsm_.epoch_hashes == tsm1.epoch_hashes)
     end
 
 let epoch_hashes_unchanged_runapp

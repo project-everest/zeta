@@ -5,6 +5,8 @@ open Zeta.App
 module P = Zeta.Steel.Parser
 module F = Zeta.KeyValueStore.Formats
 
+/// Specification of the key value store app
+
 type u8 = FStar.UInt8.t
 type u16 = FStar.UInt16.t
 
@@ -68,6 +70,3 @@ let kv_params : app_params = {
   keycmp = key_cmp_fn;
   valcmp = value_cmp_fn;
 }
-
-
-

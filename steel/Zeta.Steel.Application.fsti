@@ -49,9 +49,6 @@ type verify_runapp_result =
   | Run_app_verify_failure: verify_runapp_result
   | Run_app_success: wrote:U32.t -> verify_runapp_result
 
-//
-// AR: temporarily adding this so that the tactic unfolds it
-//
 [@@ __reduce__]
 let verify_runapp_entry_post (tsm:M.thread_state_model)
                              (t:V.thread_state_t)
@@ -118,7 +115,7 @@ val run_app_function
         A.pts_to log_array log_perm log_bytes `star`
         verify_runapp_entry_post tsm t pl out_bytes out_offset out res)
       (requires not tsm.failed)
-      (ensures fun _ -> True)  //AR: if all goes well, can we prove not final_tsm.failed?
+      (ensures fun _ -> True)
 
 (** A function to map application keys to base keys *)
 module LE = Zeta.Steel.LogEntry.Types

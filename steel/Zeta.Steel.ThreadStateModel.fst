@@ -773,7 +773,6 @@ let check_distinct_keys (s:Seq.seq (A.app_record aprm.A.adm))
              fst (Seq.index s i));
     b
 
-
 let rec write_slots (tsm:thread_state_model)
                     (slots:(Seq.seq slot_id){valid_app_slots tsm slots})
                     (values:Seq.seq (A.app_value_nullable aprm.A.adm)
