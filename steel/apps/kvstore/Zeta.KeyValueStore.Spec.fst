@@ -3,6 +3,7 @@ module Zeta.KeyValueStore.Spec
 open Zeta.App
 
 module P = Zeta.Steel.Parser
+module F = Zeta.KeyValueStore.Formats
 
 type u8 = FStar.UInt8.t
 type u16 = FStar.UInt16.t
@@ -10,13 +11,9 @@ type u16 = FStar.UInt16.t
 let vget_id : u8 = 0uy
 let vput_id : u8 = 1uy
 
-assume val key_t : eqtype
+let adm : app_data_model = AppDataModel F.key_t F.value_t
 
-assume val value_t : eqtype
-
-let adm : app_data_model = AppDataModel key_t value_t
-
-assume val key_hash_fn (k:key_t) : Zeta.Key.leaf_key
+assume val key_hash_fn (k:F.key_t) : Zeta.Key.leaf_key
 assume val key_cmp_fn : Zeta.MultiSet.cmp (app_key adm)
 
 assume val value_hash_fn (v:app_value_nullable adm) : Zeta.Hash.hash_value
@@ -71,3 +68,6 @@ let kv_params : app_params = {
   keycmp = key_cmp_fn;
   valcmp = value_cmp_fn;
 }
+
+
+
