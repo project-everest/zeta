@@ -904,17 +904,17 @@ let delta_app_results (tsm0 tsm1:thread_state_model)
 
 let bytes_of_app_result_entry (a:app_result_entry)
   : GTot bytes
-  = spec_app_result_entry_serializer a
+  = let (| fid, _, _, _ |) = a in
+    if (Map.sel aprm.tbl fid).writes_output_log
+    then spec_app_result_entry_serializer a
+    else Seq.empty
 
 let rec bytes_of_app_results (s:app_results)
   : GTot bytes
     (decreases (Seq.length s))
   = if Seq.length s = 0 then Seq.empty
     else let prefix, last = Seq.un_snoc s in
-         let (| fid, _, _, _ |) = last in
-         if (Map.sel aprm.tbl fid).writes_output_log
-         then bytes_of_app_results prefix `Seq.append` (bytes_of_app_result_entry last)
-         else bytes_of_app_results prefix
+         bytes_of_app_results prefix `Seq.append` (bytes_of_app_result_entry last)
   
 let tsm_entries_invariant (tsm:thread_state_model) =
     not tsm.failed ==>
@@ -1288,40 +1288,36 @@ let delta_app_results_trans (tsm tsm1:thread_state_model)
       assert (tsm2.app_results == tsm1.app_results)
 #pop-options
 
-module CE = FStar.Algebra.CommMonoid.Equiv
-
 let rec bytes_of_app_results_append (s0 s1:app_results)
   : Lemma (ensures
               bytes_of_app_results (Seq.append s0 s1) `Seq.equal`
               ((bytes_of_app_results s0) `Seq.append` (bytes_of_app_results s1)))
           (decreases (Seq.length s1))
-  = admit ()
-  
-  // if Seq.length s1 = 0
-  //   then (
-  //     assert (Seq.equal (Seq.append s0 s1) s0)
-  //   )
-  //   else (
-  //     let prefix, last = Seq.un_snoc s1 in
-  //     Seq.un_snoc_snoc prefix last;
-  //     let prefix', last' = Seq.un_snoc (Seq.append s0 s1) in
-  //     assert (last == last');
-  //     assert (Seq.append s0 s1 `Seq.equal` Seq.snoc (Seq.append s0 prefix) last);
-  //     assert (prefix' `Seq.equal` (Seq.append s0 prefix));
-  //     calc (Seq.equal) {
-  //       bytes_of_app_results (Seq.append s0 s1);
-  //     (Seq.equal) {}
-  //       bytes_of_app_results (Seq.snoc (Seq.append s0 prefix) last);
-  //     (Seq.equal) {}
-  //       bytes_of_app_results (Seq.append s0 prefix) `Seq.append` bytes_of_app_result_entry last;
-  //     (Seq.equal) { bytes_of_app_results_append s0 prefix }
-  //       (bytes_of_app_results s0 `Seq.append` bytes_of_app_results prefix) `Seq.append` bytes_of_app_result_entry last;      
-  //     (Seq.equal) {}
-  //       bytes_of_app_results s0 `Seq.append` (bytes_of_app_results prefix `Seq.append` bytes_of_app_result_entry last);            
-  //     (Seq.equal) {}
-  //       bytes_of_app_results s0 `Seq.append` bytes_of_app_results s1;
-  //     }
-  //   )
+  = if Seq.length s1 = 0
+    then (
+      assert (Seq.equal (Seq.append s0 s1) s0)
+    )
+    else (
+      let prefix, last = Seq.un_snoc s1 in
+      Seq.un_snoc_snoc prefix last;
+      let prefix', last' = Seq.un_snoc (Seq.append s0 s1) in
+      assert (last == last');
+      assert (Seq.append s0 s1 `Seq.equal` Seq.snoc (Seq.append s0 prefix) last);
+      assert (prefix' `Seq.equal` (Seq.append s0 prefix));
+      calc (Seq.equal) {
+        bytes_of_app_results (Seq.append s0 s1);
+      (Seq.equal) {}
+        bytes_of_app_results (Seq.snoc (Seq.append s0 prefix) last);
+      (Seq.equal) {}
+        bytes_of_app_results (Seq.append s0 prefix) `Seq.append` bytes_of_app_result_entry last;
+      (Seq.equal) { bytes_of_app_results_append s0 prefix }
+        (bytes_of_app_results s0 `Seq.append` bytes_of_app_results prefix) `Seq.append` bytes_of_app_result_entry last;      
+      (Seq.equal) {}
+        bytes_of_app_results s0 `Seq.append` (bytes_of_app_results prefix `Seq.append` bytes_of_app_result_entry last);            
+      (Seq.equal) {}
+        bytes_of_app_results s0 `Seq.append` bytes_of_app_results s1;
+      }
+    )
   
 let delta_out_bytes_trans (tsm tsm1:thread_state_model)
                           (le:log_entry)
