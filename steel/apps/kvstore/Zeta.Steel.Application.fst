@@ -79,6 +79,27 @@ let vget_app_success (tsm:TSM.thread_state_model) (r:F.vget_args_t)
     App.Fn_success? r
 
 //
+// Pairwise comparison of all slots in the arg
+//
+let vget_arg_slots_distinct (r:F.vget_args_t)
+  : Pure bool
+      (requires True)
+      (ensures fun b -> b <==> Zeta.SeqAux.distinct_elems_comp (vget_spec_slots r))
+  = true
+
+//
+// Pairwise comparison of slot keys
+//
+
+let vget_keys_distinct (tsm:TSM.thread_state_model) (r:F.vget_args_t) (k:AT.key_type)
+  : Pure bool
+      (requires Some? (TSM.read_slots tsm (vget_spec_slots r)) /\
+                (let kvs = Some?.v (TSM.read_slots tsm (vget_spec_slots r)) in
+                 Seq.equal (Zeta.SeqAux.map fst kvs) (Seq.create 1 k)))
+      (ensures fun b -> b <==> TSM.check_distinct_keys (Some?.v (TSM.read_slots tsm (vget_spec_slots r))))
+  = true
+
+//
 // Final tsm for every app function impl (note impl)
 // Differs from input tsm only in store (if at all)
 //
@@ -110,19 +131,31 @@ let vget_impl (#tsm:TSM.thread_state_model)
       (ensures fun b ->
          (b ==> (r.vget_key == fst store_kv /\
                 Some r.vget_value == snd store_kv /\
+                Zeta.SeqAux.distinct_elems_comp (vget_spec_slots r) /\
+                TSM.check_distinct_keys (Some?.v (TSM.read_slots tsm (vget_spec_slots r))) /\
                 vget_app_success tsm r)))
-  = // First check, that the keys match
-    if r.vget_key = fst store_kv
-    then //Second check that the values match
-         if Some r.vget_value = snd store_kv
-         then begin
-           let b = true in
-           rewrite (VT.thread_state_inv_core t (vget_impl_tsm tsm r store_kv))
-                   (if b
-                    then VT.thread_state_inv_core t (vget_impl_tsm tsm r store_kv)
-                    else VT.thread_state_inv_core t tsm);
-           return b           
-         end
+  = //Check distinctness of keys and slots
+    if vget_arg_slots_distinct r && vget_keys_distinct tsm r (fst store_kv)
+    then // Check that the keys match
+         if r.vget_key = fst store_kv
+         then //Second check that the values match
+              if Some r.vget_value = snd store_kv
+              then begin
+                let b = true in
+                rewrite (VT.thread_state_inv_core t (vget_impl_tsm tsm r store_kv))
+                        (if b
+                         then VT.thread_state_inv_core t (vget_impl_tsm tsm r store_kv)
+                         else VT.thread_state_inv_core t tsm);
+                return b           
+              end
+              else begin
+                let b = false in
+                rewrite (VT.thread_state_inv_core t tsm)
+                        (if b
+                         then VT.thread_state_inv_core t (vget_impl_tsm tsm r store_kv)
+                         else VT.thread_state_inv_core t tsm);
+                return b
+              end
          else begin
            let b = false in
            rewrite (VT.thread_state_inv_core t tsm)
@@ -213,10 +246,6 @@ let run_vget
               rewrite (VT.thread_state_inv_core t (vget_impl_tsm tsm r (k, vopt)))
                       (VT.thread_state_inv_core t tsm_write_slots);
 
-              // These should be proved with tactic or something?
-              assume (Zeta.SeqAux.distinct_elems_comp (vget_spec_slots r));
-              assume (TSM.check_distinct_keys (Some?.v (TSM.read_slots tsm (vget_spec_slots r))));
-
               // Final tsm as computed by TSM.runapp
               let tsm_final =
                 {tsm_write_slots
@@ -290,6 +319,20 @@ let vput_app_success (tsm:TSM.thread_state_model) (r:F.vput_args_t)
     let r, _, _ = S.vput_spec_f (vput_spec_args r) recs in
     App.Fn_success? r
 
+let vput_arg_slots_distinct (r:F.vput_args_t)
+  : Pure bool
+      (requires True)
+      (ensures fun b -> b <==> Zeta.SeqAux.distinct_elems_comp (vput_spec_slots r))
+  = true
+
+let vput_keys_distinct (tsm:TSM.thread_state_model) (r:F.vput_args_t) (k:AT.key_type)
+  : Pure bool
+      (requires Some? (TSM.read_slots tsm (vput_spec_slots r)) /\
+                (let kvs = Some?.v (TSM.read_slots tsm (vput_spec_slots r)) in
+                 Seq.equal (Zeta.SeqAux.map fst kvs) (Seq.create 1 k)))
+      (ensures fun b -> b <==> TSM.check_distinct_keys (Some?.v (TSM.read_slots tsm (vput_spec_slots r))))
+  = true
+
 //
 // Note that it updates the store
 //   (matches with what VT.write_store gives us)
@@ -318,18 +361,32 @@ let vput_impl (#tsm:TSM.thread_state_model)
       (ensures fun b ->
          (b ==> (r.vput_key == fst store_kv /\
                 Some r.vput_value == snd store_kv /\
+                Zeta.SeqAux.distinct_elems_comp (vput_spec_slots r) /\
+                TSM.check_distinct_keys (Some?.v (TSM.read_slots tsm (vput_spec_slots r))) /\
                 vput_app_success tsm r)))
-  = if r.vput_key = fst store_kv
-    then if Some r.vput_value = snd store_kv
-         then begin
-           VT.write_store t r.vput_slot (DValue (Some r.vput_value));
-           let b = true in
-           rewrite (VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv))
-                   (if b
-                    then VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv)
-                    else VT.thread_state_inv_core t tsm);
-           return b           
-         end
+  = //Check distinctness of keys and slots
+    if vput_arg_slots_distinct r && vput_keys_distinct tsm r (fst store_kv)
+    then // Check that the keys match
+         if r.vput_key = fst store_kv
+         then //Second check that the values match
+              if Some r.vput_value = snd store_kv
+              then begin
+                VT.write_store t r.vput_slot (DValue (Some r.vput_value));
+                let b = true in
+                rewrite (VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv))
+                        (if b
+                         then VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv)
+                         else VT.thread_state_inv_core t tsm);
+                return b           
+              end
+              else begin
+                let b = false in
+                rewrite (VT.thread_state_inv_core t tsm)
+                        (if b
+                         then VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv)
+                         else VT.thread_state_inv_core t tsm);
+                return b
+              end
          else begin
            let b = false in
            rewrite (VT.thread_state_inv_core t tsm)
@@ -403,9 +460,6 @@ let run_vput
               assert (Seq.equal (vput_impl_tsm tsm r (k, vopt)).store tsm_write_slots.store);
               rewrite (VT.thread_state_inv_core t (vput_impl_tsm tsm r (k, vopt)))
                       (VT.thread_state_inv_core t tsm_write_slots);
-
-              assume (Zeta.SeqAux.distinct_elems_comp (vput_spec_slots r));
-              assume (TSM.check_distinct_keys (Some?.v (TSM.read_slots tsm (vput_spec_slots r))));
 
               let tsm_final =
                 {tsm_write_slots
