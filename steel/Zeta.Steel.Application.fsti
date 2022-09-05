@@ -22,6 +22,7 @@ module M = Zeta.Steel.ThreadStateModel
 module V = Zeta.Steel.VerifierTypes
 open Zeta.Steel.FormatsManual
 
+noextract
 let split3 (s:Seq.seq U8.t)
            (from:U32.t { U32.v from <= Seq.length s})
            (to:U32.t { U32.v to <= Seq.length s - U32.v from })

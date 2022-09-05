@@ -81,6 +81,7 @@ let vget_app_success (tsm:TSM.thread_state_model) (r:F.vget_args_t)
 //
 // Pairwise comparison of all slots in the arg
 //
+inline_for_extraction
 let vget_arg_slots_distinct (r:F.vget_args_t)
   : Pure bool
       (requires True)
@@ -90,7 +91,7 @@ let vget_arg_slots_distinct (r:F.vget_args_t)
 //
 // Pairwise comparison of slot keys
 //
-
+inline_for_extraction
 let vget_keys_distinct (tsm:TSM.thread_state_model) (r:F.vget_args_t) (k:AT.key_type)
   : Pure bool
       (requires Some? (TSM.read_slots tsm (vget_spec_slots r)) /\
@@ -216,7 +217,7 @@ let run_vget
       if consumed = pl.rest.len
       then begin
         // For all slots check that they are in range
-        if U16.v r.vget_slot < U16.v AT.store_size
+        if U16.lt r.vget_slot AT.store_size
         then begin
           // Get to thread_state_inv_core
           VT.elim_thread_state_inv t;
@@ -319,12 +320,14 @@ let vput_app_success (tsm:TSM.thread_state_model) (r:F.vput_args_t)
     let r, _, _ = S.vput_spec_f (vput_spec_args r) recs in
     App.Fn_success? r
 
+inline_for_extraction
 let vput_arg_slots_distinct (r:F.vput_args_t)
   : Pure bool
       (requires True)
       (ensures fun b -> b <==> Zeta.SeqAux.distinct_elems_comp (vput_spec_slots r))
   = true
 
+inline_for_extraction
 let vput_keys_distinct (tsm:TSM.thread_state_model) (r:F.vput_args_t) (k:AT.key_type)
   : Pure bool
       (requires Some? (TSM.read_slots tsm (vput_spec_slots r)) /\
@@ -438,7 +441,7 @@ let run_vput
     | Some (r, consumed) ->
       if consumed = pl.rest.len
       then begin
-        if U16.v r.vput_slot < U16.v AT.store_size
+        if U16.lt r.vput_slot AT.store_size
         then begin
           VT.elim_thread_state_inv t;
           let kvopt = VT.read_store_app t r.vput_slot in
@@ -506,9 +509,11 @@ let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
     then run_vput log_len pl pl_pos log_array out_len out_offset out t
     else return Run_app_parsing_failure
 
+friend Zeta.Steel.KeyUtils
+
 //
 // TODO
 //
-assume val admit__ (#a:Type) (#p:vprop) (#q:post_t a) (_:unit)
-  : STF a p q (True) (fun _ -> False)
-let key_type_to_base_key _ = admit__ ()
+#push-options "--admit_smt_queries true"
+let key_type_to_base_key _ = return root_raw_key
+#pop-options

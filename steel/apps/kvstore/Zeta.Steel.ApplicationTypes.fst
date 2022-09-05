@@ -13,6 +13,12 @@ let parse_key = F.key_parser
 let spec_serializer_key = F.key_spec_serializer
 let serialize_key = F.key_serializer
 
+/// The following admits depend on the exact types we choose for keys and values
+
+//
+// TODO DETAILS
+//
+
 let spec_parser_key_injective b1 b2 = admit ()
 
 let spec_parser_key_strong_prefix b1 b2 = admit ()
@@ -37,64 +43,16 @@ let serialized_value_length v = admit ()
 
 let aprm = S.kv_params
 
-let store_size = FStar.UInt16.uint_to_t (FStar.UInt.max_int 16)
-let n_threads = FStar.UInt32.uint_to_t (FStar.UInt.max_int 15)
-
 //
-// As in LowParse
-// We perhaps don't need it in Zeta
+// TODO DETAILS
 //
-let synth_injective
-  (#t1: Type)
-  (#t2: Type)
-  (f: (t1 -> GTot t2))
-: GTot Type0
-= forall (x x' : t1) . {:pattern (f x); (f x')} f x == f x' ==> x == x'
-
-//
-// Move to FStar.Seq
-//
-let seq_create_injective (#a:Type) (n1 n2:nat) (x y:a)
-  : Lemma (Seq.create n1 x == Seq.create n2 y ==> (n1 == n2 /\ x == y))
-  = admit ()
-
-/// Synth function for vget args
+let store_size = 16us
+let n_threads = 16ul
 
 let vget_args_synth_f (x:F.vget_args_t)
   : app_args S.vget_id & slots S.vget_id
   = (x.vget_key, x.vget_value), Seq.create 1 x.vget_slot
 
-/// Proof of its injectivity
-
-#push-options "--warn_error -271"
-let vget_args_synth_f_injective ()
-  : Lemma (synth_injective vget_args_synth_f)
-  = let aux (#a:Type) (n1 n2:nat) (x y:a)
-      : Lemma (Seq.create n1 x == Seq.create n2 y ==> (n1 == n2 /\ x == y))
-              [SMTPat ()]
-      = seq_create_injective n1 n2 x y in
-    ()
-#pop-options
-
-
-/// Synth function for vput args
-
-let vput_args_synth_f (x:F.vput_args_t)
-  : app_args S.vput_id & slots S.vput_id
-  = (x.vput_key, x.vput_value), Seq.create 1 x.vput_slot
-
-
-/// Proof of its injectivity
-
-#push-options "--warn_error -271"
-let vput_args_synth_f_injective ()
-  : Lemma (synth_injective vput_args_synth_f)
-  = let aux (#a:Type) (n1 n2:nat) (x y:a)
-      : Lemma (Seq.create n1 x == Seq.create n2 y ==> (n1 == n2 /\ x == y))
-              [SMTPat ()]
-      = seq_create_injective n1 n2 x y in
-    ()
-#pop-options
 
 let vget_args_spec_parser
   : P.spec_parser (app_args S.vget_id &
@@ -103,6 +61,10 @@ let vget_args_spec_parser
     match F.vget_args_spec_parser b with
     | None -> None
     | Some (x, consumed) -> Some (vget_args_synth_f x, consumed)
+
+let vput_args_synth_f (x:F.vput_args_t)
+  : app_args S.vput_id & slots S.vput_id
+  = (x.vput_key, x.vput_value), Seq.create 1 x.vput_slot
 
 let vput_args_spec_parser
   : P.spec_parser (app_args S.vput_id &
@@ -128,8 +90,9 @@ let spec_result_serializer fid =
   else F.vput_result_spec_serializer
 
 //
-// TODO: need to implement using some parser
-//       combinators for Zeta.Steel.Parser.spec_parser
+// TODO: these are dependent records
+//       can we generate these using EverParse
+//         or we need to implement them?
 //
 let spec_app_result_entry_parser = admit ()
 let spec_app_result_entry_serializer = admit ()
