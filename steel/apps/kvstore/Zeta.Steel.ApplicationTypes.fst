@@ -79,6 +79,7 @@ let spec_app_parser fid =
   then vget_args_spec_parser
   else vput_args_spec_parser
 
+(*
 let spec_result_parser fid =
   if fid = S.vget_id
   then F.vget_result_spec_parser

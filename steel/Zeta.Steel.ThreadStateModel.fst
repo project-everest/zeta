@@ -5,7 +5,7 @@ module Zeta.Steel.ThreadStateModel
  **)
 
 open FStar.Ghost
-open Zeta.Steel.ApplicationTypes
+open Zeta.Steel.ApplicationResult
 module U8 = FStar.UInt8
 module U16 = FStar.UInt16
 module U32 = FStar.UInt32
