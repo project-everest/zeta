@@ -10,7 +10,7 @@ module S = Steel.ST.Util
 module A = Steel.ST.Array
 
 let rec read_bytes
-    (len:U32.t)
+    (len: Ghost.erased U32.t)
     (offset:U32.t)
     (slice_len:U32.t)
     (#b: Ghost.erased (Seq.seq U8.t) { Seq.length b == U32.v len })
