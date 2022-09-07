@@ -4,9 +4,10 @@ ARG CI_THREADS=24
 
 SHELL ["/bin/bash", "--login", "-c"]
 ENV KRML_HOME $FSTAR_HOME/karamel
-ENV EVERPARSE_HOME $FSTAR_HOME/everparse
 
-# Rebuild LowParse (which was not fully rebuilt in the F* CI image
+# Download and build LowParse
+ENV EVERPARSE_HOME $HOME/everparse
+RUN git clone https://github.com/project-everest/everparse $EVERPARSE_HOME
 RUN env OTHERFLAGS='--admit_smt_queries true' make -C $EVERPARSE_HOME lowparse -j $CI_THREADS
 
 ADD --chown=opam:opam . $HOME/zeta
