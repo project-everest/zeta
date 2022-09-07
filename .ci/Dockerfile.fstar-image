@@ -8,6 +8,7 @@ ENV KRML_HOME $FSTAR_HOME/karamel
 # Download and build LowParse and QuackyDucky
 ENV EVERPARSE_HOME $HOME/everparse
 RUN git clone https://github.com/project-everest/everparse $EVERPARSE_HOME
+RUN $EVERPARSE_HOME/.docker/build/install-other-deps.sh
 RUN env OTHERFLAGS='--admit_smt_queries true' make -C $EVERPARSE_HOME lowparse quackyducky -j $CI_THREADS
 
 ADD --chown=opam:opam . $HOME/zeta
