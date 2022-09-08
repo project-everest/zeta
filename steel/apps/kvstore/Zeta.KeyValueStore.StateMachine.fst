@@ -109,7 +109,7 @@ let map_llog (ss:Seq.seq (Seq.seq app_log_entry)) : llog =
   SeqAux.map (fun s -> SeqAux.map map_entry s) ss
 
 //
-// Following is the statement of the map lemma
+// Following is the statement of the map lemma that we prove below
 //
 
 val map_seq_consistency (ss:Seq.seq (Seq.seq app_log_entry))
