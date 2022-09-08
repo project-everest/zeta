@@ -223,7 +223,7 @@ let rec lemma_monotonic_filter_aux (#gs:_)
   : Lemma (ensures (flen f s = Seq.length s))
           (decreases Seq.length s)
   = let n = Seq.length s in
-    if n = 1 then admit ()
+    if n = 1 then assert (Seq.equal (prefix s (n - 1)) Seq.empty)
     else begin
       let s' = prefix s (n - 1) in
       lemma_monotonic_filter_aux f s'
