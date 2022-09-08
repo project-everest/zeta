@@ -5,7 +5,7 @@ open Zeta.SeqAux
 module SA = Zeta.SeqAux
 
 noeq
-type gen_seq_base = {
+type gen_seq_spec = {
   a : eqtype;
   phi : Seq.seq a -> Type0;
   phi_commutes_with_prefix :
@@ -14,20 +14,12 @@ type gen_seq_base = {
     Lemma (phi (SA.prefix s i));
 }
 
-let seq_t (gs:gen_seq_base) = s:Seq.seq gs.a{gs.phi s}
+let seq_t (gs:gen_seq_spec) = s:Seq.seq gs.a{gs.phi s}
 
-unfold let prefix (#gs:gen_seq_base) (s:seq_t gs) (i:nat{i <= Seq.length s})
+unfold let prefix (#gs:gen_seq_spec) (s:seq_t gs) (i:nat{i <= Seq.length s})
   : seq_t gs
   = gs.phi_commutes_with_prefix s i;
     SA.prefix s i
-
-let sa_prefix_prop (gs:gen_seq_base) (s:seq_t gs)
-  (j:nat{j <= Seq.length s}) (i:nat{i <= j})
-  : Lemma (prefix s i == prefix (prefix s j) i)
-          [SMTPat (prefix (prefix s j) i)]
-  = ()
-
-let gen_seq_spec = gen_seq_base
 
 let seq_index (#gs: gen_seq_spec) (s: seq_t gs) = i:nat{i < Seq.length s}
 
@@ -298,6 +290,10 @@ let simple_map (#a #b: eqtype) (m: a -> b) (s: seq a)
   = let fm = simple_map_fm m in
     filter_map fm s
 
+
+//
+// Composing filter_map with another function
+//
 
 let fm_is_map (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
   (gs_f:gs_a.a -> gs_b.a)

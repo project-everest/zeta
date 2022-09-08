@@ -61,8 +61,6 @@ let rec lemma_thread_id_state (#vspec:verifier_spec) (tl: verifiable_log vspec):
     if n = 0 then ()
     else lemma_thread_id_state (prefix tl (n-1))
 
-module I = Zeta.Interleave
-
 let gen_seq (vspec:verifier_spec) (tid:thread_id) = {
   IF.a = verifier_log_entry vspec;
   IF.phi = (fun s -> verifiable (tid, s));
