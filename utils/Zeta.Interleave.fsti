@@ -16,6 +16,7 @@ type elem_src (a:eqtype) (n:nat) = {
  * interleaved element to the id of the src sequence *)
 type interleaving (a:eqtype) (n:nat) = seq (elem_src a n)
 
+unfold
 let prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
   : interleaving a n
   = SA.prefix il i
@@ -35,7 +36,7 @@ val index_prop (#a #n:_) (il: interleaving a n) (i: SA.seq_index il)
 
 val s_seq (#a:_) (#n:_) (il: interleaving a n): ss:sseq a{S.length ss = n}
 
-val per_thread_prefix (#a:_) (#n:_) (il: interleaving a n) (i:nat{i <= length il})
+val per_thread_prefix (#a:eqtype) (#n:nat) (il: interleaving a n) (i:nat{i <= length il})
   : Lemma (let ss = s_seq il in
            let il' = prefix il i in
            let ss' = s_seq il' in
