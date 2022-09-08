@@ -6,10 +6,10 @@ open FStar.Classical
 module IF = Zeta.IdxFn
 module T = Zeta.Generic.Thread
 
-let gen_seq (vspec n:_) = {
-  IF.seq_t = verifiable_log vspec n;
-  IF.length = length;
-  IF.prefix = prefix;
+let gen_seq (vspec:verifier_spec) (n:_) = {
+  IF.a = I.elem_src (verifier_log_entry vspec) n;
+  IF.phi = verifiable;
+  IF.phi_commutes_with_prefix = (fun il i -> lemma_prefix_verifiable n il i);
 }
 
 let is_blum_add_epoch_ifn (#vspec #n:_) (ep: epoch)
