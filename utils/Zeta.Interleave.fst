@@ -351,3 +351,29 @@ let i_seq_count (#a: eqtype) (s: sseq a) (x:a)
     (ensures Seq.count x (i_seq (some_interleaving s)) == 
              Zeta.SSeq.sum_count x s)
   = ()
+
+
+let lemma_iseq_index (#a:_) (#n:_) (il:interleaving a n) (i:nat{i < length il})
+  : Lemma (Seq.index (i_seq il) i = (Seq.index il i).e)
+  = ()
+
+let i_seq_map #a #n #b f il =
+  let n = Seq.length il in
+  assert (forall (i:nat{i < n}). Seq.index (SA.map f (i_seq il)) i ==
+                          f (Seq.index (i_seq il) i));
+  Classical.forall_intro (lemma_iseq_index (map_interleaving f il));
+  assert (forall (i:nat{i < n}). Seq.index (i_seq (map_interleaving f il)) i ==
+                          (Seq.index (map_interleaving f il) i).e);
+  assert (forall (i:nat{i < n}). Seq.index (i_seq (map_interleaving f il)) i ==
+                          Seq.index (SA.map f (i_seq il)) i);
+  assert (Seq.equal (i_seq (map_interleaving f il)) (SA.map f (i_seq il)))
+
+let s_seq_map #a #n #b f il =
+  let aux (i:nat{i < n})
+    : Lemma (Seq.index (s_seq (map_interleaving f il)) i ==
+             SA.map f (Seq.index (s_seq il) i))
+            [SMTPat ()]
+    = IF.filter_map_compose (interleaving_mapper f) f (seq_i_fm a n i) (seq_i_fm b n i) il
+  in
+  assert (Seq.equal (s_seq (map_interleaving f il))
+                    (SA.map (fun s -> SA.map f s) (s_seq il)))

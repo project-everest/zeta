@@ -139,3 +139,30 @@ val i_seq_count (#a: eqtype) (s: sseq a) (x:a)
     (ensures Seq.count x (i_seq (some_interleaving s)) == 
              Zeta.SSeq.sum_count x s)
 
+let interleaving_mapper (#a:eqtype) (#n:nat) (#b:eqtype) (f:a -> b)
+  : elem_src a n -> elem_src b n
+  = fun i -> { e = f i.e; s = i.s }
+
+let map_interleaving (#a:eqtype) (#n:nat) (#b:eqtype) (f:a -> b) (il:interleaving a n)
+  : interleaving b n
+  = SA.map (interleaving_mapper f) il
+
+val i_seq_map (#a:eqtype) (#n:nat) (#b:eqtype) (f:a -> b) (il:interleaving a n)
+  : Lemma (i_seq (map_interleaving f il) == SA.map f (i_seq il))
+
+val s_seq_map (#a:eqtype) (#n:nat) (#b:eqtype) (f:a -> b) (il:interleaving a n)
+  : Lemma (s_seq (map_interleaving f il) == SA.map (fun s -> SA.map f s) (s_seq il))
+
+let map_interleave (#a #b:eqtype) (s:Seq.seq a) (ss:Seq.seq (Seq.seq a)) (f:a -> b)
+  : Lemma
+      (requires interleave s ss)
+      (ensures interleave (SA.map f s) (SA.map (fun s -> SA.map f s) ss))
+  = eliminate exists (il:interleaving a (Seq.length ss)). (i_seq il = s) /\ (s_seq il = ss)
+    returns interleave (SA.map f s) (SA.map (fun s -> SA.map f s) ss)
+    with _. begin
+      i_seq_map f il;
+      s_seq_map f il;
+      introduce exists (il:interleaving b (Seq.length ss)). (i_seq il = SA.map f s) /\ (s_seq il = SA.map (fun s -> SA.map f s) ss)
+      with (map_interleaving f il)
+      and ()
+    end
