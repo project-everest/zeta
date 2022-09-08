@@ -22,6 +22,13 @@ typedef struct timestamp_s
 }
 timestamp;
 
+typedef struct timestamp__s
+{
+  uint32_t fst;
+  uint32_t snd;
+}
+timestamp_;
+
 static uint32_t timestamp_size32(timestamp input)
 {
   uint32_t v1 = (uint32_t)4U;
@@ -44,13 +51,6 @@ static uint32_t timestamp_jumper(uint32_t pos)
 {
   return pos + (uint32_t)8U;
 }
-
-typedef struct timestamp__s
-{
-  uint32_t fst;
-  uint32_t snd;
-}
-timestamp_;
 
 static timestamp timestamp_reader(LowParse_Slice_slice input, uint32_t pos)
 {
@@ -109,6 +109,20 @@ typedef struct evictbm_payload_s
 }
 evictbm_payload;
 
+typedef struct __uint16_t_uint16_t_s
+{
+  uint16_t fst;
+  uint16_t snd;
+}
+__uint16_t_uint16_t;
+
+typedef struct evictbm_payload__s
+{
+  __uint16_t_uint16_t fst;
+  timestamp snd;
+}
+evictbm_payload_;
+
 static uint32_t evictbm_payload_size32(evictbm_payload input)
 {
   uint32_t v1 = slot_id_size32(input.evictbm_s);
@@ -139,26 +153,12 @@ static uint32_t evictbm_payload_jumper(uint32_t pos)
   return pos + (uint32_t)12U;
 }
 
-typedef struct evictm_payload__s
-{
-  uint16_t fst;
-  uint16_t snd;
-}
-evictm_payload_;
-
-typedef struct evictbm_payload__s
-{
-  evictm_payload_ fst;
-  timestamp snd;
-}
-evictbm_payload_;
-
 static evictbm_payload evictbm_payload_reader(LowParse_Slice_slice input, uint32_t pos)
 {
   uint16_t x1 = slot_id_reader(input, pos);
   uint32_t pos20 = slot_id_jumper(pos);
   uint16_t x2 = slot_id_reader(input, pos20);
-  evictm_payload_ x10 = { .fst = x1, .snd = x2 };
+  __uint16_t_uint16_t x10 = { .fst = x1, .snd = x2 };
   uint32_t pos2 = slot_id_jumper(slot_id_jumper(pos));
   timestamp x20 = timestamp_reader(input, pos2);
   evictbm_payload_ res = { .fst = x10, .snd = x20 };
@@ -326,6 +326,20 @@ typedef struct u256_s
 }
 u256;
 
+typedef struct __uint64_t_uint64_t_s
+{
+  uint64_t fst;
+  uint64_t snd;
+}
+__uint64_t_uint64_t;
+
+typedef struct u256__s
+{
+  __uint64_t_uint64_t fst;
+  __uint64_t_uint64_t snd;
+}
+u256_;
+
 static uint32_t u256_size32(u256 input)
 {
   uint32_t v1 = (uint32_t)8U;
@@ -362,20 +376,6 @@ static uint32_t u256_jumper(uint32_t pos)
 {
   return pos + (uint32_t)32U;
 }
-
-typedef struct __uint64_t_uint64_t_s
-{
-  uint64_t fst;
-  uint64_t snd;
-}
-__uint64_t_uint64_t;
-
-typedef struct u256__s
-{
-  __uint64_t_uint64_t fst;
-  __uint64_t_uint64_t snd;
-}
-u256_;
 
 static u256 u256_reader(LowParse_Slice_slice input, uint32_t pos)
 {
@@ -478,6 +478,13 @@ typedef struct raw_key_s
 }
 raw_key;
 
+typedef struct raw_key__s
+{
+  u256 fst;
+  uint16_t snd;
+}
+raw_key_;
+
 static uint64_t raw_key_validator(LowParse_Slice_slice input, uint64_t pos)
 {
   uint64_t pos1 = u256_validator(input, pos);
@@ -486,13 +493,6 @@ static uint64_t raw_key_validator(LowParse_Slice_slice input, uint64_t pos)
   else
     return significant_digits_t_validator(input, pos1);
 }
-
-typedef struct raw_key__s
-{
-  u256 fst;
-  uint16_t snd;
-}
-raw_key_;
 
 static raw_key raw_key_reader(LowParse_Slice_slice input, uint32_t pos)
 {
@@ -700,6 +700,20 @@ typedef struct descendent_hash_desc_s
 }
 descendent_hash_desc;
 
+typedef struct __Zeta_Steel_KeyUtils_raw_key_Zeta_Formats_Aux_U256_u256_s
+{
+  Zeta_Steel_KeyUtils_raw_key fst;
+  u256 snd;
+}
+__Zeta_Steel_KeyUtils_raw_key_Zeta_Formats_Aux_U256_u256;
+
+typedef struct descendent_hash_desc__s
+{
+  __Zeta_Steel_KeyUtils_raw_key_Zeta_Formats_Aux_U256_u256 fst;
+  vbool snd;
+}
+descendent_hash_desc_;
+
 static uint32_t descendent_hash_desc_size32(descendent_hash_desc input)
 {
   uint32_t v1 = base_key_size32(input.dhd_key);
@@ -735,20 +749,6 @@ static uint32_t descendent_hash_desc_jumper(uint32_t pos)
 {
   return pos + (uint32_t)67U;
 }
-
-typedef struct __Zeta_Steel_KeyUtils_raw_key_Zeta_Formats_Aux_U256_u256_s
-{
-  Zeta_Steel_KeyUtils_raw_key fst;
-  u256 snd;
-}
-__Zeta_Steel_KeyUtils_raw_key_Zeta_Formats_Aux_U256_u256;
-
-typedef struct descendent_hash_desc__s
-{
-  __Zeta_Steel_KeyUtils_raw_key_Zeta_Formats_Aux_U256_u256 fst;
-  vbool snd;
-}
-descendent_hash_desc_;
 
 static descendent_hash_desc
 descendent_hash_desc_reader(LowParse_Slice_slice input, uint32_t pos)
@@ -927,6 +927,13 @@ typedef struct mval_value_s
 }
 mval_value;
 
+typedef struct mval_value__s
+{
+  descendent_hash fst;
+  descendent_hash snd;
+}
+mval_value_;
+
 static uint32_t mval_value_size32(mval_value input)
 {
   uint32_t v1 = descendent_hash_size32(input.l);
@@ -950,13 +957,6 @@ static uint32_t mval_value_jumper(LowParse_Slice_slice input, uint32_t pos)
 {
   return descendent_hash_jumper(input, descendent_hash_jumper(input, pos));
 }
-
-typedef struct mval_value__s
-{
-  descendent_hash fst;
-  descendent_hash snd;
-}
-mval_value_;
 
 static mval_value mval_value_reader(LowParse_Slice_slice input, uint32_t pos)
 {
@@ -1241,6 +1241,13 @@ typedef struct internal_record_s
 }
 internal_record;
 
+typedef struct internal_record__s
+{
+  Zeta_Steel_KeyUtils_raw_key fst;
+  mval_value snd;
+}
+internal_record_;
+
 static uint32_t internal_record_size32(internal_record input)
 {
   uint32_t v1 = internal_key_size32(input.ir_key);
@@ -1264,13 +1271,6 @@ static uint32_t internal_record_jumper(LowParse_Slice_slice input, uint32_t pos)
 {
   return mval_value_jumper(input, internal_key_jumper(pos));
 }
-
-typedef struct internal_record__s
-{
-  Zeta_Steel_KeyUtils_raw_key fst;
-  mval_value snd;
-}
-internal_record_;
 
 static internal_record internal_record_reader(LowParse_Slice_slice input, uint32_t pos)
 {
@@ -1300,6 +1300,13 @@ typedef struct application_record_s
 }
 application_record;
 
+typedef struct application_record__s
+{
+  Zeta_Steel_ApplicationTypes_key_type fst;
+  application_record_v_payload snd;
+}
+application_record_;
+
 static uint32_t application_record_size32(application_record input)
 {
   uint32_t v1 = application_key_size32(input.ar_key);
@@ -1323,13 +1330,6 @@ static uint32_t application_record_jumper(LowParse_Slice_slice input, uint32_t p
 {
   return application_record_v_payload_jumper(input, application_key_jumper(input, pos));
 }
-
-typedef struct application_record__s
-{
-  Zeta_Steel_ApplicationTypes_key_type fst;
-  application_record_v_payload snd;
-}
-application_record_;
 
 static application_record application_record_reader(LowParse_Slice_slice input, uint32_t pos)
 {
@@ -1950,6 +1950,13 @@ typedef struct evictb_payload_s
 }
 evictb_payload;
 
+typedef struct evictb_payload__s
+{
+  uint16_t fst;
+  timestamp snd;
+}
+evictb_payload_;
+
 static uint32_t evictb_payload_size32(evictb_payload input)
 {
   uint32_t v1 = slot_id_size32(input.evictb_s);
@@ -1972,13 +1979,6 @@ static uint32_t evictb_payload_jumper(uint32_t pos)
 {
   return pos + (uint32_t)10U;
 }
-
-typedef struct evictb_payload__s
-{
-  uint16_t fst;
-  timestamp snd;
-}
-evictb_payload_;
 
 static evictb_payload evictb_payload_reader(LowParse_Slice_slice input, uint32_t pos)
 {
@@ -2026,7 +2026,7 @@ static evictm_payload evictm_payload_reader(LowParse_Slice_slice input, uint32_t
   uint16_t x1 = slot_id_reader(input, pos);
   uint32_t pos2 = slot_id_jumper(pos);
   uint16_t x2 = slot_id_reader(input, pos2);
-  evictm_payload_ res = { .fst = x1, .snd = x2 };
+  __uint16_t_uint16_t res = { .fst = x1, .snd = x2 };
   uint16_t evictm_s = res.fst;
   uint16_t evictm_s2 = res.snd;
   return ((evictm_payload){ .evictm_s = evictm_s, .evictm_s2 = evictm_s2 });
@@ -2040,6 +2040,27 @@ typedef struct addb_payload_s
   uint16_t addb_tid;
 }
 addb_payload;
+
+typedef struct __Zeta_Formats_Aux_Record_record_uint16_t_s
+{
+  record fst;
+  uint16_t snd;
+}
+__Zeta_Formats_Aux_Record_record_uint16_t;
+
+typedef struct __Zeta_Formats_Aux_Timestamp_timestamp_uint16_t_s
+{
+  timestamp fst;
+  uint16_t snd;
+}
+__Zeta_Formats_Aux_Timestamp_timestamp_uint16_t;
+
+typedef struct addb_payload__s
+{
+  __Zeta_Formats_Aux_Record_record_uint16_t fst;
+  __Zeta_Formats_Aux_Timestamp_timestamp_uint16_t snd;
+}
+addb_payload_;
 
 static uint32_t addb_payload_size32(addb_payload input)
 {
@@ -2090,27 +2111,6 @@ static uint32_t addb_payload_jumper(LowParse_Slice_slice input, uint32_t pos)
   return thread_id_jumper(timestamp_jumper(slot_id_jumper(record_jumper(input, pos))));
 }
 
-typedef struct __Zeta_Formats_Aux_Record_record_uint16_t_s
-{
-  record fst;
-  uint16_t snd;
-}
-__Zeta_Formats_Aux_Record_record_uint16_t;
-
-typedef struct __Zeta_Formats_Aux_Timestamp_timestamp_uint16_t_s
-{
-  timestamp fst;
-  uint16_t snd;
-}
-__Zeta_Formats_Aux_Timestamp_timestamp_uint16_t;
-
-typedef struct addb_payload__s
-{
-  __Zeta_Formats_Aux_Record_record_uint16_t fst;
-  __Zeta_Formats_Aux_Timestamp_timestamp_uint16_t snd;
-}
-addb_payload_;
-
 static addb_payload addb_payload_reader(LowParse_Slice_slice input, uint32_t pos)
 {
   record x1 = record_reader(input, pos);
@@ -2138,6 +2138,13 @@ typedef struct addm_payload_s
   uint16_t addm_s2;
 }
 addm_payload;
+
+typedef struct addm_payload__s
+{
+  __Zeta_Formats_Aux_Record_record_uint16_t fst;
+  uint16_t snd;
+}
+addm_payload_;
 
 static uint32_t addm_payload_size32(addm_payload input)
 {
@@ -2174,13 +2181,6 @@ static uint32_t addm_payload_jumper(LowParse_Slice_slice input, uint32_t pos)
 {
   return slot_id_jumper(slot_id_jumper(record_jumper(input, pos)));
 }
-
-typedef struct addm_payload__s
-{
-  __Zeta_Formats_Aux_Record_record_uint16_t fst;
-  uint16_t snd;
-}
-addm_payload_;
 
 static addm_payload addm_payload_reader(LowParse_Slice_slice input, uint32_t pos)
 {
@@ -2686,7 +2686,7 @@ static stamped_record synth_stamped_record_recip(Zeta_Steel_LogEntry_Types_stamp
     );
 }
 
-FStar_Pervasives_Native_option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t
+FStar_Pervasives_Native_option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t
 zeta__parser_log_entry(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_t *a)
 {
   uint8_t *sl_base = a + offset;
@@ -2739,7 +2739,7 @@ zeta__parser_log_entry(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_
   if (is_error(consumed))
     return
       (
-        (FStar_Pervasives_Native_option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t){
+        (FStar_Pervasives_Native_option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t){
           .tag = FStar_Pervasives_Native_None
         }
       );
@@ -2756,7 +2756,7 @@ zeta__parser_log_entry(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_
       Zeta_Steel_LogEntry_Types_log_entry res = synth_log_entry_true(hdr, len_pl);
       return
         (
-          (FStar_Pervasives_Native_option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t){
+          (FStar_Pervasives_Native_option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t){
             .tag = FStar_Pervasives_Native_Some,
             .v = { .fst = res, .snd = consumed1 }
           }
@@ -2767,7 +2767,7 @@ zeta__parser_log_entry(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_
       Zeta_Steel_LogEntry_Types_log_entry res = synth_log_entry_false(hdr);
       return
         (
-          (FStar_Pervasives_Native_option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t){
+          (FStar_Pervasives_Native_option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t){
             .tag = FStar_Pervasives_Native_Some,
             .v = { .fst = res, .snd = consumed1 }
           }
@@ -2798,7 +2798,7 @@ zeta__serialize_value(
   return value_lserializer(synth_value_recip(v), (uint8_t *)a, offset);
 }
 
-FStar_Pervasives_Native_option__K___Zeta_Steel_KeyUtils_u256_uint32_t
+FStar_Pervasives_Native_option__Zeta_Steel_KeyUtils_u256___uint32_t
 zeta__parser_u256(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_t *a)
 {
   uint8_t *sl_base = a + offset;
@@ -2807,7 +2807,7 @@ zeta__parser_u256(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_t *a)
   if (is_error(consumed))
     return
       (
-        (FStar_Pervasives_Native_option__K___Zeta_Steel_KeyUtils_u256_uint32_t){
+        (FStar_Pervasives_Native_option__Zeta_Steel_KeyUtils_u256___uint32_t){
           .tag = FStar_Pervasives_Native_None
         }
       );
@@ -2818,7 +2818,7 @@ zeta__parser_u256(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_t *a)
     Zeta_Steel_KeyUtils_u256 res0 = synth_u256(res);
     return
       (
-        (FStar_Pervasives_Native_option__K___Zeta_Steel_KeyUtils_u256_uint32_t){
+        (FStar_Pervasives_Native_option__Zeta_Steel_KeyUtils_u256___uint32_t){
           .tag = FStar_Pervasives_Native_Some,
           .v = { .fst = res0, .snd = consumed1 }
         }
