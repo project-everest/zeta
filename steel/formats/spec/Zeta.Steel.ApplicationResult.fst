@@ -1,4 +1,4 @@
-module Zeta.Steel.GenericApplicationResult
+module Zeta.Steel.ApplicationResult
 
 module LP = LowParse.Spec
 module LIB = Zeta.Formats.Lib
