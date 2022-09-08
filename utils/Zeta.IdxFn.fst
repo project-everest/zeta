@@ -261,15 +261,6 @@ let lemma_map_map
                     filter_map_map fm s i = i))
   = ()
 
-
-let fm_is_map (#gs_a #gs_b:gen_seq_spec) (#c:_)
-  (f:gs_a.a -> gs_b.a)
-  (fm:fm_t gs_a c)
-  (fm_map:fm_t gs_b c)
-  = (forall (s:Seq.seq gs_a.a). gs_a.phi s <==> gs_b.phi (SA.map f s)) /\  
-    (forall (s:seq_t gs_a) (i:seq_index s). fm.f s i == fm_map.f (SA.map f s) i) /\
-    (forall (s:seq_t gs_a) (i:seq_index s{fm.f s i}). fm.m s i == fm_map.m (SA.map f s) i)
-
 let prefix_map (#a #b:_) (s:Seq.seq a) (i:nat{i <= Seq.length s})
   (f:a -> b)
   : Lemma (SA.map f (SA.prefix s i) == SA.prefix (SA.map f s) i)
@@ -277,45 +268,42 @@ let prefix_map (#a #b:_) (s:Seq.seq a) (i:nat{i <= Seq.length s})
   = assert (Seq.equal (SA.map f (SA.prefix s i))
                       (SA.prefix (SA.map f s) i))
 
-let rec flen_fm_map (#gs_a #gs_b:gen_seq_spec) (#c:_)
-  (f:gs_a.a -> gs_b.a)
-  (fm:fm_t gs_a c)
-  (fm_map:fm_t gs_b c{fm_is_map f fm fm_map})
+let rec flen_fm_map (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
+  (gs_f:gs_a.a -> gs_b.a)
+  (f:a -> b)
+  (fm:fm_t gs_a a)
+  (fm_map:fm_t gs_b b{fm_is_map gs_f f fm fm_map})
   (s:seq_t gs_a)
-  : Lemma (ensures flen fm.f s == flen fm_map.f (SA.map f s))
+  : Lemma (ensures flen fm.f s == flen fm_map.f (SA.map gs_f s))
           (decreases Seq.length s)
   = if Seq.length s = 0 then ()
-    else flen_fm_map f fm fm_map (prefix s (Seq.length s - 1))
+    else flen_fm_map gs_f f fm fm_map (prefix s (Seq.length s - 1))
 
-let rec fidx2idx_fm_map (#gs_a #gs_b:gen_seq_spec) (#c:_)
-  (f:gs_a.a -> gs_b.a)
-  (fm:fm_t gs_a c)
-  (fm_map:fm_t gs_b c{fm_is_map f fm fm_map})
+let rec fidx2idx_fm_map (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
+  (gs_f:gs_a.a -> gs_b.a)
+  (f:a -> b)
+  (fm:fm_t gs_a a)
+  (fm_map:fm_t gs_b b{fm_is_map gs_f f fm fm_map})
   (s:seq_t gs_a)
   (j:nat{j < flen fm.f s})
   : Lemma
-    (ensures flen fm.f s == flen fm_map.f (SA.map f s) /\
-             fidx2idx fm.f s j == fidx2idx fm_map.f (SA.map f s) j)
+    (ensures flen fm.f s == flen fm_map.f (SA.map gs_f s) /\
+             fidx2idx fm.f s j == fidx2idx fm_map.f (SA.map gs_f s) j)
     (decreases Seq.length s)
-  = flen_fm_map f fm fm_map s;
+  = flen_fm_map gs_f f fm fm_map s;
     if Seq.length s = 0 then ()
     else begin
       let pfx = prefix s (Seq.length s - 1) in
       if j = flen fm.f pfx then ()
-      else fidx2idx_fm_map f fm fm_map pfx j
+      else fidx2idx_fm_map gs_f f fm fm_map pfx j
     end
 
-let filter_map_maps (#gs_a #gs_b:gen_seq_spec) (#c:_)
-  (f:gs_a.a -> gs_b.a)
-  (fm:fm_t gs_a c)
-  (fm_map:fm_t gs_b c{fm_is_map f fm fm_map})
-  (s:seq_t gs_a)
-  : Lemma (filter_map fm s == filter_map fm_map (SA.map f s))
-  = flen_fm_map f fm fm_map s;
-    let aux (j:nat{j < flen fm.f s})
-      : Lemma (Seq.index (filter_map fm s) j ==
-               Seq.index (filter_map fm_map (SA.map f s)) j)
-              [SMTPat ()]
-      = fidx2idx_fm_map f fm fm_map s j
-    in
-    assert (Seq.equal (filter_map fm s) (filter_map fm_map (SA.map f s)))
+let filter_map_compose #gs_a #gs_b #a #b gs_f f fm fm_map s =
+  flen_fm_map gs_f f fm fm_map s;
+  let aux (j:nat{j < flen fm.f s})
+    : Lemma (f (Seq.index (filter_map fm s) j) ==
+             Seq.index (filter_map fm_map (SA.map gs_f s)) j)
+            [SMTPat ()]
+    = fidx2idx_fm_map gs_f f fm fm_map s j
+  in
+  assert (Seq.equal (SA.map f (filter_map fm s)) (filter_map fm_map (SA.map gs_f s)))

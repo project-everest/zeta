@@ -297,3 +297,21 @@ let simple_map (#a #b: eqtype) (m: a -> b) (s: seq a)
   : seq b
   = let fm = simple_map_fm m in
     filter_map fm s
+
+
+let fm_is_map (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
+  (gs_f:gs_a.a -> gs_b.a)
+  (f:a -> b)
+  (fm:fm_t gs_a a)
+  (fm_map:fm_t gs_b b)
+  = (forall (s:Seq.seq gs_a.a). gs_a.phi s <==> gs_b.phi (SA.map gs_f s)) /\
+    (forall (s:seq_t gs_a) (i:seq_index s). fm.f s i == fm_map.f (SA.map gs_f s) i) /\
+    (forall (s:seq_t gs_a) (i:seq_index s{fm.f s i}). f (fm.m s i) == fm_map.m (SA.map gs_f s) i)
+
+val filter_map_compose (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
+  (gs_f:gs_a.a -> gs_b.a)
+  (f:a -> b)
+  (fm:fm_t gs_a a)
+  (fm_map:fm_t gs_b b{fm_is_map gs_f f fm fm_map})
+  (s:seq_t gs_a)
+  : Lemma (SA.map f (filter_map fm s) == filter_map fm_map (SA.map gs_f s))
