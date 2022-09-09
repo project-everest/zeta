@@ -55,43 +55,43 @@ assume val handle: handle_t
 
 [@@__reduce__]
 let handle_pts_to0
-  (p0: perm)
   (ts: M.top_level_state)
 : Tot vprop
-= exists_ (fun p -> exists_ (fun r ->
+= exists_ (fun p -> exists_ (fun r -> exists_ (fun p0 ->
     R.pts_to handle.state_ptr p r `star`
     R.pts_to r p0 ts
-  ))
+  )))
 
 let handle_pts_to
-  (p: perm)
   (ts: M.top_level_state)
 : Tot vprop
-= handle_pts_to0 p ts
+= handle_pts_to0 ts
 
-let gather p1 ts1 p2 ts2 =
-  rewrite (handle_pts_to p1 ts1) (handle_pts_to0 p1 ts1);
+let gather ts1 ts2 =
+  rewrite (handle_pts_to ts1) (handle_pts_to0 ts1);
   let _ = gen_elim () in
   let pt1 = vpattern_replace (fun pt1 -> R.pts_to handle.state_ptr pt1 _) in
-  rewrite (handle_pts_to p2 ts2) (handle_pts_to0 p2 ts2);
+  let p1 = vpattern_replace (fun p1 -> R.pts_to #M.top_level_state _ p1 _) in
+  rewrite (handle_pts_to ts2) (handle_pts_to0 ts2);
   let _ = gen_elim () in
+  let p2 = vpattern_replace (fun p2 -> R.pts_to #M.top_level_state _ p1 _ `star` R.pts_to #M.top_level_state _ p2 _) in
   R.gather pt1 handle.state_ptr;
   let r = vpattern_replace (R.pts_to handle.state_ptr _) in 
   vpattern_rewrite (fun (r: R.ref M.top_level_state) -> R.pts_to r p1 _) r;
   vpattern_rewrite (fun (r: R.ref M.top_level_state) -> R.pts_to r p2 _) r;
   R.gather _ r;
-  rewrite (handle_pts_to0 (p1 `sum_perm` p2) ts1) (handle_pts_to (p1 `sum_perm` p2) ts1)
+  rewrite (handle_pts_to0 ts1) (handle_pts_to ts1)
 
 let share
-  p ts
-= rewrite (handle_pts_to p ts) (handle_pts_to0 p ts);
+  ts
+= rewrite (handle_pts_to ts) (handle_pts_to0 ts);
   let _ = gen_elim () in
-  let r : R.ref M.top_level_state = vpattern_replace (fun r -> R.pts_to handle.state_ptr _ r `star` R.pts_to r p ts) in
+  let r : R.ref M.top_level_state = vpattern_replace (fun r -> R.pts_to handle.state_ptr _ r `star` R.pts_to r _ ts) in
   R.share handle.state_ptr;
   R.share r;
-  rewrite (handle_pts_to0 (half_perm p) ts) (handle_pts_to (half_perm p) ts);
+  rewrite (handle_pts_to0 ts) (handle_pts_to ts);
   noop ();
-  rewrite (handle_pts_to0 (half_perm p) ts) (handle_pts_to (half_perm p) ts)
+  rewrite (handle_pts_to0 ts) (handle_pts_to ts)
 
 #push-options "--z3rlimit 16"
 #restart-solver
@@ -114,7 +114,7 @@ let init () : STT bool
     R.share handle.state_ptr;
     rewrite (state_ptr_inv0 handle.state_ptr) (state_ptr_inv handle.state_ptr);
     Lock.release handle.lock;
-    rewrite (handle_pts_to0 full_perm ts) (handle_pts_to full_perm ts);
+    rewrite (handle_pts_to0 ts) (handle_pts_to ts);
     rewrite init_post_true (init_post true);
     return true
   end else begin
@@ -127,7 +127,7 @@ let init () : STT bool
 
 #pop-options
 
-let verify_log (#p: perm)
+let verify_log
                (#t:Ghost.erased M.top_level_state)
                (tid:_)
                (#entries:Ghost.erased AEH.log)
@@ -139,37 +139,37 @@ let verify_log (#p: perm)
                (#out_bytes:Ghost.erased AT.bytes)
                (output:U.larray U8.t out_len)
   : STT (option (v:V.verify_result { V.verify_result_complete len v }))
-    (handle_pts_to p t `star`
+    (handle_pts_to t `star`
      M.core_inv t `star`
      A.pts_to input log_perm log_bytes `star`
      A.pts_to output full_perm out_bytes `star`
      M.log_of_tid t tid entries)
     (fun res ->
-       handle_pts_to p t `star`
+       handle_pts_to t `star`
        M.verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res)
-= rewrite (handle_pts_to p t) (handle_pts_to0 p t);
+= rewrite (handle_pts_to t) (handle_pts_to0 t);
   let _ = gen_elim () in
   let state = R.read handle.state_ptr in
   vpattern_rewrite (R.pts_to handle.state_ptr _) state;
-  vpattern_rewrite (fun (state: R.ref M.top_level_state) -> R.pts_to state p t) state;
+  vpattern_rewrite (fun (state: R.ref M.top_level_state) -> R.pts_to state _ t) state;
   let res = M.verify_log state tid len input out_len output in
-  rewrite (handle_pts_to0 p t) (handle_pts_to p t);
+  rewrite (handle_pts_to0 t) (handle_pts_to t);
   return res
 
-let max_certified_epoch (#p: perm)
+let max_certified_epoch
                         (#t:Ghost.erased M.top_level_state)
                         (_: unit)
   : STT AEH.max_certified_epoch_result
-        (handle_pts_to p t)
+        (handle_pts_to t)
         (fun res ->
-           handle_pts_to p t `star`
+           handle_pts_to t `star`
            M.read_max_post t res)
 =
-  rewrite (handle_pts_to p t) (handle_pts_to0 p t);
+  rewrite (handle_pts_to t) (handle_pts_to0 t);
   let _ = gen_elim () in
   let state = R.read handle.state_ptr in
   vpattern_rewrite (R.pts_to handle.state_ptr _) state;
-  vpattern_rewrite (fun (state: R.ref M.top_level_state) -> R.pts_to state p t) state;
+  vpattern_rewrite (fun (state: R.ref M.top_level_state) -> R.pts_to state _ t) state;
   let res = M.max_certified_epoch state in
-  rewrite (handle_pts_to0 p t) (handle_pts_to p t);
+  rewrite (handle_pts_to0 t) (handle_pts_to t);
   return res
