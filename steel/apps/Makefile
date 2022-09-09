@@ -1,4 +1,5 @@
 # every app subdirectory makefile should set ZETA_HOME before including this
+all: world
 
 # get all the source directories
 include $(ZETA_HOME)/steel/Makefile.shared
@@ -32,10 +33,12 @@ compile:
           $(OUTPUT_DIRECTORY)/*.krml \
           -tmpdir=$(OUTPUT_DIRECTORY)
 
-all:
+world:
 	$(MAKE) verify
 	$(MAKE) extract
 	$(MAKE) compile
 
 clean:
 	rm -rf $(OUTPUT_DIRECTORY) .depend
+
+.PHONY: extract compile world all
