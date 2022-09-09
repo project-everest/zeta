@@ -354,18 +354,26 @@ let i_seq_count (#a: eqtype) (s: sseq a) (x:a)
 
 
 let lemma_iseq_index (#a:_) (#n:_) (il:interleaving a n) (i:nat{i < length il})
-  : Lemma (Seq.index (i_seq il) i = (Seq.index il i).e)
+  : Lemma (Seq.index (i_seq il) i == (Seq.index il i).e)
   = ()
 
+#push-options "--warn_error -271"
 let i_seq_map #a #n #b f il =
   let n = Seq.length il in
-  assert (forall (i:nat{i < n}). Seq.index (SA.map f (i_seq il)) i ==
-                          f (Seq.index (i_seq il) i));
-  Classical.forall_intro (lemma_iseq_index (map_interleaving f il));
-  assert (forall (i:nat{i < n}). Seq.index (i_seq (map_interleaving f il)) i ==
-                          (Seq.index (map_interleaving f il) i).e);
-  assert (forall (i:nat{i < n}). Seq.index (i_seq (map_interleaving f il)) i ==
-                          Seq.index (SA.map f (i_seq il)) i);
+  let aux (i:nat{i < n})
+    : Lemma (Seq.index (i_seq (map_interleaving f il)) i ==
+             Seq.index (SA.map f (i_seq il)) i)
+            [SMTPat ()]
+    = calc (==) {
+        Seq.index (SA.map f (i_seq il)) i;
+           (==) { }
+        f (Seq.index (i_seq il) i);
+           (==) { }
+        (Seq.index (map_interleaving f il) i).e;
+           (==) { lemma_iseq_index (map_interleaving f il) i }
+        Seq.index (i_seq (map_interleaving f il)) i;
+      }
+  in
   assert (Seq.equal (i_seq (map_interleaving f il)) (SA.map f (i_seq il)))
 
 let s_seq_map #a #n #b f il =
@@ -377,3 +385,4 @@ let s_seq_map #a #n #b f il =
   in
   assert (Seq.equal (s_seq (map_interleaving f il))
                     (SA.map (fun s -> SA.map f s) (s_seq il)))
+#pop-options

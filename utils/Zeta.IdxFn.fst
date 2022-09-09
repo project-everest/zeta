@@ -1,9 +1,5 @@
 module Zeta.IdxFn
 
-let conj_is_idxfn (#gs:_) (f1 f2: idxfn_t gs bool)
-  : Lemma (ensures (prefix_property (conj f1 f2)))
-  = ()
-
 (* length of applying a filter to *)
 let rec flen (#gs:_) (f: idxfn_t gs bool) (s: seq_t gs)
   : Tot (l:nat{ l <=  Seq.length s})
@@ -268,7 +264,7 @@ let prefix_map (#a #b:_) (s:Seq.seq a) (i:nat{i <= Seq.length s})
   = assert (Seq.equal (SA.map f (SA.prefix s i))
                       (SA.prefix (SA.map f s) i))
 
-let rec flen_fm_map (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
+let rec flen_fm_map (#gs_a #gs_b:gen_seq_spec) (#a #b:Type0)
   (gs_f:gs_a.a -> gs_b.a)
   (f:a -> b)
   (fm:fm_t gs_a a)
@@ -279,7 +275,7 @@ let rec flen_fm_map (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
   = if Seq.length s = 0 then ()
     else flen_fm_map gs_f f fm fm_map (prefix s (Seq.length s - 1))
 
-let rec fidx2idx_fm_map (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
+let rec fidx2idx_fm_map (#gs_a #gs_b:gen_seq_spec) (#a #b:Type0)
   (gs_f:gs_a.a -> gs_b.a)
   (f:a -> b)
   (fm:fm_t gs_a a)

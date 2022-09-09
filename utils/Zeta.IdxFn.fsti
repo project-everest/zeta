@@ -14,7 +14,7 @@ type gen_seq_spec = {
     Lemma (phi (SA.prefix s i));
 }
 
-let seq_t (gs:gen_seq_spec) = s:Seq.seq gs.a{gs.phi s}
+type seq_t (gs:gen_seq_spec) = s:Seq.seq gs.a{gs.phi s}
 
 unfold let prefix (#gs:gen_seq_spec) (s:seq_t gs) (i:nat{i <= Seq.length s})
   : seq_t gs
@@ -24,8 +24,8 @@ unfold let prefix (#gs:gen_seq_spec) (s:seq_t gs) (i:nat{i <= Seq.length s})
 let seq_index (#gs: gen_seq_spec) (s: seq_t gs) = i:nat{i < Seq.length s}
 
 (* an index function is a function that maps indexed elements of a sequence to another domain. *)
-let idxfn_t_base (gs: gen_seq_spec) (b:Type0)
-  = s:seq_t gs -> i:seq_index s -> b
+type idxfn_t_base (gs: gen_seq_spec) (b:Type0) =
+  s:seq_t gs -> i:seq_index s -> b
 
 (* an index function has a prefix property if the value of the function at an index depends only on the
  * sequence until that index *)
@@ -40,21 +40,17 @@ let prefix_property
     f s i == f (prefix s j) i
 
 (* an index function with the prefix property *)
-let idxfn_t (gs:_) (b:_) = f:idxfn_t_base gs b {prefix_property f}
+type idxfn_t (gs:_) (b:_) = f:idxfn_t_base gs b {prefix_property f}
 
 (* conjunction of two index filters *)
-let conj #gs (f1 f2: idxfn_t gs bool)
-  = fun (s: seq_t gs) (i: seq_index s) ->
-      f1 s i && f2 s i
-
-val conj_is_idxfn (#gs:_) (f1 f2: idxfn_t gs bool)
-  : Lemma (ensures (prefix_property (conj f1 f2)))
-          [SMTPat (conj f1 f2)]
+let conj #gs (f1 f2: idxfn_t gs bool) : idxfn_t gs bool =
+  fun (s: seq_t gs) (i: seq_index s) ->
+  f1 s i && f2 s i
 
 (* a conditional index function is a function that is defined only some indexes satisfying
  * a predicate *)
-let cond_idxfn_t_base (#gs:_) (b:Type0) (f:idxfn_t gs bool)
-  = s:seq_t gs -> i:seq_index s{f s i} -> b
+type cond_idxfn_t_base (#gs:_) (b:Type0) (f:idxfn_t gs bool) =
+  s:seq_t gs -> i:seq_index s{f s i} -> b
 
 unfold
 let cond_prefix_property
@@ -69,8 +65,8 @@ let cond_prefix_property
     f s i ==>
     m s i == m (prefix s j) i
 
-let cond_idxfn_t (#gs:_) (b:Type0) (f:idxfn_t gs bool)
-  = m:cond_idxfn_t_base b f{cond_prefix_property m}
+let cond_idxfn_t (#gs:_) (b:Type0) (f:idxfn_t gs bool) =
+  m:cond_idxfn_t_base b f{cond_prefix_property m}
 
 (* length of applying a filter to *)
 val flen (#gs:_) (f: idxfn_t gs bool) (s: seq_t gs)
@@ -295,7 +291,7 @@ let simple_map (#a #b: eqtype) (m: a -> b) (s: seq a)
 // Composing filter_map with another function
 //
 
-let fm_is_map (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
+let fm_is_map (#gs_a #gs_b:gen_seq_spec) (#a #b:Type0)
   (gs_f:gs_a.a -> gs_b.a)
   (f:a -> b)
   (fm:fm_t gs_a a)
@@ -304,7 +300,7 @@ let fm_is_map (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
     (forall (s:seq_t gs_a) (i:seq_index s). fm.f s i == fm_map.f (SA.map gs_f s) i) /\
     (forall (s:seq_t gs_a) (i:seq_index s{fm.f s i}). f (fm.m s i) == fm_map.m (SA.map gs_f s) i)
 
-val filter_map_compose (#gs_a #gs_b:gen_seq_spec) (#a #b:_)
+val filter_map_compose (#gs_a #gs_b:gen_seq_spec) (#a #b:Type0)
   (gs_f:gs_a.a -> gs_b.a)
   (f:a -> b)
   (fm:fm_t gs_a a)
