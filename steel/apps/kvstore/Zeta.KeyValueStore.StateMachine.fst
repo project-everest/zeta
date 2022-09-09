@@ -50,18 +50,48 @@ let seq_consistent (ss:llog) = exists s. I.interleave s ss /\ valid_log s
 module AppSim = Zeta.AppSimulate
 module S = Zeta.KeyValueStore.Spec
 
-let map_entry (e:AppSim.appfn_call_res S.kv_params) : log_entry =
+type app_log_entry = AppSim.appfn_call_res S.kv_params
+
+let map_entry (e:app_log_entry) : log_entry =
   if e.fid_cr = S.vget_id
   then let t : F.key_t & F.value_t = e.arg_cr in
        Vget (fst t) (snd t)
   else let t : F.key_t & F.value_t = e.arg_cr in
        Vput (fst t) (snd t)
 
-let map_log (s:Seq.seq (AppSim.appfn_call_res S.kv_params)) : log =
+let map_log (s:Seq.seq app_log_entry) : log =
   SeqAux.map map_entry s
 
-let map_llog (ss:Seq.seq (Seq.seq (AppSim.appfn_call_res S.kv_params))) : llog =
+let map_llog (ss:Seq.seq (Seq.seq app_log_entry)) : llog =
   SeqAux.map map_log ss
+
+let map_interleaving (#n:nat) (il:I.interleaving app_log_entry n)
+  : I.interleaving log_entry n
+  = let open Zeta.Interleave in
+    SeqAux.map (fun i -> {
+      e = map_entry i.e;
+      s = i.s }) il
+
+let interleaving_iseq_commutes
+  (n:nat)
+  (s:Seq.seq app_log_entry)
+  (il:I.interleaving app_log_entry n)
+  : Lemma (requires I.i_seq il == s)
+          (ensures I.i_seq (map_interleaving il) == map_log s)
+  = let open Zeta.Interleave in
+    let aux (#a:_) (#n:_) (il:interleaving a n) (i:nat{i < Seq.length il})
+      : Lemma (ensures Seq.index (i_seq il) i == (Seq.index il i).e)
+              [SMTPat ()]
+      = I.lemma_iseq_index il i in
+    assert (Seq.equal (I.i_seq (map_interleaving il)) (map_log s))
+
+let interleaving_sseq_commutes
+  (n:nat)
+  (ss:Seq.seq (Seq.seq app_log_entry))
+  (il:I.interleaving app_log_entry n)
+  : Lemma (requires I.s_seq il == ss)
+          (ensures I.s_seq (map_interleaving il) == map_llog ss)
+  = admit ()
 
 let map_seq_consistency (ss:Seq.seq (Seq.seq (AppSim.appfn_call_res S.kv_params)))
   : Lemma (requires AppSim.seq_consistent ss)
