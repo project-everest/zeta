@@ -33,6 +33,12 @@ val top_level_state : Type0
 
 val core_inv (t:top_level_state) : vprop
 
+val core_inv_share (#opened: _) (t: top_level_state) : STGhostT unit opened
+  (core_inv t) (fun _ -> core_inv t `star` core_inv t)
+
+val core_inv_gather (#opened: _) (t: top_level_state) : STGhostT unit opened
+  (core_inv t `star` core_inv t) (fun _ -> core_inv t)
+
 val all_logs (t:top_level_state) (_ : tid_log_map) : vprop
 
 val log_of_tid (t:top_level_state) (tid:tid) (l:M.log) : vprop

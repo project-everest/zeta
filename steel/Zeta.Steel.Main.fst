@@ -64,12 +64,35 @@ let tid_positions_ok #l (all_threads: Seq.seq (thread_state l))
         let si = Seq.index all_threads i in
         U16.v si.tid == i
 
-let core_inv (t:top_level_state)
+[@@__reduce__]
+let core_inv0 (t:top_level_state)
   : vprop
   = exists_ (fun perm ->
     exists_ (fun v ->
       A.pts_to t.all_threads perm v `star`
       pure (tid_positions_ok v)))
+
+let core_inv (t:top_level_state)
+  : vprop
+  = core_inv0 t
+
+let core_inv_share t =
+  rewrite (core_inv t) (core_inv0 t);
+  let _ = Steel.ST.GenElim.gen_elim () in
+  let p = vpattern_replace (fun p -> A.pts_to t.all_threads p _) in
+  A.share t.all_threads p (half_perm p) (half_perm p);
+  rewrite (core_inv0 t) (core_inv t);
+  noop ();
+  rewrite (core_inv0 t) (core_inv t)
+
+let core_inv_gather t =
+  rewrite (core_inv t) (core_inv0 t);
+  let _ = Steel.ST.GenElim.gen_elim () in
+  let p1 = vpattern_replace (fun p1 -> A.pts_to t.all_threads p1 _) in
+  rewrite (core_inv t) (core_inv0 t);
+  let _ = Steel.ST.GenElim.gen_elim () in
+  A.gather t.all_threads p1 _;
+  rewrite (core_inv0 t) (core_inv t)
 
 [@@__steel_reduce__; __reduce__]
 let all_logs (t:top_level_state) (tlm:tid_log_map)
