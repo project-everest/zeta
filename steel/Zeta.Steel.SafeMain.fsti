@@ -7,6 +7,24 @@ val handle_pts_to
   (ts: M.top_level_state)
 : Tot vprop
 
+// NOTE: I don't need to expose these, but I choose to do so
+// (especially the elim part) because I am reusing verify_post which
+// has core_inv in it.
+
+val handle_pts_to_core_inv_intro
+  (#opened: _)
+  (ts: M.top_level_state)
+: STGhostT unit opened
+    (handle_pts_to ts)
+    (fun _ -> handle_pts_to ts `star` M.core_inv ts)
+
+val handle_pts_to_core_inv_elim
+  (#opened: _)
+  (ts: M.top_level_state)
+: STGhostT unit opened
+    (handle_pts_to ts `star` M.core_inv ts)
+    (fun _ -> handle_pts_to ts)
+
 val gather
   (#opened: _)
   (ts1: M.top_level_state)
@@ -25,21 +43,21 @@ val share
     (fun _ -> handle_pts_to ts `star` handle_pts_to ts)
 
 [@@__reduce__]
-let init_post_true : vprop =
-  exists_ (fun ts ->
-    handle_pts_to ts `star`
-    M.core_inv ts `star`
-    M.all_logs ts (Map.const (Some Seq.empty))
-  )
+let init_post_true (ts: M.top_level_state) : vprop =
+  M.all_logs ts (Map.const (Some Seq.empty))
 
-let init_post (b: bool) : Tot vprop =
+let init_post (b: bool) (ts: M.top_level_state) : Tot vprop =
   if b
-  then init_post_true
+  then init_post_true ts
   else emp
 
 val init (_: unit) : STT bool
   emp
-  (fun b -> init_post b)
+  (fun b ->
+    exists_ (fun ts ->
+      handle_pts_to ts `star`
+      init_post b ts
+  ))
 
 module AEH = Zeta.Steel.AggregateEpochHashes
 module U32 = FStar.UInt32
@@ -62,7 +80,6 @@ val verify_log
                (output:U.larray U8.t out_len)
   : STT (option (v:V.verify_result { V.verify_result_complete len v }))
     (handle_pts_to t `star`
-     M.core_inv t `star`
      A.pts_to input log_perm log_bytes `star`
      A.pts_to output full_perm out_bytes `star`
      M.log_of_tid t tid entries)
