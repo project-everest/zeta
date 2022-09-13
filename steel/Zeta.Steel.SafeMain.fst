@@ -141,15 +141,7 @@ let create_handle () : STT handle_t emp (fun _ -> emp) =
     _lock = _lock;
   })
 
-(* FIXME: this makes F* crash with
-(Error) ASSERTION FAILURE: Impossible! check_top_level_let: got unexpected effect args
-F* may be in an inconsistent state.
-Please file a bug report, ideally with a minimized version of the program that triggered the error.
-
 let handle = create_handle () 
-*)
-
-assume val handle: handle_t
 
 [@@__reduce__]
 let handle_pts_to_aux0
