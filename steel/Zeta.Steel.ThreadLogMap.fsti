@@ -110,7 +110,7 @@ val take_tid (#o:_)
            tids_pts_to x f (Map.upd m t None) false)
 
 /// [gather_tids_pts_to]
-///   This one isn't likely to be used in Zeta
+///   This one isn't likely to be used in Zeta -- Yes, it is, in Zeta.Steel.SafeMain
 ///   It's the converse of [share_tids_pts_to]
 val gather_tids_pts_to (#o:_)
                        (#f0 #f1:perm)

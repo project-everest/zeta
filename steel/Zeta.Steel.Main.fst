@@ -104,6 +104,29 @@ let log_of_tid (t:top_level_state) (tid:tid) (l:M.log)
   : vprop
   = TLM.tid_pts_to t.aeh.mlogs tid half l false
 
+let all_logs_log_of_tid t m tid _ =
+  TLM.take_tid t.aeh.mlogs m tid
+
+[@@__steel_reduce__; __reduce__]
+let frozen_logs t m =
+  exists_ (fun p ->
+    TLM.tids_pts_to t.aeh.mlogs p m false
+  )
+
+let freeze_all_logs t m =
+  noop ()
+
+let frozen_logs_share t m =
+  let p = elim_exists () in
+  TLM.share_tids_pts_to _ _;
+  noop ()
+
+let frozen_logs_gather t m =
+  let p1 = elim_exists () in
+  let p2 = elim_exists () in
+  TLM.gather_tids_pts_to #_ #p1 #p2 _ m;
+  noop ()
+
 [@@__steel_reduce__; __reduce__]
 let snapshot (t:top_level_state) (tlm:tid_log_map)
   : vprop

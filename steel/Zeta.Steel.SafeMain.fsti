@@ -17,24 +17,6 @@ val handle_pts_to
   (ts: M.top_level_state)
 : Tot vprop
 
-// NOTE: I don't need to expose these, but I choose to do so
-// (especially the elim part) because I am reusing verify_post which
-// has core_inv in it.
-
-val handle_pts_to_core_inv_intro
-  (#opened: _)
-  (ts: M.top_level_state)
-: STGhostT unit opened
-    (handle_pts_to ts)
-    (fun _ -> handle_pts_to ts `star` M.core_inv ts)
-
-val handle_pts_to_core_inv_elim
-  (#opened: _)
-  (ts: M.top_level_state)
-: STGhostT unit opened
-    (handle_pts_to ts `star` M.core_inv ts)
-    (fun _ -> handle_pts_to ts)
-
 val gather
   (#opened: _)
   (ts1: M.top_level_state)
@@ -52,21 +34,11 @@ val share
     (handle_pts_to ts)
     (fun _ -> handle_pts_to ts `star` handle_pts_to ts)
 
-[@@__reduce__]
-let init_post_true (ts: M.top_level_state) : vprop =
-  M.all_logs ts (Map.const (Some Seq.empty))
-
-let init_post (b: bool) (ts: M.top_level_state) : Tot vprop =
-  if b
-  then init_post_true ts
-  else emp
-
 val init (_: unit) : STT bool
   emp
   (fun b ->
     exists_ (fun ts ->
-      handle_pts_to ts `star`
-      init_post b ts
+      handle_pts_to ts // we lost the all_logs ... (Map.const (Some Seq.empty)) post-resource because it is consumed when creating thread locks
   ))
 
 let verify_result (len: U32.t) = option (option (v:V.verify_result { V.verify_result_complete len v }))
