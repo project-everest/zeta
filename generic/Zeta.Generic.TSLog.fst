@@ -64,7 +64,7 @@ let max_clock_in_thread
   (#vspec:_)
   (gl: G.verifiable_log vspec)
   (tid: _ {non_empty_thread gl tid})
-  : timestamp
+  : GTot timestamp
   = let l = S.index gl tid in
     let n = S.length l in
     G.clock gl (tid, n-1)
@@ -92,14 +92,14 @@ let max_clock_prop (#vspec) (gl: G.verifiable_log vspec) (tid: _)
 
 let rec find_max_clock_aux  (#vspec:_) (gl: G.verifiable_log vspec {flat_length gl > 0})
   (i: nat{i <= S.length gl})
-  : ot:option nat {(None = ot ==> (forall tid. tid < i ==> S.length (S.index gl tid) = 0)) /\
+  : GTot (ot:option nat {(None = ot ==> (forall tid. tid < i ==> S.length (S.index gl tid) = 0)) /\
                  (Some? ot ==> (let tid = Some?.v ot in
                                 tid < i /\
                                 non_empty_thread gl tid /\
                                 (forall tid'.
                                     tid' < i ==>
                                     non_empty_thread gl tid' ==>
-                                    max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid)))}
+                                    max_clock_in_thread gl tid' `ts_leq` max_clock_in_thread gl tid)))})
   = if i = 0 then None
     else (
       let i' = i - 1 in
@@ -188,7 +188,7 @@ let rec find_max_clock_aux  (#vspec:_) (gl: G.verifiable_log vspec {flat_length 
 #pop-options
 
 let find_max_clock_thread (#vspec:_) (gl: G.verifiable_log vspec {flat_length gl > 0})
-  : tid: _ {max_clock_prop gl tid}
+  : GTot (tid: _ {max_clock_prop gl tid})
   = let ot = find_max_clock_aux gl (S.length gl) in
     if None = ot then (
       assert(forall tid. S.length (S.index gl tid) = 0);
@@ -225,7 +225,7 @@ let gl_thread_prefix_verifiable
 let rec create
   (#vspec:_) 
   (gl: G.verifiable_log vspec):
-  Tot (itsl:its_log vspec (S.length gl){to_glog itsl == gl})
+  GTot (itsl:its_log vspec (S.length gl){to_glog itsl == gl})
   (decreases (flat_length gl))
   = let m = flat_length gl in
     let n = S.length gl in
@@ -296,7 +296,7 @@ let rec create
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
 let rec  find_epoch_boundary (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n) (i:seq_index itsl)
-  : Tot(o:option nat {(None = o ==> (clock itsl i).e <= ep) /\
+  : GTot(o:option nat {(None = o ==> (clock itsl i).e <= ep) /\
                 (Some? o ==> (let j = Some?.v o in
                               j <= i /\
                               (clock itsl j).e > ep /\
@@ -314,7 +314,6 @@ let rec  find_epoch_boundary (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n) (
       else o
 
 let prefix_within_epoch (#vspec #n:_) (ep: epoch) (itsl: its_log vspec n)
-  : itsl': its_log vspec n {itsl' `SA.prefix_of` itsl}
   = if length itsl = 0 then itsl
     else
       let o = find_epoch_boundary ep itsl (length itsl - 1) in

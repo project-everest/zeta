@@ -96,7 +96,7 @@ val lemma_state_post_valid (#vspec:_) (n:_) (tid:nat{tid < n}) (il: verifiable_l
 
 (* the clock value at every index *)
 let clock (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
-  : timestamp
+  : GTot timestamp
   = let ti = i2s_map il i in
     G.clock (to_glog il) ti
 
@@ -105,7 +105,7 @@ val clock_prefix_prop (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index i
           [SMTPat (clock (prefix il j) i)]
 
 let epoch_of (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
-  : epoch
+  : GTot epoch
   = let t = clock il i in
     t.e
 
@@ -118,7 +118,7 @@ let is_appfn (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
     G.is_appfn (to_glog il) ti
 
 let to_app_fcr (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il{is_appfn il i})
-  : appfn_call_res vspec.app
+  : GTot (appfn_call_res vspec.app)
   = let ti = i2s_map il i in
     G.to_app_fcr (to_glog il) ti
 
@@ -162,7 +162,7 @@ let is_blum_evict  (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il)
     G.is_blum_evict (to_glog il) ti
 
 let blum_evict_elem #vspec #n (il: verifiable_log vspec n) (i: seq_index il{is_blum_evict il i})
-  : ms_hashfn_dom vspec.app
+  : GTot (ms_hashfn_dom vspec.app)
   = let ti = i2s_map il i in
     G.blum_evict_elem (to_glog il) ti
 
@@ -175,10 +175,10 @@ val blum_evict_elem_prefix_prop
           [SMTPat (blum_evict_elem (prefix il j) i)]
 
 val app_fcrs_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
-  : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
+  : GTot (interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n)
 
 let app_fcrs (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
-  : seq (Zeta.AppSimulate.appfn_call_res vspec.app)
+  : GTot (seq (Zeta.AppSimulate.appfn_call_res vspec.app))
   = i_seq (app_fcrs_il il)
 
 val lemma_app_fcrs_interleave (#app #n:_) (il: verifiable_log app n)

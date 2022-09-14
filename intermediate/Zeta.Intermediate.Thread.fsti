@@ -34,7 +34,7 @@ val verifiable_implies_valid_log_entry
           [SMTPat (index tl i)]
 
 let to_logk_entry (#vcfg:_) (tl: verifiable_log vcfg) (i: seq_index tl)
-  : logK_entry vcfg.app
+  : GTot (logK_entry vcfg.app)
   = let st = store_pre tl i in
     let s2k = Store.to_slot_state_map st in
     let e = index tl i in

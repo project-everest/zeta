@@ -281,12 +281,12 @@ val addm (#vcfg:verifier_config)
   (r:record vcfg.app)
   (s:slot_id vcfg)
   (s':slot_id vcfg)
-  (vs: vtls_t vcfg {vs.valid}):
+  (vs: vtls_t vcfg {vs.valid}): GTot
   (vs': vtls_t vcfg {let a = AMP s r s' vs in
                      addm_precond a /\ addm_postcond a vs' \/
                      ~(addm_precond a) /\ ~vs'.valid})
 
-let evictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls_t vcfg {vs.valid}): vtls_t vcfg =
+let evictm #vcfg (s:slot_id vcfg) (s':slot_id vcfg) (vs: vtls_t vcfg {vs.valid}): GTot (vtls_t vcfg) =
   let st = vs.st in
   (* check store contains s and s' *)
   if empty_slot st s || empty_slot st s' then fail vs
@@ -609,4 +609,3 @@ val lemma_verifiable_implies_slot_is_merkle_points_to (#vcfg:_)
                    (GV.verify_step e vs).valid))
         (ensures (let vs_ = GV.verify_step e vs in
                   slot_points_to_is_merkle_points_to vs_.st))
-

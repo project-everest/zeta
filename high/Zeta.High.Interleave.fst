@@ -175,8 +175,7 @@ let mk_vlog_entry_ext_pp (#app #n:_) (il: verifiable_log app n) (j:nat{j <= leng
   = ()
 
 let vlog_ext_of_il_log (#app: app_params) (#n:nat) (il: verifiable_log app n)
-  : seq (vlog_entry_ext app)
-  = S.init (length il) (mk_vlog_entry_ext il)
+  = S.init (length il) (hoist_ghost (mk_vlog_entry_ext il))
 
 let vlog_ext_prefix_property (#app #n:_) (il: verifiable_log app n) (j:nat{j <= length il})
   : Lemma (ensures (let il' = prefix il j in
@@ -206,7 +205,6 @@ let lemma_eac_empty #app #n (il: verifiable_log app n{S.length il = 0})
     eac_empty_log le
 
 let eac_state_of_key (#app #n:_) (k: base_key) (il: verifiable_log app n)
-  : eac_state app k
   = EAC.eac_state_of_key k (vlog_ext_of_il_log il)
 
 let empty_implies_eac (#app #n:_) (il: verifiable_log app n)
@@ -705,7 +703,6 @@ let lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: eac_
     eliminate forall t. t <> 0 ==> not (store_contains (thread_store t il) Root) with tid
 
 let eac_value (#app #n:_) (k: key app) (il: eac_log app n)
-  : value_t k
   = eac_state_of_root_init il;
     let bk = to_base_key k in
     let es = eac_state_of_key bk il in
@@ -1178,17 +1175,10 @@ let init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (b
   = eac_state_empty bk il
 
 let eac_boundary (#app #n:_) (il: neac_log app n)
-  : (i: seq_index il{is_eac (prefix il i) /\
-                     ~ (is_eac (prefix il (i+1)))})
   = let le = vlog_ext_of_il_log il in
     max_eac_prefix le
 
 let eac_fail_key (#app #n:_) (il: neac_log app n)
-  : k:base_key {let i = eac_boundary il in
-                let e = I.index il i in
-                eac_state_of_key_post k il i = EACFail /\
-                eac_state_of_key_pre k il i <> EACFail /\
-                e `refs_key` k}
   = let le = vlog_ext_of_il_log il in
     let i = eac_boundary il in
     let k = EAC.eac_fail_key le in

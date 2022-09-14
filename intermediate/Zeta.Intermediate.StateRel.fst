@@ -138,7 +138,7 @@ let contains_distinct_app_keys_rel (#vcfg:_) (a: appfn_rel_t vcfg)
     contains_distinct_app_keys_rel_aux vss vsk ss ks
 
 let contains_distinct_app_keys (#vcfg:_) (a: appfn_rel_t vcfg)
-  : bool
+  : GTot bool
   = let intspec = int_verifier_spec vcfg in
     let hispec = HV.high_verifier_spec vcfg.app in
     GV.contains_distinct_app_keys_comp #intspec (int_state a) (int_slots a) &&
@@ -159,12 +159,12 @@ let int_slots_distinct (#vcfg:_) (a: appfn_rel_t vcfg {contains_distinct_app_key
     forall_intro_2 aux
 
 let int_reads (#vcfg:_) (a: appfn_rel_t vcfg {contains_distinct_app_keys a})
-  : S.seq (app_record vcfg.app.adm)
+  : GTot (S.seq (app_record vcfg.app.adm))
   = let intspec = int_verifier_spec vcfg in
     GV.reads #intspec (int_state a) (int_slots a)
 
 let hi_reads (#vcfg:_) (a: appfn_rel_t vcfg {contains_distinct_app_keys a})
-  : S.seq (app_record vcfg.app.adm)
+  : GTot (S.seq (app_record vcfg.app.adm))
   = let hispec = HV.high_verifier_spec vcfg.app in
     GV.reads #hispec (hi_state a) (hi_slots a)
 
@@ -190,7 +190,7 @@ let reads_rel (#vcfg:_) (a: appfn_rel_t vcfg)
     assert(S.equal rss rsk)
 
 let int_appfn_succ (#vcfg:_) (a: appfn_rel_t vcfg)
-  : bool
+  : GTot bool
   = let GV.RunApp f p _ = a.e in
     let ss = int_slots a in
     contains_distinct_app_keys a &&
@@ -202,7 +202,7 @@ let int_appfn_succ (#vcfg:_) (a: appfn_rel_t vcfg)
     )
 
 let hi_appfn_succ (#vcfg:_) (a: appfn_rel_t vcfg)
-  : bool
+  : GTot bool
   = let GV.RunApp f p _ = (hi_entry a) in
     let ks = hi_slots a in
     contains_distinct_app_keys a &&
@@ -224,7 +224,7 @@ let lemma_appfn_succ_rel (#vcfg:_) (a: appfn_rel_t vcfg)
         reads_rel a
 
 let int_writes (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
-  : ws:S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length (int_slots a)}
+  : GTot (ws:S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length (int_slots a)})
   = let GV.RunApp f p _ = a.e in
     let ss = int_slots a in
     let rs = int_reads a in
@@ -233,7 +233,7 @@ let int_writes (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
     ws
 
 let hi_writes (#vcfg:_) (a: appfn_rel_t vcfg {hi_appfn_succ a})
-  : ws:S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length (hi_slots a)}
+  : GTot (ws:S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length (hi_slots a)})
   = let GV.RunApp f p _ = a.e in
     let ss = hi_slots a in
     let rs = hi_reads a in
@@ -250,7 +250,7 @@ let writes_rel (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
 open Zeta.AppSimulate
 
 let int_res (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
-  : appfn_call_res vcfg.app
+  : GTot (appfn_call_res vcfg.app)
   = let GV.RunApp f p _ = a.e in
     let ss = int_slots a in
     let rs = int_reads a in
@@ -263,7 +263,7 @@ let int_res_is_gv_res (#vcfg:_) (a: appfn_rel_t vcfg {int_appfn_succ a})
   = ()
 
 let hi_res (#vcfg:_) (a: appfn_rel_t vcfg {hi_appfn_succ a})
-  : appfn_call_res vcfg.app
+  : GTot (appfn_call_res vcfg.app)
   = let GV.RunApp f p _ = hi_entry a in
     let ss = hi_slots a in
     let rs = hi_reads a in

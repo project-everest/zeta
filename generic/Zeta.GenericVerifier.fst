@@ -7,6 +7,8 @@ let hoist_ghost #_ #_ _ = admit ()
 
 let hoist_ghost2 (#a:Type) (#b:a -> Type) (#c:(x:a -> b x -> Type)) (f:(x:a -> y:b x -> GTot (c x y))) = admit ()
 
+let hoist_ghost2_apply #_ #_ #_ _ _ _ = admit ()
+
 let not_contains_app_key (#vspec:_)
   (vtls: vspec.vtls_t{vspec.valid vtls})
   (s: vspec.slot_t)

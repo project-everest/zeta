@@ -45,7 +45,7 @@ let index (#vspec:_) (gl: verifiable_log vspec) (i: SA.seq_index gl)
   = thread_log_base gl i
 
 let clock (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl)
-  : timestamp
+  : GTot timestamp
   = let tid,j = i in
     let tl = index gl tid in
     T.clock tl j
@@ -67,7 +67,7 @@ let is_appfn (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl)
 open Zeta.AppSimulate
 
 let to_app_fcr (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl{is_appfn gl i})
-  : appfn_call_res vspec.app
+  : GTot (appfn_call_res vspec.app)
   = let t,j = i in
     let tl = index gl t in
     T.to_app_fcr tl j
@@ -91,7 +91,7 @@ let is_blum_evict (#vspec:_)(gl: verifiable_log vspec) (i: sseq_index gl)
     T.is_blum_evict tl j
 
 let blum_evict_elem (#vspec:_) (gl: verifiable_log vspec) (i: sseq_index gl {is_blum_evict gl i})
-  : ms_hashfn_dom vspec.app
+  : GTot (ms_hashfn_dom vspec.app)
   = let t,j = i in
     let tl = index gl t in
     T.blum_evict_elem tl j
@@ -101,8 +101,8 @@ let add_sseq (#vspec:_) (ep: epoch) (gl: verifiable_log vspec)
   = S.init (S.length gl) (fun i -> T.add_seq ep (index gl i))
 
 let evict_sseq (#vspec:_) (ep: epoch) (gl: verifiable_log vspec)
-  : sseq (ms_hashfn_dom vspec.app)
-  = S.init (S.length gl) (fun i -> T.evict_seq ep (index gl i))
+  : GTot (sseq (ms_hashfn_dom vspec.app))
+  = S.init (S.length gl) (hoist_ghost (fun i -> T.evict_seq ep (index gl i)))
 
 (* blum add set elements for a given epoch *)
 let add_set
@@ -117,7 +117,7 @@ let add_set
 let evict_set
   (#vspec: verifier_spec)
   (ep: epoch)
-  (gl: verifiable_log vspec): mset_ms_hashfn_dom vspec.app
+  (gl: verifiable_log vspec): GTot (mset_ms_hashfn_dom vspec.app)
   = let es = evict_sseq ep gl in
     sseq2mset es
 
@@ -139,11 +139,11 @@ let ms_verifiable_log #vspec (ep: epoch)
 (* filter-mapped sequence of sequence app-function-call results *)
 let app_fcrs
   (#vspec: verifier_spec)
-  (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
-  = S.init (S.length gl) (fun i -> T.app_fcrs (index gl i))
+  (gl: verifiable_log vspec): GTot (sseq (Zeta.AppSimulate.appfn_call_res vspec.app))
+  = S.init (S.length gl) (hoist_ghost (fun i -> T.app_fcrs (index gl i)))
 
 let app_fcrs_within_ep
   (#vspec: verifier_spec)
   (ep: epoch)
-  (gl: verifiable_log vspec): sseq (Zeta.AppSimulate.appfn_call_res vspec.app)
-  = S.init (S.length gl) (fun i -> T.app_fcrs_within_ep ep (index gl i))
+  (gl: verifiable_log vspec): GTot (sseq (Zeta.AppSimulate.appfn_call_res vspec.app))
+  = S.init (S.length gl) (hoist_ghost (fun i -> T.app_fcrs_within_ep ep (index gl i)))

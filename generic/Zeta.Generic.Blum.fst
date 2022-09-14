@@ -90,29 +90,29 @@ let add_set_snoc (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n {length i
 #pop-options
 
 let is_blum_evict_epoch_ifn (#vspec #n:_) (ep: epoch)
-  : IF.idxfn_t (gen_seq vspec n) bool
-  = is_blum_evict_epoch #vspec #n ep
+  : GTot (IF.idxfn_t (gen_seq vspec n) bool)
+  = hoist_ghost2 (is_blum_evict_epoch #vspec #n ep)
 
 let is_blum_evict_ifn (#vspec #n:_)
   : IF.idxfn_t (gen_seq vspec n) bool
   = is_blum_evict #vspec #n
 
 let blum_evict_elem_ifn (#vspec #n:_)
-  : IF.cond_idxfn_t (ms_hashfn_dom vspec.app) (is_blum_evict_ifn #vspec #n)
-  = blum_evict_elem #vspec #n
+  : GTot (IF.cond_idxfn_t (ms_hashfn_dom vspec.app) (is_blum_evict_ifn #vspec #n))
+  = hoist_ghost2 (blum_evict_elem #vspec #n)
 
 let blum_evict_elem_src (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il{is_blum_evict il i})
-  : elem_src (ms_hashfn_dom vspec.app) n
+  : GTot (elem_src (ms_hashfn_dom vspec.app) n)
   = let e = blum_evict_elem il i in
     let s = src il i in
     { e; s }
 
 let blum_evict_elem_src_ifn (#vspec #n:_)
-  : IF.cond_idxfn_t (elem_src (ms_hashfn_dom vspec.app) n) (is_blum_evict_ifn #vspec #n)
-  = blum_evict_elem_src #vspec #n
+  : GTot (IF.cond_idxfn_t (elem_src (ms_hashfn_dom vspec.app) n) (is_blum_evict_ifn #vspec #n))
+  = hoist_ghost2 (blum_evict_elem_src #vspec #n)
 
 let evict_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : interleaving (ms_hashfn_dom vspec.app) n
+  : GTot (interleaving (ms_hashfn_dom vspec.app) n)
   = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
     IF.filter_map fm il
 
@@ -337,7 +337,7 @@ let t_evict_seq_gl (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t: na
 
 let t_evict_i2g (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t < n})
   (i:SA.seq_index (t_evict_seq_il ep il t))
-  : j:SA.seq_index (t_evict_seq_gl ep il t){S.index (t_evict_seq_il ep il t) i = S.index (t_evict_seq_gl ep il t) j}
+  : GTot (j:SA.seq_index (t_evict_seq_gl ep il t){S.index (t_evict_seq_il ep il t) i = S.index (t_evict_seq_gl ep il t) j})
   = let ta_il = t_evict_seq_il ep il t in
     let ta_gl = t_evict_seq_gl ep il t in
     let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
@@ -363,7 +363,7 @@ let t_evict_i2g (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t 
     T.evict_seq_map tl i3
 
 let t_evict_i2g_mono (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t < n})
-  : Lemma (ensures (monotonic_prop (t_evict_i2g ep il t)))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (t_evict_i2g ep il t))))
           [SMTPat (t_evict_i2g ep il t)]
   = let ta_il = t_evict_seq_il ep il t in
     let ta_gl = t_evict_seq_gl ep il t in
@@ -399,7 +399,7 @@ let t_evict_i2g_mono (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:n
 
 let t_evict_g2i (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t < n})
   (j:SA.seq_index (t_evict_seq_gl ep il t))
-  : i:SA.seq_index (t_evict_seq_il ep il t){S.index (t_evict_seq_il ep il t) i = S.index (t_evict_seq_gl ep il t) j}
+  : GTot (i:SA.seq_index (t_evict_seq_il ep il t){S.index (t_evict_seq_il ep il t) i = S.index (t_evict_seq_gl ep il t) j})
   = let ta_il = t_evict_seq_il ep il t in
     let ta_gl = t_evict_seq_gl ep il t in
     let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
@@ -416,7 +416,7 @@ let t_evict_g2i (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t 
     j4
 
 let t_evict_g2i_mono (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:nat{t < n})
-  : Lemma (ensures (monotonic_prop (t_evict_g2i ep il t)))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (t_evict_g2i ep il t))))
   = let ta_il = t_evict_seq_il ep il t in
     let ta_gl = t_evict_seq_gl ep il t in
     let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
@@ -457,8 +457,8 @@ let evict_seq_identical_thread (#vspec #n:_) (ep: epoch) (il: verifiable_log vsp
    = monotonic_bijection_implies_equal
       (t_evict_seq_il ep il t)
       (t_evict_seq_gl ep il t)
-      (t_evict_i2g ep il t)
-      (t_evict_g2i ep il t)
+      (hoist_ghost (t_evict_i2g ep il t))
+      (hoist_ghost (t_evict_g2i ep il t))
 
 #pop-options
 
@@ -633,7 +633,6 @@ let evict_elem_idx
   (il: verifiable_log vspec n)
   (be: ms_hashfn_dom vspec.app {let ep = be.t.e in
                                 evict_set ep il `contains` be})
-  : i: seq_index il {is_blum_evict il i /\ be = blum_evict_elem il i}
   = let ep = be.t.e in
     let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec #n ep) (blum_evict_elem_src_ifn #vspec #n) in
     let eil = evict_il ep il in
@@ -790,8 +789,8 @@ let is_blum_add_of_key_ifn (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key v
   = is_blum_add_of_key #vspec #n ep gk
 
 let is_blum_evict_of_key_ifn (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app)
-  : IF.idxfn_t (gen_seq vspec n) bool
-  = is_blum_evict_of_key #vspec #n ep gk
+  : GTot (IF.idxfn_t (gen_seq vspec n) bool)
+  = hoist_ghost2 (is_blum_evict_of_key #vspec #n ep gk)
 
 (* add elements of a specific key*)
 let k_add_il (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
@@ -800,7 +799,7 @@ let k_add_il (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il:
     IF.filter_map fm il
 
 let k_evict_il (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
-  : interleaving (ms_hashfn_dom vspec.app) n
+  : GTot (interleaving (ms_hashfn_dom vspec.app) n)
   = let fm = IF.to_fm (is_blum_evict_of_key_ifn #vspec #n ep gk) (blum_evict_elem_src_ifn #vspec #n) in
     IF.filter_map fm il
 

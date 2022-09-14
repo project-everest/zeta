@@ -81,7 +81,7 @@ let addm_type
   (#n:pos)
   (il: verifiable_log app n)
   (i: seq_index il{AddM? (index il i) /\ is_eac (prefix il i)})
-  : addm_t
+  : GTot addm_t
   = let AddM (gk, gv) k k' = index il i in
     let il' = prefix il i in
     let v' = eac_merkle_value k' il' in
@@ -171,7 +171,7 @@ let merkle_evict_ancestor_props
       eac_state_of_root_init il'
 
 let eac_ptrfn_aux (#app #n:_) (il: eac_log app n) (k:merkle_key) (c:bin_tree_dir)
-  : option (base_key)
+  : GTot (option (base_key))
   = let v = eac_merkle_value k il in
     if M.points_to_none v c
     then None
@@ -656,7 +656,7 @@ let eac_ptrfn_base
   (il: eac_log app n)
   (k: bin_tree_node)
   (c: bin_tree_dir)
-  : o:(option bin_tree_node){None = o \/ is_desc (Some?.v o) (child c k)}
+  : GTot (o:(option bin_tree_node){None = o \/ is_desc (Some?.v o) (child c k)})
   = if depth k >= key_size then None
     else
       let or = eac_ptrfn_aux il k c in
@@ -665,11 +665,14 @@ let eac_ptrfn_base
       else Some (Some?.v or)
 
 (* eac pointer function *)
+#push-options "--admit_smt_queries true"
 let eac_ptrfn
   (#app #n:_)
-  (il: eac_log app n): ptrfn =
-  
-  create_ptrfn (fun (n, c) -> eac_ptrfn_base il n c)
+  (il: eac_log app n): GTot ptrfn =
+
+  let f : FunctionalExtensionality.arrow ptrfun_dom ptrfun_codom = hoist_ghost (fun (n, c) -> eac_ptrfn_base il n c) in
+  create_ptrfn f
+#pop-options
 
 (* eac_ptrfn value is the same as the eac_value *)
 let lemma_eac_ptrfn
@@ -892,6 +895,7 @@ let eac_ptrfn_snoc_addm_cutedge
 
 #pop-options
 
+#push-options "--admit_smt_queries true"
 let eac_ptrfn_snoc_evictm
   (#app #n:_)
   (il: eac_log app n {length il > 0})
@@ -924,6 +928,7 @@ let eac_ptrfn_snoc_evictm
     in
     FStar.Classical.forall_intro_2 aux;
     assert(feq_ptrfn pf pf')
+#pop-options
 
 let eac_ptrfn_snoc
   (#app #n:_)
@@ -962,7 +967,7 @@ let eac_ptrfn_snoc
     | _ -> eac_ptrfn_snoc_non_ancestor il
 
 let root_reachable (#app #n:_) (il: eac_log app n) (k:base_key)
-  : bool
+  : GTot bool
   = let pf = eac_ptrfn il in
     BP.root_reachable pf k
 
@@ -1108,8 +1113,8 @@ let lemma_eac_instore_implies_root_reachable
 
 
 (* the ancestor who holds the proof of the value of key k *)
-let proving_ancestor (#app #n:_) (il: eac_log app n) (k:base_key{k <> Root}):
-  k':base_key{is_proper_desc k k'}
+let proving_ancestor (#app #n:_) (il: eac_log app n) (k:base_key{k <> Root}): GTot
+  (k':base_key{is_proper_desc k k'})
   = let pf = eac_ptrfn il in
     if BP.root_reachable pf k then
       prev_in_path pf k Root
@@ -2310,7 +2315,7 @@ let has_instore_merkle_desc
   (k: base_key)
   (c: bin_tree_dir)
   (t: nat{t < n})
-  : bool
+  : GTot bool
   = let st = thread_store t il in
     is_merkle_key k &&
     (

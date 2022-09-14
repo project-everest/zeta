@@ -21,14 +21,14 @@ module I = Zeta.Interleave
 module HI = Zeta.High.Interleave
 
 let eac_merkle_value (#app #n:_) (k:merkle_key) (il: eac_log app n)
-  : value
+  : GTot value
   = let gk = IntK k in
     let v = eac_value gk il in
     IntV?.v v
 
 (* the ancestor who holds the proof of the value of key k *)
 val proving_ancestor (#app #n:_) (il: eac_log app n) (k:base_key{k <> Root}):
-  k':base_key{is_proper_desc k k'}
+  GTot (k':base_key{is_proper_desc k k'})
 
 (* after the first add the proving ancestor always points to self *)
 val lemma_proving_ancestor_points_to_self (#app #n:_) (il: eac_log app n) (k:base_key{k <> Root}):
@@ -88,7 +88,7 @@ let is_in_blum (#app #k:_) (es: eac_state  app k): bool =
   (EACInStore? es && EACInStore?.m es = BAdd)
 
 let proving_ancestor_has_blum_bit (#app #n:_) (il: eac_log app n) (k:base_key {k <> Root})
-  : bool
+  : GTot bool
   = let es = eac_state_of_key k il in
     let pk = proving_ancestor il k in
     let c = desc_dir k pk in
