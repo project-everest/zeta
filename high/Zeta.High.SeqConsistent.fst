@@ -25,7 +25,7 @@ let eac_value_is_eac_state_value (#app #n:_) (il: eac_log app n) (ak: app_key ap
     | _ -> eac_value_is_evicted_value il gk
 
 let to_fc (#app #n:_) (il: eac_log app n) (i: seq_index il {RunApp? (index il i)})
-  : appfn_call app
+  : GTot (appfn_call app)
   = let App (RunApp fid_c arg_c _) inp_c = mk_vlog_entry_ext il i in
     { fid_c; arg_c ; inp_c }
 
@@ -41,7 +41,7 @@ let eac_app_prop (#app #n:_) (il: eac_log app n)
     (* the results are valid meaning the output corresponds to the input records *)
     valid_call_result fcrs /\
     (* the app state as recorded by eac values is the same as the simulation state *)
-    app_state_feq (post_state fcs) (eac_app_state il)
+    app_state_feq (post_state fcs) (hoist_ghost (eac_app_state il))
 
 let eac_app_prop_empty (#app #n:_) (il: eac_log app n)
   : Lemma (ensures (length il = 0 ==> eac_app_prop il))
@@ -70,7 +70,7 @@ let eac_app_prop_empty (#app #n:_) (il: eac_log app n)
           eac_value_init (AppK ak) il
       in
       FStar.Classical.forall_intro aux;
-      assert(app_state_feq ste sta)
+      assert(app_state_feq (hoist_ghost ste) sta)
     )
 
 let app_refs_is_log_entry_refs
@@ -187,7 +187,9 @@ let eac_app_state_nonapp_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in
                     let il' = prefix il i in
                     not (RunApp? (index il i)) ==>
-                    app_state_feq (eac_app_state il) (eac_app_state il')))
+                    app_state_feq
+                      (hoist_ghost (eac_app_state il))
+                      (hoist_ghost (eac_app_state il'))))
   = let i = length il - 1 in
     let il' = prefix il i in
     let e = index il i in
@@ -197,7 +199,8 @@ let eac_app_state_nonapp_snoc (#app #n:_) (il: eac_log app n {length il > 0})
         = eac_app_state_key_snoc il ak
       in
       FStar.Classical.forall_intro aux;
-      assert(app_state_feq (eac_app_state il) (eac_app_state il'))
+      assert(app_state_feq (hoist_ghost (eac_app_state il))
+                           (hoist_ghost (eac_app_state il')))
     )
 
 let eac_implies_input_consistent_key
@@ -228,7 +231,7 @@ let eac_implies_input_consistent
           (ensures (let il' = prefix il i in
                     let fc = to_fc il i in
                     let st = eac_app_state il' in
-                    input_consistent fc st))
+                    input_consistent fc (hoist_ghost st)))
   = let fc = to_fc il i in
     let il' = prefix il i in
     let st = eac_app_state il' in
@@ -249,7 +252,8 @@ let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
                      RunApp? (index il i) /\ eac_app_prop il'))
           (ensures (let fcs = app_fcs (app_fcrs il) in
                     valid fcs /\
-                    app_state_feq (eac_app_state il) (post_state fcs)))
+                    app_state_feq (hoist_ghost (eac_app_state il))
+                                  (post_state fcs)))
   = let i = length il - 1 in
     let fcr = to_app_fcr il i in
     let il' = prefix il i in
@@ -267,9 +271,10 @@ let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
     SA.lemma_prefix1_append fcs' fc;
 
     let st' = post_state fcs' in
-    assert(app_state_feq st' (eac_app_state il'));
+    assert(app_state_feq st' (hoist_ghost (eac_app_state il')));
     eac_implies_input_consistent il i;
-    feq_implies_input_consistent_identical fc st' (eac_app_state il');
+    admit ();
+    feq_implies_input_consistent_identical fc st' (hoist_ghost (eac_app_state il'));
     assert(input_consistent fc st');
     assert(correct fc);
     correct_succeeds_if_input_consistent fc st';
@@ -286,7 +291,7 @@ let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
           assert(st' ak = eac_app_state il' ak)
     in
     FStar.Classical.forall_intro aux;
-    assert(app_state_feq sts ste)
+    assert(app_state_feq sts (hoist_ghost ste))
 
 #pop-options
 
@@ -319,13 +324,15 @@ let eac_implies_app_prop_snoc (#app #n:_) (il: eac_log app n {length il > 0})
       ext_app_records_is_stored_val il i;
       valid_call_result_snoc fcrs;
       eac_implies_input_consistent il i;
-      feq_implies_input_consistent_identical fc st' (eac_app_state il');
+      admit ();
+      feq_implies_input_consistent_identical fc st' (hoist_ghost (eac_app_state il'));
       correct_succeeds_if_input_consistent fc st';
       assert(succeeds fc st');
       assert(valid_call_result fcrs);
       ()
     | _ ->
-      app_state_feq_transitive (post_state fcs') (eac_app_state il') (eac_app_state il)
+      admit ();
+      app_state_feq_transitive (post_state fcs') (hoist_ghost (eac_app_state il')) (hoist_ghost (eac_app_state il))
 
 #pop-options
 

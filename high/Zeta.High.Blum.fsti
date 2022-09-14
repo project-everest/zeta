@@ -24,7 +24,7 @@ val eac_instore_addb_diff_elem
                       let k = add_slot e in
                       let es = eac_state_of_key k itsli in
                       EACInStore? es)})
-  : (be':ms_hashfn_dom app{let ep = be'.t.e in
+  : GTot (be':ms_hashfn_dom app{let ep = be'.t.e in
                            let a_s = add_set ep itsl in
                            let es = evict_set ep itsl in
                            let be = blum_add_elem itsl i in
@@ -41,7 +41,7 @@ val eac_evictedm_addb_diff_elem
                      let k = add_slot e in
                      let es = eac_state_of_key k itsli in
                      EACEvictedMerkle? es)})
-  : (be':ms_hashfn_dom app{let ep = be'.t.e in
+  : GTot (be':ms_hashfn_dom app{let ep = be'.t.e in
                            let a_s = add_set ep itsl in
                            let es = evict_set ep itsl in
                            let be = blum_add_elem itsl i in
@@ -55,7 +55,7 @@ val eac_evictedb_addb_diff_elem
                          Zeta.Generic.TSLog.clock_sorted itsl /\
                          is_blum_add itsl i /\
                          EACEvictedBlum? (eac_state_of_key_pre k itsl i)})
-  : (be':ms_hashfn_dom app{let i = eac_boundary itsl in
+  : GTot (be':ms_hashfn_dom app{let i = eac_boundary itsl in
                            let ep = be'.t.e in
                            let a_s = add_set ep itsl in
                            let es = evict_set ep itsl in

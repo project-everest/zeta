@@ -5,6 +5,7 @@ open FStar.Classical
 module S = FStar.Seq
 module SS = Zeta.SSeq
 module GT = Zeta.Generic.Thread
+module GV = Zeta.GenericVerifier
 
 let lemma_slot_is_merkle_points_to (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il):
   Lemma (ensures (slot_points_to_is_merkle_points_to (thread_store_pre (src il i) il i)))
@@ -16,14 +17,13 @@ let lemma_slot_is_merkle_points_to (#vcfg:_) (il: verifiable_log vcfg) (i: seq_i
     lemma_slot_is_merkle_points_to tl'
 
 let to_logk_src (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il)
-  : elem_src (logK_entry vcfg.app) vcfg.thread_count
+  : GTot (elem_src (logK_entry vcfg.app) vcfg.thread_count)
   = let e = to_logk_entry il i in
     let s = src il i in
     {e; s}
 
 let to_logk (#vcfg:_) (il: verifiable_log vcfg)
-  : HI.ilog vcfg.app vcfg.thread_count
-  = init (length il) (to_logk_src il)
+  = init (length il) (GV.hoist_ghost (to_logk_src il))
 
 let lemma_to_logk_length (#vcfg:_) (il: verifiable_log vcfg)
   : Lemma (ensures (length il = length (to_logk il)))
