@@ -21,7 +21,7 @@ let hoist_ghost2_apply (#a:Type) (#b:a -> Type) (#c:(x:a -> b x -> Type)) (f:(x:
 open FStar.FunctionalExtensionality
 
 val hoist_ghost_restricted (#a:Type) (#b:a -> Type) (f:restricted_g_t a b)
-  : GTot (g:restricted_t a b{forall x. f x == g x})
+  : GTot (restricted_t a b)
 
 val hoist_ghost_restricted_apply (#a:Type) (#b:a -> Type) (f:restricted_g_t a b) (x:a)
   : Lemma ((hoist_ghost_restricted f) x == f x)
