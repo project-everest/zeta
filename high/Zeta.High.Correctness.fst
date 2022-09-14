@@ -24,7 +24,7 @@ let lemma_verifier_correct
   (#app:_)
   (epmax: epoch)
   (gl: HG.ms_verifiable_log app epmax{~ (seq_consistent (app_fcrs_within_ep epmax gl)) /\ S.length gl > 0})
-  : hash_collision app
+  : GTot (hash_collision app)
   = (* sequence of sequence of app fn calls and results *)
     let app_calls_ss = app_fcrs_within_ep epmax gl in
 
