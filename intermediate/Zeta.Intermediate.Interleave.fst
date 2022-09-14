@@ -2,10 +2,11 @@ module Zeta.Intermediate.Interleave
 
 open FStar.Classical
 
+open Zeta.Ghost
+
 module S = FStar.Seq
 module SS = Zeta.SSeq
 module GT = Zeta.Generic.Thread
-module GV = Zeta.GenericVerifier
 
 let lemma_slot_is_merkle_points_to (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il):
   Lemma (ensures (slot_points_to_is_merkle_points_to (thread_store_pre (src il i) il i)))
@@ -23,7 +24,7 @@ let to_logk_src (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il)
     {e; s}
 
 let to_logk (#vcfg:_) (il: verifiable_log vcfg)
-  = init (length il) (GV.hoist_ghost (to_logk_src il))
+  = init (length il) (hoist_ghost (to_logk_src il))
 
 let lemma_to_logk_length (#vcfg:_) (il: verifiable_log vcfg)
   : Lemma (ensures (length il = length (to_logk il)))

@@ -1,6 +1,8 @@
 module Zeta.Generic.Global
 
 open FStar.Seq
+
+open Zeta.Ghost
 open Zeta.SeqAux
 open Zeta.SSeq
 open Zeta.Interleave

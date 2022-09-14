@@ -3,6 +3,8 @@ module Zeta.AppSimulate.Helper
 open FStar.Classical
 module S = FStar.Seq
 
+open Zeta.Ghost
+
 let app_state_feq_comm_aux (#adm:_) (st1 st2: app_state adm)
   : Lemma (requires (app_state_feq st1 st2))
           (ensures (app_state_feq st2 st1))
@@ -68,9 +70,6 @@ let feq_implies_input_consistent_identical (#app:_) (fc: appfn_call app) (st1 st
     with _. feq_imnplies_input_consistent_identical_aux fc st1 st2;
     introduce (input_consistent fc st2) ==> (input_consistent fc st1)
     with _. feq_imnplies_input_consistent_identical_aux fc st2 st1
-
-assume val hoist_ghost (#a:Type) (#b:a -> Type) (f:(x:a -> GTot (b x)))
-  : GTot (g:(x:a -> b x){forall x. f x == g x})
 
 let input_correct_is_input_consistent (#app:_) (fc: appfn_call app) (st: app_state app.adm)
   : Lemma (ensures (let rs = fc.inp_c in

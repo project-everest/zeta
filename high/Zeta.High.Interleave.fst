@@ -2,6 +2,8 @@ module Zeta.High.Interleave
 
 open FStar.Classical
 
+open Zeta.Ghost
+
 let root : r:Zeta.BinTree.bin_tree_node { Zeta.BinTree.depth r = 0 } = Zeta.BinTree.Root
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"

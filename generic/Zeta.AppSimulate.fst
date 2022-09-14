@@ -1,5 +1,7 @@
 module Zeta.AppSimulate
 
+open Zeta.Ghost
+
 let prefix_of_distinct_distinct
   (#adm: app_data_model)
   (sk: S.seq (app_record adm) {distinct_keys #adm sk})
@@ -16,9 +18,6 @@ let input_incorrect_idx (#adm:_) (st: app_state adm) (r: app_record adm)
   : GTot bool
   = let k,v = r in
     st k <> v
-
-assume val hoist_ghost (#a:Type) (#b:a -> Type) (f:(x:a -> GTot (b x)))
-  : GTot (g:(x:a -> b x){forall x. f x == g x})
 
 let input_correct (#adm: app_data_model)
   (st: app_state adm)

@@ -1,6 +1,8 @@
 module Zeta.Generic.Thread
 
 open FStar.Classical
+
+open Zeta.Ghost
 open Zeta.SMap
 module IF = Zeta.IdxFn
 

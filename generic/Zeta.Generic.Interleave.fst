@@ -1,6 +1,8 @@
 module Zeta.Generic.Interleave
 
 open FStar.Classical
+
+open Zeta.Ghost
 open Zeta.SMap
 module SS = Zeta.SSeq
 

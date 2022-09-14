@@ -1,5 +1,6 @@
 module Zeta.GenericVerifier
 
+open Zeta.Ghost
 open Zeta.App
 open Zeta.AppSimulate
 open Zeta.Time
@@ -9,37 +10,6 @@ open Zeta.Record
 module S = FStar.Seq
 module SA = Zeta.SeqAux
 module MSD = Zeta.MultiSetHashDomain
-
-val hoist_ghost (#a:Type) (#b:a -> Type) (f:(x:a -> GTot (b x)))
-  : GTot (g:(x:a -> b x){forall x. f x == g x})
-
-val hoist_ghost2 (#a:Type) (#b:a -> Type) (#c:(x:a -> b x -> Type)) (f:(x:a -> y:b x -> GTot (c x y)))
-  : GTot (x:a -> y:b x -> c x y)
-
-val hoist_ghost2_apply (#a:Type) (#b:a -> Type) (#c:(x:a -> b x -> Type)) (f:(x:a -> y:b x -> GTot (c x y)))
-  (x:a) (y:b x)
-  : Lemma ((hoist_ghost2 f) x y == f x y)
-          [SMTPat ((hoist_ghost2 f) x y)]
-
-open FStar.FunctionalExtensionality
-
-val hoist_ghost_restricted (#a:Type) (#b:a -> Type) (f:restricted_g_t a b)
-  : GTot (g:restricted_t a b{forall x. f x == g x})
-
-// let hoist_ghost_preserves_pred (#a:Type) (#b:a -> Type)
-//   (f:(x:a -> GTot (b x)))
-//   (pred:(x:a -> b x) -> Type0)
-//   : Lemma
-//       (requires
-//         (
-//       (ensures pred g <==> pred (hoist_ghost f))
-//   = ()
-
-// let hoist_ghost2_preserves_pred (#a:Type) (#b:a -> Type) (#c:(x:a -> b x -> Type))
-//   (f:(x:a -> y:b -> GTot (c x y)))
-//   (g:(x:a -> y:b -> c x y))
-  
-
 
 (* identifier type for verifier threads *)
 let thread_id = Zeta.Thread.thread_id

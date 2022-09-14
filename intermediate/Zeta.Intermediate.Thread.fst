@@ -1,6 +1,8 @@
 module Zeta.Intermediate.Thread
 
 open FStar.Classical
+
+open Zeta.Ghost
 open Zeta.BinTree
 open Zeta.App
 open Zeta.Key
@@ -1028,7 +1030,7 @@ let s2k (#vcfg:_) (rp: rel_pair vcfg) (i: SA.seq_index (app_fcrs rp.tls))
     app_fcrs_map rp.tlk i1
 
 let s2k_mono (#vcfg:_) (rp: rel_pair vcfg)
-  : Lemma (ensures (monotonic_prop (Zeta.GenericVerifier.hoist_ghost (s2k rp))))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (s2k rp))))
   = let fcrss = app_fcrs rp.tls in
     let f = s2k rp in
     let aux (i j: SA.seq_index fcrss)
@@ -1049,7 +1051,7 @@ let k2s (#vcfg:_) (rp: rel_pair vcfg) (j:SA.seq_index (app_fcrs rp.tlk))
     app_fcrs_map rp.tls j1
 
 let k2s_mono (#vcfg:_) (rp: rel_pair vcfg)
-  : Lemma (ensures (monotonic_prop (Zeta.GenericVerifier.hoist_ghost (k2s rp))))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (k2s rp))))
   = let fcrsk = app_fcrs rp.tlk in
     let f = k2s rp in
     let aux (i j: SA.seq_index fcrsk)
@@ -1072,5 +1074,5 @@ let thread_rel_implies_fcrs_identical (#vcfg:_) (tls: verifiable_log vcfg) (tlk:
     monotonic_bijection_implies_equal
     (app_fcrs rp.tls)
     (app_fcrs rp.tlk)
-    (Zeta.GenericVerifier.hoist_ghost (s2k rp))
-    (Zeta.GenericVerifier.hoist_ghost (k2s rp))
+    (hoist_ghost (s2k rp))
+    (hoist_ghost (k2s rp))

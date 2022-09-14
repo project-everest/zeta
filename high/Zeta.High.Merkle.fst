@@ -5,6 +5,8 @@ module HV = Zeta.High.Verifier
 module BP = Zeta.BinTreePtr
 module M = Zeta.Merkle
 
+open Zeta.Ghost
+
 let stored_value (#app:_) = HV.stored_value #app
 
 (* three type of edge additions due to AddM (k,_) k' *)
