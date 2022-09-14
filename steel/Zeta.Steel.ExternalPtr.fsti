@@ -4,18 +4,19 @@ module Zeta.Steel.ExternalPtr
 
 module A = Steel.ST.Array
 module U32 = FStar.UInt32
+module U8 = FStar.UInt8
 
 inline_for_extraction
-val extern_ptr (a: Type0) : Type0
+val extern_ptr : Type0
 
-val gtake (#a: Type) (p: extern_ptr a) : GTot (A.array a)
+val gtake (p: extern_ptr) : GTot (A.array U8.t)
 
 inline_for_extraction
-val valid (#a: Type) (p: extern_ptr a) (n: U32.t) : Pure bool
+val valid (p: extern_ptr) (n: U32.t) : Pure bool
   (requires True)
   (ensures (fun b -> b == true ==> U32.v n == A.length (gtake p)))
 
 inline_for_extraction
-val take (#a: Type) (p: extern_ptr a) (n: Ghost.erased U32.t) : Pure (A.array a)
+val take (p: extern_ptr) (n: Ghost.erased U32.t) : Pure (A.array U8.t)
   (requires (valid p n))
   (ensures (fun y -> y == gtake p))
