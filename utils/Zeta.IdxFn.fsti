@@ -16,7 +16,7 @@ type gen_seq_spec = {
 
 type seq_t (gs:gen_seq_spec) = s:Seq.seq gs.a{gs.phi s}
 
-unfold let prefix (#gs:gen_seq_spec) (s:seq_t gs) (i:nat{i <= Seq.length s})
+let prefix (#gs:gen_seq_spec) (s:seq_t gs) (i:nat{i <= Seq.length s})
   : seq_t gs
   = gs.phi_commutes_with_prefix s i;
     SA.prefix s i
@@ -29,6 +29,7 @@ type idxfn_t_base (gs: gen_seq_spec) (b:Type0) =
 
 (* an index function has a prefix property if the value of the function at an index depends only on the
  * sequence until that index *)
+unfold
 let prefix_property
   (#gs:_)
   (#b:_)

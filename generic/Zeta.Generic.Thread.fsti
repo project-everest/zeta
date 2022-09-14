@@ -196,7 +196,7 @@ let is_blum_evict_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_i
     (let be = blum_evict_elem tl i in be.t.e = ep)
 
 val evict_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
-  : S.seq (ms_hashfn_dom vspec.app)
+  : GTot (S.seq (ms_hashfn_dom vspec.app))
 
 val evict_seq_empty (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   : Lemma (ensures (length tl = 0 ==> S.length (evict_seq ep tl) = 0))
@@ -215,13 +215,13 @@ val evict_seq_snoc
                       es == es'))
 
 val evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i})
-  : (let be = blum_evict_elem tl i in
-     let ep = be.t.e in
-     let es = evict_seq ep tl in
-     j: SA.seq_index es { S.index es j = be })
+  : GTot (let be = blum_evict_elem tl i in
+          let ep = be.t.e in
+          let es = evict_seq ep tl in
+          j: SA.seq_index es { S.index es j = be })
 
 val evict_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_index (evict_seq ep tl))
-  : i:seq_index tl { is_blum_evict_ep ep tl i /\ evict_seq_map tl i = j  }
+  : GTot (i:seq_index tl { is_blum_evict_ep ep tl i /\ evict_seq_map tl i = j  })
 
 val lemma_evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i})
   : Lemma (ensures (let be = blum_evict_elem tl i in
@@ -281,13 +281,13 @@ let to_app_fcr (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn t
     GV.appfn_result e st'
 
 val app_fcrs (#vspec:_) (tl: verifiable_log vspec)
-  : S.seq (appfn_call_res vspec.app)
+  : GTot (S.seq (appfn_call_res vspec.app))
 
 val app_fcrs_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
-  : j:SA.seq_index (app_fcrs tl) { to_app_fcr tl i = S.index (app_fcrs tl) j}
+  : GTot (j:SA.seq_index (app_fcrs tl) { to_app_fcr tl i = S.index (app_fcrs tl) j})
 
 val app_fcrs_invmap (#vspec:_) (tl: verifiable_log vspec) (j: SA.seq_index (app_fcrs tl))
-  : i: seq_index tl { is_appfn tl i /\ app_fcrs_map tl i = j}
+  : GTot (i: seq_index tl { is_appfn tl i /\ app_fcrs_map tl i = j})
 
 val lemma_add_fcrs_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
   : Lemma (ensures (let fcrs = app_fcrs tl in
@@ -307,7 +307,7 @@ val app_fcrs_within_ep
   (#vspec:_)
   (ep: epoch)
   (tl: verifiable_log vspec)
-  : S.seq (appfn_call_res vspec.app)
+  : GTot (S.seq (appfn_call_res vspec.app))
 
 val app_fcrs_empty (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   : Lemma (ensures (length tl = 0 ==> S.length (app_fcrs_within_ep ep tl) = 0))
@@ -326,13 +326,13 @@ val app_fcrs_ep_map (#vspec:_)
     (ep: epoch)
     (tl: verifiable_log vspec)
     (i: seq_index tl{is_appfn_within_epoch ep tl i})
-  : j:SA.seq_index (app_fcrs_within_ep ep tl) { to_app_fcr tl i = S.index (app_fcrs_within_ep ep tl) j}
+  : GTot (j:SA.seq_index (app_fcrs_within_ep ep tl) { to_app_fcr tl i = S.index (app_fcrs_within_ep ep tl) j})
 
 val app_fcrs_ep_invmap (#vspec:_)
   (ep: epoch)
   (tl: verifiable_log vspec)
   (j: SA.seq_index (app_fcrs_within_ep ep tl))
-  : i: seq_index tl { is_appfn_within_epoch ep tl i /\ app_fcrs_ep_map ep tl i = j}
+  : GTot (i: seq_index tl { is_appfn_within_epoch ep tl i /\ app_fcrs_ep_map ep tl i = j})
 
 val lemma_app_fcrs_ep_map (#vspec:_)
   (ep: epoch)
@@ -362,7 +362,7 @@ let prefix_of (#vspec:_) (tl1 tl2: verifiable_log vspec)
     tl1 = prefix tl2 (length tl1)
 
 val prefix_within_epoch (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
-  : tl': verifiable_log vspec {tl' `prefix_of` tl}
+  : GTot (tl': verifiable_log vspec {tl' `prefix_of` tl})
 
 val prefix_within_epoch_correct (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
   : Lemma (ensures (let tl' = prefix_within_epoch ep tl in
