@@ -368,7 +368,8 @@ let i_seq_map #a #n #b f il =
         Seq.index (SA.map f (i_seq il)) i;
            (==) { }
         f (Seq.index (i_seq il) i);
-           (==) { }
+           (==) { assert (Seq.index (map_interleaving f il) i ==
+                          (interleaving_mapper f) (Seq.index il i)) }
         (Seq.index (map_interleaving f il) i).e;
            (==) { lemma_iseq_index (map_interleaving f il) i }
         Seq.index (i_seq (map_interleaving f il)) i;

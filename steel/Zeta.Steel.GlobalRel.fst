@@ -484,4 +484,3 @@ let aggr_evict_hash_correct (logs: verifiable_logs) (ep: epoch_id)
                     h = ms_hashfn evict_set))
   = split_aggregate_all_threads_epoch_hashes logs ep;
     aggr_evict_hash_correct_alt logs ep
-
