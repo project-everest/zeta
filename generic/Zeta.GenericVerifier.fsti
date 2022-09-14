@@ -21,6 +21,11 @@ val hoist_ghost2_apply (#a:Type) (#b:a -> Type) (#c:(x:a -> b x -> Type)) (f:(x:
   : Lemma ((hoist_ghost2 f) x y == f x y)
           [SMTPat ((hoist_ghost2 f) x y)]
 
+open FStar.FunctionalExtensionality
+
+val hoist_ghost_restricted (#a:Type) (#b:a -> Type) (f:restricted_g_t a b)
+  : GTot (g:restricted_t a b{forall x. f x == g x})
+
 // let hoist_ghost_preserves_pred (#a:Type) (#b:a -> Type)
 //   (f:(x:a -> GTot (b x)))
 //   (pred:(x:a -> b x) -> Type0)

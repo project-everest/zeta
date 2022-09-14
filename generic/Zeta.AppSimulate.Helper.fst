@@ -45,7 +45,7 @@ let refs_witness (#app:_) (fc: appfn_call app) (k: app_key app.adm)
    exists_elems_with_prop_intro (of_key k) fc.inp_c i
 
 let record_incorrect (#adm:_) (st: app_state adm) (r: app_record adm)
-  : bool
+  : GTot bool
   = let k,v = r in
     st k <> v
 
@@ -69,6 +69,9 @@ let feq_implies_input_consistent_identical (#app:_) (fc: appfn_call app) (st1 st
     introduce (input_consistent fc st2) ==> (input_consistent fc st1)
     with _. feq_imnplies_input_consistent_identical_aux fc st2 st1
 
+assume val hoist_ghost (#a:Type) (#b:a -> Type) (f:(x:a -> GTot (b x)))
+  : GTot (g:(x:a -> b x){forall x. f x == g x})
+
 let input_correct_is_input_consistent (#app:_) (fc: appfn_call app) (st: app_state app.adm)
   : Lemma (ensures (let rs = fc.inp_c in
                    input_consistent fc st <==> input_correct st rs))
@@ -85,7 +88,7 @@ let input_correct_is_input_consistent (#app:_) (fc: appfn_call app) (st: app_sta
     )
     else (
       let open Zeta.SeqIdx in
-      let i = last_idx (record_incorrect st) rs in
+      let i = last_idx (hoist_ghost (record_incorrect st)) rs in
       let k,v = S.index rs i in
       FStar.Classical.exists_intro (fun i -> (let k',v = S.index fc.inp_c i in k' = k)) i;
       assert(fc `refs` k);

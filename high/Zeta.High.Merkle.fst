@@ -665,14 +665,11 @@ let eac_ptrfn_base
       else Some (Some?.v or)
 
 (* eac pointer function *)
-#push-options "--admit_smt_queries true"
 let eac_ptrfn
   (#app #n:_)
   (il: eac_log app n): GTot ptrfn =
 
-  let f : FunctionalExtensionality.arrow ptrfun_dom ptrfun_codom = hoist_ghost (fun (n, c) -> eac_ptrfn_base il n c) in
-  create_ptrfn f
-#pop-options
+  hoist_ghost_restricted (create_ptrfn_g (fun (n, c) -> eac_ptrfn_base il n c))
 
 (* eac_ptrfn value is the same as the eac_value *)
 let lemma_eac_ptrfn
@@ -895,7 +892,6 @@ let eac_ptrfn_snoc_addm_cutedge
 
 #pop-options
 
-#push-options "--admit_smt_queries true"
 let eac_ptrfn_snoc_evictm
   (#app #n:_)
   (il: eac_log app n {length il > 0})
@@ -928,7 +924,6 @@ let eac_ptrfn_snoc_evictm
     in
     FStar.Classical.forall_intro_2 aux;
     assert(feq_ptrfn pf pf')
-#pop-options
 
 let eac_ptrfn_snoc
   (#app #n:_)

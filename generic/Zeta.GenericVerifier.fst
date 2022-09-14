@@ -9,6 +9,9 @@ let hoist_ghost2 (#a:Type) (#b:a -> Type) (#c:(x:a -> b x -> Type)) (f:(x:a -> y
 
 let hoist_ghost2_apply #_ #_ #_ _ _ _ = admit ()
 
+let hoist_ghost_restricted (#a:Type) (#b:a -> Type) (f:restricted_g_t a b)
+  : GTot (g:restricted_t a b{forall x. f x == g x}) = admit ()
+
 let not_contains_app_key (#vspec:_)
   (vtls: vspec.vtls_t{vspec.valid vtls})
   (s: vspec.slot_t)

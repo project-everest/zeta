@@ -36,7 +36,7 @@ type appfn_call_res (aprm: app_params) = {
 }
 
 (* the (full) application state  *)
-let app_state (adm: app_data_model) = (k: app_key adm) -> app_value_nullable adm
+let app_state (adm: app_data_model) = (k: app_key adm) -> GTot (app_value_nullable adm)
 
 (* if a sequence has distinct keys, then a prefix of the sequence also has this property *)
 val prefix_of_distinct_distinct
@@ -51,7 +51,7 @@ val prefix_of_distinct_distinct
 val input_correct (#adm: app_data_model)
   (st: app_state adm)
   (inp: S.seq (app_record adm))
-  : Tot (b: bool{b <==>
+  : GTot (b: bool{b <==>
                 (forall (i: SA.seq_index inp).
                     let k,v = S.index inp i in
                     st k = v)})
@@ -81,7 +81,7 @@ let update #app
 
 (* simulate a single step of an app state transition. return None on failure *)
 let simulate_step #aprm (fncall: appfn_call aprm) (st: app_state aprm.adm):
-  option ( app_state aprm.adm & appfn_res fncall.fid_c) =
+  GTot (option ( app_state aprm.adm & appfn_res fncall.fid_c)) =
   let fn = appfn fncall.fid_c in
   let rc,res,ws = fn fncall.arg_c fncall.inp_c in
   (* if the input records are not consistent with the state then fail *)
@@ -97,7 +97,7 @@ let init_app_state (adm: app_data_model): app_state adm =
 
 (* simulation of app transitions on a function call sequence using the entire app-state *)
 let rec simulate #aprm (fs: S.seq (appfn_call aprm)):
-  Tot (option (app_state aprm.adm & S.seq (appfn_call_res aprm)))
+  GTot (option (app_state aprm.adm & S.seq (appfn_call_res aprm)))
   (decreases (S.length fs)) =
   let n = S.length fs in
   if n = 0 then
