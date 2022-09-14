@@ -77,6 +77,7 @@ val lemma_prefix_verifiable (#vspec:_) (n:_) (il:verifiable_log vspec n) (i:nat{
 let to_glog #vspec #n (il: verifiable_log vspec n): G.verifiable_log _
   = I.s_seq il
 
+unfold
 let prefix #vspec #n (il: verifiable_log vspec n) (i:nat{i <= S.length il})
   : il':verifiable_log vspec n {length il' = i}
   = I.prefix il i

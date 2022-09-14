@@ -114,11 +114,11 @@ let blum_evict_elem_prefix_prop
 
 module IF = Zeta.IdxFn
 
-let gen_seq (vspec n:_) = {
-  IF.seq_t = verifiable_log vspec n;
-  IF.length = length;
-  IF.prefix = prefix;
-  }
+let gen_seq (vspec:verifier_spec) (n:_) = {
+  IF.a = I.elem_src (verifier_log_entry vspec) n;
+  IF.phi = verifiable;
+  IF.phi_commutes_with_prefix = (fun il i -> lemma_prefix_verifiable n il i);
+}
 
 let is_appfn_ifn (#vspec #n:_)
   : IF.idxfn_t (gen_seq vspec n) bool
@@ -130,7 +130,7 @@ let to_app_fcr_src (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il{i
     let s = src il i in
     {e;s}
 
-let to_app_fcr_src_ifn (#vspec #n:_)
+let to_app_fcr_src_ifn (#vspec:verifier_spec) (#n:_)
   : IF.cond_idxfn_t (elem_src (appfn_call_res vspec.app) n) (is_appfn_ifn #vspec #n)
   = to_app_fcr_src #vspec #n
 
