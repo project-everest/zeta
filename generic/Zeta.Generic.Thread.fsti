@@ -26,13 +26,13 @@ let prefix_base #vspec (tl: vlog vspec) (i: nat {i <= length tl}): vlog _ =
   let tid, l = tl in
   tid, SA.prefix l i
 
-let verify #vspec (tl: vlog vspec): vspec.vtls_t =
+let verify #vspec (tl: vlog vspec): GTot vspec.vtls_t =
   let tid, l = tl in
   Zeta.GenericVerifier.verify tid l
 
 (* the verifier state after processing a log *)
 let state #vspec (tl:vlog vspec)
-  : vspec.vtls_t
+  : GTot vspec.vtls_t
   = verify tl
 
 let state_pre (#vspec: verifier_spec) (tl: vlog vspec) (i: seq_index tl)
@@ -64,7 +64,7 @@ let prefix #vspec (tl: verifiable_log vspec) (i: nat {i <= length tl})
   : tl': verifiable_log _ {length tl' = i}
   = prefix_base tl i
 
-let clock_base (#vspec:_) (tl: verifiable_log vspec): timestamp
+let clock_base (#vspec:_) (tl: verifiable_log vspec): GTot timestamp
   = let vs = state tl in
     vspec.clock vs
 
@@ -181,17 +181,17 @@ let is_blum_evict (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl)
   = GV.is_blum_evict (index tl i)
 
 val blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
-  : be:ms_hashfn_dom vspec.app {let e = index tl i in
-                                let s = evict_slot e in
-                                let vs_pre = state_pre tl i in
-                                let open Zeta.MultiSetHashDomain in
-                                Some? (vspec.get s vs_pre) /\
-                                be.r = Some?.v (vspec.get s vs_pre) /\
-                                be.t = blum_evict_timestamp e /\
-                                be.tid = fst tl}
+  : GTot (be:ms_hashfn_dom vspec.app {let e = index tl i in
+                                      let s = evict_slot e in
+                                      let vs_pre = state_pre tl i in
+                                      let open Zeta.MultiSetHashDomain in
+                                      Some? (vspec.get s vs_pre) /\
+                                      be.r = Some?.v (vspec.get s vs_pre) /\
+                                      be.t = blum_evict_timestamp e /\
+                                      be.tid = fst tl})
 
 let is_blum_evict_ep (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: seq_index tl)
-  : bool
+  : GTot bool
   = is_blum_evict tl i &&
     (let be = blum_evict_elem tl i in be.t.e = ep)
 
@@ -273,7 +273,7 @@ let is_appfn_within_epoch #vspec (ep: epoch) (tl: verifiable_log vspec) (i: seq_
 
 (* for an appfn entry, return the function call params and result *)
 let to_app_fcr (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
-  : appfn_call_res vspec.app
+  : GTot (appfn_call_res vspec.app)
   = let e = index tl i in
     let st' = state_pre tl i in
     let st = state_post tl i in

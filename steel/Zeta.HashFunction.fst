@@ -44,9 +44,5 @@ let ghashfn (#aprm:app_params) (v:value aprm)
       zero
     )
 
-assume //This assume remains because the generic verifier is in Tot rather than GTot
-val hashfn' (#aprm:app_params) (v:value aprm)
-  : Tot (h:hash_value { h == ghashfn v })
-
-let hashfn v = hashfn' v
+let hashfn v = ghashfn v
 

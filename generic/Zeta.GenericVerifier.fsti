@@ -10,6 +10,13 @@ module S = FStar.Seq
 module SA = Zeta.SeqAux
 module MSD = Zeta.MultiSetHashDomain
 
+val hoist_ghost (#a:Type) (#b:a -> Type) (f:(x:a -> GTot (b x)))
+  : GTot (g:(x:a -> b x){forall x. f x == g x})
+
+val hoist_ghost2 (#a:Type) (#b:a -> Type) (#c:(x:a -> b x -> Type)) (f:(x:a -> y:b x -> GTot (c x y)))
+  : GTot (g:(x:a -> y:b x -> c x y){forall x y. f x y == g x y})
+
+
 (* identifier type for verifier threads *)
 let thread_id = Zeta.Thread.thread_id
 
@@ -49,28 +56,28 @@ type verifier_spec_base = {
   app: app_params;
 
   (* get a record from the store - this could fail and return None *)
-  get: slot_t -> vtls: vtls_t {valid vtls} -> option (record app);
+  get: slot_t -> vtls: vtls_t {valid vtls} -> GTot (option (record app));
 
   (* update the record in a slot with a new value *)
   puts: vtls: vtls_t { valid vtls } ->
         ss: S.seq slot_t ->
         ws: S.seq (app_value_nullable app.adm) ->
-        vtls': vtls_t { valid vtls };
+        GTot (vtls': vtls_t { valid vtls });
 
   (* implementation of merkle add *)
-  addm: record app -> slot_t -> slot_t -> vtls: vtls_t { valid vtls } -> vtls_t;
+  addm: record app -> slot_t -> slot_t -> vtls: vtls_t { valid vtls } -> GTot vtls_t;
 
   (* implementation of blum add *)
-  addb: record app -> slot_t -> timestamp -> thread_id -> vtls: vtls_t { valid vtls } -> vtls_t;
+  addb: record app -> slot_t -> timestamp -> thread_id -> vtls: vtls_t { valid vtls } -> GTot vtls_t;
 
   (* implementation of merkle evict *)
-  evictm: slot_t -> slot_t -> vtls: vtls_t { valid vtls } -> vtls_t;
+  evictm: slot_t -> slot_t -> vtls: vtls_t { valid vtls } -> GTot vtls_t;
 
   (* implementation of blum evict *)
-  evictb: slot_t -> timestamp -> vtls: vtls_t { valid vtls } -> vtls_t;
+  evictb: slot_t -> timestamp -> vtls: vtls_t { valid vtls } -> GTot vtls_t;
 
   (* implementation of blum evict for records added using merkle *)
-  evictbm: slot_t -> slot_t -> timestamp -> vtls: vtls_t { valid vtls } -> vtls_t;
+  evictbm: slot_t -> slot_t -> timestamp -> vtls: vtls_t { valid vtls } -> GTot vtls_t;
 
   nextepoch: vtls: vtls_t { valid vtls } -> vtls_t;
 
@@ -178,7 +185,7 @@ let contains_app_key
   (#vspec: verifier_spec_base)
   (vtls: vspec.vtls_t {vspec.valid vtls})
   (s: vspec.slot_t)
-  : bool
+  : GTot bool
   = Some? (vspec.get s vtls)  &&
     (let gk, _ = Some?.v (vspec.get s vtls) in
      Zeta.GenKey.AppK? gk)
@@ -188,7 +195,7 @@ let to_app_record
   (#vspec: verifier_spec_base)
   (vtls: vspec.vtls_t {vspec.valid vtls})
   (s: vspec.slot_t {contains_app_key vtls s})
-  : app_record vspec.app.adm
+  : GTot (app_record vspec.app.adm)
   = let open Zeta.GenKey in
     let open Zeta.Record in
     let AppK ak, AppV av = Some?.v (vspec.get s vtls) in
@@ -198,7 +205,7 @@ let to_app_key
   (#vspec: verifier_spec_base)
   (vtls: vspec.vtls_t {vspec.valid vtls})
   (s: vspec.slot_t {contains_app_key vtls s})
-  : app_key vspec.app.adm
+  : GTot (app_key vspec.app.adm)
   = let open Zeta.GenKey in
     let open Zeta.Record in
     let AppK ak, _ = Some?.v (vspec.get s vtls) in
@@ -215,7 +222,7 @@ let contains_distinct_app_keys
 
 val contains_distinct_app_keys_comp
   (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls}) (ss: S.seq vspec.slot_t)
-  : b:bool {b <==> contains_distinct_app_keys vtls ss}
+  : GTot (b:bool {b <==> contains_distinct_app_keys vtls ss})
 
 let read
   (#vspec:_)
@@ -228,11 +235,11 @@ let reads
   (#vspec: verifier_spec_base)
   (vtls: vspec.vtls_t {vspec.valid vtls})
   (ss: S.seq vspec.slot_t {contains_distinct_app_keys vtls ss})
-  = S.init (S.length ss) (read vtls ss)
+  = S.init (S.length ss) (hoist_ghost (read vtls ss))
 
 let verify_step (#vspec: verifier_spec_base)
                 (e: verifier_log_entry vspec)
-                (vtls: vspec.vtls_t): vspec.vtls_t =
+                (vtls: vspec.vtls_t): GTot vspec.vtls_t =
   if not (vspec.valid vtls) then vtls
   else
     match e with
@@ -264,7 +271,7 @@ let verify_step (#vspec: verifier_spec_base)
 let appfn_result #vspec
   (e: verifier_log_entry vspec{is_appfn e})
   (vtls: vspec.vtls_t {vspec.valid (verify_step e vtls)})
-  : appfn_call_res vspec.app
+  : GTot (appfn_call_res vspec.app)
   = assert(vspec.valid vtls);
     match e with
     | RunApp f p ss ->
@@ -327,7 +334,7 @@ let evicted_base_key
   (#vspec: verifier_spec_base {evict_prop vspec})
   (vtls: vspec.vtls_t {vspec.valid vtls})
   (e: verifier_log_entry vspec {is_evict e /\ vspec.valid (verify_step e vtls)})
-  : base_key
+  : GTot base_key
   = let Some (gk,_) = vspec.get (evict_slot e) vtls in
     Zeta.GenKey.to_base_key gk
 
@@ -347,7 +354,7 @@ let evictb_prop (vspec: verifier_spec_base {evict_prop vspec})
 let verifier_log vspec = S.seq (verifier_log_entry vspec)
 
 let rec verify #vspec (tid: thread_id) (l: verifier_log vspec):
-  Tot (vspec.vtls_t)
+  GTot (vspec.vtls_t)
   (decreases (S.length l)) =
   let n = S.length l in
   if n = 0 then vspec.init tid

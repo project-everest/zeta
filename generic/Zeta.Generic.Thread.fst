@@ -147,14 +147,14 @@ let add_seq_invmap_monotonic (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (
     IF.filter_map_invmap_monotonic fm (snd tl) j1 j2
 
 let blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
-  : be:ms_hashfn_dom vspec.app {let e = index tl i in
-                                let s = evict_slot e in
-                                let vs_pre = state_pre tl i in
-                                let open Zeta.MultiSetHashDomain in
-                                Some? (vspec.get s vs_pre) /\
-                                be.r = Some?.v (vspec.get s vs_pre) /\
-                                be.t = blum_evict_timestamp e /\
-                                be.tid = fst tl}
+  : GTot (be:ms_hashfn_dom vspec.app {let e = index tl i in
+                                      let s = evict_slot e in
+                                      let vs_pre = state_pre tl i in
+                                      let open Zeta.MultiSetHashDomain in
+                                      Some? (vspec.get s vs_pre) /\
+                                      be.r = Some?.v (vspec.get s vs_pre) /\
+                                      be.t = blum_evict_timestamp e /\
+                                      be.tid = fst tl})
   = let e = index tl i in
     let st' = state_pre tl i in
     let st = state_post tl i in
@@ -170,12 +170,31 @@ let is_blum_evict_ifn (#vspec:_) (tid:thread_id)
   = fun (s:IF.seq_t (gen_seq vspec tid)) -> is_blum_evict (tid, s)
 
 let is_blum_evict_epoch_ifn (#vspec:_) (tid:thread_id) (ep: epoch)
-  : IF.idxfn_t (gen_seq vspec tid) bool
-  = fun (s:IF.seq_t (gen_seq vspec tid)) -> is_blum_evict_ep ep (tid, s)
+  : GTot (IF.idxfn_t (gen_seq vspec tid) bool)
+  = let f =
+      hoist_ghost2
+        (fun (s:IF.seq_t (gen_seq vspec tid)) i -> is_blum_evict_ep ep (tid, s) i)
+    in
+    let aux (s:IF.seq_t (gen_seq vspec tid)) (i:IF.seq_index s) (j:nat)
+      : Lemma
+          (requires j <= Seq.length s /\ i < j)
+          (ensures f s i == f (IF.prefix s j) i)
+          [SMTPat ()]
+      = calc (==) {
+          f s i;
+             (==) { }
+          is_blum_evict_ep ep (tid, s) i;
+             (==) { }
+          is_blum_evict_ep ep (tid, IF.prefix s j) i;
+             (==) { }
+           f (IF.prefix s j) i;
+        }
+    in
+    f
 
 let blum_evict_elem_ifn (#vspec:_) (tid:thread_id)
-  : IF.cond_idxfn_t (ms_hashfn_dom vspec.app) (is_blum_evict_ifn #vspec tid)
-  = fun (s:IF.seq_t (gen_seq vspec tid)) -> blum_evict_elem #vspec (tid, s)
+  : GTot (IF.cond_idxfn_t (ms_hashfn_dom vspec.app) (is_blum_evict_ifn #vspec tid))
+  = hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec tid)) i -> blum_evict_elem #vspec (tid, s) i)
 
 let evict_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   : S.seq (ms_hashfn_dom vspec.app)
