@@ -14,7 +14,7 @@ val lemma_neac_implies_hash_collision
   (#app #n:_)
   (epmax: epoch)
   (itsl: neac_before_epoch app n epmax {GB.aems_equal_upto epmax itsl})
-  : hash_collision app
+  : GTot (hash_collision app)
 
 let provides_hash_collision
   (#app #n:_)
@@ -28,4 +28,4 @@ let provides_hash_collision
 val lemma_neac_implies_hash_collision_simple
   (#app #n:_)
   (itsl: Zeta.High.Interleave.neac_log app n {provides_hash_collision itsl})
-  : hash_collision app
+  : GTot (hash_collision app)

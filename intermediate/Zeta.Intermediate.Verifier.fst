@@ -4,10 +4,7 @@ open FStar.Classical
 
 #push-options "--z3rlimit_factor 3 --query_stats"
 
-let addm #vcfg (r:record vcfg.app) (s:slot_id vcfg)  (s':slot_id vcfg) (vs: vtls_t vcfg {vs.valid}):
-  (vs': vtls_t vcfg {let a = AMP s r s' vs in
-                   addm_precond a /\ addm_postcond a vs' \/
-                   ~(addm_precond a) /\ ~vs'.valid}) =
+let addm #vcfg (r:record vcfg.app) (s:slot_id vcfg)  (s':slot_id vcfg) (vs: vtls_t vcfg {vs.valid}) =
   let a = AMP s r s' vs in
   let st = vs.st in
   let (gk,gv) = r in

@@ -25,7 +25,7 @@ let eac_value_is_eac_state_value (#app #n:_) (il: eac_log app n) (ak: app_key ap
     | _ -> eac_value_is_evicted_value il gk
 
 let to_fc (#app #n:_) (il: eac_log app n) (i: seq_index il {RunApp? (index il i)})
-  : appfn_call app
+  : GTot (appfn_call app)
   = let App (RunApp fid_c arg_c _) inp_c = mk_vlog_entry_ext il i in
     { fid_c; arg_c ; inp_c }
 
@@ -187,7 +187,9 @@ let eac_app_state_nonapp_snoc (#app #n:_) (il: eac_log app n {length il > 0})
   : Lemma (ensures (let i = length il - 1 in
                     let il' = prefix il i in
                     not (RunApp? (index il i)) ==>
-                    app_state_feq (eac_app_state il) (eac_app_state il')))
+                    app_state_feq
+                      (eac_app_state il)
+                      (eac_app_state il')))
   = let i = length il - 1 in
     let il' = prefix il i in
     let e = index il i in
@@ -197,7 +199,8 @@ let eac_app_state_nonapp_snoc (#app #n:_) (il: eac_log app n {length il > 0})
         = eac_app_state_key_snoc il ak
       in
       FStar.Classical.forall_intro aux;
-      assert(app_state_feq (eac_app_state il) (eac_app_state il'))
+      assert(app_state_feq (eac_app_state il)
+                           (eac_app_state il'))
     )
 
 let eac_implies_input_consistent_key
@@ -249,7 +252,8 @@ let eac_app_state_app_snoc (#app #n:_) (il: eac_log app n {length il > 0})
                      RunApp? (index il i) /\ eac_app_prop il'))
           (ensures (let fcs = app_fcs (app_fcrs il) in
                     valid fcs /\
-                    app_state_feq (eac_app_state il) (post_state fcs)))
+                    app_state_feq (eac_app_state il)
+                                  (post_state fcs)))
   = let i = length il - 1 in
     let fcr = to_app_fcr il i in
     let il' = prefix il i in

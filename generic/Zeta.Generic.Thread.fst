@@ -1,6 +1,8 @@
 module Zeta.Generic.Thread
 
 open FStar.Classical
+
+open Zeta.Ghost
 open Zeta.SMap
 module IF = Zeta.IdxFn
 
@@ -147,14 +149,14 @@ let add_seq_invmap_monotonic (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (
     IF.filter_map_invmap_monotonic fm (snd tl) j1 j2
 
 let blum_evict_elem (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_blum_evict tl i})
-  : be:ms_hashfn_dom vspec.app {let e = index tl i in
-                                let s = evict_slot e in
-                                let vs_pre = state_pre tl i in
-                                let open Zeta.MultiSetHashDomain in
-                                Some? (vspec.get s vs_pre) /\
-                                be.r = Some?.v (vspec.get s vs_pre) /\
-                                be.t = blum_evict_timestamp e /\
-                                be.tid = fst tl}
+  : GTot (be:ms_hashfn_dom vspec.app {let e = index tl i in
+                                      let s = evict_slot e in
+                                      let vs_pre = state_pre tl i in
+                                      let open Zeta.MultiSetHashDomain in
+                                      Some? (vspec.get s vs_pre) /\
+                                      be.r = Some?.v (vspec.get s vs_pre) /\
+                                      be.t = blum_evict_timestamp e /\
+                                      be.tid = fst tl})
   = let e = index tl i in
     let st' = state_pre tl i in
     let st = state_post tl i in
@@ -170,17 +172,16 @@ let is_blum_evict_ifn (#vspec:_) (tid:thread_id)
   = fun (s:IF.seq_t (gen_seq vspec tid)) -> is_blum_evict (tid, s)
 
 let is_blum_evict_epoch_ifn (#vspec:_) (tid:thread_id) (ep: epoch)
-  : IF.idxfn_t (gen_seq vspec tid) bool
-  = fun (s:IF.seq_t (gen_seq vspec tid)) -> is_blum_evict_ep ep (tid, s)
+  : GTot (IF.idxfn_t (gen_seq vspec tid) bool)
+  = hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec tid)) i -> is_blum_evict_ep ep (tid, s) i)
 
 let blum_evict_elem_ifn (#vspec:_) (tid:thread_id)
-  : IF.cond_idxfn_t (ms_hashfn_dom vspec.app) (is_blum_evict_ifn #vspec tid)
-  = fun (s:IF.seq_t (gen_seq vspec tid)) -> blum_evict_elem #vspec (tid, s)
+  : GTot (IF.cond_idxfn_t (ms_hashfn_dom vspec.app) (is_blum_evict_ifn #vspec tid))
+  = hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec tid)) i -> blum_evict_elem #vspec (tid, s) i)
 
-let evict_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
-  : S.seq (ms_hashfn_dom vspec.app)
-  = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec (fst tl) ep) (blum_evict_elem_ifn #vspec (fst tl)) in
-    IF.filter_map fm (snd tl)
+let evict_seq (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) =
+  let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec (fst tl) ep) (blum_evict_elem_ifn #vspec (fst tl)) in
+  IF.filter_map fm (snd tl)
 
 let evict_seq_empty (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   : Lemma (ensures (length tl = 0 ==> S.length (evict_seq ep tl) = 0))
@@ -207,20 +208,15 @@ let evict_seq_snoc
     if is_blum_evict_ep ep tl i then
       IF.lemma_filter_map_snoc fm (snd tl)
 
-let evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i})
-  : (let be = blum_evict_elem tl i in
-     let ep = be.t.e in
-     let es = evict_seq ep tl in
-     j: SA.seq_index es { S.index es j = be })
-  = let be = blum_evict_elem tl i in
-    let ep = be.t.e in
-    let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec (fst tl) ep) (blum_evict_elem_ifn #vspec (fst tl)) in
-    IF.filter_map_map fm (snd tl) i
+let evict_seq_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl {is_blum_evict tl i}) =
+  let be = blum_evict_elem tl i in
+  let ep = be.t.e in
+  let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec (fst tl) ep) (blum_evict_elem_ifn #vspec (fst tl)) in
+  IF.filter_map_map fm (snd tl) i
 
-let evict_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_index (evict_seq ep tl))
-  : i:seq_index tl { is_blum_evict_ep ep tl i /\ evict_seq_map tl i = j  }
-  = let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec (fst tl) ep) (blum_evict_elem_ifn #vspec (fst tl)) in
-    IF.filter_map_invmap fm (snd tl) j
+let evict_seq_invmap (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (j: SA.seq_index (evict_seq ep tl)) =
+  let fm = IF.to_fm (is_blum_evict_epoch_ifn #vspec (fst tl) ep) (blum_evict_elem_ifn #vspec (fst tl)) in
+  IF.filter_map_invmap fm (snd tl) j
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
@@ -347,26 +343,23 @@ let is_appfn_ifn (#vspec:_) (tid:thread_id)
   = fun (s:IF.seq_t (gen_seq vspec tid)) -> is_appfn #vspec (tid, s)
 
 let to_app_fcr_ifn (#vspec:_) (tid:thread_id)
-  : IF.cond_idxfn_t (appfn_call_res vspec.app) (is_appfn_ifn #vspec tid)
-  = fun (s:IF.seq_t (gen_seq vspec tid)) -> to_app_fcr #vspec (tid, s)
+  : GTot (IF.cond_idxfn_t (appfn_call_res vspec.app) (is_appfn_ifn #vspec tid))
+  = hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec tid)) -> to_app_fcr #vspec (tid, s))
 
-let app_fcrs (#vspec:_) (tl: verifiable_log vspec)
-  : S.seq (appfn_call_res vspec.app)
-  = let fm = IF.to_fm (is_appfn_ifn #vspec (fst tl))
-                      (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s)) in
-    IF.filter_map fm (snd tl)
+let app_fcrs (#vspec:_) (tl: verifiable_log vspec) =
+  let fm = IF.to_fm (is_appfn_ifn #vspec (fst tl))
+                    (hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s))) in
+  IF.filter_map fm (snd tl)
 
-let app_fcrs_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
-  : j:SA.seq_index (app_fcrs tl) { to_app_fcr tl i = S.index (app_fcrs tl) j}
-  = let fm = IF.to_fm (is_appfn_ifn #vspec (fst tl))
-                      (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s)) in
-    IF.filter_map_map fm (snd tl) i
+let app_fcrs_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i}) =
+  let fm = IF.to_fm (is_appfn_ifn #vspec (fst tl))
+                    (hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s))) in
+  IF.filter_map_map fm (snd tl) i
 
-let app_fcrs_invmap (#vspec:_) (tl: verifiable_log vspec) (j: SA.seq_index (app_fcrs tl))
-  : i: seq_index tl { is_appfn tl i /\ app_fcrs_map tl i = j}
-  = let fm = IF.to_fm (is_appfn_ifn #vspec (fst tl))
-                      (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s)) in
-    IF.filter_map_invmap fm (snd tl) j
+let app_fcrs_invmap (#vspec:_) (tl: verifiable_log vspec) (j: SA.seq_index (app_fcrs tl)) =
+  let fm = IF.to_fm (is_appfn_ifn #vspec (fst tl))
+                    (hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s))) in
+  IF.filter_map_invmap fm (snd tl) j
 
 let lemma_add_fcrs_map (#vspec:_) (tl: verifiable_log vspec) (i: seq_index tl{is_appfn tl i})
   : Lemma (ensures (let fcrs = app_fcrs tl in
@@ -378,29 +371,29 @@ let app_fcrs_map_monotonic (#vspec:_) (tl: verifiable_log vspec) (i1 i2: (i:seq_
   : Lemma (ensures ((i1 < i2 ==> app_fcrs_map tl i1 < app_fcrs_map tl i2) /\
                     (i2 < i1 ==> app_fcrs_map tl i2 < app_fcrs_map tl i1)))
   = let fm = IF.to_fm (is_appfn_ifn #vspec (fst tl))
-                      (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s)) in
+                      (hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s))) in
     IF.lemma_filter_map_map_monotonic fm (snd tl) i1 i2
 
 let app_fcrs_invmap_monotonic (#vspec:_) (tl: verifiable_log vspec) (j1 j2: SA.seq_index (app_fcrs tl))
   : Lemma (ensures ((j1 < j2 ==> app_fcrs_invmap tl j1 < app_fcrs_invmap tl j2) /\
                     (j2 < j1 ==> app_fcrs_invmap tl j2 < app_fcrs_invmap tl j1)))
   = let fm = IF.to_fm (is_appfn_ifn #vspec (fst tl))
-                      (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s)) in
+                      (hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec (fst tl))) -> to_app_fcr #vspec (fst tl, s))) in
     IF.filter_map_invmap_monotonic fm (snd tl) j1 j2
 
 let is_appfn_within_ep_ifn (#vspec:_) (tid:thread_id) (ep: epoch)
-  : IF.idxfn_t (gen_seq vspec tid) bool
-  = fun (s:IF.seq_t (gen_seq vspec tid)) -> is_appfn_within_epoch ep (tid, s)
+  : GTot (IF.idxfn_t (gen_seq vspec tid) bool)
+  = hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec tid)) -> is_appfn_within_epoch ep (tid, s))
 
 let fm_app_fcrs (#vspec:_) (tid:thread_id) (ep:epoch) =
   IF.to_fm (is_appfn_within_ep_ifn #vspec tid ep)
-           (fun (s:IF.seq_t (gen_seq vspec tid)) -> to_app_fcr #vspec (tid, s))
+           (hoist_ghost2 (fun (s:IF.seq_t (gen_seq vspec tid)) -> to_app_fcr #vspec (tid, s)))
 
 let app_fcrs_within_ep
   (#vspec:_)
   (ep: epoch)
   (tl: verifiable_log vspec)
-  : S.seq (appfn_call_res vspec.app)
+  : GTot (S.seq (appfn_call_res vspec.app))
   = IF.filter_map (fm_app_fcrs (fst tl) ep) (snd tl)
 
 let app_fcrs_empty (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
@@ -425,14 +418,12 @@ let app_fcrs_ep_map (#vspec:_)
     (ep: epoch)
     (tl: verifiable_log vspec)
     (i: seq_index tl{is_appfn_within_epoch ep tl i})
-  : j:SA.seq_index (app_fcrs_within_ep ep tl) { to_app_fcr tl i = S.index (app_fcrs_within_ep ep tl) j}
   = IF.filter_map_map (fm_app_fcrs (fst tl) ep) (snd tl) i
 
 let app_fcrs_ep_invmap (#vspec:_)
   (ep: epoch)
   (tl: verifiable_log vspec)
   (j: SA.seq_index (app_fcrs_within_ep ep tl))
-  : i: seq_index tl { is_appfn_within_epoch ep tl i /\ app_fcrs_ep_map ep tl i = j}
   = IF.filter_map_invmap (fm_app_fcrs (fst tl) ep) (snd tl) j
 
 let lemma_app_fcrs_ep_map (#vspec:_)
@@ -462,7 +453,7 @@ let app_fcrs_ep_invmap_monotonic (#vspec:_)
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
 let rec  find_epoch_boundary (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i:seq_index tl)
-  : Tot(o:option nat {(None = o ==> (clock tl i).e <= ep) /\
+  : GTot(o:option nat {(None = o ==> (clock tl i).e <= ep) /\
                 (Some? o ==> (let j = Some?.v o in
                               j <= i /\
                               (clock tl j).e > ep /\
@@ -480,7 +471,7 @@ let rec  find_epoch_boundary (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (
       else o
 
 let prefix_within_epoch (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
-  : tl': verifiable_log vspec {tl' `prefix_of` tl}
+  : GTot (tl': verifiable_log vspec {tl' `prefix_of` tl})
   = if length tl = 0 then tl
     else
       let o = find_epoch_boundary ep tl (length tl - 1) in
@@ -513,7 +504,7 @@ let ep_pre_fcrs (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
     app_fcrs tl'
 
 let ep_pre_fcrs2ep_fcrs (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: SA.seq_index (ep_pre_fcrs ep tl))
-  : j: SA.seq_index (app_fcrs_within_ep ep tl) {S.index (ep_pre_fcrs ep tl) i = S.index (app_fcrs_within_ep ep tl) j}
+  : GTot (j: SA.seq_index (app_fcrs_within_ep ep tl) {S.index (ep_pre_fcrs ep tl) i = S.index (app_fcrs_within_ep ep tl) j})
   = let tl' = prefix_within_epoch ep tl in
     let ep_fcrs1 = ep_pre_fcrs ep tl in
     let i1 = app_fcrs_invmap tl' i in
@@ -526,7 +517,7 @@ let ep_pre_fcrs2ep_fcrs (#vspec:_) (ep: epoch) (tl: verifiable_log vspec) (i: SA
     i2
 
 let ep_pre_fcrs2ep_fcrs_mono(#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
-  : Lemma (ensures (monotonic_prop (ep_pre_fcrs2ep_fcrs ep tl)))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (ep_pre_fcrs2ep_fcrs ep tl))))
           [SMTPat (ep_pre_fcrs2ep_fcrs ep tl)]
   = let tl' = prefix_within_epoch ep tl in
     let ep_fcrs1 = ep_pre_fcrs ep tl in
@@ -547,7 +538,7 @@ let ep_pre_fcrs2ep_fcrs_mono(#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
 
 let ep_fcrs2ep_pre_fcrs (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
   (j: SA.seq_index (app_fcrs_within_ep ep tl))
-  : i: SA.seq_index (ep_pre_fcrs ep tl) {S.index (ep_pre_fcrs ep tl) i = S.index (app_fcrs_within_ep ep tl) j}
+  : GTot (i: SA.seq_index (ep_pre_fcrs ep tl) {S.index (ep_pre_fcrs ep tl) i = S.index (app_fcrs_within_ep ep tl) j})
   = let tl' = prefix_within_epoch ep tl in
     let i1 = app_fcrs_ep_invmap ep tl j in
     prefix_within_epoch_correct ep tl i1;
@@ -556,7 +547,7 @@ let ep_fcrs2ep_pre_fcrs (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
     i
 
 let ep_fcrs2ep_pre_fcrs_mono (#vspec:_) (ep: epoch) (tl: verifiable_log vspec)
-  : Lemma (ensures (monotonic_prop (ep_fcrs2ep_pre_fcrs ep tl)))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (ep_fcrs2ep_pre_fcrs ep tl))))
           [SMTPat (ep_fcrs2ep_pre_fcrs ep tl)]
   = let tl' = prefix_within_epoch ep tl in
     let ep_fcrs = app_fcrs_within_ep ep tl in
@@ -583,7 +574,7 @@ let lemma_app_fcrs_ep_prefix (#vspec:_)
   = monotonic_bijection_implies_equal
     (ep_pre_fcrs ep tl)
     (app_fcrs_within_ep ep tl)
-    (ep_pre_fcrs2ep_fcrs ep tl)
-    (ep_fcrs2ep_pre_fcrs ep tl)
+    (hoist_ghost (ep_pre_fcrs2ep_fcrs ep tl))
+    (hoist_ghost (ep_fcrs2ep_pre_fcrs ep tl))
 
 #pop-options

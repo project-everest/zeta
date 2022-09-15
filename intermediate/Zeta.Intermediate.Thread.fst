@@ -1,6 +1,8 @@
 module Zeta.Intermediate.Thread
 
 open FStar.Classical
+
+open Zeta.Ghost
 open Zeta.BinTree
 open Zeta.App
 open Zeta.Key
@@ -77,7 +79,7 @@ let distinct_slots (#vcfg:_) (ss: S.seq (slot_id vcfg))
   = forall i1 i2. i1 <> i2 ==> S.index ss i1 <> S.index ss i2
 
 let contains_distinct_app_keys (#vcfg:_) (a: appfn_verify vcfg)
-  : bool
+  : GTot bool
   = GV.contains_distinct_app_keys_comp (app_pre_state a) (appfn_slots a)
 
 let lemma_contains_only_app_keys (#vcfg:_) (a: appfn_verify vcfg)
@@ -114,12 +116,12 @@ let appfn_slots_distinct (#vcfg:_) (a: appfn_verify vcfg {contains_distinct_app_
     forall_intro_2 aux
 
 let reads (#vcfg:_) (a: appfn_verify vcfg {contains_distinct_app_keys a})
-  : S.seq (app_record vcfg.app.adm)
+  : GTot (S.seq (app_record vcfg.app.adm))
   = let intspec = int_verifier_spec vcfg in
     GV.reads #intspec (app_pre_state a) (appfn_slots a)
 
 let appfn_succ (#vcfg:_) (a: appfn_verify vcfg)
-  : bool
+  : GTot bool
   = let GV.RunApp f p _ = a.e in
     let ss = appfn_slots a in
     contains_distinct_app_keys a &&
@@ -131,7 +133,7 @@ let appfn_succ (#vcfg:_) (a: appfn_verify vcfg)
     )
 
 let writes (#vcfg:_) (a: appfn_verify vcfg {appfn_succ a})
-  : ws:S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length (appfn_slots a)}
+  : GTot (ws:S.seq (app_value_nullable vcfg.app.adm){S.length ws = S.length (appfn_slots a)})
   = let GV.RunApp f p _ = a.e in
     let ss = appfn_slots a in
     let rs = reads a in
@@ -1023,12 +1025,12 @@ let lemma_rel_pair_to_app_fcr (#vcfg:_) (rp: rel_pair vcfg) (i: seq_index rp.tls
 open Zeta.SMap
 
 let s2k (#vcfg:_) (rp: rel_pair vcfg) (i: SA.seq_index (app_fcrs rp.tls))
-  : j:SA.seq_index (app_fcrs rp.tlk){S.index (app_fcrs rp.tls) i = S.index (app_fcrs rp.tlk) j}
+  : GTot (j:SA.seq_index (app_fcrs rp.tlk){S.index (app_fcrs rp.tls) i = S.index (app_fcrs rp.tlk) j})
   = let i1 = app_fcrs_invmap rp.tls i in
     app_fcrs_map rp.tlk i1
 
 let s2k_mono (#vcfg:_) (rp: rel_pair vcfg)
-  : Lemma (ensures (monotonic_prop (s2k rp)))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (s2k rp))))
   = let fcrss = app_fcrs rp.tls in
     let f = s2k rp in
     let aux (i j: SA.seq_index fcrss)
@@ -1044,12 +1046,12 @@ let s2k_mono (#vcfg:_) (rp: rel_pair vcfg)
     forall_intro_2 aux
 
 let k2s (#vcfg:_) (rp: rel_pair vcfg) (j:SA.seq_index (app_fcrs rp.tlk))
-  : i: SA.seq_index (app_fcrs rp.tls) {S.index (app_fcrs rp.tls) i = S.index (app_fcrs rp.tlk) j}
+  : GTot (i: SA.seq_index (app_fcrs rp.tls) {S.index (app_fcrs rp.tls) i = S.index (app_fcrs rp.tlk) j})
   = let j1 = app_fcrs_invmap rp.tlk j in
     app_fcrs_map rp.tls j1
 
 let k2s_mono (#vcfg:_) (rp: rel_pair vcfg)
-  : Lemma (ensures (monotonic_prop (k2s rp)))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (k2s rp))))
   = let fcrsk = app_fcrs rp.tlk in
     let f = k2s rp in
     let aux (i j: SA.seq_index fcrsk)
@@ -1072,5 +1074,5 @@ let thread_rel_implies_fcrs_identical (#vcfg:_) (tls: verifiable_log vcfg) (tlk:
     monotonic_bijection_implies_equal
     (app_fcrs rp.tls)
     (app_fcrs rp.tlk)
-    (s2k rp)
-    (k2s rp)
+    (hoist_ghost (s2k rp))
+    (hoist_ghost (k2s rp))

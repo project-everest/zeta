@@ -1,17 +1,18 @@
 module Zeta.GenericVerifier
 
+open Zeta.Ghost
 open Zeta.SeqIdx
 open FStar.Classical
 
 let not_contains_app_key (#vspec:_)
   (vtls: vspec.vtls_t{vspec.valid vtls})
   (s: vspec.slot_t)
-  : bool
+  : GTot bool
   = not (contains_app_key vtls s)
 
 let contains_only_app_keys_comp (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls}) (ss: S.seq vspec.slot_t)
-  : b:bool {b <==> contains_only_app_keys vtls ss}
-  = not (exists_elems_with_prop_comp (not_contains_app_key vtls) ss)
+  : GTot (b:bool {b <==> contains_only_app_keys vtls ss})
+  = not (exists_elems_with_prop_comp (hoist_ghost (not_contains_app_key vtls)) ss)
 
 #push-options "--fuel 0 --ifuel 1 --query_stats"
 
@@ -19,7 +20,7 @@ let rec search_level_2_aux (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
   (ss: S.seq vspec.slot_t{contains_only_app_keys vtls ss})
   (i1: SA.seq_index ss)
   (l: nat {l <= S.length ss})
-  : Tot(o:option nat
+  : GTot(o:option nat
     { None = o /\ (forall i2. i2 < l ==> i1 <> i2 ==> to_app_key vtls (S.index ss i1) <> to_app_key vtls (S.index ss i2)) \/
       Some? o /\ (let i2 = Some?.v o in
                  i2 < l /\ i1 <> i2 /\
@@ -50,7 +51,7 @@ let rec search_level_2_aux (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
 let search_level_2 (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
   (ss: S.seq vspec.slot_t{contains_only_app_keys vtls ss})
   (i1: SA.seq_index ss)
-  : (o:option nat
+  : GTot (o:option nat
     { None = o /\ (forall i2. i1 <> i2 ==> to_app_key vtls (S.index ss i1) <> to_app_key vtls (S.index ss i2)) \/
       Some? o /\ (let i2 = Some?.v o in
                  i1 <> i2 /\ i2 < S.length ss /\
@@ -60,7 +61,7 @@ let search_level_2 (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
 let rec search_level_1_aux (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
   (ss: S.seq vspec.slot_t{contains_only_app_keys vtls ss})
   (l: nat{l <= S.length ss})
-  : Tot(o:option (nat * nat)
+  : GTot(o:option (nat * nat)
     { None = o /\ (forall i1 i2. i1 < l ==> i1 <> i2 ==>
                            to_app_key vtls (S.index ss i1) <> to_app_key vtls (S.index ss i2)) \/
       Some? o /\ (let i1,i2 = Some?.v o in
@@ -99,7 +100,7 @@ let rec search_level_1_aux (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
 
 let search_level_1 (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
   (ss: S.seq vspec.slot_t{contains_only_app_keys vtls ss})
-  : Tot(o:option (nat * nat)
+  : GTot(o:option (nat * nat)
     { None = o /\ (forall i1 i2. i1 <> i2 ==>
                            to_app_key vtls (S.index ss i1) <> to_app_key vtls (S.index ss i2)) \/
       Some? o /\ (let i1,i2 = Some?.v o in
@@ -110,6 +111,6 @@ let search_level_1 (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls})
 
 let contains_distinct_app_keys_comp
   (#vspec:_) (vtls: vspec.vtls_t{vspec.valid vtls}) (ss: S.seq vspec.slot_t)
-  : b:bool {b <==> contains_distinct_app_keys vtls ss}
+  : GTot (b:bool {b <==> contains_distinct_app_keys vtls ss})
   = contains_only_app_keys_comp vtls ss &&
     None = search_level_1 vtls ss
