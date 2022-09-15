@@ -43,46 +43,6 @@ val all_logs (t:top_level_state true) (_ : tid_log_map) : vprop
 
 val log_of_tid (t:top_level_state true) (tid:tid) (l:M.log) : vprop
 
-// Extract a thread log
-val all_logs_log_of_tid
-  (#opened: _)
-  (t: top_level_state true)
-  (m: tid_log_map)
-  (tid: tid)
-  (prf: squash (Some? (Map.sel m tid)))
-: STGhostT unit opened
-  (all_logs t m)
-  (fun _ -> all_logs t (Map.upd m tid None) `star` log_of_tid t tid (Some?.v (Map.sel m tid)))
-
-(*
-// Freeze all remaining thread logs (meant to be used after extracting logs for all threads)
-val frozen_logs (t: top_level_state) (m: tid_log_map) : vprop
-
-val freeze_all_logs
-  (#opened: _)
-  (t: top_level_state)
-  (m: tid_log_map)
-: STGhostT unit opened
-    (all_logs t m)
-    (fun _ -> frozen_logs t m)
-
-val frozen_logs_share
-  (#opened: _)
-  (t: top_level_state)
-  (m: tid_log_map)
-: STGhostT unit opened
-    (frozen_logs t m)
-    (fun _ -> frozen_logs t m `star` frozen_logs t m)
-
-val frozen_logs_gather
-  (#opened: _)
-  (t: top_level_state)
-  (m: tid_log_map)
-: STGhostT unit opened
-    (frozen_logs t m `star` frozen_logs t m)
-    (fun _ -> frozen_logs t m)
-*)
-
 val snapshot (#b: Ghost.erased bool) (t:top_level_state b) (_ : tid_log_map) : vprop
 
 module R = Steel.ST.Reference

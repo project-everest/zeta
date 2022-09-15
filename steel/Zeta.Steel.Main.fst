@@ -116,9 +116,6 @@ let log_of_tid (t:top_level_state true) (tid:tid) (l:M.log)
   : vprop
   = TLM.tid_pts_to t.aeh.mlogs tid half l false
 
-let all_logs_log_of_tid t m tid _ =
-  TLM.take_tid t.aeh.mlogs m tid
-
 [@@__steel_reduce__; __reduce__]
 let snapshot (#b: Ghost.erased bool) (t:top_level_state b) (tlm:tid_log_map)
   : vprop
