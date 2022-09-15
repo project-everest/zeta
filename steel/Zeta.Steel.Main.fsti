@@ -29,24 +29,24 @@ let tid_log_map =
   }
 
 [@@CAbstractStruct]
-val top_level_state : Type0
+val top_level_state (b: Ghost.erased bool) : Type0
 
-val core_inv (t:top_level_state) : vprop
+val core_inv (#b: Ghost.erased bool) (t:top_level_state b) : vprop
 
-val core_inv_share (#opened: _) (t: top_level_state) : STGhostT unit opened
+val core_inv_share (#opened: _) (#b: _) (t: top_level_state b) : STGhostT unit opened
   (core_inv t) (fun _ -> core_inv t `star` core_inv t)
 
-val core_inv_gather (#opened: _) (t: top_level_state) : STGhostT unit opened
+val core_inv_gather (#opened: _) (#b: _) (t: top_level_state b) : STGhostT unit opened
   (core_inv t `star` core_inv t) (fun _ -> core_inv t)
 
-val all_logs (t:top_level_state) (_ : tid_log_map) : vprop
+val all_logs (t:top_level_state true) (_ : tid_log_map) : vprop
 
-val log_of_tid (t:top_level_state) (tid:tid) (l:M.log) : vprop
+val log_of_tid (t:top_level_state true) (tid:tid) (l:M.log) : vprop
 
 // Extract a thread log
 val all_logs_log_of_tid
   (#opened: _)
-  (t: top_level_state)
+  (t: top_level_state true)
   (m: tid_log_map)
   (tid: tid)
   (prf: squash (Some? (Map.sel m tid)))
@@ -54,6 +54,7 @@ val all_logs_log_of_tid
   (all_logs t m)
   (fun _ -> all_logs t (Map.upd m tid None) `star` log_of_tid t tid (Some?.v (Map.sel m tid)))
 
+(*
 // Freeze all remaining thread logs (meant to be used after extracting logs for all threads)
 val frozen_logs (t: top_level_state) (m: tid_log_map) : vprop
 
@@ -80,22 +81,31 @@ val frozen_logs_gather
 : STGhostT unit opened
     (frozen_logs t m `star` frozen_logs t m)
     (fun _ -> frozen_logs t m)
+*)
 
-val snapshot (t:top_level_state) (_ : tid_log_map) : vprop
+val snapshot (#b: Ghost.erased bool) (t:top_level_state b) (_ : tid_log_map) : vprop
 
 module R = Steel.ST.Reference
 
+let init_post
+  (#b: Ghost.erased bool)
+  (ts: top_level_state b)
+: Tot vprop
+= if b then all_logs ts (Map.const (Some Seq.empty)) else emp
+
 // This creates a Zeta instance
-val init (_:unit)
-  : STT (R.ref top_level_state)
+val init (b: Ghost.erased bool)
+  : STT (R.ref (top_level_state b))
         emp
         (fun r -> 
           exists_ (fun ts -> 
             R.pts_to r full ts `star`
             core_inv ts `star`
-            all_logs ts (Map.const (Some Seq.empty))))
+            init_post ts
+        ))
 
 let verify_post_success_pure_inv
+  (incremental: Ghost.erased bool)
   (tid:tid)
   (entries:erased AEH.log)
   (log_bytes:erased bytes)
@@ -107,11 +117,18 @@ let verify_post_success_pure_inv
   = Log.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
     (let tsm = M.verify_model (M.init_thread_state_model tid) entries in
      let tsm' = M.verify_model tsm entries' in
-     Application.n_out_bytes tsm tsm' 0ul wrote out_bytes out_bytes')
+     Ghost.reveal incremental == true ==> Application.n_out_bytes tsm tsm' 0ul wrote out_bytes out_bytes')
+
+let log_of_tid_gen
+  (#b: Ghost.erased bool)
+  (t:top_level_state b) (tid:tid) (l:M.log)
+: Tot vprop
+= if b then log_of_tid t tid l else emp
 
 [@@ __reduce__]
 let verify_post_success_out_bytes_pred
-  (t:top_level_state)
+  (#b: Ghost.erased bool)
+  (t:top_level_state b)
   (tid:tid)
   (entries:erased AEH.log)
   (log_bytes:erased bytes)
@@ -122,11 +139,12 @@ let verify_post_success_out_bytes_pred
   (entries':Seq.seq log_entry)
   : Seq.seq U8.t -> vprop
   = fun out_bytes' ->
-    log_of_tid t tid (entries `Seq.append` entries')
+    log_of_tid_gen t tid (entries `Seq.append` entries')
       `star`
     A.pts_to output full_perm out_bytes'
       `star`
     pure (verify_post_success_pure_inv
+            b
             tid
             entries
             log_bytes
@@ -138,7 +156,8 @@ let verify_post_success_out_bytes_pred
 
 [@@ __reduce__]
 let verify_post_success_pred
-  (t:top_level_state)
+  (#b: Ghost.erased bool)
+  (t:top_level_state b)
   (tid:tid)
   (entries:erased AEH.log)
   (log_bytes:erased bytes)
@@ -160,9 +179,25 @@ let verify_post_success_pred
                wrote
                entries')
 
+[@@__reduce__]
+let exists_log_of_tid
+  (t: top_level_state true)
+  (tid: tid)
+: vprop
+= exists_ (fun entries' -> log_of_tid t tid entries')
+
+let exists_log_of_tid_gen
+  (#b: Ghost.erased bool)
+  (t:top_level_state b)
+  (tid:tid)
+: vprop
+= if b then exists_log_of_tid t tid else emp
+
+let verify_result (len: U32.t) = v:V.verify_result { V.verify_result_complete len v }
 
 let verify_post
-  (t:top_level_state)
+  (#b: Ghost.erased bool)
+  (t:top_level_state b)
   (tid:tid)
   (entries:erased AEH.log)
   (log_perm:perm)
@@ -172,7 +207,7 @@ let verify_post
   (out_len: U32.t)
   (out_bytes:erased bytes)
   (output:larray U8.t out_len)
-  : post_t (option (v:V.verify_result { V.verify_result_complete len v }))
+  : post_t (option (verify_result len))
   = fun res ->
     core_inv t `star`
     A.pts_to input log_perm log_bytes `star`
@@ -191,11 +226,13 @@ let verify_post
 
      | _ ->
        exists_ (fun s -> A.pts_to output full_perm s) `star`
-       exists_ (fun entries' -> log_of_tid t tid entries'))
+       exists_log_of_tid_gen t tid
+    )
 
 val verify_log (#p:perm)
-               (#t:erased top_level_state)
-               (r:R.ref top_level_state)
+               (#b: Ghost.erased bool)
+               (#t:erased (top_level_state b))
+               (r:R.ref (top_level_state b))
                (tid:tid)
                (#entries:erased AEH.log)
                (#log_perm:perm)
@@ -205,17 +242,17 @@ val verify_log (#p:perm)
                (out_len: U32.t)
                (#out_bytes:erased bytes)
                (output:larray U8.t out_len)
-  : STT (option (v:V.verify_result { V.verify_result_complete len v }))
+  : STT (option (verify_result len))
     (R.pts_to r p t `star`
      core_inv t `star`
      A.pts_to input log_perm log_bytes `star`
      A.pts_to output full_perm out_bytes `star`
-     log_of_tid t tid entries)
+     log_of_tid_gen t tid entries)
     (fun res -> 
        R.pts_to r p t `star`
        verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res)
 
-let read_max_post (t:top_level_state) (res:AEH.max_certified_epoch_result)
+let read_max_post (#b: Ghost.erased bool) (t:top_level_state b) (res:AEH.max_certified_epoch_result)
   : vprop
   = match res with
     | AEH.Read_max_error  //underspec: overflow or element went missing in IArray
@@ -227,8 +264,9 @@ let read_max_post (t:top_level_state) (res:AEH.max_certified_epoch_result)
         pure (Zeta.Correctness.sequentially_consistent_app_entries_except_if_hash_collision logs max))
         
 val max_certified_epoch (#p:perm)
-                        (#t:erased top_level_state)
-                        (r:R.ref top_level_state)
+                        (#b: Ghost.erased bool)
+                        (#t:erased (top_level_state b))
+                        (r:R.ref (top_level_state b))
   : STT AEH.max_certified_epoch_result
         (R.pts_to r p t)
         (fun res -> 
