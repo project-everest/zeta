@@ -29,7 +29,6 @@ type idxfn_t_base (gs: gen_seq_spec) (b:Type0) =
 
 (* an index function has a prefix property if the value of the function at an index depends only on the
  * sequence until that index *)
-unfold
 let prefix_property
   (#gs:_)
   (#b:_)
