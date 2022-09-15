@@ -37,38 +37,36 @@ val share
 
 [@__reduce__]
 let verify_pre
-    (log_perm:perm)
-    (log_bytes: AT.bytes)
-    (input: EXT.extern_ptr)
+    (len: U32.t)
+    (input: EXT.extern_input_ptr)
     (out_bytes: AT.bytes)
-    (output: EXT.extern_ptr)
+    (output: EXT.extern_output_ptr)
 : Tot vprop
 =
-     A.pts_to (EXT.gtake input) log_perm log_bytes `star`
+     EXT.has_extern_input_ptr input len `EXT.sl_and` // NOT a separating conjunct, need to explicitly check for disjointness
      A.pts_to (EXT.gtake output) full_perm out_bytes
 
 inline_for_extraction
 let check_verify_input
   (tid: U16.t)
   (len: U32.t)
-  (input: EXT.extern_ptr)
+  (input: EXT.extern_input_ptr)
   (out_len: U32.t)
-  (output: EXT.extern_ptr)
+  (output: EXT.extern_output_ptr)
 : Tot bool
 = FStar.Int.Cast.uint16_to_uint32 tid `U32.lt` AT.n_threads &&
   len <> 0ul &&
-  EXT.valid input len &&
-  EXT.valid output out_len
+  EXT.valid_input input len &&
+  EXT.valid_output output out_len
 
 let verify_post_success_pure_inv
   (tid:AT.tid)
-  (log_bytes:Ghost.erased AT.bytes)
   (out_bytes:Ghost.erased AT.bytes)
   (read wrote:U32.t)  
   (out_bytes':Seq.seq U8.t)
   : prop
   =
-    (exists (entries entries': AEH.log) . (
+    (exists (log_bytes: AT.bytes) (entries entries': AEH.log) . (
       let tsm = TSM.verify_model (TSM.init_thread_state_model tid) entries in
      let tsm' = TSM.verify_model tsm entries' in
      Log.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
@@ -76,42 +74,13 @@ let verify_post_success_pure_inv
     ))
 
 [@@__reduce__]
-let verify_post_some_m_success_body
-  (tid:U16.t)
-  (log_perm:perm)
-  (log_bytes: AT.bytes)
-  (len: U32.t)
-  (input: EXT.extern_ptr)
-  (out_len: U32.t)
-  (out_bytes: AT.bytes)
-  (output: EXT.extern_ptr)
-  (v: option (M.verify_result len))
-  (sq: squash (check_verify_input tid len input out_len output))
-  (t: M.top_level_state false)
-  (read:U32.t)
-  (wrote:U32.t)
-  (out_bytes' : _)
-: Tot vprop
-=        A.pts_to (EXT.gtake output) full_perm out_bytes'
-           `star`
-         pure (verify_post_success_pure_inv
-            tid
-            log_bytes
-            out_bytes
-            read
-            wrote
-            out_bytes')
-
-[@@__reduce__]
 let verify_post_some_m_success
   (tid:U16.t)
-  (log_perm:perm)
-  (log_bytes: AT.bytes)
   (len: U32.t)
-  (input: EXT.extern_ptr)
+  (input: EXT.extern_input_ptr)
   (out_len: U32.t)
   (out_bytes: AT.bytes)
-  (output: EXT.extern_ptr)
+  (output: EXT.extern_output_ptr)
   (v: option (M.verify_result len))
   (sq: squash (check_verify_input tid len input out_len output))
   (t: M.top_level_state false)
@@ -119,25 +88,36 @@ let verify_post_some_m_success
   (wrote:U32.t)
 : Tot vprop
 =
+      EXT.has_extern_input_ptr input len `star`
        exists_ (fun out_bytes' ->
-         verify_post_some_m_success_body tid log_perm log_bytes len input out_len out_bytes output v sq t read wrote out_bytes'
+       A.pts_to (EXT.gtake output) full_perm out_bytes'
+           `star`
+         pure (verify_post_success_pure_inv
+            tid
+            out_bytes
+            read
+            wrote
+            out_bytes')
        )
 
 [@@__reduce__]
 let verify_post_some_m_failure
-  (output: EXT.extern_ptr)
+  (len: U32.t)
+  (input: EXT.extern_input_ptr)
+  (output: EXT.extern_output_ptr)
 : Tot vprop
-= exists_ (fun s -> A.pts_to (EXT.gtake output) full_perm s)
+= exists_ (fun s -> 
+    EXT.has_extern_input_ptr input len `EXT.sl_and` // NOT a separating conjunct!
+    A.pts_to (EXT.gtake output) full_perm s
+  )
 
 let verify_post_some_m
   (tid:U16.t)
-  (log_perm:perm)
-  (log_bytes: AT.bytes)
   (len: U32.t)
-  (input: EXT.extern_ptr)
+  (input: EXT.extern_input_ptr)
   (out_len: U32.t)
   (out_bytes: AT.bytes)
-  (output: EXT.extern_ptr)
+  (output: EXT.extern_output_ptr)
   (v: option (v:V.verify_result { V.verify_result_complete len v }))
   (t: M.top_level_state false)
 : Tot vprop
@@ -145,55 +125,48 @@ let verify_post_some_m
   | Some (V.Verify_success read wrote) ->
     if check_verify_input tid len input out_len output
     then
-      verify_post_some_m_success tid log_perm log_bytes len input out_len out_bytes output v () t read wrote
+      verify_post_some_m_success tid len input out_len out_bytes output v () t read wrote
     else
       pure False
-  | _ -> verify_post_some_m_failure output 
+  | _ -> verify_post_some_m_failure len input output 
 
 [@@__reduce__]
 let verify_post_some
   (tid:U16.t)
-  (log_perm:perm)
-  (log_bytes: AT.bytes)
   (len: U32.t)
-  (input: EXT.extern_ptr)
+  (input: EXT.extern_input_ptr)
   (out_len: U32.t)
   (out_bytes: AT.bytes)
-  (output: EXT.extern_ptr)
+  (output: EXT.extern_output_ptr)
   (v: option (v:V.verify_result { V.verify_result_complete len v }))
 : Tot vprop
 = 
     exists_ (fun t ->
       handle_pts_to t `star`
-      A.pts_to (EXT.gtake input) log_perm log_bytes `star`
-      verify_post_some_m tid log_perm log_bytes len input out_len out_bytes output v t
+      verify_post_some_m tid len input out_len out_bytes output v t
     )
 
 let verify_post
   (tid:U16.t)
-  (log_perm:perm)
-  (log_bytes: AT.bytes)
   (len: U32.t)
-  (input: EXT.extern_ptr)
+  (input: EXT.extern_input_ptr)
   (out_len: U32.t)
   (out_bytes: AT.bytes)
-  (output: EXT.extern_ptr)
+  (output: EXT.extern_output_ptr)
   (res: option (M.verify_result len))
 : Tot vprop
-= verify_post_some tid log_perm log_bytes len input out_len out_bytes output res
+= verify_post_some tid len input out_len out_bytes output res
 
 val verify_log
                (tid:U16.t)
-               (#log_perm:perm)
-               (#log_bytes:Ghost.erased AT.bytes)
                (len: U32.t)
-               (input: EXT.extern_ptr)
+               (input: EXT.extern_input_ptr)
                (out_len: U32.t)
                (#out_bytes:Ghost.erased AT.bytes)
-               (output: EXT.extern_ptr)
+               (output: EXT.extern_output_ptr)
   : STT (option (M.verify_result len))
-    (verify_pre log_perm log_bytes input out_bytes output)
-    (fun res -> verify_post tid log_perm log_bytes len input out_len out_bytes output res)
+    (verify_pre len input out_bytes output)
+    (fun res -> verify_post tid len input out_len out_bytes output res)
 
 val max_certified_epoch
                         (_: unit)

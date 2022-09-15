@@ -109,10 +109,10 @@ let verify_log_some_concl
                (#log_perm:perm)
                (#log_bytes:Ghost.erased AT.bytes)
                (len: U32.t)
-               (input: EXT.extern_ptr)
+               (input: EXT.extern_input_ptr)
                (out_len: U32.t)
                (#out_bytes:Ghost.erased AT.bytes)
-               (output: EXT.extern_ptr)
+               (output: EXT.extern_output_ptr)
                (sq: squash (check_verify_input tid len input out_len output))
                (input': U.larray U8.t len)
                (output' : U.larray U8.t out_len)
@@ -120,9 +120,9 @@ let verify_log_some_concl
   (p1: perm)
   (v: option (M.verify_result len))
 : STGhost unit opened
-    (R.pts_to handle.state.state p1 handle.state.tl_state `star` M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v)
-    (fun _ -> verify_post tid log_perm log_bytes len input out_len out_bytes output v)
-    (input' == EXT.gtake input /\ output' == EXT.gtake output)
+    (R.pts_to handle.state.state p1 handle.state.tl_state `star` M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v `star` EXT.has_extern_input_ptr input len)
+    (fun _ -> verify_post tid len input out_len out_bytes output v `star` A.pts_to input' log_perm log_bytes)
+    (output' == EXT.gtake output)
     (fun _ -> True)
 = if (Some? v && V.Verify_success? (Some?.v v))
   then begin
@@ -130,7 +130,7 @@ let verify_log_some_concl
     rewrite
       (M.verify_post _ tid entries log_perm log_bytes len input' out_len out_bytes output' _)
       (M.core_inv handle.state.tl_state `star`
-        A.pts_to (EXT.gtake input) log_perm log_bytes `star`
+        A.pts_to input' log_perm log_bytes `star`
         exists_ (M.verify_post_success_pred handle.state.tl_state tid entries log_bytes out_len out_bytes output' read wrote)
       );
     let _ = gen_elim () in
@@ -139,73 +139,89 @@ let verify_log_some_concl
     rewrite (handle_pts_to0 handle.state.tl_state) (handle_pts_to handle.state.tl_state);
     let out_bytes' = vpattern_replace_erased (A.pts_to output' _) in
     vpattern_rewrite #_ #_ #output' (fun output -> A.pts_to output _ _) (EXT.gtake output);
-    assert_ (verify_post_some_m_success_body tid log_perm log_bytes len input out_len out_bytes output v () handle.state.tl_state read wrote out_bytes');
     rewrite
-      (verify_post_some_m_success tid log_perm log_bytes len input out_len out_bytes output v () handle.state.tl_state read wrote)
-      (verify_post_some_m tid log_perm log_bytes len input out_len out_bytes output v handle.state.tl_state);
+      (verify_post_some_m_success tid len input out_len out_bytes output v () handle.state.tl_state read wrote)
+      (verify_post_some_m tid len input out_len out_bytes output v handle.state.tl_state);
     rewrite
-      (verify_post_some tid log_perm log_bytes len input out_len out_bytes output _)
-      (verify_post tid log_perm log_bytes len input out_len out_bytes output v)
+      (verify_post_some tid len input out_len out_bytes output _)
+      (verify_post tid len input out_len out_bytes output v)
   end else begin
     m_verify_post_failure_eq handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v;
     let _ = gen_elim () in
     rewrite (handle_pts_to_body0 handle.state) (handle_pts_to_body handle.state);
     rewrite (handle_pts_to0 handle.state.tl_state) (handle_pts_to handle.state.tl_state);
     vpattern_rewrite #_ #_ #output' (fun output -> A.pts_to output _ _) (EXT.gtake output);
+    EXT.star_sl_and (EXT.has_extern_input_ptr _ _) (A.pts_to (EXT.gtake output) _ _);
     rewrite
-      (verify_post_some_m_failure output)
-      (verify_post_some_m tid log_perm log_bytes len input out_len out_bytes output v handle.state.tl_state);
-    vpattern_rewrite #_ #_ #input' (fun input -> A.pts_to input _ _) (EXT.gtake input);
+      (verify_post_some_m_failure len input output)
+      (verify_post_some_m tid len input out_len out_bytes output v handle.state.tl_state);
     rewrite
-      (verify_post_some tid log_perm log_bytes len input out_len out_bytes output _)
-      (verify_post tid log_perm log_bytes len input out_len out_bytes output v)
+      (verify_post_some tid len input out_len out_bytes output _)
+      (verify_post tid len input out_len out_bytes output v)
   end
 
 let verify_log_some
                (tid:U16.t)
-               (#log_perm:perm)
-               (#log_bytes:Ghost.erased AT.bytes)
                (len: U32.t)
-               (input: EXT.extern_ptr)
+               (input: EXT.extern_input_ptr)
                (out_len: U32.t)
                (#out_bytes:Ghost.erased AT.bytes)
-               (output: EXT.extern_ptr)
+               (output: EXT.extern_output_ptr)
   : ST (option (v:V.verify_result { V.verify_result_complete len v }))
-    (handle_pts_to_body handle.state `star` verify_pre log_perm log_bytes input out_bytes output)
-    (fun res -> verify_post tid log_perm log_bytes len input out_len out_bytes output res)
+    (handle_pts_to_body handle.state `star`
+      EXT.has_extern_input_ptr input len `star`
+     A.pts_to (EXT.gtake output) full_perm out_bytes
+    )
+    (fun res -> verify_post tid len input out_len out_bytes output res)
     (check_verify_input tid len input out_len output)
     (fun _ -> True)
 =
+  let input' = EXT.copy_extern_input_ptr input len in
   rewrite (handle_pts_to_body handle.state) (handle_pts_to_body0 handle.state);
   let _ = gen_elim () in
   rewrite emp (M.log_of_tid_gen handle.state.tl_state tid Seq.empty);
-  let input' = EXT.take input len in
   let output' = EXT.take output out_len in
-  vpattern_rewrite (fun a -> A.pts_to a log_perm log_bytes) input';
   vpattern_rewrite (fun a -> A.pts_to a full_perm out_bytes) output';
   let v = M.verify_log _ tid len input' out_len output' in
   let _ = verify_log_some_concl tid len input out_len output () input' output' _ _ v in
+  A.free input';
   return v
 
 let verify_log
-  tid #log_perm #log_bytes len input out_len #out_bytes output
+  tid len input out_len #out_bytes output
 =
   let t = handle.state.tl_state in
   handle_pts_to_body_intro ();
   if not (check_verify_input tid len input out_len output) returns STT (option (M.verify_result len))
-    (handle_pts_to_body handle.state `star` verify_pre log_perm log_bytes input out_bytes output)
-    (fun res -> verify_post tid log_perm log_bytes len input out_len out_bytes output res)
+    (handle_pts_to_body handle.state `star` verify_pre len input out_bytes output)
+    (fun res -> verify_post tid len input out_len out_bytes output res)
   then begin
     noop ();
     rewrite (handle_pts_to0 t) (handle_pts_to t);
-    rewrite (verify_post_some_m_failure output) (verify_post_some_m tid log_perm log_bytes len input out_len out_bytes output None t);
-    rewrite (verify_post_some tid log_perm log_bytes len input out_len out_bytes output None)
-      (verify_post tid log_perm log_bytes len input out_len out_bytes output None);
+    rewrite (verify_post_some_m_failure len input output) (verify_post_some_m tid len input out_len out_bytes output None t);
+    rewrite (verify_post_some tid len input out_len out_bytes output None)
+      (verify_post tid len input out_len out_bytes output None);
     return None
   end else
   begin
-    noop ();
-    verify_log_some tid len input out_len output
+    let check_disjoint = EXT.check_input_output_disjoint input len output out_len _ in
+    if check_disjoint
+    then begin
+      rewrite
+        (EXT.check_disjoint_post _ _ _)
+        (EXT.has_extern_input_ptr input len `star`
+          A.pts_to (EXT.gtake output) full_perm out_bytes);
+        verify_log_some tid len input out_len output
+    end else begin
+      rewrite
+        (EXT.check_disjoint_post _ _ _)
+        (verify_pre len input out_bytes output);
+      rewrite (handle_pts_to0 t) (handle_pts_to t);
+      rewrite (verify_post_some_m_failure len input output) (verify_post_some_m tid len input out_len out_bytes output None t);
+      rewrite (verify_post_some tid len input out_len out_bytes output None)
+        (verify_post tid len input out_len out_bytes output None);
+      return None
+    end
   end
 
 let max_certified_epoch
