@@ -17,6 +17,10 @@ let ptrfn = FExt.restricted_t ptrfun_dom ptrfun_codom
 
 let create_ptrfn (f:FExt.arrow ptrfun_dom ptrfun_codom) : ptrfn = FExt.on_dom ptrfun_dom f
 
+let ptrfn_g = FExt.restricted_g_t ptrfun_dom ptrfun_codom
+
+let create_ptrfn_g (f:FExt.arrow_g ptrfun_dom ptrfun_codom) : ptrfn_g = FExt.on_dom_g ptrfun_dom f
+
 (* does n point to some node along direction c *)
 let points_to_some (pf:ptrfn) (n:bin_tree_node) (c:bin_tree_dir): bool = 
   Some? (pf (n, c))

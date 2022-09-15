@@ -142,12 +142,6 @@ let eac_instore_addb_diff_elem
                       let k = add_slot e in
                       let es = eac_state_of_key k itsli in
                       EACInStore? es)})
-  : (be':ms_hashfn_dom app{let ep = be'.t.e in
-                           let a_s = add_set ep itsl in
-                           let es = evict_set ep itsl in
-                           let be = blum_add_elem itsl i in
-                           mem be' a_s > mem be' es /\
-                           be.t.e = ep})
   = let itsli = prefix itsl i in
     let itsli' = prefix itsl (i+1) in
     let e = index itsl i in
@@ -183,12 +177,6 @@ let eac_evictedm_addb_diff_elem
                      let k = add_slot e in
                      let es = eac_state_of_key k itsli in
                      EACEvictedMerkle? es)})
-  : (be':ms_hashfn_dom app{let ep = be'.t.e in
-                           let a_s = add_set ep itsl in
-                           let es = evict_set ep itsl in
-                           let be = blum_add_elem itsl i in
-                           mem be' a_s > mem be' es /\
-                           be.t.e = ep})
   = let itsli = prefix itsl i in
     let itsli' = prefix itsl (i+1) in
     let e = index itsl i in
@@ -366,13 +354,6 @@ let eac_evictedb_addb_diff_elem
                          Zeta.Generic.TSLog.clock_sorted il /\
                          is_blum_add il i /\
                          EACEvictedBlum? (eac_state_of_key_pre k il i)})
-  : (be':ms_hashfn_dom app{let i = eac_boundary il in
-                           let ep = be'.t.e in
-                           let a_s = add_set ep il in
-                           let es = evict_set ep il in
-                           let be = blum_add_elem il i in
-                           mem be' a_s > mem be' es /\
-                           be.t.e = ep})
   = let i = eac_boundary il in
     let itsli = prefix il i in
     let k = eac_fail_key il in

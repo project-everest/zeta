@@ -88,7 +88,7 @@ let exists_in_some_store (#app #n:_) (bk: base_key)  (il: verifiable_log app n)
   = exists tid. store_contains (thread_store tid il) bk
 
 val mk_vlog_entry_ext (#app: app_params) (#n:nat) (il: verifiable_log app n) (i: seq_index il)
-  : vlog_entry_ext app
+  : GTot (vlog_entry_ext app)
 
 val vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
   : Lemma (ensures (let ee = mk_vlog_entry_ext il i in
@@ -97,14 +97,14 @@ val vlog_entry_ext_prop (#app #n:_) (il: verifiable_log app n) (i: seq_index il)
           [SMTPat (mk_vlog_entry_ext il i)]
 
 val vlog_ext_of_il_log (#app: app_params) (#n:nat) (il: verifiable_log app n)
-  : seq (vlog_entry_ext app)
+  : GTot (seq (vlog_entry_ext app))
 
 val is_eac (#app #n:_) (il: verifiable_log app n)
-  : b:bool{b <==> eac (vlog_ext_of_il_log il)}
+  : GTot (b:bool{b <==> eac (vlog_ext_of_il_log il)})
 
 (* state after processing the i'th element *)
 val eac_state_of_key (#app #n:_) (k: base_key) (il: verifiable_log app n)
-  : eac_state app k
+  : GTot (eac_state app k)
 
 let eac_state_of_key_pre (#app #n:_) (k: base_key) (il: verifiable_log app n) (i: seq_index il)
   = let il' = prefix il i in
@@ -115,7 +115,7 @@ let eac_state_of_key_post (#app #n:_) (k: base_key) (il: verifiable_log app n) (
     eac_state_of_key k il'
 
 (* is the key k in evicted state in *)
-let is_eac_state_evicted (#app #n:_) (k: base_key) (il: verifiable_log app n): bool
+let is_eac_state_evicted (#app #n:_) (k: base_key) (il: verifiable_log app n): GTot bool
   = EACEvictedMerkle? (eac_state_of_key k il) ||
     EACEvictedBlum? (eac_state_of_key k il)
 
@@ -129,7 +129,7 @@ let is_eac_state_instore (#app #n:_) (k:base_key) (il: verifiable_log app n)
     k = Root && es = EACInit || EACInStore? es
 
 let eac_state_of_genkey (#app #n:_) (gk: key app) (il: verifiable_log app n)
-  : eac_state app (to_base_key gk)
+  : GTot (eac_state app (to_base_key gk))
   = let k = to_base_key gk in
     let es = eac_state_of_key k il in
     if EAC.is_eac_state_active es then
@@ -206,14 +206,14 @@ let stored_value (#app:_) (#n:pos)
                      let es = eac_state_of_key k il in
                      is_eac_state_instore k il /\
                      to_gen_key es = gk})
-  : value_t gk
+  : GTot (value_t gk)
   = let bk = to_base_key gk in
     let tid = stored_tid bk il in
     let st = thread_store tid il in
     stored_value st bk
 
 let stored_add_method (#app:_) (#n:pos) (bk: base_key) (il: eac_log app n{EACInStore? (eac_state_of_key bk il)})
-  : add_method
+  : GTot add_method
   = let tid = stored_tid bk il in
     let st = thread_store tid il in
     add_method_of st bk
@@ -227,7 +227,7 @@ val lemma_root_not_in_store (#app #n:_) (tid: nat{tid < n /\ tid > 0}) (il: eac_
   : Lemma (not (store_contains (thread_store tid il) Zeta.BinTree.Root))
 
 val eac_value (#app #n:_) (k: key app) (il: eac_log app n)
-  : value_t k
+  : GTot (value_t k)
 
 val eac_value_is_stored_value (#app #n:_) (il: eac_log app n) (gk: key app) (tid: nat {tid < n})
   : Lemma (requires (let bk = to_base_key gk in
@@ -333,13 +333,12 @@ val init_state_empty (#app #n:_) (il: verifiable_log app n {S.length il = 0}) (b
   Lemma (eac_state_of_key bk il = EACInit)
 
 val eac_boundary (#app #n:_) (il: neac_log app n)
-  : (i: seq_index il{is_eac (prefix il i) /\
+  : GTot (i: seq_index il{is_eac (prefix il i) /\
                      ~ (is_eac (prefix il (i+1)))})
 
 val eac_fail_key (#app #n:_) (il: neac_log app n)
-  : k:base_key {let i = eac_boundary il in
+  : GTot (k:base_key {let i = eac_boundary il in
                 let e = I.index il i in
                 eac_state_of_key_post k il i = EACFail /\
                 eac_state_of_key_pre k il i <> EACFail /\
-                e `refs_key` k}
-
+                e `refs_key` k})

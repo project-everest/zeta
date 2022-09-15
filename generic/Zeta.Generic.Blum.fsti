@@ -67,14 +67,14 @@ val add_set_snoc (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n {length i
                     else a_s == as'))
 
 val evict_il (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : interleaving (ms_hashfn_dom vspec.app) n
+  : GTot (interleaving (ms_hashfn_dom vspec.app) n)
 
 let evict_seq (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n)
-  : S.seq (ms_hashfn_dom vspec.app)
+  : GTot (S.seq (ms_hashfn_dom vspec.app))
   = i_seq (evict_il ep il)
 
 let evict_set #vspec #n (ep: epoch) (il: verifiable_log vspec n)
-  : mset_ms_hashfn_dom vspec.app
+  : GTot (mset_ms_hashfn_dom vspec.app)
   = seq2mset (evict_seq ep il)
 
 val evict_seq_empty
@@ -140,7 +140,7 @@ val evict_elem_idx
   (il: verifiable_log vspec n)
   (be: ms_hashfn_dom vspec.app {let ep = be.t.e in
                                 evict_set ep il `contains` be})
-  : i: seq_index il {is_blum_evict il i /\ be = blum_evict_elem il i}
+  : GTot (i: seq_index il {is_blum_evict il i /\ be = blum_evict_elem il i})
 
 val lemma_evict_before_add (#vspec #n:_) (itsl: its_log vspec n) (i:seq_index itsl{is_blum_add itsl i}):
   Lemma (ensures (let be = blum_add_elem itsl i in
@@ -211,14 +211,14 @@ let k_add_set (#vspec:verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il:
 
 (* add elements of a specific key*)
 val k_evict_il (#vspec: verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
-  : interleaving (ms_hashfn_dom vspec.app) n
+  : GTot (interleaving (ms_hashfn_dom vspec.app) n)
 
 let k_evict_seq (#vspec:verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
-  : S.seq (ms_hashfn_dom vspec.app)
+  : GTot (S.seq (ms_hashfn_dom vspec.app))
   = i_seq (k_evict_il ep gk il)
 
 let k_evict_set (#vspec:verifier_spec) (#n:_) (ep: epoch) (gk: key vspec.app) (il: verifiable_log vspec n)
-  : mset_ms_hashfn_dom vspec.app
+  : GTot (mset_ms_hashfn_dom vspec.app)
   = seq2mset (k_evict_seq ep gk il)
 
 val k_add_set_correct

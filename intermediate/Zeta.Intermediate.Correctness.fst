@@ -199,7 +199,7 @@ let induction_props_snoc_verifyepoch
                     let es = index il i in
                     induction_props il' /\
                     GV.VerifyEpoch? es})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -239,7 +239,7 @@ let induction_props_snoc_next_epoch
                     let es = index il i in
                     induction_props il' /\
                     GV.NextEpoch? es})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -282,7 +282,7 @@ let proving_ancestor (#vcfg:_)
                     let _sts = _vss.st in
                     induction_props _il /\
                     inuse_slot _sts s /\ stored_base_key _sts s <> Root})
-  : merkle_key
+  : GTot merkle_key
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -355,7 +355,7 @@ let induction_props_snoc_evictbm
                     let es = index il i in
                     induction_props il' /\
                     GV.EvictBM? es})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -393,7 +393,7 @@ let induction_props_snoc_evictb
                     let es = index il i in
                     induction_props il' /\
                     GV.EvictB? es})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -432,7 +432,7 @@ let induction_props_snoc_evictm
                     let es = index il i in
                     induction_props il' /\
                     GV.EvictM? es})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -470,7 +470,7 @@ let induction_props_snoc_runapp
                     let es = index il i in
                     induction_props il' /\
                     GV.RunApp? es})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -551,7 +551,7 @@ let addb_case_neac_key (#vcfg:_)
 let addb_case_neac_eacstate (#vcfg:_)
   (il: verifiable_log vcfg)
   (i: seq_index il {addb_case_neac il i})
-  : EAC.eac_state vcfg.app (addb_case_neac_key il i)
+  : GTot (EAC.eac_state vcfg.app (addb_case_neac_key il i))
   = let ilk = to_logk il in
     let _ilk = SA.prefix ilk i in
     let gk,_ = GV.add_record (index il i) in
@@ -567,7 +567,7 @@ let induction_props_snoc_addb_neac_eacinit
   (i: seq_index il {addb_case_neac il i /\
                     (clock il i).e <= epmax /\
                     EACInit? (addb_case_neac_eacstate il i)})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -629,7 +629,7 @@ let induction_props_snoc_addb_neac_eacinstore
   (i: seq_index il {addb_case_neac il i /\
                     (clock il i).e <= epmax /\
                     EACInStore? (addb_case_neac_eacstate il i)})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -674,7 +674,7 @@ let induction_props_snoc_addb_neac_eacevicted_merkle
   (i: seq_index il {addb_case_neac il i /\
                     (clock il i).e <= epmax /\
                     EACEvictedMerkle? (addb_case_neac_eacstate il i)})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -717,7 +717,7 @@ let induction_props_snoc_addb_neac_eacevicted_blum
   (i: seq_index il {addb_case_neac il i /\
                     (clock il i).e <= epmax /\
                     EACEvictedBlum? (addb_case_neac_eacstate il i)})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -759,7 +759,7 @@ let induction_props_snoc_addb_neac
   (il: its_log vcfg {aems_equal_upto epmax il})
   (i: seq_index il {addb_case_neac il i /\
                     (clock il i).e <= epmax})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = match addb_case_neac_eacstate il i with
     | EACInit -> induction_props_snoc_addb_neac_eacinit epmax il i
     | EACInStore _ _ _ -> induction_props_snoc_addb_neac_eacinstore epmax il i
@@ -778,7 +778,7 @@ let induction_props_snoc_addb_caseA
                     (clock il i).e <= epmax /\
                     GV.AddB? es /\
                     addb_caseA il i})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -814,7 +814,7 @@ let induction_props_snoc_addb_caseB
                     (clock il i).e <= epmax /\
                     GV.AddB? es /\
                     addb_caseB il i})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let tid = src il i in
     let _vss = thread_state_pre tid il i in
@@ -864,7 +864,7 @@ let induction_props_snoc_addb
                     induction_props il' /\
                     (clock il i).e <= epmax /\
                     GV.AddB? es})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let t = src il i in
     let _vss = thread_state_pre t il i in
@@ -895,7 +895,7 @@ let induction_props_snoc_addm_caseA
   (#vcfg:_)
   (il: verifiable_log vcfg)
   (i: seq_index il {addm_caseA il i})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let tid = src il i in
     let _vss = thread_state_pre tid il i in
@@ -972,7 +972,7 @@ let induction_props_snoc_addm_caseB
   (#vcfg:_)
   (il: verifiable_log vcfg)
   (i: seq_index il {addm_caseB il i})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let tid = src il i in
     let _vss = thread_state_pre tid il i in
@@ -1051,7 +1051,7 @@ let induction_props_snoc_addm_caseC
   (#vcfg:_)
   (il: verifiable_log vcfg)
   (i: seq_index il {addm_caseC il i})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let tid = src il i in
     let _vss = thread_state_pre tid il i in
@@ -1120,7 +1120,7 @@ let induction_props_snoc_addm_caseD
   (#vcfg:_)
   (il: verifiable_log vcfg)
   (i: seq_index il {addm_caseD il i})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let tid = src il i in
     let _vss = thread_state_pre tid il i in
@@ -1172,7 +1172,7 @@ let induction_props_snoc_addm
                     let es = index il i in
                     induction_props il' /\
                     GV.AddM? es})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let _il = prefix il i in
     let tid = src il i in
     let _vss = thread_state_pre tid il i in
@@ -1215,7 +1215,7 @@ let induction_props_snoc
   (i: seq_index il {let il' = prefix il i in
                     (clock il i).e <= epmax /\
                     induction_props il'})
-  : induction_props_or_hash_collision (prefix il (i+1))
+  : GTot (induction_props_or_hash_collision (prefix il (i+1)))
   = let es = index il i in
     let open Zeta.GenericVerifier in
     match es with
@@ -1238,7 +1238,7 @@ let rec induction_props_or_hash_collision_prefix_aux
   (itsl: its_log vcfg {aems_equal_upto epmax itsl})
   (i: nat{let itsl_ep = prefix_within_epoch epmax itsl in
         i <= S.length itsl_ep})
-  : Tot (induction_props_or_hash_collision (prefix itsl i))
+  : GTot (induction_props_or_hash_collision (prefix itsl i))
     (decreases i)
   = let itsl' = prefix itsl i in
     lemma_empty_implies_induction_props itsl';
@@ -1261,7 +1261,7 @@ let induction_props_or_hash_collision_prefix_ep
   (#vcfg:_)
   (epmax: epoch)
   (itsl: its_log vcfg {aems_equal_upto epmax itsl})
-  : (let itsl_ep = prefix_within_epoch epmax itsl in
+  : GTot (let itsl_ep = prefix_within_epoch epmax itsl in
      induction_props_or_hash_collision itsl_ep)
   = let itsl_ep = prefix_within_epoch epmax itsl in
     induction_props_or_hash_collision_prefix_aux epmax itsl (S.length itsl_ep)
@@ -1273,7 +1273,7 @@ let lemma_verifier_correct
   (epmax: epoch)
   (gl: ms_verifiable_log vcfg epmax {S.length gl = vcfg.thread_count /\
                                      ~ (seq_consistent (app_fcrs_within_ep epmax gl))})
-  : hash_collision vcfg.app
+  : GTot (hash_collision vcfg.app)
   = (* interleaving of gl ordered by time of each log entry *)
     let itsl = create gl in
     lemma_add_evict_set_identical_glog epmax itsl;

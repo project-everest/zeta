@@ -17,7 +17,7 @@ let ms_verifiable_log (vcfg:_) (epmax: epoch)
   = gl: verifiable_log vcfg {aems_equal_upto epmax gl}
 
 let to_logk_entry (#vcfg:_) (gl: verifiable_log vcfg) (i: sseq_index gl)
-  : logK_entry vcfg.app
+  : GTot (logK_entry vcfg.app)
   = let t,j = i in
     let tl = index gl t in
     IT.to_logk_entry tl j

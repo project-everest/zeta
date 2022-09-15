@@ -44,7 +44,7 @@ type failure_info (app:app_params) (n:nat) = {
 }
 
 let eac_failure (#app #n:_) (il: neac_log app n)
-  : failure_info app n
+  : GTot (failure_info app n)
   = let bi = eac_boundary il in
     let bk = eac_fail_key il in
     let es = eac_state_of_key_pre bk il bi in
@@ -62,7 +62,7 @@ let lemma_non_eac_appfn_non_refs
     {let fi = eac_failure itsl in
      not (fi.le `refs_key` fi.bk) /\
      RunApp? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     ext_app_records_is_stored_val itsl i;
@@ -74,7 +74,7 @@ let lemma_non_eac_init_appfn
     {let fi = eac_failure itsl in
      (fi.es = EACInit || EAC.is_eac_state_evicted fi.es)  /\
      RunApp? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
@@ -105,7 +105,7 @@ let lemma_non_eac_instore_appfn
      EACInStore? fi.es /\
      fi.le `refs_key` fi.bk /\
      RunApp? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
@@ -145,7 +145,7 @@ let lemma_non_eac_init_addb
      GB.aems_equal_upto epmax itsl /\
      fi.es = EACInit /\
      AddB? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let be = blum_add_elem itsl i in
@@ -180,7 +180,7 @@ let lemma_non_eac_init_addm
     {let fi = eac_failure itsl in
      fi.es = EACInit /\
      AddM? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let AddM (gk,v) k k' = index itsl i in
@@ -220,7 +220,7 @@ let lemma_non_eac_init_evict
     {let fi = eac_failure itsl in
      fi.es = EACInit /\
      is_evict fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let k  = evict_slot fi.le in
@@ -249,7 +249,7 @@ let lemma_non_eac_instore_addb
     {let fi = eac_failure itsl in
      GB.aems_equal_upto epmax itsl /\
      EACInStore? fi.es /\ AddB? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
 
@@ -265,7 +265,7 @@ let lemma_non_eac_instore_addm
     {let fi = eac_failure itsl in
      EACInStore? fi.es /\
      AddM? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
@@ -311,7 +311,7 @@ let lemma_non_eac_instore_evict
     {let fi = eac_failure itsl in
      EACInStore? fi.es /\
      is_evict fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
@@ -340,7 +340,7 @@ let lemma_non_eac_evicted_merkle_addm
     {let fi = eac_failure itsl in
      EACEvictedMerkle? fi.es /\
      AddM? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
@@ -379,7 +379,7 @@ let lemma_non_eac_evicted_merkle_addb
      GB.aems_equal_upto epmax itsl /\
      EACEvictedMerkle? fi.es /\
      is_blum_add fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let be' = eac_evictedm_addb_diff_elem itsl i in
@@ -393,7 +393,7 @@ let lemma_non_eac_evicted_evict
     {let fi = eac_failure itsl in
      EAC.is_eac_state_evicted fi.es /\
      is_evict fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
@@ -412,7 +412,7 @@ let lemma_non_eac_evicted_blum_addm
     {let fi = eac_failure itsl in
      EACEvictedBlum? fi.es /\
      AddM? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let itsli = prefix itsl i in
@@ -437,7 +437,7 @@ let lemma_non_eac_evicted_blum_addb
      GB.aems_equal_upto epmax itsl /\
      EACEvictedBlum? fi.es /\
      AddB? fi.le})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     let i = fi.bi in
     let be = eac_evictedb_addb_diff_elem itsl in
@@ -450,7 +450,7 @@ let lemma_neac_implies_hash_collision
   (#app #n:_)
   (epmax: epoch)
   (itsl: neac_before_epoch app n epmax {GB.aems_equal_upto epmax itsl})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
 
     match fi.es with
@@ -498,7 +498,7 @@ let lemma_neac_implies_hash_collision
 let lemma_neac_implies_hash_collision_simple
   (#app #n:_)
   (itsl: neac_log app n {provides_hash_collision itsl})
-  : hash_collision app
+  : GTot (hash_collision app)
   = let fi = eac_failure itsl in
     match fi.es with
     | EACInit -> (

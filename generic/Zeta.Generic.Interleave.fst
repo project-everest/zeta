@@ -1,6 +1,8 @@
 module Zeta.Generic.Interleave
 
 open FStar.Classical
+
+open Zeta.Ghost
 open Zeta.SMap
 module SS = Zeta.SSeq
 
@@ -125,18 +127,18 @@ let is_appfn_ifn (#vspec #n:_)
   = is_appfn #vspec #n
 
 let to_app_fcr_src (#vspec #n:_) (il: verifiable_log vspec n) (i: seq_index il{is_appfn il i})
-  : elem_src (appfn_call_res vspec.app) n
+  : GTot (elem_src (appfn_call_res vspec.app) n)
   = let e = to_app_fcr il i in
     let s = src il i in
     {e;s}
 
 let to_app_fcr_src_ifn (#vspec:verifier_spec) (#n:_)
-  : IF.cond_idxfn_t (elem_src (appfn_call_res vspec.app) n) (is_appfn_ifn #vspec #n)
-  = to_app_fcr_src #vspec #n
+  : GTot (IF.cond_idxfn_t (elem_src (appfn_call_res vspec.app) n) (is_appfn_ifn #vspec #n))
+  = hoist_ghost2 (to_app_fcr_src #vspec #n)
 
 let app_fcrs_il (#vspec: verifier_spec) (#n:_) (il: verifiable_log vspec n)
-  : interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n
-  = let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
+  : GTot (interleaving (Zeta.AppSimulate.appfn_call_res vspec.app) n)
+  = let fm = IF.to_fm (is_appfn_ifn #vspec #n) (hoist_ghost2 (to_app_fcr_src_ifn #vspec #n)) in
     IF.filter_map fm il
 
 let t_fcrs_il (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
@@ -151,7 +153,7 @@ let t_fcrs_gl (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
 
 let t_fcrs_i2g (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
   (i: SA.seq_index (t_fcrs_il il t))
-  :j:SA.seq_index (t_fcrs_gl il t){S.index (t_fcrs_il il t) i = S.index (t_fcrs_gl il t) j}
+  : GTot (j:SA.seq_index (t_fcrs_gl il t){S.index (t_fcrs_il il t) i = S.index (t_fcrs_gl il t) j})
   = let tfcrs_il = t_fcrs_il il t in
     let tfcrs_gl = t_fcrs_gl il t in
     let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
@@ -165,7 +167,7 @@ let t_fcrs_i2g (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
     T.app_fcrs_map tl i3
 
 let t_fcrs_i2g_mono (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
-  : Lemma (ensures (monotonic_prop (t_fcrs_i2g il t)))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (t_fcrs_i2g il t))))
           [SMTPat (t_fcrs_i2g il t)]
   = let tfcrs_il = t_fcrs_il il t in
     let tfcrs_gl = t_fcrs_gl il t in
@@ -201,7 +203,7 @@ let t_fcrs_i2g_mono (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
 
 let t_fcrs_g2i (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
   (j: SA.seq_index (t_fcrs_gl il t))
-  : i:SA.seq_index (t_fcrs_il il t){S.index (t_fcrs_il il t) i = S.index (t_fcrs_gl il t) j}
+  : GTot (i:SA.seq_index (t_fcrs_il il t){S.index (t_fcrs_il il t) i = S.index (t_fcrs_gl il t) j})
   = let tfcrs_il = t_fcrs_il il t in
     let tfcrs_gl = t_fcrs_gl il t in
     let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
@@ -215,7 +217,7 @@ let t_fcrs_g2i (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
     j4
 
 let t_fcrs_g2i_mono (#vspec #n:_) (il: verifiable_log vspec n) (t:nat{t < n})
-  : Lemma (ensures (monotonic_prop (t_fcrs_g2i il t)))
+  : Lemma (ensures (monotonic_prop (hoist_ghost (t_fcrs_g2i il t))))
   = let tfcrs_il = t_fcrs_il il t in
     let tfcrs_gl = t_fcrs_gl il t in
     let fm = IF.to_fm (is_appfn_ifn #vspec #n) (to_app_fcr_src_ifn #vspec #n) in
@@ -254,8 +256,8 @@ let fcrs_identical_thread (#vspec #n:_) (il: verifiable_log vspec n) (t: nat{t <
    = monotonic_bijection_implies_equal
       (t_fcrs_il il t)
       (t_fcrs_gl il t)
-      (t_fcrs_i2g il t)
-      (t_fcrs_g2i il t)
+      (hoist_ghost (t_fcrs_i2g il t))
+      (hoist_ghost (t_fcrs_g2i il t))
 
 #pop-options
 

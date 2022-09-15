@@ -3,6 +3,8 @@ module Zeta.AppSimulate.Helper
 open FStar.Classical
 module S = FStar.Seq
 
+open Zeta.Ghost
+
 let app_state_feq_comm_aux (#adm:_) (st1 st2: app_state adm)
   : Lemma (requires (app_state_feq st1 st2))
           (ensures (app_state_feq st2 st1))
@@ -45,7 +47,7 @@ let refs_witness (#app:_) (fc: appfn_call app) (k: app_key app.adm)
    exists_elems_with_prop_intro (of_key k) fc.inp_c i
 
 let record_incorrect (#adm:_) (st: app_state adm) (r: app_record adm)
-  : bool
+  : GTot bool
   = let k,v = r in
     st k <> v
 
@@ -85,7 +87,7 @@ let input_correct_is_input_consistent (#app:_) (fc: appfn_call app) (st: app_sta
     )
     else (
       let open Zeta.SeqIdx in
-      let i = last_idx (record_incorrect st) rs in
+      let i = last_idx (hoist_ghost (record_incorrect st)) rs in
       let k,v = S.index rs i in
       FStar.Classical.exists_intro (fun i -> (let k',v = S.index fc.inp_c i in k' = k)) i;
       assert(fc `refs` k);

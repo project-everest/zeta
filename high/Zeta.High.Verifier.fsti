@@ -124,7 +124,7 @@ let addm (#aprm: app_params)
          (k: base_key)
          (k': base_key)
          (vs: vtls_t aprm {vs.valid}):
-     (vs':vtls_t aprm {vs'.tid = vs.tid /\ vs'.clock = vs.clock})
+    GTot (vs':vtls_t aprm {vs'.tid = vs.tid /\ vs'.clock = vs.clock})
   = let st = vs.st in
     let open Zeta.BinTree in
     let open Zeta.Merkle in
@@ -193,7 +193,7 @@ let evictm (#aprm: app_params)
            (k:base_key)
            (k':base_key)
            (vs: vtls_t aprm  {vs.valid}):
-           (vs': vtls_t aprm {vs'.tid = vs.tid /\ vs'.clock = vs.clock})
+      GTot (vs': vtls_t aprm {vs'.tid = vs.tid /\ vs'.clock = vs.clock})
   = let st = vs.st in
     let open Zeta.BinTree in
     (* check store contains k and k' *)

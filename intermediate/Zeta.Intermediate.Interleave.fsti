@@ -42,13 +42,13 @@ val lemma_slot_is_merkle_points_to (#vcfg:_) (il: verifiable_log vcfg) (i: seq_i
         [SMTPat (prefix il i)]
 
 let to_logk_entry (#vcfg:_) (il: verifiable_log vcfg) (i: seq_index il)
-  : logK_entry vcfg.app
+  : GTot (logK_entry vcfg.app)
   = let gl = to_glog il in
     let ti = i2s_map il i in
     IG.to_logk_entry gl ti
 
 val to_logk (#vcfg:_) (il: verifiable_log vcfg)
-  : HI.ilog vcfg.app vcfg.thread_count
+  : GTot (HI.ilog vcfg.app vcfg.thread_count)
 
 val lemma_to_logk_length (#vcfg:_) (il: verifiable_log vcfg)
   : Lemma (ensures (length il = length (to_logk il)))
