@@ -347,17 +347,6 @@ let steel_ifthenelse_not
 : STF t vpre vpost True (fun _ -> True)
 = if b then ttrue () else tfalse ()
 
-#set-options "--print_implicits"
-
-let fake_vprop : vprop = pure False
-
-let fake_fail (#t: Type) (#pre: vprop) (#p: (t -> vprop)) () : STF t (pre `star` fake_vprop) p True (fun _ -> True) =
-  rewrite fake_vprop (pure False);
-  elim_pure False;
-  let res = false_elim #t () in
-  rewrite pre (p res);
-  return res
-
 let gather_thread_logs
   (#opened: _)
   (incremental: Ghost.erased bool)

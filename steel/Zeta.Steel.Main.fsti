@@ -115,9 +115,12 @@ let verify_post_success_pure_inv
   (out_bytes':Seq.seq U8.t)
   : prop
   = Log.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
-    (let tsm = M.verify_model (M.init_thread_state_model tid) entries in
+    (exists (entries0: AEH.log) . (
+      let tsm = M.verify_model (M.init_thread_state_model tid) entries0 in
      let tsm' = M.verify_model tsm entries' in
-     Ghost.reveal incremental == true ==> Application.n_out_bytes tsm tsm' 0ul wrote out_bytes out_bytes')
+     Application.n_out_bytes tsm tsm' 0ul wrote out_bytes out_bytes' /\
+     (Ghost.reveal incremental == true ==> entries0 == Ghost.reveal entries)
+    ))
 
 let log_of_tid_gen
   (#b: Ghost.erased bool)
