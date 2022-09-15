@@ -8,13 +8,13 @@ open Steel.ST.GenElim
 
 [@@__reduce__]
 let handle_pts_to0
-  (ts: M.top_level_state)
+  (ts: M.top_level_state false)
 : Tot vprop
 = handle_pts_to_body handle.state `star`
   pure (ts == Ghost.reveal handle.state.tl_state)
 
 let handle_pts_to
-  (ts: M.top_level_state)
+  (ts: M.top_level_state false)
 : Tot vprop
 = handle_pts_to0 ts
   
@@ -71,7 +71,7 @@ let handle_pts_to_body_intro
 
 let m_verify_post_failure_eq
   (#opened: _)
-  (t:M.top_level_state)
+  (t:M.top_level_state false)
   (tid:AT.tid)
   (entries:Ghost.erased AEH.log)
   (log_perm:perm)
@@ -88,9 +88,8 @@ let m_verify_post_failure_eq
   )
   (fun _ ->
     M.core_inv t `star`
-    A.pts_to input log_perm log_bytes `star` (
-       exists_ (fun s -> A.pts_to output full_perm s) `star`
-       exists_ (fun entries' -> M.log_of_tid t tid entries'))
+    A.pts_to input log_perm log_bytes `star`
+       exists_ (fun s -> A.pts_to output full_perm s)
   )
   (match res with
   | Some (V.Verify_success _ _) -> False
@@ -102,7 +101,7 @@ let m_verify_post_failure_eq
     (M.core_inv t `star`
     A.pts_to input log_perm log_bytes `star` (
        exists_ (fun s -> A.pts_to output full_perm s) `star`
-       exists_ (fun entries' -> M.log_of_tid t tid entries')))
+       emp))
 
 let verify_log_some_concl
   (#opened: _)
@@ -118,11 +117,11 @@ let verify_log_some_concl
                (input': U.larray U8.t len)
                (output' : U.larray U8.t out_len)
                (entries: Ghost.erased AEH.log)
-  (p1 p2: perm)
-  (v: option (v:V.verify_result { V.verify_result_complete len v }))
-: STGhost (Ghost.erased AEH.log) opened
-    (R.pts_to handle.state.state p1 handle.state.tl_state `star` A.pts_to handle.state.thread_locks p2 handle.state.tl_thread_locks `star` M.frozen_logs handle.state.tl_state handle.state.tl_frozen_logs `star` M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v)
-    (fun entries -> verify_post tid log_perm log_bytes len input out_len out_bytes output v `star` M.log_of_tid handle.state.tl_state tid entries)
+  (p1: perm)
+  (v: option (M.verify_result len))
+: STGhost unit opened
+    (R.pts_to handle.state.state p1 handle.state.tl_state `star` M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v)
+    (fun _ -> verify_post tid log_perm log_bytes len input out_len out_bytes output v)
     (input' == EXT.gtake input /\ output' == EXT.gtake output)
     (fun _ -> True)
 = if (Some? v && V.Verify_success? (Some?.v v))
@@ -136,24 +135,21 @@ let verify_log_some_concl
       );
     let _ = gen_elim () in
     rewrite (handle_pts_to_body0 handle.state) (handle_pts_to_body handle.state);
-    let entries' = vpattern_erased (fun entries' -> M.log_of_tid handle.state.tl_state tid (_ `Seq.append` entries')) in
-    let entries_f = vpattern_replace_erased (fun (entries_: AEH.log) -> M.log_of_tid handle.state.tl_state tid entries_) in
+    rewrite (M.log_of_tid_gen _ _ _) emp;
     rewrite (handle_pts_to0 handle.state.tl_state) (handle_pts_to handle.state.tl_state);
     let out_bytes' = vpattern_replace_erased (A.pts_to output' _) in
     vpattern_rewrite #_ #_ #output' (fun output -> A.pts_to output _ _) (EXT.gtake output);
-    assert_ (verify_post_some_m_success_body tid log_perm log_bytes len input out_len out_bytes output v () handle.state.tl_state entries read wrote entries' out_bytes' `star` M.log_of_tid  handle.state.tl_state tid entries_f);
+    assert_ (verify_post_some_m_success_body tid log_perm log_bytes len input out_len out_bytes output v () handle.state.tl_state read wrote out_bytes');
     rewrite
       (verify_post_some_m_success tid log_perm log_bytes len input out_len out_bytes output v () handle.state.tl_state read wrote)
       (verify_post_some_m tid log_perm log_bytes len input out_len out_bytes output v handle.state.tl_state);
     rewrite
       (verify_post_some tid log_perm log_bytes len input out_len out_bytes output _)
-      (verify_post tid log_perm log_bytes len input out_len out_bytes output v);
-    entries_f
+      (verify_post tid log_perm log_bytes len input out_len out_bytes output v)
   end else begin
     m_verify_post_failure_eq handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v;
     let _ = gen_elim () in
     rewrite (handle_pts_to_body0 handle.state) (handle_pts_to_body handle.state);
-    let entries_f = vpattern_replace_erased (fun (entries_: AEH.log) -> M.log_of_tid handle.state.tl_state tid entries_) in
     rewrite (handle_pts_to0 handle.state.tl_state) (handle_pts_to handle.state.tl_state);
     vpattern_rewrite #_ #_ #output' (fun output -> A.pts_to output _ _) (EXT.gtake output);
     rewrite
@@ -162,8 +158,7 @@ let verify_log_some_concl
     vpattern_rewrite #_ #_ #input' (fun input -> A.pts_to input _ _) (EXT.gtake input);
     rewrite
       (verify_post_some tid log_perm log_bytes len input out_len out_bytes output _)
-      (verify_post tid log_perm log_bytes len input out_len out_bytes output v);
-    entries_f
+      (verify_post tid log_perm log_bytes len input out_len out_bytes output v)
   end
 
 let verify_log_some
@@ -183,18 +178,13 @@ let verify_log_some
 =
   rewrite (handle_pts_to_body handle.state) (handle_pts_to_body0 handle.state);
   let _ = gen_elim () in
-  let pl : thread_lock_t handle.state.tl_state = A.read handle.state.thread_locks (FStar.Int.Cast.uint16_to_uint32 tid) in
-  let l : Lock.lock (thread_lock_vprop handle.state.tl_state tid) = dsnd pl in
-  Lock.acquire l;
-  let _ = gen_elim () in
-  let entries = vpattern_replace_erased (fun (entries: AEH.log) -> M.log_of_tid handle.state.tl_state tid entries) in
+  rewrite emp (M.log_of_tid_gen handle.state.tl_state tid Seq.empty);
   let input' = EXT.take input len in
   let output' = EXT.take output out_len in
   vpattern_rewrite (fun a -> A.pts_to a log_perm log_bytes) input';
   vpattern_rewrite (fun a -> A.pts_to a full_perm out_bytes) output';
   let v = M.verify_log _ tid len input' out_len output' in
-  let _ = verify_log_some_concl tid len input out_len output () input' output' entries _ _ v in
-  Lock.release l;
+  let _ = verify_log_some_concl tid len input out_len output () input' output' _ _ v in
   return v
 
 let verify_log
@@ -202,7 +192,7 @@ let verify_log
 =
   let t = handle.state.tl_state in
   handle_pts_to_body_intro ();
-  if not (check_verify_input tid len input out_len output) returns STT (option (v:V.verify_result { V.verify_result_complete len v }))
+  if not (check_verify_input tid len input out_len output) returns STT (option (M.verify_result len))
     (handle_pts_to_body handle.state `star` verify_pre log_perm log_bytes input out_bytes output)
     (fun res -> verify_post tid log_perm log_bytes len input out_len out_bytes output res)
   then begin
