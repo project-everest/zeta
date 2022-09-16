@@ -155,8 +155,6 @@ typedef struct Zeta_Steel_Main_top_level_state_s Zeta_Steel_Main_top_level_state
 
 Zeta_Steel_Main_top_level_state *Zeta_Steel_Main_init();
 
-typedef void *Zeta_Steel_Main_verify_post_success_pure_inv;
-
 typedef struct FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result_s
 {
   FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;

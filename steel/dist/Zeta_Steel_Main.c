@@ -4,7 +4,7 @@
 
 
 
-typedef uint8_t *dtuple2___uint8_t____;
+typedef uint8_t *byte_array;
 
 extern void
 Hacl_Blake2b_32_blake2b(
@@ -669,24 +669,29 @@ static bool add(ha ha1, uint8_t *input, uint32_t l)
   return v0;
 }
 
-typedef struct option__uint32_t_s
+#define None 0
+#define Some 1
+
+typedef uint8_t high_water_mark_tags;
+
+typedef struct high_water_mark_s
 {
-  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
+  high_water_mark_tags tag;
   uint32_t v;
 }
-option__uint32_t;
+high_water_mark;
 
-static option__uint32_t check_overflow_add32(uint32_t x, uint32_t y)
+static high_water_mark check_overflow_add32(uint32_t x, uint32_t y)
 {
   if ((uint32_t)0xffffffffU - x < y)
-    return ((option__uint32_t){ .tag = FStar_Pervasives_Native_None });
+    return ((high_water_mark){ .tag = None });
   else
-    return ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = x + y });
+    return ((high_water_mark){ .tag = Some, .v = x + y });
 }
 
-static option__uint32_t st_check_overflow_add32(uint32_t x, uint32_t y)
+static high_water_mark st_check_overflow_add32(uint32_t x, uint32_t y)
 {
-  option__uint32_t r = check_overflow_add32(x, y);
+  high_water_mark r = check_overflow_add32(x, y);
   return r;
 }
 
@@ -709,12 +714,12 @@ typedef struct __uint16_t_bool_s
 }
 __uint16_t_bool;
 
-typedef struct option__uint16_t___bool_s
+typedef struct option__K___uint16_t_bool_s
 {
   FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
   __uint16_t_bool v;
 }
-option__uint16_t___bool;
+option__K___uint16_t_bool;
 
 typedef struct store_entry_s
 {
@@ -723,7 +728,7 @@ typedef struct store_entry_s
   add_method add_method;
   option__uint16_t l_child_in_store;
   option__uint16_t r_child_in_store;
-  option__uint16_t___bool parent_slot;
+  option__K___uint16_t_bool parent_slot;
 }
 store_entry;
 
@@ -764,7 +769,7 @@ mk_entry_full(
   add_method a,
   option__uint16_t l,
   option__uint16_t r,
-  option__uint16_t___bool p
+  option__K___uint16_t_bool p
 )
 {
   return
@@ -789,7 +794,7 @@ mk_entry(Zeta_Steel_LogEntry_Types_key k, Zeta_Steel_LogEntry_Types_value v, add
       a,
       ((option__uint16_t){ .tag = FStar_Pervasives_Native_None }),
       ((option__uint16_t){ .tag = FStar_Pervasives_Native_None }),
-      ((option__uint16_t___bool){ .tag = FStar_Pervasives_Native_None }));
+      ((option__K___uint16_t_bool){ .tag = FStar_Pervasives_Native_None }));
 }
 
 typedef struct option__Zeta_Steel_LogEntry_Types_mval_value_s
@@ -956,11 +961,11 @@ static bool is_root_key(Zeta_Steel_LogEntry_Types_key k)
     return false;
 }
 
-static bool epoch_greater_than_last_verified_epoch(option__uint32_t lve, uint32_t e)
+static bool epoch_greater_than_last_verified_epoch(high_water_mark lve, uint32_t e)
 {
-  if (lve.tag == FStar_Pervasives_Native_None)
+  if (lve.tag == None)
     return true;
-  else if (lve.tag == FStar_Pervasives_Native_Some)
+  else if (lve.tag == Some)
   {
     uint32_t e_ = lve.v;
     return e_ < e;
@@ -975,14 +980,33 @@ static bool epoch_greater_than_last_verified_epoch(option__uint32_t lve, uint32_
   }
 }
 
-static option__uint32_t maybe_increment_last_verified_epoch(option__uint32_t e)
+static high_water_mark maybe_increment_last_verified_epoch(high_water_mark e)
 {
-  if (e.tag == FStar_Pervasives_Native_None)
-    return ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = (uint32_t)0U });
-  else if (e.tag == FStar_Pervasives_Native_Some)
+  if (e.tag == None)
+    return ((high_water_mark){ .tag = Some, .v = (uint32_t)0U });
+  else if (e.tag == Some)
   {
     uint32_t e1 = e.v;
     return check_overflow_add32(e1, (uint32_t)1U);
+  }
+  else
+  {
+    KRML_HOST_EPRINTF("KaRaMeL abort at %s:%d\n%s\n",
+      __FILE__,
+      __LINE__,
+      "unreachable (pattern matches are exhaustive in F*)");
+    KRML_HOST_EXIT(255U);
+  }
+}
+
+static bool above_high_water_mark(high_water_mark h, uint32_t e)
+{
+  if (h.tag == None)
+    return true;
+  else if (h.tag == Some)
+  {
+    uint32_t e0 = h.v;
+    return e0 < e;
   }
   else
   {
@@ -1016,7 +1040,7 @@ typedef struct option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
 
 typedef option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t
-*dtuple2___FStar_Pervasives_Native_option_K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t____;
+*dtuple2___FStar_Pervasives_Native_option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t____;
 
 typedef struct tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 {
@@ -1028,40 +1052,40 @@ tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
 typedef struct all_epoch_hashes_s
 {
   tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t etbl;
-  uint32_t *high;
+  high_water_mark *high;
 }
 all_epoch_hashes;
 
 typedef bool *dtuple2___bool____;
 
-typedef struct __uint32_t_Prims_dtuple2__bool_____s
+typedef struct __uint32_t_Prims_dtuple2___bool_____s
 {
   uint32_t fst;
   bool *snd;
 }
-__uint32_t_Prims_dtuple2__bool____;
+__uint32_t_Prims_dtuple2___bool____;
 
-typedef struct option__K___uint32_t_Prims_dtuple2__bool_____s
+typedef struct option__K___uint32_t_Prims_dtuple2___bool_____s
 {
   FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
-  __uint32_t_Prims_dtuple2__bool____ v;
+  __uint32_t_Prims_dtuple2___bool____ v;
 }
-option__K___uint32_t_Prims_dtuple2__bool____;
+option__K___uint32_t_Prims_dtuple2___bool____;
 
-typedef option__K___uint32_t_Prims_dtuple2__bool____
-*dtuple2___FStar_Pervasives_Native_option_K___uint32_t_Prims_dtuple2__bool________;
+typedef option__K___uint32_t_Prims_dtuple2___bool____
+*dtuple2___FStar_Pervasives_Native_option__K___uint32_t_Prims_dtuple2___bool________;
 
-typedef struct tbl__uint32_t_Prims_dtuple2__bool_____s
+typedef struct tbl__uint32_t_Prims_dtuple2___bool_____s
 {
   uint32_t store_len;
-  option__K___uint32_t_Prims_dtuple2__bool____ *store;
+  option__K___uint32_t_Prims_dtuple2___bool____ *store;
 }
-tbl__uint32_t_Prims_dtuple2__bool____;
+tbl__uint32_t_Prims_dtuple2___bool____;
 
 typedef struct epoch_tid_bitmaps_s
 {
-  tbl__uint32_t_Prims_dtuple2__bool____ etbl;
-  uint32_t *high;
+  tbl__uint32_t_Prims_dtuple2___bool____ etbl;
+  high_water_mark *high;
 }
 epoch_tid_bitmaps;
 
@@ -1069,7 +1093,7 @@ typedef struct aggregate_epoch_hashes_s
 {
   all_epoch_hashes hashes;
   epoch_tid_bitmaps tid_bitmaps;
-  option__uint32_t *max_certified_epoch;
+  high_water_mark *max_certified_epoch;
   cancellable_lock lock;
 }
 aggregate_epoch_hashes;
@@ -1094,22 +1118,26 @@ static all_epoch_hashes create__Zeta_Steel_EpochHashes_epoch_hashes_t(uint32_t n
   option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t *res = p;
   option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t *store = res;
   tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t etbl = { .store_len = n, .store = store };
-  uint32_t *high = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint32_t));
+  KRML_CHECK_SIZE(sizeof (high_water_mark), (uint32_t)1U);
+  high_water_mark *high = KRML_HOST_MALLOC(sizeof (high_water_mark));
+  high[0U] = ((high_water_mark){ .tag = None });
   return ((all_epoch_hashes){ .etbl = etbl, .high = high });
 }
 
 static epoch_tid_bitmaps create__Prims_dtuple2__bool____(uint32_t n)
 {
-  KRML_CHECK_SIZE(sizeof (option__K___uint32_t_Prims_dtuple2__bool____), n);
-  option__K___uint32_t_Prims_dtuple2__bool____
-  *p = KRML_HOST_MALLOC(sizeof (option__K___uint32_t_Prims_dtuple2__bool____) * n);
+  KRML_CHECK_SIZE(sizeof (option__K___uint32_t_Prims_dtuple2___bool____), n);
+  option__K___uint32_t_Prims_dtuple2___bool____
+  *p = KRML_HOST_MALLOC(sizeof (option__K___uint32_t_Prims_dtuple2___bool____) * n);
   for (uint32_t _i = 0U; _i < n; ++_i)
     p[_i]
-    = ((option__K___uint32_t_Prims_dtuple2__bool____){ .tag = FStar_Pervasives_Native_None });
-  option__K___uint32_t_Prims_dtuple2__bool____ *res = p;
-  option__K___uint32_t_Prims_dtuple2__bool____ *store = res;
-  tbl__uint32_t_Prims_dtuple2__bool____ etbl = { .store_len = n, .store = store };
-  uint32_t *high = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint32_t));
+    = ((option__K___uint32_t_Prims_dtuple2___bool____){ .tag = FStar_Pervasives_Native_None });
+  option__K___uint32_t_Prims_dtuple2___bool____ *res = p;
+  option__K___uint32_t_Prims_dtuple2___bool____ *store = res;
+  tbl__uint32_t_Prims_dtuple2___bool____ etbl = { .store_len = n, .store = store };
+  KRML_CHECK_SIZE(sizeof (high_water_mark), (uint32_t)1U);
+  high_water_mark *high = KRML_HOST_MALLOC(sizeof (high_water_mark));
+  high[0U] = ((high_water_mark){ .tag = None });
   return ((epoch_tid_bitmaps){ .etbl = etbl, .high = high });
 }
 
@@ -1117,9 +1145,9 @@ static aggregate_epoch_hashes create0()
 {
   all_epoch_hashes hashes = create__Zeta_Steel_EpochHashes_epoch_hashes_t(all_hashes_size);
   epoch_tid_bitmaps tid_bitmaps = create__Prims_dtuple2__bool____(tid_bitmaps_size);
-  KRML_CHECK_SIZE(sizeof (option__uint32_t), (uint32_t)1U);
-  option__uint32_t *max_certified_epoch = KRML_HOST_MALLOC(sizeof (option__uint32_t));
-  max_certified_epoch[0U] = ((option__uint32_t){ .tag = FStar_Pervasives_Native_None });
+  KRML_CHECK_SIZE(sizeof (high_water_mark), (uint32_t)1U);
+  high_water_mark *max_certified_epoch = KRML_HOST_MALLOC(sizeof (high_water_mark));
+  max_certified_epoch[0U] = ((high_water_mark){ .tag = None });
   cancellable_lock lock = new_cancellable_lock();
   return
     (
@@ -1206,15 +1234,15 @@ get_result__uint32_t_Prims_dtuple2___bool____;
 static get_result__Prims_dtuple2___bool____
 get__Prims_dtuple2__bool____(epoch_tid_bitmaps a, uint32_t i)
 {
-  uint32_t high_value = a.high[0U];
-  bool r = high_value < i;
+  high_water_mark high_value = a.high[0U];
+  bool r = above_high_water_mark(high_value, i);
   if (r)
     return ((get_result__Prims_dtuple2___bool____){ .tag = Fresh });
   else
   {
     uint32_t idx = i % a.etbl.store_len;
-    option__K___uint32_t_Prims_dtuple2__bool____ *pt = a.etbl.store;
-    option__K___uint32_t_Prims_dtuple2__bool____ vopt = pt[idx];
+    option__K___uint32_t_Prims_dtuple2___bool____ *pt = a.etbl.store;
+    option__K___uint32_t_Prims_dtuple2___bool____ vopt = pt[idx];
     get_result__uint32_t_Prims_dtuple2___bool____ r1;
     if (vopt.tag == FStar_Pervasives_Native_None)
       r1 = ((get_result__uint32_t_Prims_dtuple2___bool____){ .tag = Absent });
@@ -1293,8 +1321,8 @@ get_result__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
 static get_result__Zeta_Steel_EpochHashes_epoch_hashes_t
 get__Zeta_Steel_EpochHashes_epoch_hashes_t(all_epoch_hashes a, uint32_t i)
 {
-  uint32_t high_value = a.high[0U];
-  bool r = high_value < i;
+  high_water_mark high_value = a.high[0U];
+  bool r = above_high_water_mark(high_value, i);
   if (r)
     return ((get_result__Zeta_Steel_EpochHashes_epoch_hashes_t){ .tag = Fresh });
   else
@@ -1366,22 +1394,22 @@ static bool check_hash_equality_for_epoch(all_epoch_hashes hashes, uint32_t e)
 }
 
 static bool
-try_increment_max(all_epoch_hashes hashes, epoch_tid_bitmaps bitmaps, option__uint32_t *max)
+try_increment_max(all_epoch_hashes hashes, epoch_tid_bitmaps bitmaps, high_water_mark *max)
 {
-  option__uint32_t e = max[0U];
-  option__uint32_t v;
-  if (e.tag == FStar_Pervasives_Native_None)
-    v = ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = (uint32_t)0U });
-  else if (e.tag == FStar_Pervasives_Native_Some)
+  high_water_mark e = max[0U];
+  high_water_mark v;
+  if (e.tag == None)
+    v = ((high_water_mark){ .tag = Some, .v = (uint32_t)0U });
+  else if (e.tag == Some)
   {
     uint32_t e1 = e.v;
     v = check_overflow_add32(e1, (uint32_t)1U);
   }
   else
-    v = KRML_EABORT(option__uint32_t, "unreachable (pattern matches are exhaustive in F*)");
-  if (v.tag == FStar_Pervasives_Native_None)
+    v = KRML_EABORT(high_water_mark, "unreachable (pattern matches are exhaustive in F*)");
+  if (v.tag == None)
     return false;
-  else if (v.tag == FStar_Pervasives_Native_Some)
+  else if (v.tag == Some)
   {
     uint32_t e_ = v.v;
     bool ready = check_bitmap_for_epoch(bitmaps, e_);
@@ -1394,7 +1422,7 @@ try_increment_max(all_epoch_hashes hashes, epoch_tid_bitmaps bitmaps, option__ui
         return false;
       else
       {
-        max[0U] = ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = e_ });
+        max[0U] = ((high_water_mark){ .tag = Some, .v = e_ });
         return true;
       }
     }
@@ -1409,8 +1437,8 @@ try_increment_max(all_epoch_hashes hashes, epoch_tid_bitmaps bitmaps, option__ui
   }
 }
 
-static option__uint32_t
-try_advance_max(all_epoch_hashes hashes, epoch_tid_bitmaps bitmaps, option__uint32_t *max)
+static high_water_mark
+try_advance_max(all_epoch_hashes hashes, epoch_tid_bitmaps bitmaps, high_water_mark *max)
 {
   bool r = true;
   while (r)
@@ -1440,15 +1468,15 @@ advance_and_read_max_certified_epoch(aggregate_epoch_hashes aeh)
       );
   else
   {
-    option__uint32_t max = try_advance_max(aeh.hashes, aeh.tid_bitmaps, aeh.max_certified_epoch);
-    if (max.tag == FStar_Pervasives_Native_None)
+    high_water_mark max = try_advance_max(aeh.hashes, aeh.tid_bitmaps, aeh.max_certified_epoch);
+    if (max.tag == None)
     {
       Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
       r = { .tag = Zeta_Steel_AggregateEpochHashes_Read_max_none };
       release_lock(aeh.lock);
       return r;
     }
-    else if (max.tag == FStar_Pervasives_Native_Some)
+    else if (max.tag == Some)
     {
       uint32_t max_v = max.v;
       release_lock(aeh.lock);
@@ -1478,14 +1506,14 @@ typedef struct __Zeta_Steel_LogEntry_Types_log_entry_uint32_t_s
 }
 __Zeta_Steel_LogEntry_Types_log_entry_uint32_t;
 
-typedef struct option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t_s
+typedef struct option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t_s
 {
   FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
   __Zeta_Steel_LogEntry_Types_log_entry_uint32_t v;
 }
-option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t;
+option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t;
 
-extern option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t
+extern option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t
 zeta__parser_log_entry(uint32_t x0, uint32_t x1, uint8_t *x2);
 
 extern uint32_t
@@ -1506,14 +1534,14 @@ typedef struct __Zeta_Steel_KeyUtils_u256_uint32_t_s
 }
 __Zeta_Steel_KeyUtils_u256_uint32_t;
 
-typedef struct option__Zeta_Steel_KeyUtils_u256___uint32_t_s
+typedef struct option__K___Zeta_Steel_KeyUtils_u256_uint32_t_s
 {
   FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
   __Zeta_Steel_KeyUtils_u256_uint32_t v;
 }
-option__Zeta_Steel_KeyUtils_u256___uint32_t;
+option__K___Zeta_Steel_KeyUtils_u256_uint32_t;
 
-extern option__Zeta_Steel_KeyUtils_u256___uint32_t
+extern option__K___Zeta_Steel_KeyUtils_u256_uint32_t
 zeta__parser_u256(uint32_t x0, uint32_t x1, uint8_t *x2);
 
 typedef struct hasher_t_s
@@ -1540,7 +1568,7 @@ static hasher_t alloc()
 
 static Zeta_Steel_KeyUtils_u256 read_hash_u256(uint8_t *hb)
 {
-  option__Zeta_Steel_KeyUtils_u256___uint32_t
+  option__K___Zeta_Steel_KeyUtils_u256_uint32_t
   res = zeta__parser_u256((uint32_t)0U, (uint32_t)32U, hb);
   if (res.tag == FStar_Pervasives_Native_Some)
     return res.v.fst;
@@ -1584,7 +1612,7 @@ typedef struct Zeta_Steel_VerifierTypes_thread_state_t_s
   timestamp *clock;
   Zeta_Steel_KeyUtils_raw_key *last_evict_key;
   all_epoch_hashes epoch_hashes;
-  option__uint32_t *last_verified_epoch;
+  high_water_mark *last_verified_epoch;
   uint8_t *serialization_buffer;
   hasher_t hasher;
 }
@@ -1719,7 +1747,7 @@ madd_to_store_split(
               MAdd,
               ((option__uint16_t){ .tag = FStar_Pervasives_Native_None }),
               ((option__uint16_t){ .tag = FStar_Pervasives_Native_None }),
-              ((option__uint16_t___bool){ .tag = FStar_Pervasives_Native_Some, .v = p }));
+              ((option__K___uint16_t_bool){ .tag = FStar_Pervasives_Native_Some, .v = p }));
           store_entry e1 = update_child(e, d2, s2);
           store_entry e_ = update_child(r_, d, s);
           __uint16_t_bool p2new = { .fst = s, .snd = d2 };
@@ -2181,10 +2209,10 @@ option__Zeta_Steel_LogEntry_Types_timestamp;
 
 static option__Zeta_Steel_LogEntry_Types_timestamp next(timestamp t)
 {
-  option__uint32_t scrut = check_overflow_add32(t.counter, (uint32_t)1U);
-  if (scrut.tag == FStar_Pervasives_Native_None)
+  high_water_mark scrut = check_overflow_add32(t.counter, (uint32_t)1U);
+  if (scrut.tag == None)
     return ((option__Zeta_Steel_LogEntry_Types_timestamp){ .tag = FStar_Pervasives_Native_None });
-  else if (scrut.tag == FStar_Pervasives_Native_Some)
+  else if (scrut.tag == Some)
   {
     uint32_t ctr = scrut.v;
     return
@@ -2235,10 +2263,10 @@ put__Zeta_Steel_EpochHashes_epoch_hashes_t(all_epoch_hashes a, uint32_t i, epoch
         .v = { .fst = i, .snd = x }
       }
     );
-  uint32_t high = a.high[0U];
-  bool r = high < i;
+  high_water_mark high = a.high[0U];
+  bool r = above_high_water_mark(high, i);
   if (r)
-    a.high[0U] = i;
+    a.high[0U] = ((high_water_mark){ .tag = Some, .v = i });
 }
 
 static void
@@ -2359,7 +2387,7 @@ vaddb_core(
       }
       else
       {
-        option__uint32_t lve = t.last_verified_epoch[0U];
+        high_water_mark lve = t.last_verified_epoch[0U];
         if (!epoch_greater_than_last_verified_epoch(lve, epoch_of_timestamp(ts)))
         {
           fail(t);
@@ -2506,7 +2534,7 @@ evict_from_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t
   }
 }
 
-static bool uu___is_Some__uint16_t___bool(option__uint16_t___bool projectee)
+static bool uu___is_Some__uint16_t___bool(option__K___uint16_t_bool projectee)
 {
   if (projectee.tag == FStar_Pervasives_Native_Some)
     return true;
@@ -2811,7 +2839,7 @@ static bool vevictb(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, times
   return b;
 }
 
-static bool uu___is_None__uint16_t___bool(option__uint16_t___bool projectee)
+static bool uu___is_None__uint16_t___bool(option__K___uint16_t_bool projectee)
 {
   if (projectee.tag == FStar_Pervasives_Native_None)
     return true;
@@ -2989,10 +3017,10 @@ static void nextepoch_core(Zeta_Steel_VerifierTypes_thread_state_t t)
 {
   timestamp c = t.clock[0U];
   uint32_t e = epoch_of_timestamp(c);
-  option__uint32_t res = st_check_overflow_add32(e, (uint32_t)1U);
-  if (res.tag == FStar_Pervasives_Native_None)
+  high_water_mark res = st_check_overflow_add32(e, (uint32_t)1U);
+  if (res.tag == None)
     fail(t);
-  else if (res.tag == FStar_Pervasives_Native_Some)
+  else if (res.tag == Some)
   {
     uint32_t nxt = res.v;
     timestamp c1 = { .epoch = nxt, .counter = (uint32_t)0U };
@@ -3092,18 +3120,18 @@ propagate_epoch_hash(
 static void put__Prims_dtuple2__bool____(epoch_tid_bitmaps a, uint32_t i, bool *x)
 {
   uint32_t idx = i % a.etbl.store_len;
-  option__K___uint32_t_Prims_dtuple2__bool____ *pt = a.etbl.store;
+  option__K___uint32_t_Prims_dtuple2___bool____ *pt = a.etbl.store;
   pt[idx] =
     (
-      (option__K___uint32_t_Prims_dtuple2__bool____){
+      (option__K___uint32_t_Prims_dtuple2___bool____){
         .tag = FStar_Pervasives_Native_Some,
         .v = { .fst = i, .snd = x }
       }
     );
-  uint32_t high = a.high[0U];
-  bool r = high < i;
+  high_water_mark high = a.high[0U];
+  bool r = above_high_water_mark(high, i);
   if (r)
-    a.high[0U] = i;
+    a.high[0U] = ((high_water_mark){ .tag = Some, .v = i });
 }
 
 static bool update_bitmap(epoch_tid_bitmaps tid_bitmaps, uint32_t e, uint16_t tid)
@@ -3149,14 +3177,14 @@ verify_epoch_core(
   cancellable_lock lock
 )
 {
-  option__uint32_t e = t.last_verified_epoch[0U];
-  option__uint32_t e_ = maybe_increment_last_verified_epoch(e);
-  if (e_.tag == FStar_Pervasives_Native_None)
+  high_water_mark e = t.last_verified_epoch[0U];
+  high_water_mark e_ = maybe_increment_last_verified_epoch(e);
+  if (e_.tag == None)
   {
     t.failed[0U] = true;
     return true;
   }
-  else if (e_.tag == FStar_Pervasives_Native_Some)
+  else if (e_.tag == Some)
   {
     uint32_t e1 = e_.v;
     timestamp clock = t.clock[0U];
@@ -3181,8 +3209,7 @@ verify_epoch_core(
         }
         else
         {
-          t.last_verified_epoch[0U] =
-            ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = e1 });
+          t.last_verified_epoch[0U] = ((high_water_mark){ .tag = Some, .v = e1 });
           release_lock(lock);
           return true;
         }
@@ -3236,9 +3263,9 @@ static Zeta_Steel_VerifierTypes_thread_state_t create_basic(uint16_t tid)
       }
     );
   all_epoch_hashes epoch_hashes = create__Zeta_Steel_EpochHashes_epoch_hashes_t((uint32_t)64U);
-  KRML_CHECK_SIZE(sizeof (option__uint32_t), (uint32_t)1U);
-  option__uint32_t *last_verified_epoch = KRML_HOST_MALLOC(sizeof (option__uint32_t));
-  last_verified_epoch[0U] = ((option__uint32_t){ .tag = FStar_Pervasives_Native_None });
+  KRML_CHECK_SIZE(sizeof (high_water_mark), (uint32_t)1U);
+  high_water_mark *last_verified_epoch = KRML_HOST_MALLOC(sizeof (high_water_mark));
+  last_verified_epoch[0U] = ((high_water_mark){ .tag = None });
   uint8_t *p = KRML_HOST_CALLOC((uint32_t)4096U, sizeof (uint8_t));
   uint8_t *res0 = p;
   uint8_t *serialization_buffer = res0;
@@ -3360,18 +3387,18 @@ static void fail0()
 
 }
 
-static option__uint32_t verify_entry_cases(bool b)
+static high_water_mark verify_entry_cases(bool b)
 {
   if (b)
-    return ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = (uint32_t)0U });
+    return ((high_water_mark){ .tag = Some, .v = (uint32_t)0U });
   else
   {
     fail0();
-    return ((option__uint32_t){ .tag = FStar_Pervasives_Native_None });
+    return ((high_water_mark){ .tag = None });
   }
 }
 
-static option__uint32_t
+static high_water_mark
 verify_log_entry(
   Zeta_Steel_VerifierTypes_thread_state_t t,
   aggregate_epoch_hashes aeh,
@@ -3382,11 +3409,11 @@ verify_log_entry(
   {
     bool b = verify_epoch(t, aeh);
     if (b)
-      return ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = (uint32_t)0U });
+      return ((high_water_mark){ .tag = Some, .v = (uint32_t)0U });
     else
     {
       fail0();
-      return ((option__uint32_t){ .tag = FStar_Pervasives_Native_None });
+      return ((high_water_mark){ .tag = None });
     }
   }
   else if (le.tag == AddM)
@@ -3451,7 +3478,7 @@ verify_step(
   aggregate_epoch_hashes aeh
 )
 {
-  option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t
+  option__K___Zeta_Steel_LogEntry_Types_log_entry_uint32_t
   res = zeta__parser_log_entry(log_pos, len - log_pos, log);
   if (res.tag == FStar_Pervasives_Native_None)
     return
@@ -3517,8 +3544,8 @@ verify_step(
     }
     else
     {
-      option__uint32_t b = verify_log_entry(t, aeh, le);
-      if (b.tag == FStar_Pervasives_Native_None)
+      high_water_mark b = verify_log_entry(t, aeh, le);
+      if (b.tag == None)
         return
           (
             (Zeta_Steel_Verifier_verify_result){
@@ -3526,7 +3553,7 @@ verify_step(
               { .case_Verify_entry_failure = log_pos }
             }
           );
-      else if (b.tag == FStar_Pervasives_Native_Some)
+      else if (b.tag == Some)
       {
         uint32_t written = b.v;
         return
@@ -3655,7 +3682,7 @@ typedef struct thread_state_s
 }
 thread_state;
 
-typedef thread_state *all_threads_t;
+typedef thread_state *dtuple2___Zeta_Steel_Main_thread_state____;
 
 typedef struct Zeta_Steel_Main_top_level_state_s
 {
