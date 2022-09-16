@@ -1509,7 +1509,7 @@ typedef struct option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t_s
 option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t;
 
 extern option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t
-zeta__parser_log_entry(uint32_t x0, uint32_t x1, uint8_t *x2);
+zeta__parser_log_entry(uint32_t x0, uint32_t x1, uint32_t x2, uint8_t *x3);
 
 extern uint32_t
 zeta__serialize_stamped_record(uint32_t x0, uint32_t x1, uint8_t *x2, stamped_record x3);
@@ -1537,7 +1537,7 @@ typedef struct option__Zeta_Steel_KeyUtils_u256___uint32_t_s
 option__Zeta_Steel_KeyUtils_u256___uint32_t;
 
 extern option__Zeta_Steel_KeyUtils_u256___uint32_t
-zeta__parser_u256(uint32_t x0, uint32_t x1, uint8_t *x2);
+zeta__parser_u256(uint32_t x0, uint32_t x1, uint32_t x2, uint8_t *x3);
 
 typedef struct hasher_t_s
 {
@@ -1564,7 +1564,7 @@ static hasher_t alloc()
 static Zeta_Steel_KeyUtils_u256 read_hash_u256(uint8_t *hb)
 {
   option__Zeta_Steel_KeyUtils_u256___uint32_t
-  res = zeta__parser_u256((uint32_t)0U, (uint32_t)32U, hb);
+  res = zeta__parser_u256((uint32_t)32U, (uint32_t)0U, (uint32_t)32U, hb);
   if (res.tag == FStar_Pervasives_Native_Some)
     return res.v.fst;
   else
@@ -3475,7 +3475,7 @@ verify_step(
 )
 {
   option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t
-  res = zeta__parser_log_entry(log_pos, len - log_pos, log);
+  res = zeta__parser_log_entry(len, log_pos, len - log_pos, log);
   if (res.tag == FStar_Pervasives_Native_None)
     return
       (
