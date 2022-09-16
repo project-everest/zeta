@@ -1,0 +1,82 @@
+
+
+#ifndef __Zeta_Steel_SafeMain_H
+#define __Zeta_Steel_SafeMain_H
+
+#include "krmllib.h"
+
+
+
+#include "steel_atomics.h"
+#include "zeta_application.h"
+static inline bool Steel_ST_Reference_cas_u32(uint32_t *r, uint32_t v_old, uint32_t v_new);
+
+#define FStar_Pervasives_Native_None 0
+#define FStar_Pervasives_Native_Some 1
+
+typedef uint8_t FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags;
+
+#define Zeta_Steel_AggregateEpochHashes_Read_max_error 0
+#define Zeta_Steel_AggregateEpochHashes_Read_max_none 1
+#define Zeta_Steel_AggregateEpochHashes_Read_max_some 2
+
+typedef uint8_t Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result_tags;
+
+typedef struct Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result_s
+{
+  Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result_tags tag;
+  uint32_t _0;
+}
+Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result;
+
+#define Zeta_Steel_Verifier_Parsing_failure 0
+#define Zeta_Steel_Verifier_App_failure 1
+#define Zeta_Steel_Verifier_Verify_entry_failure 2
+#define Zeta_Steel_Verifier_Verify_success 3
+
+typedef uint8_t Zeta_Steel_Verifier_verify_result_tags;
+
+typedef struct Zeta_Steel_Verifier_verify_result_s
+{
+  Zeta_Steel_Verifier_verify_result_tags tag;
+  union {
+    uint32_t case_Parsing_failure;
+    uint32_t case_App_failure;
+    uint32_t case_Verify_entry_failure;
+    struct
+    {
+      uint32_t read;
+      uint32_t wrote;
+    }
+    case_Verify_success;
+  }
+  ;
+}
+Zeta_Steel_Verifier_verify_result;
+
+typedef struct Zeta_Steel_Main_top_level_state_s Zeta_Steel_Main_top_level_state;
+
+typedef struct FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result_s
+{
+  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
+  Zeta_Steel_Verifier_verify_result v;
+}
+FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result;
+
+typedef Zeta_Steel_Main_top_level_state *Zeta_Steel_SafeMain_Handle_state_t;
+
+extern Zeta_Steel_SafeMain_Handle_state_t Zeta_Steel_SafeMain_Handle_handle;
+
+bool Zeta_Steel_SafeMain_check_verify_input(uint16_t tid, uint32_t len);
+
+typedef void *Zeta_Steel_SafeMain_verify_post_success_pure_inv;
+
+FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
+Zeta_Steel_SafeMain_verify_log(uint16_t tid, uint32_t len, uint8_t *input);
+
+Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
+Zeta_Steel_SafeMain_max_certified_epoch();
+
+
+#define __Zeta_Steel_SafeMain_H_DEFINED
+#endif

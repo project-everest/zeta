@@ -1,6 +1,6 @@
 
 
-#include "Zeta_Steel_Main.h"
+#include "internal/Zeta_Steel_SafeMain.h"
 
 
 
@@ -99,10 +99,26 @@ extern uint16_t Zeta_Steel_ApplicationTypes_store_size;
 
 extern uint32_t Zeta_Steel_ApplicationTypes_n_threads;
 
-static bool eq_u256(Zeta_Steel_KeyUtils_u256 i0, Zeta_Steel_KeyUtils_u256 i1)
+typedef struct u256_s
+{
+  uint64_t v3;
+  uint64_t v2;
+  uint64_t v1;
+  uint64_t v0;
+}
+u256;
+
+static bool eq_u256(u256 i0, u256 i1)
 {
   return i0.v0 == i1.v0 && i0.v1 == i1.v1 && i0.v2 == i1.v2 && i0.v3 == i1.v3;
 }
+
+typedef struct raw_key_s
+{
+  u256 k;
+  uint16_t significant_digits;
+}
+raw_key;
 
 typedef struct __uint32_t_uint32_t_s
 {
@@ -135,7 +151,7 @@ static uint64_t truncate_word(uint64_t k, uint32_t index)
   }
 }
 
-static Zeta_Steel_KeyUtils_raw_key truncate_key(Zeta_Steel_KeyUtils_raw_key k, uint16_t w)
+static raw_key truncate_key(raw_key k, uint16_t w)
 {
   if (w == (uint16_t)256U)
     return k;
@@ -144,12 +160,12 @@ static Zeta_Steel_KeyUtils_raw_key truncate_key(Zeta_Steel_KeyUtils_raw_key k, u
     __uint32_t_uint32_t scrut = bit_offset_in_word(w);
     uint32_t word = scrut.fst;
     uint32_t index = scrut.snd;
-    Zeta_Steel_KeyUtils_u256 kk = k.k;
-    Zeta_Steel_KeyUtils_u256 kk_;
+    u256 kk = k.k;
+    u256 kk_;
     if (word == (uint32_t)0U)
       kk_ =
         (
-          (Zeta_Steel_KeyUtils_u256){
+          (u256){
             .v3 = (uint64_t)0U,
             .v2 = (uint64_t)0U,
             .v1 = (uint64_t)0U,
@@ -159,7 +175,7 @@ static Zeta_Steel_KeyUtils_raw_key truncate_key(Zeta_Steel_KeyUtils_raw_key k, u
     else if (word == (uint32_t)1U)
       kk_ =
         (
-          (Zeta_Steel_KeyUtils_u256){
+          (u256){
             .v3 = (uint64_t)0U,
             .v2 = (uint64_t)0U,
             .v1 = truncate_word(kk.v1, index),
@@ -168,36 +184,19 @@ static Zeta_Steel_KeyUtils_raw_key truncate_key(Zeta_Steel_KeyUtils_raw_key k, u
         );
     else if (word == (uint32_t)2U)
       kk_ =
-        (
-          (Zeta_Steel_KeyUtils_u256){
-            .v3 = (uint64_t)0U,
-            .v2 = truncate_word(kk.v2, index),
-            .v1 = kk.v1,
-            .v0 = kk.v0
-          }
-        );
+        ((u256){ .v3 = (uint64_t)0U, .v2 = truncate_word(kk.v2, index), .v1 = kk.v1, .v0 = kk.v0 });
     else
-      kk_ =
-        (
-          (Zeta_Steel_KeyUtils_u256){
-            .v3 = truncate_word(kk.v3, index),
-            .v2 = kk.v2,
-            .v1 = kk.v1,
-            .v0 = kk.v0
-          }
-        );
-    return ((Zeta_Steel_KeyUtils_raw_key){ .k = kk_, .significant_digits = w });
+      kk_ = ((u256){ .v3 = truncate_word(kk.v3, index), .v2 = kk.v2, .v1 = kk.v1, .v0 = kk.v0 });
+    return ((raw_key){ .k = kk_, .significant_digits = w });
   }
 }
 
-static bool
-__eq__Zeta_Steel_KeyUtils_u256(Zeta_Steel_KeyUtils_u256 y, Zeta_Steel_KeyUtils_u256 x)
+static bool __eq__Zeta_Steel_KeyUtils_u256(u256 y, u256 x)
 {
   return true && x.v3 == y.v3 && x.v2 == y.v2 && x.v1 == y.v1 && x.v0 == y.v0;
 }
 
-static bool
-__eq__Zeta_Steel_KeyUtils_raw_key(Zeta_Steel_KeyUtils_raw_key y, Zeta_Steel_KeyUtils_raw_key x)
+static bool __eq__Zeta_Steel_KeyUtils_raw_key(raw_key y, raw_key x)
 {
   return
     true
@@ -205,8 +204,7 @@ __eq__Zeta_Steel_KeyUtils_raw_key(Zeta_Steel_KeyUtils_raw_key y, Zeta_Steel_KeyU
     && x.significant_digits == y.significant_digits;
 }
 
-static bool
-is_proper_descendent_(Zeta_Steel_KeyUtils_raw_key k0, Zeta_Steel_KeyUtils_raw_key k1)
+static bool is_proper_descendent_(raw_key k0, raw_key k1)
 {
   return
     k0.significant_digits
@@ -219,9 +217,9 @@ static bool ith_bit_64(uint64_t x, uint32_t i)
   return (x >> i) % (uint64_t)2U == (uint64_t)1U;
 }
 
-static bool ith_bit(Zeta_Steel_KeyUtils_raw_key k0, uint16_t i)
+static bool ith_bit(raw_key k0, uint16_t i)
 {
-  Zeta_Steel_KeyUtils_u256 kk = k0.k;
+  u256 kk = k0.k;
   __uint32_t_uint32_t scrut = bit_offset_in_word(i);
   uint32_t word = scrut.fst;
   uint32_t bit = scrut.snd;
@@ -235,38 +233,37 @@ static bool ith_bit(Zeta_Steel_KeyUtils_raw_key k0, uint16_t i)
     return ith_bit_64(kk.v3, bit);
 }
 
-static bool desc_dir_raw(Zeta_Steel_KeyUtils_raw_key k0, Zeta_Steel_KeyUtils_raw_key k1)
+static bool desc_dir_raw(raw_key k0, raw_key k1)
 {
   return !ith_bit(k0, k1.significant_digits);
 }
 
-static bool eq_raw_key(Zeta_Steel_KeyUtils_raw_key k0, Zeta_Steel_KeyUtils_raw_key k1)
+static bool eq_raw_key(raw_key k0, raw_key k1)
 {
   return eq_u256(k0.k, k1.k) && k0.significant_digits == k1.significant_digits;
 }
 
-static bool eq_base_key(Zeta_Steel_KeyUtils_raw_key k0, Zeta_Steel_KeyUtils_raw_key k1)
+static bool eq_base_key(raw_key k0, raw_key k1)
 {
   return eq_raw_key(k0, k1);
 }
 
-static bool is_root(Zeta_Steel_KeyUtils_raw_key r)
+static bool is_root(raw_key r)
 {
   return r.significant_digits == (uint16_t)0U;
 }
 
-static bool
-is_proper_descendent(Zeta_Steel_KeyUtils_raw_key k0, Zeta_Steel_KeyUtils_raw_key k1)
+static bool is_proper_descendent(raw_key k0, raw_key k1)
 {
   return is_proper_descendent_(k0, k1);
 }
 
-static bool desc_dir(Zeta_Steel_KeyUtils_raw_key k0, Zeta_Steel_KeyUtils_raw_key k1)
+static bool desc_dir(raw_key k0, raw_key k1)
 {
   return desc_dir_raw(k0, k1);
 }
 
-static bool base_key_lt(Zeta_Steel_KeyUtils_raw_key bk1, Zeta_Steel_KeyUtils_raw_key bk2)
+static bool base_key_lt(raw_key bk1, raw_key bk2)
 {
   if (bk1.significant_digits == bk2.significant_digits)
     if (bk1.k.v3 == bk2.k.v3)
@@ -292,9 +289,57 @@ typedef struct timestamp_s
 }
 timestamp;
 
-static bool uu___is_ApplicationKey(Zeta_Steel_LogEntry_Types_key projectee)
+#define Vfalse 0
+#define Vtrue 1
+
+typedef uint8_t vbool;
+
+typedef struct descendent_hash_desc_s
 {
-  if (projectee.tag == Zeta_Steel_LogEntry_Types_ApplicationKey)
+  raw_key dhd_key;
+  u256 dhd_h;
+  vbool evicted_to_blum;
+}
+descendent_hash_desc;
+
+#define Dh_vnone 0
+#define Dh_vsome 1
+
+typedef uint8_t descendent_hash_tags;
+
+typedef struct descendent_hash_s
+{
+  descendent_hash_tags tag;
+  descendent_hash_desc _0;
+}
+descendent_hash;
+
+typedef struct mval_value_s
+{
+  descendent_hash l;
+  descendent_hash r;
+}
+mval_value;
+
+#define InternalKey 0
+#define ApplicationKey 1
+
+typedef uint8_t key_tags;
+
+typedef struct key_s
+{
+  key_tags tag;
+  union {
+    raw_key case_InternalKey;
+    Zeta_Steel_ApplicationTypes_key_type case_ApplicationKey;
+  }
+  ;
+}
+key;
+
+static bool uu___is_ApplicationKey(key projectee)
+{
+  if (projectee.tag == ApplicationKey)
     return true;
   else
     return false;
@@ -329,23 +374,46 @@ typedef struct runApp_payload_s
 }
 runApp_payload;
 
-static bool uu___is_MValue(Zeta_Steel_LogEntry_Types_value projectee)
+typedef struct option__Zeta_Steel_ApplicationTypes_value_type_s
 {
-  if (projectee.tag == Zeta_Steel_LogEntry_Types_MValue)
+  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
+  Zeta_Steel_ApplicationTypes_value_type v;
+}
+option__Zeta_Steel_ApplicationTypes_value_type;
+
+#define MValue 0
+#define DValue 1
+
+typedef uint8_t value_tags;
+
+typedef struct value_s
+{
+  value_tags tag;
+  union {
+    mval_value case_MValue;
+    option__Zeta_Steel_ApplicationTypes_value_type case_DValue;
+  }
+  ;
+}
+value;
+
+static bool uu___is_MValue(value projectee)
+{
+  if (projectee.tag == MValue)
     return true;
   else
     return false;
 }
 
-static bool uu___is_DValue(Zeta_Steel_LogEntry_Types_value projectee)
+static bool uu___is_DValue(value projectee)
 {
-  if (projectee.tag == Zeta_Steel_LogEntry_Types_DValue)
+  if (projectee.tag == DValue)
     return true;
   else
     return false;
 }
 
-static bool is_value_of(Zeta_Steel_LogEntry_Types_key k, Zeta_Steel_LogEntry_Types_value v)
+static bool is_value_of(key k, value v)
 {
   if (uu___is_ApplicationKey(k))
     return uu___is_DValue(v);
@@ -355,8 +423,8 @@ static bool is_value_of(Zeta_Steel_LogEntry_Types_key k, Zeta_Steel_LogEntry_Typ
 
 typedef struct record_s
 {
-  Zeta_Steel_LogEntry_Types_key fst;
-  Zeta_Steel_LogEntry_Types_value snd;
+  key fst;
+  value snd;
 }
 record;
 
@@ -409,34 +477,24 @@ stamped_record;
 
 typedef struct __Zeta_Steel_LogEntry_Types_vbool_Zeta_Steel_LogEntry_Types_vbool_s
 {
-  Zeta_Steel_LogEntry_Types_vbool fst;
-  Zeta_Steel_LogEntry_Types_vbool snd;
+  vbool fst;
+  vbool snd;
 }
 __Zeta_Steel_LogEntry_Types_vbool_Zeta_Steel_LogEntry_Types_vbool;
 
-static bool eq_vbool(Zeta_Steel_LogEntry_Types_vbool v0, Zeta_Steel_LogEntry_Types_vbool v1)
+static bool eq_vbool(vbool v0, vbool v1)
 {
   __Zeta_Steel_LogEntry_Types_vbool_Zeta_Steel_LogEntry_Types_vbool
   scrut = { .fst = v0, .snd = v1 };
-  if
-  (
-    scrut.fst
-    == Zeta_Steel_LogEntry_Types_Vfalse
-    && scrut.snd == Zeta_Steel_LogEntry_Types_Vfalse
-  )
+  if (scrut.fst == Vfalse && scrut.snd == Vfalse)
     return true;
-  else if
-  (scrut.fst == Zeta_Steel_LogEntry_Types_Vtrue && scrut.snd == Zeta_Steel_LogEntry_Types_Vtrue)
+  else if (scrut.fst == Vtrue && scrut.snd == Vtrue)
     return true;
   else
     return false;
 }
 
-static bool
-eq_descendent_hash_desc(
-  Zeta_Steel_LogEntry_Types_descendent_hash_desc v0,
-  Zeta_Steel_LogEntry_Types_descendent_hash_desc v1
-)
+static bool eq_descendent_hash_desc(descendent_hash_desc v0, descendent_hash_desc v1)
 {
   return
     eq_base_key(v0.dhd_key,
@@ -448,93 +506,67 @@ eq_descendent_hash_desc(
 typedef struct
 __Zeta_Steel_LogEntry_Types_descendent_hash_Zeta_Steel_LogEntry_Types_descendent_hash_s
 {
-  Zeta_Steel_LogEntry_Types_descendent_hash fst;
-  Zeta_Steel_LogEntry_Types_descendent_hash snd;
+  descendent_hash fst;
+  descendent_hash snd;
 }
 __Zeta_Steel_LogEntry_Types_descendent_hash_Zeta_Steel_LogEntry_Types_descendent_hash;
 
-static bool
-eq_descendent_hash(
-  Zeta_Steel_LogEntry_Types_descendent_hash v0,
-  Zeta_Steel_LogEntry_Types_descendent_hash v1
-)
+static bool eq_descendent_hash(descendent_hash v0, descendent_hash v1)
 {
   __Zeta_Steel_LogEntry_Types_descendent_hash_Zeta_Steel_LogEntry_Types_descendent_hash
   scrut = { .fst = v0, .snd = v1 };
-  if
-  (
-    scrut.fst.tag
-    == Zeta_Steel_LogEntry_Types_Dh_vnone
-    && scrut.snd.tag == Zeta_Steel_LogEntry_Types_Dh_vnone
-  )
+  if (scrut.fst.tag == Dh_vnone && scrut.snd.tag == Dh_vnone)
     return true;
-  else if
-  (
-    scrut.fst.tag
-    == Zeta_Steel_LogEntry_Types_Dh_vsome
-    && scrut.snd.tag == Zeta_Steel_LogEntry_Types_Dh_vsome
-  )
+  else if (scrut.fst.tag == Dh_vsome && scrut.snd.tag == Dh_vsome)
   {
-    Zeta_Steel_LogEntry_Types_descendent_hash_desc v11 = scrut.snd._0;
-    Zeta_Steel_LogEntry_Types_descendent_hash_desc v01 = scrut.fst._0;
+    descendent_hash_desc v11 = scrut.snd._0;
+    descendent_hash_desc v01 = scrut.fst._0;
     return eq_descendent_hash_desc(v01, v11);
   }
   else
     return false;
 }
 
-static bool
-eq_mval_value(Zeta_Steel_LogEntry_Types_mval_value v0, Zeta_Steel_LogEntry_Types_mval_value v1)
+static bool eq_mval_value(mval_value v0, mval_value v1)
 {
   return eq_descendent_hash(v0.l, v1.l) && eq_descendent_hash(v0.r, v1.r);
 }
 
 typedef struct __Zeta_Steel_LogEntry_Types_value_Zeta_Steel_LogEntry_Types_value_s
 {
-  Zeta_Steel_LogEntry_Types_value fst;
-  Zeta_Steel_LogEntry_Types_value snd;
+  value fst;
+  value snd;
 }
 __Zeta_Steel_LogEntry_Types_value_Zeta_Steel_LogEntry_Types_value;
 
-static bool eq_value(Zeta_Steel_LogEntry_Types_value v0, Zeta_Steel_LogEntry_Types_value v1)
+static bool eq_value(value v0, value v1)
 {
   __Zeta_Steel_LogEntry_Types_value_Zeta_Steel_LogEntry_Types_value
   scrut = { .fst = v0, .snd = v1 };
-  if
-  (
-    scrut.fst.tag
-    == Zeta_Steel_LogEntry_Types_MValue
-    && scrut.snd.tag == Zeta_Steel_LogEntry_Types_MValue
-  )
+  if (scrut.fst.tag == MValue && scrut.snd.tag == MValue)
   {
-    Zeta_Steel_LogEntry_Types_mval_value mv1 = scrut.snd.case_MValue;
-    Zeta_Steel_LogEntry_Types_mval_value mv0 = scrut.fst.case_MValue;
+    mval_value mv1 = scrut.snd.case_MValue;
+    mval_value mv0 = scrut.fst.case_MValue;
     return eq_mval_value(mv0, mv1);
   }
   else if
   (
     scrut.fst.tag
-    == Zeta_Steel_LogEntry_Types_DValue
+    == DValue
     &&
       scrut.fst.case_DValue.tag
       == FStar_Pervasives_Native_None
-      &&
-        scrut.snd.tag
-        == Zeta_Steel_LogEntry_Types_DValue
-        && scrut.snd.case_DValue.tag == FStar_Pervasives_Native_None
+      && scrut.snd.tag == DValue && scrut.snd.case_DValue.tag == FStar_Pervasives_Native_None
   )
     return true;
   else if
   (
     scrut.fst.tag
-    == Zeta_Steel_LogEntry_Types_DValue
+    == DValue
     &&
       scrut.fst.case_DValue.tag
       == FStar_Pervasives_Native_Some
-      &&
-        scrut.snd.tag
-        == Zeta_Steel_LogEntry_Types_DValue
-        && scrut.snd.case_DValue.tag == FStar_Pervasives_Native_Some
+      && scrut.snd.tag == DValue && scrut.snd.case_DValue.tag == FStar_Pervasives_Native_Some
   )
   {
     Zeta_Steel_ApplicationTypes_value_type vt1 = scrut.snd.case_DValue.v;
@@ -718,8 +750,8 @@ option__uint16_t___bool;
 
 typedef struct store_entry_s
 {
-  Zeta_Steel_LogEntry_Types_key key;
-  Zeta_Steel_LogEntry_Types_value value;
+  key key;
+  value value;
   add_method add_method;
   option__uint16_t l_child_in_store;
   option__uint16_t r_child_in_store;
@@ -732,35 +764,24 @@ static bool check_slot_bounds(uint16_t s)
   return s < Zeta_Steel_ApplicationTypes_store_size;
 }
 
-static Zeta_Steel_LogEntry_Types_value init_value(Zeta_Steel_LogEntry_Types_key k)
+static value init_value(key k)
 {
   if (uu___is_ApplicationKey(k))
-    return
-      (
-        (Zeta_Steel_LogEntry_Types_value){
-          .tag = Zeta_Steel_LogEntry_Types_DValue,
-          { .case_DValue = { .tag = FStar_Pervasives_Native_None } }
-        }
-      );
+    return ((value){ .tag = DValue, { .case_DValue = { .tag = FStar_Pervasives_Native_None } } });
   else
     return
       (
-        (Zeta_Steel_LogEntry_Types_value){
-          .tag = Zeta_Steel_LogEntry_Types_MValue,
-          {
-            .case_MValue = {
-              .l = { .tag = Zeta_Steel_LogEntry_Types_Dh_vnone },
-              .r = { .tag = Zeta_Steel_LogEntry_Types_Dh_vnone }
-            }
-          }
+        (value){
+          .tag = MValue,
+          { .case_MValue = { .l = { .tag = Dh_vnone }, .r = { .tag = Dh_vnone } } }
         }
       );
 }
 
 static store_entry
 mk_entry_full(
-  Zeta_Steel_LogEntry_Types_key k,
-  Zeta_Steel_LogEntry_Types_value v,
+  key k,
+  value v,
   add_method a,
   option__uint16_t l,
   option__uint16_t r,
@@ -780,8 +801,7 @@ mk_entry_full(
     );
 }
 
-static store_entry
-mk_entry(Zeta_Steel_LogEntry_Types_key k, Zeta_Steel_LogEntry_Types_value v, add_method a)
+static store_entry mk_entry(key k, value v, add_method a)
 {
   return
     mk_entry_full(k,
@@ -795,16 +815,15 @@ mk_entry(Zeta_Steel_LogEntry_Types_key k, Zeta_Steel_LogEntry_Types_value v, add
 typedef struct option__Zeta_Steel_LogEntry_Types_mval_value_s
 {
   FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
-  Zeta_Steel_LogEntry_Types_mval_value v;
+  mval_value v;
 }
 option__Zeta_Steel_LogEntry_Types_mval_value;
 
-static option__Zeta_Steel_LogEntry_Types_mval_value
-to_merkle_value(Zeta_Steel_LogEntry_Types_value v)
+static option__Zeta_Steel_LogEntry_Types_mval_value to_merkle_value(value v)
 {
-  if (v.tag == Zeta_Steel_LogEntry_Types_MValue)
+  if (v.tag == MValue)
   {
-    Zeta_Steel_LogEntry_Types_mval_value v1 = v.case_MValue;
+    mval_value v1 = v.case_MValue;
     return
       (
         (option__Zeta_Steel_LogEntry_Types_mval_value){
@@ -817,8 +836,7 @@ to_merkle_value(Zeta_Steel_LogEntry_Types_value v)
     return ((option__Zeta_Steel_LogEntry_Types_mval_value){ .tag = FStar_Pervasives_Native_None });
 }
 
-static Zeta_Steel_LogEntry_Types_descendent_hash
-desc_hash_dir(Zeta_Steel_LogEntry_Types_mval_value v, bool d)
+static descendent_hash desc_hash_dir(mval_value v, bool d)
 {
   if (d)
     return v.l;
@@ -826,30 +844,19 @@ desc_hash_dir(Zeta_Steel_LogEntry_Types_mval_value v, bool d)
     return v.r;
 }
 
-static Zeta_Steel_LogEntry_Types_mval_value
-update_merkle_value(
-  Zeta_Steel_LogEntry_Types_mval_value v,
-  bool d,
-  Zeta_Steel_KeyUtils_raw_key k,
-  Zeta_Steel_KeyUtils_u256 h,
-  bool b
-)
+static mval_value update_merkle_value(mval_value v, bool d, raw_key k, u256 h, bool b)
 {
-  Zeta_Steel_LogEntry_Types_vbool ite;
+  vbool ite;
   if (b)
-    ite = Zeta_Steel_LogEntry_Types_Vtrue;
+    ite = Vtrue;
   else
-    ite = Zeta_Steel_LogEntry_Types_Vfalse;
-  Zeta_Steel_LogEntry_Types_descendent_hash
-  desc_hash =
-    {
-      .tag = Zeta_Steel_LogEntry_Types_Dh_vsome,
-      ._0 = { .dhd_key = k, .dhd_h = h, .evicted_to_blum = ite }
-    };
+    ite = Vfalse;
+  descendent_hash
+  desc_hash = { .tag = Dh_vsome, ._0 = { .dhd_key = k, .dhd_h = h, .evicted_to_blum = ite } };
   if (d)
-    return ((Zeta_Steel_LogEntry_Types_mval_value){ .l = desc_hash, .r = v.r });
+    return ((mval_value){ .l = desc_hash, .r = v.r });
   else
-    return ((Zeta_Steel_LogEntry_Types_mval_value){ .l = v.l, .r = desc_hash });
+    return ((mval_value){ .l = v.l, .r = desc_hash });
 }
 
 static store_entry update_parent_slot(store_entry r, __uint16_t_bool s)
@@ -911,7 +918,7 @@ static bool timestamp_lt(timestamp t0, timestamp t1)
 typedef struct timestamp_key_s
 {
   timestamp fst;
-  Zeta_Steel_KeyUtils_raw_key snd;
+  raw_key snd;
 }
 timestamp_key;
 
@@ -923,9 +930,9 @@ static bool __eq__Zeta_Steel_LogEntry_Types_timestamp(timestamp y, timestamp x)
 static bool tk_lt(timestamp_key tk1, timestamp_key tk2)
 {
   timestamp t1 = tk1.fst;
-  Zeta_Steel_KeyUtils_raw_key k1 = tk1.snd;
+  raw_key k1 = tk1.snd;
   timestamp t2 = tk2.fst;
-  Zeta_Steel_KeyUtils_raw_key k2 = tk2.snd;
+  raw_key k2 = tk2.snd;
   return
     timestamp_lt(t1,
       t2)
@@ -945,11 +952,11 @@ static uint32_t epoch_of_timestamp(timestamp t)
   return t.epoch;
 }
 
-static bool is_root_key(Zeta_Steel_LogEntry_Types_key k)
+static bool is_root_key(key k)
 {
-  if (k.tag == Zeta_Steel_LogEntry_Types_InternalKey)
+  if (k.tag == InternalKey)
   {
-    Zeta_Steel_KeyUtils_raw_key k1 = k.case_InternalKey;
+    raw_key k1 = k.case_InternalKey;
     return is_root(k1);
   }
   else
@@ -1514,17 +1521,11 @@ zeta__parser_log_entry(uint32_t x0, uint32_t x1, uint32_t x2, uint8_t *x3);
 extern uint32_t
 zeta__serialize_stamped_record(uint32_t x0, uint32_t x1, uint8_t *x2, stamped_record x3);
 
-extern uint32_t
-zeta__serialize_value(
-  uint32_t x0,
-  uint32_t x1,
-  uint8_t *x2,
-  Zeta_Steel_LogEntry_Types_value x3
-);
+extern uint32_t zeta__serialize_value(uint32_t x0, uint32_t x1, uint8_t *x2, value x3);
 
 typedef struct __Zeta_Steel_KeyUtils_u256_uint32_t_s
 {
-  Zeta_Steel_KeyUtils_u256 fst;
+  u256 fst;
   uint32_t snd;
 }
 __Zeta_Steel_KeyUtils_u256_uint32_t;
@@ -1561,7 +1562,7 @@ static hasher_t alloc()
   return ((hasher_t){ .serialization_buffer = sb, .hash_buffer = hb, .dummy = dummy });
 }
 
-static Zeta_Steel_KeyUtils_u256 read_hash_u256(uint8_t *hb)
+static u256 read_hash_u256(uint8_t *hb)
 {
   option__Zeta_Steel_KeyUtils_u256___uint32_t
   res = zeta__parser_u256((uint32_t)32U, (uint32_t)0U, (uint32_t)32U, hb);
@@ -1577,7 +1578,7 @@ static Zeta_Steel_KeyUtils_u256 read_hash_u256(uint8_t *hb)
   }
 }
 
-static Zeta_Steel_KeyUtils_u256 hash_value(hasher_t h, Zeta_Steel_LogEntry_Types_value v)
+static u256 hash_value(hasher_t h, value v)
 {
   uint32_t n = zeta__serialize_value((uint32_t)4096U, (uint32_t)0U, h.serialization_buffer, v);
   Hacl_Blake2b_32_blake2b((uint32_t)32U,
@@ -1586,7 +1587,7 @@ static Zeta_Steel_KeyUtils_u256 hash_value(hasher_t h, Zeta_Steel_LogEntry_Types
     h.serialization_buffer,
     (uint32_t)0U,
     h.dummy);
-  Zeta_Steel_KeyUtils_u256 res = read_hash_u256(h.hash_buffer);
+  u256 res = read_hash_u256(h.hash_buffer);
   return res;
 }
 
@@ -1599,24 +1600,19 @@ option__Zeta_Steel_ThreadStateModel_store_entry;
 
 typedef option__Zeta_Steel_ThreadStateModel_store_entry *vstore;
 
-typedef struct Zeta_Steel_VerifierTypes_thread_state_t_s
+typedef struct thread_state_t_s
 {
   uint16_t thread_id;
   bool *failed;
   option__Zeta_Steel_ThreadStateModel_store_entry *store;
   timestamp *clock;
-  Zeta_Steel_KeyUtils_raw_key *last_evict_key;
+  raw_key *last_evict_key;
   all_epoch_hashes epoch_hashes;
   option__uint32_t *last_verified_epoch;
   uint8_t *serialization_buffer;
   hasher_t hasher;
 }
-Zeta_Steel_VerifierTypes_thread_state_t;
-
-static uint32_t as_u32(uint16_t s)
-{
-  return (uint32_t)s;
-}
+thread_state_t;
 
 #define Run_app_parsing_failure 0
 #define Run_app_verify_failure 1
@@ -1639,38 +1635,40 @@ Zeta_Steel_Application_run_app_function(
   uint32_t out_len,
   uint32_t out_offset,
   uint8_t *out,
-  Zeta_Steel_VerifierTypes_thread_state_t t
+  thread_state_t t
 );
 
-extern Zeta_Steel_KeyUtils_raw_key
+extern raw_key
 Zeta_Steel_Application_key_type_to_base_key(Zeta_Steel_ApplicationTypes_key_type k);
+
+extern bool Zeta_Steel_ExternalPtr_enclave_api_validate(uint8_t *x, uint32_t n);
 
 extern uint32_t zeta__runapp_payload_offset(log_entry e);
 
-static uint32_t as_u320(uint16_t s)
+static uint32_t as_u32(uint16_t s)
 {
   return (uint32_t)s;
 }
 
-static void fail(Zeta_Steel_VerifierTypes_thread_state_t t)
+static void fail(thread_state_t t)
 {
   t.failed[0U] = true;
 }
 
-static bool fail_as(Zeta_Steel_VerifierTypes_thread_state_t t)
+static bool fail_as(thread_state_t t)
 {
   t.failed[0U] = true;
   return true;
 }
 
-static Zeta_Steel_KeyUtils_raw_key to_base_key(Zeta_Steel_LogEntry_Types_key x)
+static raw_key to_base_key(key x)
 {
-  if (x.tag == Zeta_Steel_LogEntry_Types_InternalKey)
+  if (x.tag == InternalKey)
     return x.case_InternalKey;
-  else if (x.tag == Zeta_Steel_LogEntry_Types_ApplicationKey)
+  else if (x.tag == ApplicationKey)
   {
     Zeta_Steel_ApplicationTypes_key_type k = x.case_ApplicationKey;
-    Zeta_Steel_KeyUtils_raw_key k_ = Zeta_Steel_Application_key_type_to_base_key(k);
+    raw_key k_ = Zeta_Steel_Application_key_type_to_base_key(k);
     return k_;
   }
   else
@@ -1683,21 +1681,13 @@ static Zeta_Steel_KeyUtils_raw_key to_base_key(Zeta_Steel_LogEntry_Types_key x)
   }
 }
 
-static bool check_failed(Zeta_Steel_VerifierTypes_thread_state_t t)
+static bool check_failed(thread_state_t t)
 {
   return t.failed[0U];
 }
 
 static void
-madd_to_store_split(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  uint16_t s,
-  Zeta_Steel_LogEntry_Types_key k,
-  Zeta_Steel_LogEntry_Types_value v,
-  uint16_t s_,
-  bool d,
-  bool d2
-)
+madd_to_store_split(thread_state_t t, uint16_t s, key k, value v, uint16_t s_, bool d, bool d2)
 {
   bool b = is_value_of(k, v);
   if (!b)
@@ -1705,11 +1695,11 @@ madd_to_store_split(
   else
   {
     option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(s)];
     option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
     option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
     option__Zeta_Steel_ThreadStateModel_store_entry *pt1 = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry res1 = pt1[as_u320(s_)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res1 = pt1[as_u32(s_)];
     option__Zeta_Steel_ThreadStateModel_store_entry res2 = res1;
     option__Zeta_Steel_ThreadStateModel_store_entry ropt_ = res2;
     if (ropt.tag == FStar_Pervasives_Native_Some)
@@ -1727,7 +1717,7 @@ madd_to_store_split(
       {
         uint16_t s2 = s2_opt.v;
         option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-        option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s2)];
+        option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(s2)];
         option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
         option__Zeta_Steel_ThreadStateModel_store_entry r2opt = res0;
         if (r2opt.tag == FStar_Pervasives_Native_None)
@@ -1748,7 +1738,7 @@ madd_to_store_split(
           __uint16_t_bool p2new = { .fst = s, .snd = d2 };
           store_entry e2 = update_parent_slot(r2, p2new);
           option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-          pt[as_u320(s)] =
+          pt[as_u32(s)] =
             (
               (option__Zeta_Steel_ThreadStateModel_store_entry){
                 .tag = FStar_Pervasives_Native_Some,
@@ -1756,7 +1746,7 @@ madd_to_store_split(
               }
             );
           option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-          pt0[as_u320(s_)] =
+          pt0[as_u32(s_)] =
             (
               (option__Zeta_Steel_ThreadStateModel_store_entry){
                 .tag = FStar_Pervasives_Native_Some,
@@ -1764,7 +1754,7 @@ madd_to_store_split(
               }
             );
           option__Zeta_Steel_ThreadStateModel_store_entry *pt1 = t.store;
-          pt1[as_u320(s2)] =
+          pt1[as_u32(s2)] =
             (
               (option__Zeta_Steel_ThreadStateModel_store_entry){
                 .tag = FStar_Pervasives_Native_Some,
@@ -1801,15 +1791,7 @@ madd_to_store_split(
   }
 }
 
-static void
-madd_to_store(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  uint16_t s,
-  Zeta_Steel_LogEntry_Types_key k,
-  Zeta_Steel_LogEntry_Types_value v,
-  uint16_t s_,
-  bool d
-)
+static void madd_to_store(thread_state_t t, uint16_t s, key k, value v, uint16_t s_, bool d)
 {
   bool b = is_value_of(k, v);
   if (!b)
@@ -1817,11 +1799,11 @@ madd_to_store(
   else
   {
     option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(s)];
     option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
     option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
     option__Zeta_Steel_ThreadStateModel_store_entry *pt1 = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry res1 = pt1[as_u320(s_)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res1 = pt1[as_u32(s_)];
     option__Zeta_Steel_ThreadStateModel_store_entry res2 = res1;
     option__Zeta_Steel_ThreadStateModel_store_entry ropt_ = res2;
     if (ropt.tag == FStar_Pervasives_Native_Some)
@@ -1840,7 +1822,7 @@ madd_to_store(
           .parent_slot = { .tag = FStar_Pervasives_Native_Some, .v = { .fst = s_, .snd = d } }
         };
       option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-      pt0[as_u320(s)] =
+      pt0[as_u32(s)] =
         (
           (option__Zeta_Steel_ThreadStateModel_store_entry){
             .tag = FStar_Pervasives_Native_Some,
@@ -1873,7 +1855,7 @@ madd_to_store(
             }
           );
       option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-      pt[as_u320(s_)] =
+      pt[as_u32(s_)] =
         (
           (option__Zeta_Steel_ThreadStateModel_store_entry){
             .tag = FStar_Pervasives_Native_Some,
@@ -1908,21 +1890,16 @@ static bool entry_points_to_some_slot(store_entry r, bool d)
     return uu___is_Some__uint16_t(r.r_child_in_store);
 }
 
-static void
-update_value(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  uint16_t s,
-  Zeta_Steel_LogEntry_Types_value r
-)
+static void update_value(thread_state_t t, uint16_t s, value r)
 {
   option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-  option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(s)];
   option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
   if (res0.tag == FStar_Pervasives_Native_Some)
   {
     store_entry v = res0.v;
     option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-    pt[as_u320(s)] =
+    pt[as_u32(s)] =
       (
         (option__Zeta_Steel_ThreadStateModel_store_entry){
           .tag = FStar_Pervasives_Native_Some,
@@ -1944,8 +1921,7 @@ update_value(
   }
 }
 
-static bool
-vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, record r)
+static bool vaddm_core(thread_state_t t, uint16_t s, uint16_t s_, record r)
 {
   bool b = !check_slot_bounds(s) || !check_slot_bounds(s_);
   if (b)
@@ -1955,10 +1931,10 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
   }
   else
   {
-    Zeta_Steel_LogEntry_Types_key gk = r.fst;
-    Zeta_Steel_LogEntry_Types_value gv = r.snd;
+    key gk = r.fst;
+    value gv = r.snd;
     option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s_)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(s_)];
     option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
     option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
     if (ropt.tag == FStar_Pervasives_Native_None)
@@ -1969,9 +1945,9 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
     else if (ropt.tag == FStar_Pervasives_Native_Some)
     {
       store_entry r_ = ropt.v;
-      Zeta_Steel_KeyUtils_raw_key k_ = to_base_key(r_.key);
-      Zeta_Steel_LogEntry_Types_value v_ = r_.value;
-      Zeta_Steel_KeyUtils_raw_key k = to_base_key(gk);
+      raw_key k_ = to_base_key(r_.key);
+      value v_ = r_.value;
+      raw_key k = to_base_key(gk);
       if (!is_proper_descendent(k, k_))
       {
         fail(t);
@@ -1980,7 +1956,7 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
       else
       {
         option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-        option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+        option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(s)];
         option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
         option__Zeta_Steel_ThreadStateModel_store_entry sopt = res0;
         if (sopt.tag == FStar_Pervasives_Native_Some)
@@ -1998,11 +1974,11 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
           }
           else if (scrut0.tag == FStar_Pervasives_Native_Some)
           {
-            Zeta_Steel_LogEntry_Types_mval_value v_1 = scrut0.v;
+            mval_value v_1 = scrut0.v;
             bool d = desc_dir(k, k_);
-            Zeta_Steel_LogEntry_Types_descendent_hash dh_ = desc_hash_dir(v_1, d);
-            Zeta_Steel_KeyUtils_u256 h = hash_value(t.hasher, gv);
-            if (dh_.tag == Zeta_Steel_LogEntry_Types_Dh_vnone)
+            descendent_hash dh_ = desc_hash_dir(v_1, d);
+            u256 h = hash_value(t.hasher, gv);
+            if (dh_.tag == Dh_vnone)
               if (!eq_value(gv, init_value(gk)))
               {
                 bool b1 = fail_as(t);
@@ -2016,13 +1992,13 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
               else
               {
                 madd_to_store(t, s, gk, gv, s_, d);
-                Zeta_Steel_LogEntry_Types_mval_value
+                mval_value
                 v__upd =
                   update_merkle_value(v_1,
                     d,
                     k,
                     (
-                      (Zeta_Steel_KeyUtils_u256){
+                      (u256){
                         .v3 = (uint64_t)0U,
                         .v2 = (uint64_t)0U,
                         .v1 = (uint64_t)0U,
@@ -2030,23 +2006,16 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
                       }
                     ),
                     false);
-                update_value(t,
-                  s_,
-                  (
-                    (Zeta_Steel_LogEntry_Types_value){
-                      .tag = Zeta_Steel_LogEntry_Types_MValue,
-                      { .case_MValue = v__upd }
-                    }
-                  ));
+                update_value(t, s_, ((value){ .tag = MValue, { .case_MValue = v__upd } }));
                 return true;
               }
-            else if (dh_.tag == Zeta_Steel_LogEntry_Types_Dh_vsome)
+            else if (dh_.tag == Dh_vsome)
             {
-              Zeta_Steel_LogEntry_Types_vbool b2 = dh_._0.evicted_to_blum;
-              Zeta_Steel_KeyUtils_u256 h2 = dh_._0.dhd_h;
-              Zeta_Steel_KeyUtils_raw_key k2 = dh_._0.dhd_key;
+              vbool b2 = dh_._0.evicted_to_blum;
+              u256 h2 = dh_._0.dhd_h;
+              raw_key k2 = dh_._0.dhd_key;
               if (eq_base_key(k2, k))
-                if (!(eq_u256(h2, h) && b2 == Zeta_Steel_LogEntry_Types_Vfalse))
+                if (!(eq_u256(h2, h) && b2 == Vfalse))
                 {
                   bool b1 = fail_as(t);
                   return b1;
@@ -2077,21 +2046,15 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
                 option__Zeta_Steel_LogEntry_Types_mval_value scrut = to_merkle_value(gv);
                 if (scrut.tag == FStar_Pervasives_Native_Some)
                 {
-                  Zeta_Steel_LogEntry_Types_mval_value mv = scrut.v;
-                  Zeta_Steel_LogEntry_Types_mval_value
-                  mv_upd =
-                    update_merkle_value(mv,
-                      d2,
-                      k2,
-                      h2,
-                      b2 == Zeta_Steel_LogEntry_Types_Vtrue);
-                  Zeta_Steel_LogEntry_Types_mval_value
+                  mval_value mv = scrut.v;
+                  mval_value mv_upd = update_merkle_value(mv, d2, k2, h2, b2 == Vtrue);
+                  mval_value
                   v__upd =
                     update_merkle_value(v_1,
                       d,
                       k,
                       (
-                        (Zeta_Steel_KeyUtils_u256){
+                        (u256){
                           .v3 = (uint64_t)0U,
                           .v2 = (uint64_t)0U,
                           .v1 = (uint64_t)0U,
@@ -2105,23 +2068,11 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
                     madd_to_store_split(t,
                       s,
                       gk,
-                      (
-                        (Zeta_Steel_LogEntry_Types_value){
-                          .tag = Zeta_Steel_LogEntry_Types_MValue,
-                          { .case_MValue = mv_upd }
-                        }
-                      ),
+                      ((value){ .tag = MValue, { .case_MValue = mv_upd } }),
                       s_,
                       d,
                       d2);
-                    update_value(t,
-                      s_,
-                      (
-                        (Zeta_Steel_LogEntry_Types_value){
-                          .tag = Zeta_Steel_LogEntry_Types_MValue,
-                          { .case_MValue = v__upd }
-                        }
-                      ));
+                    update_value(t, s_, ((value){ .tag = MValue, { .case_MValue = v__upd } }));
                     return true;
                   }
                   else
@@ -2129,22 +2080,10 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
                     madd_to_store(t,
                       s,
                       gk,
-                      (
-                        (Zeta_Steel_LogEntry_Types_value){
-                          .tag = Zeta_Steel_LogEntry_Types_MValue,
-                          { .case_MValue = mv_upd }
-                        }
-                      ),
+                      ((value){ .tag = MValue, { .case_MValue = mv_upd } }),
                       s_,
                       d);
-                    update_value(t,
-                      s_,
-                      (
-                        (Zeta_Steel_LogEntry_Types_value){
-                          .tag = Zeta_Steel_LogEntry_Types_MValue,
-                          { .case_MValue = v__upd }
-                        }
-                      ));
+                    update_value(t, s_, ((value){ .tag = MValue, { .case_MValue = v__upd } }));
                     return true;
                   }
                 }
@@ -2189,7 +2128,7 @@ vaddm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, r
   }
 }
 
-static bool vaddm(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, record r)
+static bool vaddm(thread_state_t t, uint16_t s, uint16_t s_, record r)
 {
   bool b = vaddm_core(t, s, s_, r);
   return b;
@@ -2275,14 +2214,7 @@ epoch_map_add__Zeta_Steel_EpochHashes_epoch_hashes_t(
 }
 
 static bool
-update_ht(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  uint32_t e,
-  record r,
-  timestamp ts,
-  uint16_t thread_id,
-  htype ht
-)
+update_ht(thread_state_t t, uint32_t e, record r, timestamp ts, uint16_t thread_id, htype ht)
 {
   get_result__Zeta_Steel_EpochHashes_epoch_hashes_t
   vopt = get__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e);
@@ -2346,13 +2278,7 @@ uu___is_Some__Zeta_Steel_ThreadStateModel_store_entry(
 }
 
 static bool
-vaddb_core(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  uint16_t s,
-  timestamp ts,
-  uint16_t thread_id,
-  record r
-)
+vaddb_core(thread_state_t t, uint16_t s, timestamp ts, uint16_t thread_id, record r)
 {
   bool b = check_slot_bounds(s);
   if (!b)
@@ -2362,8 +2288,8 @@ vaddb_core(
   }
   else
   {
-    Zeta_Steel_LogEntry_Types_key k = r.fst;
-    Zeta_Steel_LogEntry_Types_value v = r.snd;
+    key k = r.fst;
+    value v = r.snd;
     if (is_root_key(k))
     {
       fail(t);
@@ -2372,7 +2298,7 @@ vaddb_core(
     else
     {
       option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-      option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+      option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(s)];
       option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
       option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
       if (uu___is_Some__Zeta_Steel_ThreadStateModel_store_entry(ropt))
@@ -2408,7 +2334,7 @@ vaddb_core(
               {
                 t.last_evict_key[0U] =
                   (
-                    (Zeta_Steel_KeyUtils_raw_key){
+                    (raw_key){
                       .k = {
                         .v3 = (uint64_t)0U,
                         .v2 = (uint64_t)0U,
@@ -2420,7 +2346,7 @@ vaddb_core(
                   );
                 t.clock[0U] = next_clock;
                 option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-                pt[as_u320(s)] =
+                pt[as_u32(s)] =
                   (
                     (option__Zeta_Steel_ThreadStateModel_store_entry){
                       .tag = FStar_Pervasives_Native_Some,
@@ -2433,7 +2359,7 @@ vaddb_core(
               {
                 t.clock[0U] = next_clock;
                 option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-                pt[as_u320(s)] =
+                pt[as_u32(s)] =
                   (
                     (option__Zeta_Steel_ThreadStateModel_store_entry){
                       .tag = FStar_Pervasives_Native_Some,
@@ -2460,24 +2386,16 @@ vaddb_core(
   }
 }
 
-static bool
-vaddb(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  uint16_t s,
-  timestamp ts,
-  uint16_t thread_id,
-  record r
-)
+static bool vaddb(thread_state_t t, uint16_t s, timestamp ts, uint16_t thread_id, record r)
 {
   bool b = vaddb_core(t, s, ts, thread_id, r);
   return b;
 }
 
-static void
-evict_from_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, bool d)
+static void evict_from_store(thread_state_t t, uint16_t s, uint16_t s_, bool d)
 {
   option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-  option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s_)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(s_)];
   option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
   if (res0.tag == FStar_Pervasives_Native_Some)
   {
@@ -2508,7 +2426,7 @@ evict_from_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t
           }
         );
     option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-    pt[as_u320(s_)] =
+    pt[as_u32(s_)] =
       (
         (option__Zeta_Steel_ThreadStateModel_store_entry){
           .tag = FStar_Pervasives_Native_Some,
@@ -2516,7 +2434,7 @@ evict_from_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t
         }
       );
     option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-    pt0[as_u320(s)] =
+    pt0[as_u32(s)] =
       ((option__Zeta_Steel_ThreadStateModel_store_entry){ .tag = FStar_Pervasives_Native_None });
   }
   else
@@ -2555,7 +2473,7 @@ __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry_FStar_
 }
 __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry_FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry;
 
-static void vevictm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_)
+static void vevictm_core(thread_state_t t, uint16_t s, uint16_t s_)
 {
   if (!check_slot_bounds(s) || !check_slot_bounds(s_))
     t.failed[0U] = true;
@@ -2564,11 +2482,11 @@ static void vevictm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
   else
   {
     option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(s)];
     option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
     option__Zeta_Steel_ThreadStateModel_store_entry e = res0;
     option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry res1 = pt[as_u320(s_)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res1 = pt[as_u32(s_)];
     option__Zeta_Steel_ThreadStateModel_store_entry res2 = res1;
     option__Zeta_Steel_ThreadStateModel_store_entry e_ = res2;
     __FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry_FStar_Pervasives_Native_option__Zeta_Steel_ThreadStateModel_store_entry
@@ -2586,12 +2504,12 @@ static void vevictm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
     {
       store_entry r_ = scrut0.snd.v;
       store_entry r = scrut0.fst.v;
-      Zeta_Steel_LogEntry_Types_key gk = r.key;
-      Zeta_Steel_LogEntry_Types_value v = r.value;
-      Zeta_Steel_LogEntry_Types_key gk_ = r_.key;
-      Zeta_Steel_LogEntry_Types_value v_ = r_.value;
-      Zeta_Steel_KeyUtils_raw_key k = to_base_key(gk);
-      Zeta_Steel_KeyUtils_raw_key k_ = to_base_key(gk_);
+      key gk = r.key;
+      value v = r.value;
+      key gk_ = r_.key;
+      value v_ = r_.value;
+      raw_key k = to_base_key(gk);
+      raw_key k_ = to_base_key(gk_);
       if (!is_proper_descendent(k, k_))
         t.failed[0U] = true;
       else if (entry_points_to_some_slot(r, true) || entry_points_to_some_slot(r, false))
@@ -2602,14 +2520,14 @@ static void vevictm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
         option__Zeta_Steel_LogEntry_Types_mval_value scrut = to_merkle_value(v_);
         if (scrut.tag == FStar_Pervasives_Native_Some)
         {
-          Zeta_Steel_LogEntry_Types_mval_value v_1 = scrut.v;
-          Zeta_Steel_LogEntry_Types_descendent_hash dh_ = desc_hash_dir(v_1, d);
-          Zeta_Steel_KeyUtils_u256 h = hash_value(t.hasher, v);
-          if (dh_.tag == Zeta_Steel_LogEntry_Types_Dh_vnone)
+          mval_value v_1 = scrut.v;
+          descendent_hash dh_ = desc_hash_dir(v_1, d);
+          u256 h = hash_value(t.hasher, v);
+          if (dh_.tag == Dh_vnone)
             fail(t);
-          else if (dh_.tag == Zeta_Steel_LogEntry_Types_Dh_vsome)
+          else if (dh_.tag == Dh_vsome)
           {
-            Zeta_Steel_KeyUtils_raw_key k2 = dh_._0.dhd_key;
+            raw_key k2 = dh_._0.dhd_key;
             if (!eq_base_key(k2, k))
               fail(t);
             else
@@ -2630,16 +2548,8 @@ static void vevictm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
                   fail(t);
                 else
                 {
-                  Zeta_Steel_LogEntry_Types_mval_value
-                  v__upd = update_merkle_value(v_1, d, k, h, false);
-                  update_value(t,
-                    s_,
-                    (
-                      (Zeta_Steel_LogEntry_Types_value){
-                        .tag = Zeta_Steel_LogEntry_Types_MValue,
-                        { .case_MValue = v__upd }
-                      }
-                    ));
+                  mval_value v__upd = update_merkle_value(v_1, d, k, h, false);
+                  update_value(t, s_, ((value){ .tag = MValue, { .case_MValue = v__upd } }));
                   evict_from_store(t, s, s_, d);
                 }
               }
@@ -2650,16 +2560,8 @@ static void vevictm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
                   fail(t);
                 else
                 {
-                  Zeta_Steel_LogEntry_Types_mval_value
-                  v__upd = update_merkle_value(v_1, d, k, h, false);
-                  update_value(t,
-                    s_,
-                    (
-                      (Zeta_Steel_LogEntry_Types_value){
-                        .tag = Zeta_Steel_LogEntry_Types_MValue,
-                        { .case_MValue = v__upd }
-                      }
-                    ));
+                  mval_value v__upd = update_merkle_value(v_1, d, k, h, false);
+                  update_value(t, s_, ((value){ .tag = MValue, { .case_MValue = v__upd } }));
                   evict_from_store(t, s, s_, d);
                 }
               }
@@ -2695,16 +2597,15 @@ static void vevictm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
   }
 }
 
-static void vevictm(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_)
+static void vevictm(thread_state_t t, uint16_t s, uint16_t s_)
 {
   vevictm_core(t, s, s_);
 }
 
-static bool
-sat_evictb_checks(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timestamp ts)
+static bool sat_evictb_checks(thread_state_t t, uint16_t s, timestamp ts)
 {
   option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-  option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(s)];
   option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
   option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
   if (ropt.tag == FStar_Pervasives_Native_None)
@@ -2712,10 +2613,10 @@ sat_evictb_checks(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timesta
   else if (ropt.tag == FStar_Pervasives_Native_Some)
   {
     store_entry r = ropt.v;
-    Zeta_Steel_LogEntry_Types_key k = r.key;
-    Zeta_Steel_KeyUtils_raw_key bk = to_base_key(k);
+    key k = r.key;
+    raw_key bk = to_base_key(k);
     timestamp clock = t.clock[0U];
-    Zeta_Steel_KeyUtils_raw_key lek = t.last_evict_key[0U];
+    raw_key lek = t.last_evict_key[0U];
     bool
     b =
       !is_root_key(k)
@@ -2736,18 +2637,17 @@ sat_evictb_checks(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timesta
   }
 }
 
-static bool
-vevictb_update_hash_clock(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timestamp ts)
+static bool vevictb_update_hash_clock(thread_state_t t, uint16_t s, timestamp ts)
 {
   option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-  option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+  option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(s)];
   option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
   if (res0.tag == FStar_Pervasives_Native_Some)
   {
     store_entry r = res0.v;
-    Zeta_Steel_LogEntry_Types_key k = r.key;
-    Zeta_Steel_KeyUtils_raw_key bk = to_base_key(k);
-    Zeta_Steel_LogEntry_Types_value v = r.value;
+    key k = r.key;
+    raw_key bk = to_base_key(k);
+    value v = r.value;
     uint32_t e = epoch_of_timestamp(ts);
     bool b = update_ht(t, e, ((record){ .fst = k, .snd = v }), ts, t.thread_id, HEvict);
     if (b)
@@ -2769,7 +2669,7 @@ vevictb_update_hash_clock(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s,
   }
 }
 
-static bool vevictb_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timestamp ts)
+static bool vevictb_core(thread_state_t t, uint16_t s, timestamp ts)
 {
   bool bounds_failed = !check_slot_bounds(s);
   if (bounds_failed)
@@ -2788,7 +2688,7 @@ static bool vevictb_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
     else
     {
       option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-      option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+      option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(s)];
       option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
       if (res0.tag == FStar_Pervasives_Native_Some)
       {
@@ -2804,7 +2704,7 @@ static bool vevictb_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
           if (b1)
           {
             option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-            pt[as_u320(s)] =
+            pt[as_u32(s)] =
               (
                 (option__Zeta_Steel_ThreadStateModel_store_entry){
                   .tag = FStar_Pervasives_Native_None
@@ -2828,7 +2728,7 @@ static bool vevictb_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, 
   }
 }
 
-static bool vevictb(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, timestamp ts)
+static bool vevictb(thread_state_t t, uint16_t s, timestamp ts)
 {
   bool b = vevictb_core(t, s, ts);
   return b;
@@ -2842,8 +2742,7 @@ static bool uu___is_None__uint16_t___bool(option__uint16_t___bool projectee)
     return false;
 }
 
-static bool
-vevictbm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, timestamp ts)
+static bool vevictbm_core(thread_state_t t, uint16_t s, uint16_t s_, timestamp ts)
 {
   bool bounds_failed = !check_slot_bounds(s) || !check_slot_bounds(s_);
   if (bounds_failed)
@@ -2858,7 +2757,7 @@ vevictbm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_
     else
     {
       option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-      option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s_)];
+      option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(s_)];
       option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
       option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
       if (ropt.tag == FStar_Pervasives_Native_None)
@@ -2867,7 +2766,7 @@ vevictbm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_
       {
         store_entry r_ = ropt.v;
         option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-        option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u320(s)];
+        option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(s)];
         option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
         if (res0.tag == FStar_Pervasives_Native_Some)
         {
@@ -2879,11 +2778,11 @@ vevictbm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_
           }
           else
           {
-            Zeta_Steel_LogEntry_Types_key gk = r.key;
-            Zeta_Steel_LogEntry_Types_key gk_ = r_.key;
-            Zeta_Steel_LogEntry_Types_value v_ = r_.value;
-            Zeta_Steel_KeyUtils_raw_key k = to_base_key(gk);
-            Zeta_Steel_KeyUtils_raw_key k_ = to_base_key(gk_);
+            key gk = r.key;
+            key gk_ = r_.key;
+            value v_ = r_.value;
+            raw_key k = to_base_key(gk);
+            raw_key k_ = to_base_key(gk_);
             if (!is_proper_descendent(k, k_))
             {
               bool b = fail_as(t);
@@ -2894,20 +2793,20 @@ vevictbm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_
               option__Zeta_Steel_LogEntry_Types_mval_value scrut = to_merkle_value(v_);
               if (scrut.tag == FStar_Pervasives_Native_Some)
               {
-                Zeta_Steel_LogEntry_Types_mval_value mv_ = scrut.v;
+                mval_value mv_ = scrut.v;
                 bool d = desc_dir(k, k_);
-                Zeta_Steel_LogEntry_Types_descendent_hash dh_ = desc_hash_dir(mv_, d);
-                if (dh_.tag == Zeta_Steel_LogEntry_Types_Dh_vnone)
+                descendent_hash dh_ = desc_hash_dir(mv_, d);
+                if (dh_.tag == Dh_vnone)
                 {
                   bool b = fail_as(t);
                   return b;
                 }
-                else if (dh_.tag == Zeta_Steel_LogEntry_Types_Dh_vsome)
+                else if (dh_.tag == Dh_vsome)
                 {
-                  Zeta_Steel_LogEntry_Types_vbool b2 = dh_._0.evicted_to_blum;
-                  Zeta_Steel_KeyUtils_u256 h2 = dh_._0.dhd_h;
-                  Zeta_Steel_KeyUtils_raw_key k2 = dh_._0.dhd_key;
-                  if (!eq_base_key(k2, k) || b2 == Zeta_Steel_LogEntry_Types_Vtrue)
+                  vbool b2 = dh_._0.evicted_to_blum;
+                  u256 h2 = dh_._0.dhd_h;
+                  raw_key k2 = dh_._0.dhd_key;
+                  if (!eq_base_key(k2, k) || b2 == Vtrue)
                   {
                     bool b = fail_as(t);
                     return b;
@@ -2941,16 +2840,10 @@ vevictbm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_
                         bool b = vevictb_update_hash_clock(t, s, ts);
                         if (b)
                         {
-                          Zeta_Steel_LogEntry_Types_mval_value
-                          mv__upd = update_merkle_value(mv_, d, k, h2, true);
+                          mval_value mv__upd = update_merkle_value(mv_, d, k, h2, true);
                           update_value(t,
                             s_,
-                            (
-                              (Zeta_Steel_LogEntry_Types_value){
-                                .tag = Zeta_Steel_LogEntry_Types_MValue,
-                                { .case_MValue = mv__upd }
-                              }
-                            ));
+                            ((value){ .tag = MValue, { .case_MValue = mv__upd } }));
                           evict_from_store(t, s, s_, d);
                           return true;
                         }
@@ -3001,14 +2894,13 @@ vevictbm_core(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_
   }
 }
 
-static bool
-vevictbm(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s, uint16_t s_, timestamp ts)
+static bool vevictbm(thread_state_t t, uint16_t s, uint16_t s_, timestamp ts)
 {
   bool b = vevictbm_core(t, s, s_, ts);
   return b;
 }
 
-static void nextepoch_core(Zeta_Steel_VerifierTypes_thread_state_t t)
+static void nextepoch_core(thread_state_t t)
 {
   timestamp c = t.clock[0U];
   uint32_t e = epoch_of_timestamp(c);
@@ -3022,7 +2914,7 @@ static void nextepoch_core(Zeta_Steel_VerifierTypes_thread_state_t t)
     t.clock[0U] = c1;
     t.last_evict_key[0U] =
       (
-        (Zeta_Steel_KeyUtils_raw_key){
+        (raw_key){
           .k = { .v3 = (uint64_t)0U, .v2 = (uint64_t)0U, .v1 = (uint64_t)0U, .v0 = (uint64_t)0U },
           .significant_digits = (uint16_t)0U
         }
@@ -3038,7 +2930,7 @@ static void nextepoch_core(Zeta_Steel_VerifierTypes_thread_state_t t)
   }
 }
 
-static void nextepoch(Zeta_Steel_VerifierTypes_thread_state_t t)
+static void nextepoch(thread_state_t t)
 {
   nextepoch_core(t);
 }
@@ -3058,12 +2950,7 @@ static bool aggregate_epoch_hashes_t(epoch_hashes_t src, epoch_hashes_t dst)
     return false;
 }
 
-static bool
-propagate_epoch_hash(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  all_epoch_hashes hashes,
-  uint32_t e
-)
+static bool propagate_epoch_hash(thread_state_t t, all_epoch_hashes hashes, uint32_t e)
 {
   get_result__Zeta_Steel_EpochHashes_epoch_hashes_t
   dst = get__Zeta_Steel_EpochHashes_epoch_hashes_t(hashes, e);
@@ -3143,7 +3030,7 @@ static bool update_bitmap(epoch_tid_bitmaps tid_bitmaps, uint32_t e, uint16_t ti
     bool *res1 = p;
     bool *new_bm = res1;
     bool *pt = new_bm;
-    pt[as_u320(tid)] = true;
+    pt[as_u32(tid)] = true;
     put__Prims_dtuple2__bool____(tid_bitmaps, e, new_bm);
     return true;
   }
@@ -3151,7 +3038,7 @@ static bool update_bitmap(epoch_tid_bitmaps tid_bitmaps, uint32_t e, uint16_t ti
   {
     bool *v = res._0;
     bool *pt = v;
-    pt[as_u320(tid)] = true;
+    pt[as_u32(tid)] = true;
     return true;
   }
   else
@@ -3166,7 +3053,7 @@ static bool update_bitmap(epoch_tid_bitmaps tid_bitmaps, uint32_t e, uint16_t ti
 
 static bool
 verify_epoch_core(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
+  thread_state_t t,
   all_epoch_hashes hashes,
   epoch_tid_bitmaps tid_bitmaps,
   cancellable_lock lock
@@ -3222,24 +3109,24 @@ verify_epoch_core(
   }
 }
 
-static bool verify_epoch(Zeta_Steel_VerifierTypes_thread_state_t t, aggregate_epoch_hashes aeh)
+static bool verify_epoch(thread_state_t t, aggregate_epoch_hashes aeh)
 {
   bool b = verify_epoch_core(t, aeh.hashes, aeh.tid_bitmaps, aeh.lock);
   return b;
 }
 
-static Zeta_Steel_VerifierTypes_thread_state_t create_basic(uint16_t tid)
+static thread_state_t create_basic(uint16_t tid)
 {
   KRML_CHECK_SIZE(sizeof (bool), (uint32_t)1U);
   bool *failed = KRML_HOST_MALLOC(sizeof (bool));
   failed[0U] = false;
   KRML_CHECK_SIZE(sizeof (option__Zeta_Steel_ThreadStateModel_store_entry),
-    as_u320(Zeta_Steel_ApplicationTypes_store_size));
+    as_u32(Zeta_Steel_ApplicationTypes_store_size));
   option__Zeta_Steel_ThreadStateModel_store_entry
   *p0 =
     KRML_HOST_MALLOC(sizeof (option__Zeta_Steel_ThreadStateModel_store_entry)
-      * as_u320(Zeta_Steel_ApplicationTypes_store_size));
-  for (uint32_t _i = 0U; _i < as_u320(Zeta_Steel_ApplicationTypes_store_size); ++_i)
+      * as_u32(Zeta_Steel_ApplicationTypes_store_size));
+  for (uint32_t _i = 0U; _i < as_u32(Zeta_Steel_ApplicationTypes_store_size); ++_i)
     p0[_i]
     = ((option__Zeta_Steel_ThreadStateModel_store_entry){ .tag = FStar_Pervasives_Native_None });
   option__Zeta_Steel_ThreadStateModel_store_entry *res = p0;
@@ -3247,13 +3134,12 @@ static Zeta_Steel_VerifierTypes_thread_state_t create_basic(uint16_t tid)
   KRML_CHECK_SIZE(sizeof (timestamp), (uint32_t)1U);
   timestamp *clock = KRML_HOST_MALLOC(sizeof (timestamp));
   clock[0U] = ((timestamp){ .epoch = (uint32_t)0U, .counter = (uint32_t)0U });
-  KRML_CHECK_SIZE(sizeof (Zeta_Steel_KeyUtils_raw_key), (uint32_t)1U);
-  Zeta_Steel_KeyUtils_raw_key
-  *last_evict_key = KRML_HOST_MALLOC(sizeof (Zeta_Steel_KeyUtils_raw_key));
+  KRML_CHECK_SIZE(sizeof (raw_key), (uint32_t)1U);
+  raw_key *last_evict_key = KRML_HOST_MALLOC(sizeof (raw_key));
   last_evict_key[0U]
   =
     (
-      (Zeta_Steel_KeyUtils_raw_key){
+      (raw_key){
         .k = { .v3 = (uint64_t)0U, .v2 = (uint64_t)0U, .v1 = (uint64_t)0U, .v0 = (uint64_t)0U },
         .significant_digits = (uint16_t)0U
       }
@@ -3268,7 +3154,7 @@ static Zeta_Steel_VerifierTypes_thread_state_t create_basic(uint16_t tid)
   hasher_t hasher = alloc();
   return
     (
-      (Zeta_Steel_VerifierTypes_thread_state_t){
+      (thread_state_t){
         .thread_id = tid,
         .failed = failed,
         .store = store,
@@ -3282,18 +3168,13 @@ static Zeta_Steel_VerifierTypes_thread_state_t create_basic(uint16_t tid)
     );
 }
 
-static void
-madd_to_store_root(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  uint16_t s,
-  Zeta_Steel_LogEntry_Types_value v
-)
+static void madd_to_store_root(thread_state_t t, uint16_t s, value v)
 {
   bool
   b =
     is_value_of((
-        (Zeta_Steel_LogEntry_Types_key){
-          .tag = Zeta_Steel_LogEntry_Types_InternalKey,
+        (key){
+          .tag = InternalKey,
           {
             .case_InternalKey = {
               .k = {
@@ -3311,7 +3192,7 @@ madd_to_store_root(
   if (!!b)
   {
     option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u320(s)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(s)];
     option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
     option__Zeta_Steel_ThreadStateModel_store_entry ropt = res0;
     if (!(ropt.tag == FStar_Pervasives_Native_Some))
@@ -3320,7 +3201,7 @@ madd_to_store_root(
       new_entry =
         {
           .key = {
-            .tag = Zeta_Steel_LogEntry_Types_InternalKey,
+            .tag = InternalKey,
             {
               .case_InternalKey = {
                 .k = {
@@ -3338,7 +3219,7 @@ madd_to_store_root(
           .parent_slot = { .tag = FStar_Pervasives_Native_None }
         };
       option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-      pt[as_u320(s)] =
+      pt[as_u32(s)] =
         (
           (option__Zeta_Steel_ThreadStateModel_store_entry){
             .tag = FStar_Pervasives_Native_Some,
@@ -3349,16 +3230,16 @@ madd_to_store_root(
   }
 }
 
-static Zeta_Steel_VerifierTypes_thread_state_t create1(uint16_t tid)
+static thread_state_t create1(uint16_t tid)
 {
-  Zeta_Steel_VerifierTypes_thread_state_t ts = create_basic(tid);
+  thread_state_t ts = create_basic(tid);
   if (tid == (uint16_t)0U)
   {
     madd_to_store_root(ts,
       (uint16_t)0U,
       init_value((
-          (Zeta_Steel_LogEntry_Types_key){
-            .tag = Zeta_Steel_LogEntry_Types_InternalKey,
+          (key){
+            .tag = InternalKey,
             {
               .case_InternalKey = {
                 .k = {
@@ -3378,6 +3259,14 @@ static Zeta_Steel_VerifierTypes_thread_state_t create1(uint16_t tid)
     return ts;
 }
 
+static bool uu___is_Verify_success(Zeta_Steel_Verifier_verify_result projectee)
+{
+  if (projectee.tag == Zeta_Steel_Verifier_Verify_success)
+    return true;
+  else
+    return false;
+}
+
 static void fail0()
 {
 
@@ -3395,11 +3284,7 @@ static option__uint32_t verify_entry_cases(bool b)
 }
 
 static option__uint32_t
-verify_log_entry(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  aggregate_epoch_hashes aeh,
-  log_entry le
-)
+verify_log_entry(thread_state_t t, aggregate_epoch_hashes aeh, log_entry le)
 {
   if (le.tag == VerifyEpoch)
   {
@@ -3464,7 +3349,7 @@ verify_log_entry(
 
 static Zeta_Steel_Verifier_verify_result
 verify_step(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
+  thread_state_t t,
   uint32_t len,
   uint32_t log_pos,
   uint8_t *log,
@@ -3582,7 +3467,7 @@ verify_step(
 
 static Zeta_Steel_Verifier_verify_result
 verify_log_ind(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
+  thread_state_t t,
   uint32_t len,
   uint8_t *log,
   uint32_t log_pos,
@@ -3659,7 +3544,7 @@ verify_log_ind(
 
 static Zeta_Steel_Verifier_verify_result
 verify_log(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
+  thread_state_t t,
   uint32_t len,
   uint8_t *log,
   uint32_t outlen,
@@ -3673,7 +3558,7 @@ verify_log(
 typedef struct thread_state_s
 {
   uint16_t tid;
-  Zeta_Steel_VerifierTypes_thread_state_t tsm;
+  thread_state_t tsm;
   cancellable_lock lock;
 }
 thread_state;
@@ -3689,15 +3574,15 @@ Zeta_Steel_Main_top_level_state;
 
 static thread_state init_thread_state(uint16_t i)
 {
-  Zeta_Steel_VerifierTypes_thread_state_t st = create1(i);
+  thread_state_t st = create1(i);
   cancellable_lock lock = new_cancellable_lock();
   return ((thread_state){ .tid = i, .tsm = st, .lock = lock });
 }
 
 static void init_all_threads_state(thread_state *all_threads, uint16_t i)
 {
-  bool b = (uint32_t)i == Zeta_Steel_ApplicationTypes_n_threads;
-  if (!b)
+  bool check = (uint32_t)i == Zeta_Steel_ApplicationTypes_n_threads;
+  if (!check)
   {
     thread_state st = init_thread_state(i);
     thread_state *pt = all_threads;
@@ -3739,42 +3624,44 @@ verify_log_aux(
   thread_state *pt = t.all_threads;
   thread_state st_tid = pt[(uint32_t)tid];
   bool b = acquire0(st_tid.lock);
-  if (b == false)
-    return
-      (
-        (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
-          .tag = FStar_Pervasives_Native_None
-        }
-      );
-  else
+  if (b)
   {
     Zeta_Steel_Verifier_verify_result
     vr = verify_log(st_tid.tsm, len, input, out_len, output, t.aeh);
-    if (vr.tag == Zeta_Steel_Verifier_Verify_success)
-    {
-      bool b_failed = check_failed(st_tid.tsm);
-      if (b_failed)
+    if (uu___is_Verify_success(vr))
+      if (vr.tag == Zeta_Steel_Verifier_Verify_success)
       {
-        cancel(st_tid.lock);
-        return
-          (
-            (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
-              .tag = FStar_Pervasives_Native_None
-            }
-          );
+        bool b_failed = check_failed(st_tid.tsm);
+        if (b_failed)
+        {
+          cancel(st_tid.lock);
+          return
+            (
+              (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
+                .tag = FStar_Pervasives_Native_None
+              }
+            );
+        }
+        else
+        {
+          release0(st_tid.lock);
+          return
+            (
+              (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
+                .tag = FStar_Pervasives_Native_Some,
+                .v = vr
+              }
+            );
+        }
       }
       else
       {
-        release0(st_tid.lock);
-        return
-          (
-            (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
-              .tag = FStar_Pervasives_Native_Some,
-              .v = vr
-            }
-          );
+        KRML_HOST_EPRINTF("KaRaMeL abort at %s:%d\n%s\n",
+          __FILE__,
+          __LINE__,
+          "unreachable (pattern matches are exhaustive in F*)");
+        KRML_HOST_EXIT(255U);
       }
-    }
     else
     {
       cancel(st_tid.lock);
@@ -3786,10 +3673,17 @@ verify_log_aux(
         );
     }
   }
+  else
+    return
+      (
+        (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
+          .tag = FStar_Pervasives_Native_None
+        }
+      );
 }
 
-FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
-Zeta_Steel_Main_verify_log(
+static FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
+verify_log0(
   Zeta_Steel_Main_top_level_state *r,
   uint16_t tid,
   uint32_t len,
@@ -3804,8 +3698,8 @@ Zeta_Steel_Main_verify_log(
   return res;
 }
 
-Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
-Zeta_Steel_Main_max_certified_epoch(Zeta_Steel_Main_top_level_state *r)
+static Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
+max_certified_epoch(Zeta_Steel_Main_top_level_state *r)
 {
   Zeta_Steel_Main_top_level_state t_ = r[0U];
   Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
@@ -3845,80 +3739,92 @@ Zeta_Steel_Main_max_certified_epoch(Zeta_Steel_Main_top_level_state *r)
   }
 }
 
-FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv
-Zeta_Steel_Main_read_store(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t slot)
+typedef Zeta_Steel_SafeMain_Handle_state_t handle_t;
+
+Zeta_Steel_SafeMain_Handle_state_t Zeta_Steel_SafeMain_Handle_handle;
+
+bool Zeta_Steel_SafeMain_check_verify_input(uint16_t tid, uint32_t len)
 {
-  option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-  option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(slot)];
-  option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
-  option__Zeta_Steel_ThreadStateModel_store_entry se_opt = res0;
-  if (se_opt.tag == FStar_Pervasives_Native_None)
+  return
+    (uint32_t)tid
+    < Zeta_Steel_ApplicationTypes_n_threads
+    && len != (uint32_t)0U
+    && len < (uint32_t)4294967295U;
+}
+
+static FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
+verify_log_some(
+  uint16_t tid,
+  uint32_t len,
+  uint8_t *input_,
+  uint32_t out_len,
+  uint8_t *output_
+)
+{
+  FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
+  v = verify_log0(Zeta_Steel_SafeMain_Handle_handle, tid, len, input_, out_len, output_);
+  uint8_t *a = input_;
+  uint8_t *p = a;
+  KRML_HOST_FREE(p);
+  return v;
+}
+
+FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
+Zeta_Steel_SafeMain_verify_log(uint16_t tid, uint32_t len, uint8_t *input)
+{
+  if
+  (
+    !((uint32_t)tid
+    < Zeta_Steel_ApplicationTypes_n_threads
+    && len != (uint32_t)0U
+    && len < (uint32_t)4294967295U)
+  )
     return
       (
-        (FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv){
+        (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
           .tag = FStar_Pervasives_Native_None
         }
       );
-  else if (se_opt.tag == FStar_Pervasives_Native_Some)
-  {
-    store_entry se = se_opt.v;
-    store_entry se1 = se;
-    return
-      (
-        (FStar_Pervasives_Native_option__Zeta_Steel_VerifierTypes_kv){
-          .tag = FStar_Pervasives_Native_Some,
-          .v = { .key = se1.key, .value = se1.value }
-        }
-      );
-  }
   else
   {
-    KRML_HOST_EPRINTF("KaRaMeL abort at %s:%d\n%s\n",
-      __FILE__,
-      __LINE__,
-      "unreachable (pattern matches are exhaustive in F*)");
-    KRML_HOST_EXIT(255U);
+    KRML_CHECK_SIZE(sizeof (uint8_t), len + (uint32_t)1U);
+    uint8_t *p = KRML_HOST_CALLOC(len + (uint32_t)1U, sizeof (uint8_t));
+    uint8_t *res = p;
+    uint8_t *a = res;
+    uint8_t *input_ = a;
+    uint8_t *output_ = a + len;
+    bool check_copy;
+    if (Zeta_Steel_ExternalPtr_enclave_api_validate(input, len))
+    {
+      uint8_t *p_src = input;
+      uint8_t *p_dst = input_;
+      memcpy(p_dst, p_src, len * sizeof (uint8_t));
+      check_copy = true;
+    }
+    else
+      check_copy = false;
+    if (check_copy)
+      return verify_log_some(tid, len, input_, (uint32_t)1U, output_);
+    else
+    {
+      uint8_t *a1 = input_;
+      uint8_t *p = a1;
+      KRML_HOST_FREE(p);
+      return
+        (
+          (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
+            .tag = FStar_Pervasives_Native_None
+          }
+        );
+    }
   }
 }
 
-void
-Zeta_Steel_Main_write_store(
-  Zeta_Steel_VerifierTypes_thread_state_t t,
-  uint16_t slot,
-  Zeta_Steel_LogEntry_Types_value v
-)
+Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
+Zeta_Steel_SafeMain_max_certified_epoch()
 {
-  option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-  option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(slot)];
-  option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
-  option__Zeta_Steel_ThreadStateModel_store_entry se_opt = res0;
-  if (se_opt.tag == FStar_Pervasives_Native_Some)
-  {
-    store_entry se = se_opt.v;
-    store_entry se1 = se;
-    store_entry
-    se_ =
-      {
-        .key = se1.key, .value = v, .add_method = se1.add_method,
-        .l_child_in_store = se1.l_child_in_store, .r_child_in_store = se1.r_child_in_store,
-        .parent_slot = se1.parent_slot
-      };
-    option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-    pt[as_u32(slot)] =
-      (
-        (option__Zeta_Steel_ThreadStateModel_store_entry){
-          .tag = FStar_Pervasives_Native_Some,
-          .v = se_
-        }
-      );
-  }
-  else
-  {
-    KRML_HOST_EPRINTF("KaRaMeL abort at %s:%d\n%s\n",
-      __FILE__,
-      __LINE__,
-      "unreachable (pattern matches are exhaustive in F*)");
-    KRML_HOST_EXIT(255U);
-  }
+  Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
+  r = max_certified_epoch(Zeta_Steel_SafeMain_Handle_handle);
+  return r;
 }
 
