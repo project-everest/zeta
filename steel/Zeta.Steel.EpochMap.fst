@@ -17,11 +17,17 @@ module M = Zeta.Steel.ThreadStateModel
 inline_for_extraction
 let hash : ETbl.hash_fn M.epoch_id = fun eid -> eid
 
+let high_water_mark = option M.epoch_id
+let above_high_water_mark (h:high_water_mark) (e:M.epoch_id) : bool =
+  match h with
+  | None -> true
+  | Some e0 -> e0 `U32.lt` e
+
 //[@@CAbstractStruct] TODO restore after krml #247
 noeq
 type tbl #v #c vp = {
   etbl : ETbl.tbl #M.epoch_id #v #c vp hash;
-  high : R.ref M.epoch_id
+  high : R.ref high_water_mark;
 }
 
 let repr_to_eht_repr (#a:Type0) (m:repr a) : PartialMap.t M.epoch_id a =
@@ -32,10 +38,10 @@ let high_epoch_id_prop
   (default_value:c)
   (m:repr c)
   (b:borrows v)
-  (e:M.epoch_id)
+  (e:high_water_mark)
   : prop
-  = (forall (e':M.epoch_id). U32.v e < U32.v e' ==> Map.sel m e' == default_value) /\
-    (forall (e':M.epoch_id). PartialMap.contains b e' ==> U32.v e' <= U32.v e)
+  = (forall (e':M.epoch_id). above_high_water_mark e e' ==> Map.sel m e' == default_value) /\
+    (forall (e':M.epoch_id). PartialMap.contains b e' ==>  not(above_high_water_mark e e'))
 
 [@@ __reduce__]
 let high_epoch_id_pred
@@ -43,8 +49,8 @@ let high_epoch_id_pred
   (default_value:c)
   (m:repr c)
   (b:borrows v)
-  (r:R.ref M.epoch_id)
-  : M.epoch_id -> vprop
+  (r:R.ref high_water_mark)
+  : high_water_mark -> vprop
   = fun e ->
     R.pts_to r full_perm e
       `star`
@@ -58,11 +64,11 @@ let perm #v #c #cp t default_value m b =
 
 let create #v #c #vp n init =
   let etbl = ETbl.create_v vp hash n init in
-  let high = R.alloc 0ul in
+  let high = R.alloc None in
   intro_pure (high_epoch_id_prop (G.reveal init)
                                  (Map.const (G.reveal init))
                                  (empty_borrows #v)
-                                 0ul);
+                                 None);
   let r = { etbl = etbl; high = high } in
   assert (PartialMap.equal (PartialMap.const M.epoch_id (G.reveal init))
                            (repr_to_eht_repr (Map.const #M.epoch_id #c init)));
@@ -75,8 +81,8 @@ let create #v #c #vp n init =
                               (Map.const (G.reveal init))
                               empty_borrows
                               r.high
-                              0ul);
-  intro_exists 0ul (high_epoch_id_pred _ _ _ _);
+                              None);
+  intro_exists None (high_epoch_id_pred _ _ _ _);
   return r
 
 let finalize #v #c #vp #init #m #b t =
@@ -89,7 +95,7 @@ let get #v #c #vp #init #m #b a i =
   let w = elim_exists () in
   elim_pure (high_epoch_id_prop (G.reveal init) m b w);
   let high_value = R.read a.high in
-  let r = high_value `U32.lt` i in
+  let r = above_high_water_mark high_value i in
   if r returns ST _
                   _
                   (get_post init m b a i)
@@ -172,15 +178,15 @@ let put #v #c #vp #init #m #b a i x content =
                       (repr_to_eht_repr (Map.upd m i content))
                       (PartialMap.remove b i));
   let high = R.read a.high in
-  let r = high `U32.lt` i in
+  let r = above_high_water_mark high i in
   if r
   then begin
-    R.write a.high i;
+    R.write a.high (Some i);
     intro_pure (high_epoch_id_prop (G.reveal init)
                                    (Map.upd m i content)
                                    (PartialMap.remove b i)
-                                   i);
-    intro_exists i (high_epoch_id_pred (G.reveal init)
+                                   (Some i));
+    intro_exists (Some i) (high_epoch_id_pred (G.reveal init)
                                        (Map.upd m i content)
                                        (PartialMap.remove b i)
                                        a.high)
