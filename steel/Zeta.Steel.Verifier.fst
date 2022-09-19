@@ -820,6 +820,21 @@ let stitch_verify_post_step
 
 #pop-options
 
+type seq_index (s:Ghost.erased bytes) =
+  i:U32.t{U32.v i <= Seq.length s}
+
+let inv_pure_pred
+  (len:U32.t)
+  (#log_bytes:erased bytes)
+  (#out_bytes:erased bytes)
+  (b:bool)
+  (res:verify_result)
+  (log_pos:seq_index log_bytes)
+  (out_pos:seq_index out_bytes)
+  : prop
+  = (Verify_success? res ==> res == Verify_success log_pos out_pos) /\
+    (b <==> (Verify_success? res /\ U32.v log_pos < U32.v len))
+
 [@@ __reduce__]
 let inv_local_refs (tsm:M.thread_state_model)
   (t:thread_state_t) //handle to the thread state
@@ -829,18 +844,17 @@ let inv_local_refs (tsm:M.thread_state_model)
   (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  (r_log_pos:R.ref (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }))
-  (r_out_pos:R.ref (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}))
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
   (r_res:R.ref verify_result)
   (b:bool)
-  (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes })
+  (log_pos:seq_index log_bytes)
   (res:verify_result)
-  (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
+  (out_pos:seq_index out_bytes)
   : vprop
   = verify_post tsm t log_bytes out_bytes out aeh res
       `star`
-    pure ((Verify_success? res ==> res == Verify_success log_pos out_pos) /\
-          (b <==> (Verify_success? res /\ U32.v log_pos < U32.v len)))
+    pure (inv_pure_pred len b res log_pos out_pos)
 
 [@@ __reduce__]
 let inv_out_pos (tsm:M.thread_state_model)
@@ -851,17 +865,19 @@ let inv_out_pos (tsm:M.thread_state_model)
   (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  (r_log_pos:R.ref (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }))
-  (r_out_pos:R.ref (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}))
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
   (r_res:R.ref verify_result)
   (b:bool)
-  (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes })
+  (log_pos:seq_index log_bytes)
   (res:verify_result)
   : vprop
   = exists_ (fun out_pos ->
              R.pts_to r_out_pos full_perm out_pos
                `star`
              inv_local_refs tsm t log_bytes len outlen out_bytes out aeh r_log_pos r_out_pos r_res b log_pos res out_pos)
+
+#set-options "--print_implicits"
 
 [@@ __reduce__]
 let inv_res (tsm:M.thread_state_model)
@@ -872,11 +888,11 @@ let inv_res (tsm:M.thread_state_model)
   (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  (r_log_pos:R.ref (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }))
-  (r_out_pos:R.ref (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}))
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
   (r_res:R.ref verify_result)
   (b:bool)
-  (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes })
+  (log_pos:seq_index log_bytes)
   : vprop
   = exists_ (fun res ->
              R.pts_to r_res full_perm res
@@ -892,8 +908,8 @@ let inv_log_pos (tsm:M.thread_state_model)
   (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  (r_log_pos:R.ref (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }))
-  (r_out_pos:R.ref (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}))
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
   (r_res:R.ref verify_result)
   (b:bool)
   : vprop
@@ -913,8 +929,8 @@ let inv (tsm:M.thread_state_model)
   (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  (r_log_pos:R.ref (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }))
-  (r_out_pos:R.ref (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}))
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
   (r_res:R.ref verify_result)
   : bool -> vprop
   = fun b ->
@@ -932,9 +948,9 @@ let elim_inv_false (tsm:M.thread_state_model)
   (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  (r_log_pos:R.ref (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }))
-  (r_out_pos:R.ref (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}))
+  (r_log_pos:R.ref (seq_index log_bytes))
   (r_res:R.ref verify_result)
+  (r_out_pos:R.ref (seq_index out_bytes))
   : ST verify_result
        (inv tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res false)
        (fun res ->
@@ -947,7 +963,7 @@ let elim_inv_false (tsm:M.thread_state_model)
     let _ = elim_exists () in
     let _ = elim_exists () in
     let _ = elim_exists () in
-    elim_pure _;
+    elim_pure (inv_pure_pred _ _ _ _ _);
     let res = R.read r_res in
     R.free r_log_pos;
     R.free r_res;
@@ -964,11 +980,11 @@ let init_inv (tsm:M.thread_state_model)
   (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  (r_log_pos:R.ref (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }))
-  (r_out_pos:R.ref (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}))
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
   (r_res:R.ref verify_result)
-  (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes })
-  (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
+  (log_pos:seq_index log_bytes)
+  (out_pos:seq_index out_bytes)
   : STT unit
       (A.pts_to log log_perm log_bytes
          `star`
@@ -1014,12 +1030,12 @@ let intro_inv_body (#opened:_)
   (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  (r_log_pos:R.ref (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }))
-  (r_out_pos:R.ref (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}))
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
   (r_res:R.ref verify_result)
-  (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes })
+  (log_pos:seq_index log_bytes)
   (res:verify_result)
-  (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})  
+  (out_pos:seq_index out_bytes)
   : STGhost unit opened
       (A.pts_to log log_perm log_bytes
          `star`
@@ -1052,7 +1068,7 @@ let intro_inv_body (#opened:_)
                   inv_res tsm t log_bytes len outlen out_bytes out aeh r_log_pos r_out_pos r_res b log_pos);
     intro_exists b (inv tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res)
 
-let verify_log_body (tsm:M.thread_state_model)
+let verify_log_loop_body (tsm:M.thread_state_model)
   (t:thread_state_t) //handle to the thread state
   (log_perm:perm)
   (log_bytes:erased bytes)
@@ -1062,188 +1078,236 @@ let verify_log_body (tsm:M.thread_state_model)
   (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  (r_log_pos:R.ref (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }))
-  (r_out_pos:R.ref (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}))
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
   (r_res:R.ref verify_result)
+  ()
   : STT unit
     (inv tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res true)
     (fun res ->
      exists_ (inv tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res))
   = A.pts_to_length log _;
-    let g_log_pos : Ghost.erased (log_pos:U32.t { U32.v log_pos <= Seq.length log_bytes }) = elim_exists () in  //log_pos
+    let g_log_pos = elim_exists () in  //log_pos
     let g_res_prev = elim_exists () in  //res
-    let g_out_pos : Ghost.erased (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes}) = elim_exists () in  //out_pos
-    admit__ ()
-#set-options "--print_implicits"
-
-    elim_pure ((b2t (Verify_success? (Ghost.reveal g_res_prev)) ==> Ghost.reveal g_res_prev == Verify_success (Ghost.reveal g_log_pos) (Ghost.reveal g_out_pos)) /\
-               (b2t true <==> (b2t (Verify_success? (Ghost.reveal g_res_prev)) /\
-                          b2t (U32.(v (Ghost.reveal g_log_pos) < v len)))));
-    admit__ ()                          
+    let g_out_pos = elim_exists () in  //out_pos
+    elim_pure _;
 
     let log_pos = R.read r_log_pos in
     let out_pos = R.read r_out_pos in
     let res_prev = R.read r_res in
-    // assert (Verify_success? res_prev /\ U32.v log_pos < U32.v len);
-    // assert (res_prev == Verify_success log_pos out_pos);
-    admit__ ()
+
+    rewrite
+      (verify_post tsm t log_bytes out_bytes out aeh res_prev)
+      (verify_post tsm t log_bytes out_bytes out aeh (Verify_success log_pos out_pos));
 
     let _log = elim_exists () in
     let _out_bytes_1 = elim_exists () in
     elim_pure _;
     elim_pure _;
     A.pts_to_length out _;
-       let is_failed = VerifierSteps.check_failed t in
-       if is_failed
-       then (
+    let is_failed = VerifierSteps.check_failed t in
+    if is_failed
+    then (
+      intro_some_failure t out aeh;
+      let res = Verify_entry_failure log_pos in
+      intro_pure (Parsing_failure? res ==>
+                  ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res)));
+      rewrite (some_failure t out aeh `star` pure _)
+              (verify_post tsm t log_bytes out_bytes out aeh res);
+      R.write r_res res;
+      intro_inv_body tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res log_pos res out_pos
+     ) else (
+       assert (not (M.verify_model tsm _log).failed);
+       let res = verify_step t log_pos log out_pos out aeh in
+       assert_ (verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res);
+       match res
+         returns STT unit
+                     (A.pts_to log log_perm log_bytes
+                        `star`
+                      verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res
+                        `star`
+                      R.pts_to r_log_pos full_perm log_pos
+                        `star`
+                      R.pts_to r_res full_perm res_prev
+                        `star`
+                      R.pts_to r_out_pos full_perm out_pos)
+                     (fun _ -> exists_ (inv tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res))
+       with
+       | Parsing_failure loc ->
+         elim_verify_step_post_parsing_failure loc;
          intro_some_failure t out aeh;
-         let res = Verify_entry_failure log_pos in
-         intro_pure (Parsing_failure? res ==>
-                     ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res)));
+         let res' = Parsing_failure loc in
+         intro_pure (Parsing_failure? res' ==>
+                     ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
          rewrite (some_failure t out aeh `star` pure _)
-                 (verify_post tsm t log_bytes out_bytes out aeh res);
-         return res
-       )
-       else (
-         assert (not (M.verify_model tsm _log).failed);
-         let res = verify_step t log_pos log out_pos out aeh in
-         assert_ (verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res);
-         match res
-               returns
-                 ST verify_result
-                 (//precondition
-                   A.pts_to log log_perm log_bytes `star`
-                   verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res)
-                 (fun res' -> //postcondition
-                   A.pts_to log log_perm log_bytes `star`
-                   verify_post tsm t log_bytes out_bytes out aeh res')
-                 (requires True)
-                 (ensures fun res -> True) //verify_result_complete len res)
-         with
-         | Parsing_failure loc ->
-           elim_verify_step_post_parsing_failure loc;
-           intro_some_failure t out aeh;
-           let res' = Parsing_failure loc in
-           intro_pure (Parsing_failure? res' ==>
-                       ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
-           rewrite (some_failure t out aeh `star` pure _)
-                   (verify_post tsm t log_bytes out_bytes out aeh res');
-           return res'
+                 (verify_post tsm t log_bytes out_bytes out aeh res');
+         R.write r_res res';
+         intro_inv_body tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res log_pos res out_pos
 
-         | App_failure loc ->
-           elim_verify_step_post_app_failure loc;
-           let res' = App_failure loc in
-           intro_pure (Parsing_failure? res' ==>
-                       ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
-           rewrite (some_failure t out aeh `star` pure _)
-                   (verify_post tsm t log_bytes out_bytes out aeh res');
-           return res'
+       | App_failure loc ->
+         elim_verify_step_post_app_failure loc;
+         let res' = App_failure loc in
+         intro_pure (Parsing_failure? res' ==>
+                     ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
+         rewrite (some_failure t out aeh `star` pure _)
+                 (verify_post tsm t log_bytes out_bytes out aeh res');
+         R.write r_res res';
+         intro_inv_body tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res log_pos res out_pos
 
-         | Verify_entry_failure loc ->
-           elim_verify_step_post_log_entry_failure loc;
-           let res' = res in
-           intro_pure (Parsing_failure? res' ==>
-                       ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
-           rewrite (some_failure t out aeh `star` pure _)
-                   (verify_post tsm t log_bytes out_bytes out aeh res');
-           return res'
+       | Verify_entry_failure loc ->
+         elim_verify_step_post_log_entry_failure loc;
+         let res' = res in
+         intro_pure (Parsing_failure? res' ==>
+                     ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
+         rewrite (some_failure t out aeh `star` pure _)
+                 (verify_post tsm t log_bytes out_bytes out aeh res');
+         R.write r_res res';
+         intro_inv_body tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res log_pos res out_pos
 
-         | Verify_success read wrote ->
-           let _ = stitch_verify_post_step #_ #tsm #t
-             #(Ghost.reveal log_bytes) log_pos out_bytes out_pos #_ #_ #_ #_ read wrote in
-           let res' = Verify_success U32.(log_pos +^ read) U32.(out_pos +^ wrote) in
-           return res'
+       | Verify_success read wrote ->
+         let _ = stitch_verify_post_step #_ #tsm #t
+           #(Ghost.reveal log_bytes) log_pos out_bytes out_pos #_ #_ #_ #_ read wrote in
+         let res' = Verify_success U32.(log_pos +^ read) U32.(out_pos +^ wrote) in
+         let log_pos = U32.(log_pos +^ read) in
+         let out_pos = U32.(out_pos +^ wrote) in
+         R.write r_res res';
+         R.write r_log_pos log_pos;
+         R.write r_out_pos out_pos;
+         intro_inv_body tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res log_pos res' out_pos
        )
 
-
-let verify_log_body (#tsm:M.thread_state_model)
+let verify_log_loop_cond
+  (tsm:M.thread_state_model)
   (t:thread_state_t) //handle to the thread state
-  (#log_perm:perm)
-  (#log_bytes:erased bytes)
-  (#len:U32.t)
+  (log_perm:perm)
+  (log_bytes:erased bytes)
+  (len:U32.t)
   (log:larray U8.t len) //concrete log
-  (log_pos: _)
-  (#outlen:U32.t)
-  (#out_bytes:erased bytes)
-  (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
+  (outlen:U32.t)
+  (out_bytes:erased bytes)
   (out:larray U8.t outlen) //out array, to write outputs
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-  : ST verify_result
-    (//precondition
-      A.pts_to log log_perm log_bytes `star` //the log contains log_bytes
-      verify_post tsm t log_bytes out_bytes out aeh (Verify_success log_pos out_pos))
-    (fun res -> //postcondition
-      A.pts_to log log_perm log_bytes `star` //log contents didn't change
-      verify_post tsm t log_bytes out_bytes out aeh res)
-    (requires U32.v log_pos < U32.v len)
-    (ensures fun res -> True) //verify_result_complete len res)
-   =   A.pts_to_length log _;
-       let _log = elim_exists () in
-       let _out_bytes_1 = elim_exists () in
-       elim_pure _;
-       elim_pure _;
-       A.pts_to_length out _;
-       let is_failed = VerifierSteps.check_failed t in
-       if is_failed
-       then (
-         intro_some_failure t out aeh;
-         let res = Verify_entry_failure log_pos in
-         intro_pure (Parsing_failure? res ==>
-                     ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res)));
-         rewrite (some_failure t out aeh `star` pure _)
-                 (verify_post tsm t log_bytes out_bytes out aeh res);
-         return res
-       )
-       else (
-         assert (not (M.verify_model tsm _log).failed);
-         let res = verify_step t log_pos log out_pos out aeh in
-         assert_ (verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res);
-         match res
-               returns
-                 ST verify_result
-                 (//precondition
-                   A.pts_to log log_perm log_bytes `star`
-                   verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res)
-                 (fun res' -> //postcondition
-                   A.pts_to log log_perm log_bytes `star`
-                   verify_post tsm t log_bytes out_bytes out aeh res')
-                 (requires True)
-                 (ensures fun res -> True) //verify_result_complete len res)
-         with
-         | Parsing_failure loc ->
-           elim_verify_step_post_parsing_failure loc;
-           intro_some_failure t out aeh;
-           let res' = Parsing_failure loc in
-           intro_pure (Parsing_failure? res' ==>
-                       ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
-           rewrite (some_failure t out aeh `star` pure _)
-                   (verify_post tsm t log_bytes out_bytes out aeh res');
-           return res'
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
+  (r_res:R.ref verify_result)
+  ()
+  : STT bool
+      (exists_ (inv tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res))
+      (fun b -> inv tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res b)
+  = let _ = elim_exists () in
+    let g_log_pos = elim_exists () in
+    let g_res = elim_exists () in
+    let g_out_pos = elim_exists () in
+    elim_pure _;
+    let res = R.read r_res in
+    let log_pos = R.read r_log_pos in
+    let b = Verify_success? res && U32.(log_pos <^ len) in
+    intro_pure (inv_pure_pred len b g_res g_log_pos g_out_pos);
+    intro_exists (reveal g_out_pos)
+                 (fun out_pos ->
+                  R.pts_to r_out_pos full_perm out_pos
+                    `star`
+                  inv_local_refs tsm t log_bytes len outlen out_bytes out aeh r_log_pos r_out_pos r_res b g_log_pos g_res out_pos);
+    intro_exists (reveal g_res)
+                 (fun res ->
+                  R.pts_to r_res full_perm res
+                    `star`
+                  inv_out_pos tsm t log_bytes len outlen out_bytes out aeh r_log_pos r_out_pos r_res b g_log_pos res);
+    intro_exists (reveal g_log_pos)
+                 (fun log_pos ->
+                  R.pts_to r_log_pos full_perm log_pos
+                    `star`
+                  inv_res tsm t log_bytes len outlen out_bytes out aeh r_log_pos r_out_pos r_res b log_pos);
+    return b
 
-         | App_failure loc ->
-           elim_verify_step_post_app_failure loc;
-           let res' = App_failure loc in
-           intro_pure (Parsing_failure? res' ==>
-                       ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
-           rewrite (some_failure t out aeh `star` pure _)
-                   (verify_post tsm t log_bytes out_bytes out aeh res');
-           return res'
+// let verify_log_body (#tsm:M.thread_state_model)
+//   (t:thread_state_t) //handle to the thread state
+//   (#log_perm:perm)
+//   (#log_bytes:erased bytes)
+//   (#len:U32.t)
+//   (log:larray U8.t len) //concrete log
+//   (log_pos: _)
+//   (#outlen:U32.t)
+//   (#out_bytes:erased bytes)
+//   (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
+//   (out:larray U8.t outlen) //out array, to write outputs
+//   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+//   : ST verify_result
+//     (//precondition
+//       A.pts_to log log_perm log_bytes `star` //the log contains log_bytes
+//       verify_post tsm t log_bytes out_bytes out aeh (Verify_success log_pos out_pos))
+//     (fun res -> //postcondition
+//       A.pts_to log log_perm log_bytes `star` //log contents didn't change
+//       verify_post tsm t log_bytes out_bytes out aeh res)
+//     (requires U32.v log_pos < U32.v len)
+//     (ensures fun res -> True) //verify_result_complete len res)
+//    =   A.pts_to_length log _;
+//        let _log = elim_exists () in
+//        let _out_bytes_1 = elim_exists () in
+//        elim_pure _;
+//        elim_pure _;
+//        A.pts_to_length out _;
+//        let is_failed = VerifierSteps.check_failed t in
+//        if is_failed
+//        then (
+//          intro_some_failure t out aeh;
+//          let res = Verify_entry_failure log_pos in
+//          intro_pure (Parsing_failure? res ==>
+//                      ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res)));
+//          rewrite (some_failure t out aeh `star` pure _)
+//                  (verify_post tsm t log_bytes out_bytes out aeh res);
+//          return res
+//        )
+//        else (
+//          assert (not (M.verify_model tsm _log).failed);
+//          let res = verify_step t log_pos log out_pos out aeh in
+//          assert_ (verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res);
+//          match res
+//                returns
+//                  ST verify_result
+//                  (//precondition
+//                    A.pts_to log log_perm log_bytes `star`
+//                    verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res)
+//                  (fun res' -> //postcondition
+//                    A.pts_to log log_perm log_bytes `star`
+//                    verify_post tsm t log_bytes out_bytes out aeh res')
+//                  (requires True)
+//                  (ensures fun res -> True) //verify_result_complete len res)
+//          with
+//          | Parsing_failure loc ->
+//            elim_verify_step_post_parsing_failure loc;
+//            intro_some_failure t out aeh;
+//            let res' = Parsing_failure loc in
+//            intro_pure (Parsing_failure? res' ==>
+//                        ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
+//            rewrite (some_failure t out aeh `star` pure _)
+//                    (verify_post tsm t log_bytes out_bytes out aeh res');
+//            return res'
 
-         | Verify_entry_failure loc ->
-           elim_verify_step_post_log_entry_failure loc;
-           let res' = res in
-           intro_pure (Parsing_failure? res' ==>
-                       ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
-           rewrite (some_failure t out aeh `star` pure _)
-                   (verify_post tsm t log_bytes out_bytes out aeh res');
-           return res'
+//          | App_failure loc ->
+//            elim_verify_step_post_app_failure loc;
+//            let res' = App_failure loc in
+//            intro_pure (Parsing_failure? res' ==>
+//                        ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
+//            rewrite (some_failure t out aeh `star` pure _)
+//                    (verify_post tsm t log_bytes out_bytes out aeh res');
+//            return res'
 
-         | Verify_success read wrote ->
-           let _ = stitch_verify_post_step #_ #tsm #t
-             #(Ghost.reveal log_bytes) log_pos out_bytes out_pos #_ #_ #_ #_ read wrote in
-           let res' = Verify_success U32.(log_pos +^ read) U32.(out_pos +^ wrote) in
-           return res'
-       )
+//          | Verify_entry_failure loc ->
+//            elim_verify_step_post_log_entry_failure loc;
+//            let res' = res in
+//            intro_pure (Parsing_failure? res' ==>
+//                        ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
+//            rewrite (some_failure t out aeh `star` pure _)
+//                    (verify_post tsm t log_bytes out_bytes out aeh res');
+//            return res'
+
+//          | Verify_success read wrote ->
+//            let _ = stitch_verify_post_step #_ #tsm #t
+//              #(Ghost.reveal log_bytes) log_pos out_bytes out_pos #_ #_ #_ #_ read wrote in
+//            let res' = Verify_success U32.(log_pos +^ read) U32.(out_pos +^ wrote) in
+//            return res'
+//        )
 
 #set-options "--print_implicits"
 
@@ -1269,88 +1333,36 @@ val verify_log_ind (#tsm:M.thread_state_model)
     (requires True)
     (ensures fun res -> verify_result_complete len res)
 
-let rec verify_log_ind
-          (#tsm:M.thread_state_model)
-          (t:thread_state_t) //handle to the thread state
-          (#log_perm:perm)
-          (#log_bytes:erased bytes)
-          (#len:U32.t)
-          (log:larray U8.t len) //concrete log
-          (log_pos: _)
-          (#outlen:U32.t)
-          (#out_bytes:erased bytes)
-          (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
-          (out:larray U8.t outlen) //out array, to write outputs
-          (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
-   = A.pts_to_length log _;
-     if log_pos = len
-     then return (Verify_success log_pos out_pos)
-     else (
-       let _log = elim_exists () in
-       let _out_bytes_1 = elim_exists () in
-       elim_pure _;
-       elim_pure _;
-       A.pts_to_length out _;
-       let is_failed = VerifierSteps.check_failed t in
-       if is_failed
-       then (
-         intro_some_failure t out aeh;
-         let res = Verify_entry_failure log_pos in
-         intro_pure (Parsing_failure? res ==>
-                     ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res)));
-         rewrite (some_failure t out aeh `star` pure _)
-                 (verify_post tsm t log_bytes out_bytes out aeh res);
-         return res
-       )
-       else (
-         assert (not (M.verify_model tsm _log).failed);
-         let res = verify_step t log_pos log out_pos out aeh in
-         assert_ (verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res);
-         match res
-               returns
-                 ST verify_result
-                 (//precondition
-                   A.pts_to log log_perm log_bytes `star`
-                   verify_step_post (M.verify_model tsm _log) t log_bytes log_pos _out_bytes_1 out_pos out aeh res)
-                 (fun res' -> //postcondition
-                   A.pts_to log log_perm log_bytes `star`
-                   verify_post tsm t log_bytes out_bytes out aeh res')
-                 (requires True)
-                 (ensures fun res -> verify_result_complete len res)
-         with
-         | Parsing_failure loc ->
-           elim_verify_step_post_parsing_failure loc;
-           intro_some_failure t out aeh;
-           let res' = Parsing_failure loc in
-           intro_pure (Parsing_failure? res' ==>
-                       ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
-           rewrite (some_failure t out aeh `star` pure _)
-                   (verify_post tsm t log_bytes out_bytes out aeh res');
-           return res'
+let verify_log_ind
+  (#tsm:M.thread_state_model)
+  (t:thread_state_t) //handle to the thread state
+  (#log_perm:perm)
+  (#log_bytes:erased bytes)
+  (#len:U32.t)
+  (log:larray U8.t len) //concrete log
+  (log_pos: _)
+  (#outlen:U32.t)
+  (#out_bytes:erased bytes)
+  (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
+  (out:larray U8.t outlen) //out array, to write outputs
+  (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+  = A.pts_to_length log _;
 
-         | App_failure loc ->
-           elim_verify_step_post_app_failure loc;
-           let res' = App_failure loc in
-           intro_pure (Parsing_failure? res' ==>
-                       ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
-           rewrite (some_failure t out aeh `star` pure _)
-                   (verify_post tsm t log_bytes out_bytes out aeh res');
-           return res'
+    let r_log_pos = R.alloc #(seq_index log_bytes) 0ul in
+    let r_out_pos = R.alloc #(seq_index out_bytes) 0ul in
+    let r_res = R.alloc (Verify_success 0ul 0ul) in
 
-         | Verify_entry_failure loc ->
-           elim_verify_step_post_log_entry_failure loc;
-           let res' = res in
-           intro_pure (Parsing_failure? res' ==>
-                       ~ (LogEntry.can_parse_log_entry log_bytes (Parsing_failure?.log_pos res')));
-           rewrite (some_failure t out aeh `star` pure _)
-                   (verify_post tsm t log_bytes out_bytes out aeh res');
-           return res'
+    init_inv tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res log_pos out_pos;
 
-         | Verify_success read wrote ->
-           let _ = stitch_verify_post_step log_pos out_bytes out_pos read wrote in
-           verify_log_ind t log U32.(log_pos +^ read) U32.(out_pos +^ wrote) out aeh
-       )
-   )
+    Steel.ST.Loops.while_loop
+      (inv tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res)
+      (verify_log_loop_cond tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res)
+      (verify_log_loop_body tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_out_pos r_res);
+
+    let res = elim_inv_false tsm t log_perm log_bytes len log outlen out_bytes out aeh r_log_pos r_res r_out_pos in
+
+    return res
+
 
 #push-options "--fuel 1"
 
