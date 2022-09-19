@@ -3378,6 +3378,14 @@ static Zeta_Steel_VerifierTypes_thread_state_t create1(uint16_t tid)
     return ts;
 }
 
+static bool uu___is_Verify_success(Zeta_Steel_Verifier_verify_result projectee)
+{
+  if (projectee.tag == Zeta_Steel_Verifier_Verify_success)
+    return true;
+  else
+    return false;
+}
+
 static void fail0()
 {
 
@@ -3592,58 +3600,80 @@ verify_log_ind(
   aggregate_epoch_hashes aeh
 )
 {
-  if (log_pos == len)
-    return
-      (
-        (Zeta_Steel_Verifier_verify_result){
-          .tag = Zeta_Steel_Verifier_Verify_success,
-          { .case_Verify_success = { .read = log_pos, .wrote = out_pos } }
-        }
-      );
-  else
+  uint32_t r = (uint32_t)0U;
+  uint32_t r1 = (uint32_t)0U;
+  Zeta_Steel_Verifier_verify_result
+  r2 =
+    {
+      .tag = Zeta_Steel_Verifier_Verify_success,
+      { .case_Verify_success = { .read = (uint32_t)0U, .wrote = (uint32_t)0U } }
+    };
+  r = log_pos;
+  Zeta_Steel_Verifier_verify_result
+  res =
+    {
+      .tag = Zeta_Steel_Verifier_Verify_success,
+      { .case_Verify_success = { .read = log_pos, .wrote = out_pos } }
+    };
+  r2 = res;
+  r1 = out_pos;
+  Zeta_Steel_Verifier_verify_result res0 = r2;
+  uint32_t log_pos10 = r;
+  bool b = uu___is_Verify_success(res0) && log_pos10 < len;
+  bool cond = b;
+  while (cond)
   {
+    uint32_t log_pos10 = r;
+    uint32_t out_pos1 = r1;
     bool is_failed = check_failed(t);
     if (is_failed)
-      return
-        (
-          (Zeta_Steel_Verifier_verify_result){
-            .tag = Zeta_Steel_Verifier_Verify_entry_failure,
-            { .case_Verify_entry_failure = log_pos }
-          }
-        );
+    {
+      Zeta_Steel_Verifier_verify_result
+      res =
+        {
+          .tag = Zeta_Steel_Verifier_Verify_entry_failure,
+          { .case_Verify_entry_failure = log_pos10 }
+        };
+      r2 = res;
+    }
     else
     {
       Zeta_Steel_Verifier_verify_result
-      res = verify_step(t, len, log_pos, log, outlen, out_pos, out, aeh);
+      res = verify_step(t, len, log_pos10, log, outlen, out_pos1, out, aeh);
       if (res.tag == Zeta_Steel_Verifier_Parsing_failure)
       {
         uint32_t loc = res.case_Parsing_failure;
-        return
-          (
-            (Zeta_Steel_Verifier_verify_result){
-              .tag = Zeta_Steel_Verifier_Parsing_failure,
-              { .case_Parsing_failure = loc }
-            }
-          );
+        Zeta_Steel_Verifier_verify_result
+        res_ = { .tag = Zeta_Steel_Verifier_Parsing_failure, { .case_Parsing_failure = loc } };
+        r2 = res_;
       }
       else if (res.tag == Zeta_Steel_Verifier_App_failure)
       {
         uint32_t loc = res.case_App_failure;
-        return
-          (
-            (Zeta_Steel_Verifier_verify_result){
-              .tag = Zeta_Steel_Verifier_App_failure,
-              { .case_App_failure = loc }
-            }
-          );
+        Zeta_Steel_Verifier_verify_result
+        res_ = { .tag = Zeta_Steel_Verifier_App_failure, { .case_App_failure = loc } };
+        r2 = res_;
       }
       else if (res.tag == Zeta_Steel_Verifier_Verify_entry_failure)
-        return res;
+      {
+        Zeta_Steel_Verifier_verify_result res_ = res;
+        r2 = res_;
+      }
       else if (res.tag == Zeta_Steel_Verifier_Verify_success)
       {
         uint32_t wrote = res.case_Verify_success.wrote;
         uint32_t read = res.case_Verify_success.read;
-        return verify_log_ind(t, len, log, log_pos + read, outlen, out_pos + wrote, out, aeh);
+        Zeta_Steel_Verifier_verify_result
+        res_ =
+          {
+            .tag = Zeta_Steel_Verifier_Verify_success,
+            { .case_Verify_success = { .read = log_pos10 + read, .wrote = out_pos1 + wrote } }
+          };
+        uint32_t log_pos2 = log_pos10 + read;
+        uint32_t out_pos2 = out_pos1 + wrote;
+        r2 = res_;
+        r = log_pos2;
+        r1 = out_pos2;
       }
       else
       {
@@ -3654,7 +3684,16 @@ verify_log_ind(
         KRML_HOST_EXIT(255U);
       }
     }
+    Zeta_Steel_Verifier_verify_result res = r2;
+    uint32_t log_pos1 = r;
+    bool b = uu___is_Verify_success(res) && log_pos1 < len;
+    cond = b;
   }
+  Zeta_Steel_Verifier_verify_result v = r2;
+  Zeta_Steel_Verifier_verify_result v0 = v;
+  Zeta_Steel_Verifier_verify_result v1 = v0;
+  Zeta_Steel_Verifier_verify_result res1 = v1;
+  return res1;
 }
 
 static Zeta_Steel_Verifier_verify_result
