@@ -8,6 +8,7 @@ ci: extract-steel
 extract-steel: verify
 	+$(MAKE) -C steel
 	+$(MAKE) -C steel/formats
+	+$(MAKE) -C steel/apps/kvstore
 
 .PHONY: ci extract-steel
 
