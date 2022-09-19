@@ -943,6 +943,8 @@ let inv (tsm:M.thread_state_model)
 
 // To eliminate the invariant at the end of the loop
 
+noextract
+inline_for_extraction
 let elim_inv_false (tsm:M.thread_state_model)
   (t:thread_state_t)
   (log_perm:perm)
@@ -961,22 +963,30 @@ let elim_inv_false (tsm:M.thread_state_model)
        (fun res ->
         A.pts_to log log_perm log_bytes
           `star`
-        verify_post tsm t log_bytes out_bytes out aeh res)
+        verify_post tsm t log_bytes out_bytes out aeh res
+          `star`
+        exists_ (R.pts_to r_log_pos full_perm)
+          `star`
+        exists_ (R.pts_to r_res full_perm)
+          `star`
+        exists_ (R.pts_to r_out_pos full_perm))
        (requires True)
        (ensures fun res -> verify_result_complete len res)
   = A.pts_to_length log _;
-    let _ = elim_exists () in
-    let _ = elim_exists () in
-    let _ = elim_exists () in
+    let g_log_pos = elim_exists () in
+    let g_res = elim_exists () in
+    let g_out_pos = elim_exists () in
     elim_pure (inv_pure_pred _ _ _ _ _);
     let res = R.read r_res in
-    R.free r_log_pos;
-    R.free r_res;
-    R.free r_out_pos;
+    intro_exists (reveal g_log_pos) (R.pts_to r_log_pos full_perm);
+    intro_exists (reveal g_res) (R.pts_to r_res full_perm);
+    intro_exists (reveal g_out_pos) (R.pts_to r_out_pos full_perm);
     return res
 
 // To initialize the invariant at the beginning of the loop
 
+noextract
+inline_for_extraction
 let init_inv (tsm:M.thread_state_model)
   (t:thread_state_t) //handle to the thread state
   (log_perm:perm)
@@ -1079,6 +1089,8 @@ let intro_inv_body (#opened:_)
 
 // While loop body
 
+noextract
+inline_for_extraction
 let verify_log_loop_body (tsm:M.thread_state_model)
   (t:thread_state_t)
   (log_perm:perm)
@@ -1189,6 +1201,8 @@ let verify_log_loop_body (tsm:M.thread_state_model)
 
 // While loop condition
 
+noextract
+inline_for_extraction
 let verify_log_loop_cond
   (tsm:M.thread_state_model)
   (t:thread_state_t)
@@ -1255,6 +1269,122 @@ val verify_log_ind (#tsm:M.thread_state_model)
     (requires True)
     (ensures fun res -> verify_result_complete len res)
 
+noextract
+inline_for_extraction
+let with_local_r_res
+  (#tsm:M.thread_state_model)
+  (t:thread_state_t) //handle to the thread state
+  (#log_perm:perm)
+  (#log_bytes:erased bytes)
+  (#len:U32.t)
+  (log:larray U8.t len) //concrete log
+  (log_pos:seq_index (log_bytes))
+  (#outlen:U32.t)
+  (#out_bytes:erased bytes)
+  (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
+  (out:larray U8.t outlen) //out array, to write outputs
+  (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
+  (r_res:R.ref verify_result)
+  : STT (res:verify_result{verify_result_complete len res})
+        (R.pts_to r_res full_perm (Verify_success 0ul 0ul)
+           `star`
+         (A.pts_to log log_perm log_bytes
+            `star`
+          verify_post tsm t log_bytes out_bytes out aeh (Verify_success log_pos out_pos)
+            `star`
+          R.pts_to r_log_pos full_perm 0ul
+            `star`
+          R.pts_to r_out_pos full_perm 0ul))
+         (fun res ->
+          exists_ (R.pts_to r_res full_perm)
+            `star`
+          (A.pts_to log log_perm log_bytes
+             `star`
+           verify_post tsm t log_bytes out_bytes out aeh res
+             `star`
+           exists_ (R.pts_to r_log_pos full_perm)
+             `star`
+           exists_ (R.pts_to r_out_pos full_perm)))
+  = init_inv tsm t log_perm log out aeh r_log_pos r_out_pos r_res log_pos out_pos;
+
+    Steel.ST.Loops.while_loop
+      (inv tsm t log_perm log out aeh r_log_pos r_out_pos r_res)
+      (verify_log_loop_cond tsm t log_perm log out aeh r_log_pos r_out_pos r_res)
+      (verify_log_loop_body tsm t log_perm log out aeh r_log_pos r_out_pos r_res);
+
+    let res = elim_inv_false tsm t log_perm log out aeh r_log_pos r_res r_out_pos in
+
+    return res
+
+noextract
+inline_for_extraction
+let with_local_r_out_pos
+  (#tsm:M.thread_state_model)
+  (t:thread_state_t) //handle to the thread state
+  (#log_perm:perm)
+  (#log_bytes:erased bytes)
+  (#len:U32.t)
+  (log:larray U8.t len) //concrete log
+  (log_pos:seq_index (log_bytes))
+  (#outlen:U32.t)
+  (#out_bytes:erased bytes)
+  (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
+  (out:larray U8.t outlen) //out array, to write outputs
+  (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+  (r_log_pos:R.ref (seq_index log_bytes))
+  (r_out_pos:R.ref (seq_index out_bytes))
+  : STT (res:verify_result{verify_result_complete len res})
+        (R.pts_to r_out_pos full_perm 0ul
+           `star`
+         (A.pts_to log log_perm log_bytes
+            `star`
+          verify_post tsm t log_bytes out_bytes out aeh (Verify_success log_pos out_pos)
+            `star`
+          R.pts_to r_log_pos full_perm 0ul))
+         (fun res ->
+          exists_ (R.pts_to r_out_pos full_perm)
+            `star`
+          (A.pts_to log log_perm log_bytes
+             `star`
+           verify_post tsm t log_bytes out_bytes out aeh res
+             `star`
+           exists_ (R.pts_to r_log_pos full_perm)))
+  = R.with_local (Verify_success 0ul 0ul)
+      (with_local_r_res t log log_pos out_pos out aeh r_log_pos r_out_pos)
+
+noextract
+inline_for_extraction
+let with_local_r_log_pos
+  (#tsm:M.thread_state_model)
+  (t:thread_state_t) //handle to the thread state
+  (#log_perm:perm)
+  (#log_bytes:erased bytes)
+  (#len:U32.t)
+  (log:larray U8.t len) //concrete log
+  (log_pos:seq_index (log_bytes))
+  (#outlen:U32.t)
+  (#out_bytes:erased bytes)
+  (out_pos:U32.t{U32.v out_pos <= Seq.length out_bytes})
+  (out:larray U8.t outlen) //out array, to write outputs
+  (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
+  (r_log_pos:R.ref (seq_index log_bytes))
+  : STT (res:verify_result{verify_result_complete len res})
+        (R.pts_to r_log_pos full_perm 0ul
+           `star`
+         (A.pts_to log log_perm log_bytes
+            `star`
+          verify_post tsm t log_bytes out_bytes out aeh (Verify_success log_pos out_pos)))
+         (fun res ->
+          exists_ (R.pts_to r_log_pos full_perm)
+            `star`
+          (A.pts_to log log_perm log_bytes
+             `star`
+           verify_post tsm t log_bytes out_bytes out aeh res))
+  = R.with_local 0ul
+      (with_local_r_out_pos t log log_pos out_pos out aeh r_log_pos)
+
 let verify_log_ind
   (#tsm:M.thread_state_model)
   (t:thread_state_t) //handle to the thread state
@@ -1270,18 +1400,8 @@ let verify_log_ind
   (aeh:AEH.aggregate_epoch_hashes) //lock & handle to the aggregate state
   = A.pts_to_length log _;
 
-    let r_log_pos = R.alloc #(seq_index log_bytes) 0ul in
-    let r_out_pos = R.alloc #(seq_index out_bytes) 0ul in
-    let r_res = R.alloc (Verify_success 0ul 0ul) in
-
-    init_inv tsm t log_perm log out aeh r_log_pos r_out_pos r_res log_pos out_pos;
-
-    Steel.ST.Loops.while_loop
-      (inv tsm t log_perm log out aeh r_log_pos r_out_pos r_res)
-      (verify_log_loop_cond tsm t log_perm log out aeh r_log_pos r_out_pos r_res)
-      (verify_log_loop_body tsm t log_perm log out aeh r_log_pos r_out_pos r_res);
-
-    let res = elim_inv_false tsm t log_perm log out aeh r_log_pos r_res r_out_pos in
+    let res : (res:verify_result{verify_result_complete len res}) =
+      R.with_local 0ul (with_local_r_log_pos t log log_pos out_pos out aeh) in
 
     return res
 
