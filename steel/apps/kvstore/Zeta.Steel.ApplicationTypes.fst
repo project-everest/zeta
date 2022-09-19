@@ -9,9 +9,9 @@ module F = Zeta.KeyValueStore.Formats
 type key_type = F.key_t
 
 let spec_parser_key = F.key_spec_parser
-let parse_key = F.key_parser
+let parse_key = F.kvstore_key_parser
 let spec_serializer_key = F.key_spec_serializer
-let serialize_key = F.key_serializer
+let serialize_key = F.kvstore_key_serializer
 
 /// The following admits depend on the exact types we choose for keys and values
 
@@ -30,10 +30,10 @@ type value_type = F.value_t
 let eq_value_type v0 v1 = admit ()
 
 let spec_parser_value = F.value_spec_parser
-let parse_value = F.value_parser
+let parse_value = F.kvstore_value_parser
 
 let spec_serializer_value = F.value_spec_serializer
-let serialize_value = F.value_serializer
+let serialize_value = F.kvstore_value_serializer
 
 let spec_parser_value_injective b1 b2 = admit ()
 

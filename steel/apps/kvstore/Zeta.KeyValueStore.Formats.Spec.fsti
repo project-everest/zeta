@@ -16,15 +16,11 @@ val vget_args_spec_parser : P.spec_parser vget_args_t
 
 val vget_result_spec_parser : P.spec_parser vget_result_t
 
-val vget_args_spec_serializer : P.spec_serializer vget_args_spec_parser
-
 val vget_result_spec_serializer : P.spec_serializer vget_result_spec_parser
 
 val vput_args_spec_parser : P.spec_parser vput_args_t
 
 val vput_result_spec_parser : P.spec_parser vput_result_t
-
-val vput_args_spec_serializer : P.spec_serializer vput_args_spec_parser
 
 val vput_result_spec_serializer : P.spec_serializer vput_result_spec_parser
 

@@ -209,7 +209,7 @@ let run_vget
        (requires not tsm.failed /\ pl.fid == S.vget_id)
        (ensures fun _ -> True)
   = // Parse the input log
-    let ropt = F.vget_args_parser log_len pl_pos pl.rest.len log_array in
+    let ropt = F.kvstore_vget_args_parser log_len pl_pos pl.rest.len log_array in
     match ropt with
     | None -> return Run_app_parsing_failure
     | Some (r, consumed) ->
@@ -435,7 +435,7 @@ let run_vput
         verify_runapp_entry_post tsm t pl out_bytes out_offset out res)
        (requires not tsm.failed /\ pl.fid == S.vput_id)
        (ensures fun _ -> True)
-  = let ropt = F.vput_args_parser log_len pl_pos pl.rest.len log_array in
+  = let ropt = F.kvstore_vput_args_parser log_len pl_pos pl.rest.len log_array in
     match ropt with
     | None -> return Run_app_parsing_failure
     | Some (r, consumed) ->

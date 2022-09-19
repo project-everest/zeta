@@ -64,6 +64,14 @@ let bare_parser_of_spec_parser
   | None -> None
   | Some (res, consumed) -> Some (res, consumed)
 
+let spec_parser_of_bare_parser
+  (#t: Type)
+  (p: bare_parser t)
+: Tot (P.spec_parser t)
+= fun x -> match parse p x with
+  | None -> None
+  | Some (res, consumed) -> Some (res, consumed)
+
 let parser_intro
   (typ : Type0)
   (spec_parser : P.spec_parser typ)
