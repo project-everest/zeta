@@ -28,7 +28,7 @@ let epoch_hashes_repr = EpochMap.repr M.epoch_hash
 let epoch_bitmaps_repr = EpochMap.repr tid_bitmap
 
 let all_epoch_hashes = EpochMap.tbl epoch_hash_perm
-
+#set-options "--print_implicits"
 let epoch_tid_bitmaps =
   EpochMap.tbl #(larray bool n_threads)
                #tid_bitmap
