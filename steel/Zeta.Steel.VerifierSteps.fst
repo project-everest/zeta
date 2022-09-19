@@ -631,8 +631,6 @@ let update_clock_and_maybe_high_water_mark
   = R.write clock clk;
     EpochMap.maybe_update_high_water_mark epoch_hashes clk.epoch
 
-#set-options "--print_implicits"
-
 let vaddb_core (#tsm:M.thread_state_model)
           (t:thread_state_t)
           (s:slot_id)
