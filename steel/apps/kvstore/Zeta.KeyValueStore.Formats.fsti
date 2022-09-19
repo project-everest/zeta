@@ -18,16 +18,4 @@ val value_serializer : P.serializer value_spec_serializer
 
 val vget_args_parser : P.parser vget_args_spec_parser
 
-val vget_result_parser : P.parser vget_result_spec_parser
-
-val vget_args_serializer : P.serializer vget_args_spec_serializer
-
-val vget_result_serializer : P.serializer vget_result_spec_serializer
-
 val vput_args_parser : P.parser vput_args_spec_parser
-
-val vput_result_parser : P.parser vput_result_spec_parser
-
-val vput_args_serializer : P.serializer vput_args_spec_serializer
-
-val vput_result_serializer : P.serializer vput_result_spec_serializer
