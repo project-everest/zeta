@@ -26,7 +26,7 @@ friend Zeta.Steel.ApplicationTypes
 ///     - calls the impl function with the arguments and read store values,
 ///     - writes to the output log if needed
 
-#set-options "--using_facts_from '* -FStar.Tactics -FStar.Reflection' --z3rlimit 50"
+#set-options "--using_facts_from '* -FStar.Tactics -FStar.Reflection' --z3rlimit 64"
 
 
 //

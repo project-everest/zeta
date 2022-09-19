@@ -11,9 +11,27 @@ let key_spec_serializer = fun x -> LP.serialize_u64 x
 
 let parse_value = LP.parse_u64
 
+let key_spec_parser_injective b1 b2 =
+  LP.parse_injective parse_key b1 b2
+
+let key_spec_parser_strong_prefix b1 b2 =
+  LP.parse_strong_prefix parse_key b1 b2
+
+let serialized_key_length x =
+  LP.serialize_length LP.serialize_u64 x
+
 let value_spec_parser = L.spec_parser_of_bare_parser parse_value
 
 let value_spec_serializer = fun x ->  LP.serialize_u64 x
+
+let value_spec_parser_injective b1 b2 =
+  LP.parse_injective parse_value b1 b2
+
+let value_spec_parser_strong_prefix b1 b2 =
+  LP.parse_strong_prefix parse_value b1 b2
+
+let serialized_value_length x =
+  LP.serialize_length LP.serialize_u64 x
 
 let synth_vget_args ((vget_key, vget_value), vget_slot) = {
   vget_key = vget_key;

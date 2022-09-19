@@ -15,19 +15,15 @@ let serialize_key = F.kvstore_key_serializer
 
 /// The following admits depend on the exact types we choose for keys and values
 
-//
-// TODO DETAILS
-//
+let spec_parser_key_injective b1 b2 = F.key_spec_parser_injective b1 b2
 
-let spec_parser_key_injective b1 b2 = admit ()
+let spec_parser_key_strong_prefix b1 b2 = F.key_spec_parser_strong_prefix b1 b2
 
-let spec_parser_key_strong_prefix b1 b2 = admit ()
-
-let serialized_key_length v = admit ()
+let serialized_key_length v = F.serialized_key_length v
 
 type value_type = F.value_t
 
-let eq_value_type v0 v1 = admit ()
+let eq_value_type v0 v1 = v0 = v1
 
 let spec_parser_value = F.value_spec_parser
 let parse_value = F.kvstore_value_parser
@@ -35,17 +31,14 @@ let parse_value = F.kvstore_value_parser
 let spec_serializer_value = F.value_spec_serializer
 let serialize_value = F.kvstore_value_serializer
 
-let spec_parser_value_injective b1 b2 = admit ()
+let spec_parser_value_injective b1 b2 = F.value_spec_parser_injective b1 b2
 
-let spec_parser_value_strong_prefix b1 b2 = admit ()
+let spec_parser_value_strong_prefix b1 b2 = F.value_spec_parser_strong_prefix b1 b2
 
-let serialized_value_length v = admit ()
+let serialized_value_length v = F.serialized_value_length v
 
 let aprm = S.kv_params
 
-//
-// TODO DETAILS
-//
 let store_size = 16us
 let n_threads = 16ul
 
@@ -78,22 +71,3 @@ let spec_app_parser fid =
   if fid = S.vget_id
   then vget_args_spec_parser
   else vput_args_spec_parser
-
-(*
-let spec_result_parser fid =
-  if fid = S.vget_id
-  then F.vget_result_spec_parser
-  else F.vput_result_spec_parser
-
-let spec_result_serializer fid =
-  if fid = S.vget_id
-  then F.vget_result_spec_serializer
-  else F.vput_result_spec_serializer
-
-//
-// TODO: these are dependent records
-//       can we generate these using EverParse
-//         or we need to implement them?
-//
-let spec_app_result_entry_parser = admit ()
-let spec_app_result_entry_serializer = admit ()
