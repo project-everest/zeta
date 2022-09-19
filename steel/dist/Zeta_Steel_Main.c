@@ -1633,6 +1633,7 @@ verify_runapp_result;
 
 extern verify_runapp_result
 Zeta_Steel_Application_run_app_function(
+  uint32_t log_len,
   runApp_payload pl,
   uint32_t pl_pos,
   uint8_t *log_array,
@@ -3495,7 +3496,8 @@ verify_step(
       uint32_t pl_pos = log_pos + pl_pos0;
       verify_runapp_result
       app_res =
-        Zeta_Steel_Application_run_app_function(pl,
+        Zeta_Steel_Application_run_app_function(len,
+          pl,
           pl_pos,
           log,
           out_len,
