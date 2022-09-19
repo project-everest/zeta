@@ -33,10 +33,16 @@ compile:
           $(OUTPUT_DIRECTORY)/*.krml \
           -tmpdir=$(OUTPUT_DIRECTORY)
 
+dist:
+	mkdir -p $(APP_DIST_DIRECTORY)
+	cp $(OUTPUT_DIRECTORY)/*.h $(APP_DIST_DIRECTORY) 
+	cp $(OUTPUT_DIRECTORY)/*.c $(APP_DIST_DIRECTORY) 
+
 world:
 	$(MAKE) verify
 	$(MAKE) extract
 	$(MAKE) compile
+	$(MAKE) dist
 
 clean:
 	rm -rf $(OUTPUT_DIRECTORY) .depend

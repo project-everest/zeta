@@ -183,7 +183,7 @@ let vget_impl (#tsm:TSM.thread_state_model)
 let run_vget 
   (#log_perm:perm)
   (#log_bytes:Ghost.erased bytes)
-  (log_len: Ghost.erased U32.t)
+  (log_len: U32.t)
   (pl: runApp_payload)
   (pl_pos:U32.t)
   (log_array:larray U8.t log_len {
@@ -410,7 +410,7 @@ let vput_impl (#tsm:TSM.thread_state_model)
 let run_vput 
   (#log_perm:perm)
   (#log_bytes:Ghost.erased bytes)
-  (log_len: Ghost.erased U32.t)
+  (log_len: U32.t)
   (pl: runApp_payload)
   (pl_pos:U32.t)
   (log_array:larray U8.t log_len {
