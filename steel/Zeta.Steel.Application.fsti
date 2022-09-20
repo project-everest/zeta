@@ -87,7 +87,7 @@ val run_app_function
       (* The position in the log where the arguments of the function live *)
       (#log_perm:perm)
       (#log_bytes:Ghost.erased bytes)
-      (log_len: Ghost.erased U32.t)
+      (log_len: U32.t)
       (pl: runApp_payload)
       (pl_pos:U32.t)
       (log_array:larray U8.t log_len {

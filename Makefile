@@ -3,12 +3,17 @@ FSTAR_FILES=$(wildcard $(addsuffix /*fst, $(SRC_DIRS))) $(wildcard $(addsuffix /
 
 all: verify
 
-ci: extract-steel
+ci: extract-all
 
 extract-steel: verify
 	+$(MAKE) -C steel
-	+$(MAKE) -C steel/formats
+	+$(MAKE) -C steel/apps/kvstore
 
-.PHONY: ci extract-steel
+# This rule requires EverParse
+extract-all: extract-steel
+	+$(MAKE) -C steel/formats
+	+$(MAKE) -C steel/apps/kvstore/everparse
+
+.PHONY: ci extract-steel extract-all
 
 include Makefile.common

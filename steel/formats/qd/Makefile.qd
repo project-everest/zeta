@@ -8,5 +8,5 @@ makefileobj: $(QD_TARGET_DIR)/Makefile
 
 $(QD_TARGET_DIR)/Makefile: Makefile.obj Zeta.Formats.Aux.rfc
 	mkdir -p $(QD_TARGET_DIR)
-	$(QD) -odir $(QD_TARGET_DIR) Zeta.Formats.Aux.rfc -prefix Zeta.Formats.Aux.
+	$(QD) -low -odir $(QD_TARGET_DIR) Zeta.Formats.Aux.rfc -prefix Zeta.Formats.Aux.
 	cp $< $@

@@ -64,6 +64,14 @@ let bare_parser_of_spec_parser
   | None -> None
   | Some (res, consumed) -> Some (res, consumed)
 
+let spec_parser_of_bare_parser
+  (#t: Type)
+  (p: bare_parser t)
+: Tot (P.spec_parser t)
+= fun x -> match parse p x with
+  | None -> None
+  | Some (res, consumed) -> Some (res, consumed)
+
 let parser_intro
   (typ : Type0)
   (spec_parser : P.spec_parser typ)
@@ -114,3 +122,45 @@ let parser_intro
   Classical.forall_intro parser_bounds;
   assert (parser_kind_prop0 (strong_parser_kind lo hi None) spec_parser');
   LowParse.Spec.Base.parser_kind_prop_equiv (strong_parser_kind lo hi None) spec_parser'
+
+let default_strong_parser_kind : parser_kind = {
+  parser_kind_subkind = Some ParserStrong;
+  parser_kind_metadata = None;
+  parser_kind_low = 0;
+  parser_kind_high = None;
+}
+
+let parser_intro_default
+  (typ : Type0)
+  (spec_parser : P.spec_parser typ)
+  (spec_parser_injective : (b1: bytes) -> (b2: bytes) -> Lemma
+    (requires (match spec_parser b1, spec_parser b2 with
+    | Some (v1, n1), Some (v2, n2) -> v1 == v2
+    | _ -> False
+    ))
+    (ensures (match spec_parser b1, spec_parser b2 with
+    | Some (v1, n1), Some (v2, n2) -> (n1 <: nat) == n2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n2
+    | _ -> True
+  )))
+  (spec_parser_strong_prefix: (b1: bytes) -> (b2: bytes) -> Lemma
+    (requires (
+      match spec_parser b1 with
+      | Some (_, n1) -> n1 <= Seq.length b2 /\ Seq.slice b1 0 n1 == Seq.slice b2 0 n1
+      | _ -> False
+    ))
+    (ensures (
+      match spec_parser b1, spec_parser b2 with
+      | Some (v1, _), Some (v2, _) -> v1 == v2
+      | _ -> False
+  )))
+: Lemma
+  (parser_kind_prop (default_strong_parser_kind) (bare_parser_of_spec_parser spec_parser))
+=
+  let spec_parser' = bare_parser_of_spec_parser spec_parser in
+  parser_injective_intro spec_parser' (fun b1 b2 -> spec_parser_injective b1 b2);
+  no_lookahead_intro spec_parser' (fun b1 b2 ->
+    spec_parser_strong_prefix b1 b2;
+    spec_parser_injective b1 b2
+  );
+  assert (parser_kind_prop0 (default_strong_parser_kind) spec_parser');
+  LowParse.Spec.Base.parser_kind_prop_equiv (default_strong_parser_kind) spec_parser'

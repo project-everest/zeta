@@ -719,3 +719,6 @@ let max_certified_epoch
         snapshot t (AEH.map_of_seq logs) `star`
         pure (Zeta.Correctness.sequentially_consistent_app_entries_except_if_hash_collision logs max));
       return (AEH.Read_max_some max)
+
+// for dependencies only, to extract references
+module C = C
