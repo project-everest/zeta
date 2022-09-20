@@ -613,6 +613,8 @@ let rec update_ht (#tsm:M.thread_state_model)
       return b
 #pop-options
 
+noextract
+inline_for_extraction
 let update_clock_and_maybe_high_water_mark
   (#prev_clk:erased T.timestamp)
   (#def:_)
