@@ -50,4 +50,4 @@ world:
 clean:
 	rm -rf $(OUTPUT_DIRECTORY) .depend
 
-.PHONY: extract compile world all
+.PHONY: extract compile world all dist

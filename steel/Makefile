@@ -61,3 +61,5 @@ clean_c:
 
 clean: clean_c
 	rm -rf $(OUTPUT_DIRECTORY)/*.krml $(CACHE_DIRECTORY) .depend
+
+.PHONY: extract compile dist clean_c
