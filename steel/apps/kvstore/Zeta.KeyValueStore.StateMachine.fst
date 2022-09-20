@@ -77,7 +77,22 @@ type llog = Seq.seq log
 // Definition of sequential consistency
 //
 
-let seq_consistent (ss:llog) = exists s. I.interleave s ss /\ valid_log s
+let not_vput_k (e:log_entry) (k:F.key_t) =
+  match e with
+  | Vget _ _ -> True
+  | Vput k' _ -> k' =!= k
+
+//
+// A get k v is preceded by a put k v, and no other put k in between
+
+let seq_consistent (ss:llog) =
+  exists s. I.interleave s ss /\
+        (forall (n:nat) (k:F.key_t) (v:F.value_t).
+            (n < Seq.length s /\ Seq.index s n == Vget k v) ==>
+            (exists (i:nat).
+                i < n /\ Seq.index s i == Vput k v /\
+                (forall (j:nat{i < j /\ j < n}). not_vput_k (Seq.index s j) k)))
+           
 
 //
 // We prove sequential consistency,
@@ -123,6 +138,104 @@ val map_seq_consistency (ss:Seq.seq (Seq.seq app_log_entry))
 
 module App = Zeta.App
 module SA = Zeta.SeqAux
+
+//
+// Definition of valid interleaving
+//
+
+let valid_interleaving (ss:llog) = exists s. I.interleave s ss /\ valid_log s
+
+let rec not_valid_prefix (s:log) (i:nat{i < Seq.length s})
+  : Lemma
+      (requires steps (SA.prefix s i) == None)
+      (ensures steps s == None)
+      (decreases Seq.length s)
+  = if Seq.length s = 0 then ()
+    else if i = Seq.length s - 1 then ()
+    else begin
+      let s_pfx = SA.prefix s (Seq.length s - 1) in
+      assert (Seq.equal (SA.prefix s i) (SA.prefix s_pfx i));
+      not_valid_prefix s_pfx i
+    end
+          
+let valid_prefix (s:log) (i:nat{i <= Seq.length s})
+  : Lemma (requires valid_log s) (ensures valid_log (SA.prefix s i))
+  = let aux ()
+      : Lemma (requires ~ (valid_log (SA.prefix s i)))
+              (ensures ~ (valid_log s))
+              [SMTPat ()]
+      = not_valid_prefix s i in
+    ()
+
+let rec find_put_k_v
+  (s:log)
+  (n:nat)
+  (k:F.key_t)
+  (v:F.value_t)
+  (current:nat)
+  (current_st:state)
+  (current_put_k_v:option nat)
+  : Pure nat
+      (requires
+        valid_log s /\
+        n < Seq.length s /\
+        Seq.index s n == Vget k v /\
+        current <= n /\
+        Some current_st == steps (SA.prefix s current) /\
+        (match current_put_k_v with
+         | None ->
+           get current_st k =!= Some v
+         | Some idx ->
+           get current_st k == Some v /\
+           idx < current /\
+           Seq.index s idx == Vput k v /\
+           (forall (j:nat{idx < j /\ j < current}). not_vput_k (Seq.index s j) k)))
+      (ensures fun idx ->
+        idx < n /\
+        Seq.index s idx == Vput k v /\
+        (forall (j:nat{idx < j /\ j < n}). not_vput_k (Seq.index s j) k))
+      (decreases Seq.length s - current)
+  = if current = n
+    then begin
+      valid_prefix s (current+1);
+      Some?.v current_put_k_v
+    end
+    else begin
+      let e = Seq.index s current in
+      valid_prefix s (current+1);
+      let Some next_st = step e current_st in
+      match e with
+      | Vget _ _ -> find_put_k_v s n k v (current+1) next_st current_put_k_v
+      | Vput k' v' ->
+        if k' <> k
+        then find_put_k_v s n k v (current+1) next_st current_put_k_v
+        else if v' = v
+        then find_put_k_v s n k v (current+1) next_st (Some current)
+        else find_put_k_v s n k v (current+1) next_st None
+    end
+
+let get_has_preceding_put (s:log) (n:nat) (k:F.key_t) (v:F.value_t)
+  : Lemma
+      (requires
+        valid_log s /\
+        n < Seq.length s /\
+        Seq.index s n == Vget k v)
+      (ensures
+        exists (i:nat).
+          i < n /\
+          Seq.index s i == Vput k v /\
+          (forall (j:nat{i < j /\ j < n}). not_vput_k (Seq.index s j) k))
+       [SMTPat (valid_log s); SMTPat (Seq.index s n); SMTPat (Vget k v)]
+  = introduce exists (i:nat). i < n /\
+                       Seq.index s i == Vput k v /\
+                       (forall (j:nat{i < j /\ j < n}). not_vput_k (Seq.index s j) k)
+    with (find_put_k_v s n k v 0 initial_state None)
+    and ()
+
+let valid_interleaving_seq_consistent (ss:llog)
+  : Lemma (requires valid_interleaving ss)
+          (ensures seq_consistent ss)
+  = ()
 
 //
 // Correspondence between the kv state and generic app state
@@ -207,11 +320,11 @@ let map_valid_call_result (is:Seq.seq app_log_entry)
 let map_log (s:Seq.seq app_log_entry) : log =
   SeqAux.map map_entry s
 
-let map_seq_consistency (ss:Seq.seq (Seq.seq app_log_entry))
+let map_valid_interleaving (ss:Seq.seq (Seq.seq app_log_entry))
   : Lemma (requires AppSim.seq_consistent ss)
-          (ensures (seq_consistent (map_llog ss)))
+          (ensures (valid_interleaving (map_llog ss)))
   = eliminate exists (is:Seq.seq app_log_entry). I.interleave is ss /\ AppSim.valid_call_result is
-    returns seq_consistent (map_llog ss)
+    returns valid_interleaving (map_llog ss)
     with _. begin
       I.map_interleave is ss map_entry;
       assert (I.interleave (map_log is) (map_llog ss));
@@ -220,3 +333,8 @@ let map_seq_consistency (ss:Seq.seq (Seq.seq app_log_entry))
       with (map_log is)
       and ()
     end
+
+let map_seq_consistency (ss:Seq.seq (Seq.seq app_log_entry))
+  : Lemma (requires AppSim.seq_consistent ss)
+          (ensures (seq_consistent (map_llog ss)))
+  = map_valid_interleaving ss
