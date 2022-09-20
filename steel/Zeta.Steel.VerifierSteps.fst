@@ -613,6 +613,26 @@ let rec update_ht (#tsm:M.thread_state_model)
       return b
 #pop-options
 
+noextract
+inline_for_extraction
+let update_clock_and_maybe_high_water_mark
+  (#prev_clk:erased T.timestamp)
+  (#def:_)
+  (#m:erased (EpochMap.repr M.epoch_hash))
+  (clock:R.ref T.timestamp)
+  (clk:T.timestamp)
+  (epoch_hashes:AEH.all_epoch_hashes)
+  : STT unit
+      (R.pts_to clock full_perm prev_clk
+         `star`
+       EpochMap.full_perm epoch_hashes def m)
+      (fun _ ->
+       R.pts_to clock full_perm clk
+         `star`
+       EpochMap.full_perm epoch_hashes def m)
+  = R.write clock clk;
+    EpochMap.maybe_update_high_water_mark epoch_hashes clk.epoch
+
 let vaddb_core (#tsm:M.thread_state_model)
           (t:thread_state_t)
           (s:slot_id)
@@ -650,12 +670,14 @@ let vaddb_core (#tsm:M.thread_state_model)
                 if clock `M.timestamp_lt` next_clock
                 then (
                   R.write t.last_evict_key root_base_key;
-                  R.write t.clock next_clock;
+                  update_clock_and_maybe_high_water_mark t.clock next_clock t.epoch_hashes;
+                  // R.write t.clock next_clock;
                   A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
                   return true
                 )
                 else (
-                  R.write t.clock next_clock;
+                  // R.write t.clock next_clock;
+                  update_clock_and_maybe_high_water_mark t.clock next_clock t.epoch_hashes;
                   A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
                   return true
                 )
@@ -831,7 +853,8 @@ let vevictb_update_hash_clock (#tsm:M.thread_state_model)
      let b = update_ht t e (k, v) ts t.thread_id HEvict in
      if b
      then (
-       R.write t.clock ts;
+       // R.write t.clock ts;
+       update_clock_and_maybe_high_water_mark t.clock ts t.epoch_hashes;
        R.write t.last_evict_key bk;
        return b
      )
@@ -997,7 +1020,8 @@ let nextepoch_core (#tsm:M.thread_state_model)
       fail t; ()
     | Some nxt ->
       let c = { epoch = nxt; counter = 0ul } in
-      R.write t.clock c;
+      // R.write t.clock c;
+      update_clock_and_maybe_high_water_mark t.clock c t.epoch_hashes;
       R.write t.last_evict_key root_base_key;
       ()
 
