@@ -76,7 +76,7 @@ Zeta_Steel_Application_run_app_function(
   Zeta_Steel_VerifierTypes_thread_state_t t
 );
 
-Zeta_Steel_KeyUtils_raw_key Zeta_Steel_Application_key_type_to_base_key(uint64_t uu___);
+Zeta_Steel_KeyUtils_raw_key Zeta_Steel_Application_key_type_to_base_key(uint64_t k);
 
 
 #define __Zeta_Steel_Application_H_DEFINED
