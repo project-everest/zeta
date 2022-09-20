@@ -27,6 +27,7 @@ KRML_BUNDLING_OPTIONS += -bundle $(KRML_BUNDLE_ROOT)'=Zeta.*,Prims,FStar.*,Hacl.
   -static-header Steel.ST.Reference \
   -no-prefix Zeta.Steel.LogEntry \
   -no-prefix Zeta.Steel.LogEntry.Spec \
+  -header $(ZETA_HOME)/steel/noheader.txt \
   -hand-written Steel.ST.Reference
 
 compile:
