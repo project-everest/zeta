@@ -510,10 +510,19 @@ let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
     else return Run_app_parsing_failure
 
 friend Zeta.Steel.KeyUtils
+friend Zeta.KeyValueStore.Spec
 
-//
-// TODO
-//
-#push-options "--admit_smt_queries true"
-let key_type_to_base_key _ = return root_raw_key
-#pop-options
+let key_type_to_base_key k =
+  let bk = {
+    k = ({
+      v3 = k;
+      v2 = 0uL;
+      v1 = 0uL;
+      v0 = 0uL;
+    });
+
+   significant_digits = 256us;
+  } in
+
+  lower_lift_id bk;
+  return bk
