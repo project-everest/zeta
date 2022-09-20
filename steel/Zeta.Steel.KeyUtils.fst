@@ -1197,7 +1197,8 @@ let from_vec_singleton (b:bool)
   : Lemma (FStar.UInt.from_vec #1 (Seq.create 1 b) == (if b then 1 else 0))
   = ()
 
-#push-options "--z3rlimit_factor 4"
+#push-options "--z3rlimit_factor 6"
+#restart-solver
 let rec ord_of_raw_key_node_to_ord (b:raw_key)
   : Lemma 
     (ensures ord_of_raw_key b == Zeta.BinTree.node_to_ord (lift_raw_key b))
