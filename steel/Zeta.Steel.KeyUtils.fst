@@ -139,7 +139,7 @@ let ith_bit_extensional (x y:raw_key)
 #pop-options
 
 let set_ith_bit (k0:raw_key) (i:U16.t { U16.v i < 256 })
-  : GTot raw_key
+  : Tot raw_key
   = let open U16 in
     let kk = k0.k in
     let word, bit = bit_offset_in_word i in
@@ -156,14 +156,14 @@ let set_ith_bit (k0:raw_key) (i:U16.t { U16.v i < 256 })
     { k0 with k = kk' }
 
 let clear_ith_bit_64 (k:U64.t) (i:U32.t { U32.v i < 64 })
-  : GTot U64.t
+  : Tot U64.t
   = let v = UInt.to_vec #64 (U64.v k) in
     let index = 63 - U32.v i in
     let v' = Seq.upd v index false in
     U64.uint_to_t (UInt.from_vec #64 v')
 
 let clear_ith_bit (k0:raw_key) (i:U16.t { U16.v i < 256 })
-  : GTot raw_key
+  : Tot raw_key
   = let open U16 in
     let kk = k0.k in
     let word, bit = bit_offset_in_word i in
@@ -325,7 +325,7 @@ let ith_bit_root_raw_key (i:U16.t { U16.v i < 256 })
 
 (* if you lift a lowered key, you get the original key, but not the other way round *)
 let rec lift_raw_key (k: raw_key)
-  : GTot (k':Zeta.Key.base_key {
+  : Tot (k':Zeta.Key.base_key {
                Zeta.BinTree.depth k' = U16.v k.significant_digits
           })
     (decreases (U16.v k.significant_digits))
@@ -339,7 +339,7 @@ let rec lift_raw_key (k: raw_key)
          else LeftChild k'
 
 let rec lower_base_key' (k: Zeta.Key.base_key)
-  : GTot (k':raw_key {
+  : Tot (k':raw_key {
                 U16.v k'.significant_digits = Zeta.BinTree.depth k
           })
   = let open Zeta.BinTree in
@@ -414,7 +414,7 @@ let rec lift_lower_id (k:Zeta.Key.base_key)
       }
 
 let lower_base_key_raw (k: Zeta.Key.base_key)
-  : GTot (k':raw_key {
+  : Tot (k':raw_key {
                 lift_raw_key k' = k
           })
   = lift_lower_id k;
@@ -426,7 +426,7 @@ let desc_dir_raw (k0:raw_key) (k1:raw_key { k0 `is_proper_descendent'` k1 })
     not (ith_bit k0 k1.significant_digits)
 
 let parent (k:raw_key { k.significant_digits <> 0us })
-  : GTot raw_key
+  : Tot raw_key
   = let i = U16.(k.significant_digits -^ 1us) in
     if ith_bit k i
     then { clear_ith_bit k i with significant_digits = i }
@@ -474,7 +474,7 @@ let is_parent_related (k:raw_key { k.significant_digits <> 0us })
       }
 
 let rec is_desc_raw (k0 k1:raw_key)
-  : GTot bool (decreases (U16.v (k0.significant_digits)))
+  : Tot bool (decreases (U16.v (k0.significant_digits)))
   = if k0 = k1
     then true
     else if k0.significant_digits = 0us
@@ -883,11 +883,11 @@ let desc_dir (k0:base_key) (k1:base_key { k0 `is_proper_descendent` k1 })
   = desc_dir_raw k0 k1
 
 let lift_base_key (k: base_key)
-  : GTot Zeta.Key.base_key
+  : Tot Zeta.Key.base_key
   = lift_raw_key k
 
 let lower_base_key (k:Zeta.Key.base_key)
-  : GTot base_key
+  : Tot base_key
   = lowered_keys_are_good k;
     lower_base_key_raw k
   
@@ -900,7 +900,7 @@ let lower_lift_inv (k:base_key)
   = lower_lift_id k
   
 let is_desc (k0 k1:base_key)
-  : GTot bool
+  : Tot bool
   = is_desc_raw k0 k1
   
 let is_desc_related (k0 k1:base_key)
@@ -1196,7 +1196,9 @@ let base_key_lt_ord (bk1 bk2:base_key)
 let from_vec_singleton (b:bool) 
   : Lemma (FStar.UInt.from_vec #1 (Seq.create 1 b) == (if b then 1 else 0))
   = ()
-  
+
+#push-options "--z3rlimit_factor 6"
+#restart-solver
 let rec ord_of_raw_key_node_to_ord (b:raw_key)
   : Lemma 
     (ensures ord_of_raw_key b == Zeta.BinTree.node_to_ord (lift_raw_key b))
@@ -1235,7 +1237,8 @@ let rec ord_of_raw_key_node_to_ord (b:raw_key)
         ()
       )
     )
-  
+#pop-options
+
 (* the total ordering at steel level consistent with the spec level ordering *)
 let base_key_lt_rel (sbk1 sbk2: base_key)
   : Lemma (ensures (let ibk1 = lift_base_key sbk1 in
