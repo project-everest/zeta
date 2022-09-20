@@ -6,7 +6,6 @@ open Zeta.Formats.Lib
 
 module Spec = Zeta.Formats.Aux.Application_value.Spec
 module Size = Zeta.Formats.Aux.Application_value.Size
-module SLow = Zeta.Formats.Aux.Application_value.SLow
 module Low = Zeta.Formats.Aux.Application_value.Low
 
 let application_value_parser = Spec.application_value_parser
@@ -19,12 +18,6 @@ let application_value_bytesize_eq x = ()
 
 // we need to add eta-expansions because the callees cannot be marked
 // inline_for_extraction, since they are extern
-
-let application_value_parser32 x = SLow.application_value_parser32 x
-
-// this function is unused
-assume val __UNUSED__application_value_serializer32': LS.serializer32 application_value_serializer
-let application_value_serializer32 = __UNUSED__application_value_serializer32'
 
 let application_value_size32 x = Size.application_value_size32 x
 

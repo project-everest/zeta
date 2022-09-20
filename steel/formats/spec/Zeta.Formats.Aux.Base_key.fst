@@ -71,22 +71,6 @@ let base_key_bytesize _ = 34
 
 let base_key_bytesize_eq _ = ()
 
-let base_key_parser32 =
-  LS.parse32_synth'
-    _
-    _
-    (LS.parse32_filter Zeta.Formats.Aux.Raw_key.raw_key_parser32 _ (fun x -> base_key_filter x))
-    ()
-
-let base_key_serializer32 =
-  LS.serialize32_synth'
-    _
-    _
-    _
-    (LS.serialize32_filter Zeta.Formats.Aux.Raw_key.raw_key_serializer32 _)
-    _
-    ()
-
 let base_key_size32 =
   LS.size32_constant
     base_key_serializer

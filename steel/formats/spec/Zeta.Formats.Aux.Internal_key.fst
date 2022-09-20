@@ -62,22 +62,6 @@ let internal_key_bytesize_eq x =
     () x;
   base_key_bytesize_eq (internal_key_synth_recip x)
 
-let internal_key_parser32 =
-  LS.parse32_synth'
-    _
-    _
-    (LS.parse32_filter base_key_parser32 _ (fun x -> Zeta.Steel.KeyUtils.is_internal_key x))
-    ()
-
-let internal_key_serializer32 =
-  LS.serialize32_synth'
-    _
-    _
-    _
-    (LS.serialize32_filter base_key_serializer32 _)
-    _
-    ()
-
 let internal_key_size32 =
   LS.size32_synth'
     _

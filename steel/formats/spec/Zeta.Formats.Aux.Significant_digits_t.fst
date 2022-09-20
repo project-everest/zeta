@@ -55,22 +55,6 @@ let significant_digits_t_bytesize _ = 2
 
 let significant_digits_t_bytesize_eq _ = ()
 
-let significant_digits_t_parser32 =
-  LS.parse32_synth'
-    _
-    _
-    (LS.parse32_filter LS.parse32_u16 _ (fun x -> x `U16.lte` 256us))
-    ()
-
-let significant_digits_t_serializer32 =
-  LS.serialize32_synth'
-    _
-    _
-    _
-    (LS.serialize32_filter LS.serialize32_u16 _)
-    _
-    ()
-
 let significant_digits_t_size32 =
   LS.size32_constant
     significant_digits_t_serializer
