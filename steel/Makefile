@@ -49,7 +49,7 @@ compile:
 		$(KRML_ATOMIC_CAS_INCLUDE_OPTION) \
 		$(KRML_APP_INCLUDE_OPTION)
 
-dist: $(OUTPUT_DIRECTORY)/*.c $(OUTPUT_DIRECTORY)/*.h
+dist:
 	cp $(OUTPUT_DIRECTORY)/*.c $(DIST_DIRECTORY)/
 	cp $(OUTPUT_DIRECTORY)/*.h $(DIST_DIRECTORY)/
 	if test -d $(OUTPUT_DIRECTORY)/internal ; then cp -r $(OUTPUT_DIRECTORY)/internal $(DIST_DIRECTORY)/ ; fi
