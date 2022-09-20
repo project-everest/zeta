@@ -29,7 +29,7 @@ STEEL_KRML_FILES=Steel_ST_EphemeralHashtbl.krml \
 
 extract: $(addprefix $(OUTPUT_DIRECTORY)/,$(STEEL_KRML_FILES)) $(filter-out $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))
 
-KRML_BUNDLING_OPTIONS=-bundle 'Zeta.Steel.Main=Zeta.*,Prims,FStar.*,Hacl.*,Steel.*' \
+KRML_BUNDLING_OPTIONS=-bundle 'Zeta.Steel.Main=Zeta.*,Prims,FStar.*,Hacl.*,Steel.*,C' \
   -library Steel.ST.Loops \
   -library Steel.ST.Reference \
   -static-header Steel.ST.Reference \
@@ -61,3 +61,5 @@ clean_c:
 
 clean: clean_c
 	rm -rf $(OUTPUT_DIRECTORY)/*.krml $(CACHE_DIRECTORY) .depend
+
+.PHONY: extract compile dist clean_c

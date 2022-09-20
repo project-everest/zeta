@@ -18,13 +18,16 @@ $(OUTPUT_DIRECTORY)/%.krml:
 
 extract: $(addprefix $(OUTPUT_DIRECTORY)/,$(STEEL_KRML_FILES)) $(filter-out $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))
 
-KRML_BUNDLING_OPTIONS=-bundle 'Zeta.Steel.Application=Zeta.*,Prims,FStar.*,Hacl.*,Steel.*' \
+KRML_BUNDLE_ROOT ?= Zeta.Steel.Application
+
+KRML_BUNDLING_OPTIONS += -bundle $(KRML_BUNDLE_ROOT)'=Zeta.*,Prims,FStar.*,Hacl.*,Steel.*,LowStar.*,C.*,LowParse.*' \
   -library Zeta.Steel.VerifierTypes \
   -library Steel.ST.Loops \
   -library Steel.ST.Reference \
   -static-header Steel.ST.Reference \
   -no-prefix Zeta.Steel.LogEntry \
   -no-prefix Zeta.Steel.LogEntry.Spec \
+  -header $(ZETA_HOME)/steel/noheader.txt \
   -hand-written Steel.ST.Reference
 
 compile:
@@ -47,4 +50,4 @@ world:
 clean:
 	rm -rf $(OUTPUT_DIRECTORY) .depend
 
-.PHONY: extract compile world all
+.PHONY: extract compile world all dist

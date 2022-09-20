@@ -52,10 +52,10 @@ val desc_dir (k0:base_key) (k1:base_key { k0 `is_proper_descendent` k1 })
   : bool
 
 val lift_base_key (k: base_key)
-  : GTot Zeta.Key.base_key
+  : Tot Zeta.Key.base_key
 
 val lower_base_key (k:Zeta.Key.base_key)
-  : GTot base_key
+  : Tot base_key
 
 val lift_lower_inv (k:Zeta.Key.base_key)
   : Lemma (lift_base_key (lower_base_key k) == k)
@@ -64,7 +64,7 @@ val lower_lift_inv (k:base_key)
   : Lemma (lower_base_key (lift_base_key k) == k)
 
 val is_desc (k0 k1:base_key)
-  : GTot bool
+  : Tot bool
   
 val is_desc_related (k0 k1:base_key)
                     (ik0 ik1:Zeta.Key.base_key)

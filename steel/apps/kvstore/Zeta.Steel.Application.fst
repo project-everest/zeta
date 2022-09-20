@@ -26,7 +26,7 @@ friend Zeta.Steel.ApplicationTypes
 ///     - calls the impl function with the arguments and read store values,
 ///     - writes to the output log if needed
 
-#set-options "--using_facts_from '* -FStar.Tactics -FStar.Reflection' --z3rlimit 50"
+#set-options "--using_facts_from '* -FStar.Tactics -FStar.Reflection' --z3rlimit 64"
 
 
 //
@@ -209,7 +209,7 @@ let run_vget
        (requires not tsm.failed /\ pl.fid == S.vget_id)
        (ensures fun _ -> True)
   = // Parse the input log
-    let ropt = F.vget_args_parser log_len pl_pos pl.rest.len log_array in
+    let ropt = F.kvstore_vget_args_parser log_len pl_pos pl.rest.len log_array in
     match ropt with
     | None -> return Run_app_parsing_failure
     | Some (r, consumed) ->
@@ -435,7 +435,7 @@ let run_vput
         verify_runapp_entry_post tsm t pl out_bytes out_offset out res)
        (requires not tsm.failed /\ pl.fid == S.vput_id)
        (ensures fun _ -> True)
-  = let ropt = F.vput_args_parser log_len pl_pos pl.rest.len log_array in
+  = let ropt = F.kvstore_vput_args_parser log_len pl_pos pl.rest.len log_array in
     match ropt with
     | None -> return Run_app_parsing_failure
     | Some (r, consumed) ->
@@ -510,10 +510,19 @@ let run_app_function #log_perm #log_bytes log_len pl pl_pos log_array
     else return Run_app_parsing_failure
 
 friend Zeta.Steel.KeyUtils
+friend Zeta.KeyValueStore.Spec
 
-//
-// TODO
-//
-#push-options "--admit_smt_queries true"
-let key_type_to_base_key _ = return root_raw_key
-#pop-options
+let key_type_to_base_key k =
+  let bk = {
+    k = ({
+      v3 = k;
+      v2 = 0uL;
+      v1 = 0uL;
+      v0 = 0uL;
+    });
+
+   significant_digits = 256us;
+  } in
+
+  lower_lift_id bk;
+  return bk

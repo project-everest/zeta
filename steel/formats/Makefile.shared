@@ -1,2 +1,3 @@
 include $(ZETA_STEEL_HOME)/Makefile.shared
-SRC_DIRS += $(ZETA_STEEL_HOME) $(EVERPARSE_HOME)/src/lowparse $(KRML_HOME)/krmllib $(KRML_HOME)/krmllib/obj
+SRC_DIRS += $(ZETA_STEEL_HOME)
+INCLUDE_PATHS += $(EVERPARSE_HOME)/src/lowparse
