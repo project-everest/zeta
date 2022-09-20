@@ -1,6 +1,6 @@
-all: steel lowstar
+all: lowstar
 
-DIRS=qd spec steel lowstar
+DIRS=qd spec lowstar
 
 spec: qd
 
