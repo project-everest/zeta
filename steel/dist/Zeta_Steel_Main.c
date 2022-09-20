@@ -2346,18 +2346,6 @@ uu___is_Some__Zeta_Steel_ThreadStateModel_store_entry(
     return false;
 }
 
-static void
-maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(
-  all_epoch_hashes a,
-  uint32_t i
-)
-{
-  option__uint32_t high = a.high[0U];
-  bool r = above_high_water_mark(high, i);
-  if (r)
-    a.high[0U] = ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = i });
-}
-
 static bool
 vaddb_core(
   Zeta_Steel_VerifierTypes_thread_state_t t,
@@ -2432,8 +2420,6 @@ vaddb_core(
                     }
                   );
                 t.clock[0U] = next_clock;
-                maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes,
-                  next_clock.epoch);
                 option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
                 pt[as_u320(s)] =
                   (
@@ -2447,8 +2433,6 @@ vaddb_core(
               else
               {
                 t.clock[0U] = next_clock;
-                maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes,
-                  next_clock.epoch);
                 option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
                 pt[as_u320(s)] =
                   (
@@ -2770,7 +2754,6 @@ vevictb_update_hash_clock(Zeta_Steel_VerifierTypes_thread_state_t t, uint16_t s,
     if (b)
     {
       t.clock[0U] = ts;
-      maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, ts.epoch);
       t.last_evict_key[0U] = bk;
       return b;
     }
@@ -3038,7 +3021,6 @@ static void nextepoch_core(Zeta_Steel_VerifierTypes_thread_state_t t)
     uint32_t nxt = res.v;
     timestamp c1 = { .epoch = nxt, .counter = (uint32_t)0U };
     t.clock[0U] = c1;
-    maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, c1.epoch);
     t.last_evict_key[0U] =
       (
         (Zeta_Steel_KeyUtils_raw_key){
