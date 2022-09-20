@@ -13,8 +13,6 @@ let parse_key = F.kvstore_key_parser
 let spec_serializer_key = F.key_spec_serializer
 let serialize_key = F.kvstore_key_serializer
 
-/// The following admits depend on the exact types we choose for keys and values
-
 let spec_parser_key_injective b1 b2 = F.key_spec_parser_injective b1 b2
 
 let spec_parser_key_strong_prefix b1 b2 = F.key_spec_parser_strong_prefix b1 b2

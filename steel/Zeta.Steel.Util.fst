@@ -13,25 +13,6 @@ let array_pts_to #t (a:A.array t) (v:Seq.seq t) = A.pts_to a full_perm v
 
 let sum_halves : squash (sum_perm half half == full) = ()
 
-[@@warn_on_use "uses an axiom"]
-noextract
-assume //benign; this is defining admit__
-val admit__ (#a:Type)
-            (#p:pre_t)
-            (#q:a -> vprop)
-            (_:unit)
-  : STF a p q True (fun _ -> False)
-
-[@@warn_on_use "uses an axiom"]
-noextract
-assume //benign; this is defining admit___
-val admit___ (#opened:_)
-             (#a:Type)
-             (#p:pre_t)
-             (#q:a -> vprop)
-             (_:unit)
-  : STAtomicF a opened p q True (fun _ -> False)
-
 inline_for_extraction
 let will_add_overflow32 (x y:U32.t)
   : res:bool{
