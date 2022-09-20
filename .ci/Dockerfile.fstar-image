@@ -5,6 +5,10 @@ ARG CI_THREADS=24
 SHELL ["/bin/bash", "--login", "-c"]
 ENV KRML_HOME $FSTAR_HOME/karamel
 
+# Recompile Karamel
+WORKDIR $KRML_HOME
+RUN git pull && make -j $CI_THREADS
+
 # Download and build LowParse and QuackyDucky
 ENV EVERPARSE_HOME $HOME/everparse
 RUN git clone https://github.com/project-everest/everparse $EVERPARSE_HOME
