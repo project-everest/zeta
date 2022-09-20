@@ -1196,7 +1196,8 @@ let base_key_lt_ord (bk1 bk2:base_key)
 let from_vec_singleton (b:bool) 
   : Lemma (FStar.UInt.from_vec #1 (Seq.create 1 b) == (if b then 1 else 0))
   = ()
-  
+
+#push-options "--z3rlimit_factor 4"
 let rec ord_of_raw_key_node_to_ord (b:raw_key)
   : Lemma 
     (ensures ord_of_raw_key b == Zeta.BinTree.node_to_ord (lift_raw_key b))
@@ -1235,7 +1236,8 @@ let rec ord_of_raw_key_node_to_ord (b:raw_key)
         ()
       )
     )
-  
+#pop-options
+
 (* the total ordering at steel level consistent with the spec level ordering *)
 let base_key_lt_rel (sbk1 sbk2: base_key)
   : Lemma (ensures (let ibk1 = lift_base_key sbk1 in
