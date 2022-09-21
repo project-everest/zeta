@@ -5,7 +5,7 @@ module Hacl.Blake2b_32
 // the original HACL* file. Notably, this is a Steel signature,
 // whereas HACL* is verified in Low*
 
-// We assume verification good nonetheless and reconcile these files
+// We take verification as good nonetheless and reconcile these files
 // at link-time.
 
 // In the future, we hope that the hacl-star repository will provided

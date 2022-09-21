@@ -11,8 +11,11 @@ let has_extern_input_ptr0 e n =
 let has_extern_input_ptr e n =
   has_extern_input_ptr0 e n
 
-assume
-val enclave_api_validate (x:A.array U8.t) (n: U32.t) : Pure bool
+//
+// API for validating a pointer
+// We link to a C implementation of it provided by the enclave SDK
+//
+assume val enclave_api_validate (x:A.array U8.t) (n: U32.t) : Pure bool
   (requires True)
   (ensures (fun b -> b == true ==> U32.v n == A.length x))
 

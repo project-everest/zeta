@@ -41,8 +41,8 @@ include obj/.depend
 # ------------
 
 # Everest-specific idiom: all makefiles accept OTHERFLAGS, for instance, if one
-# wants to rebuild with OTHERFLAGS="--admit_smt_queries true". We just don't
-# pass such flags to the dependency analysis.
+# wants to set fuel options for F* OTHERFLAGS="--fuel 0 --ifuel 0"
+# We just don't pass such flags to the dependency analysis.
 FSTAR = $(FSTAR_NO_FLAGS) $(OTHERFLAGS)
 
 obj:
