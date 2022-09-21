@@ -29,7 +29,7 @@ STEEL_KRML_FILES=Steel_ST_EphemeralHashtbl.krml \
 
 extract: $(addprefix $(OUTPUT_DIRECTORY)/,$(STEEL_KRML_FILES)) $(filter-out $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))
 
-KRML_BUNDLING_OPTIONS=-bundle 'Zeta.Steel.Main=Zeta.*,Prims,FStar.*,Hacl.*,Steel.*,C' \
+KRML_BUNDLING_OPTIONS=-bundle 'Zeta.Steel.SafeMain=Zeta.*,Prims,FStar.*,Hacl.*,Steel.*,C' \
   -library Steel.ST.Loops \
   -library Steel.ST.Reference \
   -static-header Steel.ST.Reference \
@@ -49,7 +49,7 @@ compile:
 		$(KRML_ATOMIC_CAS_INCLUDE_OPTION) \
 		$(KRML_APP_INCLUDE_OPTION)
 
-dist: $(OUTPUT_DIRECTORY)/*.c $(OUTPUT_DIRECTORY)/*.h
+dist:
 	cp $(OUTPUT_DIRECTORY)/*.c $(DIST_DIRECTORY)/
 	cp $(OUTPUT_DIRECTORY)/*.h $(DIST_DIRECTORY)/
 	if test -d $(OUTPUT_DIRECTORY)/internal ; then cp -r $(OUTPUT_DIRECTORY)/internal $(DIST_DIRECTORY)/ ; fi
