@@ -363,7 +363,6 @@ let vput_impl (#tsm:TSM.thread_state_model)
       (requires True)
       (ensures fun b ->
          (b ==> (r.vput_key == fst store_kv /\
-                Some r.vput_value == snd store_kv /\
                 Zeta.SeqAux.distinct_elems_comp (vput_spec_slots r) /\
                 TSM.check_distinct_keys (Some?.v (TSM.read_slots tsm (vput_spec_slots r))) /\
                 vput_app_success tsm r)))
@@ -371,25 +370,15 @@ let vput_impl (#tsm:TSM.thread_state_model)
     if vput_arg_slots_distinct r && vput_keys_distinct tsm r (fst store_kv)
     then // Check that the keys match
          if r.vput_key = fst store_kv
-         then //Second check that the values match
-              if Some r.vput_value = snd store_kv
-              then begin
-                VT.write_store t r.vput_slot (DValue (Some r.vput_value));
-                let b = true in
-                rewrite (VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv))
-                        (if b
-                         then VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv)
-                         else VT.thread_state_inv_core t tsm);
-                return b           
-              end
-              else begin
-                let b = false in
-                rewrite (VT.thread_state_inv_core t tsm)
-                        (if b
-                         then VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv)
-                         else VT.thread_state_inv_core t tsm);
-                return b
-              end
+         then begin
+              VT.write_store t r.vput_slot (DValue (Some r.vput_value));
+              let b = true in
+              rewrite (VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv))
+                      (if b
+                       then VT.thread_state_inv_core t (vput_impl_tsm tsm r store_kv)
+                       else VT.thread_state_inv_core t tsm);
+              return b
+         end
          else begin
            let b = false in
            rewrite (VT.thread_state_inv_core t tsm)
