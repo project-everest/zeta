@@ -2,8 +2,16 @@ ARG ocaml_version=4.12
 FROM ocaml/opam:ubuntu-ocaml-$ocaml_version
 RUN sudo apt-get install --no-install-recommends --yes wget
 
-ADD --chown=opam:opam ./ $HOME/zeta
 WORKDIR $HOME/zeta
+RUN sudo chown opam:opam $HOME/zeta
+ADD --chown=opam:opam ./utils utils
+ADD --chown=opam:opam ./generic generic
+ADD --chown=opam:opam ./high high
+ADD --chown=opam:opam ./intermediate intermediate
+ADD --chown=opam:opam ./steel steel
+ADD --chown=opam:opam ./Makefile Makefile
+ADD --chown=opam:opam ./Makefile.common Makefile.common
+ADD --chown=opam:opam ./.ci .ci
 
 SHELL ["/bin/bash", "--login", "-c"]
 
