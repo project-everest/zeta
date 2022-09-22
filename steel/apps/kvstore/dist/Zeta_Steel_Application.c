@@ -535,46 +535,37 @@ vput_impl(
 )
 {
   if (r.vput_key == fst__uint64_t_FStar_Pervasives_Native_option_uint64_t(store_kv))
-    if
-    (
-      __eq__FStar_Pervasives_Native_option__uint64_t((
-          (option__uint64_t){ .tag = Some, .v = r.vput_value }
-        ),
-        snd__uint64_t_FStar_Pervasives_Native_option_uint64_t(store_kv))
-    )
+  {
+    option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
+    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(r.vput_slot)];
+    option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
+    option__Zeta_Steel_ThreadStateModel_store_entry se_opt = res0;
+    if (se_opt.tag == Some)
     {
-      option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-      option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(r.vput_slot)];
-      option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
-      option__Zeta_Steel_ThreadStateModel_store_entry se_opt = res0;
-      if (se_opt.tag == Some)
-      {
-        store_entry se = se_opt.v;
-        store_entry se1 = se;
-        store_entry
-        se_ =
-          {
-            .key = se1.key,
-            .value = { .tag = DValue, { .case_DValue = { .tag = Some, .v = r.vput_value } } },
-            .add_method = se1.add_method, .l_child_in_store = se1.l_child_in_store,
-            .r_child_in_store = se1.r_child_in_store, .parent_slot = se1.parent_slot
-          };
-        option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-        pt[as_u32(r.vput_slot)] =
-          ((option__Zeta_Steel_ThreadStateModel_store_entry){ .tag = Some, .v = se_ });
-      }
-      else
-      {
-        KRML_HOST_EPRINTF("KaRaMeL abort at %s:%d\n%s\n",
-          __FILE__,
-          __LINE__,
-          "unreachable (pattern matches are exhaustive in F*)");
-        KRML_HOST_EXIT(255U);
-      }
-      return true;
+      store_entry se = se_opt.v;
+      store_entry se1 = se;
+      store_entry
+      se_ =
+        {
+          .key = se1.key,
+          .value = { .tag = DValue, { .case_DValue = { .tag = Some, .v = r.vput_value } } },
+          .add_method = se1.add_method, .l_child_in_store = se1.l_child_in_store,
+          .r_child_in_store = se1.r_child_in_store, .parent_slot = se1.parent_slot
+        };
+      option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
+      pt[as_u32(r.vput_slot)] =
+        ((option__Zeta_Steel_ThreadStateModel_store_entry){ .tag = Some, .v = se_ });
     }
     else
-      return false;
+    {
+      KRML_HOST_EPRINTF("KaRaMeL abort at %s:%d\n%s\n",
+        __FILE__,
+        __LINE__,
+        "unreachable (pattern matches are exhaustive in F*)");
+      KRML_HOST_EXIT(255U);
+    }
+    return true;
+  }
   else
     return false;
 }
