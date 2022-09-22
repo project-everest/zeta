@@ -1,25 +1,20 @@
-# This Dockerfile must be run from the parent directory
+ARG ocaml_version=4.12
+FROM ocaml/opam:ubuntu-ocaml-$ocaml_version
+RUN sudo apt-get install --no-install-recommends --yes wget
 
-FROM ubuntu:20.04
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get --yes update
-RUN apt-get --yes --no-install-recommends install wget ca-certificates make gcc libc6-dev git opam m4 sudo tzdata
+ADD --chown=opam:opam ./ $HOME/zeta
+WORKDIR $HOME/zeta
 
-# Create a new user and give them sudo rights
-RUN useradd -d /home/test test
-RUN echo 'test ALL=NOPASSWD: ALL' >> /etc/sudoers
-RUN mkdir /home/test
-RUN chown test:test /home/test
-USER test
-ENV HOME /home/test
-WORKDIR $HOME
 SHELL ["/bin/bash", "--login", "-c"]
 
-# Install OCaml
-ENV OPAMYES 1
-RUN opam init --disable-sandboxing --compiler=4.09.1
-RUN opam env --set-switch | tee --append .profile .bashrc .bash_profile
+# Dependencies (F*, Karamel, EverParse, and their opam package dependencies)
+ARG CI_THREADS=24
+RUN env OPAMYES=1 CI_THREADS=$CI_THREADS NO_INTERACTIVE=1 OTHERFLAGS='--admit_smt_queries true' ./.ci/install-everparse.sh
 
-ADD --chown=test . .
-ARG CI_THREADS=8
-RUN .ci/ci-with-everest.sh
+ENV FSTAR_HOME=$HOME/zeta/everest/FStar
+ENV KRML_HOME=$HOME/zeta/everest/karamel
+ENV EVERPARSE_HOME=$HOME/zeta/everest/everparse
+
+RUN make -j $CI_THREADS extract-all
+
+ENTRYPOINT ["/bin/bash", "--login"]
