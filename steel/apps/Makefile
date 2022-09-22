@@ -16,12 +16,19 @@ $(OUTPUT_DIRECTORY)/%.krml:
 	$(FSTAR) $(notdir $(subst .checked,,$<)) --codegen krml --cmi \
 	--extract_module $(basename $(notdir $(subst .checked,,$<)))
 
+STEEL_KRML_FILES=Steel_ST_EphemeralHashtbl.krml \
+  Steel_ST_CancellableSpinLock.krml \
+  Steel_ST_SpinLock.krml \
+  Steel_ST_Array_Util.krml \
+  Steel_ST_Reference.krml \
+  Steel_Loops.krml \
+  Steel_ST_Loops.krml
+
 extract: $(addprefix $(OUTPUT_DIRECTORY)/,$(STEEL_KRML_FILES)) $(filter-out $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))
 
 KRML_BUNDLE_ROOT ?= Zeta.Steel.Application
 
 KRML_BUNDLING_OPTIONS += -bundle $(KRML_BUNDLE_ROOT)'=Zeta.*,Prims,FStar.*,Hacl.*,Steel.*,LowStar.*,C.*,LowParse.*' \
-  -library Zeta.Steel.VerifierTypes \
   -library Steel.ST.Loops \
   -library Steel.ST.Reference \
   -static-header Steel.ST.Reference \
