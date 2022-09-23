@@ -2214,22 +2214,62 @@ epoch_map_add__Zeta_Steel_EpochHashes_epoch_hashes_t(
   put__Zeta_Steel_EpochHashes_epoch_hashes_t(a, i, x);
 }
 
+typedef struct option__Zeta_Steel_EpochHashes_epoch_hashes_t_s
+{
+  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
+  epoch_hashes_t v;
+}
+option__Zeta_Steel_EpochHashes_epoch_hashes_t;
+
 static bool
 update_ht(thread_state_t t, uint32_t e, record r, timestamp ts, uint16_t thread_id, htype ht)
 {
   get_result__Zeta_Steel_EpochHashes_epoch_hashes_t
-  vopt = get__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e);
-  if (vopt.tag == NotFound)
-    return false;
-  else if (vopt.tag == Fresh)
+  vopt0 = get__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e);
+  option__Zeta_Steel_EpochHashes_epoch_hashes_t vopt;
+  if (vopt0.tag == NotFound)
+    vopt = ((option__Zeta_Steel_EpochHashes_epoch_hashes_t){ .tag = FStar_Pervasives_Native_None });
+  else if (vopt0.tag == Found)
   {
-    epoch_hashes_t eh = new_epoch(e);
-    epoch_map_add__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e, eh);
-    return update_ht(t, e, r, ts, thread_id, ht);
+    epoch_hashes_t v = vopt0._0;
+    vopt =
+      (
+        (option__Zeta_Steel_EpochHashes_epoch_hashes_t){
+          .tag = FStar_Pervasives_Native_Some,
+          .v = v
+        }
+      );
   }
-  else if (vopt.tag == Found)
+  else if (vopt0.tag == Fresh)
   {
-    epoch_hashes_t v = vopt._0;
+    epoch_hashes_t v = new_epoch(e);
+    epoch_map_add__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e, v);
+    get_result__Zeta_Steel_EpochHashes_epoch_hashes_t
+    vopt_again = get__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e);
+    if (vopt_again.tag == Found)
+    {
+      epoch_hashes_t v1 = vopt_again._0;
+      vopt =
+        (
+          (option__Zeta_Steel_EpochHashes_epoch_hashes_t){
+            .tag = FStar_Pervasives_Native_Some,
+            .v = v1
+          }
+        );
+    }
+    else
+      vopt =
+        ((option__Zeta_Steel_EpochHashes_epoch_hashes_t){ .tag = FStar_Pervasives_Native_None });
+  }
+  else
+    vopt =
+      KRML_EABORT(option__Zeta_Steel_EpochHashes_epoch_hashes_t,
+        "unreachable (pattern matches are exhaustive in F*)");
+  if (vopt.tag == FStar_Pervasives_Native_None)
+    return false;
+  else if (vopt.tag == FStar_Pervasives_Native_Some)
+  {
+    epoch_hashes_t v = vopt.v;
     stamped_record sr = { .record = r, .timestamp = ts, .thread_id = thread_id };
     uint32_t
     n = zeta__serialize_stamped_record((uint32_t)4096U, (uint32_t)0U, t.serialization_buffer, sr);
@@ -2954,28 +2994,100 @@ static bool aggregate_epoch_hashes_t(epoch_hashes_t src, epoch_hashes_t dst)
 static bool propagate_epoch_hash(thread_state_t t, all_epoch_hashes hashes, uint32_t e)
 {
   get_result__Zeta_Steel_EpochHashes_epoch_hashes_t
-  dst = get__Zeta_Steel_EpochHashes_epoch_hashes_t(hashes, e);
-  if (dst.tag == NotFound)
-    return false;
-  else if (dst.tag == Fresh)
+  vopt0 = get__Zeta_Steel_EpochHashes_epoch_hashes_t(hashes, e);
+  option__Zeta_Steel_EpochHashes_epoch_hashes_t dst_opt;
+  if (vopt0.tag == NotFound)
+    dst_opt =
+      ((option__Zeta_Steel_EpochHashes_epoch_hashes_t){ .tag = FStar_Pervasives_Native_None });
+  else if (vopt0.tag == Found)
   {
-    epoch_hashes_t eh = new_epoch(e);
-    epoch_map_add__Zeta_Steel_EpochHashes_epoch_hashes_t(hashes, e, eh);
-    return propagate_epoch_hash(t, hashes, e);
+    epoch_hashes_t v = vopt0._0;
+    dst_opt =
+      (
+        (option__Zeta_Steel_EpochHashes_epoch_hashes_t){
+          .tag = FStar_Pervasives_Native_Some,
+          .v = v
+        }
+      );
   }
-  else if (dst.tag == Found)
+  else if (vopt0.tag == Fresh)
   {
-    epoch_hashes_t dst1 = dst._0;
+    epoch_hashes_t v = new_epoch(e);
+    epoch_map_add__Zeta_Steel_EpochHashes_epoch_hashes_t(hashes, e, v);
     get_result__Zeta_Steel_EpochHashes_epoch_hashes_t
-    src = get__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e);
-    if (src.tag == NotFound)
-      return false;
-    else if (src.tag == Fresh)
-      return false;
-    else if (src.tag == Found)
+    vopt_again = get__Zeta_Steel_EpochHashes_epoch_hashes_t(hashes, e);
+    if (vopt_again.tag == Found)
     {
-      epoch_hashes_t src1 = src._0;
-      bool b = aggregate_epoch_hashes_t(src1, dst1);
+      epoch_hashes_t v1 = vopt_again._0;
+      dst_opt =
+        (
+          (option__Zeta_Steel_EpochHashes_epoch_hashes_t){
+            .tag = FStar_Pervasives_Native_Some,
+            .v = v1
+          }
+        );
+    }
+    else
+      dst_opt =
+        ((option__Zeta_Steel_EpochHashes_epoch_hashes_t){ .tag = FStar_Pervasives_Native_None });
+  }
+  else
+    dst_opt =
+      KRML_EABORT(option__Zeta_Steel_EpochHashes_epoch_hashes_t,
+        "unreachable (pattern matches are exhaustive in F*)");
+  if (dst_opt.tag == FStar_Pervasives_Native_None)
+    return false;
+  else if (dst_opt.tag == FStar_Pervasives_Native_Some)
+  {
+    epoch_hashes_t dst = dst_opt.v;
+    get_result__Zeta_Steel_EpochHashes_epoch_hashes_t
+    vopt = get__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e);
+    option__Zeta_Steel_EpochHashes_epoch_hashes_t src_opt;
+    if (vopt.tag == NotFound)
+      src_opt =
+        ((option__Zeta_Steel_EpochHashes_epoch_hashes_t){ .tag = FStar_Pervasives_Native_None });
+    else if (vopt.tag == Found)
+    {
+      epoch_hashes_t v = vopt._0;
+      src_opt =
+        (
+          (option__Zeta_Steel_EpochHashes_epoch_hashes_t){
+            .tag = FStar_Pervasives_Native_Some,
+            .v = v
+          }
+        );
+    }
+    else if (vopt.tag == Fresh)
+    {
+      epoch_hashes_t v = new_epoch(e);
+      epoch_map_add__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e, v);
+      get_result__Zeta_Steel_EpochHashes_epoch_hashes_t
+      vopt_again = get__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, e);
+      if (vopt_again.tag == Found)
+      {
+        epoch_hashes_t v1 = vopt_again._0;
+        src_opt =
+          (
+            (option__Zeta_Steel_EpochHashes_epoch_hashes_t){
+              .tag = FStar_Pervasives_Native_Some,
+              .v = v1
+            }
+          );
+      }
+      else
+        src_opt =
+          ((option__Zeta_Steel_EpochHashes_epoch_hashes_t){ .tag = FStar_Pervasives_Native_None });
+    }
+    else
+      src_opt =
+        KRML_EABORT(option__Zeta_Steel_EpochHashes_epoch_hashes_t,
+          "unreachable (pattern matches are exhaustive in F*)");
+    if (src_opt.tag == FStar_Pervasives_Native_None)
+      return false;
+    else if (src_opt.tag == FStar_Pervasives_Native_Some)
+    {
+      epoch_hashes_t src = src_opt.v;
+      bool b = aggregate_epoch_hashes_t(src, dst);
       if (b)
         return true;
       else
@@ -3000,6 +3112,17 @@ static bool propagate_epoch_hash(thread_state_t t, all_epoch_hashes hashes, uint
   }
 }
 
+static bool *init_bit_map(uint32_t _e)
+{
+  KRML_CHECK_SIZE(sizeof (bool), Zeta_Steel_ApplicationTypes_n_threads);
+  bool *p = KRML_HOST_MALLOC(sizeof (bool) * Zeta_Steel_ApplicationTypes_n_threads);
+  for (uint32_t _i = 0U; _i < Zeta_Steel_ApplicationTypes_n_threads; ++_i)
+    p[_i] = false;
+  bool *res = p;
+  bool *new_bm = res;
+  return new_bm;
+}
+
 static void put__Prims_dtuple2__bool____(epoch_tid_bitmaps a, uint32_t i, bool *x)
 {
   uint32_t idx = i % a.etbl.store_len;
@@ -3017,27 +3140,51 @@ static void put__Prims_dtuple2__bool____(epoch_tid_bitmaps a, uint32_t i, bool *
     *a.high = ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = i });
 }
 
+static void epoch_map_add__Prims_dtuple2__bool____(epoch_tid_bitmaps a, uint32_t i, bool *x)
+{
+  put__Prims_dtuple2__bool____(a, i, x);
+}
+
+typedef struct option__Prims_dtuple2___bool_____s
+{
+  FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
+  dtuple2___bool____ v;
+}
+option__Prims_dtuple2___bool____;
+
 static bool update_bitmap(epoch_tid_bitmaps tid_bitmaps, uint32_t e, uint16_t tid)
 {
-  get_result__Prims_dtuple2___bool____ res = get__Prims_dtuple2__bool____(tid_bitmaps, e);
-  if (res.tag == NotFound)
-    return false;
-  else if (res.tag == Fresh)
+  get_result__Prims_dtuple2___bool____ vopt = get__Prims_dtuple2__bool____(tid_bitmaps, e);
+  option__Prims_dtuple2___bool____ res;
+  if (vopt.tag == NotFound)
+    res = ((option__Prims_dtuple2___bool____){ .tag = FStar_Pervasives_Native_None });
+  else if (vopt.tag == Found)
   {
-    KRML_CHECK_SIZE(sizeof (bool), Zeta_Steel_ApplicationTypes_n_threads);
-    bool *p = KRML_HOST_MALLOC(sizeof (bool) * Zeta_Steel_ApplicationTypes_n_threads);
-    for (uint32_t _i = 0U; _i < Zeta_Steel_ApplicationTypes_n_threads; ++_i)
-      p[_i] = false;
-    bool *res1 = p;
-    bool *new_bm = res1;
-    bool *pt = new_bm;
-    pt[as_u32(tid)] = true;
-    put__Prims_dtuple2__bool____(tid_bitmaps, e, new_bm);
-    return true;
+    bool *v = vopt._0;
+    res = ((option__Prims_dtuple2___bool____){ .tag = FStar_Pervasives_Native_Some, .v = v });
   }
-  else if (res.tag == Found)
+  else if (vopt.tag == Fresh)
   {
-    bool *v = res._0;
+    bool *v = init_bit_map(e);
+    epoch_map_add__Prims_dtuple2__bool____(tid_bitmaps, e, v);
+    get_result__Prims_dtuple2___bool____ vopt_again = get__Prims_dtuple2__bool____(tid_bitmaps, e);
+    if (vopt_again.tag == Found)
+    {
+      bool *v1 = vopt_again._0;
+      res = ((option__Prims_dtuple2___bool____){ .tag = FStar_Pervasives_Native_Some, .v = v1 });
+    }
+    else
+      res = ((option__Prims_dtuple2___bool____){ .tag = FStar_Pervasives_Native_None });
+  }
+  else
+    res =
+      KRML_EABORT(option__Prims_dtuple2___bool____,
+        "unreachable (pattern matches are exhaustive in F*)");
+  if (res.tag == FStar_Pervasives_Native_None)
+    return false;
+  else if (res.tag == FStar_Pervasives_Native_Some)
+  {
+    bool *v = res.v;
     bool *pt = v;
     pt[as_u32(tid)] = true;
     return true;

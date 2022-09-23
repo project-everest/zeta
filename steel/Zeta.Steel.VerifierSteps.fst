@@ -1203,8 +1203,6 @@ let init_bit_map (_e:M.epoch_id)
   = let new_bm = A.alloc false n_threads in
     return new_bm
 
-#push-options "--print_implicits"
-
 /// Update the bitmap for tid indicating that it's epoch contribution
 /// is ready
 let update_bitmap (#bm:erased _)
@@ -1218,7 +1216,7 @@ let update_bitmap (#bm:erased _)
                   (update_if b
                              (reveal bm)
                              (update_bitmap_spec bm e tid)))
-  = let res = get_or_init_eht tid_bitmaps e Zeta.Steel.VerifierSteps.init_bit_map in
+  = let res = get_or_init_eht tid_bitmaps e init_bit_map in
     match res with
     | None ->
       rewrite (get_or_init_post tid_bitmaps _ _ _ res)
