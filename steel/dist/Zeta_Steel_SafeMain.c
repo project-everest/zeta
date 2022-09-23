@@ -2278,18 +2278,6 @@ uu___is_Some__Zeta_Steel_ThreadStateModel_store_entry(
     return false;
 }
 
-static void
-maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(
-  all_epoch_hashes a,
-  uint32_t i
-)
-{
-  option__uint32_t high = *a.high;
-  bool r = above_high_water_mark(high, i);
-  if (r)
-    *a.high = ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = i });
-}
-
 static bool
 vaddb_core(thread_state_t t, uint16_t s, timestamp ts, uint16_t thread_id, record r)
 {
@@ -2358,8 +2346,6 @@ vaddb_core(thread_state_t t, uint16_t s, timestamp ts, uint16_t thread_id, recor
                     }
                   );
                 *t.clock = next_clock;
-                maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes,
-                  next_clock.epoch);
                 option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
                 pt[as_u32(s)] =
                   (
@@ -2373,8 +2359,6 @@ vaddb_core(thread_state_t t, uint16_t s, timestamp ts, uint16_t thread_id, recor
               else
               {
                 *t.clock = next_clock;
-                maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes,
-                  next_clock.epoch);
                 option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
                 pt[as_u32(s)] =
                   (
@@ -2670,7 +2654,6 @@ static bool vevictb_update_hash_clock(thread_state_t t, uint16_t s, timestamp ts
     if (b)
     {
       *t.clock = ts;
-      maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, ts.epoch);
       *t.last_evict_key = bk;
       return b;
     }
@@ -2930,7 +2913,6 @@ static void nextepoch_core(thread_state_t t)
     uint32_t nxt = res.v;
     timestamp c1 = { .epoch = nxt, .counter = (uint32_t)0U };
     *t.clock = c1;
-    maybe_update_high_water_mark__Zeta_Steel_EpochHashes_epoch_hashes_t(t.epoch_hashes, c1.epoch);
     *t.last_evict_key =
       (
         (raw_key){

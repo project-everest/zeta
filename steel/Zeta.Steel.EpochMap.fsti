@@ -187,16 +187,3 @@ let return_map (#v:Type0) (m:repr v) (i:M.epoch_id)
   : Lemma (ensures (Map.upd m i (Map.sel m i) `Map.equal` m))
           [SMTPat (Map.upd m i (Map.sel m i))]
   = ()
-
-val maybe_update_high_water_mark
-  (#v:Type)
-  (#c:Type)
-  (#vp:M.epoch_id -> v -> c -> vprop)
-  (#init:G.erased c)
-  (#m:G.erased (repr c))
-  (#b:G.erased (borrows v))
-  (a:tbl vp)
-  (i:M.epoch_id)
-  : STT unit
-        (perm a init m b)
-        (fun _ -> perm a init m b)
