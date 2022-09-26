@@ -228,21 +228,3 @@ let reclaim #v #c #vp #init #m #b a i =
   intro_exists
     (G.reveal w)
     (high_epoch_id_pred (G.reveal init) m (PartialMap.remove b i) a.high)
-
-let maybe_update_high_water_mark #v #c #vp #init #m #b a i =
-  let w = elim_exists () in
-  elim_pure (high_epoch_id_prop (G.reveal init) m b w);
-
-  let high = R.read a.high in
-  let r = above_high_water_mark high i in
-
-  if r
-  then begin
-    R.write a.high (Some i);
-    intro_pure (high_epoch_id_prop (G.reveal init) m b (Some i));
-    intro_exists (Some i) (high_epoch_id_pred (G.reveal init) m b a.high)
-  end
-  else begin
-    intro_pure (high_epoch_id_prop (G.reveal init) m b w);
-    intro_exists (G.reveal w) (high_epoch_id_pred (G.reveal init) m b a.high)
-  end
