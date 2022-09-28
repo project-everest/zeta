@@ -22,4 +22,5 @@ out/
 **/apps/*/formats/*.fst
 **/apps/*/formats/*.fsti
 **/hacl-star-*/gcc-compatible/*.o
+**/hacl-star-*/gcc-compatible/*.d
 __pycache__/
