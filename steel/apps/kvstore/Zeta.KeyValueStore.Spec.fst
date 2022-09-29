@@ -10,10 +10,10 @@ friend Zeta.Steel.KeyUtils
 let key_hash_fn (k:F.key_t) : Zeta.Key.leaf_key =
     let rk : Zeta.Steel.KeyUtils.raw_key = {
     k = ({
-      v3 = k;
+      v3 = 0uL;
       v2 = 0uL;
       v1 = 0uL;
-      v0 = 0uL;
+      v0 = k;
     });
 
    significant_digits = 256us;

@@ -504,10 +504,10 @@ friend Zeta.KeyValueStore.Spec
 let key_type_to_base_key k =
   let bk = {
     k = ({
-      v3 = k;
+      v3 = 0uL;
       v2 = 0uL;
       v1 = 0uL;
-      v0 = 0uL;
+      v0 = k;
     });
 
    significant_digits = 256us;

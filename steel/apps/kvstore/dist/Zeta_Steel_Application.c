@@ -733,7 +733,7 @@ Zeta_Steel_KeyUtils_raw_key Zeta_Steel_Application_key_type_to_base_key(uint64_t
   return
     (
       (Zeta_Steel_KeyUtils_raw_key){
-        .k = { .v3 = k, .v2 = (uint64_t)0U, .v1 = (uint64_t)0U, .v0 = (uint64_t)0U },
+        .k = { .v3 = (uint64_t)0U, .v2 = (uint64_t)0U, .v1 = (uint64_t)0U, .v0 = k },
         .significant_digits = (uint16_t)256U
       }
     );
