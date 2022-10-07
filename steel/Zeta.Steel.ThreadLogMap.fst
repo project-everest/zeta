@@ -339,10 +339,51 @@ let alloc0 (#o:_) (_:unit)
   = G.alloc (Map.const (FAP.Owns (FAP.initial_value Seq.empty)))
 
 
+#push-options "--query_stats --fuel 0 --ifuel 0"
+let split_anchor1 (m:PM.map tid aval)
+  : Lemma
+    (requires
+      forall (k:tid{has_key m k}).{:pattern (Map.sel m k)}
+        anchors (get m k) (get m k) /\
+        owns_key m k)
+    (ensures
+      PM.composable_maps fap
+        (map_map m (fun _ a -> fst (FAP.anchored_snapshot a)))
+        (map_map m (fun _ a -> snd (FAP.anchored_snapshot a))))
+  = ()
+#pop-options
+
+let split_anchor2 (m:PM.map tid aval)
+  : Lemma
+    (requires
+      (forall (k:tid{has_key m k}).{:pattern (Map.sel m k)}
+        anchors (get m k) (get m k) /\
+        owns_key m k ) /\
+      PM.composable_maps fap
+        (map_map m (fun _ a -> fst (FAP.anchored_snapshot a)))
+        (map_map m (fun _ a -> snd (FAP.anchored_snapshot a))))
+    (ensures
+      m `Map.equal` PM.compose_maps fap
+           (map_map m (fun _ a -> fst (FAP.anchored_snapshot a)))
+           (map_map m (fun _ a -> snd (FAP.anchored_snapshot a)))
+      )
+  = let m1 = 
+        PM.compose_maps fap
+           (map_map m (fun _ a -> fst (FAP.anchored_snapshot a)))
+           (map_map m (fun _ a -> snd (FAP.anchored_snapshot a)))
+    in
+    let _ = 
+      introduce forall k. Map.sel m k == Map.sel m1 k
+      with (
+        ()
+      )
+    in
+    Map.lemma_equal_intro m m1
+
 let split_anchor (m:PM.map tid aval)
   : Lemma
     (requires
-      forall (k:_{has_key m k}).{:pattern (Map.sel m k)}
+      forall (k:tid{has_key m k}).{:pattern (Map.sel m k)}
         anchors (get m k) (get m k) /\
         owns_key m k)
     (ensures
@@ -353,7 +394,9 @@ let split_anchor (m:PM.map tid aval)
            (map_map m (fun _ a -> fst (FAP.anchored_snapshot a)))
            (map_map m (fun _ a -> snd (FAP.anchored_snapshot a)))
       )
-  = ()
+  = split_anchor1 m;
+    split_anchor2 m
+
 
 let alloc (#o:_) (_:unit)
   : STGhostT t o
@@ -681,6 +724,7 @@ let put_anchor_tid (#o:_) (x:t) (m:repr)
 ////////////////////////////////////////////////////////////////////////////////
 //take_snapshot
 ////////////////////////////////////////////////////////////////////////////////
+#push-options "--z3rlimit_factor 2"
 let take_snapshot (#o:_) (x:t) (m:repr)
   : STGhostT unit o
     (global_anchor x m)
@@ -691,6 +735,7 @@ let take_snapshot (#o:_) (x:t) (m:repr)
     G.share x m' m' m'';
     intro_global_snapshot x m m'';
     intro_global_anchor x m m'
+#pop-options
 
 ////////////////////////////////////////////////////////////////////////////////
 // dup_snapshot
