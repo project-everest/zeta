@@ -17,7 +17,7 @@ type state =
 | Unknown: (in_contents: Seq.seq U8.t) -> state
 | Unread: (in_contents: Seq.seq U8.t) -> (out_len: U32.t) -> state
 | Read: (in_contents: Seq.seq U8.t) -> (out_len: U32.t) -> state
-| Written: (written: Seq.seq U8.t) -> state
+| Written: (in_len: nat) -> (written: Seq.seq U8.t) -> state
 
 let get_in_contents
   (s: state)
@@ -72,6 +72,7 @@ val copy_extern_output_ptr
   (e1: extern_ptr)
   (w1: Ghost.erased (Seq.seq U8.t))
   (e2: extern_ptr)
+  (in_len: Ghost.erased nat)
   (n: U32.t)
   (a: A.array U8.t)
   (p: perm)
@@ -79,9 +80,10 @@ val copy_extern_output_ptr
 : ST unit
     (extern_in_out_pts_to e1 e2 (Read w1 n) `star` A.pts_to a p contents)
     (fun _ ->
-      extern_in_out_pts_to e1 e2 (Written contents) `star` A.pts_to a p contents
+      extern_in_out_pts_to e1 e2 (Written in_len contents) `star` A.pts_to a p contents
     )
-    (A.length a == U32.v n \/
-      Seq.length contents == U32.v n
+    ((A.length a == U32.v n \/
+      Seq.length contents == U32.v n) /\
+      Ghost.reveal in_len == Seq.length w1
     )
     (fun _ -> True)

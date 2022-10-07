@@ -69,7 +69,7 @@ let verify_post_some_m_success
 : Tot vprop
 =
   exists_ (fun out_bytes' ->
-      EXT.extern_in_out_pts_to input output (EXT.Written out_bytes') `star`
+      EXT.extern_in_out_pts_to input output (EXT.Written (U32.v len) out_bytes') `star`
          pure (verify_post_success_pure_inv
             log_bytes out_bytes'
             tid

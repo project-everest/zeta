@@ -134,7 +134,8 @@ let verify_log_some_concl
     let _ = gen_elim () in
     rewrite (handle_pts_to_body0 handle.state) (handle_pts_to_body handle.state);
     rewrite (M.log_of_tid_gen _ _ _) emp;
-    EXT.copy_extern_output_ptr _ _ _ out_len output' _ _;
+    A.pts_to_length input' _;
+    EXT.copy_extern_output_ptr _ _ _ (U32.v len) out_len output' _ _;
     rewrite (handle_pts_to0 handle.state.tl_state) (handle_pts_to handle.state.tl_state);
     rewrite
       (verify_post_some_m_success log_bytes tid len input output () handle.state.tl_state read wrote)
