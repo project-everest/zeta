@@ -62,9 +62,8 @@ val copy_extern_input_ptr
     (fun _ ->
       extern_in_out_pts_to e1 e2 (Read w1 out_len) `star` A.pts_to a full_perm w1
     )
-    (A.length a == U32.v n \/
-      Seq.length w1 == U32.v n
-    )
+    (A.length a == U32.v n /\
+      Seq.length w1 == U32.v n)
     (fun _ -> True)
 
 inline_for_extraction
@@ -82,8 +81,6 @@ val copy_extern_output_ptr
     (fun _ ->
       extern_in_out_pts_to e1 e2 (Written in_len contents) `star` A.pts_to a p contents
     )
-    ((A.length a == U32.v n \/
-      Seq.length contents == U32.v n) /\
-      Ghost.reveal in_len == Seq.length w1
-    )
+    (A.length a == U32.v n /\
+      Seq.length w1 == Ghost.reveal in_len)
     (fun _ -> True)
