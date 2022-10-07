@@ -120,8 +120,8 @@ let verify_log_some_concl
   (p1: perm)
   (v: option (M.verify_result len))
 : STT unit
-    (R.pts_to handle.state.state p1 handle.state.tl_state `star` M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v `star` EXT.extern_in_out_pts_to input output (EXT.Read log_bytes out_len))
-    (fun _ -> verify_post log_bytes tid len input output v `star` A.pts_to input' log_perm log_bytes `star` (exists_ (A.pts_to output' full_perm)))
+    (R.pts_to handle.state.state p1 handle.state.tl_state `star` M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v `star` EXT.extern_in_out_pts_to input output log_bytes (EXT.Read out_len))
+    (fun _ -> verify_post tid len input output v `star` A.pts_to input' log_perm log_bytes `star` (exists_ (A.pts_to output' full_perm)))
 = match v with
   | Some (V.Verify_success read wrote) ->
     rewrite
@@ -134,25 +134,28 @@ let verify_log_some_concl
     rewrite (handle_pts_to_body0 handle.state) (handle_pts_to_body handle.state);
     rewrite (M.log_of_tid_gen _ _ _) emp;
     A.pts_to_length input' _;
-    EXT.copy_extern_output_ptr _ _ _ (U32.v len) out_len output' _ _;
+    EXT.copy_extern_output_ptr _ _ _ out_len output' _ _;
     rewrite (handle_pts_to0 handle.state.tl_state) (handle_pts_to handle.state.tl_state);
     rewrite
-      (verify_post_some_m_success log_bytes tid len input output () handle.state.tl_state read wrote)
-      (verify_post_some_m log_bytes tid len input output v handle.state.tl_state);
+      (verify_post_some_m_success tid len input output () handle.state.tl_state read wrote)
+      (verify_post_some_m tid len input output v handle.state.tl_state);
     rewrite
-      (verify_post_some log_bytes tid len input output _)
-      (verify_post log_bytes tid len input output v)
+      (verify_post_some tid len input output _)
+      (verify_post tid len input output v)
   | _ ->
     m_verify_post_failure_eq handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v;
     let _ = gen_elim () in
     rewrite (handle_pts_to_body0 handle.state) (handle_pts_to_body handle.state);
     rewrite (handle_pts_to0 handle.state.tl_state) (handle_pts_to handle.state.tl_state);
     rewrite
-      (verify_post_some_m_failure log_bytes input output)
-      (verify_post_some_m log_bytes tid len input output v handle.state.tl_state);
+      (verify_post_some_m_failure_true input output)
+      (verify_post_some_m_failure_cases input output true);
     rewrite
-      (verify_post_some log_bytes tid len input output _)
-      (verify_post log_bytes tid len input output v)
+      (verify_post_some_m_failure input output)
+      (verify_post_some_m tid len input output v handle.state.tl_state);
+    rewrite
+      (verify_post_some tid len input output _)
+      (verify_post tid len input output v)
 
 let verify_log_some
                (log_bytes:Ghost.erased AT.bytes)
@@ -165,11 +168,11 @@ let verify_log_some
                (output': A.array U8.t)
   : ST (option (M.verify_result len))
     (handle_pts_to_body handle.state `star`
-      EXT.extern_in_out_pts_to input output (EXT.Read log_bytes out_len) `star`
+      EXT.extern_in_out_pts_to input output log_bytes (EXT.Read out_len) `star`
       A.pts_to input' full_perm log_bytes `star`
       exists_ (A.pts_to output' full_perm)
     )
-    (fun res -> verify_post log_bytes tid len input output res)
+    (fun res -> verify_post tid len input output res)
     (check_verify_input tid len /\
       A.is_full_array input' /\
       U32.v out_len == A.length output' /\
@@ -213,7 +216,7 @@ let steel_ifthenelse
 
 #restart-solver
 let verify_log
-  log_bytes tid len out_len input output
+  tid len out_len input output
 =
   let t = handle.state.tl_state in
   handle_pts_to_body_intro ();
@@ -222,18 +225,21 @@ let verify_log
   (fun _ ->
     noop ();
     rewrite (handle_pts_to0 t) (handle_pts_to t);
-    rewrite (verify_post_some_m_failure log_bytes input output) (verify_post_some_m log_bytes tid len input output None t);
-    rewrite (verify_post_some log_bytes tid len input output None)
-      (verify_post log_bytes tid len input output None);
+    rewrite emp (verify_post_some_m_failure_cases input output false);
+    rewrite (verify_post_some_m_failure input output) (verify_post_some_m tid len input output None t);
+    rewrite (verify_post_some tid len input output None)
+      (verify_post tid len input output None);
     return None
   )
   (fun _ ->
-    let check_valid = EXT.extern_in_out_pts_to_is_valid input _ len output out_len in
+    let check_valid = EXT.extern_in_out_pts_to_is_valid input len output out_len in
     steel_ifthenelse check_valid
       (fun _ ->
-        vpattern_rewrite (EXT.extern_in_out_pts_to input output) (EXT.Unread log_bytes out_len);
+        rewrite (EXT.is_valid_state input len output out_len _) (EXT.is_valid_state_true input len output out_len);
+        let log_bytes = elim_exists () in
+        elim_pure _;
         let a = A.alloc 0uy len in
-        EXT.copy_extern_input_ptr input _ output len out_len a;
+        EXT.copy_extern_input_ptr input log_bytes output len out_len a;
         let _ = gen_elim () in
         steel_ifthenelse (0ul `U32.lt` out_len)
           (fun _ ->
@@ -247,11 +253,11 @@ let verify_log
           )
       )
       (fun _ ->
-        vpattern_rewrite (EXT.extern_in_out_pts_to input output) (EXT.Unknown log_bytes);
+        rewrite (EXT.is_valid_state _ _ _ _ _) (verify_post_some_m_failure_cases input output false);
         rewrite (handle_pts_to0 t) (handle_pts_to t);
-        rewrite (verify_post_some_m_failure log_bytes input output) (verify_post_some_m log_bytes tid len input output None t);
-        rewrite (verify_post_some log_bytes tid len input output None)
-          (verify_post log_bytes tid len input output None);
+        rewrite (verify_post_some_m_failure input output) (verify_post_some_m tid len input output None t);
+        rewrite (verify_post_some tid len input output None)
+          (verify_post tid len input output None);
         return None
       )
   )

@@ -76,24 +76,6 @@ let buffers_maybe_disjoint
 : Tot vprop
 = buffers_maybe_disjoint' b1 b1_contents b2 b2_len
 
-let extern_in_out_pts_to_unknown_cases
-  (e1: extern_ptr)
-  (e2: extern_ptr)
-  (w1: Seq.seq U8.t)
-  (cases: bool)
-: Tot vprop
-= if cases
-  then buffers_maybe_disjoint e1 w1 e2 (A.length e2)
-  else emp
-
-[@@__reduce__]
-let extern_in_out_pts_to_unknown
-  (e1: extern_ptr)
-  (e2: extern_ptr)
-  (w1: Seq.seq U8.t)
-: Tot vprop
-= exists_ (extern_in_out_pts_to_unknown_cases e1 e2 w1)
-
 [@@__reduce__]
 let extern_in_out_pts_to_unwritten
   (e1: extern_ptr)
@@ -115,15 +97,15 @@ let extern_in_out_pts_to_written
 let extern_in_out_pts_to
   (e1: extern_ptr)
   (e2: extern_ptr)
+  (w1: Seq.seq U8.t)
   (s: state)
 : Tot vprop
 = match s with
-  | Unknown w1 -> extern_in_out_pts_to_unknown e1 e2 w1
-  | Unread w1 l2 
-  | Read w1 l2
+  | Unread l2 
+  | Read l2
     -> extern_in_out_pts_to_unwritten e1 e2 w1 l2
-  | Written l1 w2
-    -> extern_in_out_pts_to_written e1 e2 l1 w2
+  | Written w2
+    -> extern_in_out_pts_to_written e1 e2 (Seq.length w1) w2
 
 let array_ghost_split
   (#opened: _)
@@ -211,11 +193,9 @@ assume val enclave_check_valid_ptrs // implemented by enclave primitives. Need n
   (n1: U32.t)
   (e2: extern_ptr)
   (n2: U32.t)
-  (w1: Ghost.erased (Seq.seq U8.t)) // prophecy variable, say that the precondition is some form of magic wand
-  (cases: Ghost.erased bool)
 : ST bool
-    (extern_in_out_pts_to_unknown_cases e1 e2 w1 cases)
-    (fun cases' -> extern_in_out_pts_to_unknown_cases e1 e2 w1 cases')
+    emp
+    (fun cases' -> is_valid_state e1 n1 e2 n2 cases')
     True
     (fun cases' ->
       (cases' == true ==> (
@@ -224,67 +204,40 @@ assume val enclave_check_valid_ptrs // implemented by enclave primitives. Need n
       ))
     )
 
-let extern_in_out_pts_to_unknown_cases_implies
-  (#opened: _)
-  (e1: extern_ptr)
-  (n1: U32.t)
-  (e2: extern_ptr)
-  (n2: U32.t)
-  (w1: Seq.seq U8.t)
-  (cases: bool)
-: STGhost unit opened
-    (extern_in_out_pts_to_unknown_cases e1 e2 w1 cases)
-    (fun _ -> extern_in_out_pts_to e1 e2 (is_valid_state cases w1 n2))
-    (cases == true ==> (U32.v n1 == A.length e1 /\ U32.v n2 == A.length e2))
-    (fun _ -> cases == true ==>  U32.v n1 == Seq.length w1)
-= if cases
-  then begin
-    rewrite (extern_in_out_pts_to_unknown_cases e1 e2 w1 cases) (buffers_maybe_disjoint'  e1 w1 e2 (A.length e2));
-    A.pts_to_length e1 _;
-    rewrite (buffers_maybe_disjoint' e1 w1 e2 (A.length e2)) (extern_in_out_pts_to e1 e2 (is_valid_state cases w1 n2))
-  end else
-    rewrite (extern_in_out_pts_to_unknown e1 e2 w1) (extern_in_out_pts_to e1 e2 (is_valid_state cases w1 n2)) 
-
 let extern_in_out_pts_to_is_valid
-  e1 w1 n1 e2 n2
+  e1 n1 e2 n2
 =
-  rewrite
-    (extern_in_out_pts_to e1 e2 (Unknown w1))
-    (extern_in_out_pts_to_unknown e1 e2 w1);
-  let _ = gen_elim () in
-  let cases = enclave_check_valid_ptrs e1 n1 e2 n2 w1 _ in
-  extern_in_out_pts_to_unknown_cases_implies e1 n1 e2 n2 w1 cases;
-  return cases
+  enclave_check_valid_ptrs e1 n1 e2 n2
 
 let copy_extern_input_ptr
   e1 w1 e2 n out_len a
 =
   let _ = gen_elim () in
   rewrite
-    (extern_in_out_pts_to e1 e2 (Unread w1 out_len))
+    (extern_in_out_pts_to e1 e2 w1 (Unread out_len))
     (buffers_maybe_disjoint' e1 w1 e2 (U32.v out_len));
   A.pts_to_length e1 _;
   A.memcpy e1 a n;
   rewrite
     (buffers_maybe_disjoint' e1 w1 e2 (U32.v out_len))
-    (extern_in_out_pts_to e1 e2 (Read w1 out_len))
+    (extern_in_out_pts_to e1 e2 w1 (Read out_len))
 
 let copy_extern_output_ptr
-  e1 w1 e2 in_len n a p contents
+  e1 w1 e2 n a p contents
 =
   let _ = gen_elim () in
   rewrite
-    (extern_in_out_pts_to e1 e2 (Read w1 n))
+    (extern_in_out_pts_to e1 e2 w1 (Read n))
     (buffers_maybe_disjoint' e1 w1 e2 (U32.v n));
   rewrite
     (buffers_maybe_disjoint' e1 w1 e2 (U32.v n))
     (buffers_maybe_disjoint e1 w1 e2 (U32.v n));
-  let w2 = swap_buffers_maybe_disjoint e1 w1 in_len e2 (U32.v n) in
+  let w2 = swap_buffers_maybe_disjoint e1 w1 (Seq.length w1) e2 (U32.v n) in
   rewrite
-    (buffers_maybe_disjoint e2 w2 e1 in_len)
-    (buffers_maybe_disjoint' e2 w2 e1 in_len);
+    (buffers_maybe_disjoint e2 w2 e1 (Seq.length w1))
+    (buffers_maybe_disjoint' e2 w2 e1 (Seq.length w1));
   A.pts_to_length e2 _;
   A.memcpy a e2 n;
   rewrite
-    (buffers_maybe_disjoint' e2 contents e1 in_len)
-    (extern_in_out_pts_to e1 e2 (Written in_len contents))
+    (buffers_maybe_disjoint' e2 contents e1 (Seq.length w1))
+    (extern_in_out_pts_to e1 e2 w1 (Written contents))
