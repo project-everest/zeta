@@ -43,6 +43,7 @@ let check_verify_input
 = FStar.Int.Cast.uint16_to_uint32 tid `U32.lt` AT.n_threads &&
   len <> 0ul
 
+noextract
 let verify_post_success_pure_inv
   (log_bytes out_bytes': AT.bytes)
   (tid:AT.tid)
@@ -77,6 +78,7 @@ let verify_post_some_m_success
             wrote)
   )
 
+noextract
 let verify_post_some_m_failure_prop
   (log_bytes: AT.bytes)
   (input output: EXT.extern_ptr)
