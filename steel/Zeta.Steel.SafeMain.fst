@@ -122,9 +122,8 @@ let verify_log_some_concl
 : STT unit
     (R.pts_to handle.state.state p1 handle.state.tl_state `star` M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v `star` EXT.extern_in_out_pts_to input output (EXT.Read log_bytes out_len))
     (fun _ -> verify_post log_bytes tid len input output v `star` A.pts_to input' log_perm log_bytes `star` (exists_ (A.pts_to output' full_perm)))
-= if (Some? v && V.Verify_success? (Some?.v v))
-  then begin
-    let Some (V.Verify_success read wrote) = v in
+= match v with
+  | Some (V.Verify_success read wrote) ->
     rewrite
       (M.verify_post _ tid entries log_perm log_bytes len input' out_len out_bytes output' _)
       (M.core_inv handle.state.tl_state `star`
@@ -143,7 +142,7 @@ let verify_log_some_concl
     rewrite
       (verify_post_some log_bytes tid len input output _)
       (verify_post log_bytes tid len input output v)
-  end else begin
+  | _ ->
     m_verify_post_failure_eq handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v;
     let _ = gen_elim () in
     rewrite (handle_pts_to_body0 handle.state) (handle_pts_to_body handle.state);
@@ -154,7 +153,6 @@ let verify_log_some_concl
     rewrite
       (verify_post_some log_bytes tid len input output _)
       (verify_post log_bytes tid len input output v)
-  end
 
 let verify_log_some
                (log_bytes:Ghost.erased AT.bytes)
