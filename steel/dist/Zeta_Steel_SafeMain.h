@@ -63,10 +63,14 @@ FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result;
 
 bool Zeta_Steel_SafeMain_check_verify_input(uint16_t tid, uint32_t len);
 
-typedef void *Zeta_Steel_SafeMain_verify_post_success_pure_inv;
-
 FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
-Zeta_Steel_SafeMain_verify_log(uint16_t tid, uint32_t len, uint8_t *input);
+Zeta_Steel_SafeMain_verify_log(
+  uint16_t tid,
+  uint32_t len,
+  uint32_t out_len,
+  uint8_t *input,
+  uint8_t *output
+);
 
 Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
 Zeta_Steel_SafeMain_max_certified_epoch();
