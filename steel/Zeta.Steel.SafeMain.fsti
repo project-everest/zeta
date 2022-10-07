@@ -41,15 +41,15 @@ let check_verify_input
   (len: U32.t)
 : Tot bool
 = FStar.Int.Cast.uint16_to_uint32 tid `U32.lt` AT.n_threads &&
-  len <> 0ul &&
-  len `U32.lt` 4294967295ul // we need to allocate a temporary buffer one plus that length
+  len <> 0ul
 
 let verify_post_success_pure_inv
+  (log_bytes out_bytes': AT.bytes)
   (tid:AT.tid)
   (read wrote:U32.t)  
   : prop
   =
-    (exists (log_bytes out_bytes out_bytes': AT.bytes) (entries entries': AEH.log) . (
+    (exists (entries entries': AEH.log) (out_bytes: AT.bytes) . (
       let tsm = TSM.verify_model (TSM.init_thread_state_model tid) entries in
      let tsm' = TSM.verify_model tsm entries' in
      Log.parse_log_up_to log_bytes (U32.v read) == Some entries' /\
@@ -58,74 +58,93 @@ let verify_post_success_pure_inv
 
 [@@__reduce__]
 let verify_post_some_m_success
+  (log_bytes: AT.bytes)
   (tid:U16.t)
   (len: U32.t)
-  (input: EXT.extern_input_ptr)
-  (v: option (M.verify_result len))
+  (input output: EXT.extern_ptr)
   (sq: squash (check_verify_input tid len))
   (t: M.top_level_state false)
   (read:U32.t)
   (wrote:U32.t)
 : Tot vprop
 =
-      EXT.has_extern_input_ptr input len `star`
+  exists_ (fun out_bytes' ->
+      EXT.extern_in_out_pts_to input output (EXT.Written out_bytes') `star`
          pure (verify_post_success_pure_inv
+            log_bytes out_bytes'
             tid
             read
             wrote)
+  )
+
+let verify_post_some_m_failure_prop
+  (log_bytes: AT.bytes)
+  (input output: EXT.extern_ptr)
+  (s: EXT.state)
+: Tot prop
+=
+  (~ (EXT.Written? s)) /\ log_bytes == EXT.get_in_contents s
 
 [@@__reduce__]
 let verify_post_some_m_failure
-  (len: U32.t)
-  (input: EXT.extern_input_ptr)
+  (log_bytes: AT.bytes)
+  (input output: EXT.extern_ptr)
 : Tot vprop
-= 
-  EXT.has_extern_input_ptr input len
+=
+  exists_ (fun s ->
+    EXT.extern_in_out_pts_to input output s `star`
+    pure (verify_post_some_m_failure_prop log_bytes input output s)
+  )
 
 let verify_post_some_m
+  (log_bytes: AT.bytes)
   (tid:U16.t)
   (len: U32.t)
-  (input: EXT.extern_input_ptr)
-  (v: option (v:V.verify_result { V.verify_result_complete len v }))
+  (input output: EXT.extern_ptr)
+  (v: option (M.verify_result len))
   (t: M.top_level_state false)
 : Tot vprop
 = match v with
   | Some (V.Verify_success read wrote) ->
     if check_verify_input tid len
     then
-      verify_post_some_m_success tid len input v () t read wrote
+      verify_post_some_m_success log_bytes tid len input output () t read wrote
     else
       pure False
-  | _ -> verify_post_some_m_failure len input
+  | _ -> verify_post_some_m_failure log_bytes input output
 
 [@@__reduce__]
 let verify_post_some
+  (log_bytes: Seq.seq U8.t)
   (tid:U16.t)
   (len: U32.t)
-  (input: EXT.extern_input_ptr)
+  (input output: EXT.extern_ptr)
   (v: option (M.verify_result len))
 : Tot vprop
 = 
     exists_ (fun t ->
       handle_pts_to t `star`
-      verify_post_some_m tid len input v t
+      verify_post_some_m log_bytes tid len input output v t
     )
 
 let verify_post
+  (log_bytes: Seq.seq U8.t)
   (tid:U16.t)
   (len: U32.t)
-  (input: EXT.extern_input_ptr)
+  (input output: EXT.extern_ptr)
   (res: option (M.verify_result len))
 : Tot vprop
-= verify_post_some tid len input res
+= verify_post_some log_bytes tid len input output res
 
 val verify_log
+  (log_bytes: Ghost.erased (Seq.seq U8.t))
                (tid:U16.t)
                (len: U32.t)
-               (input: EXT.extern_input_ptr)
+               (out_len: U32.t)
+               (input output: EXT.extern_ptr)
   : STT (option (M.verify_result len))
-    (EXT.has_extern_input_ptr input len)
-    (fun res -> verify_post tid len input res)
+    (EXT.extern_in_out_pts_to input output (EXT.Unknown log_bytes))
+    (fun res -> verify_post log_bytes tid len input output res)
 
 val max_certified_epoch
                         (_: unit)
