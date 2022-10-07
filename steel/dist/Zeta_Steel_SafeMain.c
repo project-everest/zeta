@@ -1652,8 +1652,7 @@ Zeta_Steel_ExternalPtr_enclave_check_valid_ptrs(
 
 static bool extern_in_out_pts_to_is_valid(uint8_t *e1, uint32_t n1, uint8_t *e2, uint32_t n2)
 {
-  bool cases = Zeta_Steel_ExternalPtr_enclave_check_valid_ptrs(e1, n1, e2, n2);
-  return cases;
+  return Zeta_Steel_ExternalPtr_enclave_check_valid_ptrs(e1, n1, e2, n2);
 }
 
 extern uint32_t zeta__runapp_payload_offset(log_entry e);
