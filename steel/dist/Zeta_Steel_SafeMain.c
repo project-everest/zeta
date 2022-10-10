@@ -1642,7 +1642,18 @@ Zeta_Steel_Application_run_app_function(
 extern raw_key
 Zeta_Steel_Application_key_type_to_base_key(Zeta_Steel_ApplicationTypes_key_type k);
 
-extern bool Zeta_Steel_ExternalPtr_enclave_api_validate(uint8_t *x, uint32_t n);
+extern bool
+Zeta_Steel_ExternalPtr_enclave_check_valid_ptrs(
+  uint8_t *e1,
+  uint32_t n1,
+  uint8_t *e2,
+  uint32_t n2
+);
+
+static bool extern_in_out_pts_to_is_valid(uint8_t *e1, uint32_t n1, uint8_t *e2, uint32_t n2)
+{
+  return Zeta_Steel_ExternalPtr_enclave_check_valid_ptrs(e1, n1, e2, n2);
+}
 
 extern uint32_t zeta__runapp_payload_offset(log_entry e);
 
@@ -3925,11 +3936,23 @@ Zeta_Steel_SafeMain_Handle_state_t Zeta_Steel_SafeMain_Handle_handle;
 
 bool Zeta_Steel_SafeMain_check_verify_input(uint16_t tid, uint32_t len)
 {
-  return
-    (uint32_t)tid
-    < Zeta_Steel_ApplicationTypes_n_threads
-    && len != (uint32_t)0U
-    && len < (uint32_t)4294967295U;
+  return (uint32_t)tid < Zeta_Steel_ApplicationTypes_n_threads && len != (uint32_t)0U;
+}
+
+static void
+verify_log_some_concl(
+  uint32_t out_len,
+  uint8_t *output,
+  uint8_t *output_,
+  FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result v
+)
+{
+  if (v.tag == FStar_Pervasives_Native_Some && v.v.tag == Zeta_Steel_Verifier_Verify_success)
+  {
+    uint8_t *p_src = output_;
+    uint8_t *p_dst = output;
+    memcpy(p_dst, p_src, out_len * sizeof (uint8_t));
+  }
 }
 
 static FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
@@ -3938,27 +3961,40 @@ verify_log_some(
   uint32_t len,
   uint8_t *input_,
   uint32_t out_len,
+  uint8_t *output,
   uint8_t *output_
 )
 {
   FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
   v = verify_log0(Zeta_Steel_SafeMain_Handle_handle, tid, len, input_, out_len, output_);
-  uint8_t *a = input_;
-  uint8_t *p = a;
-  KRML_HOST_FREE(p);
-  return v;
+  verify_log_some_concl(out_len, output, output_, v);
+  if ((uint32_t)0U < out_len)
+  {
+    uint8_t *p = input_;
+    KRML_HOST_FREE(p);
+    uint8_t *p0 = output_;
+    KRML_HOST_FREE(p0);
+    return v;
+  }
+  else
+  {
+    uint8_t *a = input_;
+    uint8_t *p = a;
+    KRML_HOST_FREE(p);
+    return v;
+  }
 }
 
 FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result
-Zeta_Steel_SafeMain_verify_log(uint16_t tid, uint32_t len, uint8_t *input)
+Zeta_Steel_SafeMain_verify_log(
+  uint16_t tid,
+  uint32_t len,
+  uint32_t out_len,
+  uint8_t *input,
+  uint8_t *output
+)
 {
-  if
-  (
-    !((uint32_t)tid
-    < Zeta_Steel_ApplicationTypes_n_threads
-    && len != (uint32_t)0U
-    && len < (uint32_t)4294967295U)
-  )
+  if (!((uint32_t)tid < Zeta_Steel_ApplicationTypes_n_threads && len != (uint32_t)0U))
     return
       (
         (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
@@ -3967,36 +4003,34 @@ Zeta_Steel_SafeMain_verify_log(uint16_t tid, uint32_t len, uint8_t *input)
       );
   else
   {
-    KRML_CHECK_SIZE(sizeof (uint8_t), len + (uint32_t)1U);
-    uint8_t *p = KRML_HOST_CALLOC(len + (uint32_t)1U, sizeof (uint8_t));
-    uint8_t *res = p;
-    uint8_t *a = res;
-    uint8_t *input_ = a;
-    uint8_t *output_ = a + len;
-    bool check_copy;
-    if (Zeta_Steel_ExternalPtr_enclave_api_validate(input, len))
+    bool check_valid = extern_in_out_pts_to_is_valid(input, len, output, out_len);
+    if (check_valid)
     {
+      KRML_CHECK_SIZE(sizeof (uint8_t), len);
+      uint8_t *p = KRML_HOST_CALLOC(len, sizeof (uint8_t));
+      uint8_t *res = p;
+      uint8_t *a = res;
       uint8_t *p_src = input;
-      uint8_t *p_dst = input_;
+      uint8_t *p_dst = a;
       memcpy(p_dst, p_src, len * sizeof (uint8_t));
-      check_copy = true;
+      if ((uint32_t)0U < out_len)
+      {
+        KRML_CHECK_SIZE(sizeof (uint8_t), out_len);
+        uint8_t *p = KRML_HOST_CALLOC(out_len, sizeof (uint8_t));
+        uint8_t *res = p;
+        uint8_t *output_ = res;
+        return verify_log_some(tid, len, a, out_len, output, output_);
+      }
+      else
+        return verify_log_some(tid, len, a, out_len, output, a + len);
     }
     else
-      check_copy = false;
-    if (check_copy)
-      return verify_log_some(tid, len, input_, (uint32_t)1U, output_);
-    else
-    {
-      uint8_t *a1 = input_;
-      uint8_t *p = a1;
-      KRML_HOST_FREE(p);
       return
         (
           (FStar_Pervasives_Native_option__Zeta_Steel_Verifier_verify_result){
             .tag = FStar_Pervasives_Native_None
           }
         );
-    }
   }
 }
 
