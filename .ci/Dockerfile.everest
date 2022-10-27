@@ -1,5 +1,6 @@
 ARG ocaml_version=4.12
 FROM ocaml/opam:ubuntu-ocaml-$ocaml_version
+RUN sudo apt-get update
 RUN sudo apt-get install --no-install-recommends --yes wget
 
 WORKDIR $HOME/zeta
