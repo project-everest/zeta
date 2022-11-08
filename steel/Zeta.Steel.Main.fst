@@ -156,7 +156,6 @@ let tid_positions_ok_until (#b: Ghost.erased bool) #l (all_threads:Seq.seq (thre
       j < i ==> (let sj = Seq.index all_threads j in
                  U16.v sj.tid == j)
 
-let u16_as_size_t (s:U16.t) : SizeT.t = SizeT.mk_u32 (FStar.Int.Cast.uint16_to_uint32 s)
 
 let rec init_all_threads_state
   (#m:Ghost.erased (TLM.repr))

@@ -75,3 +75,6 @@ let wrap_platform32_check (_:unit)
 #push-options "--warn_error -272" //intentional top-level effect here
 let fits_u32 : squash (FStar.SizeT.fits_u32) = wrap_platform32_check()
 #pop-options
+
+inline_for_extraction
+let u16_as_size_t (x:FStar.UInt16.t) : SizeT.t = SizeT.mk_u32 (FStar.Int.Cast.uint16_to_uint32 x)
