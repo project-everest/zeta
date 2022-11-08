@@ -159,7 +159,7 @@ let elim_ha_val #o (#w:ehash_value_t) (s:ha)
     n
 
 let create (_:unit)
-  = let acc = A.alloc 0uy 32ul in
+  = let acc = A.alloc 0uy 32sz in
     let ctr = R.alloc 0ul in
     let ha = { acc; ctr } in
     //TODO: constructing values and transporting slprops to their fields is very tedious
@@ -212,7 +212,7 @@ let aggregate_raw_hashes
     (fun _ ->
      A.pts_to b1 full_perm (xor_bytes s1 s2) `star`
      A.pts_to b2 full_perm s2)
-  = let inv (i:Loops.nat_at_most 32ul)
+  = let inv (i:Loops.nat_at_most 32sz)
       : vprop
       = A.pts_to b1 full_perm (xor_bytes_pfx s1 s2 i) `star`
         A.pts_to b2 full_perm s2
@@ -220,32 +220,32 @@ let aggregate_raw_hashes
     A.pts_to_length b1 _;
     A.pts_to_length b2 _;
     [@@inline_let]
-    let body (i:Loops.u32_between 0ul 32ul)
+    let body (i:Loops.u32_between 0sz 32sz)
       : STT unit
-        (inv (U32.v i))
-        (fun _ -> inv (U32.v i + 1))
+        (inv (SizeT.v i))
+        (fun _ -> inv (SizeT.v i + 1))
       = rewrite
-            (inv (U32.v i))
-            (A.pts_to b1 full_perm (xor_bytes_pfx s1 s2 (U32.v i)) `star`
+            (inv (SizeT.v i))
+            (A.pts_to b1 full_perm (xor_bytes_pfx s1 s2 (SizeT.v i)) `star`
              A.pts_to b2 full_perm s2);
         let x1 = A.read b1 i in
         let x2 = A.read b2 i in
         A.write b1 i (U8.logxor x1 x2);
         assert_ (A.pts_to b1 full_perm (Seq.upd
-                                          (xor_bytes_pfx s1 s2 (U32.v i))
-                                          (U32.v i)
+                                          (xor_bytes_pfx s1 s2 (SizeT.v i))
+                                          (SizeT.v i)
                                           (U8.logxor x1 x2)));
-        extend_hash_value s1 s2 (U32.v i);
+        extend_hash_value s1 s2 (SizeT.v i);
         rewrite (A.pts_to b1 _ _)
-                (A.pts_to b1 full_perm (xor_bytes_pfx s1 s2 (U32.v i + 1)));
+                (A.pts_to b1 full_perm (xor_bytes_pfx s1 s2 (SizeT.v i + 1)));
         rewrite (A.pts_to b1 _ _ `star` A.pts_to b2 _ _)
-                (inv (U32.v i + 1));
+                (inv (SizeT.v i + 1));
         return ()
     in
     assert (xor_bytes_pfx s1 s2 0 `Seq.equal` s1);
     rewrite (A.pts_to b1 _ _ `star` A.pts_to b2 _ _)
             (inv 0);
-    Loops.for_loop 0ul 32ul inv body;
+    Loops.for_loop 0sz 32sz inv body;
     assert (xor_bytes_pfx s1 s2 32 `Seq.equal` xor_bytes s1 s2);
     rewrite (inv 32)
             (A.pts_to b1 _ _ `star` A.pts_to b2 _ _);
@@ -294,7 +294,7 @@ let compare #h1 #h2 (b1 b2:ha)
       return false
     )
     else (
-      let b = Steel.ST.Array.Util.compare b1.acc b2.acc 32ul in
+      let b = Steel.ST.Array.Util.compare b1.acc b2.acc 32sz in
       assert (b <==> (fst h1 == fst h2));
       intro_ha_val b1 _ _ h1;
       intro_ha_val b2 _ _ h2;
@@ -305,8 +305,8 @@ let add #h (ha:ha)
         #p #s (input:hashable_buffer)
         l
   = R.with_local 1ul (fun ctr ->
-     let acc = A.alloc 0uy 32ul in //TODO:would be nice to stack allocate this
-     let _dummy = A.alloc 0uy 1ul in //TODO: Really should  R.null, but kremlin doesn't handle that yet
+     let acc = A.alloc 0uy 32sz in //TODO:would be nice to stack allocate this
+     let _dummy = A.alloc 0uy 1sz in //TODO: Really should  R.null, but kremlin doesn't handle that yet
      Blake.blake2b 32ul acc l input 0ul _dummy;
      let ha' = { acc; ctr } in
      rewrite (A.pts_to acc _ _)

@@ -60,12 +60,11 @@ let verify_post_success_pure_inv
 [@@__reduce__]
 let verify_post_some_m_success
   (tid:U16.t)
-  (len: U32.t)
+  (len:U32.t)
   (input output: EXT.extern_ptr)
   (sq: squash (check_verify_input tid len))
   (t: M.top_level_state false)
-  (read:U32.t)
-  (wrote:U32.t)
+  (read wrote:U32.t)
 : Tot vprop
 =
   exists_ (fun log_bytes -> exists_ (fun out_bytes' ->
@@ -98,7 +97,7 @@ let verify_post_some_m_failure
 
 let verify_post_some_m
   (tid:U16.t)
-  (len: U32.t)
+  (len:U32.t)
   (input output: EXT.extern_ptr)
   (v: option (M.verify_result len))
   (t: M.top_level_state false)
@@ -115,7 +114,7 @@ let verify_post_some_m
 [@@__reduce__]
 let verify_post_some
   (tid:U16.t)
-  (len: U32.t)
+  (len:U32.t)
   (input output: EXT.extern_ptr)
   (v: option (M.verify_result len))
 : Tot vprop
@@ -127,16 +126,14 @@ let verify_post_some
 
 let verify_post
   (tid:U16.t)
-  (len: U32.t)
+  (len:U32.t)
   (input output: EXT.extern_ptr)
   (res: option (M.verify_result len))
 : Tot vprop
 = verify_post_some tid len input output res
 
-val verify_log
-               (tid:U16.t)
-               (len: U32.t)
-               (out_len: U32.t)
+val verify_log (tid:U16.t)
+               (len out_len:U32.t)
                (input output: EXT.extern_ptr)
   : STT (option (M.verify_result len))
     emp

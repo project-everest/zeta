@@ -81,9 +81,9 @@ let extern_in_out_pts_to_unwritten
   (e1: extern_ptr)
   (e2: extern_ptr)
   (w1: Seq.seq U8.t)
-  (l2: U32.t)
+  (l2: SizeT.t)
 : Tot vprop
-= buffers_maybe_disjoint e1 w1 e2 (U32.v l2)
+= buffers_maybe_disjoint e1 w1 e2 (SizeT.v l2)
 
 [@@__reduce__]
 let extern_in_out_pts_to_written
@@ -117,7 +117,8 @@ let array_ghost_split
     (FStar.UInt.fits (A.length a) 32)
     (fun _ -> True)
 = A.pts_to_length a c;
-  let i = U32.uint_to_t (A.length a1) in
+  assume (SizeT.fits (A.length a1));
+  let i = SizeT.uint_to_t (A.length a1) in
   A.ptr_base_offset_inj (dfst a2) (dfst (A.split_r a i));
   A.ghost_split a i;
   rewrite (A.pts_to (A.split_l _ _) _ _) (A.pts_to a1 full_perm (Seq.slice c 0 (A.length a1)));
@@ -190,17 +191,17 @@ let swap_buffers_maybe_disjoint
 
 assume val enclave_check_valid_ptrs // implemented by enclave primitives. Need not check for disjointness
   (e1: extern_ptr)
-  (n1: U32.t)
+  (n1: SizeT.t)
   (e2: extern_ptr)
-  (n2: U32.t)
+  (n2: SizeT.t)
 : ST bool
     emp
     (fun cases' -> is_valid_state e1 n1 e2 n2 cases')
     True
     (fun cases' ->
       (cases' == true ==> (
-        U32.v n1 == A.length e1 /\
-        U32.v n2 == A.length e2
+        SizeT.v n1 == A.length e1 /\
+        SizeT.v n2 == A.length e2
       ))
     )
 
@@ -215,11 +216,11 @@ let copy_extern_input_ptr
   let _ = gen_elim () in
   rewrite
     (extern_in_out_pts_to e1 e2 w1 (Unread out_len))
-    (buffers_maybe_disjoint' e1 w1 e2 (U32.v out_len));
+    (buffers_maybe_disjoint' e1 w1 e2 (SizeT.v out_len));
   A.pts_to_length e1 _;
   A.memcpy e1 a n;
   rewrite
-    (buffers_maybe_disjoint' e1 w1 e2 (U32.v out_len))
+    (buffers_maybe_disjoint' e1 w1 e2 (SizeT.v out_len))
     (extern_in_out_pts_to e1 e2 w1 (Read out_len))
 
 let copy_extern_output_ptr
@@ -228,11 +229,11 @@ let copy_extern_output_ptr
   let _ = gen_elim () in
   rewrite
     (extern_in_out_pts_to e1 e2 w1 (Read n))
-    (buffers_maybe_disjoint' e1 w1 e2 (U32.v n));
+    (buffers_maybe_disjoint' e1 w1 e2 (SizeT.v n));
   rewrite
-    (buffers_maybe_disjoint' e1 w1 e2 (U32.v n))
-    (buffers_maybe_disjoint e1 w1 e2 (U32.v n));
-  let w2 = swap_buffers_maybe_disjoint e1 w1 (Seq.length w1) e2 (U32.v n) in
+    (buffers_maybe_disjoint' e1 w1 e2 (SizeT.v n))
+    (buffers_maybe_disjoint e1 w1 e2 (SizeT.v n));
+  let w2 = swap_buffers_maybe_disjoint e1 w1 (Seq.length w1) e2 (SizeT.v n) in
   rewrite
     (buffers_maybe_disjoint e2 w2 e1 (Seq.length w1))
     (buffers_maybe_disjoint' e2 w2 e1 (Seq.length w1));

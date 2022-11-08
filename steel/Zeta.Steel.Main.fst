@@ -156,6 +156,8 @@ let tid_positions_ok_until (#b: Ghost.erased bool) #l (all_threads:Seq.seq (thre
       j < i ==> (let sj = Seq.index all_threads j in
                  U16.v sj.tid == j)
 
+let u16_as_size_t (s:U16.t) : SizeT.t = SizeT.mk_u32 (FStar.Int.Cast.uint16_to_uint32 s)
+
 let rec init_all_threads_state
   (#m:Ghost.erased (TLM.repr))
   (#b: Ghost.erased bool)
@@ -192,7 +194,7 @@ let rec init_all_threads_state
     end
     else begin
       let st = init_thread_state b mlogs i () in
-      A.write all_threads (FStar.Int.Cast.uint16_to_uint32 i) st;
+      A.write all_threads (u16_as_size_t i) st;
       rewrite
         (A.pts_to all_threads full_perm (Seq.upd s (U32.v (FStar.Int.Cast.uint16_to_uint32 i)) st))
         (A.pts_to all_threads full_perm (Seq.upd s (U16.v i) st));
@@ -275,7 +277,7 @@ let init b =
   let aeh = AEH.create () in
   share_tids_pts_to aeh.mlogs (Map.const (Some Seq.empty)) b;
   let st0 = init_thread_state b aeh.mlogs 0us () in
-  let all_threads = A.alloc st0 n_threads in
+  let all_threads = A.alloc st0 (SizeT.mk_u32 n_threads) in
   intro_pure (tid_positions_ok_until (Seq.create (U32.v n_threads) st0) 1);
   intro_exists
     (Seq.create (U32.v n_threads) st0)
@@ -410,7 +412,7 @@ let verify_log_aux (#incremental: Ghost.erased bool)
   let sq : squash (tid_positions_ok s) = elim_pure (tid_positions_ok s) in
 
   A.pts_to_length t.all_threads s;
-  let st_tid : thread_state incremental t.aeh.mlogs = A.read t.all_threads (FStar.Int.Cast.uint16_to_uint32 tid) in
+  let st_tid : thread_state incremental t.aeh.mlogs = A.read t.all_threads (u16_as_size_t tid) in
 
   let b = Lock.acquire #(thread_inv incremental st_tid.tsm t.aeh.mlogs) st_tid.lock in
 

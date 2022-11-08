@@ -9,13 +9,14 @@ open Steel.ST.Effect.Ghost
 open Steel.ST.Effect.Atomic
 open Steel.ST.Effect
 open Steel.ST.Util
+module ZSU = Zeta.Steel.Util
 module R = Steel.ST.Reference
 module ETbl = Steel.ST.EphemeralHashtbl
 
 module M = Zeta.Steel.ThreadStateModel
 
 inline_for_extraction
-let hash : ETbl.hash_fn M.epoch_id = fun eid -> eid
+let hash : ETbl.hash_fn M.epoch_id = fun eid -> SizeT.mk_u32 eid
 
 let high_water_mark = option M.epoch_id
 let above_high_water_mark (h:high_water_mark) (e:M.epoch_id) : bool =
@@ -63,7 +64,7 @@ let perm #v #c #cp t default_value m b =
   exists_ (high_epoch_id_pred default_value m b t.high)
 
 let create #v #c #vp n init =
-  let etbl = ETbl.create_v vp hash n init in
+  let etbl = ETbl.create_v vp hash (SizeT.mk_u32 n) init in
   let high = R.alloc None in
   intro_pure (high_epoch_id_prop (G.reveal init)
                                  (Map.const (G.reveal init))

@@ -120,7 +120,9 @@ let verify_log_some_concl
   (p1: perm)
   (v: option (M.verify_result len))
 : STT unit
-    (R.pts_to handle.state.state p1 handle.state.tl_state `star` M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v `star` EXT.extern_in_out_pts_to input output log_bytes (EXT.Read out_len))
+    (R.pts_to handle.state.state p1 handle.state.tl_state `star`
+     M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v `star`
+     EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.mk_u32 out_len)))
     (fun _ -> verify_post tid len input output v `star` A.pts_to input' log_perm log_bytes `star` (exists_ (A.pts_to output' full_perm)))
 = match v with
   | Some (V.Verify_success read wrote) ->
@@ -134,7 +136,7 @@ let verify_log_some_concl
     rewrite (handle_pts_to_body0 handle.state) (handle_pts_to_body handle.state);
     rewrite (M.log_of_tid_gen _ _ _) emp;
     A.pts_to_length input' _;
-    EXT.copy_extern_output_ptr _ _ _ out_len output' _ _;
+    EXT.copy_extern_output_ptr _ _ _ (SizeT.mk_u32 out_len) output' _ _;
     rewrite (handle_pts_to0 handle.state.tl_state) (handle_pts_to handle.state.tl_state);
     rewrite
       (verify_post_some_m_success tid len input output () handle.state.tl_state read wrote)
@@ -168,7 +170,7 @@ let verify_log_some
                (output': A.array U8.t)
   : ST (option (M.verify_result len))
     (handle_pts_to_body handle.state `star`
-      EXT.extern_in_out_pts_to input output log_bytes (EXT.Read out_len) `star`
+      EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.mk_u32 out_len)) `star`
       A.pts_to input' full_perm log_bytes `star`
       exists_ (A.pts_to output' full_perm)
     )
@@ -219,6 +221,8 @@ let verify_log
   tid len out_len input output
 =
   let t = handle.state.tl_state in
+  let len_sz = SizeT.mk_u32 len in
+  let out_len_sz = SizeT.mk_u32 out_len in
   handle_pts_to_body_intro ();
   steel_ifthenelse
     (not (check_verify_input tid len))
@@ -232,24 +236,29 @@ let verify_log
     return None
   )
   (fun _ ->
-    let check_valid = EXT.extern_in_out_pts_to_is_valid input len output out_len in
+    let check_valid = EXT.extern_in_out_pts_to_is_valid input len_sz output out_len_sz in
     steel_ifthenelse check_valid
       (fun _ ->
-        rewrite (EXT.is_valid_state input len output out_len _) (EXT.is_valid_state_true input len output out_len);
+        rewrite (EXT.is_valid_state input _ output _ _)
+                (EXT.is_valid_state_true input len_sz output out_len_sz);
         let log_bytes = elim_exists () in
         elim_pure _;
-        let a = A.alloc 0uy len in
-        EXT.copy_extern_input_ptr input log_bytes output len out_len a;
+        let a = A.alloc 0uy len_sz in
+        EXT.copy_extern_input_ptr input log_bytes output len_sz out_len_sz a;
         let _ = gen_elim () in
         steel_ifthenelse (0ul `U32.lt` out_len)
           (fun _ ->
-            let output' = A.alloc 0uy out_len in
+            let output' = A.alloc 0uy out_len_sz in
+            rewrite (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read out_len_sz))
+                    (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.mk_u32 out_len)));
             verify_log_some log_bytes tid len input a out_len output output'
           )
           (fun _ ->
-            let _ = A.ghost_split a len in
+            let _ = A.ghost_split a len_sz in
             noop ();
-            verify_log_some log_bytes tid len input (A.split_l a len) out_len output (A.split_r a len)
+            rewrite (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read out_len_sz))
+                    (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.mk_u32 out_len)));
+            verify_log_some log_bytes tid len input (A.split_l a len_sz) out_len output (A.split_r a len_sz)
           )
       )
       (fun _ ->

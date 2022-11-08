@@ -26,7 +26,7 @@ module HA = Zeta.Steel.HashAccumulator
 #push-options "--ide_id_info_off"
 #push-options "--query_stats --fuel 0 --ifuel 1"
 
-let as_u32 (s:U16.t) : U32.t = Cast.uint16_to_uint32 s
+let as_size_t (s:U16.t) : SizeT.t = SizeT.mk_u32 (Cast.uint16_to_uint32 s)
 
 
 let fail (#tsm:M.thread_state_model)
@@ -189,8 +189,8 @@ let madd_to_store_split (#tsm:M.thread_state_model)
     if not b
     then (fail t; return ())
     else (
-      let ropt = A.read t.store (as_u32 s) in
-      let ropt' = A.read t.store (as_u32 s') in
+      let ropt = A.read t.store (as_size_t s) in
+      let ropt' = A.read t.store (as_size_t s') in
       match ropt with
       | Some _ -> fail t; return ()
       | _ ->
@@ -202,7 +202,7 @@ let madd_to_store_split (#tsm:M.thread_state_model)
           match s2_opt with
           | None -> fail t; return ()
           | Some s2 ->
-            let r2opt = A.read t.store (as_u32 s2) in
+            let r2opt = A.read t.store (as_size_t s2) in
             match r2opt with
             | None -> fail t; return ()
             | Some r2 ->
@@ -211,9 +211,9 @@ let madd_to_store_split (#tsm:M.thread_state_model)
               let e' = M.update_child r' d s in
               let p2new = s, d2 in
               let e2 = M.update_parent_slot r2 p2new in
-              A.write t.store (as_u32 s) (Some e);
-              A.write t.store (as_u32 s') (Some e');
-              A.write t.store (as_u32 s2) (Some e2);
+              A.write t.store (as_size_t s) (Some e);
+              A.write t.store (as_size_t s') (Some e');
+              A.write t.store (as_size_t s2) (Some e2);
               return ())
 
 let madd_to_store (#tsm:M.thread_state_model)
@@ -230,8 +230,8 @@ let madd_to_store (#tsm:M.thread_state_model)
     if not b
     then (fail t; return ())
     else (
-      let ropt = A.read t.store (as_u32 s) in
-      let ropt' = A.read t.store (as_u32 s') in
+      let ropt = A.read t.store (as_size_t s) in
+      let ropt' = A.read t.store (as_size_t s') in
       match ropt with
       | Some _ -> fail t; return ()
       | _ ->
@@ -246,13 +246,13 @@ let madd_to_store (#tsm:M.thread_state_model)
             r_child_in_store = None;
             parent_slot = Some (s', d)
           } in
-          A.write t.store (as_u32 s) (Some new_entry);
+          A.write t.store (as_size_t s) (Some new_entry);
           let r' : M.store_entry =
             if d
             then { r' with l_child_in_store = Some s }
             else { r' with r_child_in_store = Some s }
           in
-          A.write t.store (as_u32 s') (Some r');
+          A.write t.store (as_size_t s') (Some r');
           return ()
     )
 
@@ -270,8 +270,8 @@ let update_value (#tsm:M.thread_state_model)
   : STT unit
     (thread_state_inv_core t tsm)
     (fun _ -> thread_state_inv_core t (M.update_value tsm s r))
-  = let Some v = A.read t.store (as_u32 s) in
-    A.write t.store (as_u32 s) (Some ({v with M.value = r}));
+  = let Some v = A.read t.store (as_size_t s) in
+    A.write t.store (as_size_t s) (Some ({v with M.value = r}));
     ()
 
 
@@ -289,7 +289,7 @@ let vaddm_core (#tsm:M.thread_state_model)
     if b then (fail t; return true)
     else (
       let gk, gv = r in
-      let ropt = A.read t.store (as_u32 s') in
+      let ropt = A.read t.store (as_size_t s') in
       match ropt with
       | None -> (fail t; return true)
       | Some r' ->
@@ -301,7 +301,7 @@ let vaddm_core (#tsm:M.thread_state_model)
         then (fail t; return true)
         (* check store does not contain slot s *)
         else (
-          let sopt = A.read t.store (as_u32 s) in
+          let sopt = A.read t.store (as_size_t s) in
           match sopt with
           | Some _ -> fail t; return true
           | _ ->
@@ -676,7 +676,7 @@ let vaddb_core (#tsm:M.thread_state_model)
       let (k, v) = r in
       if M.is_root_key k then (fail t; return true)
       else (
-        let ropt = A.read t.store (as_u32 s) in
+        let ropt = A.read t.store (as_size_t s) in
         if Some? ropt then (fail t; return true) //slot is already full
         else (
           let lve = R.read t.last_verified_epoch in
@@ -699,12 +699,12 @@ let vaddb_core (#tsm:M.thread_state_model)
                 then (
                   R.write t.last_evict_key root_base_key;
                   R.write t.clock next_clock;
-                  A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
+                  A.write t.store (as_size_t s) (Some (M.mk_entry k v M.BAdd));
                   return true
                 )
                 else (
                   R.write t.clock next_clock;
-                  A.write t.store (as_u32 s) (Some (M.mk_entry k v M.BAdd));
+                  A.write t.store (as_size_t s) (Some (M.mk_entry k v M.BAdd));
                   return true
                 )
             )
@@ -741,14 +741,14 @@ let evict_from_store (#tsm:M.thread_state_model)
   : STT unit
     (thread_state_inv_core t tsm)
     (fun _ -> thread_state_inv_core t (M.mevict_from_store tsm s s' d))
-  = let Some r' = A.read t.store (as_u32 s') in
+  = let Some r' = A.read t.store (as_size_t s') in
     let e' =
         if d
         then { r' with M.l_child_in_store = None }
         else { r' with M.r_child_in_store = None }
     in
-    A.write t.store (as_u32 s') (Some e');
-    A.write t.store (as_u32 s) None;
+    A.write t.store (as_size_t s') (Some e');
+    A.write t.store (as_size_t s) None;
     ()
 
 let vevictm_core (#tsm:M.thread_state_model)
@@ -763,8 +763,8 @@ let vevictm_core (#tsm:M.thread_state_model)
     else if s = s'
     then (R.write t.failed true; ())
     else (
-      let e = A.read t.store (as_u32 s) in
-      let e' = A.read t.store (as_u32 s') in
+      let e = A.read t.store (as_size_t s) in
+      let e' = A.read t.store (as_size_t s') in
       match e, e' with
       | None, _
       | _, None -> R.write t.failed true; ()
@@ -841,7 +841,7 @@ let sat_evictb_checks (#tsm:M.thread_state_model)
     (fun _ -> thread_state_inv_core t tsm)
     (requires True)
     (ensures fun b -> b == M.sat_evictb_checks tsm s ts)
-  = let ropt = A.read t.store (as_u32 s) in
+  = let ropt = A.read t.store (as_size_t s) in
     match ropt with
     | None ->
       return false
@@ -870,7 +870,7 @@ let vevictb_update_hash_clock (#tsm:M.thread_state_model)
      (fun b -> thread_state_inv_core t (update_if b tsm (M.vevictb_update_hash_clock tsm s ts)))
      (requires tsm.thread_id == t.thread_id)
      (ensures fun _ -> True)
-   = let Some r = A.read t.store (as_u32 s) in
+   = let Some r = A.read t.store (as_size_t s) in
      let k = r.key in
      let bk = to_base_key k in
      let v = r.value in
@@ -911,14 +911,14 @@ let vevictb_core (#tsm:M.thread_state_model)
         return true
       )
       else (
-        let Some r = A.read t.store (as_u32 s) in
+        let Some r = A.read t.store (as_size_t s) in
         if r.add_method <> M.BAdd
         then (fail t; return true)
         else (
           let b = vevictb_update_hash_clock t s ts in
           if b
           then (
-            A.write t.store (as_u32 s) None;
+            A.write t.store (as_size_t s) None;
             return true
           )
           else (
@@ -960,11 +960,11 @@ let vevictbm_core (#tsm:M.thread_state_model)
     else if s = s' then fail_as t _
     else let se_checks = sat_evictb_checks t s ts in
          if not se_checks then fail_as t _
-         else let ropt = A.read t.store (as_u32 s') in
+         else let ropt = A.read t.store (as_size_t s') in
               match ropt with
               | None -> fail_as t _
               | Some r' ->
-                let Some r = A.read t.store (as_u32 s) in
+                let Some r = A.read t.store (as_size_t s) in
                 if r.add_method <> M.MAdd
                 then (let b = fail_as t _ in return b)
                 else (
@@ -1200,7 +1200,7 @@ let init_bit_map (_e:M.epoch_id)
   : STT (larray bool n_threads)
         emp
         (fun p -> array_pts_to p AEH.all_zeroes)
-  = let new_bm = A.alloc false n_threads in
+  = let new_bm = A.alloc false (SizeT.mk_u32 n_threads) in
     return new_bm
 
 /// Update the bitmap for tid indicating that it's epoch contribution
@@ -1227,7 +1227,7 @@ let update_bitmap (#bm:erased _)
       rewrite (get_or_init_post tid_bitmaps _ _ _ res)
               (EpochMap.perm tid_bitmaps AEH.all_zeroes bm (PartialMap.upd EpochMap.empty_borrows e v) `star`
                array_pts_to v (Map.sel bm e));
-      A.write v (as_u32 tid) true;
+      A.write v (as_size_t tid) true;
       EpochMap.ghost_put tid_bitmaps e v _;
       return true
 
@@ -1691,14 +1691,14 @@ let create_basic (tid:tid)
     (requires True)
     (ensures fun t -> VerifierTypes.thread_id t == tid)
   = let failed = R.alloc false in
-    let store : vstore = A.alloc None (as_u32 store_size) in
+    let store : vstore = A.alloc None (as_size_t store_size) in
     let clock = R.alloc M.zero_clock in
     let last_evict_key = R.alloc root_base_key in
     let epoch_hashes = EpochMap.create 64ul M.init_epoch_hash in
     let last_verified_epoch = R.alloc None in
     let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
     let app_results : G.ref M.app_results = G.alloc Seq.empty in
-    let serialization_buffer = A.alloc 0uy 4096ul in
+    let serialization_buffer = A.alloc 0uy 4096sz in
     let hasher = HashValue.alloc () in
     let tsm = M.init_thread_state_model tid in
     let t : thread_state_t = {
@@ -1740,7 +1740,7 @@ let madd_to_store_root (#tsm:M.thread_state_model)
     if not b
     then ( noop(); () )
     else (
-      let ropt = A.read t.store (as_u32 s) in
+      let ropt = A.read t.store (as_size_t s) in
       match ropt with
       | Some _ -> noop (); ()
       | _ ->
@@ -1752,7 +1752,7 @@ let madd_to_store_root (#tsm:M.thread_state_model)
           r_child_in_store = None;
           parent_slot = None;
         } in
-        A.write t.store (as_u32 s) (Some new_entry);
+        A.write t.store (as_size_t s) (Some new_entry);
         return ()
     )
 

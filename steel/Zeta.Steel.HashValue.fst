@@ -37,11 +37,11 @@ let inv (h:hasher_t) =
 
 let alloc (_:unit)
   : STT hasher_t emp inv
-  = let hb = A.alloc 0uy 32ul in
+  = let hb = A.alloc 0uy 32sz in
     intro_exists _ (array_pts_to hb);
-    let sb = A.alloc 0uy 4096ul in
+    let sb = A.alloc 0uy 4096sz in
     intro_exists _ (array_pts_to sb);
-    let dummy = A.alloc 0uy 1ul in
+    let dummy = A.alloc 0uy 1sz in
     let res = {
       serialization_buffer = sb;
       hash_buffer = hb;

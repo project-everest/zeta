@@ -155,7 +155,7 @@ let check_all_ones (#e:Ghost.erased _)
     (requires True)
     (ensures fun b -> b <==> (reveal e == all_ones))
   = A.pts_to_length a e;
-    let b = Steel.ST.Array.Util.for_all n_threads a (fun b -> b) in
+    let b = Steel.ST.Array.Util.for_all (SizeT.mk_u32 n_threads) a (fun b -> b) in
     assert (b ==> Seq.equal (reveal e) all_ones);
     return b
 
@@ -227,7 +227,7 @@ let epoch_ready_if_bitmap_set (hashes:epoch_hashes_repr)
       epoch_is_complete mlogs_v e /\
       Map.sel hashes e == aggregate_all_threads_epoch_hashes e mlogs_v)
   = ()
-
+  
 let _max_is_correct (hashes:_)
                     (bitmaps:_)
                     (max:_)
@@ -237,6 +237,7 @@ let _max_is_correct (hashes:_)
     (ensures  max_is_correct mlogs_v (Some?.v max))
   = ()
 
+#push-options "--query_stats --z3rlimit_factor 4 --fuel 0 --ifuel 0"
 let try_increment_max (#hashes_v:erased _)
                       (#bitmaps_v:erased _)
                       (#mlogs_v:erased _)
@@ -296,6 +297,7 @@ let try_increment_max (#hashes_v:erased _)
            return true
         )
       )
+#pop-options
 
 let try_advance_max (#hashes_v:erased epoch_hashes_repr)
                     (#bitmaps_v:erased epoch_bitmaps_repr)
