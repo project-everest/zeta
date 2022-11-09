@@ -17,7 +17,7 @@ let handle_pts_to
   (ts: M.top_level_state false)
 : Tot vprop
 = handle_pts_to0 ts
-  
+
 let gather ts ts' =
   rewrite (handle_pts_to ts) (handle_pts_to0 ts);
   let _ = gen_elim () in
@@ -122,7 +122,7 @@ let verify_log_some_concl
 : STT unit
     (R.pts_to handle.state.state p1 handle.state.tl_state `star`
      M.verify_post handle.state.tl_state tid entries log_perm log_bytes len input' out_len out_bytes output' v `star`
-     EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.mk_u32 out_len)))
+     EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.uint32_to_sizet out_len)))
     (fun _ -> verify_post tid len input output v `star` A.pts_to input' log_perm log_bytes `star` (exists_ (A.pts_to output' full_perm)))
 = match v with
   | Some (V.Verify_success read wrote) ->
@@ -136,7 +136,7 @@ let verify_log_some_concl
     rewrite (handle_pts_to_body0 handle.state) (handle_pts_to_body handle.state);
     rewrite (M.log_of_tid_gen _ _ _) emp;
     A.pts_to_length input' _;
-    EXT.copy_extern_output_ptr _ _ _ (SizeT.mk_u32 out_len) output' _ _;
+    EXT.copy_extern_output_ptr _ _ _ (SizeT.uint32_to_sizet out_len) output' _ _;
     rewrite (handle_pts_to0 handle.state.tl_state) (handle_pts_to handle.state.tl_state);
     rewrite
       (verify_post_some_m_success tid len input output () handle.state.tl_state read wrote)
@@ -170,7 +170,7 @@ let verify_log_some
                (output': A.array U8.t)
   : ST (option (M.verify_result len))
     (handle_pts_to_body handle.state `star`
-      EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.mk_u32 out_len)) `star`
+      EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.uint32_to_sizet out_len)) `star`
       A.pts_to input' full_perm log_bytes `star`
       exists_ (A.pts_to output' full_perm)
     )
@@ -221,8 +221,8 @@ let verify_log
   tid len out_len input output
 =
   let t = handle.state.tl_state in
-  let len_sz = SizeT.mk_u32 len in
-  let out_len_sz = SizeT.mk_u32 out_len in
+  let len_sz = SizeT.uint32_to_sizet len in
+  let out_len_sz = SizeT.uint32_to_sizet out_len in
   handle_pts_to_body_intro ();
   steel_ifthenelse
     (not (check_verify_input tid len))
@@ -250,14 +250,14 @@ let verify_log
           (fun _ ->
             let output' = A.alloc 0uy out_len_sz in
             rewrite (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read out_len_sz))
-                    (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.mk_u32 out_len)));
+                    (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.uint32_to_sizet out_len)));
             verify_log_some log_bytes tid len input a out_len output output'
           )
           (fun _ ->
             let _ = A.ghost_split a len_sz in
             noop ();
             rewrite (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read out_len_sz))
-                    (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.mk_u32 out_len)));
+                    (EXT.extern_in_out_pts_to input output log_bytes (EXT.Read (SizeT.uint32_to_sizet out_len)));
             verify_log_some log_bytes tid len input (A.split_l a len_sz) out_len output (A.split_r a len_sz)
           )
       )

@@ -39,7 +39,7 @@ let thread_inv_predicate
       `star`
     TLM.tid_pts_to mlogs tsm.M.thread_id (lock_perm b) tsm.M.processed_entries false
 
-let thread_inv 
+let thread_inv
   (b: Ghost.erased bool)
   (t: V.thread_state_t)
   (mlogs: TLM.t)
@@ -120,7 +120,7 @@ let log_of_tid (t:top_level_state true) (tid:tid) (l:M.log)
 let snapshot (#b: Ghost.erased bool) (t:top_level_state b) (tlm:tid_log_map)
   : vprop
   = TLM.global_snapshot t.aeh.mlogs tlm
-  
+
 let init_thread_state
   (#m:Ghost.erased (TLM.repr))
   (b: Ghost.erased bool)
@@ -276,7 +276,7 @@ let init b =
   let aeh = AEH.create () in
   share_tids_pts_to aeh.mlogs (Map.const (Some Seq.empty)) b;
   let st0 = init_thread_state b aeh.mlogs 0us () in
-  let all_threads = A.alloc st0 (SizeT.mk_u32 n_threads) in
+  let all_threads = A.alloc st0 (SizeT.uint32_to_sizet n_threads) in
   intro_pure (tid_positions_ok_until (Seq.create (U32.v n_threads) st0) 1);
   intro_exists
     (Seq.create (U32.v n_threads) st0)
@@ -446,7 +446,7 @@ let verify_log_aux (#incremental: Ghost.erased bool)
       (fun s -> A.pts_to output full_perm s);
 
     exists_log_of_tid_gen_intro t tid entries;
-    
+
     rewrite
       (core_inv t
          `star`
@@ -458,7 +458,7 @@ let verify_log_aux (#incremental: Ghost.erased bool)
       (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output r);
 
     return r
-    
+
     )
 
     (fun _ ->
@@ -497,7 +497,7 @@ let verify_log_aux (#incremental: Ghost.erased bool)
         (V.verify_post _ _ _ _ _ _ _)
         (exists_ (V.verify_post_success_pred tsm st_tid.tsm log_bytes out_bytes output t.aeh read wrote));
 
-      
+
       let log = elim_exists () in
       M.verify_model_thread_id_inv tsm log;  //to get the following assertion about thread id
       assert ((M.verify_model tsm log).thread_id == tid);
@@ -518,7 +518,7 @@ let verify_log_aux (#incremental: Ghost.erased bool)
         //  establish the invariant and return
         //
         Lock.cancel st_tid.lock;
-        
+
         intro_exists (Ghost.reveal s)
                      (fun s -> A.pts_to t.all_threads perm s
                               `star`
@@ -535,19 +535,19 @@ let verify_log_aux (#incremental: Ghost.erased bool)
 
         let out_bytes1 = elim_exists () in
         elim_pure (Application.n_out_bytes _ _ _ _ _ _);
-        drop (pure _);        
+        drop (pure _);
         intro_exists
           (Ghost.reveal out_bytes1)
           (fun s -> A.pts_to output full_perm s);
 
-        share_thread_logs _ _ _ _; 
+        share_thread_logs _ _ _ _;
 
         vpattern_rewrite (fun tid -> log_of_tid_gen _ tid _) tid;
         exists_log_of_tid_gen_intro _ _ _;
 
         drop (TLM.tid_pts_to _ _ _ _ _);
         drop (V.thread_state_inv _ _);
-        
+
         let res = None in
         rewrite
           (core_inv t
@@ -563,8 +563,8 @@ let verify_log_aux (#incremental: Ghost.erased bool)
       )
 
 
-      (fun _ -> 
-      
+      (fun _ ->
+
         //Now we know that all is well
         //
         assert (not (M.verify_model tsm log).M.failed);
@@ -590,11 +590,11 @@ let verify_log_aux (#incremental: Ghost.erased bool)
         let out_bytes' = elim_exists () in
         elim_pure _;
         elim_pure _;
-        
+
         assert (Ghost.reveal incremental == true ==> tsm.M.processed_entries == Ghost.reveal entries);
         M.verify_model_append tsm log;
         assert ((M.verify_model tsm log).processed_entries == Seq.append tsm.M.processed_entries log);
-        
+
         rewrite
           (log_of_tid_gen _ _ _)
           (log_of_tid_gen t tid (entries `Seq.append` log)); // works because if incremental == false, then both sides are emp
@@ -656,7 +656,7 @@ let verify_log_aux (#incremental: Ghost.erased bool)
       elim_pure _;
       //drop thread_state_inv
       drop (exists_ (V.thread_state_inv st_tid.tsm));
-      
+
       let entries' = elim_exists #_ #_
         #(fun entries' -> TLM.tid_pts_to t.aeh.mlogs (V.thread_id st_tid.tsm) full entries' false)
         () in
@@ -686,9 +686,9 @@ let verify_log
     rewrite (core_inv t) (core_inv t');
     rewrite (log_of_tid_gen t tid entries) (log_of_tid_gen t' tid entries);
     let res = verify_log_aux t' tid len input out_len output in
-    rewrite 
+    rewrite
       (verify_post t' tid entries log_perm log_bytes len input out_len out_bytes output res)
-      (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res);      
+      (verify_post t tid entries log_perm log_bytes len input out_len out_bytes output res);
     return res
 
 let max_certified_epoch
@@ -703,12 +703,12 @@ let max_certified_epoch
       return AEH.Read_max_error
     | AEH.Read_max_none ->
       rewrite (AEH.read_max_post t'.aeh res)
-              (read_max_post t AEH.Read_max_none);    
+              (read_max_post t AEH.Read_max_none);
       return AEH.Read_max_none
     | AEH.Read_max_some max ->
       rewrite (AEH.read_max_post t'.aeh res)
-              (AEH.read_max_post t'.aeh (AEH.Read_max_some max));      
-                
+              (AEH.read_max_post t'.aeh (AEH.Read_max_some max));
+
       let logs = elim_exists () in
       assert_ (snapshot t' (AEH.map_of_seq logs));
       rewrite (snapshot t' (AEH.map_of_seq logs))
