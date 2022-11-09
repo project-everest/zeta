@@ -1198,7 +1198,7 @@ let init_bit_map (_e:M.epoch_id)
   : STT (larray bool n_threads)
         emp
         (fun p -> array_pts_to p AEH.all_zeroes)
-  = let new_bm = A.alloc false (SizeT.mk_u32 n_threads) in
+  = let new_bm = A.alloc false (SizeT.uint32_to_sizet n_threads) in
     return new_bm
 
 /// Update the bitmap for tid indicating that it's epoch contribution

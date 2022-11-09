@@ -16,7 +16,7 @@ module ETbl = Steel.ST.EphemeralHashtbl
 module M = Zeta.Steel.ThreadStateModel
 
 inline_for_extraction
-let hash : ETbl.hash_fn M.epoch_id = fun eid -> SizeT.mk_u32 eid
+let hash : ETbl.hash_fn M.epoch_id = fun eid -> SizeT.uint32_to_sizet eid
 
 let high_water_mark = option M.epoch_id
 let above_high_water_mark (h:high_water_mark) (e:M.epoch_id) : bool =
@@ -64,7 +64,7 @@ let perm #v #c #cp t default_value m b =
   exists_ (high_epoch_id_pred default_value m b t.high)
 
 let create #v #c #vp n init =
-  let etbl = ETbl.create_v vp hash (SizeT.mk_u32 n) init in
+  let etbl = ETbl.create_v vp hash (SizeT.uint32_to_sizet n) init in
   let high = R.alloc None in
   intro_pure (high_epoch_id_prop (G.reveal init)
                                  (Map.const (G.reveal init))
@@ -124,7 +124,7 @@ let get #v #c #vp #init #m #b a i =
                        (requires ~ (PartialMap.contains b i))
                        (ensures fun res -> Fresh? res ==> Map.sel m i == G.reveal init) with
     | ETbl.Missing j ->
-      let ret = NotFound in      
+      let ret = NotFound in
       rewrite (ETbl.get_post (repr_to_eht_repr m) b a.etbl i (ETbl.Missing j))
               (ETbl.tperm a.etbl (repr_to_eht_repr m) b
                  `star`
@@ -139,7 +139,7 @@ let get #v #c #vp #init #m #b a i =
               (get_post init m b a i ret);
       return ret
     | ETbl.Absent ->
-      let ret = NotFound in      
+      let ret = NotFound in
       rewrite (ETbl.get_post (repr_to_eht_repr m) b a.etbl i ETbl.Absent)
               (ETbl.tperm a.etbl (repr_to_eht_repr m) b);
       intro_pure (high_epoch_id_prop (G.reveal init) m b w);

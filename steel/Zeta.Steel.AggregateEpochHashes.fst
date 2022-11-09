@@ -31,7 +31,7 @@ let empty_all_processed_entries : Ghost.erased all_processed_entries =
   Seq.init #(tid & log) (U32.v n_threads) (fun i -> U16.uint_to_t i, Seq.empty)
 
 let rec aggregate_epoch_hashes_seq_unit (s:Seq.seq M.epoch_hash)
-  : Lemma 
+  : Lemma
     (requires
       forall i. Seq.index s i == M.init_epoch_hash)
     (ensures
@@ -155,7 +155,7 @@ let check_all_ones (#e:Ghost.erased _)
     (requires True)
     (ensures fun b -> b <==> (reveal e == all_ones))
   = A.pts_to_length a e;
-    let b = Steel.ST.Array.Util.for_all (SizeT.mk_u32 n_threads) a (fun b -> b) in
+    let b = Steel.ST.Array.Util.for_all (SizeT.uint32_to_sizet n_threads) a (fun b -> b) in
     assert (b ==> Seq.equal (reveal e) all_ones);
     return b
 
@@ -227,7 +227,7 @@ let epoch_ready_if_bitmap_set (hashes:epoch_hashes_repr)
       epoch_is_complete mlogs_v e /\
       Map.sel hashes e == aggregate_all_threads_epoch_hashes e mlogs_v)
   = ()
-  
+
 let _max_is_correct (hashes:_)
                     (bitmaps:_)
                     (max:_)
@@ -451,7 +451,7 @@ let advance_and_read_max_certified_epoch aeh
           aeh.lock;
         intro_exists (Ghost.reveal _mlogs_v) (read_max_post_pred aeh max_v);
         let r = Read_max_some max_v in
-        rewrite 
+        rewrite
           (exists_ (read_max_post_pred aeh max_v))
           (read_max_post aeh r);
         return r
