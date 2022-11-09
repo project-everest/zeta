@@ -68,13 +68,9 @@ let update_if (b:bool) (default_ upd_: 'a)
   : 'a
   = if b then upd_ else default_
 
-let wrap_platform32_check (_:unit)
-  : STT (squash (FStar.SizeT.fits_u32)) emp (fun _ -> emp)
-  = Steel.ST.HigherArray.intro_fits_u32()
-
 #push-options "--warn_error -272" //intentional top-level effect here
-let fits_u32 : squash (FStar.SizeT.fits_u32) = wrap_platform32_check()
+let fits_u32 : squash (FStar.SizeT.fits_u32) = A.intro_fits_u32 ()
 #pop-options
 
 inline_for_extraction
-let u16_as_size_t (x:FStar.UInt16.t) : SizeT.t = SizeT.mk_u32 (FStar.Int.Cast.uint16_to_uint32 x)
+let u16_as_size_t (x:FStar.UInt16.t) : SizeT.t = SizeT.uint32_to_sizet (FStar.Int.Cast.uint16_to_uint32 x)
