@@ -722,6 +722,7 @@ let lemma_vaddm_preserves_spec_new_key
 
 // #push-options "--z3rlimit_factor 6"
 
+#push-options "--query_stats --fuel 4 --ifuel 2 --split_queries"
 let lemma_vaddb_preserves_spec_new_key
       (#vcfg:_)
       (vs:vtls_t vcfg{vs.valid})
@@ -757,6 +758,7 @@ let lemma_vaddb_preserves_spec_new_key
       let stk_ = vsk_.st in
       let aux (ki:_)
         : Lemma (ensures (store_rel_key sts_ stk_ ki))
+                [SMTPat (store_rel_key sts_ stk_ ki)]
         = if ki <> k then (
             elim_key_store_rel sts stk ki;
             if HV.store_contains stk_ ki then (
@@ -777,8 +779,9 @@ let lemma_vaddb_preserves_spec_new_key
             )
           )
       in
-      forall_intro aux
+      ()
     )
+#pop-options
 
 let lemma_points_to_some_implies_has_instore_merkle_desc
   (#vcfg:_)

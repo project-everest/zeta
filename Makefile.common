@@ -32,7 +32,7 @@ SMT_OPTIONS=--z3cliopt 'timeout=600000' --z3cliopt 'smt.arith.nl=false' \
             --smtencoding.elim_box true \
             --smtencoding.l_arith_repr native \
             --smtencoding.nl_arith_repr wrapped
-OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS)
+OTHERFLAGS+=$(WARN_ERROR) $(SMT_OPTIONS) --compat_pre_core 0
 ALREADY_CACHED_LIST ?= Prims,FStar,LowStar,Steel
 ALREADY_CACHED = --already_cached $(ALREADY_CACHED_LIST)
 

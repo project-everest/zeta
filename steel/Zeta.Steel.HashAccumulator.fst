@@ -17,7 +17,8 @@ let hash_value_buf  = x:A.array U8.t { A.length x == 32 /\ A.is_full_array x }
 noeq
 type ha = {
   acc: hash_value_buf;
-  ctr:R.ref U32.t
+  ctr:R.ref U32.t;
+  tmp: hash_value_buf
 }
 
 // [@@__steel_reduce__;__reduce__]
@@ -25,20 +26,23 @@ let ha_val (h:ha) (s:ehash_value_t) =
   A.pts_to h.acc full_perm (fst s) `star`
   exists_ (fun (n:U32.t) ->
       pure (U32.v n == snd s) `star`
-      R.pts_to h.ctr full_perm n)
-
+      R.pts_to h.ctr full_perm n) `star`
+  exists_ (A.pts_to h.tmp full_perm)
+      
 let unfold_ha_val (#o:_) (h:ha) (s:ehash_value_t)
   : STGhostT unit o
     (ha_val h s)
     (fun _ -> A.pts_to h.acc full_perm (fst s) `star`
            exists_ (fun (n:U32.t) ->
              pure (U32.v n == snd s) `star`
-             R.pts_to h.ctr full_perm n))
+             R.pts_to h.ctr full_perm n) `star`
+           exists_ (A.pts_to h.tmp full_perm))
   = rewrite (ha_val h s)
             (A.pts_to h.acc full_perm (fst s) `star`
-              exists_ (fun (n:U32.t) ->
+             exists_ (fun (n:U32.t) ->
                 pure (U32.v n == snd s) `star`
-                R.pts_to h.ctr full_perm n));
+                R.pts_to h.ctr full_perm n) `star`
+             exists_ (A.pts_to h.tmp full_perm));
     ()
 
 let fold_ha_val (#o:_) (h:ha) (s:ehash_value_t)
@@ -46,12 +50,14 @@ let fold_ha_val (#o:_) (h:ha) (s:ehash_value_t)
     (A.pts_to h.acc full_perm (fst s) `star`
      exists_ (fun (n:U32.t) ->
        pure (U32.v n == snd s) `star`
-       R.pts_to h.ctr full_perm n))
+       R.pts_to h.ctr full_perm n)  `star`
+     exists_ (A.pts_to h.tmp full_perm))
     (fun _ -> ha_val h s)
   = rewrite (A.pts_to h.acc full_perm (fst s) `star`
-              exists_ (fun (n:U32.t) ->
-                pure (U32.v n == snd s) `star`
-                R.pts_to h.ctr full_perm n))
+             exists_ (fun (n:U32.t) ->
+               pure (U32.v n == snd s) `star`
+               R.pts_to h.ctr full_perm n) `star`
+             exists_ (A.pts_to h.tmp full_perm))
             (ha_val h s);
     ()
 
@@ -132,11 +138,13 @@ let intro_ha_val (#o:_)
   : STGhostT unit o
     (A.pts_to s.acc full_perm ws
       `star`
-     R.pts_to s.ctr full_perm wc)
+     R.pts_to s.ctr full_perm wc
+      `star`
+     exists_ (A.pts_to s.tmp full_perm))
     (fun _ ->
       ha_val s res)
   = let w = mk_hash_value ws wc in
-    rewrite (A.pts_to _ _ _)
+    rewrite (A.pts_to s.acc _ _)
             (A.pts_to s.acc full_perm (fst w));
     intro_pure (U32.v wc == snd w);
     intro_exists #U32.t wc (fun n -> pure (U32.v n == snd w) `star` R.pts_to s.ctr full_perm n);
@@ -150,7 +158,8 @@ let elim_ha_val #o (#w:ehash_value_t) (s:ha)
   : STGhost (Ghost.erased U32.t) o
     (ha_val s w)
     (fun n -> A.pts_to s.acc full_perm (fst w) `star`
-           R.pts_to s.ctr full_perm n)
+           R.pts_to s.ctr full_perm n `star`
+           (exists_ (A.pts_to s.tmp full_perm)))
     (requires True)
     (ensures fun n -> U32.v n == snd w)
   = unfold_ha_val s w;
@@ -161,20 +170,26 @@ let elim_ha_val #o (#w:ehash_value_t) (s:ha)
 let create (_:unit)
   = let acc = A.alloc 0uy 32sz in
     let ctr = R.alloc 0ul in
-    let ha = { acc; ctr } in
+    let tmp = A.alloc 0uy 32sz in
+    let ha = { acc; ctr; tmp } in
     //TODO: constructing values and transporting slprops to their fields is very tedious
     rewrite (A.pts_to acc _ _)
             (A.pts_to ha.acc full_perm (Seq.create 32 0uy));
     rewrite (R.pts_to ctr _ _)
             (R.pts_to ha.ctr full_perm 0ul);
+    rewrite (A.pts_to tmp _ _)
+            (A.pts_to ha.tmp full_perm (Seq.create 32 0uy));
+    intro_exists _ (A.pts_to ha.tmp full_perm);
     intro_ha_val ha _ _ initial_hash;
     return ha
 
 let reclaim (#h:ehash_value_t) (s:ha)
   = let _ = elim_ha_val s in
     R.free s.ctr;
+    A.free s.tmp;    
     intro_exists (fst h) (A.pts_to s.acc full_perm);
     A.free s.acc
+
 
 let bytes = Seq.seq U8.t
 
@@ -257,9 +272,75 @@ let narrow_uint64_to_uint32 (x:U64.t { U64.(x <=^ 0xffffffffuL) })
   : y:U32.t{U64.v x == U32.v y}
   = Cast.uint64_to_uint32 x
 
-let aggregate #h1 #h2 (b1 b2: ha)
-  = let _n1 = elim_ha_val b1 in
-    let _n2 = elim_ha_val b2 in
+noeq
+type ha_core = {
+  acc: hash_value_buf;
+  ctr:R.ref U32.t;
+}
+
+let ha_core_val (h:ha_core) (s:ehash_value_t) =
+  A.pts_to h.acc full_perm (fst s) `star`
+  exists_ (fun (n:U32.t) ->
+      pure (U32.v n == snd s) `star`
+      R.pts_to h.ctr full_perm n)
+
+let elim_ha_core_val #o (#s:ehash_value_t) (h:ha_core)
+  : STGhost (Ghost.erased U32.t) o
+    (ha_core_val h s)
+    (fun n -> A.pts_to h.acc full_perm (fst s) `star`
+           R.pts_to h.ctr full_perm n)
+    (requires True)
+    (ensures fun n -> U32.v n == snd s)
+  = rewrite (ha_core_val h s)
+            (A.pts_to h.acc full_perm (fst s) `star`
+             exists_ (fun (n:U32.t) ->
+               pure (U32.v n == snd s) `star`
+               R.pts_to h.ctr full_perm n));
+    let n = elim_exists () in
+    elim_pure _;
+    n
+
+let fold_ha_core_val (#o:_) (h:ha_core) (s:ehash_value_t)
+  : STGhostT unit o
+    (A.pts_to h.acc full_perm (fst s) `star`
+     exists_ (fun (n:U32.t) ->
+       pure (U32.v n == snd s) `star`
+       R.pts_to h.ctr full_perm n))
+    (fun _ -> ha_core_val h s)
+  = rewrite (A.pts_to h.acc full_perm (fst s) `star`
+             exists_ (fun (n:U32.t) ->
+               pure (U32.v n == snd s) `star`
+               R.pts_to h.ctr full_perm n))
+            (ha_core_val h s);
+    ()
+
+let intro_ha_core_val (#o:_)
+                      (s:ha_core)
+                      (ws:Seq.lseq U8.t 32)
+                      (wc:U32.t)
+                      (res:Ghost.erased hash_value_t { Ghost.reveal res == mk_hash_value ws wc })
+  : STGhostT unit o
+    (A.pts_to s.acc full_perm ws
+      `star`
+     R.pts_to s.ctr full_perm wc)
+    (fun _ ->
+      ha_core_val s res)
+  = let w = mk_hash_value ws wc in
+    rewrite (A.pts_to s.acc _ _)
+            (A.pts_to s.acc full_perm (fst w));
+    intro_pure (U32.v wc == snd w);
+    intro_exists #U32.t wc (fun n -> pure (U32.v n == snd w) `star` R.pts_to s.ctr full_perm n);
+    fold_ha_core_val s w;
+    rewrite (ha_core_val s w)
+            (ha_core_val s res);
+    ()
+
+let aggregate_core (#h1 #h2:ehash_value_t) (b1 b2: ha_core)
+  : STT bool
+    (ha_core_val b1 h1 `star` ha_core_val b2 h2)
+    (fun b -> ha_core_val b1 (maybe_aggregate_hashes b h1 h2) `star` ha_core_val b2 h2)
+  = let _n1 = elim_ha_core_val b1 in
+    let _n2 = elim_ha_core_val b2 in
     let ctr1 = R.read b1.ctr in
     let ctr2 = R.read b2.ctr in
     let ctr = U64.(
@@ -270,17 +351,47 @@ let aggregate #h1 #h2 (b1 b2: ha)
     in
     if U64.(ctr >^ 0xffffffffuL)
     then (
-      intro_ha_val b1 _ _ (maybe_aggregate_hashes false h1 h2);
-      intro_ha_val b2 _ _ h2;
+      intro_ha_core_val b1 _ _ (maybe_aggregate_hashes false h1 h2);
+      intro_ha_core_val b2 _ _ h2;
       return false
     )
     else (
       aggregate_raw_hashes (fst h1) (fst h2) b1.acc b2.acc;
       R.write b1.ctr (narrow_uint64_to_uint32 ctr);
-      intro_ha_val b1 _ _ (maybe_aggregate_hashes true h1 h2);
-      intro_ha_val b2 _ _ h2;
+      intro_ha_core_val b1 _ _ (maybe_aggregate_hashes true h1 h2);
+      intro_ha_core_val b2 _ _ h2;
       return true
     )
+
+let ha_val_as_core_val #o (#w:ehash_value_t) (b:ha)
+  : STGhostT unit o
+    (ha_val b w)
+    (fun r -> ha_core_val {acc=b.acc; ctr=b.ctr} w `star`
+           exists_ (A.pts_to b.tmp full_perm))
+  = let c = elim_ha_val b in
+    intro_ha_core_val {acc=b.acc; ctr=b.ctr} _ _ w
+
+let ha_core_val_as_ha_val #o (#w:ehash_value_t) (b:ha_core) (tmp:hash_value_buf)
+  : STGhostT unit o
+    (ha_core_val b w `star` exists_ (A.pts_to tmp full_perm))
+    (fun r -> ha_val {acc=b.acc; ctr=b.ctr; tmp} w)
+  = let c = elim_ha_core_val b in
+    intro_ha_val {acc=b.acc; ctr=b.ctr; tmp} _ _ w
+
+  
+let aggregate #h1 #h2 (b1 b2: ha)
+  = ha_val_as_core_val b1;
+    ha_val_as_core_val b2;
+    let res =
+      aggregate_core {acc=b1.acc; ctr=b1.ctr}
+                     {acc=b2.acc; ctr=b2.ctr} in
+    ha_core_val_as_ha_val {acc=b1.acc; ctr=b1.ctr} b1.tmp;
+    ha_core_val_as_ha_val {acc=b2.acc; ctr=b2.ctr} b2.tmp;    
+    rewrite (ha_val {acc=b1.acc; ctr=b1.ctr; tmp=b1.tmp} _)
+            (ha_val b1 (maybe_aggregate_hashes res h1 h2));
+    rewrite (ha_val {acc=b2.acc; ctr=b2.ctr; tmp=b2.tmp} _)
+            (ha_val b2 h2);
+    return res
 
 let compare #h1 #h2 (b1 b2:ha)
   = let _n1 = elim_ha_val b1 in
@@ -305,21 +416,34 @@ let add #h (ha:ha)
         #p #s (input:hashable_buffer)
         l
   = R.with_local 1ul (fun ctr ->
-     let acc = A.alloc 0uy 32sz in //TODO:would be nice to stack allocate this
+     ha_val_as_core_val ha;                 
+     let _out = elim_exists () in
      let _dummy = A.alloc 0uy 1sz in //TODO: Really should  R.null, but kremlin doesn't handle that yet
-     Blake.blake2b 32ul acc l input 0ul _dummy;
-     let ha' = { acc; ctr } in
-     rewrite (A.pts_to acc _ _)
-             (A.pts_to ha'.acc full_perm
+     Blake.blake2b 32ul ha.tmp l input 0ul _dummy;
+     let ha_core' = { acc=ha.tmp; ctr } in
+     rewrite (A.pts_to ha.tmp _ _)
+             (A.pts_to ha_core'.acc full_perm
                        (fst (hash_one_value (Seq.slice s 0 (U32.v l)))));
      rewrite (R.pts_to ctr _ _)
-             (R.pts_to ha'.ctr full_perm 1ul);
+             (R.pts_to ha_core'.ctr full_perm 1ul);
      //TODO: marking ha_val steel_reduce leads to a failure here
-     intro_ha_val ha' (fst (hash_one_value (Seq.slice s 0 (U32.v l)))) 1ul (hash_one_value (Seq.slice s 0 (U32.v l)));
-     let v = aggregate ha ha' in
-     let n = elim_ha_val ha' in
-     A.free ha'.acc;
-     rewrite (R.pts_to ha'.ctr full_perm n)
+     intro_ha_core_val ha_core' 
+                       (fst (hash_one_value (Seq.slice s 0 (U32.v l))))
+                       1ul
+                       (hash_one_value (Seq.slice s 0 (U32.v l)));
+     let b = aggregate_core {acc=ha.acc; ctr=ha.ctr} ha_core' in
+     let n = elim_ha_core_val ha_core' in
+     rewrite (R.pts_to ha_core'.ctr full_perm n)
              (R.pts_to ctr full_perm n);
+     rewrite (A.pts_to ha_core'.acc _ _)
+             (A.pts_to ha.tmp full_perm 
+                       (fst (hash_one_value (Seq.slice s 0 (U32.v l)))));
+     intro_exists _ (A.pts_to ha.tmp full_perm);
+     ha_core_val_as_ha_val {acc=ha.acc; ctr=ha.ctr} ha.tmp;
+     rewrite (ha_val {acc=ha.acc; ctr=ha.ctr; tmp=ha.tmp} _)
+             (ha_val ha (maybe_aggregate_hashes b h
+                          (hash_one_value (Seq.slice s 0 (U32.v l)))));
+     intro_exists _ (A.pts_to _dummy full_perm);
      A.free _dummy;
-     return v)
+     return b)
+
