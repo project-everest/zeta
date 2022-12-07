@@ -69,7 +69,7 @@ val aggregate_evict_hash (logs: all_logs) (ep: epoch_id)
   : GTot hash_value_t
 
 val certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {AH.epoch_is_certified (as_tid_logs logs) ep})
-  : Lemma (ensures (aggregate_add_hash logs ep = aggregate_evict_hash logs ep))
+  : Lemma (ensures (aggregate_add_hash logs ep == aggregate_evict_hash logs ep))
 
 val aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
   : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
@@ -77,7 +77,7 @@ val aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
                     let i_ep = lift_epoch ep in
                     let add_set = GG.add_set i_ep gl in
                     let h = aggregate_add_hash logs ep in
-                    h = ms_hashfn add_set))
+                    h == ms_hashfn add_set))
 
 val aggr_evict_hash_correct (logs: verifiable_logs) (ep: epoch_id)
   : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
@@ -85,4 +85,4 @@ val aggr_evict_hash_correct (logs: verifiable_logs) (ep: epoch_id)
                     let i_ep = lift_epoch ep in
                     let evict_set = GG.evict_set i_ep gl in
                     let h = aggregate_evict_hash logs ep in
-                    h = ms_hashfn evict_set))
+                    h == ms_hashfn evict_set))

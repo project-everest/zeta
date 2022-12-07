@@ -84,7 +84,7 @@ let initial_hash
 
 let hash_one_value 
       (iv:Seq.seq U8.t { Seq.length iv == iv_len })
-      (s:Seq.seq U8.t { Seq.length s <= aead_max_input_length })
+      (s:Seq.seq U8.t { Seq.length s <= max_input_length })
   : hash_value_t
   = AEAD.spec G.aead_key iv s, 1
 

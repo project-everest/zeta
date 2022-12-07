@@ -73,4 +73,4 @@ let fits_u32 : squash (FStar.SizeT.fits_u32) = A.intro_fits_u32 ()
 #pop-options
 
 inline_for_extraction
-let u16_as_size_t (x:FStar.UInt16.t) : SizeT.t = SizeT.uint32_to_sizet (FStar.Int.Cast.uint16_to_uint32 x)
+let u16_as_size_t (x:FStar.UInt16.t) : SizeT.t = SizeT.uint16_to_sizet x

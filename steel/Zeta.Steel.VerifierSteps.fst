@@ -483,7 +483,7 @@ let fold_epoch_hash_perm #o
 let ha_add (#v:erased (HA.hash_value_t))
            (ha:HA.ha)
            (l:U32.t)
-           (#bs:erased bytes { U32.v l <= Seq.length bs /\ Seq.length bs <= HA.blake2_max_input_length })
+           (#bs:erased bytes { U32.v l <= Seq.length bs /\ Seq.length bs <= HA.max_input_length })
            (#ivv:erased bytes { Seq.length ivv == HA.iv_len })
            (iv:A.array U8.t)
            (input:A.array U8.t)

@@ -117,7 +117,8 @@ let array_ghost_split
     (FStar.UInt.fits (A.length a) 32)
     (fun _ -> True)
 = A.pts_to_length a c;
-  assume (SizeT.fits (A.length a1));
+  A.length_fits a1;
+  assert (SizeT.fits (A.length a1));
   let i = SizeT.uint_to_t (A.length a1) in
   A.ptr_base_offset_inj (dfst a2) (dfst (A.split_r a i));
   A.ghost_split a i;

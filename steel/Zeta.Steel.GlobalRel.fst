@@ -54,7 +54,7 @@ let aggregate_evict_hash (logs: all_logs) (ep: epoch_id)
     aeh.hevict
   
 let certified_epoch_aggregate_hashes_equal (logs: all_logs) (ep: epoch_id {AH.epoch_is_certified (as_tid_logs logs) ep})
-  : Lemma (ensures (aggregate_add_hash logs ep = aggregate_evict_hash logs ep))
+  : Lemma (ensures (aggregate_add_hash logs ep == aggregate_evict_hash logs ep))
   = ()
 
 let all_valid_tsms = tsms: Seq.seq thread_state_model
@@ -372,6 +372,7 @@ let union_all_sseq (#a: eqtype) (f: Zeta.MultiSet.cmp a) (s: Zeta.SSeq.sseq a)
 
 
 module ZIV = Zeta.Intermediate.Verifier
+#push-options "--z3rlimit_factor 4"
 let rec hash_union_commute (msets:Seq.seq mset)
   : Lemma 
     (ensures
@@ -402,7 +403,7 @@ let rec hash_union_commute (msets:Seq.seq mset)
           ms_hashfn (union_all msets);
       }
     )
-      
+
   
 let aggr_add_hash_correct_alt (logs: verifiable_logs) (ep: epoch_id)
   : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
@@ -432,6 +433,7 @@ let aggr_add_hash_correct_alt (logs: verifiable_logs) (ep: epoch_id)
       union_all (all_add_sets (to_tsms logs) ep);
     };
     hash_union_commute (all_add_sets (to_tsms logs) ep)
+#pop-options      
 
 let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
   : Lemma (requires (AH.epoch_is_certified (as_tid_logs logs) ep))
@@ -439,7 +441,7 @@ let aggr_add_hash_correct (logs: verifiable_logs) (ep: epoch_id)
                     let i_ep = lift_epoch ep in
                     let add_set = GG.add_set i_ep gl in
                     let h = aggregate_add_hash logs ep in
-                    h = ms_hashfn add_set))
+                    h == ms_hashfn add_set))
   = split_aggregate_all_threads_epoch_hashes logs ep;
     aggr_add_hash_correct_alt logs ep
 
@@ -481,6 +483,6 @@ let aggr_evict_hash_correct (logs: verifiable_logs) (ep: epoch_id)
                     let i_ep = lift_epoch ep in
                     let evict_set = GG.evict_set i_ep gl in
                     let h = aggregate_evict_hash logs ep in
-                    h = ms_hashfn evict_set))
+                    h == ms_hashfn evict_set))
   = split_aggregate_all_threads_epoch_hashes logs ep;
     aggr_evict_hash_correct_alt logs ep

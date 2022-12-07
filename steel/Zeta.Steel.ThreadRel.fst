@@ -762,7 +762,7 @@ let init_add_set_empty (tsm: valid_tsm {length tsm = 0}) (ep: epoch_id)
 let init_hadd_correct (tsm: valid_tsm {length tsm = 0}) (ep: epoch_id)
   : Lemma (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hadd = ms_hashfn (add_set tsm i_ep)))
+                    eh.hadd == ms_hashfn (add_set tsm i_ep)))
   = let i_ep = lift_epoch ep in
     init_add_set_empty tsm ep;
     lemma_hashfn_empty ();
@@ -943,10 +943,10 @@ let hadd_correct_snoc_non_addb (tsm: valid_tsm {length tsm > 0}) (ep: epoch_id)
                      let _eh = Map.sel _tsm.epoch_hashes ep in
                      let e = last_entry tsm in
                      not (is_blum_add e) /\
-                     _eh.hadd = ms_hashfn (add_set _tsm i_ep)))
+                     _eh.hadd == ms_hashfn (add_set _tsm i_ep)))
           (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hadd = ms_hashfn (add_set tsm i_ep)))
+                    eh.hadd == ms_hashfn (add_set tsm i_ep)))
   = let i = length tsm - 1 in
     let e = last_entry tsm in
     let eh = Map.sel tsm.epoch_hashes ep in
@@ -1005,11 +1005,11 @@ let hadd_correct_snoc_addb_diff_epoch (tsm: valid_tsm {length tsm > 0}) (ep: epo
                      let _eh = Map.sel _tsm.epoch_hashes ep in
                      let e = last_entry tsm in
                      is_blum_add e /\
-                     _eh.hadd = ms_hashfn (add_set _tsm i_ep) /\
+                     _eh.hadd == ms_hashfn (add_set _tsm i_ep) /\
                      epoch_of_timestamp (blum_add_timestamp e) <> ep))
           (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hadd = ms_hashfn (add_set tsm i_ep)))
+                    eh.hadd == ms_hashfn (add_set tsm i_ep)))
   = let i = length tsm - 1 in
     let i_ep = lift_epoch ep in
     let e = last_entry tsm in
@@ -1057,11 +1057,11 @@ let hadd_correct_snoc_addb_same_epoch (tsm: valid_tsm {length tsm > 0}) (ep: epo
                      let _eh = Map.sel _tsm.epoch_hashes ep in
                      let e = last_entry tsm in
                      is_blum_add e /\
-                     _eh.hadd = ms_hashfn (add_set _tsm i_ep) /\
+                     _eh.hadd == ms_hashfn (add_set _tsm i_ep) /\
                      epoch_of_timestamp (blum_add_timestamp e) = ep))
           (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hadd = ms_hashfn (add_set tsm i_ep)))
+                    eh.hadd == ms_hashfn (add_set tsm i_ep)))
   = let i = length tsm - 1 in
     let i_ep = lift_epoch ep in
     let e = last_entry tsm in
@@ -1109,10 +1109,10 @@ let hadd_correct_snoc (tsm: valid_tsm {length tsm > 0}) (ep: epoch_id)
   : Lemma (requires (let i_ep = lift_epoch ep in
                      let _tsm = prev tsm in
                      let _eh = Map.sel _tsm.epoch_hashes ep in
-                     _eh.hadd = ms_hashfn (add_set _tsm i_ep)))
+                     _eh.hadd == ms_hashfn (add_set _tsm i_ep)))
           (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hadd = ms_hashfn (add_set tsm i_ep)))
+                    eh.hadd == ms_hashfn (add_set tsm i_ep)))
   = let e = last_entry tsm in
 
     if is_blum_add e then
@@ -1126,7 +1126,7 @@ let hadd_correct_snoc (tsm: valid_tsm {length tsm > 0}) (ep: epoch_id)
 let rec valid_implies_hadd_correct (tsm: valid_tsm) (ep: epoch_id)
   : Lemma (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hadd = ms_hashfn (add_set tsm i_ep)))
+                    eh.hadd == ms_hashfn (add_set tsm i_ep)))
           (decreases (length tsm))
   = if length tsm = 0 then
       init_hadd_correct tsm ep
@@ -1158,7 +1158,7 @@ let init_evict_set_empty (tsm: valid_tsm {length tsm = 0}) (ep: epoch_id)
 let init_hevict_correct (tsm: valid_tsm {length tsm = 0}) (ep: epoch_id)
   : Lemma (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                    eh.hevict == ms_hashfn (evict_set tsm i_ep)))
   = let i_ep = lift_epoch ep in
     init_evict_set_empty tsm ep;
     lemma_hashfn_empty ();
@@ -1225,10 +1225,10 @@ let hevict_correct_snoc_non_evictb
                      let _eh = Map.sel _tsm.epoch_hashes ep in
                      let e = last_entry tsm in
                      not (is_blum_evict e) /\
-                     _eh.hevict = ms_hashfn (evict_set _tsm i_ep)))
+                     _eh.hevict == ms_hashfn (evict_set _tsm i_ep)))
           (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                    eh.hevict == ms_hashfn (evict_set tsm i_ep)))
   = let i = length tsm - 1 in
     let e = last_entry tsm in
     let eh = Map.sel tsm.epoch_hashes ep in
@@ -1325,11 +1325,11 @@ let hevict_correct_snoc_evictb_same_epoch
                      let _eh = Map.sel _tsm.epoch_hashes ep in
                      let e = last_entry tsm in
                      is_blum_evict e /\
-                     _eh.hevict = ms_hashfn (evict_set _tsm i_ep) /\
+                     _eh.hevict == ms_hashfn (evict_set _tsm i_ep) /\
                      epoch_of_timestamp (blum_evict_timestamp e) = ep))
            (ensures (let i_ep = lift_epoch ep in
                      let eh = Map.sel tsm.epoch_hashes ep in
-                     eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                     eh.hevict == ms_hashfn (evict_set tsm i_ep)))
  = let i = length tsm - 1 in
    let i_ep = lift_epoch ep in
    let e = last_entry tsm in
@@ -1395,11 +1395,11 @@ let hevict_correct_snoc_evictb_diff_epoch (tsm: valid_tsm {length tsm > 0}) (ep:
                      let _eh = Map.sel _tsm.epoch_hashes ep in
                      let e = last_entry tsm in
                      is_blum_evict e /\
-                     _eh.hevict = ms_hashfn (evict_set _tsm i_ep) /\
+                     _eh.hevict == ms_hashfn (evict_set _tsm i_ep) /\
                      epoch_of_timestamp (blum_evict_timestamp e) <> ep))
           (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                    eh.hevict == ms_hashfn (evict_set tsm i_ep)))
   = let i = length tsm - 1 in
     let i_ep = lift_epoch ep in
     let e = last_entry tsm in
@@ -1441,10 +1441,10 @@ let hevict_correct_snoc (tsm: valid_tsm {length tsm > 0}) (ep: epoch_id)
   : Lemma (requires (let i_ep = lift_epoch ep in
                      let _tsm = prev tsm in
                      let _eh = Map.sel _tsm.epoch_hashes ep in
-                     _eh.hevict = ms_hashfn (evict_set _tsm i_ep)))
+                     _eh.hevict == ms_hashfn (evict_set _tsm i_ep)))
           (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                    eh.hevict == ms_hashfn (evict_set tsm i_ep)))
   = let e = last_entry tsm in
 
     if is_blum_evict e then
@@ -1458,7 +1458,7 @@ let hevict_correct_snoc (tsm: valid_tsm {length tsm > 0}) (ep: epoch_id)
 let rec valid_implies_hevict_correct (tsm: valid_tsm) (ep: epoch_id)
   : Lemma (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                    eh.hevict == ms_hashfn (evict_set tsm i_ep)))
           (decreases (length tsm))
   = if length tsm = 0 then
       init_hevict_correct tsm ep
@@ -1472,13 +1472,13 @@ let rec valid_implies_hevict_correct (tsm: valid_tsm) (ep: epoch_id)
 let valid_implies_epoch_hashes_correct (tsm: valid_tsm)
   : Lemma (ensures (forall (ep: epoch_id). let i_ep = lift_epoch ep in
                                       let eh = Map.sel tsm.epoch_hashes ep in
-                                      eh.hadd = ms_hashfn (add_set tsm i_ep) /\
-                                      eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                                      eh.hadd == ms_hashfn (add_set tsm i_ep) /\
+                                      eh.hevict == ms_hashfn (evict_set tsm i_ep)))
   = let aux (ep:_)
       : Lemma (ensures (let i_ep = lift_epoch ep in
                         let eh = Map.sel tsm.epoch_hashes ep in
-                        eh.hadd = ms_hashfn (add_set tsm i_ep) /\
-                        eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                        eh.hadd == ms_hashfn (add_set tsm i_ep) /\
+                        eh.hevict == ms_hashfn (evict_set tsm i_ep)))
       = let i_ep = lift_epoch ep in
         let eh = Map.sel tsm.epoch_hashes ep in
         valid_implies_hadd_correct tsm ep;
@@ -1493,24 +1493,24 @@ let valid_implies_spec_rel (tsm: valid_tsm)
 let valid_hadd_prop (ep: TSM.epoch_id) (tsm: valid_tsm)
   : Lemma (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hadd = ms_hashfn (add_set tsm i_ep)))
+                    eh.hadd == ms_hashfn (add_set tsm i_ep)))
   = valid_implies_epoch_hashes_correct tsm;
     eliminate forall (ep: epoch_id). let i_ep = lift_epoch ep in
                                 let eh = Map.sel tsm.epoch_hashes ep in
-                                eh.hadd = ms_hashfn (add_set tsm i_ep) /\
-                                eh.hevict = ms_hashfn (evict_set tsm i_ep)
+                                eh.hadd == ms_hashfn (add_set tsm i_ep) /\
+                                eh.hevict == ms_hashfn (evict_set tsm i_ep)
     with ep;
     ()
 
 let valid_hevict_prop (ep: TSM.epoch_id) (tsm: valid_tsm)
   : Lemma (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                    eh.hevict == ms_hashfn (evict_set tsm i_ep)))
   = valid_implies_epoch_hashes_correct tsm;
     eliminate forall (ep: epoch_id). let i_ep = lift_epoch ep in
                                 let eh = Map.sel tsm.epoch_hashes ep in
-                                eh.hadd = ms_hashfn (add_set tsm i_ep) /\
-                                eh.hevict = ms_hashfn (evict_set tsm i_ep)
+                                eh.hadd == ms_hashfn (add_set tsm i_ep) /\
+                                eh.hevict == ms_hashfn (evict_set tsm i_ep)
     with ep;
     ()
 

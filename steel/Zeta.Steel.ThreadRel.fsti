@@ -85,8 +85,8 @@ let spec_rel (tsm: valid_tsm)
   = spec_rel_base tsm /\
     (forall (s_ep: epoch_id). let i_ep = lift_epoch s_ep in
                           let eh = Map.sel tsm.epoch_hashes s_ep in
-                          eh.hadd = ms_hashfn (add_set tsm i_ep) /\
-                          eh.hevict = ms_hashfn (evict_set tsm i_ep))
+                          eh.hadd == ms_hashfn (add_set tsm i_ep) /\
+                          eh.hevict == ms_hashfn (evict_set tsm i_ep))
 
 val valid_implies_spec_rel (tsm: valid_tsm)
   : Lemma (ensures (spec_rel tsm))
@@ -95,12 +95,12 @@ val valid_implies_spec_rel (tsm: valid_tsm)
 val valid_hadd_prop (ep: TSM.epoch_id) (tsm: valid_tsm)
   : Lemma (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hadd = ms_hashfn (add_set tsm i_ep)))
+                    eh.hadd == ms_hashfn (add_set tsm i_ep)))
 
 val valid_hevict_prop (ep: TSM.epoch_id) (tsm: valid_tsm)
   : Lemma (ensures (let i_ep = lift_epoch ep in
                     let eh = Map.sel tsm.epoch_hashes ep in
-                    eh.hevict = ms_hashfn (evict_set tsm i_ep)))
+                    eh.hevict == ms_hashfn (evict_set tsm i_ep)))
 
 val run_props (tid: AT.tid) (l: s_log)
   : Lemma (ensures (let tsm = run tid l in

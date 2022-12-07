@@ -5,13 +5,13 @@ module A = Steel.ST.Array
 open Steel.ST.Util
 
 inline_for_extraction noextract
-let aead_max_input_length = pow2 31
+let max_input_length = pow2 31 - 1
 
 // NOTE: we do not have an agile spec for the keyed hash functionality :(, so
 // we're making Blake2-dependent assumptions without corresponding agile predicates
 noextract inline_for_extraction
-let hashable_bytes = s:Seq.seq U8.t { Seq.length s < aead_max_input_length }
-let hashable_buffer = b:A.array U8.t { A.length b < aead_max_input_length }
+let hashable_bytes = s:Seq.seq U8.t { Seq.length s <= max_input_length }
+let hashable_buffer = b:A.array U8.t { A.length b <= max_input_length }
 
 inline_for_extraction noextract
 let iv_len = 96
