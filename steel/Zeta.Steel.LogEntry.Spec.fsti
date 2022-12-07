@@ -88,3 +88,8 @@ val spec_parser_u256_never_fails (b:Seq.seq U8.t { Seq.length b == 32 })
   : Lemma (match spec_parser_u256 b with
            | None -> False
            | Some (_, n) -> n == 32)
+
+val spec_parser_iv : spec_parser timestamp
+val spec_serializer_iv: spec_serializer spec_parser_iv
+val serialized_iv_length (s:timestamp)
+  : Lemma (Seq.length (spec_serializer_iv s) == 96)
