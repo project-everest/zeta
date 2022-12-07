@@ -431,11 +431,22 @@ let compare #h1 #h2 (b1 b2:ha)
       return b
     )
 
-let get_aead_key (#o:_) (_:unit)
-  : STGhostT perm o
+let get_aead_key (_:unit)
+  : STGhostT perm Set.empty
       emp
       (fun p -> A.pts_to G.aead_key_buffer p G.aead_key)
-  = admit_(); full_perm
+  =  let open G in
+     let body (_:unit)
+       : STGhostT perm (add_inv Set.empty aead_key_inv)
+           (exists_ (fun p -> A.pts_to aead_key_buffer p aead_key) `star` emp)
+           (fun q -> exists_ (fun p -> A.pts_to aead_key_buffer p aead_key) `star` 
+                  A.pts_to aead_key_buffer q aead_key)
+       = let p = elim_exists () in
+         A.share G.aead_key_buffer p (half_perm p) (half_perm p);
+         intro_exists (half_perm p) (fun p -> A.pts_to aead_key_buffer p aead_key);
+         half_perm p
+     in
+     with_invariant_g aead_key_inv body
 
 let aead_with_key  
          (#iv_p:perm)
