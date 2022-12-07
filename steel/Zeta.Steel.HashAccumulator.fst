@@ -4,6 +4,7 @@ module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 module Cast = FStar.Int.Cast
 module A = Steel.ST.Array
+module ZSU = Zeta.Steel.Util
 open Steel.ST.Util
 module AEAD = EverCrypt.AEAD
 module Loops = Steel.ST.Loops
@@ -469,15 +470,25 @@ let aead_with_key
     return res
 
 #push-options "--query_stats --z3rlimit_factor 4"
-let add #h (ha:ha)
-        #p #ivv
-        #s
-        iv
-        (input:hashable_buffer)
-        l
+let add' (#h:hash_value_t) (ha:ha)
+         (#p:perm) 
+         (#ivv:Ghost.erased (Seq.seq U8.t) { Seq.length ivv == iv_len })
+         (#s:Ghost.erased (Seq.seq U8.t))
+         (iv: iv_buffer)
+         (input:hashable_buffer)
+         (l:U32.t { U32.v l == Seq.length s /\
+                    A.length input == Seq.length s })
+  : STT bool
+        (ha_val ha h `star`
+         A.pts_to iv p ivv `star`         
+         A.pts_to input p s)
+        (fun b -> ha_val ha 
+                      (maybe_aggregate_hashes b h
+                        (hash_one_value ivv (Seq.slice s 0 (U32.v l)))) `star`
+               A.pts_to iv p ivv `star`         
+               A.pts_to input p s)
   = R.with_local 1ul (fun ctr ->
      ha_val_as_core_val ha;                 
-     assume (U32.v l == A.length input);
      let success = aead_with_key iv input l ha.tmp in
      let out_ = elim_exists () in
      elim_pure _;
@@ -518,3 +529,39 @@ let add #h (ha:ha)
      )
     )
 #pop-options
+
+module US = FStar.SizeT
+
+
+(** Hash the (input[0, l)) into the hash accumulate s *)
+let add (#h:hash_value_t) (ha:ha)
+        (#p:perm) 
+        (#ivv:Ghost.erased (Seq.seq U8.t) { Seq.length ivv == iv_len })
+        (#s:Ghost.erased (Seq.seq U8.t))
+        (iv: iv_buffer)
+        (input:hashable_buffer)
+        (l:U32.t { U32.v l <= Seq.length s /\
+                   A.length input == Seq.length s })
+  : STT bool
+        (ha_val ha h `star`
+         A.pts_to iv p ivv `star`         
+         A.pts_to input p s)
+        (fun b -> ha_val ha 
+                      (maybe_aggregate_hashes b h
+                        (hash_one_value ivv (Seq.slice s 0 (U32.v l)))) `star`
+               A.pts_to iv p ivv `star`         
+               A.pts_to input p s)
+  = let l_sz = US.uint32_to_sizet l in
+    let adj = A.ghost_split input l_sz in
+    let res = add' ha iv (A.split_l input l_sz) l in
+    A.ghost_join (A.split_l input l_sz) (A.split_r input l_sz) adj;
+    assert (Seq.equal (Seq.append (Seq.slice s 0 (US.v l_sz))
+                                  (Seq.slice s (US.v l_sz) (Seq.length s)))
+                      s);
+    rewrite (A.pts_to (A.merge (A.split_l input l_sz) (A.split_r input l_sz)) _ _)
+            (A.pts_to input p s);
+    rewrite (ha_val _ _)
+            (ha_val ha 
+                      (maybe_aggregate_hashes res h
+                        (hash_one_value ivv (Seq.slice s 0 (U32.v l)))));
+    return res
