@@ -480,20 +480,27 @@ let fold_epoch_hash_perm #o
             (epoch_hash_perm k v c)
 
 
-let ha_add (#v:erased (HA.hash_value_t))
+assume
+val ha_add (#v:erased (HA.hash_value_t))
            (ha:HA.ha)
            (l:U32.t)
            (#bs:erased bytes { U32.v l <= Seq.length bs /\ Seq.length bs <= HA.blake2_max_input_length })
+           (#ivv:erased bytes { Seq.length ivv == HA.iv_len })
+           (iv:A.array U8.t)
            (input:A.array U8.t)
   : STT bool
-       (HA.ha_val ha v `star` array_pts_to input bs)
+       (HA.ha_val ha v `star`
+        array_pts_to input bs `star`
+        array_pts_to iv ivv)
        (fun b ->
          array_pts_to input bs `star`
+         array_pts_to iv ivv `star`
          HA.ha_val ha (HA.maybe_aggregate_hashes b v
-                         (HA.hash_one_value (Seq.slice bs 0 (U32.v l)))))
-  = A.pts_to_length input _;
-    let x = HA.add ha input l in
-    return x
+                         (HA.hash_one_value ivv (Seq.slice bs 0 (U32.v l)))))
+  // = A.pts_to_length input _;
+  //   A.pts_to_length iv _;
+  //   let x = HA.add ha iv input l in
+  //   return x
 
 
 let new_epoch (e:M.epoch_id)
@@ -584,14 +591,37 @@ let get_or_init_eht #v #c (#vp:M.epoch_id -> v -> c -> vprop) (#repr:erased (Epo
                 (get_or_init_post eht e def repr None);
         return None
 
-#push-options "--z3rlimit_factor 2"
-let rec update_ht (#tsm:M.thread_state_model)
-                  (t:thread_state_t)
-                  (e:M.epoch_id)
-                  (r:T.record)
-                  (ts:T.timestamp)
-                  (thread_id:T.thread_id)
-                  (ht:htype)
+#push-options "--z3rlimit_factor 4"
+
+let remove_upd (x:M.epoch_id)
+  : Lemma (forall v. PartialMap.remove (PartialMap.upd EpochMap.empty_borrows x v) x
+                == EpochMap.empty_borrows)
+  = ()
+#push-options "--print_implicits"
+let ghost_put_back (#o:_)
+              (#v:Type) 
+              (#c:Type)
+              (#vp:M.epoch_id -> v -> c -> vprop)
+              (#init:Ghost.erased c)
+              (#m:Ghost.erased (EpochMap.repr c))
+              (a:EpochMap.tbl vp)
+              (i:M.epoch_id)
+              (x:v)
+              (content:Ghost.erased c)
+  : STGhostT unit o
+      (EpochMap.perm a init m (PartialMap.upd EpochMap.empty_borrows i x) `star` vp i x content)
+      (fun _ -> EpochMap.full_perm a init (Map.upd m i content))
+  = EpochMap.ghost_put a i x content;
+    rewrite (EpochMap.perm _ _ _ _)
+            (EpochMap.full_perm a init (Map.upd m i content))
+
+let update_ht (#tsm:M.thread_state_model)
+              (t:thread_state_t)
+              (e:M.epoch_id)
+              (r:T.record)
+              (ts:T.timestamp)
+              (thread_id:T.thread_id)
+              (ht:htype)
   : STT bool
     (thread_state_inv_core t tsm)
     (fun b -> thread_state_inv_core t (update_if b tsm (update_epoch_hash tsm e r ts thread_id ht)))
@@ -614,45 +644,59 @@ let rec update_ht (#tsm:M.thread_state_model)
         thread_id = thread_id
       } in
       serialized_stamped_record_length sr;
+      let _iv = elim_exists #_ #_ #(array_pts_to t.iv_buffer) () in
       let n = serialize_stamped_record 4096ul 0ul t.serialization_buffer sr in
       let bs = elim_exists () in
       elim_pure ( _ /\ _ /\ _ /\ _);
+      intro_exists_erased _iv (array_pts_to t.iv_buffer);
+      serialized_iv_length ts;
+      let iv_n = serialize_iv 96ul 0ul t.iv_buffer ts in
+      assume (iv_n == 96ul);
+      let iv_t = elim_exists () in
+      elim_pure ( _ /\ _ /\ _ /\ _);
+      // let b = ha_add v.hadd n t.iv_buffer t.serialization_buffer in
+      // fold_epoch_hash_perm e v
+      //          (update_if b (Map.sel tsm.epoch_hashes e)
+      //                       (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id HAdd));
+      // admit_(); return false
       let ha = if ht = HAdd then v.hadd else v.hevict in
       let b =
         match ht
               returns (STT bool
                            (HA.ha_val v.hadd (Map.sel tsm.epoch_hashes e).hadd `star`
                             HA.ha_val v.hevict (Map.sel tsm.epoch_hashes e).hevict `star`
-                            array_pts_to t.serialization_buffer bs
+                            array_pts_to t.serialization_buffer bs `star`
+                            array_pts_to t.iv_buffer iv_t
                             )
                            (fun b ->
                              array_pts_to t.serialization_buffer bs `star`
+                             array_pts_to t.iv_buffer iv_t `star`                             
                              EH.epoch_hash_perm e v
                               (update_if b (Map.sel tsm.epoch_hashes e)
                                            (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id ht))))
         with
         | HAdd ->
-          let b = ha_add v.hadd n t.serialization_buffer in
+          let b = ha_add v.hadd n t.iv_buffer t.serialization_buffer in
           fold_epoch_hash_perm e v
                (update_if b (Map.sel tsm.epoch_hashes e)
                             (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id HAdd));
           return b
         | HEvict ->
-          let b = ha_add v.hevict n t.serialization_buffer in
+          let b = ha_add v.hevict n t.iv_buffer t.serialization_buffer in
           fold_epoch_hash_perm e v
                (update_if b (Map.sel tsm.epoch_hashes e)
                             (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id HEvict));
           return b
       in
-      EpochMap.ghost_put t.epoch_hashes e v _;
-      rewrite (EpochMap.perm _ _ _ _)
-              (EpochMap.full_perm t.epoch_hashes M.init_epoch_hash
-                           (Map.upd tsm.epoch_hashes e
-                                   (update_if b (Map.sel tsm.epoch_hashes e)
-                                                (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id ht))));
-
-
+      ghost_put_back t.epoch_hashes e v _;
+      // assert_                                    
+      //         (EpochMap.full_perm t.epoch_hashes M.init_epoch_hash
+      //                      (Map.upd tsm.epoch_hashes e
+      //                              (update_if b (Map.sel tsm.epoch_hashes e)
+      //                                           (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id ht))));
+      // admit_(); return false      
       intro_exists _ (array_pts_to t.serialization_buffer);
+      intro_exists _ (array_pts_to t.iv_buffer);
       maybe_update_epoch_hash_equiv b tsm e r ts thread_id ht;
       rewrite (thread_state_inv_core t (maybe_update_epoch_hash b tsm e r ts thread_id ht))
               (thread_state_inv_core t (update_if b tsm (update_epoch_hash tsm e r ts thread_id ht)));
@@ -1128,11 +1172,11 @@ let aggregate_epoch_hashes_t (#e:_)
 
 /// Updates the aggregate epoch hash for a thread with the
 /// t thread-local epoch hashes for epoch e
-let rec propagate_epoch_hash (#tsm:M.thread_state_model)
-                             (t:thread_state_t)
-                             (#hv:erased AEH.epoch_hashes_repr)
-                             (hashes : AEH.all_epoch_hashes)
-                             (e:M.epoch_id)
+let propagate_epoch_hash (#tsm:M.thread_state_model)
+                         (t:thread_state_t)
+                         (#hv:erased AEH.epoch_hashes_repr)
+                         (hashes : AEH.all_epoch_hashes)
+                         (e:M.epoch_id)
   : STT bool
     (thread_state_inv_core t tsm `star`
      EpochMap.full_perm hashes M.init_epoch_hash hv)

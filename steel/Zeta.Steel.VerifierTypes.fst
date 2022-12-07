@@ -43,6 +43,7 @@ type thread_state_t = {
   processed_entries: G.ref (Seq.seq log_entry);
   app_results  : G.ref M.app_results;
   serialization_buffer: A.larray U8.t 4096;
+  iv_buffer    : A.larray U8.t 96;
   hasher       : HashValue.hasher_t
 }
 
@@ -61,6 +62,7 @@ let thread_state_inv_core (t:thread_state_t)
     G.pts_to t.processed_entries full tsm.processed_entries `star`
     G.pts_to t.app_results full tsm.app_results `star`
     exists_ (array_pts_to t.serialization_buffer) `star`
+    exists_ (array_pts_to t.iv_buffer) `star`    
     HashValue.inv t.hasher
 
 let intro_thread_state_inv_core #o
@@ -84,6 +86,7 @@ let intro_thread_state_inv_core #o
       G.pts_to t.processed_entries full pe `star`
       G.pts_to t.app_results full ar `star`
       exists_ (array_pts_to t.serialization_buffer) `star`
+      exists_ (array_pts_to t.iv_buffer) `star`      
       HashValue.inv t.hasher)
      (fun _ -> thread_state_inv_core t tsm)
      (requires
@@ -106,6 +109,7 @@ let intro_thread_state_inv_core #o
               G.pts_to t.processed_entries _ _ `star`
               G.pts_to t.app_results _ _ `star`
               exists_ (array_pts_to t.serialization_buffer) `star`
+              exists_ (array_pts_to t.iv_buffer) `star`              
               HashValue.inv t.hasher)
              (thread_state_inv_core t tsm)
 

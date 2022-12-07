@@ -69,7 +69,6 @@ type thread_state_model = {
   processed_entries: Seq.seq log_entry;
   app_results: app_results;
   last_verified_epoch: option epoch_id;
-  aead_key: HashAccumulator.key_t;
 }
 
 let fail tsm = {tsm with failed=true}
@@ -112,7 +111,7 @@ let init_value (k:key)
 inline_for_extraction
 let zero_clock = { epoch = 0ul; counter = 0ul }
 
-let init_thread_state_model tid aead_key
+let init_thread_state_model tid
   : thread_state_model
   = let tsm = {
       thread_id = tid;
@@ -124,7 +123,6 @@ let init_thread_state_model tid aead_key
       processed_entries = Seq.empty;
       app_results = Seq.empty;
       last_verified_epoch = None;
-      aead_key
     } in
     if U16.v tid = 0 then 
       madd_to_store_root tsm U16.zero (init_value root_key)
@@ -177,8 +175,7 @@ let update_last_evict_key (tsm: thread_state_model) (k: T.base_key)
   : thread_state_model
   = { tsm with last_evict_key = k }
   
-let update_hash_value (aead_key:HashAccumulator.key_t)
-                      (ha:HA.hash_value_t)
+let update_hash_value (ha:HA.hash_value_t)
                       (r:T.record)
                       (t:T.timestamp)
                       (tid:T.thread_id)
@@ -188,29 +185,27 @@ let update_hash_value (aead_key:HashAccumulator.key_t)
     serialized_stamped_record_length sr;
     let iv = spec_serializer_iv t in
     serialized_iv_length t;
-    let h = HA.hash_one_value aead_key iv b in
+    let h = HA.hash_one_value iv b in
     HA.aggregate_hashes ha h
 
-let update_epoch_hadd (aead_key:HashAccumulator.key_t)
-                      (ehs:epoch_hashes)
+let update_epoch_hadd (ehs:epoch_hashes)
                       (eid:epoch_id)
                       (r:T.record)
                       (t:T.timestamp)
                       (thread_id:T.thread_id)
   : GTot epoch_hashes
   = let eh = Map.sel ehs eid in
-    let eh = { eh with hadd = update_hash_value aead_key eh.hadd r t thread_id } in
+    let eh = { eh with hadd = update_hash_value eh.hadd r t thread_id } in
     Map.upd ehs eid eh
 
-let update_epoch_hevict (aead_key:HashAccumulator.key_t)
-                        (ehs:epoch_hashes)
+let update_epoch_hevict (ehs:epoch_hashes)
                         (eid:epoch_id)
                         (r:T.record)
                         (t:T.timestamp)
                         (thread_id:T.thread_id)
   : GTot epoch_hashes
   = let eh = Map.sel ehs eid in
-    let eh = { eh with hevict = update_hash_value aead_key eh.hevict r t thread_id } in
+    let eh = { eh with hevict = update_hash_value eh.hevict r t thread_id } in
     Map.upd ehs eid eh
 
 let update_hadd (tsm:thread_state_model)
@@ -218,14 +213,14 @@ let update_hadd (tsm:thread_state_model)
                 (r:T.record)
                 (t:T.timestamp)
                 (thread_id:T.thread_id)
-  = {tsm with epoch_hashes = update_epoch_hadd tsm.aead_key tsm.epoch_hashes e r t thread_id }
+  = {tsm with epoch_hashes = update_epoch_hadd tsm.epoch_hashes e r t thread_id }
 
 let update_hevict (tsm:thread_state_model)
                   (e:epoch_id)
                   (r:T.record)
                   (t:T.timestamp)
                   (thread_id:T.thread_id)
-  = {tsm with epoch_hashes = update_epoch_hevict tsm.aead_key tsm.epoch_hashes e r t thread_id }
+  = {tsm with epoch_hashes = update_epoch_hevict tsm.epoch_hashes e r t thread_id }
 
 let to_merkle_value (v:T.value)
   : option T.mval_value
@@ -785,7 +780,6 @@ let rec write_slots (tsm:thread_state_model)
                       { Seq.length slots == Seq.length values })
   : GTot (tsm':thread_state_model{
             tsm.thread_id == tsm'.thread_id /\
-            tsm.aead_key == tsm'.aead_key /\
             tsm.last_verified_epoch == tsm'.last_verified_epoch /\
             tsm.clock == tsm'.clock /\
             tsm.last_evict_key == tsm'.last_evict_key /\
@@ -814,7 +808,6 @@ let runapp (tsm:thread_state_model)
            (pl:runApp_payload)
   : GTot (tsm':thread_state_model { 
             tsm'.thread_id == tsm.thread_id /\
-            tsm'.aead_key == tsm.aead_key /\            
             tsm'.last_verified_epoch == tsm.last_verified_epoch /\
             tsm'.clock == tsm.clock /\
             tsm'.last_evict_key == tsm.last_evict_key /\
@@ -925,15 +918,14 @@ let rec bytes_of_app_results (s:app_results)
   
 let tsm_entries_invariant (tsm:thread_state_model) =
     not tsm.failed ==>
-    tsm == verify_model (init_thread_state_model tsm.thread_id tsm.aead_key)
+    tsm == verify_model (init_thread_state_model tsm.thread_id)
                         tsm.processed_entries
 
 #push-options "--ifuel 1 --z3rlimit_factor 9"
 let verify_step_model_thread_id_inv 
               (tsm:thread_state_model)
               (le:log_entry)
-  : Lemma (tsm.thread_id == (verify_step_model tsm le).thread_id /\
-           tsm.aead_key == (verify_step_model tsm le).aead_key)
+  : Lemma (tsm.thread_id == (verify_step_model tsm le).thread_id)
   = ()
 #pop-options
 
@@ -941,8 +933,7 @@ let verify_step_model_thread_id_inv
 let rec verify_model_thread_id_inv 
               (tsm:thread_state_model)
               (les:log)
-  : Lemma (ensures (verify_model tsm les).thread_id == tsm.thread_id /\
-                   (verify_model tsm les).aead_key == tsm.aead_key)
+  : Lemma (ensures (verify_model tsm les).thread_id == tsm.thread_id)
           (decreases (Seq.length les))
   = if Seq.length les = 0 then ()
     else if tsm.failed then ()
@@ -964,7 +955,7 @@ let tsm_entries_invariant_verify_step (tsm:thread_state_model)
   = let tsm_init = init_thread_state_model tsm.thread_id in
     let tsm1 = verify_step_model tsm le in
     verify_model_thread_id_inv 
-      (init_thread_state_model tsm.thread_id tsm.aead_key)
+      (init_thread_state_model tsm.thread_id)
       tsm.processed_entries;
     verify_step_model_thread_id_inv tsm le;
     if tsm.failed || tsm1.failed
@@ -1026,11 +1017,11 @@ let committed_entries_prefix (l:log)
             l
   
 #push-options "--fuel 1 --ifuel 1 --z3rlimit_factor 8"
-let rec last_verified_epoch_constant_log (log:log) (tid:tid) (aead_key:_)
+let rec last_verified_epoch_constant_log (log:log) (tid:tid)
   : Lemma
     (ensures (
-      let tsm1 = verify_model (init_thread_state_model tid aead_key) log in
-      let tsm0 = verify_model (init_thread_state_model tid aead_key) (committed_log_entries log) in
+      let tsm1 = verify_model (init_thread_state_model tid) log in
+      let tsm0 = verify_model (init_thread_state_model tid) (committed_log_entries log) in
       tsm1.last_verified_epoch == tsm0.last_verified_epoch))
     (decreases (Seq.length log))
   = if Seq.length log = 0
@@ -1043,10 +1034,10 @@ let rec last_verified_epoch_constant_log (log:log) (tid:tid) (aead_key:_)
         committed_entries_idem log
 
       | _ -> 
-        let tsm1 = verify_model (init_thread_state_model tid aead_key) log in
-        let tsm1_prefix = verify_model (init_thread_state_model tid aead_key) prefix in
+        let tsm1 = verify_model (init_thread_state_model tid) log in
+        let tsm1_prefix = verify_model (init_thread_state_model tid) prefix in
         assert (tsm1 == verify_step_model tsm1_prefix last);      
-        last_verified_epoch_constant_log prefix tid aead_key;
+        last_verified_epoch_constant_log prefix tid;
         committed_entries_prefix log
     )
 #pop-options
@@ -1057,9 +1048,9 @@ let last_verified_epoch_constant (tsm:thread_state_model)
       tsm_entries_invariant tsm /\
       not tsm.failed)
     (ensures (
-      let tsm0 = verify_model (init_thread_state_model tsm.thread_id tsm.aead_key) (committed_entries tsm) in
+      let tsm0 = verify_model (init_thread_state_model tsm.thread_id) (committed_entries tsm) in
       tsm.last_verified_epoch == tsm0.last_verified_epoch))
-  = last_verified_epoch_constant_log tsm.processed_entries tsm.thread_id tsm.aead_key
+  = last_verified_epoch_constant_log tsm.processed_entries tsm.thread_id
 
 #push-options "--fuel 1 --z3rlimit_factor 3"
 let verify_model_snoc (tsm:thread_state_model)
@@ -1178,7 +1169,7 @@ let last_verified_epoch_clock_invariant_steps
      last_verified_epoch_clock_invariant tsm /\
      last_verified_epoch_clock_invariant tsm')
   = extend_step_invariant
-        (init_thread_state_model tsm.thread_id tsm.aead_key)
+        (init_thread_state_model tsm.thread_id)
         tsm.processed_entries
         (fun tsm -> last_verified_epoch_clock_invariant tsm)
         last_verified_epoch_clock_invariant_step;
@@ -1189,10 +1180,10 @@ let last_verified_epoch_clock_invariant_steps
            last_verified_epoch_clock_invariant_step
 
 #push-options "--fuel 1"
-let tsm_entries_invariant_steps (tid:tid) (aead_key:_) (les:log)
-  : Lemma (tsm_entries_invariant (verify_model (init_thread_state_model tid aead_key) les))
-  = assert (tsm_entries_invariant (init_thread_state_model tid aead_key));
-    extend_step_invariant (init_thread_state_model tid aead_key)
+let tsm_entries_invariant_steps (tid:tid) (les:log)
+  : Lemma (tsm_entries_invariant (verify_model (init_thread_state_model tid) les))
+  = assert (tsm_entries_invariant (init_thread_state_model tid));
+    extend_step_invariant (init_thread_state_model tid)
                           les
                           tsm_entries_invariant
                           (fun tsm le -> tsm_entries_invariant_verify_step tsm le)
@@ -1265,7 +1256,7 @@ let verified_epoch_hashes_constant (tsm:thread_state_model { tsm_entries_invaria
     then ()
     else (
         last_verified_epoch_clock_invariant_steps 
-          (init_thread_state_model tsm.thread_id tsm.aead_key)
+          (init_thread_state_model tsm.thread_id)
           tsm.processed_entries;
         epoch_hashes_constant_steps tsm les e
     )
@@ -1389,16 +1380,15 @@ let rec app_results_monotone (tsm:thread_state_model) (les:log)
          app_results_monotone tsm prefix;
          app_results_monotone_step (verify_model tsm prefix) (Seq.index les (Seq.length les - 1))
 
-let run (tid:tid) (aead_key:_) = verify_model (init_thread_state_model tid aead_key)
+let run (tid:tid) = verify_model (init_thread_state_model tid)
 
 let rec run_all (n:nat{n <= U32.v n_threads})
-                (aead_key:_)
                 (logs:Seq.lseq log n)
   : Seq.seq thread_state_model
   = if n = 0 then Seq.empty
     else let prefix, last = Seq.un_snoc logs in
          let tid_last = U16.uint_to_t (Seq.length logs - 1) in
-         let tsms = run_all (n - 1) aead_key prefix in
-         let tsm = run tid_last aead_key last in
+         let tsms = run_all (n - 1) prefix in
+         let tsm = run tid_last last in
          Seq.snoc tsms tsm
          

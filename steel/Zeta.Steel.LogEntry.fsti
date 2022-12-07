@@ -28,3 +28,9 @@ val zeta__parser_u256 : parser spec_parser_u256
 inline_for_extraction
 noextract
 let parser_u256 : parser spec_parser_u256 = zeta__parser_u256
+
+val zeta__serialize_iv : serializer spec_serializer_iv
+
+inline_for_extraction
+noextract
+let serialize_iv : serializer spec_serializer_iv = zeta__serialize_iv

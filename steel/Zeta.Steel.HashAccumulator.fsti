@@ -4,7 +4,6 @@ module U32 = FStar.UInt32
 module A = Steel.ST.Array
 open Steel.ST.Util
 
-
 inline_for_extraction noextract
 let blake2_max_input_length = pow2 32 - 1 - 128
 
@@ -13,10 +12,6 @@ let blake2_max_input_length = pow2 32 - 1 - 128
 noextract inline_for_extraction
 let hashable_bytes = s:Seq.seq U8.t { Seq.length s <= blake2_max_input_length }
 let hashable_buffer = b:A.array U8.t { A.length b <= blake2_max_input_length }
-
-let key_len = 128
-let key_t = Seq.lseq U8.t key_len
-let key_buffer = k:A.array U8.t { A.length k == key_len }
 
 let iv_len = 96
 let iv_t = Seq.lseq U8.t iv_len
@@ -38,7 +33,7 @@ val ha_val (r:ha) (v:ehash_value_t)
 val initial_hash
   : hash_value_t
 
-val hash_one_value (k:key_t) (iv:iv_t) (_:hashable_bytes)
+val hash_one_value (iv:iv_t) (_:hashable_bytes)
   : hash_value_t
 
 val aggregate_hashes (_ _: hash_value_t)
@@ -89,23 +84,19 @@ val compare (#h1 #h2:ehash_value_t) (b1 b2:ha)
 (** Hash the (input[0, l)) into the hash accumulate s *)
 val add (#h:ehash_value_t) (ha:ha)
         (#p:perm) 
-        (#kv:Ghost.erased key_t)
         (#ivv:Ghost.erased iv_t)
         (#s:Ghost.erased (Seq.seq U8.t))
-        (k: key_buffer)
         (iv: iv_buffer)
         (input:hashable_buffer)
         (l:U32.t { U32.v l <= Seq.length s /\
                    A.length input == Seq.length s })
   : STT bool
         (ha_val ha h `star`
-         A.pts_to k p kv `star`
          A.pts_to iv p ivv `star`         
          A.pts_to input p s)
         (fun b -> ha_val ha 
                       (maybe_aggregate_hashes b h
-                        (hash_one_value kv ivv (Seq.slice s 0 (U32.v l)))) `star`
-               A.pts_to k p kv `star`
+                        (hash_one_value ivv (Seq.slice s 0 (U32.v l)))) `star`
                A.pts_to iv p ivv `star`         
                A.pts_to input p s)
            
