@@ -480,8 +480,7 @@ let fold_epoch_hash_perm #o
             (epoch_hash_perm k v c)
 
 
-assume
-val ha_add (#v:erased (HA.hash_value_t))
+let ha_add (#v:erased (HA.hash_value_t))
            (ha:HA.ha)
            (l:U32.t)
            (#bs:erased bytes { U32.v l <= Seq.length bs /\ Seq.length bs <= HA.blake2_max_input_length })
@@ -497,10 +496,10 @@ val ha_add (#v:erased (HA.hash_value_t))
          array_pts_to iv ivv `star`
          HA.ha_val ha (HA.maybe_aggregate_hashes b v
                          (HA.hash_one_value ivv (Seq.slice bs 0 (U32.v l)))))
-  // = A.pts_to_length input _;
-  //   A.pts_to_length iv _;
-  //   let x = HA.add ha iv input l in
-  //   return x
+  = A.pts_to_length input _;
+    A.pts_to_length iv _;
+    let x = HA.add ha iv input l in
+    return x
 
 
 let new_epoch (e:M.epoch_id)
@@ -1741,6 +1740,7 @@ let create_basic (tid:tid)
     let processed_entries : G.ref (Seq.seq log_entry) = G.alloc Seq.empty in
     let app_results : G.ref M.app_results = G.alloc Seq.empty in
     let serialization_buffer = A.alloc 0uy 4096sz in
+    let iv_buffer = A.alloc 0uy 96sz in
     let hasher = HashValue.alloc () in
     let tsm = M.init_thread_state_model tid in
     let t : thread_state_t = {
@@ -1754,9 +1754,11 @@ let create_basic (tid:tid)
         processed_entries;
         app_results;
         serialization_buffer;
+        iv_buffer;
         hasher
     } in
     intro_exists _ (array_pts_to serialization_buffer);
+    intro_exists _ (array_pts_to iv_buffer);    
     rewrite (R.pts_to failed _ _ `star`
              array_pts_to store _ `star`
              R.pts_to clock _ _ `star`
@@ -1766,6 +1768,7 @@ let create_basic (tid:tid)
              G.pts_to processed_entries _ _ `star`
              G.pts_to app_results _ _ `star`
              exists_ (array_pts_to serialization_buffer) `star`
+             exists_ (array_pts_to iv_buffer) `star`             
              HashValue.inv hasher
             )
             (thread_state_inv_core t (init_basic tid));

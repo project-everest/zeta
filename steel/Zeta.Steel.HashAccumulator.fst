@@ -8,6 +8,7 @@ open Steel.ST.Util
 module Blake = Hacl.Blake2b_32
 module Loops = Steel.ST.Loops
 module R = Steel.ST.Reference
+module G = Zeta.Steel.Globals
 #push-options "--ide_id_info_off"
 #push-options "--fuel 0 --ifuel 0"
 
@@ -65,7 +66,9 @@ let fold_ha_val (#o:_) (h:ha) (s:ehash_value_t)
 let initial_hash
   = Seq.create 32 0uy, 0
 
-let hash_one_value (s:Seq.seq U8.t { Seq.length s <= blake2_max_input_length })
+let hash_one_value 
+      (iv:Seq.seq U8.t { Seq.length iv == iv_len })
+      (s:Seq.seq U8.t { Seq.length s <= blake2_max_input_length })
   : hash_value_t
   = Blake.spec s 0 Seq.empty 32, 1
 
@@ -413,7 +416,10 @@ let compare #h1 #h2 (b1 b2:ha)
     )
 
 let add #h (ha:ha)
-        #p #s (input:hashable_buffer)
+        #p #ivv
+        #s
+        iv
+        (input:hashable_buffer)
         l
   = R.with_local 1ul (fun ctr ->
      ha_val_as_core_val ha;                 
@@ -423,26 +429,26 @@ let add #h (ha:ha)
      let ha_core' = { acc=ha.tmp; ctr } in
      rewrite (A.pts_to ha.tmp _ _)
              (A.pts_to ha_core'.acc full_perm
-                       (fst (hash_one_value (Seq.slice s 0 (U32.v l)))));
+                       (fst (hash_one_value ivv (Seq.slice s 0 (U32.v l)))));
      rewrite (R.pts_to ctr _ _)
              (R.pts_to ha_core'.ctr full_perm 1ul);
      //TODO: marking ha_val steel_reduce leads to a failure here
      intro_ha_core_val ha_core' 
-                       (fst (hash_one_value (Seq.slice s 0 (U32.v l))))
+                       (fst (hash_one_value ivv (Seq.slice s 0 (U32.v l))))
                        1ul
-                       (hash_one_value (Seq.slice s 0 (U32.v l)));
+                       (hash_one_value ivv (Seq.slice s 0 (U32.v l)));
      let b = aggregate_core {acc=ha.acc; ctr=ha.ctr} ha_core' in
      let n = elim_ha_core_val ha_core' in
      rewrite (R.pts_to ha_core'.ctr full_perm n)
              (R.pts_to ctr full_perm n);
      rewrite (A.pts_to ha_core'.acc _ _)
              (A.pts_to ha.tmp full_perm 
-                       (fst (hash_one_value (Seq.slice s 0 (U32.v l)))));
+                       (fst (hash_one_value ivv (Seq.slice s 0 (U32.v l)))));
      intro_exists _ (A.pts_to ha.tmp full_perm);
      ha_core_val_as_ha_val {acc=ha.acc; ctr=ha.ctr} ha.tmp;
      rewrite (ha_val {acc=ha.acc; ctr=ha.ctr; tmp=ha.tmp} _)
              (ha_val ha (maybe_aggregate_hashes b h
-                          (hash_one_value (Seq.slice s 0 (U32.v l)))));
+                          (hash_one_value ivv (Seq.slice s 0 (U32.v l)))));
      intro_exists _ (A.pts_to _dummy full_perm);
      A.free _dummy;
      return b)
