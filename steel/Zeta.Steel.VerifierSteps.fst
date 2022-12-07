@@ -614,6 +614,19 @@ let ghost_put_back (#o:_)
     rewrite (EpochMap.perm _ _ _ _)
             (EpochMap.full_perm a init (Map.upd m i content))
 
+
+let serialize_iv_alt (a:A.array U8.t { A.length a == 96 })
+                     (v: timestamp)
+  : Steel.ST.Util.STT unit
+    (exists_ (array_pts_to a))
+    (fun slice_len ->
+       exists_ (fun (bs:_) ->
+         array_pts_to a bs `star`
+         pure (
+           seq_suffix_is_zero bs timestamp_len /\
+           spec_serializer_iv v == bs)))
+  = admit_()
+
 let update_ht (#tsm:M.thread_state_model)
               (t:thread_state_t)
               (e:M.epoch_id)
@@ -649,15 +662,9 @@ let update_ht (#tsm:M.thread_state_model)
       elim_pure ( _ /\ _ /\ _ /\ _);
       intro_exists_erased _iv (array_pts_to t.iv_buffer);
       serialized_iv_length ts;
-      let iv_n = serialize_iv 96ul 0ul t.iv_buffer ts in
-      assume (iv_n == 96ul);
+      serialize_iv_alt t.iv_buffer ts;
       let iv_t = elim_exists () in
-      elim_pure ( _ /\ _ /\ _ /\ _);
-      // let b = ha_add v.hadd n t.iv_buffer t.serialization_buffer in
-      // fold_epoch_hash_perm e v
-      //          (update_if b (Map.sel tsm.epoch_hashes e)
-      //                       (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id HAdd));
-      // admit_(); return false
+      elim_pure ( _ /\ _ );
       let ha = if ht = HAdd then v.hadd else v.hevict in
       let b =
         match ht
@@ -688,12 +695,6 @@ let update_ht (#tsm:M.thread_state_model)
           return b
       in
       ghost_put_back t.epoch_hashes e v _;
-      // assert_                                    
-      //         (EpochMap.full_perm t.epoch_hashes M.init_epoch_hash
-      //                      (Map.upd tsm.epoch_hashes e
-      //                              (update_if b (Map.sel tsm.epoch_hashes e)
-      //                                           (update_hash (Map.sel tsm.epoch_hashes e) r ts thread_id ht))));
-      // admit_(); return false      
       intro_exists _ (array_pts_to t.serialization_buffer);
       intro_exists _ (array_pts_to t.iv_buffer);
       maybe_update_epoch_hash_equiv b tsm e r ts thread_id ht;
