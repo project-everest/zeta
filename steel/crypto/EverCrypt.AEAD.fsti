@@ -1,6 +1,6 @@
 module EverCrypt.AEAD
 open Steel.ST.Util
-module R = LowStar.Buffer
+module R = Steel.Reference
 module A = Steel.ST.Array
 module U32 = FStar.UInt32
 module S = FStar.SizeT
@@ -65,9 +65,9 @@ val encrypt_expand_aes128_gcm_no_check
       (input_len:U32.t { A.length input == U32.v input_len /\
                          U32.v input_len <= max_input_length /\ 
                          Seq.length in_bytes == U32.v input_len })
-      (plain_unused:R.buffer U8.t { plain_unused == R.null }) (* We're not using plain *)
+      (plain_unused:R.ref U8.t { plain_unused == R.null }) (* We're not using plain *)
       (plain_len:U32.t { plain_len = 0ul })
-      (cipher_unused:R.buffer U8.t { cipher_unused == R.null }) (* We're not using cipher *)
+      (cipher_unused:R.ref U8.t { cipher_unused == R.null }) (* We're not using cipher *)
       (tag:A.array U8.t { A.length tag == 16 })
   : STT error_code
     (requires

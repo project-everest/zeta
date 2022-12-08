@@ -27,7 +27,7 @@ STEEL_KRML_FILES=Steel_ST_EphemeralHashtbl.krml \
   Steel_ST_Loops.krml
 
 
-extract: $(addprefix $(OUTPUT_DIRECTORY)/,$(STEEL_KRML_FILES)) $(filter-out $(OUTPUT_DIRECTORY)/FStar_NMST% $(OUTPUT_DIRECTORY)/FStar_MST% $(OUTPUT_DIRECTORY)/Steel_%, $(ALL_KRML_FILES))
+extract: $(addprefix $(OUTPUT_DIRECTORY)/,$(STEEL_KRML_FILES)) $(ALL_KRML_FILES)
 
 KRML_BUNDLING_OPTIONS=-bundle 'Zeta.Steel.SafeMain=Zeta.*,Prims,FStar.*,Hacl.*,Steel.*,EverCrypt.*,C' \
   -library Steel.ST.Loops \

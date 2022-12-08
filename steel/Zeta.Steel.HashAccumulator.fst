@@ -9,7 +9,7 @@ open Steel.ST.Util
 module AEAD = EverCrypt.AEAD
 module Loops = Steel.ST.Loops
 module R = Steel.ST.Reference
-module SR = LowStar.Buffer
+module SR = Steel.Reference
 module G = Zeta.Steel.Globals
 #push-options "--ide_id_info_off"
 #push-options "--fuel 0 --ifuel 0"
