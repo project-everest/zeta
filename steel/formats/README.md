@@ -53,6 +53,10 @@
 
   7. Then, do a `make` in $ZETA_HOME/steel/formats and that should
      verify and extract everything
+
+
+Note, see 64bf46274222634766a595a6a34a4c1957a4a090 for an example
+addition of a timestamp serializer
   
      
 
