@@ -617,15 +617,36 @@ let ghost_put_back (#o:_)
 
 let serialize_iv_alt (a:A.array U8.t { A.length a == 96 })
                      (v: timestamp)
-  : Steel.ST.Util.STT unit
-    (exists_ (array_pts_to a))
-    (fun slice_len ->
-       exists_ (fun (bs:_) ->
-         array_pts_to a bs `star`
-         pure (
-           seq_suffix_is_zero bs timestamp_len /\
-           spec_serializer_iv v == bs)))
-  = admit_()
+  : Steel.ST.Util.ST (Ghost.erased (Seq.seq U8.t))
+    (iv_buffer_inv a)
+    (fun bs -> array_pts_to a bs)
+    (requires True)
+    (ensures fun bs -> 
+      seq_suffix_is_zero bs timestamp_len /\
+      spec_serializer_iv v == Ghost.reveal bs)
+  = rewrite (iv_buffer_inv a)
+            (exists_ (fun bs -> 
+              array_pts_to a bs `star`
+              pure (seq_suffix_is_zero bs 8)));
+    LogEntry.serialize_iv a v;
+    let bs = elim_exists () in
+    elim_pure _;
+    return bs
+
+let intro_iv_buffer_inv (#o:_) (#bs:Ghost.erased (Seq.seq U8.t))
+                        (a:A.array U8.t { A.length a == 96 })
+  : STGhost unit o
+    (array_pts_to a bs)
+    (fun _ -> iv_buffer_inv a)
+    (requires seq_suffix_is_zero bs timestamp_len)
+    (ensures fun _ -> True)
+  = intro_pure (seq_suffix_is_zero bs 8);
+    intro_exists_erased bs 
+         (fun bs -> 
+           array_pts_to a bs `star`
+           pure (seq_suffix_is_zero bs 8));
+    rewrite (exists_ _)
+            (iv_buffer_inv a)
 
 let update_ht (#tsm:M.thread_state_model)
               (t:thread_state_t)
@@ -655,16 +676,12 @@ let update_ht (#tsm:M.thread_state_model)
         timestamp = ts;
         thread_id = thread_id
       } in
+      serialized_iv_length ts;
+      let iv_t = serialize_iv_alt t.iv_buffer ts in
       serialized_stamped_record_length sr;
-      let _iv = elim_exists #_ #_ #(array_pts_to t.iv_buffer) () in
       let n = serialize_stamped_record 4096ul 0ul t.serialization_buffer sr in
       let bs = elim_exists () in
       elim_pure ( _ /\ _ /\ _ /\ _);
-      intro_exists_erased _iv (array_pts_to t.iv_buffer);
-      serialized_iv_length ts;
-      serialize_iv_alt t.iv_buffer ts;
-      let iv_t = elim_exists () in
-      elim_pure ( _ /\ _ );
       let ha = if ht = HAdd then v.hadd else v.hevict in
       let b =
         match ht
@@ -696,7 +713,8 @@ let update_ht (#tsm:M.thread_state_model)
       in
       ghost_put_back t.epoch_hashes e v _;
       intro_exists _ (array_pts_to t.serialization_buffer);
-      intro_exists _ (array_pts_to t.iv_buffer);
+      intro_iv_buffer_inv t.iv_buffer;
+//      intro_exists _ (array_pts_to t.iv_buffer);
       maybe_update_epoch_hash_equiv b tsm e r ts thread_id ht;
       rewrite (thread_state_inv_core t (maybe_update_epoch_hash b tsm e r ts thread_id ht))
               (thread_state_inv_core t (update_if b tsm (update_epoch_hash tsm e r ts thread_id ht)));
@@ -1759,7 +1777,7 @@ let create_basic (tid:tid)
         hasher
     } in
     intro_exists _ (array_pts_to serialization_buffer);
-    intro_exists _ (array_pts_to iv_buffer);    
+    intro_iv_buffer_inv iv_buffer;
     rewrite (R.pts_to failed _ _ `star`
              array_pts_to store _ `star`
              R.pts_to clock _ _ `star`
@@ -1769,7 +1787,7 @@ let create_basic (tid:tid)
              G.pts_to processed_entries _ _ `star`
              G.pts_to app_results _ _ `star`
              exists_ (array_pts_to serialization_buffer) `star`
-             exists_ (array_pts_to iv_buffer) `star`             
+             iv_buffer_inv iv_buffer `star`             
              HashValue.inv hasher
             )
             (thread_state_inv_core t (init_basic tid));

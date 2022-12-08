@@ -49,6 +49,9 @@ type thread_state_t = {
 
 let thread_id t = t.thread_id
 
+let iv_buffer_inv (a:A.array U8.t) =
+    exists_ (fun bs -> array_pts_to a bs `star` pure (LogEntry.seq_suffix_is_zero bs 8))
+
 [@@__reduce__]
 let thread_state_inv_core (t:thread_state_t)
                       ([@@@smt_fallback] tsm:M.thread_state_model)
@@ -62,7 +65,7 @@ let thread_state_inv_core (t:thread_state_t)
     G.pts_to t.processed_entries full tsm.processed_entries `star`
     G.pts_to t.app_results full tsm.app_results `star`
     exists_ (array_pts_to t.serialization_buffer) `star`
-    exists_ (array_pts_to t.iv_buffer) `star`    
+    iv_buffer_inv t.iv_buffer `star`
     HashValue.inv t.hasher
 
 let intro_thread_state_inv_core #o
@@ -86,7 +89,7 @@ let intro_thread_state_inv_core #o
       G.pts_to t.processed_entries full pe `star`
       G.pts_to t.app_results full ar `star`
       exists_ (array_pts_to t.serialization_buffer) `star`
-      exists_ (array_pts_to t.iv_buffer) `star`      
+      iv_buffer_inv t.iv_buffer `star`              
       HashValue.inv t.hasher)
      (fun _ -> thread_state_inv_core t tsm)
      (requires
@@ -109,7 +112,7 @@ let intro_thread_state_inv_core #o
               G.pts_to t.processed_entries _ _ `star`
               G.pts_to t.app_results _ _ `star`
               exists_ (array_pts_to t.serialization_buffer) `star`
-              exists_ (array_pts_to t.iv_buffer) `star`              
+              iv_buffer_inv t.iv_buffer `star`              
               HashValue.inv t.hasher)
              (thread_state_inv_core t tsm)
 
