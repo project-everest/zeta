@@ -147,13 +147,6 @@ typedef struct value_s
 }
 value;
 
-typedef struct ha_s
-{
-  uint8_t *acc;
-  uint32_t *ctr;
-}
-ha;
-
 #define MAdd 0
 #define BAdd 1
 
@@ -203,6 +196,14 @@ typedef struct high_water_mark_s
 }
 high_water_mark;
 
+typedef struct ha_s
+{
+  uint8_t *acc;
+  uint32_t *ctr;
+  uint8_t *tmp;
+}
+ha;
+
 typedef struct epoch_hashes_t_s
 {
   ha hadd;
@@ -229,7 +230,7 @@ typedef option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t
 
 typedef struct tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 {
-  uint32_t store_len;
+  size_t store_len;
   option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t *store;
 }
 tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
@@ -268,6 +269,7 @@ typedef struct Zeta_Steel_VerifierTypes_thread_state_t_s
   all_epoch_hashes epoch_hashes;
   high_water_mark *last_verified_epoch;
   uint8_t *serialization_buffer;
+  uint8_t *iv_buffer;
   hasher_t hasher;
 }
 Zeta_Steel_VerifierTypes_thread_state_t;
@@ -278,11 +280,6 @@ typedef struct kv_s
   value value;
 }
 kv;
-
-static uint32_t as_u32(uint16_t s)
-{
-  return (uint32_t)s;
-}
 
 bool
 Zeta_Steel_Application_uu___is_Run_app_parsing_failure(
@@ -421,9 +418,7 @@ run_vget(
       if (r.vget_slot < store_size)
       {
         option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-        option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(r.vget_slot)];
-        option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
-        option__Zeta_Steel_ThreadStateModel_store_entry se_opt = res0;
+        option__Zeta_Steel_ThreadStateModel_store_entry se_opt = pt[(size_t)r.vget_slot];
         option__Zeta_Steel_VerifierTypes_kv kvopt0;
         if (se_opt.tag == None)
           kvopt0 = ((option__Zeta_Steel_VerifierTypes_kv){ .tag = None });
@@ -537,9 +532,7 @@ vput_impl(
   if (r.vput_key == fst__uint64_t_FStar_Pervasives_Native_option_uint64_t(store_kv))
   {
     option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry res = pt0[as_u32(r.vput_slot)];
-    option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
-    option__Zeta_Steel_ThreadStateModel_store_entry se_opt = res0;
+    option__Zeta_Steel_ThreadStateModel_store_entry se_opt = pt0[(size_t)r.vput_slot];
     if (se_opt.tag == Some)
     {
       store_entry se = se_opt.v;
@@ -553,7 +546,7 @@ vput_impl(
           .r_child_in_store = se1.r_child_in_store, .parent_slot = se1.parent_slot
         };
       option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-      pt[as_u32(r.vput_slot)] =
+      pt[(size_t)r.vput_slot] =
         ((option__Zeta_Steel_ThreadStateModel_store_entry){ .tag = Some, .v = se_ });
     }
     else
@@ -596,9 +589,7 @@ run_vput(
       if (r.vput_slot < store_size)
       {
         option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-        option__Zeta_Steel_ThreadStateModel_store_entry res = pt[as_u32(r.vput_slot)];
-        option__Zeta_Steel_ThreadStateModel_store_entry res0 = res;
-        option__Zeta_Steel_ThreadStateModel_store_entry se_opt = res0;
+        option__Zeta_Steel_ThreadStateModel_store_entry se_opt = pt[(size_t)r.vput_slot];
         option__Zeta_Steel_VerifierTypes_kv kvopt0;
         if (se_opt.tag == None)
           kvopt0 = ((option__Zeta_Steel_VerifierTypes_kv){ .tag = None });
