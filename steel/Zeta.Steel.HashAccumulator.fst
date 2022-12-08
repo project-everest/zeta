@@ -9,6 +9,7 @@ open Steel.ST.Util
 module AEAD = EverCrypt.AEAD
 module Loops = Steel.ST.Loops
 module R = Steel.ST.Reference
+module SR = LowStar.Buffer
 module G = Zeta.Steel.Globals
 #push-options "--ide_id_info_off"
 #push-options "--fuel 0 --ifuel 0"
@@ -474,8 +475,8 @@ let aead_with_key
            G.aead_key_buffer
            iv 96ul
            input input_len
-           R.null 0ul
-           R.null
+           SR.null 0ul
+           SR.null
            out in
     drop (A.pts_to G.aead_key_buffer _ _);
     return res
