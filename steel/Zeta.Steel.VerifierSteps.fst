@@ -15,6 +15,7 @@ module U32 = FStar.UInt32
 module U64 = FStar.UInt64
 open Zeta.Steel.LogEntry
 open Zeta.Steel.Util
+open Zeta.Steel.IV
 module T = Zeta.Steel.FormatsManual
 module M = Zeta.Steel.ThreadStateModel
 module AEH = Zeta.Steel.AggregateEpochHashes
@@ -628,7 +629,7 @@ let serialize_iv_alt (a:A.array U8.t { A.length a == 96 })
             (exists_ (fun bs -> 
               array_pts_to a bs `star`
               pure (seq_suffix_is_zero bs 8)));
-    LogEntry.serialize_iv a v;
+    Zeta.Steel.IV.serialize_iv a v;
     let bs = elim_exists () in
     elim_pure _;
     return bs

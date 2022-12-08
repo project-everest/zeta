@@ -3,11 +3,12 @@ open Steel.ST.Util
 open Zeta.Steel.Util
 module P = Zeta.Steel.Parser
 module T = Zeta.Steel.FormatsManual
-module Blake = Hacl.Blake2b_32
+module Blake = Hacl.Hash.Blake2b_256
 module A = Steel.ST.Array
 module U8 = FStar.UInt8
 module LE = Zeta.Steel.LogEntry
 module R = Steel.ST.Reference
+module G = Zeta.Steel.Globals
 
 let bytes_as_u256 (b:Seq.seq U8.t { Seq.length b == 32 })
   : GTot T.u256
@@ -18,7 +19,7 @@ let bytes_as_u256 (b:Seq.seq U8.t { Seq.length b == 32 })
 let hashfn (v:T.value)
   : GTot T.hash_value
   = let bytes = LE.spec_serializer_value v in
-    let hash_bytes = Blake.spec bytes 0 Seq.empty 32 in
+    let hash_bytes = Blake.spec bytes G.blake_key_len G.blake_key 32 in
     bytes_as_u256 hash_bytes
 
 [@@CAbstractStruct]
@@ -82,6 +83,53 @@ let read_hash_u256 (#hv:Ghost.erased _)
     let Some (v, _) = res in
     return v
 
+
+let get_blake_key (_:unit)
+  : STGhostT perm Set.empty
+      emp
+      (fun p -> A.pts_to G.blake_key_buffer p G.blake_key)
+  =  let open G in
+     let body (_:unit)
+       : STGhostT perm (add_inv Set.empty blake_key_inv)
+           (exists_ (fun p -> A.pts_to blake_key_buffer p blake_key) `star` emp)
+           (fun q -> exists_ (fun p -> A.pts_to blake_key_buffer p blake_key) `star` 
+                  A.pts_to blake_key_buffer q blake_key)
+       = let p = elim_exists () in
+         A.share G.blake_key_buffer p (half_perm p) (half_perm p);
+         intro_exists (half_perm p) (fun p -> A.pts_to blake_key_buffer p blake_key);
+         half_perm p
+     in
+     with_invariant_g blake_key_inv body
+
+// val blake2b 
+//     (#sout:Ghost.erased (Seq.seq U8.t))
+//     (#in_p:perm)
+//     (#in_v:Ghost.erased (Seq.seq U8.t))
+//     (nn:size_t{1 <= UInt32.v nn /\ UInt32.v nn <= max_output})
+//     (output: A.array U8.t)
+//     (ll: size_t)
+//     (input: A.array U8.t { U32.v ll <= Seq.length in_v })
+//     (kk: size_t { U32.v kk <= 64 })
+//     (#k_p:perm)
+//     (#k_v:Ghost.erased (Seq.seq U8.t) { Seq.length k_v == U32.v kk })
+//     (key: A.array U8.t)
+//  : ST unit
+//     (A.pts_to output full_perm sout `star`
+//      A.pts_to input in_p in_v `star`
+//      A.pts_to key k_p k_v)
+//     (fun _ -> 
+//       A.pts_to output full_perm
+//                (spec (Seq.slice in_v 0 (U32.v ll))
+//                      0
+//                      Seq.empty
+//                      (UInt32.v nn)) `star`
+//       A.pts_to input in_p in_v `star`
+//       A.pts_to key k_p k_v)
+//   (requires
+//     A.length output = U32.v nn)
+//   (ensures fun _ ->
+//     True)
+
 //TODO: Not sure why this proof takes so long
 #push-options "--fuel 0 --ifuel 1 --z3rlimit_factor 10"
 let hash_value (h:hasher_t)
@@ -96,9 +144,11 @@ let hash_value (h:hasher_t)
     let sv = elim_exists () in
     elim_pure _;
     A.pts_to_length h.hash_buffer _;
-    Blake.blake2b 32ul h.hash_buffer n h.serialization_buffer 0ul h.dummy;
+    let _ = get_blake_key () in
+    Blake.blake2b 32ul h.hash_buffer n h.serialization_buffer 32ul G.blake_key_buffer;
     let res = read_hash_u256 h.hash_buffer in
     intro_exists _ (array_pts_to h.serialization_buffer);
     intro_exists _ (array_pts_to h.hash_buffer);
+    drop (A.pts_to G.blake_key_buffer _ _);
     return res
 #pop-options

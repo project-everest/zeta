@@ -50,7 +50,7 @@ type thread_state_t = {
 let thread_id t = t.thread_id
 
 let iv_buffer_inv (a:A.array U8.t) =
-    exists_ (fun bs -> array_pts_to a bs `star` pure (LogEntry.seq_suffix_is_zero bs 8))
+    exists_ (fun bs -> array_pts_to a bs `star` pure (Zeta.Steel.IV.seq_suffix_is_zero bs 8))
 
 [@@__reduce__]
 let thread_state_inv_core (t:thread_state_t)

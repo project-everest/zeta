@@ -60,8 +60,8 @@ val blake2b
     (fun _ -> 
       A.pts_to output full_perm
                (spec (Seq.slice in_v 0 (U32.v ll))
-                     0
-                     Seq.empty
+                     (U32.v kk)
+                     k_v
                      (UInt32.v nn)) `star`
       A.pts_to input in_p in_v `star`
       A.pts_to key k_p k_v)
