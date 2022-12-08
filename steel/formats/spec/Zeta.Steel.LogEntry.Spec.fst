@@ -148,3 +148,25 @@ let spec_parser_u256 x =
 
 let spec_parser_u256_never_fails b =
   LPC.parser_kind_prop_equiv Zeta.Formats.Aux.U256.u256_parser_kind u256_parser'
+
+let spec_parser_timestamp' =
+  LPC.parse_synth
+    Zeta.Formats.Aux.Timestamp.timestamp_parser
+    Zeta.Formats.Synth.synth_timestamp
+
+let spec_parser_timestamp x =
+  match LPC.parse spec_parser_timestamp' x with
+  | None -> None
+  | Some (res, consumed) -> Some (res, consumed)
+
+let spec_serializer_timestamp' : LPC.serializer spec_parser_timestamp' =
+  LPC.serialize_synth
+    _
+    Zeta.Formats.Synth.synth_timestamp
+    Zeta.Formats.Aux.Timestamp.timestamp_serializer
+    Zeta.Formats.Synth.synth_timestamp_recip
+    ()
+
+let spec_serializer_timestamp x = LPC.serialize spec_serializer_timestamp' x
+
+let serialized_timestamp_length s = ()

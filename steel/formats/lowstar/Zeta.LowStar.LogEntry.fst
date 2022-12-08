@@ -97,3 +97,14 @@ let zeta__parser_u256
     let res = LowParse.Low.Combinators.read_synth' _ Zeta.Formats.Synth.synth_u256 Zeta.Formats.Aux.U256.u256_reader () sl 0ul in
     Some (res, consumed)
   end
+
+
+let zeta__serialize_timestamp =
+  fun len offset a v ->
+  LowParse.Low.Combinators.serialize32_synth
+    Zeta.Formats.Aux.Timestamp.timestamp_lserializer
+    Zeta.Formats.Synth.synth_timestamp
+    Zeta.Formats.Synth.synth_timestamp_recip
+    (fun x -> Zeta.Formats.Synth.synth_timestamp_recip x)
+    ()
+    v a offset

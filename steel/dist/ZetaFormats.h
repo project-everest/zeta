@@ -249,6 +249,14 @@ FStar_Pervasives_Native_option__Zeta_Steel_KeyUtils_u256___uint32_t;
 FStar_Pervasives_Native_option__Zeta_Steel_KeyUtils_u256___uint32_t
 zeta__parser_u256(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_t *a);
 
+uint32_t
+zeta__serialize_timestamp(
+  uint32_t len,
+  uint32_t offset,
+  uint8_t *a,
+  Zeta_Steel_LogEntry_Types_timestamp v
+);
+
 extern uint32_t
 Zeta_Formats_Aux_Application_key_Size_application_key_size32(
   Zeta_Steel_ApplicationTypes_key_type uu___

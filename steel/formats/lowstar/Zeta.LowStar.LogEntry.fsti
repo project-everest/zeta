@@ -9,3 +9,5 @@ val zeta__serialize_stamped_record : serializer spec_serializer_stamped_record
 val zeta__serialize_value : serializer spec_serializer_value
 
 val zeta__parser_u256 : parser spec_parser_u256
+
+val zeta__serialize_timestamp : serializer spec_serializer_timestamp

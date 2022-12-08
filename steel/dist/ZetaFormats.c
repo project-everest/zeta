@@ -2826,3 +2826,14 @@ zeta__parser_u256(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_t *a)
   }
 }
 
+uint32_t
+zeta__serialize_timestamp(
+  uint32_t len,
+  uint32_t offset,
+  uint8_t *a,
+  Zeta_Steel_LogEntry_Types_timestamp v
+)
+{
+  return timestamp_lserializer(synth_timestamp_recip(v), (uint8_t *)a, offset);
+}
+

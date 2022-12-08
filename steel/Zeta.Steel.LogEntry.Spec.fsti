@@ -91,15 +91,15 @@ val spec_parser_u256_never_fails (b:Seq.seq U8.t { Seq.length b == 32 })
 
 
 val spec_parser_timestamp : spec_parser timestamp
-val spec_serialize_timestamp : spec_serializer spec_parser_timestamp
+val spec_serializer_timestamp : spec_serializer spec_parser_timestamp
 val serialized_timestamp_length (ts:timestamp)
-  : Lemma (Seq.length (spec_serialize_timestamp ts) == 8)
-          [SMTPat (Seq.length (spec_serialize_timestamp ts))]
+  : Lemma (Seq.length (spec_serializer_timestamp ts) == 8)
+          [SMTPat (Seq.length (spec_serializer_timestamp ts))]
 
-let spec_serialize_iv (ts:timestamp) = 
-  Seq.append (spec_serialize_timestamp ts)
+let spec_serializer_iv (ts:timestamp) = 
+  Seq.append (spec_serializer_timestamp ts)
              (Seq.create 88 0uy)
 
 let serialized_iv_length (s:timestamp)
-  : Lemma (Seq.length (spec_serialize_iv s) == 96)
+  : Lemma (Seq.length (spec_serializer_iv s) == 96)
   = ()
