@@ -246,7 +246,6 @@ typedef struct hasher_t_s
 {
   uint8_t *serialization_buffer;
   uint8_t *hash_buffer;
-  uint8_t *dummy;
 }
 hasher_t;
 

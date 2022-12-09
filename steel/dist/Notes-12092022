@@ -1,0 +1,23 @@
+1. A new hacl* distro in hacl-star-8*
+
+   in gcc-compatible, do
+     1. ./configure
+     2. make EverCrypt_AEAD.o (needs AES-NI)
+     3. make Hacl_Hash_Blake2b_256.o (needs AVX2)
+     4. To check if a machine has these instructions,
+        you can also build `make EverCrypt_AutoConfig2.o`
+
+2. The new Zeta_Steel_SafeMain.c has some externs
+
+    1. +EverCrypt_AEAD_encrypt_expand_aes128_gcm_no_check (which
+        should come from EverCrypt_AEAD.h)
+        
+    2. +Hacl_Hash_Blake2b_256_blake2b .. from hacl above
+
+    3. +extern uint8_t *Zeta_Steel_Globals_aead_key_buffer
+
+       A 16 bytes AEAD Key
+
+    4. We also have externs for the parser/serializer functions, but
+       these should already be there in ZetaFormats.h (resolved at
+       link time)

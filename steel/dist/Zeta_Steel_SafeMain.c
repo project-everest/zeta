@@ -910,8 +910,6 @@ static bool above_high_water_mark(option__uint32_t h, uint32_t e)
 
 extern uint8_t *Zeta_Steel_Globals_aead_key_buffer;
 
-extern uint8_t *Zeta_Steel_Globals_blake_key_buffer;
-
 static size_t hash_len_sz = (size_t)16U;
 
 typedef struct ha_s
@@ -1603,7 +1601,6 @@ typedef struct hasher_t_s
 {
   uint8_t *serialization_buffer;
   uint8_t *hash_buffer;
-  uint8_t *dummy;
 }
 hasher_t;
 
@@ -1612,13 +1609,10 @@ static hasher_t alloc()
   uint8_t *p0 = KRML_HOST_CALLOC((size_t)32U, sizeof (uint8_t));
   uint8_t *res = p0;
   uint8_t *hb = res;
-  uint8_t *p1 = KRML_HOST_CALLOC((size_t)4096U, sizeof (uint8_t));
-  uint8_t *res0 = p1;
+  uint8_t *p = KRML_HOST_CALLOC((size_t)4096U, sizeof (uint8_t));
+  uint8_t *res0 = p;
   uint8_t *sb = res0;
-  uint8_t *p = KRML_HOST_CALLOC((size_t)1U, sizeof (uint8_t));
-  uint8_t *res1 = p;
-  uint8_t *dummy = res1;
-  return ((hasher_t){ .serialization_buffer = sb, .hash_buffer = hb, .dummy = dummy });
+  return ((hasher_t){ .serialization_buffer = sb, .hash_buffer = hb });
 }
 
 static u256 read_hash_u256(uint8_t *hb)
@@ -1644,8 +1638,8 @@ static u256 hash_value(hasher_t h, value v)
     h.hash_buffer,
     n,
     h.serialization_buffer,
-    (uint32_t)32U,
-    Zeta_Steel_Globals_blake_key_buffer);
+    (uint32_t)0U,
+    NULL);
   u256 res = read_hash_u256(h.hash_buffer);
   return res;
 }

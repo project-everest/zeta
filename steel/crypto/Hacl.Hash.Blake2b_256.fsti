@@ -17,6 +17,7 @@ module U8 = FStar.UInt8
 module U32 = FStar.UInt32
 module A = Steel.ST.Array
 module R = Steel.ST.Reference
+module SR = Steel.Reference
 open Steel.ST.Util
 
 inline_for_extraction noextract
@@ -49,22 +50,17 @@ val blake2b
     (output: A.array U8.t)
     (ll: size_t)
     (input: A.array U8.t { U32.v ll <= Seq.length in_v })
-    (kk: size_t { U32.v kk <= 64 })
-    (#k_p:perm)
-    (#k_v:Ghost.erased (Seq.seq U8.t) { Seq.length k_v == U32.v kk })
-    (key: A.array U8.t)
+    (kk: size_t { kk = 0ul })
+    (key: SR.ref U8.t { key == SR.null })
  : ST unit
     (A.pts_to output full_perm sout `star`
-     A.pts_to input in_p in_v `star`
-     A.pts_to key k_p k_v)
+     A.pts_to input in_p in_v)
     (fun _ -> 
       A.pts_to output full_perm
                (spec (Seq.slice in_v 0 (U32.v ll))
-                     (U32.v kk)
-                     k_v
+                     0 (Seq.create 0 0uy)
                      (UInt32.v nn)) `star`
-      A.pts_to input in_p in_v `star`
-      A.pts_to key k_p k_v)
+      A.pts_to input in_p in_v)
   (requires
     A.length output = U32.v nn)
   (ensures fun _ ->
