@@ -54,6 +54,10 @@ Hacl_Poly1305_256.o Hacl_Streaming_Poly1305_256.o Hacl_Chacha20_Vec256.o Hacl_Ch
 
 all: libevercrypt.$(SO)
 
+CheckCPU: CheckCPU.o libevercrypt.$(SO)
+	$(CC) -o CheckCPU -L . CheckCPU.o -levercrypt
+	LD_LIBRARY_PATH=. ./CheckCPU
+
 # This one and the one below are for people who run "make" without running
 # configure. It's not perfect but perhaps a tiny bit better than nothing.
 Makefile.config:

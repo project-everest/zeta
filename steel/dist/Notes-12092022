@@ -2,10 +2,23 @@
 
    in gcc-compatible, do
      1. ./configure
-     2. make EverCrypt_AEAD.o (needs AES-NI)
-     3. make Hacl_Hash_Blake2b_256.o (needs AVX2)
-     4. To check if a machine has these instructions,
-        you can also build `make EverCrypt_AutoConfig2.o`
+
+     2. make
+
+        This should give you libevercrypt.so
+        
+        with both EverCrypt_AEAD implemented using AES-NI in assembly
+        and Hacl_Hash_Blake2b_256, implemented in C using AVX2
+
+        You need to link libevercrypt.so with the Zeta_Steel_SafeMain
+
+     3. I wrote a little utility wrapper around EverCrypt to check
+        if the CPU supports AES-NI and AVX2
+
+        in hacl-star-8*/gcc-compatible, see CheckCPU.c
+        To build and run it do:
+
+         `make CheckCPU`
 
 2. The new Zeta_Steel_SafeMain.c has some externs
 
