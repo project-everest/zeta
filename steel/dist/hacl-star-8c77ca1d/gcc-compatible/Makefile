@@ -56,6 +56,8 @@ all: libevercrypt.$(SO)
 
 CheckCPU: CheckCPU.o libevercrypt.$(SO)
 	$(CC) -o CheckCPU -L . CheckCPU.o -levercrypt
+
+RunCheckCPU: CheckCPU
 	LD_LIBRARY_PATH=. ./CheckCPU
 
 # This one and the one below are for people who run "make" without running
@@ -183,7 +185,7 @@ install-hacl-star-raw: dllocamlevercrypt.$(SO)
          libevercrypt.a libevercrypt.$(SO) ocamlevercrypt.cma ocamlevercrypt.cmxa ocamlevercrypt.a \
          libocamlevercrypt.a dllocamlevercrypt.$(SO) config.h
 
-.PHONY: install-ocaml
+.PHONY: install-ocaml RunCheckCPU
 install-ocaml: install-hacl-star-raw
 	cd ../../bindings/ocaml && dune build && dune install
 

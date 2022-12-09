@@ -18,7 +18,7 @@
         in hacl-star-8*/gcc-compatible, see CheckCPU.c
         To build and run it do:
 
-         `make CheckCPU`
+         `make RunCheckCPU`
 
 2. The new Zeta_Steel_SafeMain.c has some externs
 
