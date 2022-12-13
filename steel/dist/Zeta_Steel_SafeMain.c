@@ -20,7 +20,7 @@ EverCrypt_AEAD_encrypt_expand_aes128_gcm_no_check(
 );
 
 extern void
-Hacl_Hash_Blake2b_256_blake2b(
+Hacl_Blake2b_256_blake2b(
   uint32_t nn,
   uint8_t *output,
   uint32_t ll,
@@ -1634,7 +1634,7 @@ static u256 read_hash_u256(uint8_t *hb)
 static u256 hash_value(hasher_t h, value v)
 {
   uint32_t n = zeta__serialize_value((uint32_t)4096U, (uint32_t)0U, h.serialization_buffer, v);
-  Hacl_Hash_Blake2b_256_blake2b((uint32_t)32U,
+  Hacl_Blake2b_256_blake2b((uint32_t)32U,
     h.hash_buffer,
     n,
     h.serialization_buffer,

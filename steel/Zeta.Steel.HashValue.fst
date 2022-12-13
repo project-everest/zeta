@@ -3,7 +3,7 @@ open Steel.ST.Util
 open Zeta.Steel.Util
 module P = Zeta.Steel.Parser
 module T = Zeta.Steel.FormatsManual
-module Blake = Hacl.Hash.Blake2b_256
+module Blake = Hacl.Blake2b_256
 module A = Steel.ST.Array
 module U8 = FStar.UInt8
 module LE = Zeta.Steel.LogEntry

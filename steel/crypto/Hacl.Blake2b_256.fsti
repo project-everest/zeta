@@ -1,4 +1,4 @@
-module Hacl.Hash.Blake2b_256
+module Hacl.Blake2b_256
 
 // This file is here to prevent depending on the actual HACL*
 // repository.  The signatures do not correspond to the ones found in
