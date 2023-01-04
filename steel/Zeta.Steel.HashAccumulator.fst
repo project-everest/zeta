@@ -11,6 +11,7 @@ module Loops = Steel.ST.Loops
 module R = Steel.ST.Reference
 module SR = Steel.Reference
 module G = Zeta.Steel.Globals
+module AEADHandle = Zeta.Steel.AEADHandle
 #push-options "--ide_id_info_off"
 #push-options "--fuel 0 --ifuel 0"
 
@@ -432,22 +433,22 @@ let compare #h1 #h2 (b1 b2:ha)
       return b
     )
 
-let get_aead_key (_:unit)
-  : STGhostT perm Set.empty
-      emp
-      (fun p -> A.pts_to G.aead_key_buffer p G.aead_key)
-  =  let open G in
-     let body (_:unit)
-       : STGhostT perm (add_inv Set.empty aead_key_inv)
-           (exists_ (fun p -> A.pts_to aead_key_buffer p aead_key) `star` emp)
-           (fun q -> exists_ (fun p -> A.pts_to aead_key_buffer p aead_key) `star` 
-                  A.pts_to aead_key_buffer q aead_key)
-       = let p = elim_exists () in
-         A.share G.aead_key_buffer p (half_perm p) (half_perm p);
-         intro_exists (half_perm p) (fun p -> A.pts_to aead_key_buffer p aead_key);
-         half_perm p
-     in
-     with_invariant_g aead_key_inv body
+// let get_aead_key (_:unit)
+//   : STGhostT perm Set.empty
+//       emp
+//       (fun p -> A.pts_to G.aead_key_buffer p G.aead_key)
+//   =  let open G in
+//      let body (_:unit)
+//        : STGhostT perm (add_inv Set.empty aead_key_inv)
+//            (exists_ (fun p -> A.pts_to aead_key_buffer p aead_key) `star` emp)
+//            (fun q -> exists_ (fun p -> A.pts_to aead_key_buffer p aead_key) `star` 
+//                   A.pts_to aead_key_buffer q aead_key)
+//        = let p = elim_exists () in
+//          A.share G.aead_key_buffer p (half_perm p) (half_perm p);
+//          intro_exists (half_perm p) (fun p -> A.pts_to aead_key_buffer p aead_key);
+//          half_perm p
+//      in
+//      with_invariant_g aead_key_inv body
 
 let aead_with_key  
          (#iv_p:perm)
@@ -469,16 +470,16 @@ let aead_with_key
      exists_ (fun out_v -> 
        A.pts_to out full_perm out_v `star`
        pure (res == 0uy ==> out_v == AEAD.spec G.aead_key iv_v in_v)))
-  = let k_p = get_aead_key () in
+  = let k_p = AEADHandle.get_aead_state () in
     let res =
-      AEAD.encrypt_expand_aes128_gcm_no_check
-           G.aead_key_buffer
+      AEAD.encrypt
+           k_p
            iv 96ul
            input input_len
            SR.null 0ul
            SR.null
            out in
-    drop (A.pts_to G.aead_key_buffer _ _);
+    drop (AEAD.state_inv _ _);
     return res
 
 #push-options "--query_stats --z3rlimit_factor 4"

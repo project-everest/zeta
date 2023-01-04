@@ -6,9 +6,11 @@
 
 typedef uint8_t *dtuple2___uint8_t____;
 
+extern uint8_t EverCrypt_AEAD_create_in(uint8_t a, EverCrypt_AEAD_state_s **dst, uint8_t *k);
+
 extern uint8_t
-EverCrypt_AEAD_encrypt_expand_aes128_gcm_no_check(
-  uint8_t *k,
+EverCrypt_AEAD_encrypt(
+  EverCrypt_AEAD_state_s *s,
   uint8_t *iv,
   uint32_t iv_len,
   uint8_t *input,
@@ -910,6 +912,36 @@ static bool above_high_water_mark(option__uint32_t h, uint32_t e)
 
 extern uint8_t *Zeta_Steel_Globals_aead_key_buffer;
 
+extern void Zeta_Steel_Globals_abort(Prims_string msg);
+
+typedef EverCrypt_AEAD_state_s *aead_handle_t;
+
+static EverCrypt_AEAD_state_s *false_elim__Zeta_Steel_AEADHandle_aead_handle_t()
+{
+  return false_elim__Zeta_Steel_AEADHandle_aead_handle_t();
+}
+
+EverCrypt_AEAD_state_s *Zeta_Steel_AEADHandle_init_aead_handle()
+{
+  EverCrypt_AEAD_state_s *r = NULL;
+  uint8_t err = EverCrypt_AEAD_create_in((uint8_t)0U, &r, Zeta_Steel_Globals_aead_key_buffer);
+  EverCrypt_AEAD_state_s *st = r;
+  if (err == (uint8_t)0U)
+    return st;
+  else
+  {
+    Zeta_Steel_Globals_abort("Failed AEAD initialization");
+    return false_elim__Zeta_Steel_AEADHandle_aead_handle_t();
+  }
+}
+
+EverCrypt_AEAD_state_s *Zeta_Steel_AEADHandle_aead_handle;
+
+static EverCrypt_AEAD_state_s *get_aead_state()
+{
+  return Zeta_Steel_AEADHandle_aead_handle;
+}
+
 static size_t hash_len_sz = (size_t)16U;
 
 typedef struct ha_s
@@ -1040,9 +1072,10 @@ static bool compare(ha b1, ha b2)
 
 static uint8_t aead_with_key(uint8_t *iv, uint8_t *input, uint32_t input_len, uint8_t *out)
 {
+  EverCrypt_AEAD_state_s *k_p = get_aead_state();
   uint8_t
   res =
-    EverCrypt_AEAD_encrypt_expand_aes128_gcm_no_check(Zeta_Steel_Globals_aead_key_buffer,
+    EverCrypt_AEAD_encrypt(k_p,
       iv,
       (uint32_t)96U,
       input,

@@ -9,6 +9,10 @@
 #include "../Zeta_Steel_SafeMain.h"
 #include "steel_atomics.h"
 #include "zeta_application.h"
+EverCrypt_AEAD_state_s *Zeta_Steel_AEADHandle_init_aead_handle();
+
+extern EverCrypt_AEAD_state_s *Zeta_Steel_AEADHandle_aead_handle;
+
 typedef struct Zeta_Steel_Main_top_level_state_s Zeta_Steel_Main_top_level_state;
 
 Zeta_Steel_Main_top_level_state *Zeta_Steel_Main_init();
