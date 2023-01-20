@@ -35,6 +35,8 @@ let share
   noop ();
   rewrite (handle_pts_to0 ts) (handle_pts_to ts)
 
+inline_for_extraction
+noextract
 let with_invariant_g (#a:Type)
                      (#fp:vprop)
                      (#fp':a -> vprop)
@@ -47,6 +49,8 @@ let with_invariant_g (#a:Type)
   : STAtomicUT (Ghost.erased a) opened_invariants fp (fun x -> fp' x)
   = with_invariant_g i f
 
+inline_for_extraction
+noextract
 let handle_pts_to_body_intro
   (#opened: _)
   ()

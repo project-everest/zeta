@@ -15,7 +15,7 @@ __attribute__ ((visibility ("hidden")))
 #endif
 
 
-void krmlinit_globals();
+void krmlinit_globals(void);
 
 
 #define __krmlinit_H_DEFINED

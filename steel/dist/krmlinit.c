@@ -10,7 +10,7 @@ __attribute__ ((visibility ("hidden")))
 #endif
 
 
-void krmlinit_globals()
+void krmlinit_globals(void)
 {
   Zeta_Steel_AEADHandle_aead_handle = Zeta_Steel_AEADHandle_init_aead_handle();
   Zeta_Steel_Main_top_level_state *r2_state = Zeta_Steel_Main_init();

@@ -9,8 +9,6 @@
 
 #include "steel_atomics.h"
 #include "zeta_application.h"
-static inline bool Steel_ST_Reference_cas_u32(uint32_t *r, uint32_t v_old, uint32_t v_new);
-
 #define FStar_Pervasives_Native_None 0
 #define FStar_Pervasives_Native_Some 1
 
@@ -73,7 +71,7 @@ Zeta_Steel_SafeMain_verify_log(
 );
 
 Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
-Zeta_Steel_SafeMain_max_certified_epoch();
+Zeta_Steel_SafeMain_max_certified_epoch(void);
 
 
 #define __Zeta_Steel_SafeMain_H_DEFINED

@@ -6,6 +6,8 @@ module A = Steel.ST.Array
 module NullableRef = Steel.Reference
 open Steel.ST.Util
 
+inline_for_extraction
+noextract
 let get_aead_key (_:unit)
   : STAtomicUT perm Set.empty
       emp

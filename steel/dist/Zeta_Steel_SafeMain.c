@@ -31,22 +31,17 @@ Hacl_Blake2b_256_blake2b(
   uint8_t *key
 );
 
-typedef uint32_t *lock_t;
+typedef uint32_t *lock;
 
-static uint32_t *new_lock()
+static uint32_t *new_lock(void)
 {
   uint32_t *r = KRML_HOST_CALLOC((uint32_t)1U, sizeof (uint32_t));
   return r;
 }
 
-static uint32_t *fst___uint32_t____(uint32_t *x)
-{
-  return x;
-}
-
 static void acquire(uint32_t *l)
 {
-  bool b0 = Steel_ST_Reference_cas_u32(fst___uint32_t____(l), (uint32_t)0U, (uint32_t)1U);
+  bool b0 = Steel_ST_Reference_cas_u32(l, (uint32_t)0U, (uint32_t)1U);
   bool cond;
   if (b0)
     cond = false;
@@ -54,7 +49,7 @@ static void acquire(uint32_t *l)
     cond = true;
   while (cond)
   {
-    bool b = Steel_ST_Reference_cas_u32(fst___uint32_t____(l), (uint32_t)0U, (uint32_t)1U);
+    bool b = Steel_ST_Reference_cas_u32(l, (uint32_t)0U, (uint32_t)1U);
     bool ite;
     if (b)
       ite = false;
@@ -66,7 +61,7 @@ static void acquire(uint32_t *l)
 
 static void release(uint32_t *l)
 {
-  bool b = Steel_ST_Reference_cas_u32(fst___uint32_t____(l), (uint32_t)1U, (uint32_t)0U);
+  bool b = Steel_ST_Reference_cas_u32(l, (uint32_t)1U, (uint32_t)0U);
 }
 
 typedef struct cancellable_lock_s
@@ -76,7 +71,7 @@ typedef struct cancellable_lock_s
 }
 cancellable_lock;
 
-static cancellable_lock new_cancellable_lock()
+static cancellable_lock new_cancellable_lock(void)
 {
   bool *r = KRML_HOST_MALLOC(sizeof (bool));
   r[0U] = true;
@@ -916,12 +911,12 @@ extern void Zeta_Steel_Globals_abort(Prims_string msg);
 
 typedef EverCrypt_AEAD_state_s *aead_handle_t;
 
-static EverCrypt_AEAD_state_s *false_elim__Zeta_Steel_AEADHandle_aead_handle_t()
+EverCrypt_AEAD_state_s *FStar_Pervasives_false_elim__Zeta_Steel_AEADHandle_aead_handle_t(void)
 {
-  return false_elim__Zeta_Steel_AEADHandle_aead_handle_t();
+  return FStar_Pervasives_false_elim__Zeta_Steel_AEADHandle_aead_handle_t();
 }
 
-EverCrypt_AEAD_state_s *Zeta_Steel_AEADHandle_init_aead_handle()
+EverCrypt_AEAD_state_s *Zeta_Steel_AEADHandle_init_aead_handle(void)
 {
   EverCrypt_AEAD_state_s *r = NULL;
   uint8_t err = EverCrypt_AEAD_create_in((uint8_t)0U, &r, Zeta_Steel_Globals_aead_key_buffer);
@@ -931,13 +926,13 @@ EverCrypt_AEAD_state_s *Zeta_Steel_AEADHandle_init_aead_handle()
   else
   {
     Zeta_Steel_Globals_abort("Failed AEAD initialization");
-    return false_elim__Zeta_Steel_AEADHandle_aead_handle_t();
+    return FStar_Pervasives_false_elim__Zeta_Steel_AEADHandle_aead_handle_t();
   }
 }
 
 EverCrypt_AEAD_state_s *Zeta_Steel_AEADHandle_aead_handle;
 
-static EverCrypt_AEAD_state_s *get_aead_state()
+static EverCrypt_AEAD_state_s *get_aead_state(void)
 {
   return Zeta_Steel_AEADHandle_aead_handle;
 }
@@ -952,7 +947,7 @@ typedef struct ha_s
 }
 ha;
 
-static ha create()
+static ha create(void)
 {
   KRML_CHECK_SIZE(sizeof (uint8_t), hash_len_sz);
   uint8_t *p0 = KRML_HOST_CALLOC(hash_len_sz, sizeof (uint8_t));
@@ -1232,20 +1227,20 @@ static epoch_tid_bitmaps create__Prims_dtuple2__bool____(uint32_t n)
   return ((epoch_tid_bitmaps){ .etbl = etbl, .high = high });
 }
 
-static aggregate_epoch_hashes create0()
+static aggregate_epoch_hashes create0(void)
 {
   all_epoch_hashes hashes = create__Zeta_Steel_EpochHashes_epoch_hashes_t(all_hashes_size);
   epoch_tid_bitmaps tid_bitmaps = create__Prims_dtuple2__bool____(tid_bitmaps_size);
   option__uint32_t *max_certified_epoch = KRML_HOST_MALLOC(sizeof (option__uint32_t));
   max_certified_epoch[0U] = ((option__uint32_t){ .tag = FStar_Pervasives_Native_None });
-  cancellable_lock lock = new_cancellable_lock();
+  cancellable_lock lock0 = new_cancellable_lock();
   return
     (
       (aggregate_epoch_hashes){
         .hashes = hashes,
         .tid_bitmaps = tid_bitmaps,
         .max_certified_epoch = max_certified_epoch,
-        .lock = lock
+        .lock = lock0
       }
     );
 }
@@ -1539,9 +1534,9 @@ try_advance_max(all_epoch_hashes hashes, epoch_tid_bitmaps bitmaps, option__uint
   return *max;
 }
 
-static void release_lock(cancellable_lock lock)
+static void release_lock(cancellable_lock lock0)
 {
-  release0(lock);
+  release0(lock0);
 }
 
 static Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
@@ -1637,7 +1632,7 @@ typedef struct hasher_t_s
 }
 hasher_t;
 
-static hasher_t alloc()
+static hasher_t alloc(void)
 {
   uint8_t *p0 = KRML_HOST_CALLOC((size_t)32U, sizeof (uint8_t));
   uint8_t *res = p0;
@@ -3280,7 +3275,7 @@ verify_epoch_core(
   thread_state_t t,
   all_epoch_hashes hashes,
   epoch_tid_bitmaps tid_bitmaps,
-  cancellable_lock lock
+  cancellable_lock lock0
 )
 {
   option__uint32_t e = *t.last_verified_epoch;
@@ -3301,7 +3296,7 @@ verify_epoch_core(
     }
     else
     {
-      bool acquired = acquire0(lock);
+      bool acquired = acquire0(lock0);
       if (!acquired)
         return false;
       else
@@ -3310,14 +3305,14 @@ verify_epoch_core(
         bool b1 = update_bitmap(tid_bitmaps, e1, t.thread_id);
         if (!b0 || !b1)
         {
-          cancel(lock);
+          cancel(lock0);
           return false;
         }
         else
         {
           *t.last_verified_epoch =
             ((option__uint32_t){ .tag = FStar_Pervasives_Native_Some, .v = e1 });
-          release_lock(lock);
+          release_lock(lock0);
           return true;
         }
       }
@@ -3489,7 +3484,7 @@ static bool uu___is_Verify_success(Zeta_Steel_Verifier_verify_result projectee)
     return false;
 }
 
-static void fail0()
+static void fail0(void)
 {
 
 }
@@ -3809,54 +3804,58 @@ verify_log(
   return verify_log_ind(t, len, log, (uint32_t)0U, outlen, (uint32_t)0U, out, aeh);
 }
 
-typedef struct thread_state_s
+typedef struct Zeta_Steel_Main_thread_state_s
 {
   uint16_t tid;
   thread_state_t tsm;
   cancellable_lock lock;
 }
-thread_state;
+Zeta_Steel_Main_thread_state;
 
-typedef thread_state *all_threads_t;
+typedef Zeta_Steel_Main_thread_state *all_threads_t;
 
 typedef struct Zeta_Steel_Main_top_level_state_s
 {
   aggregate_epoch_hashes aeh;
-  thread_state *all_threads;
+  Zeta_Steel_Main_thread_state *all_threads;
 }
 Zeta_Steel_Main_top_level_state;
 
-static thread_state init_thread_state(uint16_t i)
+static Zeta_Steel_Main_thread_state init_thread_state(uint16_t i)
 {
   thread_state_t st = create1(i);
-  cancellable_lock lock = new_cancellable_lock();
-  return ((thread_state){ .tid = i, .tsm = st, .lock = lock });
+  cancellable_lock lock0 = new_cancellable_lock();
+  return ((Zeta_Steel_Main_thread_state){ .tid = i, .tsm = st, .lock = lock0 });
 }
 
-static void init_all_threads_state(thread_state *all_threads, uint16_t i)
+void
+Zeta_Steel_Main_init_all_threads_state(Zeta_Steel_Main_thread_state *all_threads, uint16_t i)
 {
   bool check = (uint32_t)i == Zeta_Steel_ApplicationTypes_n_threads;
   if (!check)
   {
-    thread_state st = init_thread_state(i);
-    thread_state *pt = all_threads;
+    Zeta_Steel_Main_thread_state st = init_thread_state(i);
+    Zeta_Steel_Main_thread_state *pt = all_threads;
     pt[(size_t)i] = st;
-    init_all_threads_state(all_threads, i + (uint16_t)1U);
+    Zeta_Steel_Main_init_all_threads_state(all_threads, i + (uint16_t)1U);
   }
 }
 
-Zeta_Steel_Main_top_level_state *Zeta_Steel_Main_init()
+Zeta_Steel_Main_top_level_state *Zeta_Steel_Main_init(void)
 {
   aggregate_epoch_hashes aeh = create0();
-  thread_state st0 = init_thread_state((uint16_t)0U);
-  KRML_CHECK_SIZE(sizeof (thread_state), (size_t)Zeta_Steel_ApplicationTypes_n_threads);
-  thread_state
-  *p = KRML_HOST_MALLOC(sizeof (thread_state) * (size_t)Zeta_Steel_ApplicationTypes_n_threads);
+  Zeta_Steel_Main_thread_state st0 = init_thread_state((uint16_t)0U);
+  KRML_CHECK_SIZE(sizeof (Zeta_Steel_Main_thread_state),
+    (size_t)Zeta_Steel_ApplicationTypes_n_threads);
+  Zeta_Steel_Main_thread_state
+  *p =
+    KRML_HOST_MALLOC(sizeof (Zeta_Steel_Main_thread_state)
+      * (size_t)Zeta_Steel_ApplicationTypes_n_threads);
   for (uint32_t _i = 0U; _i < (size_t)Zeta_Steel_ApplicationTypes_n_threads; ++_i)
     p[_i] = st0;
-  thread_state *res = p;
-  thread_state *all_threads = res;
-  init_all_threads_state(all_threads, (uint16_t)1U);
+  Zeta_Steel_Main_thread_state *res = p;
+  Zeta_Steel_Main_thread_state *all_threads = res;
+  Zeta_Steel_Main_init_all_threads_state(all_threads, (uint16_t)1U);
   Zeta_Steel_Main_top_level_state r = { .aeh = aeh, .all_threads = all_threads };
   Zeta_Steel_Main_top_level_state
   *t = KRML_HOST_MALLOC(sizeof (Zeta_Steel_Main_top_level_state));
@@ -3874,8 +3873,8 @@ verify_log_aux(
   uint8_t *output
 )
 {
-  thread_state *pt = t.all_threads;
-  thread_state st_tid = pt[(size_t)tid];
+  Zeta_Steel_Main_thread_state *pt = t.all_threads;
+  Zeta_Steel_Main_thread_state st_tid = pt[(size_t)tid];
   bool b = acquire0(st_tid.lock);
   if (b)
   {
@@ -4099,7 +4098,7 @@ Zeta_Steel_SafeMain_verify_log(
 }
 
 Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
-Zeta_Steel_SafeMain_max_certified_epoch()
+Zeta_Steel_SafeMain_max_certified_epoch(void)
 {
   Zeta_Steel_AggregateEpochHashes_max_certified_epoch_result
   r = max_certified_epoch(Zeta_Steel_SafeMain_Handle_handle);
