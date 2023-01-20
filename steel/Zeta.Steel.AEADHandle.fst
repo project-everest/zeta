@@ -7,7 +7,7 @@ module NullableRef = Steel.Reference
 open Steel.ST.Util
 
 let get_aead_key (_:unit)
-  : STGhostT perm Set.empty
+  : STAtomicUT perm Set.empty
       emp
       (fun p -> A.pts_to G.aead_key_buffer p G.aead_key)
   =  let open G in
@@ -21,7 +21,7 @@ let get_aead_key (_:unit)
          intro_exists (half_perm p) (fun p -> A.pts_to aead_key_buffer p aead_key);
          half_perm p
      in
-     with_invariant_g aead_key_inv body
+     let x = with_invariant_g aead_key_inv body in Ghost.reveal x
 
 
 noeq
@@ -75,5 +75,5 @@ let get_aead_state (_:unit)
                          AEAD.state_inv aead_handle.aead_state G.aead_key)
        = AEAD.dup_state_inv _ _
      in
-     with_invariant_g aead_handle.aead_state_inv body;
+     let _ = with_invariant_g aead_handle.aead_state_inv body in
      return aead_handle.aead_state

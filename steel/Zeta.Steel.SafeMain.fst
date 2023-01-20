@@ -44,18 +44,18 @@ let with_invariant_g (#a:Type)
                      (f:unit -> STGhostT a (add_inv opened_invariants i)
                                          (p `star` fp)
                                          (fun x -> p `star` fp' x))
-  : STGhostT a opened_invariants fp fp'
-= with_invariant_g i f
+  : STAtomicUT (Ghost.erased a) opened_invariants fp (fun x -> fp' x)
+  = with_invariant_g i f
 
 let handle_pts_to_body_intro
   (#opened: _)
   ()
-: STGhost unit opened
+: STAtomicU unit opened
     emp
     (fun _ -> handle_pts_to_body handle.state)
     (not (mem_inv opened handle._inv))
     (fun _ -> True)
-= with_invariant_g
+= let _ = with_invariant_g
     #unit
     #emp
     #(fun _ -> handle_pts_to_body handle.state)
@@ -64,7 +64,8 @@ let handle_pts_to_body_intro
     handle._inv
     (fun _ ->
       share_body _
-    )
+    ) in
+  ()
 
 #push-options "--z3rlimit 32 --query_stats --ifuel 6"
 #restart-solver
