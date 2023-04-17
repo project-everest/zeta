@@ -5,10 +5,9 @@
 
 #include "krmllib.h"
 
-
-
 #include "steel_atomics.h"
 #include "zeta_application.h"
+
 #define FStar_Pervasives_Native_None 0
 #define FStar_Pervasives_Native_Some 1
 

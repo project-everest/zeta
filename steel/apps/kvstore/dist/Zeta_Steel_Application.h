@@ -5,9 +5,6 @@
 
 #include "krmllib.h"
 
-
-
-
 typedef struct Zeta_Steel_KeyUtils_u256_s
 {
   uint64_t v3;

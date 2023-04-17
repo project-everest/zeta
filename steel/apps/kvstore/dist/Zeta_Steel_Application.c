@@ -2,8 +2,6 @@
 
 #include "Zeta_Steel_Application.h"
 
-
-
 typedef uint8_t *byte_array;
 
 typedef struct vget_args_t_s
@@ -224,9 +222,6 @@ typedef struct option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
   __uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t v;
 }
 option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
-
-typedef option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t
-*dtuple2___FStar_Pervasives_Native_option_K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t____;
 
 typedef struct tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 {

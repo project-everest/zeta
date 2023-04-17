@@ -2,10 +2,6 @@
 
 #include "internal/Zeta_Steel_SafeMain.h"
 
-
-
-typedef uint8_t *dtuple2___uint8_t____;
-
 extern uint8_t EverCrypt_AEAD_create_in(uint8_t a, EverCrypt_AEAD_state_s **dst, uint8_t *k);
 
 extern uint8_t
@@ -1123,9 +1119,6 @@ typedef struct option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 }
 option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t;
 
-typedef option__K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t
-*dtuple2___FStar_Pervasives_Native_option_K___uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t____;
-
 typedef struct tbl__uint32_t_Zeta_Steel_EpochHashes_epoch_hashes_t_s
 {
   size_t store_len;
@@ -1140,8 +1133,6 @@ typedef struct all_epoch_hashes_s
 }
 all_epoch_hashes;
 
-typedef bool *dtuple2___bool____;
-
 typedef struct __uint32_t_Prims_dtuple2__bool_____s
 {
   uint32_t fst;
@@ -1155,9 +1146,6 @@ typedef struct option__K___uint32_t_Prims_dtuple2__bool_____s
   __uint32_t_Prims_dtuple2__bool____ v;
 }
 option__K___uint32_t_Prims_dtuple2__bool____;
-
-typedef option__K___uint32_t_Prims_dtuple2__bool____
-*dtuple2___FStar_Pervasives_Native_option_K___uint32_t_Prims_dtuple2__bool________;
 
 typedef struct tbl__uint32_t_Prims_dtuple2__bool_____s
 {
@@ -1295,7 +1283,7 @@ typedef uint8_t get_result__Prims_dtuple2___bool_____tags;
 typedef struct get_result__Prims_dtuple2___bool_____s
 {
   get_result__Prims_dtuple2___bool_____tags tag;
-  dtuple2___bool____ _0;
+  bool *_0;
 }
 get_result__Prims_dtuple2___bool____;
 
@@ -2808,7 +2796,8 @@ static bool vevictb_core(thread_state_t t, uint16_t s, timestamp ts)
       if (res.tag == FStar_Pervasives_Native_Some)
       {
         store_entry r = res.v;
-        if (r.add_method != BAdd)
+        bool add_method_not_badd = r.add_method != BAdd;
+        if (add_method_not_badd)
         {
           fail(t);
           return true;
@@ -2883,7 +2872,8 @@ static bool vevictbm_core(thread_state_t t, uint16_t s, uint16_t s_, timestamp t
         if (res.tag == FStar_Pervasives_Native_Some)
         {
           store_entry r = res.v;
-          if (r.add_method != MAdd)
+          bool add_method_not_madd = r.add_method != MAdd;
+          if (add_method_not_madd)
           {
             bool b = fail_as(t);
             return b;
@@ -3219,7 +3209,7 @@ static void epoch_map_add__Prims_dtuple2__bool____(epoch_tid_bitmaps a, uint32_t
 typedef struct option__Prims_dtuple2___bool_____s
 {
   FStar_Pervasives_Native_option__Zeta_Steel_ApplicationTypes_value_type_tags tag;
-  dtuple2___bool____ v;
+  bool *v;
 }
 option__Prims_dtuple2___bool____;
 
