@@ -80,6 +80,8 @@ val forall_store_ismap_prefix (#vcfg:_) (il: verifiable_log vcfg) (l:nat{l <= le
                                                forall_store_ismap il')))
           [SMTPat (prefix il l)]
 
+#push-options "--log_queries"
+#restart-solver
 val lemma_forall_store_ismap_snoc (#vcfg:_) (il: verifiable_log vcfg{length il > 0})
   : Lemma (requires (let i = length il - 1 in
                      let il' = prefix il i in
@@ -87,6 +89,7 @@ val lemma_forall_store_ismap_snoc (#vcfg:_) (il: verifiable_log vcfg{length il >
                      forall_store_ismap il' /\
                      is_map (thread_store t il)))
           (ensures forall_store_ismap il)
+#pop-options
 
 (* every state of every prefix is related to high-level state *)
 val forall_vtls_rel (#vcfg:_) (il: verifiable_log vcfg): prop

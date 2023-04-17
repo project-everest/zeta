@@ -973,8 +973,11 @@ let vevictb_core (#tsm:M.thread_state_model)
       )
       else (
         let Some r = A.read t.store (u16_as_size_t s) in
-        if r.add_method <> M.BAdd
-        then (fail t; return true)
+        let add_method_not_badd = r.add_method <> M.BAdd in
+        if add_method_not_badd
+        returns STT bool (thread_state_inv_core t tsm)
+                         (fun b -> thread_state_inv_core t (update_if b tsm (M.verify_log_entry tsm (EvictB ({s; t=ts})))))
+        then ( fail t; return true )
         else (
           let b = vevictb_update_hash_clock t s ts in
           if b
@@ -1026,7 +1029,10 @@ let vevictbm_core (#tsm:M.thread_state_model)
               | None -> fail_as t _
               | Some r' ->
                 let Some r = A.read t.store (u16_as_size_t s) in
-                if r.add_method <> M.MAdd
+                let add_method_not_madd = r.add_method <> M.MAdd in
+                if add_method_not_madd
+                returns STT bool (thread_state_inv_core t tsm)
+                                 (fun b -> thread_state_inv_core t (update_if b tsm (M.verify_log_entry tsm (EvictBM ({s; s_=s'; t=ts})))))
                 then (let b = fail_as t _ in return b)
                 else (
                   let gk = r.key in

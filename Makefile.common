@@ -1,6 +1,8 @@
 ZETA_HOME ?= .
 FSTAR_HOME ?= $(realpath $(dir $(shell which fstar.exe))/..)
 KRML_HOME ?= $(FSTAR_HOME)/../karamel
+STEEL_HOME ?= $(FSTAR_HOME)/../steel-draft
+
 # FSTAR_HOME ?= everest/FStar
 # KRML_HOME ?= everest/karamel
 
@@ -44,14 +46,15 @@ OUTPUT_DIRECTORY ?= $(ZETA_HOME)/_output
 CACHE_DIRECTORY = $(OUTPUT_DIRECTORY)/cache
 DIST_DIRECTORY=$(ZETA_HOME)/steel/dist
 
-INCLUDE_PATHS+=$(OUTPUT_DIRECTORY) $(SRC_DIRS) $(KRML_HOME)/krmllib $(KRML_HOME)/krmllib/obj
+INCLUDE_PATHS+=$(OUTPUT_DIRECTORY) $(SRC_DIRS) $(KRML_HOME)/krmllib $(KRML_HOME)/krmllib/obj $(STEEL_HOME)/lib/steel
 
 FSTAR_OPTIONS=--odir $(OUTPUT_DIRECTORY) \
 		 $(OTHERFLAGS) \
 		 --cache_dir $(CACHE_DIRECTORY) \
 	         $(addprefix --include , $(INCLUDE_PATHS)) \
 		 --cache_checked_modules \
-		 --cmi
+		 --cmi \
+                 --load_cmxs steel
 
 FSTAR=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 

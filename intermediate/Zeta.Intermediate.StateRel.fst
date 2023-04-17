@@ -1030,6 +1030,7 @@ let lemma_evictm_simulates_spec
           )
       )
 
+#push-options "--z3cliopt 'smt.qi.eager_threshold=100' --z3rlimit_factor 2"
 let lemma_evictbm_simulates_spec
       (#vcfg:_)
       (vs:vtls_t vcfg{vs.valid})
@@ -1122,7 +1123,7 @@ let lemma_evictbm_simulates_spec
               forall_intro aux
             )
           )
-
+#pop-options
 #pop-options
 
 
