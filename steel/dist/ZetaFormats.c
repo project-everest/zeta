@@ -2,8 +2,6 @@
 
 #include "ZetaFormats.h"
 
-
-
 #define VALIDATOR_MAX_LENGTH ((uint64_t)4294967295U)
 
 static inline bool is_error(uint64_t positionOrError)

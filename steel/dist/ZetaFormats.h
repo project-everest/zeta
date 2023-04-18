@@ -5,9 +5,8 @@
 
 #include "krmllib.h"
 
-
-
 #include "ZetaFormatsApplicationTypes.h"
+
 typedef struct LowParse_Slice_slice_s
 {
   uint8_t *base;

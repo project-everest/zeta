@@ -5,9 +5,6 @@
 
 #include "krmllib.h"
 
-
-
-
 typedef struct Zeta_KeyValueStore_Formats_Types_vget_args_t_s
 {
   uint64_t vget_key;
