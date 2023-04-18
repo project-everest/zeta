@@ -451,7 +451,7 @@ let t_evict_g2i_mono (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t:n
 
 #pop-options
 
-#push-options "--z3rlimit_factor 3 --split_queries --query_stats"
+#push-options "--z3rlimit_factor 3 --split_queries always --query_stats"
 
 let evict_seq_identical_thread (#vspec #n:_) (ep: epoch) (il: verifiable_log vspec n) (t: nat{t < n})
   : Lemma (ensures (t_evict_seq_il ep il t == t_evict_seq_gl ep il t))

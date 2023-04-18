@@ -722,7 +722,7 @@ let lemma_vaddm_preserves_spec_new_key
 
 // #push-options "--z3rlimit_factor 6"
 
-#push-options "--query_stats --fuel 4 --ifuel 2 --split_queries"
+#push-options "--query_stats --fuel 4 --ifuel 2 --split_queries always"
 let lemma_vaddb_preserves_spec_new_key
       (#vcfg:_)
       (vs:vtls_t vcfg{vs.valid})
