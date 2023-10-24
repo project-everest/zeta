@@ -75,11 +75,9 @@ let significant_digits_t_reader =
     ()
 
 let significant_digits_t_lserializer =
-  LL.coerce _ (
   LL.serialize32_synth
     (LL.serialize32_filter LL.serialize32_u16 significant_digits_filter)
     significant_digits_synth
     significant_digits_synth_recip
-    (fun x -> x)
+    (fun x -> x <: significant_digits_t) // this type annotation is necessary, otherwise F* uses this identity function to infer the two types of serialize32_synth being equal to parse_filter_refine significant_digits_filter, which will not unify with significant_digits_t
     ()
-  )
