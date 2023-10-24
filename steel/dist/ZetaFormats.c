@@ -2,16 +2,16 @@
 
 #include "ZetaFormats.h"
 
-#define VALIDATOR_MAX_LENGTH ((uint64_t)4294967295U)
+#define VALIDATOR_MAX_LENGTH (4294967295ULL)
 
 static inline bool is_error(uint64_t positionOrError)
 {
   return positionOrError > VALIDATOR_MAX_LENGTH;
 }
 
-#define VALIDATOR_ERROR_GENERIC ((uint64_t)4294967296U)
+#define VALIDATOR_ERROR_GENERIC (4294967296ULL)
 
-#define VALIDATOR_ERROR_NOT_ENOUGH_DATA ((uint64_t)8589934592U)
+#define VALIDATOR_ERROR_NOT_ENOUGH_DATA (8589934592ULL)
 
 typedef struct timestamp_s
 {
@@ -29,34 +29,33 @@ timestamp_;
 
 static uint32_t timestamp_size32(timestamp input)
 {
-  uint32_t v1 = (uint32_t)4U;
-  uint32_t v2 = (uint32_t)4U;
-  if ((uint32_t)4294967295U - v2 < v1)
-    return (uint32_t)4294967295U;
+  KRML_MAYBE_UNUSED_VAR(input);
+  uint32_t v1 = 4U;
+  uint32_t v2 = 4U;
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
   else
     return v1 + v2;
 }
 
 static uint64_t timestamp_validator(LowParse_Slice_slice sl, uint64_t pos)
 {
-  if ((uint64_t)sl.len - pos < (uint64_t)8U)
+  if ((uint64_t)sl.len - pos < 8ULL)
     return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
   else
-    return pos + (uint64_t)8U;
+    return pos + 8ULL;
 }
 
 static uint32_t timestamp_jumper(uint32_t pos)
 {
-  return pos + (uint32_t)8U;
+  return pos + 8U;
 }
 
 static timestamp timestamp_reader(LowParse_Slice_slice input, uint32_t pos)
 {
-  uint8_t *x00 = input.base;
-  uint32_t x1 = load32_be(x00 + pos);
-  uint32_t pos2 = pos + (uint32_t)4U;
-  uint8_t *x0 = input.base;
-  uint32_t x2 = load32_be(x0 + pos2);
+  uint32_t x1 = load32_be(input.base + pos);
+  uint32_t pos2 = pos + 4U;
+  uint32_t x2 = load32_be(input.base + pos2);
   timestamp_ res = { .fst = x1, .snd = x2 };
   uint32_t epoch = res.fst;
   uint32_t counter = res.snd;
@@ -66,37 +65,37 @@ static timestamp timestamp_reader(LowParse_Slice_slice input, uint32_t pos)
 static uint32_t timestamp_lserializer(timestamp x, uint8_t *input, uint32_t pos)
 {
   store32_be(input + pos, x.epoch);
-  uint32_t res = (uint32_t)4U;
+  uint32_t res = 4U;
   uint32_t len1 = res;
   uint32_t pos1 = pos + len1;
   store32_be(input + pos1, x.counter);
-  uint32_t res0 = (uint32_t)4U;
+  uint32_t res0 = 4U;
   uint32_t len2 = res0;
   return len1 + len2;
 }
 
 static uint32_t slot_id_size32(uint16_t x)
 {
-  return (uint32_t)2U;
+  KRML_MAYBE_UNUSED_VAR(x);
+  return 2U;
 }
 
 static uint64_t slot_id_validator(LowParse_Slice_slice sl, uint64_t pos)
 {
-  if ((uint64_t)sl.len - pos < (uint64_t)2U)
+  if ((uint64_t)sl.len - pos < 2ULL)
     return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
   else
-    return pos + (uint64_t)2U;
+    return pos + 2ULL;
 }
 
 static uint32_t slot_id_jumper(uint32_t pos)
 {
-  return pos + (uint32_t)2U;
+  return pos + 2U;
 }
 
 static uint16_t slot_id_reader(LowParse_Slice_slice sl, uint32_t pos)
 {
-  uint8_t *x0 = sl.base;
-  return load16_be(x0 + pos);
+  return load16_be(sl.base + pos);
 }
 
 typedef struct evictbm_payload_s
@@ -123,32 +122,31 @@ evictbm_payload_;
 
 static uint32_t evictbm_payload_size32(evictbm_payload input)
 {
-  uint32_t v1 = slot_id_size32(input.evictbm_s);
+  uint32_t v10 = slot_id_size32(input.evictbm_s);
   uint32_t v20 = slot_id_size32(input.evictbm_s2);
-  uint32_t res;
-  if ((uint32_t)4294967295U - v20 < v1)
-    res = (uint32_t)4294967295U;
+  uint32_t v1;
+  if (4294967295U - v20 < v10)
+    v1 = 4294967295U;
   else
-    res = v1 + v20;
-  uint32_t v10 = res;
+    v1 = v10 + v20;
   uint32_t v2 = timestamp_size32(input.evictbm_t);
-  if ((uint32_t)4294967295U - v2 < v10)
-    return (uint32_t)4294967295U;
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
   else
-    return v10 + v2;
+    return v1 + v2;
 }
 
 static uint64_t evictbm_payload_validator(LowParse_Slice_slice sl, uint64_t pos)
 {
-  if ((uint64_t)sl.len - pos < (uint64_t)12U)
+  if ((uint64_t)sl.len - pos < 12ULL)
     return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
   else
-    return pos + (uint64_t)12U;
+    return pos + 12ULL;
 }
 
 static uint32_t evictbm_payload_jumper(uint32_t pos)
 {
-  return pos + (uint32_t)12U;
+  return pos + 12U;
 }
 
 static evictbm_payload evictbm_payload_reader(LowParse_Slice_slice input, uint32_t pos)
@@ -169,31 +167,31 @@ static evictbm_payload evictbm_payload_reader(LowParse_Slice_slice input, uint32
 
 static timestamp_ bit_offset_in_word(uint16_t i)
 {
-  if (i < (uint16_t)64U)
-    return ((timestamp_){ .fst = (uint32_t)0U, .snd = (uint32_t)i });
-  else if (i < (uint16_t)128U)
-    return ((timestamp_){ .fst = (uint32_t)1U, .snd = (uint32_t)(i - (uint16_t)64U) });
-  else if (i < (uint16_t)192U)
-    return ((timestamp_){ .fst = (uint32_t)2U, .snd = (uint32_t)(i - (uint16_t)128U) });
+  if (i < 64U)
+    return ((timestamp_){ .fst = 0U, .snd = (uint32_t)i });
+  else if (i < 128U)
+    return ((timestamp_){ .fst = 1U, .snd = (uint32_t)((uint32_t)i - 64U) });
+  else if (i < 192U)
+    return ((timestamp_){ .fst = 2U, .snd = (uint32_t)((uint32_t)i - 128U) });
   else
-    return ((timestamp_){ .fst = (uint32_t)3U, .snd = (uint32_t)(i - (uint16_t)192U) });
+    return ((timestamp_){ .fst = 3U, .snd = (uint32_t)((uint32_t)i - 192U) });
 }
 
 static uint64_t truncate_word(uint64_t k, uint32_t index)
 {
-  if (index == (uint32_t)0U)
-    return (uint64_t)0U;
+  if (index == 0U)
+    return 0ULL;
   else
   {
-    uint32_t shift_index = (uint32_t)64U - index;
-    uint64_t mask = (uint64_t)0xffffffffffffffffU >> shift_index;
+    uint32_t shift_index = 64U - index;
+    uint64_t mask = 0xffffffffffffffffULL >> shift_index;
     return k & mask;
   }
 }
 
 static Zeta_Steel_KeyUtils_raw_key truncate_key(Zeta_Steel_KeyUtils_raw_key k, uint16_t w)
 {
-  if (w == (uint16_t)256U)
+  if (w == 256U)
     return k;
   else
   {
@@ -202,31 +200,31 @@ static Zeta_Steel_KeyUtils_raw_key truncate_key(Zeta_Steel_KeyUtils_raw_key k, u
     uint32_t index = scrut.snd;
     Zeta_Steel_KeyUtils_u256 kk = k.k;
     Zeta_Steel_KeyUtils_u256 kk_;
-    if (word == (uint32_t)0U)
+    if (word == 0U)
       kk_ =
         (
           (Zeta_Steel_KeyUtils_u256){
-            .v3 = (uint64_t)0U,
-            .v2 = (uint64_t)0U,
-            .v1 = (uint64_t)0U,
+            .v3 = 0ULL,
+            .v2 = 0ULL,
+            .v1 = 0ULL,
             .v0 = truncate_word(kk.v0, index)
           }
         );
-    else if (word == (uint32_t)1U)
+    else if (word == 1U)
       kk_ =
         (
           (Zeta_Steel_KeyUtils_u256){
-            .v3 = (uint64_t)0U,
-            .v2 = (uint64_t)0U,
+            .v3 = 0ULL,
+            .v2 = 0ULL,
             .v1 = truncate_word(kk.v1, index),
             .v0 = kk.v0
           }
         );
-    else if (word == (uint32_t)2U)
+    else if (word == 2U)
       kk_ =
         (
           (Zeta_Steel_KeyUtils_u256){
-            .v3 = (uint64_t)0U,
+            .v3 = 0ULL,
             .v2 = truncate_word(kk.v2, index),
             .v1 = kk.v1,
             .v0 = kk.v0
@@ -248,7 +246,7 @@ static Zeta_Steel_KeyUtils_raw_key truncate_key(Zeta_Steel_KeyUtils_raw_key k, u
 
 static bool is_internal_key(Zeta_Steel_KeyUtils_raw_key r)
 {
-  return r.significant_digits < (uint16_t)256U;
+  return r.significant_digits < 256U;
 }
 
 static uint32_t application_value_size32(Zeta_Steel_ApplicationTypes_value_type x)
@@ -315,6 +313,37 @@ application_key_lserializer(
 
 typedef uint32_t uninterpreted;
 
+static uint64_t significant_digits_t_validator(LowParse_Slice_slice input, uint64_t pos)
+{
+  uint64_t res;
+  if ((uint64_t)input.len - pos < 2ULL)
+    res = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
+  else
+    res = pos + 2ULL;
+  if (is_error(res))
+    return res;
+  else
+  {
+    uint16_t va = load16_be(input.base + (uint32_t)pos);
+    if (!(va <= 256U))
+      return VALIDATOR_ERROR_GENERIC;
+    else
+      return res;
+  }
+}
+
+static uint16_t significant_digits_t_reader(LowParse_Slice_slice input, uint32_t pos)
+{
+  uint16_t res = load16_be(input.base + pos);
+  return res;
+}
+
+static uint32_t significant_digits_t_lserializer(uint16_t x, uint8_t *input, uint32_t pos)
+{
+  store16_be(input + pos, x);
+  return 2U;
+}
+
 typedef struct u256_s
 {
   uint64_t v3;
@@ -340,55 +369,50 @@ u256_;
 
 static uint32_t u256_size32(u256 input)
 {
-  uint32_t v1 = (uint32_t)8U;
-  uint32_t v20 = (uint32_t)8U;
-  uint32_t res0;
-  if ((uint32_t)4294967295U - v20 < v1)
-    res0 = (uint32_t)4294967295U;
+  KRML_MAYBE_UNUSED_VAR(input);
+  uint32_t v10 = 8U;
+  uint32_t v20 = 8U;
+  uint32_t v1;
+  if (4294967295U - v20 < v10)
+    v1 = 4294967295U;
   else
-    res0 = v1 + v20;
-  uint32_t v10 = res0;
-  uint32_t v11 = (uint32_t)8U;
-  uint32_t v2 = (uint32_t)8U;
-  uint32_t res;
-  if ((uint32_t)4294967295U - v2 < v11)
-    res = (uint32_t)4294967295U;
+    v1 = v10 + v20;
+  uint32_t v11 = 8U;
+  uint32_t v21 = 8U;
+  uint32_t v2;
+  if (4294967295U - v21 < v11)
+    v2 = 4294967295U;
   else
-    res = v11 + v2;
-  uint32_t v21 = res;
-  if ((uint32_t)4294967295U - v21 < v10)
-    return (uint32_t)4294967295U;
+    v2 = v11 + v21;
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
   else
-    return v10 + v21;
+    return v1 + v2;
 }
 
 static uint64_t u256_validator(LowParse_Slice_slice sl, uint64_t pos)
 {
-  if ((uint64_t)sl.len - pos < (uint64_t)32U)
+  if ((uint64_t)sl.len - pos < 32ULL)
     return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
   else
-    return pos + (uint64_t)32U;
+    return pos + 32ULL;
 }
 
 static uint32_t u256_jumper(uint32_t pos)
 {
-  return pos + (uint32_t)32U;
+  return pos + 32U;
 }
 
 static u256 u256_reader(LowParse_Slice_slice input, uint32_t pos)
 {
-  uint8_t *x00 = input.base;
-  uint64_t x1 = load64_be(x00 + pos);
-  uint32_t pos20 = pos + (uint32_t)8U;
-  uint8_t *x01 = input.base;
-  uint64_t x2 = load64_be(x01 + pos20);
+  uint64_t x1 = load64_be(input.base + pos);
+  uint32_t pos20 = pos + 8U;
+  uint64_t x2 = load64_be(input.base + pos20);
   __uint64_t_uint64_t x10 = { .fst = x1, .snd = x2 };
-  uint32_t pos2 = pos + (uint32_t)8U + (uint32_t)8U;
-  uint8_t *x02 = input.base;
-  uint64_t x11 = load64_be(x02 + pos2);
-  uint32_t pos21 = pos2 + (uint32_t)8U;
-  uint8_t *x0 = input.base;
-  uint64_t x20 = load64_be(x0 + pos21);
+  uint32_t pos2 = pos + 8U + 8U;
+  uint64_t x11 = load64_be(input.base + pos2);
+  uint32_t pos21 = pos2 + 8U;
+  uint64_t x20 = load64_be(input.base + pos21);
   __uint64_t_uint64_t x21 = { .fst = x11, .snd = x20 };
   u256_ res = { .fst = x10, .snd = x21 };
   uint64_t v0 = res.snd.snd;
@@ -401,72 +425,25 @@ static u256 u256_reader(LowParse_Slice_slice input, uint32_t pos)
 static uint32_t u256_lserializer(u256 x, uint8_t *input, uint32_t pos)
 {
   store64_be(input + pos, x.v3);
-  uint32_t res0 = (uint32_t)8U;
+  uint32_t res0 = 8U;
   uint32_t len1 = res0;
   uint32_t pos10 = pos + len1;
   store64_be(input + pos10, x.v2);
-  uint32_t res1 = (uint32_t)8U;
+  uint32_t res1 = 8U;
   uint32_t len2 = res1;
   uint32_t res2 = len1 + len2;
   uint32_t len10 = res2;
   uint32_t pos1 = pos + len10;
   store64_be(input + pos1, x.v1);
-  uint32_t res = (uint32_t)8U;
+  uint32_t res = 8U;
   uint32_t len11 = res;
   uint32_t pos11 = pos1 + len11;
   store64_be(input + pos11, x.v0);
-  uint32_t res3 = (uint32_t)8U;
+  uint32_t res3 = 8U;
   uint32_t len20 = res3;
   uint32_t res4 = len11 + len20;
   uint32_t len21 = res4;
   return len10 + len21;
-}
-
-static Zeta_Steel_KeyUtils_u256 synth_u256(u256 x)
-{
-  return ((Zeta_Steel_KeyUtils_u256){ .v3 = x.v3, .v2 = x.v2, .v1 = x.v1, .v0 = x.v0 });
-}
-
-static u256 synth_u256_recip(Zeta_Steel_KeyUtils_u256 x)
-{
-  uint64_t v3 = x.v3;
-  uint64_t v2 = x.v2;
-  uint64_t v1 = x.v1;
-  uint64_t v0 = x.v0;
-  return ((u256){ .v3 = v3, .v2 = v2, .v1 = v1, .v0 = v0 });
-}
-
-static uint64_t significant_digits_t_validator(LowParse_Slice_slice input, uint64_t pos)
-{
-  uint64_t res;
-  if ((uint64_t)input.len - pos < (uint64_t)2U)
-    res = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
-  else
-    res = pos + (uint64_t)2U;
-  if (is_error(res))
-    return res;
-  else
-  {
-    uint8_t *x0 = input.base;
-    uint16_t va = load16_be(x0 + (uint32_t)pos);
-    if (!(va <= (uint16_t)256U))
-      return VALIDATOR_ERROR_GENERIC;
-    else
-      return res;
-  }
-}
-
-static uint16_t significant_digits_t_reader(LowParse_Slice_slice input, uint32_t pos)
-{
-  uint8_t *x0 = input.base;
-  uint16_t res = load16_be(x0 + pos);
-  return res;
-}
-
-static uint32_t significant_digits_t_lserializer(uint16_t x, uint8_t *input, uint32_t pos)
-{
-  store16_be(input + pos, x);
-  return (uint32_t)2U;
 }
 
 typedef struct raw_key_s
@@ -514,6 +491,326 @@ static uint32_t raw_key_lserializer(raw_key x, uint8_t *input, uint32_t pos)
   return len1 + len2;
 }
 
+#define Key_internal 0
+#define Key_application 1
+
+typedef uint8_t key_kind;
+
+#define DValueNone 0
+#define DValueSome 1
+
+typedef uint8_t dvalue_kind;
+
+#define V_payload_DValueNone 0
+#define V_payload_DValueSome 1
+
+typedef uint8_t application_record_v_payload_tags;
+
+typedef struct application_record_v_payload_s
+{
+  application_record_v_payload_tags tag;
+  Zeta_Steel_ApplicationTypes_value_type _0;
+}
+application_record_v_payload;
+
+static uint32_t application_record_v_payload_size32(application_record_v_payload x)
+{
+  dvalue_kind tg;
+  if (x.tag == V_payload_DValueNone)
+    tg = DValueNone;
+  else if (x.tag == V_payload_DValueSome)
+    tg = DValueSome;
+  else
+    tg = KRML_EABORT(dvalue_kind, "unreachable (pattern matches are exhaustive in F*)");
+  uint32_t s1 = 1U;
+  uint32_t s2;
+  if (DValueNone == tg)
+    s2 = 0U;
+  else
+  {
+    Zeta_Steel_ApplicationTypes_value_type ite;
+    if (x.tag == V_payload_DValueSome)
+      ite = x._0;
+    else
+      ite =
+        KRML_EABORT(Zeta_Steel_ApplicationTypes_value_type,
+          "unreachable (pattern matches are exhaustive in F*)");
+    s2 = application_value_size32(ite);
+  }
+  return s1 + s2;
+}
+
+static uint64_t
+application_record_v_payload_validator(LowParse_Slice_slice input, uint64_t pos)
+{
+  uint64_t len_after_tag;
+  if ((uint64_t)input.len - pos < 1ULL)
+    len_after_tag = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
+  else
+    len_after_tag = pos + 1ULL;
+  if (is_error(len_after_tag))
+    return len_after_tag;
+  else
+  {
+    uint8_t k_ = input.base[(uint32_t)pos];
+    if (k_ == 0U)
+      if ((uint64_t)input.len - len_after_tag < 0ULL)
+        return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
+      else
+        return len_after_tag + 0ULL;
+    else if (k_ == 1U)
+      return application_value_validator(input, len_after_tag);
+    else
+      return VALIDATOR_ERROR_GENERIC;
+  }
+}
+
+static uint32_t application_record_v_payload_jumper(LowParse_Slice_slice input, uint32_t pos)
+{
+  uint32_t pos_after_tag = pos + 1U;
+  uint8_t k_ = input.base[pos];
+  if (k_ == 0U)
+    return pos_after_tag + 0U;
+  else if (k_ == 1U)
+    return application_value_jumper(input, pos_after_tag);
+  else
+    return 0U;
+}
+
+static application_record_v_payload
+application_record_v_payload_reader(LowParse_Slice_slice input, uint32_t pos)
+{
+  uint8_t res = input.base[pos];
+  dvalue_kind k;
+  if (res == 0U)
+    k = DValueNone;
+  else if (res == 1U)
+    k = DValueSome;
+  else
+    k = DValueNone;
+  uint32_t pos_ = pos + 1U;
+  if (DValueNone == k)
+    return ((application_record_v_payload){ .tag = V_payload_DValueNone });
+  else
+  {
+    Zeta_Steel_ApplicationTypes_value_type res = application_value_reader(input, pos_);
+    return ((application_record_v_payload){ .tag = V_payload_DValueSome, ._0 = res });
+  }
+}
+
+static uint32_t
+application_record_v_payload_lserializer(
+  application_record_v_payload x,
+  uint8_t *b,
+  uint32_t pos
+)
+{
+  dvalue_kind tg;
+  if (x.tag == V_payload_DValueNone)
+    tg = DValueNone;
+  else if (x.tag == V_payload_DValueSome)
+    tg = DValueSome;
+  else
+    tg = KRML_EABORT(dvalue_kind, "unreachable (pattern matches are exhaustive in F*)");
+  uint8_t ite0;
+  if (DValueNone == tg)
+    ite0 = 0U;
+  else
+    ite0 = 1U;
+  b[pos] = ite0;
+  uint32_t len = 1U;
+  uint32_t res0 = pos + len;
+  uint32_t pos_ = res0;
+  uint32_t pos_0 = pos_;
+  uint32_t res1 = pos_0 - pos;
+  uint32_t len1 = res1;
+  uint32_t pos1 = pos + len1;
+  uint32_t res;
+  if (DValueNone == tg)
+    res = 0U;
+  else
+  {
+    Zeta_Steel_ApplicationTypes_value_type ite;
+    if (x.tag == V_payload_DValueSome)
+      ite = x._0;
+    else
+      ite =
+        KRML_EABORT(Zeta_Steel_ApplicationTypes_value_type,
+          "unreachable (pattern matches are exhaustive in F*)");
+    res = application_value_lserializer(ite, b, pos1);
+  }
+  uint32_t len2 = res;
+  return len1 + len2;
+}
+
+typedef struct application_record_s
+{
+  Zeta_Steel_ApplicationTypes_key_type ar_key;
+  application_record_v_payload v_payload;
+}
+application_record;
+
+typedef struct application_record__s
+{
+  Zeta_Steel_ApplicationTypes_key_type fst;
+  application_record_v_payload snd;
+}
+application_record_;
+
+static uint32_t application_record_size32(application_record input)
+{
+  uint32_t v1 = application_key_size32(input.ar_key);
+  uint32_t v2 = application_record_v_payload_size32(input.v_payload);
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
+  else
+    return v1 + v2;
+}
+
+static uint64_t application_record_validator(LowParse_Slice_slice input, uint64_t pos)
+{
+  uint64_t pos1 = application_key_validator(input, pos);
+  if (is_error(pos1))
+    return pos1;
+  else
+    return application_record_v_payload_validator(input, pos1);
+}
+
+static uint32_t application_record_jumper(LowParse_Slice_slice input, uint32_t pos)
+{
+  return application_record_v_payload_jumper(input, application_key_jumper(input, pos));
+}
+
+static application_record application_record_reader(LowParse_Slice_slice input, uint32_t pos)
+{
+  Zeta_Steel_ApplicationTypes_key_type x1 = application_key_reader(input, pos);
+  uint32_t pos2 = application_key_jumper(input, pos);
+  application_record_v_payload x2 = application_record_v_payload_reader(input, pos2);
+  application_record_ res = { .fst = x1, .snd = x2 };
+  Zeta_Steel_ApplicationTypes_key_type ar_key = res.fst;
+  application_record_v_payload v_payload = res.snd;
+  return ((application_record){ .ar_key = ar_key, .v_payload = v_payload });
+}
+
+static uint32_t
+application_record_lserializer(application_record x, uint8_t *input, uint32_t pos)
+{
+  uint32_t res = application_key_lserializer(x.ar_key, input, pos);
+  uint32_t len1 = res;
+  uint32_t pos1 = pos + len1;
+  uint32_t res0 = application_record_v_payload_lserializer(x.v_payload, input, pos1);
+  uint32_t len2 = res0;
+  return len1 + len2;
+}
+
+#define Vnone 0
+#define Vsome 1
+
+typedef uint8_t voption;
+
+#define Vfalse 0
+#define Vtrue 1
+
+typedef uint8_t vbool;
+
+static uint32_t vbool_size32(vbool x)
+{
+  KRML_MAYBE_UNUSED_VAR(x);
+  return 1U;
+}
+
+static uint64_t vbool_validator(LowParse_Slice_slice input, uint64_t pos)
+{
+  uint64_t res;
+  if ((uint64_t)input.len - pos < 1ULL)
+    res = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
+  else
+    res = pos + 1ULL;
+  if (is_error(res))
+    return res;
+  else
+  {
+    uint8_t va = input.base[(uint32_t)pos];
+    bool ite;
+    if (va == 0U)
+      ite = true;
+    else if (va == 1U)
+      ite = true;
+    else
+      ite = false;
+    if (!ite)
+      return VALIDATOR_ERROR_GENERIC;
+    else
+      return res;
+  }
+}
+
+static vbool vbool_reader(LowParse_Slice_slice input, uint32_t pos)
+{
+  uint8_t res = input.base[pos];
+  if (res == 0U)
+    return Vfalse;
+  else if (res == 1U)
+    return Vtrue;
+  else
+    return Vfalse;
+}
+
+static uint32_t vbool_writer(vbool x, LowParse_Slice_slice input, uint32_t pos)
+{
+  uint8_t ite;
+  if (Vfalse == x)
+    ite = 0U;
+  else
+    ite = 1U;
+  input.base[pos] = ite;
+  uint32_t len = 1U;
+  uint32_t res = pos + len;
+  uint32_t pos_ = res;
+  uint32_t pos_0 = pos_;
+  return pos_0;
+}
+
+static uint32_t vbool_lserializer(vbool x, uint8_t *b, uint32_t pos)
+{
+  uint32_t pos_ = vbool_writer(x, ((LowParse_Slice_slice){ .base = b, .len = pos + 1U }), pos);
+  return pos_ - pos;
+}
+
+static uint32_t (*hash_value_size32)(u256 x0) = u256_size32;
+
+static uint64_t hash_value_validator(LowParse_Slice_slice sl, uint64_t pos)
+{
+  if ((uint64_t)sl.len - pos < 32ULL)
+    return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
+  else
+    return pos + 32ULL;
+}
+
+static uint32_t hash_value_jumper(uint32_t pos)
+{
+  return pos + 32U;
+}
+
+static u256 (*hash_value_reader)(LowParse_Slice_slice x0, uint32_t x1) = u256_reader;
+
+static uint32_t
+(*hash_value_lserializer)(u256 x0, uint8_t *x1, uint32_t x2) = u256_lserializer;
+
+static Zeta_Steel_KeyUtils_u256 synth_u256(u256 x)
+{
+  return ((Zeta_Steel_KeyUtils_u256){ .v3 = x.v3, .v2 = x.v2, .v1 = x.v1, .v0 = x.v0 });
+}
+
+static u256 synth_u256_recip(Zeta_Steel_KeyUtils_u256 x)
+{
+  uint64_t v3 = x.v3;
+  uint64_t v2 = x.v2;
+  uint64_t v1 = x.v1;
+  uint64_t v0 = x.v0;
+  return ((u256){ .v3 = v3, .v2 = v2, .v1 = v1, .v0 = v0 });
+}
+
 static Zeta_Steel_KeyUtils_raw_key synth_raw_key(raw_key x)
 {
   return
@@ -538,7 +835,8 @@ static raw_key synth_raw_key_recip(Zeta_Steel_KeyUtils_raw_key x)
 
 static uint32_t base_key_size32(Zeta_Steel_KeyUtils_raw_key x)
 {
-  return (uint32_t)34U;
+  KRML_MAYBE_UNUSED_VAR(x);
+  return 34U;
 }
 
 static bool
@@ -575,7 +873,7 @@ static uint64_t base_key_validator(LowParse_Slice_slice input, uint64_t pos)
 
 static uint32_t base_key_jumper(uint32_t pos)
 {
-  return pos + (uint32_t)34U;
+  return pos + 34U;
 }
 
 static Zeta_Steel_KeyUtils_raw_key base_key_reader(LowParse_Slice_slice input, uint32_t pos)
@@ -589,106 +887,6 @@ base_key_lserializer(Zeta_Steel_KeyUtils_raw_key x, uint8_t *input, uint32_t pos
 {
   return raw_key_lserializer(synth_raw_key_recip(x), input, pos);
 }
-
-#define MV 0
-#define DVNone 1
-#define DVSome 2
-
-typedef uint8_t value_kind;
-
-#define Vnone 0
-#define Vsome 1
-
-typedef uint8_t voption;
-
-#define Vfalse 0
-#define Vtrue 1
-
-typedef uint8_t vbool;
-
-static uint32_t vbool_size32(vbool x)
-{
-  return (uint32_t)1U;
-}
-
-static uint64_t vbool_validator(LowParse_Slice_slice input, uint64_t pos)
-{
-  uint64_t res;
-  if ((uint64_t)input.len - pos < (uint64_t)1U)
-    res = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
-  else
-    res = pos + (uint64_t)1U;
-  if (is_error(res))
-    return res;
-  else
-  {
-    uint8_t va = input.base[(uint32_t)pos];
-    bool ite;
-    if (va == (uint8_t)0U)
-      ite = true;
-    else if (va == (uint8_t)1U)
-      ite = true;
-    else
-      ite = false;
-    if (!ite)
-      return VALIDATOR_ERROR_GENERIC;
-    else
-      return res;
-  }
-}
-
-static vbool vbool_reader(LowParse_Slice_slice input, uint32_t pos)
-{
-  uint8_t res = input.base[pos];
-  if (res == (uint8_t)0U)
-    return Vfalse;
-  else if (res == (uint8_t)1U)
-    return Vtrue;
-  else
-    return Vfalse;
-}
-
-static uint32_t vbool_writer(vbool x, LowParse_Slice_slice input, uint32_t pos)
-{
-  uint8_t ite;
-  if (Vfalse == x)
-    ite = (uint8_t)0U;
-  else
-    ite = (uint8_t)1U;
-  input.base[pos] = ite;
-  uint32_t len = (uint32_t)1U;
-  uint32_t res = pos + len;
-  uint32_t pos_ = res;
-  uint32_t pos_0 = pos_;
-  return pos_0;
-}
-
-static uint32_t vbool_lserializer(vbool x, uint8_t *b, uint32_t pos)
-{
-  uint32_t
-  pos_ = vbool_writer(x, ((LowParse_Slice_slice){ .base = b, .len = pos + (uint32_t)1U }), pos);
-  return pos_ - pos;
-}
-
-static uint32_t (*hash_value_size32)(u256 x0) = u256_size32;
-
-static uint64_t hash_value_validator(LowParse_Slice_slice sl, uint64_t pos)
-{
-  if ((uint64_t)sl.len - pos < (uint64_t)32U)
-    return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
-  else
-    return pos + (uint64_t)32U;
-}
-
-static uint32_t hash_value_jumper(uint32_t pos)
-{
-  return pos + (uint32_t)32U;
-}
-
-static u256 (*hash_value_reader)(LowParse_Slice_slice x0, uint32_t x1) = u256_reader;
-
-static uint32_t
-(*hash_value_lserializer)(u256 x0, uint8_t *x1, uint32_t x2) = u256_lserializer;
 
 typedef struct descendent_hash_desc_s
 {
@@ -714,19 +912,18 @@ descendent_hash_desc_;
 
 static uint32_t descendent_hash_desc_size32(descendent_hash_desc input)
 {
-  uint32_t v1 = base_key_size32(input.dhd_key);
+  uint32_t v10 = base_key_size32(input.dhd_key);
   uint32_t v20 = hash_value_size32(input.dhd_h);
-  uint32_t res;
-  if ((uint32_t)4294967295U - v20 < v1)
-    res = (uint32_t)4294967295U;
+  uint32_t v1;
+  if (4294967295U - v20 < v10)
+    v1 = 4294967295U;
   else
-    res = v1 + v20;
-  uint32_t v10 = res;
+    v1 = v10 + v20;
   uint32_t v2 = vbool_size32(input.evicted_to_blum);
-  if ((uint32_t)4294967295U - v2 < v10)
-    return (uint32_t)4294967295U;
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
   else
-    return v10 + v2;
+    return v1 + v2;
 }
 
 static uint64_t descendent_hash_desc_validator(LowParse_Slice_slice input, uint64_t pos)
@@ -745,7 +942,7 @@ static uint64_t descendent_hash_desc_validator(LowParse_Slice_slice input, uint6
 
 static uint32_t descendent_hash_desc_jumper(uint32_t pos)
 {
-  return pos + (uint32_t)67U;
+  return pos + 67U;
 }
 
 static descendent_hash_desc
@@ -808,10 +1005,10 @@ static uint32_t descendent_hash_size32(descendent_hash x)
     tg = Vsome;
   else
     tg = KRML_EABORT(voption, "unreachable (pattern matches are exhaustive in F*)");
-  uint32_t s1 = (uint32_t)1U;
+  uint32_t s1 = 1U;
   uint32_t s2;
   if (Vnone == tg)
-    s2 = (uint32_t)0U;
+    s2 = 0U;
   else
   {
     descendent_hash_desc ite;
@@ -827,21 +1024,21 @@ static uint32_t descendent_hash_size32(descendent_hash x)
 static uint64_t descendent_hash_validator(LowParse_Slice_slice input, uint64_t pos)
 {
   uint64_t len_after_tag;
-  if ((uint64_t)input.len - pos < (uint64_t)1U)
+  if ((uint64_t)input.len - pos < 1ULL)
     len_after_tag = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
   else
-    len_after_tag = pos + (uint64_t)1U;
+    len_after_tag = pos + 1ULL;
   if (is_error(len_after_tag))
     return len_after_tag;
   else
   {
     uint8_t k_ = input.base[(uint32_t)pos];
-    if (k_ == (uint8_t)0U)
-      if ((uint64_t)input.len - len_after_tag < (uint64_t)0U)
+    if (k_ == 0U)
+      if ((uint64_t)input.len - len_after_tag < 0ULL)
         return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
       else
-        return len_after_tag + (uint64_t)0U;
-    else if (k_ == (uint8_t)1U)
+        return len_after_tag + 0ULL;
+    else if (k_ == 1U)
       return descendent_hash_desc_validator(input, len_after_tag);
     else
       return VALIDATOR_ERROR_GENERIC;
@@ -850,27 +1047,27 @@ static uint64_t descendent_hash_validator(LowParse_Slice_slice input, uint64_t p
 
 static uint32_t descendent_hash_jumper(LowParse_Slice_slice input, uint32_t pos)
 {
-  uint32_t pos_after_tag = pos + (uint32_t)1U;
+  uint32_t pos_after_tag = pos + 1U;
   uint8_t k_ = input.base[pos];
-  if (k_ == (uint8_t)0U)
-    return pos_after_tag + (uint32_t)0U;
-  else if (k_ == (uint8_t)1U)
+  if (k_ == 0U)
+    return pos_after_tag + 0U;
+  else if (k_ == 1U)
     return descendent_hash_desc_jumper(pos_after_tag);
   else
-    return (uint32_t)0U;
+    return 0U;
 }
 
 static descendent_hash descendent_hash_reader(LowParse_Slice_slice input, uint32_t pos)
 {
   uint8_t res = input.base[pos];
   voption k;
-  if (res == (uint8_t)0U)
+  if (res == 0U)
     k = Vnone;
-  else if (res == (uint8_t)1U)
+  else if (res == 1U)
     k = Vsome;
   else
     k = Vnone;
-  uint32_t pos_ = pos + (uint32_t)1U;
+  uint32_t pos_ = pos + 1U;
   if (Vnone == k)
     return ((descendent_hash){ .tag = Dh_vnone });
   else
@@ -891,11 +1088,11 @@ static uint32_t descendent_hash_lserializer(descendent_hash x, uint8_t *b, uint3
     tg = KRML_EABORT(voption, "unreachable (pattern matches are exhaustive in F*)");
   uint8_t ite0;
   if (Vnone == tg)
-    ite0 = (uint8_t)0U;
+    ite0 = 0U;
   else
-    ite0 = (uint8_t)1U;
+    ite0 = 1U;
   b[pos] = ite0;
-  uint32_t len = (uint32_t)1U;
+  uint32_t len = 1U;
   uint32_t res0 = pos + len;
   uint32_t pos_ = res0;
   uint32_t pos_0 = pos_;
@@ -904,7 +1101,7 @@ static uint32_t descendent_hash_lserializer(descendent_hash x, uint8_t *b, uint3
   uint32_t pos1 = pos + len1;
   uint32_t res;
   if (Vnone == tg)
-    res = (uint32_t)0U;
+    res = 0U;
   else
   {
     descendent_hash_desc ite;
@@ -936,8 +1133,8 @@ static uint32_t mval_value_size32(mval_value input)
 {
   uint32_t v1 = descendent_hash_size32(input.l);
   uint32_t v2 = descendent_hash_size32(input.r);
-  if ((uint32_t)4294967295U - v2 < v1)
-    return (uint32_t)4294967295U;
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
   else
     return v1 + v2;
 }
@@ -977,223 +1174,6 @@ static uint32_t mval_value_lserializer(mval_value x, uint8_t *input, uint32_t po
   return len1 + len2;
 }
 
-#define Value_payload_MV 0
-#define Value_payload_DVNone 1
-#define Value_payload_DVSome 2
-
-typedef uint8_t value_tags;
-
-typedef struct value_s
-{
-  value_tags tag;
-  union {
-    mval_value case_Value_payload_MV;
-    Zeta_Steel_ApplicationTypes_value_type case_Value_payload_DVSome;
-  }
-  ;
-}
-value;
-
-static uint32_t value_lserializer(value x, uint8_t *b, uint32_t pos)
-{
-  value_kind tg;
-  if (x.tag == Value_payload_MV)
-    tg = MV;
-  else if (x.tag == Value_payload_DVNone)
-    tg = DVNone;
-  else if (x.tag == Value_payload_DVSome)
-    tg = DVSome;
-  else
-    tg = KRML_EABORT(value_kind, "unreachable (pattern matches are exhaustive in F*)");
-  uint8_t ite0;
-  if (MV == tg)
-    ite0 = (uint8_t)0U;
-  else if (DVNone == tg)
-    ite0 = (uint8_t)1U;
-  else
-    ite0 = (uint8_t)2U;
-  b[pos] = ite0;
-  uint32_t len = (uint32_t)1U;
-  uint32_t res0 = pos + len;
-  uint32_t pos_ = res0;
-  uint32_t pos_0 = pos_;
-  uint32_t res1 = pos_0 - pos;
-  uint32_t len1 = res1;
-  uint32_t pos1 = pos + len1;
-  uint32_t res;
-  if (MV == tg)
-  {
-    mval_value ite;
-    if (x.tag == Value_payload_MV)
-      ite = x.case_Value_payload_MV;
-    else
-      ite = KRML_EABORT(mval_value, "unreachable (pattern matches are exhaustive in F*)");
-    res = mval_value_lserializer(ite, b, pos1);
-  }
-  else if (DVNone == tg)
-    res = (uint32_t)0U;
-  else
-  {
-    Zeta_Steel_ApplicationTypes_value_type ite;
-    if (x.tag == Value_payload_DVSome)
-      ite = x.case_Value_payload_DVSome;
-    else
-      ite =
-        KRML_EABORT(Zeta_Steel_ApplicationTypes_value_type,
-          "unreachable (pattern matches are exhaustive in F*)");
-    res = application_value_lserializer(ite, b, pos1);
-  }
-  uint32_t len2 = res;
-  return len1 + len2;
-}
-
-#define DValueNone 0
-#define DValueSome 1
-
-typedef uint8_t dvalue_kind;
-
-#define V_payload_DValueNone 0
-#define V_payload_DValueSome 1
-
-typedef uint8_t application_record_v_payload_tags;
-
-typedef struct application_record_v_payload_s
-{
-  application_record_v_payload_tags tag;
-  Zeta_Steel_ApplicationTypes_value_type _0;
-}
-application_record_v_payload;
-
-static uint32_t application_record_v_payload_size32(application_record_v_payload x)
-{
-  dvalue_kind tg;
-  if (x.tag == V_payload_DValueNone)
-    tg = DValueNone;
-  else if (x.tag == V_payload_DValueSome)
-    tg = DValueSome;
-  else
-    tg = KRML_EABORT(dvalue_kind, "unreachable (pattern matches are exhaustive in F*)");
-  uint32_t s1 = (uint32_t)1U;
-  uint32_t s2;
-  if (DValueNone == tg)
-    s2 = (uint32_t)0U;
-  else
-  {
-    Zeta_Steel_ApplicationTypes_value_type ite;
-    if (x.tag == V_payload_DValueSome)
-      ite = x._0;
-    else
-      ite =
-        KRML_EABORT(Zeta_Steel_ApplicationTypes_value_type,
-          "unreachable (pattern matches are exhaustive in F*)");
-    s2 = application_value_size32(ite);
-  }
-  return s1 + s2;
-}
-
-static uint64_t
-application_record_v_payload_validator(LowParse_Slice_slice input, uint64_t pos)
-{
-  uint64_t len_after_tag;
-  if ((uint64_t)input.len - pos < (uint64_t)1U)
-    len_after_tag = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
-  else
-    len_after_tag = pos + (uint64_t)1U;
-  if (is_error(len_after_tag))
-    return len_after_tag;
-  else
-  {
-    uint8_t k_ = input.base[(uint32_t)pos];
-    if (k_ == (uint8_t)0U)
-      if ((uint64_t)input.len - len_after_tag < (uint64_t)0U)
-        return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
-      else
-        return len_after_tag + (uint64_t)0U;
-    else if (k_ == (uint8_t)1U)
-      return application_value_validator(input, len_after_tag);
-    else
-      return VALIDATOR_ERROR_GENERIC;
-  }
-}
-
-static uint32_t application_record_v_payload_jumper(LowParse_Slice_slice input, uint32_t pos)
-{
-  uint32_t pos_after_tag = pos + (uint32_t)1U;
-  uint8_t k_ = input.base[pos];
-  if (k_ == (uint8_t)0U)
-    return pos_after_tag + (uint32_t)0U;
-  else if (k_ == (uint8_t)1U)
-    return application_value_jumper(input, pos_after_tag);
-  else
-    return (uint32_t)0U;
-}
-
-static application_record_v_payload
-application_record_v_payload_reader(LowParse_Slice_slice input, uint32_t pos)
-{
-  uint8_t res = input.base[pos];
-  dvalue_kind k;
-  if (res == (uint8_t)0U)
-    k = DValueNone;
-  else if (res == (uint8_t)1U)
-    k = DValueSome;
-  else
-    k = DValueNone;
-  uint32_t pos_ = pos + (uint32_t)1U;
-  if (DValueNone == k)
-    return ((application_record_v_payload){ .tag = V_payload_DValueNone });
-  else
-  {
-    Zeta_Steel_ApplicationTypes_value_type res = application_value_reader(input, pos_);
-    return ((application_record_v_payload){ .tag = V_payload_DValueSome, ._0 = res });
-  }
-}
-
-static uint32_t
-application_record_v_payload_lserializer(
-  application_record_v_payload x,
-  uint8_t *b,
-  uint32_t pos
-)
-{
-  dvalue_kind tg;
-  if (x.tag == V_payload_DValueNone)
-    tg = DValueNone;
-  else if (x.tag == V_payload_DValueSome)
-    tg = DValueSome;
-  else
-    tg = KRML_EABORT(dvalue_kind, "unreachable (pattern matches are exhaustive in F*)");
-  uint8_t ite0;
-  if (DValueNone == tg)
-    ite0 = (uint8_t)0U;
-  else
-    ite0 = (uint8_t)1U;
-  b[pos] = ite0;
-  uint32_t len = (uint32_t)1U;
-  uint32_t res0 = pos + len;
-  uint32_t pos_ = res0;
-  uint32_t pos_0 = pos_;
-  uint32_t res1 = pos_0 - pos;
-  uint32_t len1 = res1;
-  uint32_t pos1 = pos + len1;
-  uint32_t res;
-  if (DValueNone == tg)
-    res = (uint32_t)0U;
-  else
-  {
-    Zeta_Steel_ApplicationTypes_value_type ite;
-    if (x.tag == V_payload_DValueSome)
-      ite = x._0;
-    else
-      ite =
-        KRML_EABORT(Zeta_Steel_ApplicationTypes_value_type,
-          "unreachable (pattern matches are exhaustive in F*)");
-    res = application_value_lserializer(ite, b, pos1);
-  }
-  uint32_t len2 = res;
-  return len1 + len2;
-}
-
 static uint32_t internal_key_size32(Zeta_Steel_KeyUtils_raw_key input)
 {
   return base_key_size32(input);
@@ -1216,7 +1196,7 @@ static uint64_t internal_key_validator(LowParse_Slice_slice input, uint64_t pos)
 
 static uint32_t internal_key_jumper(uint32_t pos)
 {
-  return pos + (uint32_t)34U;
+  return pos + 34U;
 }
 
 static Zeta_Steel_KeyUtils_raw_key
@@ -1250,8 +1230,8 @@ static uint32_t internal_record_size32(internal_record input)
 {
   uint32_t v1 = internal_key_size32(input.ir_key);
   uint32_t v2 = mval_value_size32(input.ir_value);
-  if ((uint32_t)4294967295U - v2 < v1)
-    return (uint32_t)4294967295U;
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
   else
     return v1 + v2;
 }
@@ -1291,71 +1271,6 @@ static uint32_t internal_record_lserializer(internal_record x, uint8_t *input, u
   return len1 + len2;
 }
 
-typedef struct application_record_s
-{
-  Zeta_Steel_ApplicationTypes_key_type ar_key;
-  application_record_v_payload v_payload;
-}
-application_record;
-
-typedef struct application_record__s
-{
-  Zeta_Steel_ApplicationTypes_key_type fst;
-  application_record_v_payload snd;
-}
-application_record_;
-
-static uint32_t application_record_size32(application_record input)
-{
-  uint32_t v1 = application_key_size32(input.ar_key);
-  uint32_t v2 = application_record_v_payload_size32(input.v_payload);
-  if ((uint32_t)4294967295U - v2 < v1)
-    return (uint32_t)4294967295U;
-  else
-    return v1 + v2;
-}
-
-static uint64_t application_record_validator(LowParse_Slice_slice input, uint64_t pos)
-{
-  uint64_t pos1 = application_key_validator(input, pos);
-  if (is_error(pos1))
-    return pos1;
-  else
-    return application_record_v_payload_validator(input, pos1);
-}
-
-static uint32_t application_record_jumper(LowParse_Slice_slice input, uint32_t pos)
-{
-  return application_record_v_payload_jumper(input, application_key_jumper(input, pos));
-}
-
-static application_record application_record_reader(LowParse_Slice_slice input, uint32_t pos)
-{
-  Zeta_Steel_ApplicationTypes_key_type x1 = application_key_reader(input, pos);
-  uint32_t pos2 = application_key_jumper(input, pos);
-  application_record_v_payload x2 = application_record_v_payload_reader(input, pos2);
-  application_record_ res = { .fst = x1, .snd = x2 };
-  Zeta_Steel_ApplicationTypes_key_type ar_key = res.fst;
-  application_record_v_payload v_payload = res.snd;
-  return ((application_record){ .ar_key = ar_key, .v_payload = v_payload });
-}
-
-static uint32_t
-application_record_lserializer(application_record x, uint8_t *input, uint32_t pos)
-{
-  uint32_t res = application_key_lserializer(x.ar_key, input, pos);
-  uint32_t len1 = res;
-  uint32_t pos1 = pos + len1;
-  uint32_t res0 = application_record_v_payload_lserializer(x.v_payload, input, pos1);
-  uint32_t len2 = res0;
-  return len1 + len2;
-}
-
-#define Key_internal 0
-#define Key_application 1
-
-typedef uint8_t key_kind;
-
 #define Record_kv_key_internal 0
 #define Record_kv_key_application 1
 
@@ -1381,7 +1296,7 @@ static uint32_t record_size32(record x)
     tg = Key_application;
   else
     tg = KRML_EABORT(key_kind, "unreachable (pattern matches are exhaustive in F*)");
-  uint32_t s1 = (uint32_t)1U;
+  uint32_t s1 = 1U;
   uint32_t s2;
   if (Key_internal == tg)
   {
@@ -1407,18 +1322,18 @@ static uint32_t record_size32(record x)
 static uint64_t record_validator(LowParse_Slice_slice input, uint64_t pos)
 {
   uint64_t len_after_tag;
-  if ((uint64_t)input.len - pos < (uint64_t)1U)
+  if ((uint64_t)input.len - pos < 1ULL)
     len_after_tag = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
   else
-    len_after_tag = pos + (uint64_t)1U;
+    len_after_tag = pos + 1ULL;
   if (is_error(len_after_tag))
     return len_after_tag;
   else
   {
     uint8_t k_ = input.base[(uint32_t)pos];
-    if (k_ == (uint8_t)0U)
+    if (k_ == 0U)
       return internal_record_validator(input, len_after_tag);
-    else if (k_ == (uint8_t)1U)
+    else if (k_ == 1U)
       return application_record_validator(input, len_after_tag);
     else
       return VALIDATOR_ERROR_GENERIC;
@@ -1427,27 +1342,27 @@ static uint64_t record_validator(LowParse_Slice_slice input, uint64_t pos)
 
 static uint32_t record_jumper(LowParse_Slice_slice input, uint32_t pos)
 {
-  uint32_t pos_after_tag = pos + (uint32_t)1U;
+  uint32_t pos_after_tag = pos + 1U;
   uint8_t k_ = input.base[pos];
-  if (k_ == (uint8_t)0U)
+  if (k_ == 0U)
     return internal_record_jumper(input, pos_after_tag);
-  else if (k_ == (uint8_t)1U)
+  else if (k_ == 1U)
     return application_record_jumper(input, pos_after_tag);
   else
-    return (uint32_t)0U;
+    return 0U;
 }
 
 static record record_reader(LowParse_Slice_slice input, uint32_t pos)
 {
   uint8_t res = input.base[pos];
   key_kind k;
-  if (res == (uint8_t)0U)
+  if (res == 0U)
     k = Key_internal;
-  else if (res == (uint8_t)1U)
+  else if (res == 1U)
     k = Key_application;
   else
     k = Key_internal;
-  uint32_t pos_ = pos + (uint32_t)1U;
+  uint32_t pos_ = pos + 1U;
   if (Key_internal == k)
   {
     internal_record res = internal_record_reader(input, pos_);
@@ -1472,11 +1387,11 @@ static uint32_t record_lserializer(record x, uint8_t *b, uint32_t pos)
     tg = KRML_EABORT(key_kind, "unreachable (pattern matches are exhaustive in F*)");
   uint8_t ite0;
   if (Key_internal == tg)
-    ite0 = (uint8_t)0U;
+    ite0 = 0U;
   else
-    ite0 = (uint8_t)1U;
+    ite0 = 1U;
   b[pos] = ite0;
-  uint32_t len = (uint32_t)1U;
+  uint32_t len = 1U;
   uint32_t res0 = pos + len;
   uint32_t pos_ = res0;
   uint32_t pos_0 = pos_;
@@ -1501,6 +1416,272 @@ static uint32_t record_lserializer(record x, uint8_t *b, uint32_t pos)
     else
       ite = KRML_EABORT(application_record, "unreachable (pattern matches are exhaustive in F*)");
     res = application_record_lserializer(ite, b, pos1);
+  }
+  uint32_t len2 = res;
+  return len1 + len2;
+}
+
+typedef struct addm_payload_s
+{
+  record addm_r;
+  uint16_t addm_s;
+  uint16_t addm_s2;
+}
+addm_payload;
+
+typedef struct __Zeta_Formats_Aux_Record_record_uint16_t_s
+{
+  record fst;
+  uint16_t snd;
+}
+__Zeta_Formats_Aux_Record_record_uint16_t;
+
+typedef struct addm_payload__s
+{
+  __Zeta_Formats_Aux_Record_record_uint16_t fst;
+  uint16_t snd;
+}
+addm_payload_;
+
+static uint32_t addm_payload_size32(addm_payload input)
+{
+  uint32_t v10 = record_size32(input.addm_r);
+  uint32_t v20 = slot_id_size32(input.addm_s);
+  uint32_t v1;
+  if (4294967295U - v20 < v10)
+    v1 = 4294967295U;
+  else
+    v1 = v10 + v20;
+  uint32_t v2 = slot_id_size32(input.addm_s2);
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
+  else
+    return v1 + v2;
+}
+
+static uint64_t addm_payload_validator(LowParse_Slice_slice input, uint64_t pos)
+{
+  uint64_t pos10 = record_validator(input, pos);
+  uint64_t pos1;
+  if (is_error(pos10))
+    pos1 = pos10;
+  else
+    pos1 = slot_id_validator(input, pos10);
+  if (is_error(pos1))
+    return pos1;
+  else
+    return slot_id_validator(input, pos1);
+}
+
+static uint32_t addm_payload_jumper(LowParse_Slice_slice input, uint32_t pos)
+{
+  return slot_id_jumper(slot_id_jumper(record_jumper(input, pos)));
+}
+
+static addm_payload addm_payload_reader(LowParse_Slice_slice input, uint32_t pos)
+{
+  record x1 = record_reader(input, pos);
+  uint32_t pos20 = record_jumper(input, pos);
+  uint16_t x2 = slot_id_reader(input, pos20);
+  __Zeta_Formats_Aux_Record_record_uint16_t x10 = { .fst = x1, .snd = x2 };
+  uint32_t pos2 = slot_id_jumper(record_jumper(input, pos));
+  uint16_t x20 = slot_id_reader(input, pos2);
+  addm_payload_ res = { .fst = x10, .snd = x20 };
+  uint16_t addm_s2 = res.snd;
+  uint16_t addm_s = res.fst.snd;
+  record addm_r = res.fst.fst;
+  return ((addm_payload){ .addm_r = addm_r, .addm_s = addm_s, .addm_s2 = addm_s2 });
+}
+
+typedef struct evictm_payload_s
+{
+  uint16_t evictm_s;
+  uint16_t evictm_s2;
+}
+evictm_payload;
+
+static uint32_t evictm_payload_size32(evictm_payload input)
+{
+  uint32_t v1 = slot_id_size32(input.evictm_s);
+  uint32_t v2 = slot_id_size32(input.evictm_s2);
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
+  else
+    return v1 + v2;
+}
+
+static uint64_t evictm_payload_validator(LowParse_Slice_slice sl, uint64_t pos)
+{
+  if ((uint64_t)sl.len - pos < 4ULL)
+    return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
+  else
+    return pos + 4ULL;
+}
+
+static uint32_t evictm_payload_jumper(uint32_t pos)
+{
+  return pos + 4U;
+}
+
+static evictm_payload evictm_payload_reader(LowParse_Slice_slice input, uint32_t pos)
+{
+  uint16_t x1 = slot_id_reader(input, pos);
+  uint32_t pos2 = slot_id_jumper(pos);
+  uint16_t x2 = slot_id_reader(input, pos2);
+  __uint16_t_uint16_t res = { .fst = x1, .snd = x2 };
+  uint16_t evictm_s = res.fst;
+  uint16_t evictm_s2 = res.snd;
+  return ((evictm_payload){ .evictm_s = evictm_s, .evictm_s2 = evictm_s2 });
+}
+
+static uint32_t runapp_payload_hdr_size32(uint8_t x)
+{
+  KRML_MAYBE_UNUSED_VAR(x);
+  return 1U;
+}
+
+static uint64_t runapp_payload_hdr_validator(LowParse_Slice_slice sl, uint64_t pos)
+{
+  if ((uint64_t)sl.len - pos < 1ULL)
+    return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
+  else
+    return pos + 1ULL;
+}
+
+static uint32_t runapp_payload_hdr_jumper(uint32_t pos)
+{
+  return pos + 1U;
+}
+
+static uint8_t runapp_payload_hdr_reader(LowParse_Slice_slice sl, uint32_t pos)
+{
+  return sl.base[pos];
+}
+
+static uint32_t thread_id_size32(uint16_t x)
+{
+  KRML_MAYBE_UNUSED_VAR(x);
+  return 2U;
+}
+
+static uint64_t thread_id_validator(LowParse_Slice_slice sl, uint64_t pos)
+{
+  if ((uint64_t)sl.len - pos < 2ULL)
+    return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
+  else
+    return pos + 2ULL;
+}
+
+static uint32_t thread_id_jumper(uint32_t pos)
+{
+  return pos + 2U;
+}
+
+static uint16_t thread_id_reader(LowParse_Slice_slice sl, uint32_t pos)
+{
+  return load16_be(sl.base + pos);
+}
+
+static uint32_t thread_id_lserializer(uint16_t v, uint8_t *b, uint32_t pos)
+{
+  store16_be(b + pos, v);
+  return 2U;
+}
+
+typedef struct stamped_record_s
+{
+  record sr_record;
+  timestamp sr_timestamp;
+  uint16_t sr_thread_id;
+}
+stamped_record;
+
+static uint32_t stamped_record_lserializer(stamped_record x, uint8_t *input, uint32_t pos)
+{
+  uint32_t res = record_lserializer(x.sr_record, input, pos);
+  uint32_t len1 = res;
+  uint32_t pos10 = pos + len1;
+  uint32_t res0 = timestamp_lserializer(x.sr_timestamp, input, pos10);
+  uint32_t len2 = res0;
+  uint32_t res1 = len1 + len2;
+  uint32_t len10 = res1;
+  uint32_t pos1 = pos + len10;
+  uint32_t res2 = thread_id_lserializer(x.sr_thread_id, input, pos1);
+  uint32_t len20 = res2;
+  return len10 + len20;
+}
+
+#define MV 0
+#define DVNone 1
+#define DVSome 2
+
+typedef uint8_t value_kind;
+
+#define Value_payload_MV 0
+#define Value_payload_DVNone 1
+#define Value_payload_DVSome 2
+
+typedef uint8_t value_tags;
+
+typedef struct value_s
+{
+  value_tags tag;
+  union {
+    mval_value case_Value_payload_MV;
+    Zeta_Steel_ApplicationTypes_value_type case_Value_payload_DVSome;
+  }
+  ;
+}
+value;
+
+static uint32_t value_lserializer(value x, uint8_t *b, uint32_t pos)
+{
+  value_kind tg;
+  if (x.tag == Value_payload_MV)
+    tg = MV;
+  else if (x.tag == Value_payload_DVNone)
+    tg = DVNone;
+  else if (x.tag == Value_payload_DVSome)
+    tg = DVSome;
+  else
+    tg = KRML_EABORT(value_kind, "unreachable (pattern matches are exhaustive in F*)");
+  uint8_t ite0;
+  if (MV == tg)
+    ite0 = 0U;
+  else if (DVNone == tg)
+    ite0 = 1U;
+  else
+    ite0 = 2U;
+  b[pos] = ite0;
+  uint32_t len = 1U;
+  uint32_t res0 = pos + len;
+  uint32_t pos_ = res0;
+  uint32_t pos_0 = pos_;
+  uint32_t res1 = pos_0 - pos;
+  uint32_t len1 = res1;
+  uint32_t pos1 = pos + len1;
+  uint32_t res;
+  if (MV == tg)
+  {
+    mval_value ite;
+    if (x.tag == Value_payload_MV)
+      ite = x.case_Value_payload_MV;
+    else
+      ite = KRML_EABORT(mval_value, "unreachable (pattern matches are exhaustive in F*)");
+    res = mval_value_lserializer(ite, b, pos1);
+  }
+  else if (DVNone == tg)
+    res = 0U;
+  else
+  {
+    Zeta_Steel_ApplicationTypes_value_type ite;
+    if (x.tag == Value_payload_DVSome)
+      ite = x.case_Value_payload_DVSome;
+    else
+      ite =
+        KRML_EABORT(Zeta_Steel_ApplicationTypes_value_type,
+          "unreachable (pattern matches are exhaustive in F*)");
+    res = application_value_lserializer(ite, b, pos1);
   }
   uint32_t len2 = res;
   return len1 + len2;
@@ -1831,116 +2012,6 @@ static timestamp synth_timestamp_recip(Zeta_Steel_LogEntry_Types_timestamp x)
   return ((timestamp){ .epoch = x.epoch, .counter = x.counter });
 }
 
-static uint32_t thread_id_size32(uint16_t x)
-{
-  return (uint32_t)2U;
-}
-
-static uint64_t thread_id_validator(LowParse_Slice_slice sl, uint64_t pos)
-{
-  if ((uint64_t)sl.len - pos < (uint64_t)2U)
-    return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
-  else
-    return pos + (uint64_t)2U;
-}
-
-static uint32_t thread_id_jumper(uint32_t pos)
-{
-  return pos + (uint32_t)2U;
-}
-
-static uint16_t thread_id_reader(LowParse_Slice_slice sl, uint32_t pos)
-{
-  uint8_t *x0 = sl.base;
-  return load16_be(x0 + pos);
-}
-
-static uint32_t thread_id_lserializer(uint16_t v, uint8_t *b, uint32_t pos)
-{
-  store16_be(b + pos, v);
-  return (uint32_t)2U;
-}
-
-typedef struct stamped_record_s
-{
-  record sr_record;
-  timestamp sr_timestamp;
-  uint16_t sr_thread_id;
-}
-stamped_record;
-
-static uint32_t stamped_record_lserializer(stamped_record x, uint8_t *input, uint32_t pos)
-{
-  uint32_t res = record_lserializer(x.sr_record, input, pos);
-  uint32_t len1 = res;
-  uint32_t pos10 = pos + len1;
-  uint32_t res0 = timestamp_lserializer(x.sr_timestamp, input, pos10);
-  uint32_t len2 = res0;
-  uint32_t res1 = len1 + len2;
-  uint32_t len10 = res1;
-  uint32_t pos1 = pos + len10;
-  uint32_t res2 = thread_id_lserializer(x.sr_thread_id, input, pos1);
-  uint32_t len20 = res2;
-  return len10 + len20;
-}
-
-#define AddM 0
-#define AddB 1
-#define EvictM 2
-#define EvictB 3
-#define EvictBM 4
-#define NextEpoch 5
-#define VerifyEpoch 6
-#define RunApp 7
-
-typedef uint8_t log_entry_kind;
-
-static log_entry_kind log_entry_kind_reader(LowParse_Slice_slice input, uint32_t pos)
-{
-  uint8_t res = input.base[pos];
-  if (res == (uint8_t)0U)
-    return AddM;
-  else if (res == (uint8_t)1U)
-    return AddB;
-  else if (res == (uint8_t)2U)
-    return EvictM;
-  else if (res == (uint8_t)3U)
-    return EvictB;
-  else if (res == (uint8_t)4U)
-    return EvictBM;
-  else if (res == (uint8_t)5U)
-    return NextEpoch;
-  else if (res == (uint8_t)6U)
-    return VerifyEpoch;
-  else if (res == (uint8_t)7U)
-    return RunApp;
-  else
-    return AddM;
-}
-
-static uint32_t runapp_payload_hdr_size32(uint8_t x)
-{
-  return (uint32_t)1U;
-}
-
-static uint64_t runapp_payload_hdr_validator(LowParse_Slice_slice sl, uint64_t pos)
-{
-  if ((uint64_t)sl.len - pos < (uint64_t)1U)
-    return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
-  else
-    return pos + (uint64_t)1U;
-}
-
-static uint32_t runapp_payload_hdr_jumper(uint32_t pos)
-{
-  return pos + (uint32_t)1U;
-}
-
-static uint8_t runapp_payload_hdr_reader(LowParse_Slice_slice sl, uint32_t pos)
-{
-  return sl.base[pos];
-}
-
 typedef struct evictb_payload_s
 {
   uint16_t evictb_s;
@@ -1959,23 +2030,23 @@ static uint32_t evictb_payload_size32(evictb_payload input)
 {
   uint32_t v1 = slot_id_size32(input.evictb_s);
   uint32_t v2 = timestamp_size32(input.evictb_t);
-  if ((uint32_t)4294967295U - v2 < v1)
-    return (uint32_t)4294967295U;
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
   else
     return v1 + v2;
 }
 
 static uint64_t evictb_payload_validator(LowParse_Slice_slice sl, uint64_t pos)
 {
-  if ((uint64_t)sl.len - pos < (uint64_t)10U)
+  if ((uint64_t)sl.len - pos < 10ULL)
     return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
   else
-    return pos + (uint64_t)10U;
+    return pos + 10ULL;
 }
 
 static uint32_t evictb_payload_jumper(uint32_t pos)
 {
-  return pos + (uint32_t)10U;
+  return pos + 10U;
 }
 
 static evictb_payload evictb_payload_reader(LowParse_Slice_slice input, uint32_t pos)
@@ -1989,47 +2060,6 @@ static evictb_payload evictb_payload_reader(LowParse_Slice_slice input, uint32_t
   return ((evictb_payload){ .evictb_s = evictb_s, .evictb_t = evictb_t });
 }
 
-typedef struct evictm_payload_s
-{
-  uint16_t evictm_s;
-  uint16_t evictm_s2;
-}
-evictm_payload;
-
-static uint32_t evictm_payload_size32(evictm_payload input)
-{
-  uint32_t v1 = slot_id_size32(input.evictm_s);
-  uint32_t v2 = slot_id_size32(input.evictm_s2);
-  if ((uint32_t)4294967295U - v2 < v1)
-    return (uint32_t)4294967295U;
-  else
-    return v1 + v2;
-}
-
-static uint64_t evictm_payload_validator(LowParse_Slice_slice sl, uint64_t pos)
-{
-  if ((uint64_t)sl.len - pos < (uint64_t)4U)
-    return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
-  else
-    return pos + (uint64_t)4U;
-}
-
-static uint32_t evictm_payload_jumper(uint32_t pos)
-{
-  return pos + (uint32_t)4U;
-}
-
-static evictm_payload evictm_payload_reader(LowParse_Slice_slice input, uint32_t pos)
-{
-  uint16_t x1 = slot_id_reader(input, pos);
-  uint32_t pos2 = slot_id_jumper(pos);
-  uint16_t x2 = slot_id_reader(input, pos2);
-  __uint16_t_uint16_t res = { .fst = x1, .snd = x2 };
-  uint16_t evictm_s = res.fst;
-  uint16_t evictm_s2 = res.snd;
-  return ((evictm_payload){ .evictm_s = evictm_s, .evictm_s2 = evictm_s2 });
-}
-
 typedef struct addb_payload_s
 {
   record addb_r;
@@ -2038,13 +2068,6 @@ typedef struct addb_payload_s
   uint16_t addb_tid;
 }
 addb_payload;
-
-typedef struct __Zeta_Formats_Aux_Record_record_uint16_t_s
-{
-  record fst;
-  uint16_t snd;
-}
-__Zeta_Formats_Aux_Record_record_uint16_t;
 
 typedef struct __Zeta_Formats_Aux_Timestamp_timestamp_uint16_t_s
 {
@@ -2062,26 +2085,24 @@ addb_payload_;
 
 static uint32_t addb_payload_size32(addb_payload input)
 {
-  uint32_t v1 = record_size32(input.addb_r);
+  uint32_t v10 = record_size32(input.addb_r);
   uint32_t v20 = slot_id_size32(input.addb_s);
-  uint32_t res0;
-  if ((uint32_t)4294967295U - v20 < v1)
-    res0 = (uint32_t)4294967295U;
+  uint32_t v1;
+  if (4294967295U - v20 < v10)
+    v1 = 4294967295U;
   else
-    res0 = v1 + v20;
-  uint32_t v10 = res0;
+    v1 = v10 + v20;
   uint32_t v11 = timestamp_size32(input.addb_t);
-  uint32_t v2 = thread_id_size32(input.addb_tid);
-  uint32_t res;
-  if ((uint32_t)4294967295U - v2 < v11)
-    res = (uint32_t)4294967295U;
+  uint32_t v21 = thread_id_size32(input.addb_tid);
+  uint32_t v2;
+  if (4294967295U - v21 < v11)
+    v2 = 4294967295U;
   else
-    res = v11 + v2;
-  uint32_t v21 = res;
-  if ((uint32_t)4294967295U - v21 < v10)
-    return (uint32_t)4294967295U;
+    v2 = v11 + v21;
+  if (4294967295U - v2 < v1)
+    return 4294967295U;
   else
-    return v10 + v21;
+    return v1 + v2;
 }
 
 static uint64_t addb_payload_validator(LowParse_Slice_slice input, uint64_t pos)
@@ -2129,70 +2150,38 @@ static addb_payload addb_payload_reader(LowParse_Slice_slice input, uint32_t pos
     ((addb_payload){ .addb_r = addb_r, .addb_s = addb_s, .addb_t = addb_t, .addb_tid = addb_tid });
 }
 
-typedef struct addm_payload_s
-{
-  record addm_r;
-  uint16_t addm_s;
-  uint16_t addm_s2;
-}
-addm_payload;
+#define AddM 0
+#define AddB 1
+#define EvictM 2
+#define EvictB 3
+#define EvictBM 4
+#define NextEpoch 5
+#define VerifyEpoch 6
+#define RunApp 7
 
-typedef struct addm_payload__s
-{
-  __Zeta_Formats_Aux_Record_record_uint16_t fst;
-  uint16_t snd;
-}
-addm_payload_;
+typedef uint8_t log_entry_kind;
 
-static uint32_t addm_payload_size32(addm_payload input)
+static log_entry_kind log_entry_kind_reader(LowParse_Slice_slice input, uint32_t pos)
 {
-  uint32_t v1 = record_size32(input.addm_r);
-  uint32_t v20 = slot_id_size32(input.addm_s);
-  uint32_t res;
-  if ((uint32_t)4294967295U - v20 < v1)
-    res = (uint32_t)4294967295U;
+  uint8_t res = input.base[pos];
+  if (res == 0U)
+    return AddM;
+  else if (res == 1U)
+    return AddB;
+  else if (res == 2U)
+    return EvictM;
+  else if (res == 3U)
+    return EvictB;
+  else if (res == 4U)
+    return EvictBM;
+  else if (res == 5U)
+    return NextEpoch;
+  else if (res == 6U)
+    return VerifyEpoch;
+  else if (res == 7U)
+    return RunApp;
   else
-    res = v1 + v20;
-  uint32_t v10 = res;
-  uint32_t v2 = slot_id_size32(input.addm_s2);
-  if ((uint32_t)4294967295U - v2 < v10)
-    return (uint32_t)4294967295U;
-  else
-    return v10 + v2;
-}
-
-static uint64_t addm_payload_validator(LowParse_Slice_slice input, uint64_t pos)
-{
-  uint64_t pos10 = record_validator(input, pos);
-  uint64_t pos1;
-  if (is_error(pos10))
-    pos1 = pos10;
-  else
-    pos1 = slot_id_validator(input, pos10);
-  if (is_error(pos1))
-    return pos1;
-  else
-    return slot_id_validator(input, pos1);
-}
-
-static uint32_t addm_payload_jumper(LowParse_Slice_slice input, uint32_t pos)
-{
-  return slot_id_jumper(slot_id_jumper(record_jumper(input, pos)));
-}
-
-static addm_payload addm_payload_reader(LowParse_Slice_slice input, uint32_t pos)
-{
-  record x1 = record_reader(input, pos);
-  uint32_t pos20 = record_jumper(input, pos);
-  uint16_t x2 = slot_id_reader(input, pos20);
-  __Zeta_Formats_Aux_Record_record_uint16_t x10 = { .fst = x1, .snd = x2 };
-  uint32_t pos2 = slot_id_jumper(record_jumper(input, pos));
-  uint16_t x20 = slot_id_reader(input, pos2);
-  addm_payload_ res = { .fst = x10, .snd = x20 };
-  uint16_t addm_s2 = res.snd;
-  uint16_t addm_s = res.fst.snd;
-  record addm_r = res.fst.fst;
-  return ((addm_payload){ .addm_r = addm_r, .addm_s = addm_s, .addm_s2 = addm_s2 });
+    return AddM;
 }
 
 #define Le_payload_AddM 0
@@ -2250,7 +2239,7 @@ static uint32_t log_entry_hdr_size32(log_entry_hdr x)
     tg = RunApp;
   else
     tg = KRML_EABORT(log_entry_kind, "unreachable (pattern matches are exhaustive in F*)");
-  uint32_t s1 = (uint32_t)1U;
+  uint32_t s1 = 1U;
   uint32_t s2;
   if (AddM == tg)
   {
@@ -2298,9 +2287,9 @@ static uint32_t log_entry_hdr_size32(log_entry_hdr x)
     s2 = evictbm_payload_size32(ite);
   }
   else if (NextEpoch == tg)
-    s2 = (uint32_t)0U;
+    s2 = 0U;
   else if (VerifyEpoch == tg)
-    s2 = (uint32_t)0U;
+    s2 = 0U;
   else
   {
     uint8_t ite;
@@ -2316,36 +2305,36 @@ static uint32_t log_entry_hdr_size32(log_entry_hdr x)
 static uint64_t log_entry_hdr_validator(LowParse_Slice_slice input, uint64_t pos)
 {
   uint64_t len_after_tag;
-  if ((uint64_t)input.len - pos < (uint64_t)1U)
+  if ((uint64_t)input.len - pos < 1ULL)
     len_after_tag = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
   else
-    len_after_tag = pos + (uint64_t)1U;
+    len_after_tag = pos + 1ULL;
   if (is_error(len_after_tag))
     return len_after_tag;
   else
   {
     uint8_t k_ = input.base[(uint32_t)pos];
-    if (k_ == (uint8_t)0U)
+    if (k_ == 0U)
       return addm_payload_validator(input, len_after_tag);
-    else if (k_ == (uint8_t)1U)
+    else if (k_ == 1U)
       return addb_payload_validator(input, len_after_tag);
-    else if (k_ == (uint8_t)2U)
+    else if (k_ == 2U)
       return evictm_payload_validator(input, len_after_tag);
-    else if (k_ == (uint8_t)3U)
+    else if (k_ == 3U)
       return evictb_payload_validator(input, len_after_tag);
-    else if (k_ == (uint8_t)4U)
+    else if (k_ == 4U)
       return evictbm_payload_validator(input, len_after_tag);
-    else if (k_ == (uint8_t)5U)
-      if ((uint64_t)input.len - len_after_tag < (uint64_t)0U)
+    else if (k_ == 5U)
+      if ((uint64_t)input.len - len_after_tag < 0ULL)
         return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
       else
-        return len_after_tag + (uint64_t)0U;
-    else if (k_ == (uint8_t)6U)
-      if ((uint64_t)input.len - len_after_tag < (uint64_t)0U)
+        return len_after_tag + 0ULL;
+    else if (k_ == 6U)
+      if ((uint64_t)input.len - len_after_tag < 0ULL)
         return VALIDATOR_ERROR_NOT_ENOUGH_DATA;
       else
-        return len_after_tag + (uint64_t)0U;
-    else if (k_ == (uint8_t)7U)
+        return len_after_tag + 0ULL;
+    else if (k_ == 7U)
       return runapp_payload_hdr_validator(input, len_after_tag);
     else
       return VALIDATOR_ERROR_GENERIC;
@@ -2354,51 +2343,51 @@ static uint64_t log_entry_hdr_validator(LowParse_Slice_slice input, uint64_t pos
 
 static uint32_t log_entry_hdr_jumper(LowParse_Slice_slice input, uint32_t pos)
 {
-  uint32_t pos_after_tag = pos + (uint32_t)1U;
+  uint32_t pos_after_tag = pos + 1U;
   uint8_t k_ = input.base[pos];
-  if (k_ == (uint8_t)0U)
+  if (k_ == 0U)
     return addm_payload_jumper(input, pos_after_tag);
-  else if (k_ == (uint8_t)1U)
+  else if (k_ == 1U)
     return addb_payload_jumper(input, pos_after_tag);
-  else if (k_ == (uint8_t)2U)
+  else if (k_ == 2U)
     return evictm_payload_jumper(pos_after_tag);
-  else if (k_ == (uint8_t)3U)
+  else if (k_ == 3U)
     return evictb_payload_jumper(pos_after_tag);
-  else if (k_ == (uint8_t)4U)
+  else if (k_ == 4U)
     return evictbm_payload_jumper(pos_after_tag);
-  else if (k_ == (uint8_t)5U)
-    return pos_after_tag + (uint32_t)0U;
-  else if (k_ == (uint8_t)6U)
-    return pos_after_tag + (uint32_t)0U;
-  else if (k_ == (uint8_t)7U)
+  else if (k_ == 5U)
+    return pos_after_tag + 0U;
+  else if (k_ == 6U)
+    return pos_after_tag + 0U;
+  else if (k_ == 7U)
     return runapp_payload_hdr_jumper(pos_after_tag);
   else
-    return (uint32_t)0U;
+    return 0U;
 }
 
 static log_entry_hdr log_entry_hdr_reader(LowParse_Slice_slice input, uint32_t pos)
 {
   uint8_t res = input.base[pos];
   log_entry_kind k;
-  if (res == (uint8_t)0U)
+  if (res == 0U)
     k = AddM;
-  else if (res == (uint8_t)1U)
+  else if (res == 1U)
     k = AddB;
-  else if (res == (uint8_t)2U)
+  else if (res == 2U)
     k = EvictM;
-  else if (res == (uint8_t)3U)
+  else if (res == 3U)
     k = EvictB;
-  else if (res == (uint8_t)4U)
+  else if (res == 4U)
     k = EvictBM;
-  else if (res == (uint8_t)5U)
+  else if (res == 5U)
     k = NextEpoch;
-  else if (res == (uint8_t)6U)
+  else if (res == 6U)
     k = VerifyEpoch;
-  else if (res == (uint8_t)7U)
+  else if (res == 7U)
     k = RunApp;
   else
     k = AddM;
-  uint32_t pos_ = pos + (uint32_t)1U;
+  uint32_t pos_ = pos + 1U;
   if (AddM == k)
   {
     addm_payload res = addm_payload_reader(input, pos_);
@@ -2655,7 +2644,7 @@ static uint32_t runapp_payload_offset_(Zeta_Steel_LogEntry_Types_log_entry e)
   if (e.tag == Zeta_Steel_LogEntry_Types_RunApp)
   {
     log_entry_hdr h = synth_log_entry_recip_hdr(e);
-    return log_entry_hdr_size32(h) + (uint32_t)4U;
+    return log_entry_hdr_size32(h) + 4U;
   }
   else
   {
@@ -2687,31 +2676,31 @@ static stamped_record synth_stamped_record_recip(Zeta_Steel_LogEntry_Types_stamp
 FStar_Pervasives_Native_option__Zeta_Steel_LogEntry_Types_log_entry___uint32_t
 zeta__parser_log_entry(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_t *a)
 {
+  KRML_MAYBE_UNUSED_VAR(len);
   uint8_t *sl_base = a + offset;
   LowParse_Slice_slice sl = { .base = sl_base, .len = slice_len };
-  uint64_t pos_after_t = log_entry_hdr_validator(sl, (uint64_t)0U);
+  uint64_t pos_after_t = log_entry_hdr_validator(sl, 0ULL);
   uint64_t consumed;
   if (is_error(pos_after_t))
     consumed = pos_after_t;
   else
   {
-    uint32_t pos_tag = log_entry_hdr_accessor_tag((uint32_t)(uint64_t)0U);
+    uint32_t pos_tag = log_entry_hdr_accessor_tag((uint32_t)0ULL);
     log_entry_kind tag = log_entry_kind_reader(sl, pos_tag);
     bool b = tag == RunApp;
     if (b)
     {
       uint64_t res;
-      if ((uint64_t)sl.len - pos_after_t < (uint64_t)4U)
+      if ((uint64_t)sl.len - pos_after_t < 4ULL)
         res = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
       else
-        res = pos_after_t + (uint64_t)4U;
+        res = pos_after_t + 4ULL;
       if (is_error(res))
         consumed = res;
       else
       {
-        uint8_t *x0 = sl.base;
-        uint32_t va = load32_be(x0 + (uint32_t)pos_after_t);
-        if (va <= (uint32_t)2147483647U)
+        uint32_t va = load32_be(sl.base + (uint32_t)pos_after_t);
+        if (va <= 2147483647U)
           if ((uint64_t)sl.len - res < (uint64_t)va)
             consumed = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
           else
@@ -2729,10 +2718,10 @@ zeta__parser_log_entry(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_
           consumed = VALIDATOR_ERROR_GENERIC;
       }
     }
-    else if ((uint64_t)sl.len - pos_after_t < (uint64_t)0U)
+    else if ((uint64_t)sl.len - pos_after_t < 0ULL)
       consumed = VALIDATOR_ERROR_NOT_ENOUGH_DATA;
     else
-      consumed = pos_after_t + (uint64_t)0U;
+      consumed = pos_after_t + 0ULL;
   }
   if (is_error(consumed))
     return
@@ -2744,12 +2733,11 @@ zeta__parser_log_entry(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_
   else
   {
     uint32_t consumed1 = (uint32_t)consumed;
-    log_entry_hdr hdr = log_entry_hdr_reader(sl, (uint32_t)0U);
+    log_entry_hdr hdr = log_entry_hdr_reader(sl, 0U);
     if (uu___is_Le_payload_RunApp(hdr))
     {
-      uint32_t pos_pl = log_entry_hdr_jumper(sl, (uint32_t)0U);
-      uint8_t *x0 = sl.base;
-      uint32_t len1 = load32_be(x0 + pos_pl);
+      uint32_t pos_pl = log_entry_hdr_jumper(sl, 0U);
+      uint32_t len1 = load32_be(sl.base + pos_pl);
       uint32_t len_pl = len1;
       Zeta_Steel_LogEntry_Types_log_entry res = synth_log_entry_true(hdr, len_pl);
       return
@@ -2782,6 +2770,7 @@ zeta__serialize_stamped_record(
   Zeta_Steel_LogEntry_Types_stamped_record v
 )
 {
+  KRML_MAYBE_UNUSED_VAR(len);
   return stamped_record_lserializer(synth_stamped_record_recip(v), (uint8_t *)a, offset);
 }
 
@@ -2793,15 +2782,17 @@ zeta__serialize_value(
   Zeta_Steel_LogEntry_Types_value v
 )
 {
+  KRML_MAYBE_UNUSED_VAR(len);
   return value_lserializer(synth_value_recip(v), (uint8_t *)a, offset);
 }
 
 FStar_Pervasives_Native_option__Zeta_Steel_KeyUtils_u256___uint32_t
 zeta__parser_u256(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_t *a)
 {
+  KRML_MAYBE_UNUSED_VAR(len);
   uint8_t *sl_base = a + offset;
   LowParse_Slice_slice sl = { .base = sl_base, .len = slice_len };
-  uint64_t consumed = u256_validator(sl, (uint64_t)0U);
+  uint64_t consumed = u256_validator(sl, 0ULL);
   if (is_error(consumed))
     return
       (
@@ -2812,7 +2803,7 @@ zeta__parser_u256(uint32_t len, uint32_t offset, uint32_t slice_len, uint8_t *a)
   else
   {
     uint32_t consumed1 = (uint32_t)consumed;
-    u256 res = u256_reader(sl, (uint32_t)0U);
+    u256 res = u256_reader(sl, 0U);
     Zeta_Steel_KeyUtils_u256 res0 = synth_u256(res);
     return
       (
@@ -2832,6 +2823,7 @@ zeta__serialize_timestamp(
   Zeta_Steel_LogEntry_Types_timestamp v
 )
 {
+  KRML_MAYBE_UNUSED_VAR(len);
   return timestamp_lserializer(synth_timestamp_recip(v), (uint8_t *)a, offset);
 }
 
