@@ -59,11 +59,11 @@ option__Zeta_KeyValueStore_Formats_Types_vput_args_t___uint32_t;
 extern option__Zeta_KeyValueStore_Formats_Types_vput_args_t___uint32_t
 kvstore_vput_args_parser(uint32_t x0, uint32_t x1, uint32_t x2, uint8_t *x3);
 
-static uint8_t vget_id = (uint8_t)0U;
+static uint8_t vget_id = 0U;
 
-static uint8_t vput_id = (uint8_t)1U;
+static uint8_t vput_id = 1U;
 
-static uint16_t store_size = (uint16_t)16U;
+static uint16_t store_size = 16U;
 
 typedef uint32_t uninterpreted;
 
@@ -464,7 +464,7 @@ run_vget(
               ((__uint64_t_FStar_Pervasives_Native_option__uint64_t){ .fst = k, .snd = vopt }));
           if (b)
           {
-            uint32_t wrote = (uint32_t)0U;
+            uint32_t wrote = 0U;
             return
               (
                 (Zeta_Steel_Application_verify_runapp_result){
@@ -633,7 +633,7 @@ run_vput(
               ((__uint64_t_FStar_Pervasives_Native_option__uint64_t){ .fst = k, .snd = vopt }));
           if (b)
           {
-            uint32_t wrote = (uint32_t)0U;
+            uint32_t wrote = 0U;
             return
               (
                 (Zeta_Steel_Application_verify_runapp_result){
@@ -696,6 +696,9 @@ Zeta_Steel_Application_run_app_function(
   Zeta_Steel_VerifierTypes_thread_state_t t
 )
 {
+  KRML_MAYBE_UNUSED_VAR(out_len);
+  KRML_MAYBE_UNUSED_VAR(out_offset);
+  KRML_MAYBE_UNUSED_VAR(out);
   if (pl.fid == vget_id)
     return run_vget(log_len, pl, pl_pos, log_array, t);
   else if (pl.fid == vput_id)
@@ -714,8 +717,8 @@ Zeta_Steel_KeyUtils_raw_key Zeta_Steel_Application_key_type_to_base_key(uint64_t
   return
     (
       (Zeta_Steel_KeyUtils_raw_key){
-        .k = { .v3 = (uint64_t)0U, .v2 = (uint64_t)0U, .v1 = (uint64_t)0U, .v0 = k },
-        .significant_digits = (uint16_t)256U
+        .k = { .v3 = 0ULL, .v2 = 0ULL, .v1 = 0ULL, .v0 = k },
+        .significant_digits = 256U
       }
     );
 }
