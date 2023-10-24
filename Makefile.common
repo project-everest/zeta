@@ -1,7 +1,7 @@
 ZETA_HOME ?= .
 FSTAR_HOME ?= $(realpath $(dir $(shell which fstar.exe))/..)
 KRML_HOME ?= $(FSTAR_HOME)/../karamel
-STEEL_HOME ?= $(FSTAR_HOME)/../steel-draft
+STEEL_HOME ?= $(FSTAR_HOME)/../steel
 
 # FSTAR_HOME ?= everest/FStar
 # KRML_HOME ?= everest/karamel

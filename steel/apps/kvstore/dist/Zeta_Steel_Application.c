@@ -411,8 +411,7 @@ run_vget(
     if (consumed == pl.rest)
       if (r.vget_slot < store_size)
       {
-        option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-        option__Zeta_Steel_ThreadStateModel_store_entry se_opt = pt[(size_t)r.vget_slot];
+        option__Zeta_Steel_ThreadStateModel_store_entry se_opt = t.store[(size_t)r.vget_slot];
         option__Zeta_Steel_VerifierTypes_kv kvopt0;
         if (se_opt.tag == None)
           kvopt0 = ((option__Zeta_Steel_VerifierTypes_kv){ .tag = None });
@@ -525,8 +524,7 @@ vput_impl(
 {
   if (r.vput_key == fst__uint64_t_FStar_Pervasives_Native_option_uint64_t(store_kv))
   {
-    option__Zeta_Steel_ThreadStateModel_store_entry *pt0 = t.store;
-    option__Zeta_Steel_ThreadStateModel_store_entry se_opt = pt0[(size_t)r.vput_slot];
+    option__Zeta_Steel_ThreadStateModel_store_entry se_opt = t.store[(size_t)r.vput_slot];
     if (se_opt.tag == Some)
     {
       store_entry se = se_opt.v;
@@ -539,8 +537,7 @@ vput_impl(
           .add_method = se1.add_method, .l_child_in_store = se1.l_child_in_store,
           .r_child_in_store = se1.r_child_in_store, .parent_slot = se1.parent_slot
         };
-      option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-      pt[(size_t)r.vput_slot] =
+      t.store[(size_t)r.vput_slot] =
         ((option__Zeta_Steel_ThreadStateModel_store_entry){ .tag = Some, .v = se_ });
     }
     else
@@ -582,8 +579,7 @@ run_vput(
     if (consumed == pl.rest)
       if (r.vput_slot < store_size)
       {
-        option__Zeta_Steel_ThreadStateModel_store_entry *pt = t.store;
-        option__Zeta_Steel_ThreadStateModel_store_entry se_opt = pt[(size_t)r.vput_slot];
+        option__Zeta_Steel_ThreadStateModel_store_entry se_opt = t.store[(size_t)r.vput_slot];
         option__Zeta_Steel_VerifierTypes_kv kvopt0;
         if (se_opt.tag == None)
           kvopt0 = ((option__Zeta_Steel_VerifierTypes_kv){ .tag = None });
