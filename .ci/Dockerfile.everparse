@@ -1,33 +1,27 @@
 # This Dockerfile should be run from the root Zeta directory
 
 ARG ocaml_version=4.12
-FROM ocaml/opam:ubuntu-ocaml-$ocaml_version
+FROM ocaml/opam:ubuntu-22.04-ocaml-$ocaml_version
 ARG CI_THREADS=24
 
 ADD --chown=opam:opam ./ $HOME/zeta/
 
-# Install F* and Karamel from the Karamel CI install script
+# Install F*, Karamel and EverParse from the EverParse CI install script
 # FIXME: the `opam depext` command should be unnecessary with opam 2.1
 ENV FSTAR_HOME=$HOME/FStar
 ENV KRML_HOME=$HOME/karamel
+ENV EVERPARSE_HOME=$HOME/everparse
 RUN sudo apt-get update && sudo apt-get install --yes --no-install-recommends \
     jq \
-    && git clone https://github.com/FStarLang/karamel $KRML_HOME && \
-    eval $(opam env) && $KRML_HOME/.docker/build/install-deps.sh && \
-    env OTHERFLAGS='--admit_smt_queries true' make -C $KRML_HOME -j $CI_THREADS
+    && git clone https://github.com/project-everest/everparse $EVERPARSE_HOME && \
+    eval $(opam env) && $EVERPARSE_HOME/.docker/build/install-deps.sh && \
+    env OTHERFLAGS='--admit_smt_queries true' make -C $EVERPARSE_HOME -j $CI_THREADS quackyducky lowparse
 
 # Clone and build Steel
 ENV STEEL_HOME=$HOME/steel
 RUN git clone https://github.com/FStarLang/steel $STEEL_HOME && \
     eval $(opam env) && env OTHERFLAGS='--admit_smt_queries true' make -k -j $CI_THREADS -C $STEEL_HOME
 
-# Clone and build EverParse/QD
-ENV EVERPARSE_HOME=$HOME/everparse
-RUN git clone https://github.com/project-everest/everparse $EVERPARSE_HOME && \
-    eval $(opam env) && \
-    $EVERPARSE_HOME/.docker/build/install-other-deps.sh && \
-    env OTHERFLAGS='--admit_smt_queries true' make -k -j $CI_THREADS -C $EVERPARSE_HOME quackyducky lowparse
-
 # CI proper
 WORKDIR $HOME/zeta
-RUN eval $(opam env) && make -j $CI_THREADS ci && git diff --exit-code
+RUN eval $(opam env) && make -j $CI_THREADS nightly-ci && git diff --exit-code
