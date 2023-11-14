@@ -5,7 +5,7 @@ print_usage () {
   cat <<HELP
 
 $0, a wrapper around everest scripts to install what's needed for
-Veritas. It clones the everest repositories in the current folder.
+Zeta. It clones the everest repositories in the current folder.
 
 You can pass options to the everest script by setting the
 EVEREST_OPTS variable.
