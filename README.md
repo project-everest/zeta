@@ -1,1 +1,1 @@
-Formal FStar proofs of veritas memory verification.
+Formal FStar proofs of zeta.

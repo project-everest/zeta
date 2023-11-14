@@ -19,13 +19,6 @@ SRC_DIRS ?=
 # Those files are the roots from where all dependencies are computed
 FSTAR_FILES ?=
 
-# Uncomment the definition of PROFILE below, if you want some basic
-# profiling of F* runs on Veritas files It will report the time spent
-# on typechecking your file And the time spent in SMT, which is
-# included in the total typechecking time
-
-# PROFILE=--profile Veritas --profile_component 'FStar.Universal.tc_source_file FStar.SMTEncoding'
-
 OTHERFLAGS+=$(PROFILE)
 
 # Backward compatibility with pre typed indexed effects (see F* PR 2760)

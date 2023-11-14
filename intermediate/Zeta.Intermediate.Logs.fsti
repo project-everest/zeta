@@ -14,7 +14,7 @@ module HV = Zeta.High.Verifier
 
 
 (* Definitions of different styles of verifier logs.
-   - logK : contains only key references (defined in Veritas.Verifier)
+   - logK : contains only key references
    - logS: contains slot references
    - logL: contains slot references & low-level data structures (TODO) *)
 
