@@ -1,14 +1,15 @@
 # A Proof of Correctness of the Zeta Protocol in Steel
 
-Joint work with
-
-Arvind Arasu, Aseem Rastogi, Tahina Ramananandro, and many others
+Arvind Arasu, Aseem Rastogi, Tahina Ramananandro, Nikhil Swamy, and many others
 
 including
 
 Esha Ghosh, Kesha Hietala, Bryan Parno, Aymeric Fromherz, Jonathan
 Protzenko, Ravi Ramamurthy, Srinath Setty, Donald Kossman, Johannes
 Gehrke, Badrish Chandramouli, Alexander van Renen, Min Xu
+
+An informal presentation covering the main content of the [CPP '22 paper](https://www.fstar-lang.org/papers/fastver2.pdf)
+
 
 # What is Zeta?
 
@@ -367,7 +368,8 @@ Two main functions in the API
 
 1. Feed a monitor a `input` of log entries
 
-    See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fsti#L152)
+    See [Code](https://github.com/project-everest/zeta/blob/master/steel/Zeta.Steel.Main.fsti#L195)
+
 
 ```
 val verify_log (#p:perm)
@@ -400,7 +402,8 @@ val verify_log (#p:perm)
 
 2. Query a monitor thread to find out the maximum certified epoch
 
-See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fsti#L185)
+See [Code](https://github.com/project-everest/zeta/blob/master/steel/Zeta.Steel.Main.fsti#L229)
+
 
 ```
 val max_certified_epoch (#p:perm) (#t:erased top_level_state) //implicit ghost args
@@ -698,7 +701,6 @@ element of an FPSA PCM over Zeta logs.
 
 The last commited state of all threads is `m`
 
-See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.ThreadLogMap.fsti#L36)
 
 ```
 val global_anchor (x:t)
@@ -717,7 +719,6 @@ exclusive ownership of that thread's log---no other thread owns an
 anchor on the thread and this grants full permission to the owner to
 update the log.
 
-See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.ThreadLogMap.fsti#L56)
 
 ```
 val tid_pts_to (x:t)
@@ -745,7 +746,6 @@ val tids_pts_to (x:t)
 
 The state of all threads is at least `m`:
 
-See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.ThreadLogMap.fsti#L65)
 
 ```
 val global_snapshot (x:t) (m: logs)
@@ -754,9 +754,6 @@ val global_snapshot (x:t) (m: logs)
 
 # Invariant again, now with FPSA
 
-See [the full aggregate state invariant](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.AggregateEpochHashes.fsti#L247)
-
-See [the full per-thread invariant](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.Main.fst#L36)
 
 ```
 
@@ -859,7 +856,6 @@ operations.
 
 # Ghost Operations
 
-See [Code](https://github.com/arvinda/veritas-formal/blob/nik_simulation/steel/Zeta.Steel.ThreadLogMap.fsti#L69)
 
 ## Allocation
 
