@@ -9,6 +9,7 @@ See the following resources:
 
 * [FastVer2](https://www.fstar-lang.org/papers/fastver2.pdf) at CPP 2022
 
+* [Proof Outline](./notes/ProofOutline.md)
 
 ```
    Client  <--------------->  Stateful
