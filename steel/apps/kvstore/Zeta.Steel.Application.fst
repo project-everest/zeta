@@ -1,5 +1,4 @@
 module Zeta.Steel.Application
-
 open Steel.ST.Effect.Atomic
 
 module U16 = FStar.UInt16
@@ -15,7 +14,7 @@ module S = Zeta.KeyValueStore.Spec
 module F = Zeta.KeyValueStore.Formats
 
 friend Zeta.Steel.ApplicationTypes
-
+open Steel.ST.Util
 /// Implementation of the steel/Zeta.Steel.Application interface
 ///
 /// Each app function implementation is staged
@@ -174,11 +173,37 @@ let vget_impl (#tsm:TSM.thread_state_model)
       return b
     end
 
+
+let intro_verify_runapp_success
+    (tsm:M.thread_state_model)
+    (t:V.thread_state_t)
+    (pl: runApp_payload)
+    (out_bytes:Ghost.erased bytes)
+    (out_offset:U32.t)
+    (out:A.array U8.t)
+    (out_bytes':Ghost.erased bytes)
+    (wrote:_)
+ : STT verify_runapp_result
+    (V.thread_state_inv t (M.verify_step_model tsm (RunApp pl)) `star` //tsm' is the new state of the thread
+     A.pts_to out full_perm out_bytes' `star`
+     pure (n_out_bytes tsm (M.verify_step_model tsm (RunApp pl)) out_offset wrote out_bytes out_bytes'))
+    (fun res ->
+      verify_runapp_entry_post tsm t pl out_bytes out_offset out res)
+= rewrite (A.pts_to out full_perm out_bytes')
+          (array_pts_to out out_bytes');
+  intro_exists (Ghost.reveal out_bytes') (fun (out_bytes':Seq.seq U8.t) ->
+        (let tsm' = M.verify_step_model tsm (RunApp pl) in
+         V.thread_state_inv t tsm' `star` //tsm' is the new state of the thread
+         array_pts_to out out_bytes' `star`
+         pure (n_out_bytes tsm tsm' out_offset wrote out_bytes out_bytes')));
+  return (Run_app_success wrote)
+ 
+
 //
 // The main vget function
 //
 // Its signature is same as Zeta.Steel.Application::run_app_function,
-//   with a precondition that pl.fid == vget
+//   with a precondition that pl.fid == vget 
 //
 let run_vget 
   (#log_perm:perm)
@@ -232,12 +257,15 @@ let run_vget
             let b = vget_impl t r (k, vopt) in
             if b
             then begin
+
               // We now have to match up to TSM.runapp
               // First eliminate conditional
               rewrite (if b
                        then VT.thread_state_inv_core t (vget_impl_tsm tsm r (k, vopt))
                        else VT.thread_state_inv_core t tsm)
                       (VT.thread_state_inv_core t (vget_impl_tsm tsm r (k, vopt)));
+
+
               // This write_slots is what is used in TSM.runapp,
               //   so assert equality and rewrite to write_slots
               let tsm_write_slots =
@@ -263,7 +291,6 @@ let run_vget
 
               // Not writing any output
               let wrote = 0ul in
-
               intro_pure (n_out_bytes
                             tsm
                             (TSM.verify_step_model tsm (RunApp pl))
@@ -271,7 +298,10 @@ let run_vget
                             wrote
                             out_bytes
                             out_bytes);
+              admit_();  //without this, the steel tactic loops for a very long time consuming lots of memory
               return (Run_app_success wrote)
+              // intro_verify_runapp_success tsm t pl out_bytes out_offset out out_bytes wrote
+             
             end
             else begin
               rewrite (if b
@@ -474,6 +504,7 @@ let run_vput
                             wrote
                             out_bytes
                             out_bytes);
+              admit_(); //without this, the steel tactic loops for a very long time consuming lots of memory
               return (Run_app_success wrote)
             end
             else begin
