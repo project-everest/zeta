@@ -759,7 +759,7 @@ let rec read_slots (tsm:thread_state_model)
                      | DValue None -> A.Null
                      | DValue (Some d) -> A.DValue d
                  in
-                 Some (Seq.Properties.cons (k, d) tl)
+                 Some (Seq.cons (k, d) tl)
                | _ ->
                  None
     )

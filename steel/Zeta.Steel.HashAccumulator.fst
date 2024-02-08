@@ -283,7 +283,7 @@ let aggregate_raw_hashes
             (inv 0);
     Loops.for_loop 0sz hash_len_sz inv body;
     assert (xor_bytes_pfx s1 s2 hash_len `Seq.equal` xor_bytes s1 s2);
-    rewrite (inv hash_len)
+    rewrite (inv (FStar.SizeT.v hash_len_sz))
             (A.pts_to b1 _ _ `star` A.pts_to b2 _ _);
     return ()
 
