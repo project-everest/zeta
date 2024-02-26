@@ -41,13 +41,14 @@ DIST_DIRECTORY=$(ZETA_HOME)/steel/dist
 
 INCLUDE_PATHS+=$(OUTPUT_DIRECTORY) $(SRC_DIRS) $(KRML_HOME)/krmllib $(KRML_HOME)/krmllib/obj $(STEEL_HOME)/lib/steel
 
+LOAD_PLUGIN ?= --load_cmxs steel
 FSTAR_OPTIONS=--odir $(OUTPUT_DIRECTORY) \
 		 $(OTHERFLAGS) \
 		 --cache_dir $(CACHE_DIRECTORY) \
 	         $(addprefix --include , $(INCLUDE_PATHS)) \
 		 --cache_checked_modules \
 		 --cmi \
-                 --load_cmxs steel
+                 $(LOAD_PLUGIN)
 
 FSTAR=$(FSTAR_HOME)/bin/fstar.exe $(FSTAR_OPTIONS) $(ALREADY_CACHED)
 
