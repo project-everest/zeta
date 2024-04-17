@@ -22,7 +22,8 @@ FSTAR_FILES ?=
 OTHERFLAGS+=$(PROFILE)
 
 # Backward compatibility with pre typed indexed effects (see F* PR 2760)
-OTHERFLAGS+=--compat_pre_typed_indexed_effects
+# and F* PR 3253
+OTHERFLAGS+=--compat_pre_typed_indexed_effects --ext 'compat:injectivity'
 
 # 271: theory symbols in smt patters
 WARN_ERROR=--warn_error -271
